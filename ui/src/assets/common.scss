@@ -103,8 +103,9 @@ body > main {
   grid-template-areas:
     "sidebar topbar"
     "sidebar alerts"
-    "sidebar page";
-  grid-template-rows: auto auto 1fr;
+    "sidebar page"
+    "statusbar statusbar";
+  grid-template-rows: auto auto 1fr auto;
   grid-template-columns: auto 1fr;
   color: #121212;
   overflow: hidden;
@@ -241,49 +242,6 @@ $bottom-tab-padding: 10px;
     padding: 4px;
     position: sticky;
     left: 0;
-  }
-}
-
-.pf-query-table {
-  min-width: 100%;
-  font-size: 14px;
-  border: 0;
-  thead td {
-    position: sticky;
-    top: 0;
-    background-color: hsl(214, 22%, 90%);
-    color: #262f3c;
-    text-align: center;
-    padding: 1px 3px;
-    border-style: solid;
-    border-color: #fff;
-    border-right-width: 1px;
-    border-left-width: 1px;
-  }
-  tbody tr {
-    @include transition();
-    background-color: hsl(214, 22%, 100%);
-    font-family: var(--monospace-font);
-    &:nth-child(even) {
-      background-color: hsl(214, 22%, 95%);
-    }
-    td:first-child {
-      padding-left: 5px;
-    }
-    td:last-child {
-      padding-right: 5px;
-    }
-    &:hover {
-      background-color: hsl(214, 22%, 90%);
-    }
-    &[clickable] {
-      cursor: pointer;
-      &:active {
-        background-color: hsl(206, 19%, 75%);
-        box-shadow: inset 1px 1px 4px #00000040;
-        transition: none;
-      }
-    }
   }
 }
 

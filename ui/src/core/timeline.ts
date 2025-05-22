@@ -18,13 +18,8 @@ import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {raf} from './raf_scheduler';
 import {HighPrecisionTime} from '../base/high_precision_time';
 import {DurationPrecision, Timeline, TimestampFormat} from '../public/timeline';
-import {
-  durationPrecision,
-  setDurationPrecision,
-  setTimestampFormat,
-  timestampFormat,
-} from './timestamp_format';
 import {TraceInfo} from '../public/trace_info';
+import {Setting} from '../public/settings';
 
 const MIN_DURATION = 10;
 
@@ -88,7 +83,11 @@ export class TimelineImpl implements Timeline {
     raf.scheduleCanvasRedraw();
   }
 
-  constructor(private readonly traceInfo: TraceInfo) {
+  constructor(
+    private readonly traceInfo: TraceInfo,
+    private readonly _timestampFormat: Setting<TimestampFormat>,
+    private readonly _durationPrecision: Setting<DurationPrecision>,
+  ) {
     this._visibleWindow = HighPrecisionTimeSpan.fromTime(
       traceInfo.start,
       traceInfo.end,
@@ -183,7 +182,7 @@ export class TimelineImpl implements Timeline {
 
   // Offset between t=0 and the configured time domain.
   timestampOffset(): time {
-    const fmt = timestampFormat();
+    const fmt = this.timestampFormat;
     switch (fmt) {
       case TimestampFormat.Timecode:
       case TimestampFormat.Seconds:
@@ -208,18 +207,18 @@ export class TimelineImpl implements Timeline {
   }
 
   get timestampFormat() {
-    return timestampFormat();
+    return this._timestampFormat.get();
   }
 
   set timestampFormat(format: TimestampFormat) {
-    setTimestampFormat(format);
+    this._timestampFormat.set(format);
   }
 
   get durationPrecision() {
-    return durationPrecision();
+    return this._durationPrecision.get();
   }
 
   set durationPrecision(precision: DurationPrecision) {
-    setDurationPrecision(precision);
+    this._durationPrecision.set(precision);
   }
 }

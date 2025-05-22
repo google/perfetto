@@ -18,6 +18,7 @@ import {
   Track,
   TrackManager,
   TrackFilterCriteria,
+  Overlay,
 } from '../public/track';
 import {AsyncLimiter} from '../base/async_limiter';
 import {TrackRenderContext} from '../public/track';
@@ -71,7 +72,8 @@ export class TrackFilterState {
  *   flushTracks() <-- 'foo' is destroyed.
  */
 export class TrackManagerImpl implements TrackManager {
-  private tracks = new Registry<TrackFSMImpl>((x) => x.desc.uri);
+  private readonly tracks = new Registry<TrackFSMImpl>((x) => x.desc.uri);
+  private readonly _overlays: Overlay[] = [];
 
   // This property is written by scroll_helper.ts and read&cleared by the
   // track_panel.ts. This exist for the following use case: the user wants to
@@ -91,6 +93,18 @@ export class TrackManagerImpl implements TrackManager {
 
   registerTrack(trackDesc: Track): Disposable {
     return this.tracks.register(new TrackFSMImpl(trackDesc));
+  }
+
+  registerOverlay(overlay: Overlay): Disposable {
+    this._overlays.push(overlay);
+    return {
+      [Symbol.dispose]: () => {
+        const index = this._overlays.indexOf(overlay);
+        if (index !== -1) {
+          this._overlays.splice(index, 1);
+        }
+      },
+    };
   }
 
   findTrack(
@@ -133,6 +147,10 @@ export class TrackManagerImpl implements TrackManager {
 
   get trackFilterCriteria(): ReadonlyArray<TrackFilterCriteria> {
     return this.filterCriteria;
+  }
+
+  get overlays(): ReadonlyArray<Overlay> {
+    return this._overlays;
   }
 }
 

@@ -813,6 +813,24 @@ class TraceStorage {
     return &surfaceflinger_transactions_table_;
   }
 
+  const tables::SurfaceFlingerTransactionTable&
+  surfaceflinger_transaction_table() const {
+    return surfaceflinger_transaction_table_;
+  }
+  tables::SurfaceFlingerTransactionTable*
+  mutable_surfaceflinger_transaction_table() {
+    return &surfaceflinger_transaction_table_;
+  }
+
+  const tables::SurfaceFlingerTransactionFlagTable&
+  surfaceflinger_transaction_flag_table() const {
+    return surfaceflinger_transaction_flag_table_;
+  }
+  tables::SurfaceFlingerTransactionFlagTable*
+  mutable_surfaceflinger_transaction_flag_table() {
+    return &surfaceflinger_transaction_flag_table_;
+  }
+
   const tables::ViewCaptureTable& viewcapture_table() const {
     return viewcapture_table_;
   }
@@ -859,6 +877,15 @@ class TraceStorage {
   tables::WindowManagerShellTransitionHandlersTable*
   mutable_window_manager_shell_transition_handlers_table() {
     return &window_manager_shell_transition_handlers_table_;
+  }
+
+  const tables::WindowManagerShellTransitionParticipantsTable&
+  window_manager_shell_transition_participants_table() const {
+    return window_manager_shell_transition_participants_table_;
+  }
+  tables::WindowManagerShellTransitionParticipantsTable*
+  mutable_window_manager_shell_transition_participants_table() {
+    return &window_manager_shell_transition_participants_table_;
   }
 
   const tables::WindowManagerShellTransitionProtosTable&
@@ -1138,6 +1165,10 @@ class TraceStorage {
   tables::SurfaceFlingerLayerTable surfaceflinger_layer_table_{&string_pool_};
   tables::SurfaceFlingerTransactionsTable surfaceflinger_transactions_table_{
       &string_pool_};
+  tables::SurfaceFlingerTransactionTable surfaceflinger_transaction_table_{
+      &string_pool_};
+  tables::SurfaceFlingerTransactionFlagTable
+      surfaceflinger_transaction_flag_table_{&string_pool_};
   tables::ViewCaptureTable viewcapture_table_{&string_pool_};
   tables::ViewCaptureViewTable viewcapture_view_table_{&string_pool_};
   tables::ViewCaptureInternedDataTable viewcapture_interned_data_table_{
@@ -1147,6 +1178,8 @@ class TraceStorage {
       window_manager_shell_transitions_table_{&string_pool_};
   tables::WindowManagerShellTransitionHandlersTable
       window_manager_shell_transition_handlers_table_{&string_pool_};
+  tables::WindowManagerShellTransitionParticipantsTable
+      window_manager_shell_transition_participants_table_{&string_pool_};
   tables::WindowManagerShellTransitionProtosTable
       window_manager_shell_transition_protos_table_{&string_pool_};
   tables::ProtoLogTable protolog_table_{&string_pool_};

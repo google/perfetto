@@ -240,6 +240,17 @@ PERFETTO_SDK_EXPORT bool PerfettoDsSetBufferExhaustedPolicy(
     struct PerfettoDsImpl*,
     uint32_t policy);
 
+// If `configurable` is set to true, the buffer exhausted policy (see
+// PerfettoDsSetBufferExhaustedPolicy()) will be configurable using the data
+// source config.
+//
+// Should not be called after PerfettoDsImplRegister().
+//
+// Returns true if successful, false otherwise.
+PERFETTO_SDK_EXPORT bool PerfettoDsSetBufferExhaustedPolicyConfigurable(
+    struct PerfettoDsImpl*,
+    bool configurable);
+
 // Registers the `*ds_impl` data source type.
 //
 // `ds_impl` must be obtained via a call to `PerfettoDsImplCreate()`.

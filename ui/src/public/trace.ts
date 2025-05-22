@@ -25,6 +25,8 @@ import {ScrollToArgs} from './scroll_helper';
 import {NoteManager} from './note';
 import {DisposableStack} from '../base/disposable_stack';
 import {Evt} from '../base/events';
+import {StatusbarManager} from './statusbar';
+import {MinimapManager} from './minimap';
 
 // Lists all the possible event listeners using the key as the event name and
 // the type as the type of the callback.
@@ -50,6 +52,8 @@ export interface Trace extends App {
   readonly workspace: Workspace;
   readonly workspaces: WorkspaceManager;
   readonly traceInfo: TraceInfo;
+  readonly statusbar: StatusbarManager;
+  readonly minimap: MinimapManager;
 
   // Events.
   onTraceReady: Evt<void>;

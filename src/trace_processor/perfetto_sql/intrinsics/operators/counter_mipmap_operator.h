@@ -120,6 +120,29 @@ struct CounterMipmapOperator : sqlite::Module<CounterMipmapOperator> {
   static int Column(sqlite3_vtab_cursor*, sqlite3_context*, int);
   static int Rowid(sqlite3_vtab_cursor*, sqlite_int64*);
 
+  static int Begin(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Sync(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Commit(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Rollback(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Savepoint(sqlite3_vtab* t, int r) {
+    CounterMipmapOperator::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<CounterMipmapOperator>::OnSavepoint(vtab->state,
+                                                                   r);
+    return SQLITE_OK;
+  }
+  static int Release(sqlite3_vtab* t, int r) {
+    CounterMipmapOperator::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<CounterMipmapOperator>::OnRelease(vtab->state,
+                                                                 r);
+    return SQLITE_OK;
+  }
+  static int RollbackTo(sqlite3_vtab* t, int r) {
+    CounterMipmapOperator::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<CounterMipmapOperator>::OnRollbackTo(vtab->state,
+                                                                    r);
+    return SQLITE_OK;
+  }
+
   // This needs to happen at the end as it depends on the functions
   // defined above.
   static constexpr sqlite3_module kModule = CreateModule();

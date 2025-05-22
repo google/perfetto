@@ -12,43 +12,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists, assertTrue} from '../base/logging';
-import {App} from '../public/app';
-import {TraceContext, TraceImpl} from './trace_impl';
-import {CommandManagerImpl} from './command_manager';
-import {OmniboxManagerImpl} from './omnibox_manager';
-import {raf} from './raf_scheduler';
-import {SidebarManagerImpl} from './sidebar_manager';
-import {PluginManagerImpl} from './plugin_manager';
-import {NewEngineMode} from '../trace_processor/engine';
-import {RouteArgs} from '../public/route_schema';
-import {SqlPackage} from '../public/extra_sql_packages';
-import {SerializedAppState} from './state_serialization_schema';
-import {PostedTrace, TraceSource} from './trace_source';
-import {loadTrace} from './load_trace';
-import {CORE_PLUGIN_ID} from './plugin_manager';
-import {Router} from './router';
-import {AnalyticsInternal, initAnalytics} from './analytics_impl';
-import {createProxy, getOrCreate} from '../base/utils';
-import {PageManagerImpl} from './page_manager';
-import {PageHandler} from '../public/page';
-import {PerfManager} from './perf_manager';
-import {ServiceWorkerController} from '../frontend/service_worker_controller';
-import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
-import {featureFlags} from './feature_flags';
-import {Raf} from '../public/raf';
 import {AsyncLimiter} from '../base/async_limiter';
-import {
-  PERFETTO_SETTINGS_STORAGE_KEY,
-  SettingsManagerImpl,
-} from './settings_manager';
-import {SettingsManager} from '../public/settings';
-import {LocalStorage} from './local_storage';
+import {assertExists, assertTrue} from '../base/logging';
+import {createProxy, getOrCreate} from '../base/utils';
+import {ServiceWorkerController} from '../frontend/service_worker_controller';
+import {App} from '../public/app';
+import {SqlPackage} from '../public/extra_sql_packages';
+import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
+import {PageHandler} from '../public/page';
+import {Raf} from '../public/raf';
+import {RouteArgs} from '../public/route_schema';
+import {Setting, SettingsManager} from '../public/settings';
+import {DurationPrecision, TimestampFormat} from '../public/timeline';
+import {NewEngineMode} from '../trace_processor/engine';
+import {AnalyticsInternal, initAnalytics} from './analytics_impl';
+import {CommandManagerImpl} from './command_manager';
+import {featureFlags} from './feature_flags';
+import {loadTrace} from './load_trace';
+import {OmniboxManagerImpl} from './omnibox_manager';
+import {PageManagerImpl} from './page_manager';
+import {PerfManager} from './perf_manager';
+import {CORE_PLUGIN_ID, PluginManagerImpl} from './plugin_manager';
+import {raf} from './raf_scheduler';
+import {Router} from './router';
+import {SettingsManagerImpl} from './settings_manager';
+import {SidebarManagerImpl} from './sidebar_manager';
+import {SerializedAppState} from './state_serialization_schema';
+import {TraceContext, TraceImpl} from './trace_impl';
+import {PostedTrace, TraceSource} from './trace_source';
 
 // The args that frontend/index.ts passes when calling AppImpl.initialize().
 // This is to deal with injections that would otherwise cause circular deps.
 export interface AppInitArgs {
-  initialRouteArgs: RouteArgs;
+  readonly initialRouteArgs: RouteArgs;
+  readonly settingsManager: SettingsManagerImpl;
+  readonly timestampFormatSetting: Setting<TimestampFormat>;
+  readonly durationPrecisionSetting: Setting<DurationPrecision>;
 }
 
 /**
@@ -80,9 +79,7 @@ export class AppContext {
   readonly embeddedMode: boolean;
   readonly testingMode: boolean;
   readonly openTraceAsyncLimiter = new AsyncLimiter();
-  readonly settingsManager = new SettingsManagerImpl(
-    new LocalStorage(PERFETTO_SETTINGS_STORAGE_KEY),
-  );
+  readonly settingsManager: SettingsManagerImpl;
 
   // This is normally empty and is injected with extra google-internal packages
   // via is_internal_user.js
@@ -102,9 +99,15 @@ export class AppContext {
     return assertExists(AppContext._instance);
   }
 
+  readonly timestampFormat: Setting<TimestampFormat>;
+  readonly durationPrecision: Setting<DurationPrecision>;
+
   // This constructor is invoked only once, when frontend/index.ts invokes
   // AppMainImpl.initialize().
   private constructor(initArgs: AppInitArgs) {
+    this.timestampFormat = initArgs.timestampFormatSetting;
+    this.durationPrecision = initArgs.durationPrecisionSetting;
+    this.settingsManager = initArgs.settingsManager;
     this.initArgs = initArgs;
     this.initialRouteArgs = initArgs.initialRouteArgs;
     this.serviceWorkerController = new ServiceWorkerController();
@@ -337,6 +340,10 @@ export class AppImpl implements App {
   // Called by trace_loader.ts soon after it has created a new TraceImpl.
   setActiveTrace(traceImpl: TraceImpl) {
     this.appCtx.setActiveTrace(traceImpl.__traceCtxForApp);
+  }
+
+  closeCurrentTrace() {
+    this.appCtx.closeCurrentTrace();
   }
 
   get embeddedMode(): boolean {

@@ -121,6 +121,7 @@ SURFACE_FLINGER_TRANSACTIONS_TABLE = Table(
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppOptional(CppUint32())),
         C('base64_proto_id', CppOptional(CppUint32())),
+        C('vsync_id', CppOptional(CppInt64())),
     ],
     tabledoc=TableDoc(
         doc='SurfaceFlinger transactions. Each row contains a set of ' +
@@ -130,6 +131,67 @@ SURFACE_FLINGER_TRANSACTIONS_TABLE = Table(
             'ts': 'Timestamp of the transactions commit',
             'arg_set_id': 'Extra args parsed from the proto message',
             'base64_proto_id': 'String id for raw proto message',
+            'vsync_id': 'Vsync id taken from raw proto message',
+        }))
+
+SURFACE_FLINGER_TRANSACTION_TABLE = Table(
+    python_module=__file__,
+    class_name='SurfaceFlingerTransactionTable',
+    sql_name='__intrinsic_surfaceflinger_transaction',
+    columns=[
+        C('snapshot_id', CppTableId(SURFACE_FLINGER_TRANSACTIONS_TABLE)),
+        C('arg_set_id', CppOptional(CppUint32())),
+        C('base64_proto_id', CppOptional(CppUint32())),
+        C('transaction_id', CppOptional(CppInt64())),
+        C('pid', CppOptional(CppUint32())),
+        C('uid', CppOptional(CppUint32())),
+        C('layer_id', CppOptional(CppUint32())),
+        C('display_id', CppOptional(CppUint32())),
+        C('flags_id', CppOptional(CppUint32())),
+        C('transaction_type', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc='SurfaceFlinger transaction',
+        group='Winscope',
+        columns={
+            'snapshot_id':
+                'The snapshot that generated this transaction',
+            'arg_set_id':
+                'Extra args parsed from the proto message',
+            'base64_proto_id':
+                'String id for raw proto message',
+            'transaction_id':
+                'Transaction id taken from raw proto message',
+            'pid':
+                'Pid taken from raw proto message',
+            'uid':
+                'Uid taken from raw proto message',
+            'layer_id':
+                'Layer id taken from raw proto message',
+            'display_id':
+                'Display id taken from raw proto message',
+            'flags_id':
+                'Flags id used to retrieve associated flags from __intrinsic_surfaceflinger_transaction_flag',
+            'transaction_type':
+                'Transaction type'
+        }))
+
+SURFACE_FLINGER_TRANSACTION_FLAG_TABLE = Table(
+    python_module=__file__,
+    class_name='SurfaceFlingerTransactionFlagTable',
+    sql_name='__intrinsic_surfaceflinger_transaction_flag',
+    columns=[
+        C('flags_id', CppOptional(CppUint32())),
+        C('flag', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc='SurfaceFlinger transaction flags',
+        group='Winscope',
+        columns={
+            'flags_id':
+                'The flags_id corresponding to a row in __intrinsic_surfaceflinger_transaction',
+            'flag':
+                'The translated flag string',
         }))
 
 VIEWCAPTURE_TABLE = Table(
@@ -196,14 +258,38 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
         C('ts', CppInt64()),
         C('transition_id', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppOptional(CppUint32())),
+        C('transition_type', CppOptional(CppUint32())),
+        C('send_time_ns', CppOptional(CppInt64())),
+        C('dispatch_time_ns', CppOptional(CppInt64())),
+        C('duration_ns', CppOptional(CppInt64())),
+        C('handler', CppOptional(CppInt64())),
+        C('status', CppOptional(CppString())),
+        C('flags', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
         doc='Window Manager Shell Transitions',
         group='Winscope',
         columns={
-            'ts': 'The timestamp the transition started playing',
-            'transition_id': 'The id of the transition',
-            'arg_set_id': 'Extra args parsed from the proto message',
+            'ts':
+                'The timestamp the transition started playing - either dispatch time or send time',
+            'transition_id':
+                'The id of the transition',
+            'arg_set_id':
+                'Extra args parsed from the proto message',
+            'transition_type':
+                'The type of the transition',
+            'send_time_ns':
+                'Transition send time',
+            'dispatch_time_ns':
+                'Transition dispatch time',
+            'duration_ns':
+                'Transition duration',
+            'handler':
+                'Handler id',
+            'status':
+                'Transition status',
+            'flags':
+                'Transition flags',
         }))
 
 WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE = Table(
@@ -222,6 +308,24 @@ WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE = Table(
             'handler_id': 'The id of the handler',
             'handler_name': 'The name of the handler',
             'base64_proto_id': 'String id for raw proto message',
+        }))
+
+WINDOW_MANAGER_SHELL_TRANSITION_PARTICIPANTS_TABLE = Table(
+    python_module=__file__,
+    class_name='WindowManagerShellTransitionParticipantsTable',
+    sql_name='__intrinsic_window_manager_shell_transition_participants',
+    columns=[
+        C('transition_id', CppInt64()),
+        C('layer_id', CppOptional(CppUint32())),
+        C('window_id', CppOptional(CppUint32())),
+    ],
+    tabledoc=TableDoc(
+        doc='Window Manager Shell Transition Participants',
+        group='Winscope',
+        columns={
+            'transition_id': 'Transition id',
+            'layer_id': 'Id of layer participant',
+            'window_id': 'Id of window participant',
         }))
 
 WINDOW_MANAGER_SHELL_TRANSITION_PROTOS_TABLE = Table(
@@ -298,11 +402,14 @@ ALL_TABLES = [
     SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE,
     SURFACE_FLINGER_LAYER_TABLE,
     SURFACE_FLINGER_TRANSACTIONS_TABLE,
+    SURFACE_FLINGER_TRANSACTION_TABLE,
+    SURFACE_FLINGER_TRANSACTION_FLAG_TABLE,
     VIEWCAPTURE_TABLE,
     VIEWCAPTURE_VIEW_TABLE,
     VIEWCAPTURE_INTERNED_DATA_TABLE,
     WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE,
     WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE,
+    WINDOW_MANAGER_SHELL_TRANSITION_PARTICIPANTS_TABLE,
     WINDOW_MANAGER_SHELL_TRANSITION_PROTOS_TABLE,
     WINDOW_MANAGER_TABLE,
 ]

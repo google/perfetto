@@ -19,7 +19,6 @@ import {assertUnreachable} from '../../base/logging';
 import {time, Time} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {formatDuration} from '../../components/time_utils';
-import {timestampFormat} from '../../core/timestamp_format';
 import {TraceImpl} from '../../core/trace_impl';
 import {TimestampFormat} from '../../public/timeline';
 import {
@@ -225,7 +224,7 @@ export class TimeSelectionPanel {
   ) {
     const xPos = Math.floor(timescale.timeToPx(ts));
     const domainTime = this.trace.timeline.toDomainTime(ts);
-    const label = stringifyTimestamp(domainTime);
+    const label = this.stringifyTimestamp(domainTime);
     drawIBar(ctx, xPos, this.getBBoxFromSize(size), label);
   }
 
@@ -260,27 +259,27 @@ export class TimeSelectionPanel {
       height: size.height,
     };
   }
-}
 
-function stringifyTimestamp(time: time): string {
-  const fmt = timestampFormat();
-  switch (fmt) {
-    case TimestampFormat.UTC:
-    case TimestampFormat.TraceTz:
-    case TimestampFormat.Timecode:
-      const THIN_SPACE = '\u2009';
-      return Time.toTimecode(time).toString(THIN_SPACE);
-    case TimestampFormat.TraceNs:
-      return time.toString();
-    case TimestampFormat.TraceNsLocale:
-      return time.toLocaleString();
-    case TimestampFormat.Seconds:
-      return Time.formatSeconds(time);
-    case TimestampFormat.Milliseconds:
-      return Time.formatMilliseconds(time);
-    case TimestampFormat.Microseconds:
-      return Time.formatMicroseconds(time);
-    default:
-      assertUnreachable(fmt);
+  private stringifyTimestamp(time: time): string {
+    const fmt = this.trace.timeline.timestampFormat;
+    switch (fmt) {
+      case TimestampFormat.UTC:
+      case TimestampFormat.TraceTz:
+      case TimestampFormat.Timecode:
+        const THIN_SPACE = '\u2009';
+        return Time.toTimecode(time).toString(THIN_SPACE);
+      case TimestampFormat.TraceNs:
+        return time.toString();
+      case TimestampFormat.TraceNsLocale:
+        return time.toLocaleString();
+      case TimestampFormat.Seconds:
+        return Time.formatSeconds(time);
+      case TimestampFormat.Milliseconds:
+        return Time.formatMilliseconds(time);
+      case TimestampFormat.Microseconds:
+        return Time.formatMicroseconds(time);
+      default:
+        assertUnreachable(fmt);
+    }
   }
 }

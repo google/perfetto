@@ -15,6 +15,7 @@
  */
 
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "perfetto/ext/base/utils.h"
 
 #include "test/gtest_and_gmock.h"
 
@@ -98,6 +99,48 @@ TEST(FtraceProcfsTest, ParseAvailableClocks) {
   EXPECT_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
       .WillOnce(Return("\n\n\n\n"));
   EXPECT_THAT(ftrace.AvailableClocks(), IsEmpty());
+}
+
+TEST(FtraceProcfsTest, ReadBufferSizeInPages) {
+  MockFtraceProcfs ftrace;
+  uint32_t page_in_kb = base::GetSysPageSize() / 1024ul;
+
+  // Boundary checks
+  EXPECT_CALL(ftrace, ReadFileIntoString("/root/buffer_size_kb"))
+      .WillOnce(Return(std::to_string(page_in_kb) + "\n"));
+  EXPECT_THAT(ftrace.GetCpuBufferSizeInPages(), 1);
+
+  EXPECT_CALL(ftrace, ReadFileIntoString("/root/buffer_size_kb"))
+      .WillOnce(Return(std::to_string(page_in_kb - 1) + "\n"));
+  EXPECT_THAT(ftrace.GetCpuBufferSizeInPages(), 1);
+
+  EXPECT_CALL(ftrace, ReadFileIntoString("/root/buffer_size_kb"))
+      .WillOnce(Return(std::to_string(page_in_kb + 1) + "\n"));
+  EXPECT_THAT(ftrace.GetCpuBufferSizeInPages(), 2);
+
+  EXPECT_CALL(ftrace, ReadFileIntoString("/root/buffer_size_kb"))
+      .WillOnce(Return(std::to_string(2 * page_in_kb) + "\n"));
+  EXPECT_THAT(ftrace.GetCpuBufferSizeInPages(), 2);
+
+  EXPECT_CALL(ftrace, ReadFileIntoString("/root/buffer_size_kb"))
+      .WillOnce(Return(std::to_string(2 * page_in_kb + 1) + "\n"));
+  EXPECT_THAT(ftrace.GetCpuBufferSizeInPages(), 3);
+
+  // Read before setup buffer size.
+  EXPECT_CALL(ftrace, ReadFileIntoString("/root/buffer_size_kb"))
+      .WillOnce(
+          Return(std::to_string(2 * page_in_kb - 1) + " (expanded: 1408)\n"));
+  EXPECT_THAT(ftrace.GetCpuBufferSizeInPages(), 2);
+
+  // Failed to read file (e.g. permission error)
+  EXPECT_CALL(ftrace, ReadFileIntoString("/root/buffer_size_kb"))
+      .WillOnce(Return(""));
+  EXPECT_THAT(ftrace.GetCpuBufferSizeInPages(), 1);
+
+  // Wrong string
+  EXPECT_CALL(ftrace, ReadFileIntoString("/root/buffer_size_kb"))
+      .WillOnce(Return("\n\n\n\n"));
+  EXPECT_THAT(ftrace.GetCpuBufferSizeInPages(), 1);
 }
 
 }  // namespace

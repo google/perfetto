@@ -457,13 +457,14 @@ class PerfettoTable(TestSuite):
         query="""
         SELECT flat_key, key, int_value, string_value, real_value FROM __intrinsic_winscope_proto_to_args_with_defaults('surfaceflinger_layer') AS sfl
         ORDER BY sfl.base64_proto_id, key
-        LIMIT 95
+        LIMIT 96
         """,
         out=Csv("""
         "flat_key","key","int_value","string_value","real_value"
         "active_buffer","active_buffer","[NULL]","[NULL]","[NULL]"
         "app_id","app_id",0,"[NULL]","[NULL]"
         "background_blur_radius","background_blur_radius",0,"[NULL]","[NULL]"
+        "background_blur_scale","background_blur_scale","[NULL]","[NULL]",0.000000
         "barrier_layer","barrier_layer","[NULL]","[NULL]","[NULL]"
         "blur_regions","blur_regions","[NULL]","[NULL]","[NULL]"
         "bounds.bottom","bounds.bottom","[NULL]","[NULL]",24000.000000
@@ -614,7 +615,7 @@ class PerfettoTable(TestSuite):
         query="""
           SELECT key, int_value, real_value FROM __intrinsic_winscope_proto_to_args_with_defaults('__intrinsic_window_manager_shell_transition_protos') as tbl
           ORDER BY tbl.base64_proto_id, key
-          LIMIT 53
+          LIMIT 56
           """,
         out=Csv("""
           "key","int_value","real_value"
@@ -632,6 +633,7 @@ class PerfettoTable(TestSuite):
           "type",0,"[NULL]"
           "wm_abort_time_ns",0,"[NULL]"
           "create_time_ns",77854865352,"[NULL]"
+          "dispatch_time_ns",77899001013,"[NULL]"
           "finish_transaction_id",5604932322159,"[NULL]"
           "flags",0,"[NULL]"
           "merge_request_time_ns",0,"[NULL]"
@@ -655,7 +657,9 @@ class PerfettoTable(TestSuite):
           "shell_abort_time_ns",0,"[NULL]"
           "start_transaction_id",5604932322346,"[NULL]"
           "starting_window_remove_time_ns",0,"[NULL]"
-          "targets","[NULL]","[NULL]"
+          "targets[0].flags",0,"[NULL]"
+          "targets[0].mode",0,"[NULL]"
+          "targets[0].window_id",11,"[NULL]"
           "type",0,"[NULL]"
           "wm_abort_time_ns",0,"[NULL]"
           "create_time_ns",76955664017,"[NULL]"

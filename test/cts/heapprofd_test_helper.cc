@@ -317,4 +317,25 @@ void AssertNoProfileContents(
   }
 }
 
+// Copied from
+// https://source.corp.google.com/h/googleplex-android/platform/superproject/main/+/main:system/libbase/include/android-base/macros.h;l=137
+// Current ABI string
+#if defined(__arm__)
+#define ABI_STRING "arm"
+#elif defined(__aarch64__)
+#define ABI_STRING "arm64"
+#elif defined(__i386__)
+#define ABI_STRING "x86"
+#elif defined(__riscv)
+#define ABI_STRING "riscv64"
+#elif defined(__x86_64__)
+#define ABI_STRING "x86_64"
+#endif
+
+bool RunningWithNativeBridge() {
+  static const prop_info* pi =
+      __system_property_find("ro.dalvik.vm.isa." ABI_STRING);
+  return pi != nullptr;
+}
+
 }  // namespace perfetto

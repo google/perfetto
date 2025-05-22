@@ -22,6 +22,12 @@ import {Monitor} from '../../base/monitor';
 import {AsyncLimiter} from '../../base/async_limiter';
 import {escapeGlob, escapeQuery} from '../../trace_processor/query_utils';
 import {Select} from '../../widgets/select';
+import {
+  MultiSelectDiff,
+  MultiSelectOption,
+  PopupMultiSelect,
+} from '../../widgets/multiselect';
+import {PopupPosition} from '../../widgets/popup';
 import {Button} from '../../widgets/button';
 import {TextInput} from '../../widgets/text_input';
 import {VirtualTable, VirtualTableRow} from '../../widgets/virtual_table';
@@ -37,9 +43,15 @@ export interface LogFilteringCriteria {
   tags: string[];
   textEntry: string;
   hideNonMatching: boolean;
+  machineExcludeList: number[];
+}
+
+export interface LogPanelCache {
+  uniqueMachineIds: number[];
 }
 
 export interface LogPanelAttrs {
+  cache: LogPanelCache;
   filterStore: Store<LogFilteringCriteria>;
   trace: Trace;
 }
@@ -51,7 +63,10 @@ interface Pagination {
 
 interface LogEntries {
   offset: number;
+  machineIds: number[];
   timestamps: time[];
+  pids: number[];
+  tids: number[];
   priorities: number[];
   tags: string[];
   messages: string[];
@@ -86,6 +101,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       this.reloadData(attrs);
     }
 
+    const hasMachineIds = attrs.cache.uniqueMachineIds.length > 1;
     const hasProcessNames =
       this.entries &&
       this.entries.processName.filter((name) => name).length > 0;
@@ -96,12 +112,19 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       {
         title: 'Android Logs',
         description: `Total messages: ${totalEvents}`,
-        buttons: m(LogsFilters, {trace: attrs.trace, store: attrs.filterStore}),
+        buttons: m(LogsFilters, {
+          trace: attrs.trace,
+          cache: attrs.cache,
+          store: attrs.filterStore,
+        }),
       },
       m(VirtualTable, {
         className: 'pf-android-logs-table',
         columns: [
+          ...(hasMachineIds ? [{header: 'Machine', width: '6em'}] : []),
           {header: 'Timestamp', width: '13em'},
+          {header: 'PID', width: '3em'},
+          {header: 'TID', width: '3em'},
           {header: 'Level', width: '4em'},
           {header: 'Tag', width: '13em'},
           ...(hasProcessNames ? [{header: 'Process', width: '18em'}] : []),
@@ -110,7 +133,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
           // columns will pull the columns to the right out of line.
           {header: 'Message', width: ''},
         ],
-        rows: this.renderRows(hasProcessNames),
+        rows: this.renderRows(hasMachineIds, hasProcessNames),
         firstRowOffset: this.entries?.offset ?? 0,
         numRows: this.entries?.totalEvents ?? 0,
         rowHeight: ROW_H,
@@ -147,12 +170,18 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
     });
   }
 
-  private renderRows(hasProcessNames: boolean | undefined): VirtualTableRow[] {
+  private renderRows(
+    hasMachineIds: boolean | undefined,
+    hasProcessNames: boolean | undefined,
+  ): VirtualTableRow[] {
     if (!this.entries) {
       return [];
     }
 
+    const machineIds = this.entries.machineIds;
     const timestamps = this.entries.timestamps;
+    const pids = this.entries.pids;
+    const tids = this.entries.tids;
     const priorities = this.entries.priorities;
     const tags = this.entries.tags;
     const messages = this.entries.messages;
@@ -171,7 +200,10 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
           this.entries.isHighlighted[i] && 'pf-highlighted',
         ),
         cells: [
+          ...(hasMachineIds ? [machineIds[i]] : []),
           m(Timestamp, {ts}),
+          pids[i],
+          tids[i],
           priorityLetter || '?',
           tags[i],
           ...(hasProcessNames ? [processNames[i]] : []),
@@ -268,11 +300,14 @@ class FilterByTextWidget implements m.ClassComponent<FilterByTextWidgetAttrs> {
 
 interface LogsFiltersAttrs {
   readonly trace: Trace;
+  readonly cache: LogPanelCache;
   readonly store: Store<LogFilteringCriteria>;
 }
 
 export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
   view({attrs}: m.CVnode<LogsFiltersAttrs>) {
+    const hasMachineIds = attrs.cache.uniqueMachineIds.length > 1;
+
     return [
       m('.log-label', 'Log Level'),
       m(LogPriorityWidget, {
@@ -316,7 +351,44 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
         },
         disabled: attrs.store.state.textEntry === '',
       }),
+      hasMachineIds && this.renderFilterPanel(attrs),
     ];
+  }
+
+  private renderFilterPanel(attrs: LogsFiltersAttrs) {
+    const machineExcludeList = attrs.store.state.machineExcludeList;
+    const options: MultiSelectOption[] = attrs.cache.uniqueMachineIds.map(
+      (uMachineId) => {
+        return {
+          id: String(uMachineId),
+          name: `Machine ${uMachineId}`,
+          checked: !machineExcludeList.some(
+            (excluded: number) => excluded === uMachineId,
+          ),
+        };
+      },
+    );
+
+    return m(PopupMultiSelect, {
+      label: 'Filter by machine',
+      icon: 'filter_list_alt',
+      popupPosition: PopupPosition.Top,
+      options,
+      onChange: (diffs: MultiSelectDiff[]) => {
+        const newList = new Set<number>(machineExcludeList);
+        diffs.forEach(({checked, id}) => {
+          const machineId = Number(id);
+          if (checked) {
+            newList.delete(machineId);
+          } else {
+            newList.add(machineId);
+          }
+        });
+        attrs.store.edit((draft) => {
+          draft.machineExcludeList = Array.from(newList);
+        });
+      },
+    });
   }
 }
 
@@ -328,19 +400,25 @@ async function updateLogEntries(
   const rowsResult = await engine.query(`
         select
           ts,
+          pid,
+          tid,
           prio,
           ifnull(tag, '[NULL]') as tag,
           ifnull(msg, '[NULL]') as msg,
           is_msg_highlighted as isMsgHighlighted,
           is_process_highlighted as isProcessHighlighted,
-          ifnull(process_name, '') as processName
+          ifnull(process_name, '') as processName,
+          machine_id as machineId
         from filtered_logs
         where ts >= ${span.start} and ts <= ${span.end}
         order by ts
         limit ${pagination.offset}, ${pagination.count}
     `);
 
+  const machineIds = [];
   const timestamps: time[] = [];
+  const pids = [];
+  const tids = [];
   const priorities = [];
   const tags = [];
   const messages = [];
@@ -349,15 +427,20 @@ async function updateLogEntries(
 
   const it = rowsResult.iter({
     ts: LONG,
+    pid: NUM,
+    tid: NUM,
     prio: NUM,
     tag: STR,
     msg: STR,
     isMsgHighlighted: NUM_NULL,
     isProcessHighlighted: NUM,
     processName: STR,
+    machineId: NUM_NULL,
   });
   for (; it.valid(); it.next()) {
     timestamps.push(Time.fromRaw(it.ts));
+    pids.push(it.pid);
+    tids.push(it.tid);
     priorities.push(it.prio);
     tags.push(it.tag);
     messages.push(it.msg);
@@ -365,6 +448,7 @@ async function updateLogEntries(
       it.isMsgHighlighted === 1 || it.isProcessHighlighted === 1,
     );
     processName.push(it.processName);
+    machineIds.push(it.machineId ?? 0); // Id 0 is for the primary VM
   }
 
   const queryRes = await engine.query(`
@@ -377,7 +461,10 @@ async function updateLogEntries(
 
   return {
     offset: pagination.offset,
+    machineIds,
     timestamps,
+    pids,
+    tids,
     priorities,
     tags,
     messages,
@@ -391,14 +478,18 @@ async function updateLogView(engine: Engine, filter: LogFilteringCriteria) {
   await engine.query('drop view if exists filtered_logs');
 
   const globMatch = composeGlobMatch(filter.hideNonMatching, filter.textEntry);
-  let selectedRows = `select prio, ts, tag, msg,
-      process.name as process_name, ${globMatch}
+  let selectedRows = `select prio, ts, pid, tid, tag, msg,
+      process.name as process_name,
+      process.machine_id as machine_id, ${globMatch}
       from android_logs
       left join thread using(utid)
       left join process using(upid)
       where prio >= ${filter.minimumLevel}`;
   if (filter.tags.length) {
     selectedRows += ` and tag in (${serializeTags(filter.tags)})`;
+  }
+  if (filter.machineExcludeList.length) {
+    selectedRows += ` and ifnull(process.machine_id, 0) not in (${filter.machineExcludeList.join(',')})`;
   }
 
   // We extract only the rows which will be visible.

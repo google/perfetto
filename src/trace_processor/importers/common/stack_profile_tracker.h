@@ -20,8 +20,10 @@
 #include <cstdint>
 #include <optional>
 #include <tuple>
+#include <unordered_set>
 #include <vector>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 
@@ -62,31 +64,22 @@ class StackProfileTracker {
 
   void OnFrameCreated(FrameId frame_id);
 
+  void SetPackageForFrame(StringId package, FrameId);
+
+  bool FrameHasUnknownPackage(FrameId) const;
+
+  bool HasFramesWithoutKnownPackage() const;
+
  private:
   TraceProcessorContext* const context_;
   base::FlatHashMap<tables::StackProfileCallsiteTable::Row, CallsiteId>
       callsite_unique_row_index_;
 
-  struct FrameKey {
-    MappingId mapping_id;
-    uint64_t rel_pc;
+  base::
+      FlatHashMap<NameInPackage, base::FlatSet<FrameId>, NameInPackage::Hasher>
+          java_frames_for_name_;
 
-    bool operator==(const FrameKey& o) const {
-      return mapping_id == o.mapping_id && rel_pc == o.rel_pc;
-    }
-
-    bool operator!=(const FrameKey& o) const { return !(*this == o); }
-
-    struct Hasher {
-      size_t operator()(const FrameKey& o) const {
-        return static_cast<size_t>(
-            base::Hasher::Combine(o.mapping_id.value, o.rel_pc));
-      }
-    };
-  };
-
-  base::FlatHashMap<NameInPackage, std::vector<FrameId>, NameInPackage::Hasher>
-      java_frames_for_name_;
+  std::unordered_set<FrameId> java_frames_with_unknown_packages_;
 };
 
 }  // namespace trace_processor

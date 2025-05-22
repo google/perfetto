@@ -39,6 +39,12 @@ export function assertExists<A>(
   return value;
 }
 
+// assertExists trips over NULLs, but in many contexts NULL is a valid SQL value we have to work with.
+export function assertDefined<T>(value: T | undefined): T {
+  if (value === undefined) throw new Error('Value is undefined');
+  return value;
+}
+
 export function assertIsInstance<T>(
   value: unknown,
   clazz: Function,
