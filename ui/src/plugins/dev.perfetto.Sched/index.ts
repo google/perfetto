@@ -16,7 +16,12 @@ import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {getThreadUriPrefix, getTrackName} from '../../public/utils';
-import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
+import {
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 import {createThreadStateTrack} from './thread_state_track';
 import {removeFalsyValues} from '../../base/array_utils';
 import {TrackNode} from '../../public/workspace';
@@ -32,6 +37,9 @@ import {CpuSliceSelectionAggregator} from './cpu_slice_selection_aggregator';
 import {uriForSchedTrack} from './common';
 import {CpuSliceTrack} from './cpu_slice_track';
 import {WakerOverlay} from './waker_overlay';
+import {duration, time, Time} from '../../base/time';
+import {createPerfettoTable} from '../../trace_processor/sql_utils';
+import {MinimapRow} from '../../public/minimap';
 
 function uriForThreadStateTrack(upid: number | null, utid: number): string {
   return `${getThreadUriPrefix(upid, utid)}_state`;
@@ -44,6 +52,7 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addCpuSliceTracks(ctx);
     await this.addThreadStateTracks(ctx);
+    await this.addMinimapProvider(ctx);
   }
 
   async addCpuSliceTracks(ctx: Trace): Promise<void> {
@@ -120,6 +129,20 @@ export default class implements PerfettoPlugin {
     return cpuToClusterType;
   }
 
+  private async getCpus(engine: Engine): Promise<number[]> {
+    const result = await engine.query(`
+      SELECT DISTINCT
+        ucpu
+      FROM sched
+    `);
+    const it = result.iter({ucpu: NUM});
+    const cpus: number[] = [];
+    for (; it.valid(); it.next()) {
+      cpus.push(it.ucpu);
+    }
+    return cpus;
+  }
+
   private async addThreadStateTracks(ctx: Trace) {
     const {engine} = ctx;
 
@@ -182,5 +205,99 @@ export default class implements PerfettoPlugin {
       const track = new TrackNode({uri, title, sortOrder: 10});
       group?.addChildInOrder(track);
     }
+  }
+
+  private async addMinimapProvider(trace: Trace) {
+    const hasSched = await this.hasSched(trace.engine);
+    if (!hasSched) {
+      return;
+    }
+
+    trace.minimap.registerContentProvider({
+      priority: 2, // Higher priority than the default slices minimap
+      getData: async (_, resolution) => {
+        const start = trace.traceInfo.start;
+        const end = trace.traceInfo.end;
+        const cpus = await this.getCpus(trace.engine);
+        const rows: MinimapRow[] = [];
+
+        const intervals: bigint[] = [];
+        for (let i: bigint = start; i < end; i += resolution) {
+          intervals.push(i);
+        }
+
+        const values = intervals
+          .map((ts, index) => `(${index}, ${ts}, ${resolution})`)
+          .join();
+
+        const intervalsTableName = '__minimap_sched_intervals';
+
+        await trace.engine.query(`
+          CREATE TABLE ${intervalsTableName} (
+            id INTEGER PRIMARY KEY,
+            ts INTEGER,
+            dur INTEGER
+          );
+
+          INSERT INTO ${intervalsTableName} (id, ts, dur)
+          values ${values}
+        `);
+
+        for (const cpu of cpus) {
+          // TODO(stevegolton): Obtain source data from the track's datasets
+          // instead of repeating it here?
+          const schedTableName = '__sched_per_cpu';
+          await using _schedTable = await createPerfettoTable(
+            trace.engine,
+            schedTableName,
+            `
+              SELECT
+                *
+              FROM sched
+              WHERE
+                dur > 0 AND
+                ucpu = ${cpu} AND
+                NOT utid IN (SELECT utid FROM thread WHERE is_idle)
+            `,
+          );
+
+          const entireQuery = `
+            SELECT
+              id_1 AS bucketId,
+              CAST(SUM(ii.dur) AS FLOAT)/${resolution} AS load,
+              intervals.ts AS ts,
+              intervals.dur AS dur
+            FROM _interval_intersect!((${schedTableName}, ${intervalsTableName}), ()) ii
+            JOIN ${intervalsTableName} intervals ON (id_1 = intervals.id)
+            GROUP BY id_1;
+          `;
+
+          const results = await trace.engine.query(entireQuery);
+          const iter = results.iter({
+            load: NUM,
+            ts: LONG,
+            dur: LONG,
+          });
+
+          const loads: {ts: time; load: number; dur: duration}[] = [];
+          for (; iter.valid(); iter.next()) {
+            loads.push({
+              load: iter.load,
+              ts: Time.fromRaw(iter.ts),
+              dur: iter.dur,
+            });
+          }
+
+          rows.push(loads);
+        }
+
+        return rows;
+      },
+    });
+  }
+
+  private async hasSched(engine: Engine): Promise<boolean> {
+    const result = await engine.query(`SELECT ts FROM sched LIMIT 1`);
+    return result.numRows() > 0;
   }
 }

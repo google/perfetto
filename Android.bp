@@ -1169,7 +1169,7 @@ cc_library_static {
 
 // GN: //src/android_sdk/jni:libperfetto_jni
 cc_library_shared {
-    name: "libperfetto_jni_lib",
+    name: "libperfetto_jni",
     srcs: [
         ":perfetto_include_perfetto_public_abi_base",
         ":perfetto_include_perfetto_public_abi_public",
@@ -14792,6 +14792,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/android/freezer.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/garbage_collection.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/gpu/frequency.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/gpu/mali_power_state.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/gpu/memory.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/gpu/work_period.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/input.sql",
@@ -16380,7 +16381,7 @@ android_test {
     ],
     test_config: "src/android_sdk/java/test/PerfettoAndroidSdkTest.xml",
     jni_libs: [
-        "libperfetto_jni_lib",
+        "libperfetto_jni",
     ],
     jni_uses_platform_apis: true,
 }

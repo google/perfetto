@@ -55,6 +55,7 @@ import {Raf} from '../public/raf';
 import {StatusbarManagerImpl} from './statusbar_manager';
 import {Setting, SettingDescriptor, SettingsManager} from '../public/settings';
 import {SettingsManagerImpl} from './settings_manager';
+import {MinimapManagerImpl} from './minimap_manager';
 
 /**
  * Handles the per-trace state of the UI
@@ -83,6 +84,7 @@ export class TraceContext implements Disposable {
   readonly trash = new DisposableStack();
   readonly onTraceReady = new EvtSource<void>();
   readonly statusbarMgr = new StatusbarManagerImpl();
+  readonly minimapManager = new MinimapManagerImpl();
 
   // List of errors that were encountered while loading the trace by the TS
   // code. These are on top of traceInfo.importErrors, which is a summary of
@@ -330,6 +332,10 @@ export class TraceImpl implements Trace {
 
   get trace() {
     return this;
+  }
+
+  get minimap() {
+    return this.traceCtx.minimapManager;
   }
 
   get engine() {
