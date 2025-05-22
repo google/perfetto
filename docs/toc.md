@@ -92,7 +92,7 @@
       - [Battery counters and rails](data-sources/battery-counters.md)
       - [Other data sources](data-sources/android-game-intervention-list.md)
 
-  - [Trace Format Reference]
+  - [Trace Format Reference](#)
 
     - [Trace Packet Proto](reference/trace-packet-proto.autogen)
     - [Advanced Programmatic Generation](reference/synthetic-track-event.md)
