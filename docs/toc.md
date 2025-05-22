@@ -54,7 +54,6 @@
   - [Trace Visualization](#)
 
     - [Perfetto UI](visualization/perfetto-ui.md)
-    - [Perfetto UI plugins](contributing/ui-plugins.md)
     - [Opening large traces](visualization/large-traces.md)
     - [Deep linking](visualization/deep-linking-to-perfetto-ui.md)
     - [Debug tracks](analysis/debug-tracks.md)
@@ -67,12 +66,6 @@
 
       - [Getting started](contributing/ui-getting-started.md)
       - [Plugins](contributing/ui-plugins.md)
-
-    - [Advanced](#)
-
-      - [Building](contributing/build-instructions.md)
-      - [Testing](contributing/testing.md)
-      - [Developer tools](contributing/developer-tools.md)
 
 - [Diving deep](#)
 
@@ -145,6 +138,12 @@
 
     - [Interceptors](instrumentation/interceptors.md)
 
+  - [Contributing](#)
+
+    - [Building](contributing/build-instructions.md)
+    - [Testing](contributing/testing.md)
+    - [Developer tools](contributing/developer-tools.md)
+
   - [Design documents](#)
 
     - [Recording](#)
@@ -173,4 +172,3 @@
     - [UI release process](visualization/perfetto-ui-release-process.md)
     - [Chrome branches](contributing/chrome-branches.md)
     - [Statsd Checkpoint Atoms](design-docs/checkpoint-atoms.md)
-    - [Embedding Perfetto](contributing/embedding.md)
