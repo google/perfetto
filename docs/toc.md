@@ -93,8 +93,9 @@
       - [Other data sources](data-sources/android-game-intervention-list.md)
 
   - [Trace Format Reference]
-      - [Trace Packet Proto](reference/trace-packet-proto.autogen)
-      - [Advanced Programmatic Generation](reference/synthetic-track-event.md)
+
+    - [Trace Packet Proto](reference/trace-packet-proto.autogen)
+    - [Advanced Programmatic Generation](reference/synthetic-track-event.md)
 
   - [Advanced Trace Recording](#)
 
@@ -133,10 +134,6 @@
   - [Advanced Perfetto SDK](#)
 
     - [Interceptors](instrumentation/interceptors.md)
-
-  - [Advanced Custom Analysis & Viz](#)
-
-    - [Advaned ](reference/)
 
   - [Contributor Reference](#)
 
