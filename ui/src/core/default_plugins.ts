@@ -44,7 +44,7 @@ export const defaultPlugins = [
   'dev.perfetto.FlagsPage',
   'dev.perfetto.Frames',
   'dev.perfetto.Ftrace',
-  'dev.perfetto.GenericAggregations',
+  'dev.perfetto.Tracks',
   'dev.perfetto.GpuFreq',
   'dev.perfetto.HeapProfile',
   'dev.perfetto.InstrumentsSamplesProfile',

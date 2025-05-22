@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {duration, Time, TimeSpan} from '../../base/time';
+import {Time} from '../../base/time';
 import {createAggregationToTabAdaptor} from '../../components/aggregation_adapter';
 import {
   metricsFromTableOrSubquery,
@@ -23,19 +23,16 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {Trace} from '../../public/trace';
 import {SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {Flamegraph} from '../../widgets/flamegraph';
 import {CounterSelectionAggregator} from './counter_selection_aggregator';
 import {PivotTableTab} from './pivot_table_tab';
 import {SliceSelectionAggregator} from './slice_selection_aggregator';
 
-/**
- * This plugin adds the generic aggregations for slice tracks and counter
- * tracks.
- */
 export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.GenericAggregations';
+  static readonly id = 'dev.perfetto.Tracks';
+  static description =
+    'Generic bulk operations for tracks originating from the tracks table.';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.selection.registerAreaSelectionTab(
@@ -52,62 +49,56 @@ export default class implements PerfettoPlugin {
     ctx.minimap.registerContentProvider({
       priority: 1,
       getData: async (timeSpan, resolution) => {
-        return await this.loadSliceMinimap(
-          ctx.engine,
-          timeSpan.toTimeSpan(),
-          resolution,
-        );
+        const traceSpan = timeSpan.toTimeSpan();
+        const sliceResult = await ctx.engine.query(`
+          SELECT
+            bucket,
+            upid,
+            IFNULL(SUM(utid_sum) / CAST(${resolution} AS FLOAT), 0) AS load
+          FROM thread
+          INNER JOIN (
+            SELECT
+              IFNULL(CAST((ts - ${traceSpan.start}) / ${resolution} AS INT), 0) AS bucket,
+              SUM(dur) AS utid_sum,
+              utid
+            FROM slice
+            INNER JOIN thread_track ON slice.track_id = thread_track.id
+            GROUP BY
+              bucket,
+              utid
+          ) USING(utid)
+          WHERE
+            upid IS NOT NULL
+          GROUP BY
+            bucket,
+            upid;
+        `);
+
+        const slicesData = new Map<string, MinimapRow>();
+        const it = sliceResult.iter({bucket: LONG, upid: NUM, load: NUM});
+        for (; it.valid(); it.next()) {
+          const bucket = it.bucket;
+          const upid = it.upid;
+          const load = it.load;
+
+          const ts = Time.add(traceSpan.start, resolution * bucket);
+
+          const upidStr = upid.toString();
+          let loadArray = slicesData.get(upidStr);
+          if (loadArray === undefined) {
+            loadArray = [];
+            slicesData.set(upidStr, loadArray);
+          }
+          loadArray.push({ts, dur: resolution, load});
+        }
+
+        const rows: MinimapRow[] = [];
+        for (const row of slicesData.values()) {
+          rows.push(row);
+        }
+        return rows;
       },
     });
-  }
-
-  private async loadSliceMinimap(
-    engine: Engine,
-    traceSpan: TimeSpan,
-    stepSize: duration,
-  ) {
-    const sliceResult = await engine.query(`
-      select
-        bucket,
-        upid,
-        ifnull(sum(utid_sum) / cast(${stepSize} as float), 0) as load
-      from thread
-      inner join (
-        select
-          ifnull(cast((ts - ${traceSpan.start})/${stepSize} as int), 0) as bucket,
-          sum(dur) as utid_sum,
-          utid
-        from slice
-        inner join thread_track on slice.track_id = thread_track.id
-        group by bucket, utid
-      ) using(utid)
-      where upid is not null
-      group by bucket, upid
-    `);
-
-    const slicesData = new Map<string, MinimapRow>();
-    const it = sliceResult.iter({bucket: LONG, upid: NUM, load: NUM});
-    for (; it.valid(); it.next()) {
-      const bucket = it.bucket;
-      const upid = it.upid;
-      const load = it.load;
-
-      const ts = Time.add(traceSpan.start, stepSize * bucket);
-
-      const upidStr = upid.toString();
-      let loadArray = slicesData.get(upidStr);
-      if (loadArray === undefined) {
-        loadArray = [];
-        slicesData.set(upidStr, loadArray);
-      }
-      loadArray.push({ts, dur: stepSize, load});
-    }
-
-    const rows: MinimapRow[] = [];
-    for (const row of slicesData.values()) {
-      rows.push(row);
-    }
-    return rows;
   }
 }
 
