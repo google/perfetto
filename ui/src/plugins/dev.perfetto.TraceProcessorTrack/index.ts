@@ -18,7 +18,13 @@ import {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {getTrackName} from '../../public/utils';
 import {TrackNode} from '../../public/workspace';
-import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
+import {
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {SLICE_TRACK_SCHEMAS} from './slice_tracks';
@@ -27,6 +33,18 @@ import {COUNTER_TRACK_SCHEMAS} from './counter_tracks';
 import {createTraceProcessorSliceTrack} from './trace_processor_slice_track';
 import {TopLevelTrackGroup, TrackGroupSchema} from './types';
 import {removeFalsyValues} from '../../base/array_utils';
+import {createAggregationToTabAdaptor} from '../../components/aggregation_adapter';
+import {CounterSelectionAggregator} from './counter_selection_aggregator';
+import {SliceSelectionAggregator} from './slice_selection_aggregator';
+import {PivotTableTab} from './pivot_table_tab';
+import {MinimapRow} from '../../public/minimap';
+import {Time} from '../../base/time';
+import {Flamegraph} from '../../widgets/flamegraph';
+import {
+  metricsFromTableOrSubquery,
+  QueryFlamegraph,
+} from '../../components/query_flamegraph';
+import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TraceProcessorTrack';
@@ -40,6 +58,8 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     await this.addCounters(ctx);
     await this.addSlices(ctx);
+    this.addAggregations(ctx);
+    this.addMinimapContentProvider(ctx);
   }
 
   private async addCounters(ctx: Trace) {
@@ -355,4 +375,143 @@ export default class implements PerfettoPlugin {
     this.groups.set(groupId, newGroup);
     return newGroup;
   }
+
+  private addAggregations(ctx: Trace) {
+    ctx.selection.registerAreaSelectionTab(
+      createAggregationToTabAdaptor(ctx, new CounterSelectionAggregator()),
+    );
+    ctx.selection.registerAreaSelectionTab(
+      createAggregationToTabAdaptor(ctx, new SliceSelectionAggregator()),
+    );
+    ctx.selection.registerAreaSelectionTab(new PivotTableTab(ctx));
+    ctx.selection.registerAreaSelectionTab(createSliceFlameGraphPanel(ctx));
+  }
+
+  private addMinimapContentProvider(ctx: Trace) {
+    ctx.minimap.registerContentProvider({
+      priority: 1,
+      getData: async (timeSpan, resolution) => {
+        const traceSpan = timeSpan.toTimeSpan();
+        const sliceResult = await ctx.engine.query(`
+              SELECT
+                bucket,
+                upid,
+                IFNULL(SUM(utid_sum) / CAST(${resolution} AS FLOAT), 0) AS load
+              FROM thread
+              INNER JOIN (
+                SELECT
+                  IFNULL(CAST((ts - ${traceSpan.start}) / ${resolution} AS INT), 0) AS bucket,
+                  SUM(dur) AS utid_sum,
+                  utid
+                FROM slice
+                INNER JOIN thread_track ON slice.track_id = thread_track.id
+                GROUP BY
+                  bucket,
+                  utid
+              ) USING(utid)
+              WHERE
+                upid IS NOT NULL
+              GROUP BY
+                bucket,
+                upid;
+            `);
+
+        const slicesData = new Map<string, MinimapRow>();
+        const it = sliceResult.iter({bucket: LONG, upid: NUM, load: NUM});
+        for (; it.valid(); it.next()) {
+          const bucket = it.bucket;
+          const upid = it.upid;
+          const load = it.load;
+
+          const ts = Time.add(traceSpan.start, resolution * bucket);
+
+          const upidStr = upid.toString();
+          let loadArray = slicesData.get(upidStr);
+          if (loadArray === undefined) {
+            loadArray = [];
+            slicesData.set(upidStr, loadArray);
+          }
+          loadArray.push({ts, dur: resolution, load});
+        }
+
+        const rows: MinimapRow[] = [];
+        for (const row of slicesData.values()) {
+          rows.push(row);
+        }
+        return rows;
+      },
+    });
+  }
+}
+
+function createSliceFlameGraphPanel(trace: Trace) {
+  let previousSelection: AreaSelection | undefined;
+  let sliceFlamegraph: QueryFlamegraph | undefined;
+  return {
+    id: 'slice_flamegraph_selection',
+    name: 'Slice Flamegraph',
+    render(selection: AreaSelection) {
+      const selectionChanged =
+        previousSelection === undefined ||
+        !areaSelectionsEqual(previousSelection, selection);
+      previousSelection = selection;
+      if (selectionChanged) {
+        sliceFlamegraph = computeSliceFlamegraph(trace, selection);
+      }
+
+      if (sliceFlamegraph === undefined) {
+        return undefined;
+      }
+
+      return {isLoading: false, content: sliceFlamegraph.render()};
+    },
+  };
+}
+
+function computeSliceFlamegraph(trace: Trace, currentSelection: AreaSelection) {
+  const trackIds = [];
+  for (const trackInfo of currentSelection.tracks) {
+    if (trackInfo?.tags?.kind !== SLICE_TRACK_KIND) {
+      continue;
+    }
+    if (trackInfo.tags?.trackIds === undefined) {
+      continue;
+    }
+    trackIds.push(...trackInfo.tags.trackIds);
+  }
+  if (trackIds.length === 0) {
+    return undefined;
+  }
+  const metrics = metricsFromTableOrSubquery(
+    `
+      (
+        select *
+        from _viz_slice_ancestor_agg!((
+          select s.id, s.dur
+          from slice s
+          left join slice t on t.parent_id = s.id
+          where s.ts >= ${currentSelection.start}
+            and s.ts <= ${currentSelection.end}
+            and s.track_id in (${trackIds.join(',')})
+            and t.id is null
+        ))
+      )
+    `,
+    [
+      {
+        name: 'Duration',
+        unit: 'ns',
+        columnName: 'self_dur',
+      },
+      {
+        name: 'Samples',
+        unit: '',
+        columnName: 'self_count',
+      },
+    ],
+    'include perfetto module viz.slices;',
+  );
+  return new QueryFlamegraph(trace, metrics, {
+    state: Flamegraph.createDefaultState(metrics),
+  });
 }
