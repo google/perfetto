@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.curves.estimates;
+INCLUDE PERFETTO MODULE wattson.estimates;
 INCLUDE PERFETTO MODULE wattson.utils;
 
 DROP VIEW IF EXISTS _wattson_period_windows;

@@ -54,6 +54,7 @@ import "protos/perfetto/trace/ftrace/i2c.proto";
 import "protos/perfetto/trace/ftrace/ion.proto";
 import "protos/perfetto/trace/ftrace/ipi.proto";
 import "protos/perfetto/trace/ftrace/irq.proto";
+import "protos/perfetto/trace/ftrace/irq_vectors.proto";
 import "protos/perfetto/trace/ftrace/kgsl.proto";
 import "protos/perfetto/trace/ftrace/kmem.proto";
 import "protos/perfetto/trace/ftrace/kvm.proto";
@@ -703,5 +704,7 @@ message FtraceEvent {
     TimerCancelFtraceEvent timer_cancel = 556;
     TimerExpireEntryFtraceEvent timer_expire_entry = 557;
     TimerExpireExitFtraceEvent timer_expire_exit = 558;
+    LocalTimerEntryFtraceEvent local_timer_entry = 559;
+    LocalTimerExitFtraceEvent local_timer_exit = 560;
   }
 }

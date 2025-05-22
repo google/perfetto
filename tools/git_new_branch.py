@@ -45,8 +45,8 @@ def main():
       print('Error: Unable to determine the current branch.')
       return 1
 
-  run_git_command(['checkout', '-b', args.new_branch_name, parent_branch])
-  run_git_command(['branch', '--unset-upstream'])
+  run_git_command(
+      ['checkout', '--no-track', '-b', args.new_branch_name, parent_branch])
   run_git_command(
       ['config', f'branch.{args.new_branch_name}.parent', parent_branch])
 

@@ -46,6 +46,7 @@
 #include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/types.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
 #include "src/trace_processor/util/glob.h"
 #include "src/trace_processor/util/regex.h"
@@ -150,12 +151,17 @@ class Interpreter {
   static_assert(std::is_base_of_v<ValueFetcher, FilterValueFetcherImpl>,
                 "FilterValueFetcherImpl must be a subclass of ValueFetcher");
 
-  Interpreter(BytecodeVector bytecode,
-              const Column* const* columns,
-              const StringPool* string_pool)
-      : bytecode_(std::move(bytecode)),
-        columns_(columns),
-        string_pool_(string_pool) {}
+  Interpreter() = default;
+
+  void Initialize(const BytecodeVector& bytecode,
+                  const Column* const* columns,
+                  const dataframe::Index* indexes,
+                  const StringPool* string_pool) {
+    bytecode_ = bytecode;
+    columns_ = columns;
+    indexes_ = indexes;
+    string_pool_ = string_pool;
+  }
 
   // Not movable because it's a very large object and the move cost would be
   // high. Prefer constructing in place.
@@ -798,6 +804,104 @@ class Interpreter {
     span.e = span.b + actual_limit;
   }
 
+  PERFETTO_ALWAYS_INLINE void IndexPermutationVectorToSpan(
+      const bytecode::IndexPermutationVectorToSpan& bytecode) {
+    using B = bytecode::IndexPermutationVectorToSpan;
+    const dataframe::Index& index = indexes_[bytecode.arg<B::index>()];
+    WriteToRegister(bytecode.arg<B::write_register>(),
+                    Span<uint32_t>(index.permutation_vector()->data(),
+                                   index.permutation_vector()->data() +
+                                       index.permutation_vector()->size()));
+  }
+
+  template <typename T, typename N>
+  PERFETTO_ALWAYS_INLINE void IndexedFilterEq(
+      const bytecode::IndexedFilterEqBase& bytecode) {
+    using B = bytecode::IndexedFilterEqBase;
+    const auto& filter_value =
+        ReadFromRegister(bytecode.arg<B::filter_value_reg>());
+    auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
+    if (!HandleInvalidCastFilterValueResult(filter_value, update)) {
+      return;
+    }
+    using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
+    const auto& value = base::unchecked_get<M>(filter_value.value);
+    const Column& column = *columns_[bytecode.arg<B::col>()];
+    const auto* data = column.storage.unchecked_data<T>();
+    const Slab<uint32_t>* popcnt =
+        MaybeReadFromRegister(bytecode.arg<B::popcount_register>());
+    update.b = std::lower_bound(
+        update.b, update.e, value, [&](uint32_t index, const M& value) {
+          uint32_t storage_idx = IndexToStorageIndex<N>(index, column, popcnt);
+          if (storage_idx == std::numeric_limits<uint32_t>::max()) {
+            return true;
+          }
+          if constexpr (std::is_same_v<T, String>) {
+            return string_pool_->Get(data[storage_idx]) < value;
+          } else {
+            return data[storage_idx] < value;
+          }
+        });
+    update.e = std::upper_bound(
+        update.b, update.e, value, [&](const M& value, uint32_t index) {
+          uint32_t storage_idx = IndexToStorageIndex<N>(index, column, popcnt);
+          if (storage_idx == std::numeric_limits<uint32_t>::max()) {
+            return false;
+          }
+          if constexpr (std::is_same_v<T, String>) {
+            return value < string_pool_->Get(data[storage_idx]);
+          } else {
+            return value < data[storage_idx];
+          }
+        });
+  }
+
+  PERFETTO_ALWAYS_INLINE void CopySpanIntersectingRange(
+      const bytecode::CopySpanIntersectingRange& bytecode) {
+    using B = bytecode::CopySpanIntersectingRange;
+    const auto& source = ReadFromRegister(bytecode.arg<B::source_register>());
+    const auto& source_range =
+        ReadFromRegister(bytecode.arg<B::source_range_register>());
+    auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
+    PERFETTO_DCHECK(source.size() <= update.size());
+    uint32_t* write_ptr = update.b;
+    for (const uint32_t* it = source.b; it != source.e; ++it) {
+      *write_ptr = *it;
+      write_ptr += (*it >= source_range.b && *it < source_range.e);
+    }
+    update.e = write_ptr;
+  }
+
+  template <typename N>
+  PERFETTO_ALWAYS_INLINE uint32_t
+  IndexToStorageIndex(uint32_t index,
+                      const Column& column,
+                      const Slab<uint32_t>* popcnt) {
+    if constexpr (std::is_same_v<N, NonNull>) {
+      base::ignore_result(popcnt);
+      return index;
+    } else if constexpr (std::is_same_v<N, SparseNull>) {
+      const auto& null_storage =
+          column.null_storage.unchecked_get<dataframe::SparseNull>();
+      const BitVector& bv = null_storage.bit_vector;
+      if (!bv.is_set(index)) {
+        // Null values are always less than non-null values.
+        return std::numeric_limits<uint32_t>::max();
+      }
+      return static_cast<uint32_t>((*popcnt)[index / 64] +
+                                   bv.count_set_bits_until_in_word(index));
+    } else if constexpr (std::is_same_v<N, DenseNull>) {
+      base::ignore_result(popcnt);
+      const auto& null_storage =
+          column.null_storage.unchecked_get<dataframe::DenseNull>();
+      return null_storage.bit_vector.is_set(index)
+                 ? index
+                 : std::numeric_limits<uint32_t>::max();
+    } else {
+      static_assert(std::is_same_v<N, NonNull>, "Unsupported type");
+    }
+  }
+
   template <typename T, typename Op>
   PERFETTO_ALWAYS_INLINE void FindMinMaxIndex(
       const bytecode::FindMinMaxIndex<T, Op>& bytecode) {
@@ -1289,6 +1393,17 @@ class Interpreter {
   // Conditionally access a register if it contains the expected type.
   // Returns nullptr if the register holds a different type.
   template <typename T>
+  PERFETTO_ALWAYS_INLINE const T* MaybeReadFromRegister(
+      reg::ReadHandle<T> reg) {
+    if (std::holds_alternative<T>(registers_[reg.index])) {
+      return &base::unchecked_get<T>(registers_[reg.index]);
+    }
+    return nullptr;
+  }
+
+  // Conditionally access a register if it contains the expected type.
+  // Returns nullptr if the register holds a different type.
+  template <typename T>
   PERFETTO_ALWAYS_INLINE T* MaybeReadFromRegister(reg::WriteHandle<T> reg) {
     if (std::holds_alternative<T>(registers_[reg.index])) {
       return &base::unchecked_get<T>(registers_[reg.index]);
@@ -1314,6 +1429,8 @@ class Interpreter {
   FilterValueFetcherImpl* filter_value_fetcher_;
   // Pointer to the columns being processed
   const Column* const* columns_;
+  // Pointer to the indexes
+  const dataframe::Index* indexes_;
   // Pointer to the string pool (for string operations)
   const StringPool* string_pool_;
 };

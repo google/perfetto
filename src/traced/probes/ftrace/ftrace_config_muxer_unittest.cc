@@ -24,6 +24,7 @@
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"
+#include "src/traced/probes/ftrace/predefined_tracepoints.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 #include "test/gtest_and_gmock.h"
 
@@ -75,6 +76,7 @@ class MockFtraceProcfs : public FtraceProcfs {
     ON_CALL(*this, WriteToFile(_, _)).WillByDefault(Return(true));
     ON_CALL(*this, AppendToFile(_, _)).WillByDefault(Return(true));
     ON_CALL(*this, ClearFile(_)).WillByDefault(Return(true));
+    ON_CALL(*this, IsFileWriteable(_)).WillByDefault(Return(true));
     EXPECT_CALL(*this, NumberOfCpus()).Times(AnyNumber());
   }
 
@@ -101,6 +103,7 @@ class MockFtraceProcfs : public FtraceProcfs {
               ReadEventFormat,
               (const std::string& group, const std::string& name),
               (const, override));
+  MOCK_METHOD(bool, IsFileWriteable, (const std::string& path), (override));
 };
 
 class MockAtraceWrapper : public AtraceWrapper {
@@ -201,6 +204,12 @@ class FtraceConfigMuxerTest : public ::testing::Test {
     return SyscallTable::Load<FakeSyscallTable>();
   }
 
+  std::map<std::string, base::FlatSet<GroupAndName>>
+  GetAccessiblePredefinedTracePoints(const ProtoTranslationTable* table) {
+    return predefined_tracepoints::GetAccessiblePredefinedTracePoints(table,
+                                                                      &ftrace_);
+  }
+
   std::unique_ptr<ProtoTranslationTable> CreateFakeTable(
       CompactSchedEventFormat compact_format =
           InvalidCompactSchedEventFormatForTesting()) {
@@ -282,9 +291,10 @@ class FtraceConfigMuxerTest : public ::testing::Test {
 
 TEST_F(FtraceConfigMuxerTest, SecondaryInstanceDoNotSupportAtrace) {
   auto fake_table = CreateFakeTable();
-  FtraceConfigMuxer model(&ftrace_, &atrace_wrapper_, fake_table.get(),
-                          GetSyscallTable(), {},
-                          /* secondary_instance= */ true);
+  FtraceConfigMuxer model(
+      &ftrace_, &atrace_wrapper_, fake_table.get(), GetSyscallTable(),
+      GetAccessiblePredefinedTracePoints(fake_table.get()), {},
+      /* secondary_instance= */ true);
 
   FtraceConfig config = CreateFtraceConfig({"sched/sched_switch"});
   *config.add_atrace_categories() = "sched";
@@ -303,7 +313,8 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfig) {
   std::unique_ptr<ProtoTranslationTable> table =
       CreateFakeTable(valid_compact_format);
   FtraceConfigMuxer muxer(&ftrace_, &atrace_wrapper_, table.get(),
-                          GetSyscallTable(), {});
+                          GetSyscallTable(),
+                          GetAccessiblePredefinedTracePoints(table.get()), {});
 
   ON_CALL(ftrace_, ReadFileIntoString("/root/current_tracer"))
       .WillByDefault(Return("nop"));
@@ -367,11 +378,13 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfig) {
 class FtraceConfigMuxerFakeTableTest : public FtraceConfigMuxerTest {
  protected:
   std::unique_ptr<ProtoTranslationTable> table_ = CreateFakeTable();
-  FtraceConfigMuxer model_ = FtraceConfigMuxer(&ftrace_,
-                                               &atrace_wrapper_,
-                                               table_.get(),
-                                               GetSyscallTable(),
-                                               {});
+  FtraceConfigMuxer model_ =
+      FtraceConfigMuxer(&ftrace_,
+                        &atrace_wrapper_,
+                        table_.get(),
+                        GetSyscallTable(),
+                        GetAccessiblePredefinedTracePoints(table_.get()),
+                        {});
 };
 
 TEST_F(FtraceConfigMuxerFakeTableTest, GenericSyscallFiltering) {
@@ -1223,11 +1236,13 @@ TEST_F(FtraceConfigMuxerFakeTableTest, PreserveFtraceBufferNotSetBufferSizeKb) {
 class FtraceConfigMuxerMockTableTest : public FtraceConfigMuxerTest {
  protected:
   std::unique_ptr<MockProtoTranslationTable> mock_table_ = GetMockTable();
-  FtraceConfigMuxer model_ = FtraceConfigMuxer(&ftrace_,
-                                               &atrace_wrapper_,
-                                               mock_table_.get(),
-                                               GetSyscallTable(),
-                                               {});
+  FtraceConfigMuxer model_ =
+      FtraceConfigMuxer(&ftrace_,
+                        &atrace_wrapper_,
+                        mock_table_.get(),
+                        GetSyscallTable(),
+                        GetAccessiblePredefinedTracePoints(mock_table_.get()),
+                        {});
 };
 
 TEST_F(FtraceConfigMuxerMockTableTest, AddGenericEvent) {

@@ -55,6 +55,7 @@
 #include "src/traced/probes/ftrace/ftrace_metadata.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"
+#include "src/traced/probes/ftrace/predefined_tracepoints.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 #include "src/traced/probes/ftrace/vendor_tracepoints.h"
 
@@ -182,6 +183,10 @@ std::unique_ptr<FtraceController> FtraceController::Create(
 
   auto atrace_wrapper = std::make_unique<AtraceWrapperImpl>();
 
+  std::map<std::string, base::FlatSet<GroupAndName>> predefined_events =
+      predefined_tracepoints::GetAccessiblePredefinedTracePoints(
+          table.get(), ftrace_procfs.get());
+
   std::map<std::string, std::vector<GroupAndName>> vendor_evts =
       GetAtraceVendorEvents(ftrace_procfs.get());
 
@@ -189,7 +194,7 @@ std::unique_ptr<FtraceController> FtraceController::Create(
 
   auto muxer = std::make_unique<FtraceConfigMuxer>(
       ftrace_procfs.get(), atrace_wrapper.get(), table.get(), syscalls,
-      vendor_evts);
+      predefined_events, vendor_evts);
   return std::unique_ptr<FtraceController>(new FtraceController(
       std::move(ftrace_procfs), std::move(table), std::move(atrace_wrapper),
       std::move(muxer), runner, observer));
@@ -845,6 +850,10 @@ FtraceController::CreateSecondaryInstance(const std::string& instance_name) {
     return nullptr;
   }
 
+  std::map<std::string, base::FlatSet<GroupAndName>> predefined_events =
+      predefined_tracepoints::GetAccessiblePredefinedTracePoints(
+          table.get(), ftrace_procfs.get());
+
   // secondary instances don't support atrace and vendor tracepoint HAL
   std::map<std::string, std::vector<GroupAndName>> vendor_evts;
 
@@ -852,7 +861,7 @@ FtraceController::CreateSecondaryInstance(const std::string& instance_name) {
 
   auto muxer = std::make_unique<FtraceConfigMuxer>(
       ftrace_procfs.get(), atrace_wrapper_.get(), table.get(), syscalls,
-      vendor_evts,
+      predefined_events, vendor_evts,
       /* secondary_instance= */ true);
   return std::make_unique<FtraceInstanceState>(
       std::move(ftrace_procfs), std::move(table), std::move(muxer));
