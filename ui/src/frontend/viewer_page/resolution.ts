@@ -29,7 +29,6 @@ import {duration} from '../../base/time';
 export function calculateResolution(
   timeSpan: HighPrecisionTimeSpan,
   widthPx: number,
-  pxPerBucket = 1,
 ): Result<duration> {
   if (widthPx <= 0) {
     return errResult('Parameter "widthPx" must be greater than 0.');
@@ -44,8 +43,7 @@ export function calculateResolution(
 
   // Work out how much time corresponds to one pixel.
   const timePerPixel = Number(dur) / widthPx;
-  const timePerBucket = timePerPixel * pxPerBucket;
 
   // Convert to a bigint and round down to the nearest power of 2.
-  return okResult(BigintMath.bitFloor(BigInt(Math.floor(timePerBucket))));
+  return okResult(BigintMath.bitFloor(BigInt(Math.floor(timePerPixel))));
 }

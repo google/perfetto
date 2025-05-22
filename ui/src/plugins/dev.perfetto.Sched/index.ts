@@ -230,23 +230,26 @@ export default class implements PerfettoPlugin {
           .map((ts, index) => `(${index}, ${ts}, ${resolution})`)
           .join();
 
+        const intervalsTableName = '__minimap_sched_intervals';
+
         await trace.engine.query(`
-          CREATE TABLE intervals (
+          CREATE TABLE ${intervalsTableName} (
             id INTEGER PRIMARY KEY,
             ts INTEGER,
             dur INTEGER
           );
 
-          INSERT INTO intervals (id, ts, dur)
+          INSERT INTO ${intervalsTableName} (id, ts, dur)
           values ${values}
         `);
 
         for (const cpu of cpus) {
           // TODO(stevegolton): Obtain source data from the track's datasets
           // instead of repeating it here?
+          const schedTableName = '__sched_per_cpu';
           await using _schedTable = await createPerfettoTable(
             trace.engine,
-            '_sched',
+            schedTableName,
             `
               SELECT
                 *
@@ -264,8 +267,8 @@ export default class implements PerfettoPlugin {
               CAST(SUM(ii.dur) AS FLOAT)/${resolution} AS load,
               intervals.ts AS ts,
               intervals.dur AS dur
-            FROM _interval_intersect!((_sched, intervals), ()) ii
-            JOIN intervals ON (id_1 = intervals.id)
+            FROM _interval_intersect!((${schedTableName}, ${intervalsTableName}), ()) ii
+            JOIN ${intervalsTableName} intervals ON (id_1 = intervals.id)
             GROUP BY id_1;
           `;
 
