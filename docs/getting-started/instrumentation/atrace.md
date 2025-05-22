@@ -2,51 +2,95 @@
 
 In this page you will learn how to add instrumentation to code in Android apps,
 services and platform code. This will allow you to emit slices and counters
-into the trace as follows like in the image below.
+into the trace resulting in something like the image below.
 
 This page is mainly intended for:
 
 - Android platform engineers for instrumenting their platform services.
 - System integrators / Android partners for instrumenting their native HALs and
   Java/Kt services.
-- Native and Java/Kt app developers for instrumenting their apps.
+- Native and Java/Kt app developers for instrumenting their apps (although you should consider using [androidx.tracing](https://developer.android.com/jetpack/androidx/releases/tracing), more below)
 
 ![Atrace slices example](/docs/images/atrace_slices.png)
 
 ## Introduction
 
-Atrace is a very legacy API introduced in Android 4.3 that predates Perfetto. It
+Atrace is a legacy API introduced in Android 4.3 that predates Perfetto. It
 is still supported and in use and interoperates well with Perfetto.
-Under the hoods, Atrace is based on forwarding events up in the kernel ftrace
-ring-buffer and gets fetched together with the rest of scheduling data and
-other system-level trace data.
+Under the hoods, Atrace forwards events up to the kernel ftrace ring-buffer
+and gets fetched together with the rest of scheduling data and other
+system-level trace data. Atrace is both:
 
-Usage-wise, Atrace is useful when manually adding instrumentation around code,
-e.g. to annotate the beginning or end of functions or logical sections;
-state changes; counter value changes. Atrace has a dual use: it is used both by:
+1. A public API, exposed both to Java/Kt code via the Android SDK and C/C++ code
+  via the NDK, that developers can use to enrich traces annotating their apps.
+2. An internal system API used to annotate several framework functions and
+  the internal implementation of core system services. It provides
+  developers with insights about what the framework is doing under the hoods.
 
-- Android internals, both native C/C++ and managed Java code.
-A lot of the framework code today is instrumented, both on the server side
-(e.g., services running in system_server) and on the client side
-(e.g., framework API calls)
+The main difference between the two is that the
+internal implementation allows specifying a _tag_ (also known as _category_),
+while the SDK/NDK interface implicitly uses TRACE_TAG_APP.
 
-- Vendor HALs and services.
+In both cases, Atrace allows you to manually add instrumentation around code
+wall timing and numeric values, e.g. to annotate the beginning or end of
+functions, logical user journeys, state changes.
 
-- Unbundled apps and services (although you should consider using [androidx.tracing](https://developer.android.com/jetpack/androidx/releases/tracing), see below)
+## Instrumenting code
 
+### Thread-scoped synchronous slices
 
+Slices are used to create rectangles around the execution of code and visually
+form a pseudo-callstack.
 
-## Emitting simple slices and counters
+Semantic and constraints:
 
-Slices are emitted with begin/end APIs. By default slices are emitted in a
-thread-scoped track (as in the picture above).
+- Slices are emitted with begin/end APIs.
+- Begin/end MUST be balanced and must happen on the same thread.
+- Slices are visualized in a thread-scoped track (as in the picture above).
+- See [Cross-thread async slices](#cross-thread-async-slices) below for
+  cross-thread use-cases.
 
 <?tabs>
 
-TAB: C/C++ (Android tree)
+TAB: Java (internal)
+
+Refer to [frameworks/base/core/java/android/os/Trace.java](https://cs.android.com/android/platform/superproject/main/+/main:frameworks/base/core/java/android/os/Trace.java?q=frameworks%2Fbase%2Fcore%2Fjava%2Fandroid%2Fos%2FTrace.java)
+
+```java
+import android.os.Trace;
+import static android.os.Trace.TRACE_TAG_AUDIO;
+
+public void playSound(String path) {
+  Trace.traceBegin(TRACE_TAG_AUDIO, "PlaySound");
+  try {
+    // Measure the time it takes to open the sound sevice.
+    Trace.traceBegin(TRACE_TAG_AUDIO, "OpenAudioDevice");
+    try {
+      SoundDevice dev = openAudioDevice();
+    } finally {
+      Trace.traceEnd();
+    }
+
+    for(...) {
+      Trace.traceBegin(TRACE_TAG_AUDIO, "SendBuffer");
+      try {
+        sendAudioBuffer(dev, ...)
+      } finally {
+        Trace.traceEnd();
+      }
+      // Log buffer usage statistics in the trace.
+      Trace.setCounter(TRACE_TAG_AUDIO, "SndBufferUsage", dev->buffer)
+      ...
+    }
+  } finally {
+    Trace.traceEnd();  // End of the root PlaySound slice
+  }
+}
+```
+
+TAB: C/C++ (internal)
 
 ```c++
-
 // ATRACE_TAG is the category that will be used in this translation unit.
 // Pick one of the categories defined in Android's
 // system/core/libcutils/include/cutils/trace.h
@@ -59,8 +103,7 @@ void PlaySound(const char* path) {
 
   // Measure the time it takes to open the sound sevice.
   ATRACE_BEGIN("OpenAudioDevice");
-  struct snd_dev* dev;
-  dev = OpenAudioDevice();
+  struct snd_dev* dev = OpenAudioDevice();
   ATRACE_END();
 
   for(...) {
@@ -77,34 +120,42 @@ void PlaySound(const char* path) {
 }
 ```
 
-TAB: Java (Android tree)
+TAB: Java (SDK)
 
-Refer to [frameworks/base/core/java/android/os/Trace.java](https://cs.android.com/android/platform/superproject/main/+/main:frameworks/base/core/java/android/os/Trace.java?q=frameworks%2Fbase%2Fcore%2Fjava%2Fandroid%2Fos%2FTrace.java)
+Refer to the [SDK reference documentation for os.trace](https://developer.android.com/reference/android/os/Trace).
 
 ```java
-
+// You cannot choose a tag/category when using the SDK API.
+// Implicitly all calls use the ATRACE_TAG_APP tag.
 import android.os.Trace;
-import static android.os.Trace.TRACE_TAG_AUDIO;
 
 public void playSound(String path) {
-  Trace.traceBegin(TRACE_TAG_AUDIO, "PlaySound");
+  try {
+    ATrace_beginSection("PlaySound");
 
-  // Measure the time it takes to open the sound sevice.
-  Trace.traceBegin(TRACE_TAG_AUDIO, "OpenAudioDevice");
-  SoundDevice dev = openAudioDevice();
-  Trace.traceEnd();
+    // Measure the time it takes to open the sound sevice.
+    Trace.beginSection("OpenAudioDevice");
+    try {
+      SoundDevice dev = openAudioDevice();
+    } finally {
+      Trace.endSection();
+    }
 
-  for(...) {
-    Trace.traceBegin(TRACE_TAG_AUDIO, "SendBuffer");
-    sendAudioBuffer(dev, ...)
-    Trace.traceEnd();
+    for(...) {
+      Trace.beginSection("SendBuffer");
+      try {
+        sendAudioBuffer(dev, ...)
+      } finally {
+        Trace.endSection();
+      }
 
-    // Log buffer usage statistics in the trace.
-    Trace.setCounter(TRACE_TAG_AUDIO, "SndBufferUsage", dev->buffer)
-    ...
+      // Log buffer usage statistics in the trace.
+      Trace.setCounter("SndBufferUsage", dev->buffer)
+      ...
+    }
+  } finally {
+    Trace.endSection();  // End of the root PlaySound slice
   }
-
-  Trace.traceEnd();  // End of the root PlaySound slice
 }
 ```
 
@@ -113,12 +164,9 @@ TAB: C/C++ (NDK)
 Refer to the [NDK reference documentation for Tracing](https://developer.android.com/ndk/reference/group/tracing).
 
 ```c++
-
 // You cannot choose a tag/category when using the NDK API.
 // Implicitly all calls use the ATRACE_TAG_APP tag.
 #include <android/trace.h>
-
-...
 
 void PlaySound(const char* path) {
   ATrace_beginSection("PlaySound");
@@ -141,102 +189,421 @@ void PlaySound(const char* path) {
   ATrace_endSection();  // End of the root PlaySound slice
 }
 ```
+</tabs?>
+
+
+### Counters
+
+Semantic and constraints:
+
+- Counters can be emitted from any thread and are visualized in a process-scoped
+  track named after the counter name (the string argument).
+- Each new counter name automatically yields a new track in the UI.
+- Counter events from different threads within the a process are folded into the
+  same process-scoped track.
+
+<?tabs>
+
+TAB: Java (internal)
+
+Refer to [frameworks/base/core/java/android/os/Trace.java](https://cs.android.com/android/platform/superproject/main/+/main:frameworks/base/core/java/android/os/Trace.java?q=frameworks%2Fbase%2Fcore%2Fjava%2Fandroid%2Fos%2FTrace.java)
+
+```java
+import android.os.Trace;
+import static android.os.Trace.TRACE_TAG_AUDIO;
+
+public void playSound(String path) {
+  SoundDevice dev = openAudioDevice();
+  for(...) {
+    sendAudioBuffer(dev, ...)
+    ...
+    // Log buffer usage statistics in the trace.
+    Trace.setCounter(TRACE_TAG_AUDIO, "SndBufferUsage", dev->buffer.used_bytes)
+  }
+}
+```
+
+TAB: C/C++ (internal)
+
+```c++
+// ATRACE_TAG is the category that will be used in this translation unit.
+// Pick one of the categories defined in Android's
+// system/core/libcutils/include/cutils/trace.h
+#define ATRACE_TAG ATRACE_TAG_AUDIO
+
+#include <cutils/trace.h>
+
+void PlaySound(const char* path) {
+  struct snd_dev* dev = OpenAudioDevice();
+
+  for(...) {
+    SendAudioBuffer(dev, ...)
+
+    // Log buffer usage statistics in the trace.
+    ATRACE_INT("SndBufferUsage", dev->buffer.used_bytes);
+  }
+}
+```
 
 TAB: Java (SDK)
 
 Refer to the [SDK reference documentation for os.trace](https://developer.android.com/reference/android/os/Trace).
 
 ```java
-
 // You cannot choose a tag/category when using the SDK API.
 // Implicitly all calls use the ATRACE_TAG_APP tag.
-
 import android.os.Trace;
 
 public void playSound(String path) {
-  ATrace_beginSection("PlaySound");
-
-  // Measure the time it takes to open the sound sevice.
-  Trace.beginSection("OpenAudioDevice");
   SoundDevice dev = openAudioDevice();
-  Trace.endSection();
 
   for(...) {
-    Trace.beginSection("SendBuffer");
     sendAudioBuffer(dev, ...)
-    Trace.endSection();
 
     // Log buffer usage statistics in the trace.
-    Trace.setCounter("SndBufferUsage", dev->buffer)
-    ...
+    Trace.setCounter("SndBufferUsage", dev->buffer.used_bytes)
   }
+}
+```
 
-  Trace.endSection();  // End of the root PlaySound slice
+TAB: C/C++ (NDK)
+
+Refer to the [NDK reference documentation for Tracing](https://developer.android.com/ndk/reference/group/tracing).
+
+```c++
+// You cannot choose a tag/category when using the NDK API.
+// Implicitly all calls use the ATRACE_TAG_APP tag.
+#include <android/trace.h>
+
+void PlaySound(const char* path) {
+  struct snd_dev* dev = OpenAudioDevice();
+
+  for(...) {
+    SendAudioBuffer(dev, ...)
+
+    // Log buffer usage statistics in the trace.
+    ATrace_setCounter("SndBufferUsage", dev->buffer.used_bytes)
+  }
+}
+```
+</tabs?>
+
+### Cross-thread async slices
+
+Async slices allow to trace logical operations that might begin and end on
+different threads. They are the same concept of _track events_ in the
+Perfetto SDK.
+
+Because begin/end can happen on different thread, you need to pass a _cookie_
+to each begin/end function. The cookie is just an integer number used to match
+begin/end pairs.
+The cookie is usually derived from a pointer or a unique ID that represents
+the logical operation being traced (e.g. a job id).
+
+Semantic and constraints:
+
+- Because of their async nature, slices can overlap temporally: one operation
+  might begin before the previous one has ended.
+- Cookies must be unique within a process: you cannot have a begin event for the
+  same cookie before having emitted an end event for it. In other words, cookies
+  are a shared integer namespce within the process. Using a monotonic counter
+  is probably a bad idea unless you have full control of all the code in the
+  process.
+- Unlike thread-scoped slices, no nesting/stacking is possible. Each slice is
+  independent of each other. This is one of the main limitations vs the equivalent
+  TrackEvent API in the Perfetto SDK, which allows nesting.
+- Visually async slices are first grouped by tracks, as follows:
+  - SDK/NDK: the track is process-scoped is derived from the event name.
+    You cannot have async slices with different names in the same track.
+  - Android Tree: the `...ForTrack` functions allow to specify a track name. All
+    events with the same track name end up in the same process-scoped track in
+    the UI.
+- Visually, the UI lays slice withi each track using a greedy stacking
+  algorithm. Each slice is placed in the uppermost lane that doesn’t overlap
+  with any other slice. This sometimes generates confusion amongst users as it
+  creates a false sense of "parent/child" relationship.
+  However, unlike sync slices, the relationship is purely temporal and not
+  causal and you cannot control it (other than grouping events into tracks, if
+  you have access to the internal system API).
+
+<?tabs>
+
+TAB: Java (internal)
+
+Refer to [frameworks/base/core/java/android/os/Trace.java](https://cs.android.com/android/platform/superproject/main/+/main:frameworks/base/core/java/android/os/Trace.java?q=frameworks%2Fbase%2Fcore%2Fjava%2Fandroid%2Fos%2FTrace.java)
+
+```java
+import android.os.Trace;
+import static android.os.Trace.TRACE_TAG_NETWORK;
+
+public class AudioRecordActivity extends Activity {
+  private AtomicInteger lastJobId = new AtomicInteger(0);
+  private static final String TRACK_NAME = "User Journeys";
+
+    ...
+    button.setOnClickListener(v -> {
+        int jobId = lastJobId.incrementAndGet();
+        Trace.asyncTraceForTrackBegin(TRACE_TAG_NETWORK, TRACK_NAME, "Load profile", jobId);
+
+        // Simulate async work (e.g., a network request)
+        new Thread(() -> {
+            Thread.sleep(800); // emulate latency
+            Trace.asyncTraceForTrackEnd(TRACE_TAG_NETWORK, TRACK_NAME, jobId);
+        }).start();
+    });
+    ...
+}
+```
+
+TAB: C/C++ (internal)
+
+```c++
+// ATRACE_TAG is the category that will be used in this translation unit.
+// Pick one of the categories defined in Android's
+// system/core/libcutils/include/cutils/trace.h
+#define ATRACE_TAG ATRACE_TAG_NETWORK
+
+#include <cutils/trace.h>
+#include <thread>
+#include <chrono>
+#include <atomic>
+
+static constexpr const char* kTrackName = "User Journeys";
+
+void onButtonClicked() {
+  static std::atomic<int> lastJobId{0};
+
+  int jobId = ++lastJobId;
+  ATRACE_ASYNC_FOR_TRACK_BEGIN(kTrackName, "Load profile", jobId);
+
+  std::thread([jobId]() {
+      std::this_thread::sleep_for(std::chrono::milliseconds(800));
+      ATRACE_ASYNC_FOR_TRACK_END(kTrackName, jobId);
+  }).detach();
+}
+```
+
+TAB: Java (SDK)
+
+Refer to the [SDK reference documentation for os.trace](https://developer.android.com/reference/android/os/Trace).
+
+```java
+// You cannot choose a tag/category when using the SDK API.
+// Implicitly all calls use the ATRACE_TAG_APP tag.
+import android.os.Trace;
+
+public class AudioRecordActivity extends Activity {
+  private AtomicInteger lastJobId = new AtomicInteger(0);
+
+    ...
+    button.setOnClickListener(v -> {
+        int jobId = lastJobId.incrementAndGet();
+        Trace.beginAsyncSection("Load profile", jobId);
+
+        // Simulate async work (e.g., a network request)
+        new Thread(() -> {
+            Thread.sleep(800); // emulate latency
+             Trace.endAsyncSection("Load profile", jobId);
+        }).start();
+    });
+    ...
+}
+```
+
+TAB: C/C++ (NDK)
+
+Refer to the [NDK reference documentation for Tracing](https://developer.android.com/ndk/reference/group/tracing).
+
+```c++
+// You cannot choose a tag/category when using the NDK API.
+// Implicitly all calls use the ATRACE_TAG_APP tag.
+#include <android/trace.h>
+#include <thread>
+#include <chrono>
+#include <atomic>
+
+void onButtonClicked() {
+  static std::atomic<int> lastJobId{0};
+
+  int jobId = ++lastJobId;
+  ATrace_beginAsyncSection("Load profile", jobId);
+
+  std::thread([jobId]() {
+      std::this_thread::sleep_for(std::chrono::milliseconds(800));
+      ATrace_endAsyncSection("Load profile", jobId);
+  }).detach();
 }
 ```
 </tabs?>
 
 
-### Should I use Atrace or the Perfetto Tracing SDK?
+### Counters
+
+Semantic and constraints:
+
+- Counters can be emitted from any thread and are visualized in a process-scoped
+  track named after the counter name (the string argument).
+- Each new counter name automatically yields a new track in the UI.
+- Counter events from different threads within the a process are folded into the
+  same process-scoped track.
+
+<?tabs>
+
+TAB: Java (internal)
+
+Refer to [frameworks/base/core/java/android/os/Trace.java](https://cs.android.com/android/platform/superproject/main/+/main:frameworks/base/core/java/android/os/Trace.java?q=frameworks%2Fbase%2Fcore%2Fjava%2Fandroid%2Fos%2FTrace.java)
+
+```java
+import android.os.Trace;
+import static android.os.Trace.TRACE_TAG_AUDIO;
+
+public void playSound(String path) {
+  SoundDevice dev = openAudioDevice();
+  for(...) {
+    sendAudioBuffer(dev, ...)
+    ...
+    // Log buffer usage statistics in the trace.
+    Trace.setCounter(TRACE_TAG_AUDIO, "SndBufferUsage", dev->buffer.used_bytes)
+  }
+}
+```
+
+TAB: C/C++ (internal)
+
+```c++
+// ATRACE_TAG is the category that will be used in this translation unit.
+// Pick one of the categories defined in Android's
+// system/core/libcutils/include/cutils/trace.h
+#define ATRACE_TAG ATRACE_TAG_AUDIO
+
+#include <cutils/trace.h>
+
+void PlaySound(const char* path) {
+  struct snd_dev* dev = OpenAudioDevice();
+
+  for(...) {
+    SendAudioBuffer(dev, ...)
+
+    // Log buffer usage statistics in the trace.
+    ATRACE_INT("SndBufferUsage", dev->buffer.used_bytes);
+  }
+}
+```
+
+TAB: Java (SDK)
+
+Refer to the [SDK reference documentation for os.trace](https://developer.android.com/reference/android/os/Trace).
+
+```java
+// You cannot choose a tag/category when using the SDK API.
+// Implicitly all calls use the ATRACE_TAG_APP tag.
+import android.os.Trace;
+
+public void playSound(String path) {
+  SoundDevice dev = openAudioDevice();
+
+  for(...) {
+    sendAudioBuffer(dev, ...)
+
+    // Log buffer usage statistics in the trace.
+    Trace.setCounter("SndBufferUsage", dev->buffer.used_bytes)
+  }
+}
+```
+
+TAB: C/C++ (NDK)
+
+Refer to the [NDK reference documentation for Tracing](https://developer.android.com/ndk/reference/group/tracing).
+
+```c++
+// You cannot choose a tag/category when using the NDK API.
+// Implicitly all calls use the ATRACE_TAG_APP tag.
+#include <android/trace.h>
+
+void PlaySound(const char* path) {
+  struct snd_dev* dev = OpenAudioDevice();
+
+  for(...) {
+    SendAudioBuffer(dev, ...)
+
+    // Log buffer usage statistics in the trace.
+    ATrace_setCounter("SndBufferUsage", dev->buffer.used_bytes)
+  }
+}
+```
+</tabs?>
+
+## Should I use Atrace or the Perfetto Tracing SDK?
 
 At the time of writing, there isn't a clear-cut answer to this question. Our
 team is working on providing a replacement SDK that can subsume all the atrace
-use cases, but we are not there yet. So the answer is: "depends".
+use cases, but we are not there yet. So the answer is: _depends_.
 
 | When to prefer Atrace             | When to prefer the Tracing SDK      |
 | --------------------------------- | ----------------------------------- |
 | You need something simple that  just works. | You need more advanced features (e.g. flows). |
-| You are okay with your instrumentation being all-or-nothing | You need fine-grained control over tracing categories. |
+| You are okay with one on/off toggle for the whole app. (If you are in the Android system you can only use a limited set of tags) | You need fine-grained control over tracing categories. |
 | You are okay with events being multiplexed in the main ftace buffer. | You want control over muxing events in different buffers. |
-| You care only about [system-level traces](/docs/getting-started/recording/system-tracing). | You need [in-app](/docs/getting-started/recording/in-app-tracing) traces. |
-| Instrumentation overhead is not a big concern. | You want mininmal overhead for your instrumentation points. Your instrumentation |
-| Your trace points are hit sporadically. | Your trace points are hit more frequently than every ~10ms. |
+| Instrumentation overhead is not a big concern, your trace points are hit sporadically. | You want mininmal overhead for your instrumentation points. Your trace points are frequent (every 10ms or less) |
 
 #### If you are an unbundled app
 
 You should consider using [androidx.tracing](https://developer.android.com/jetpack/androidx/releases/tracing)
-from Jetpack. Our team works closely with the Jetpack project.
+from Jetpack. We work closely with the Jetpack project.
 Using androidx.tracing is going to lead to a smoother migration path once we
 improve our SDK.
 
-## Adding atrace instrumentation
 
+## Recording the trace
 
+In order to record atrace you must enable the `linux.ftrace` data source and
+add in the `ftrace_config`:
+- For internal system services: `atrace_categories: tag_name`
+- For apps: `atrace_apps: "com.myapp"` or `atrace_apps: "*"` for all apps.
+
+You can see the full list of atrace categories [here](https://cs.android.com/android/platform/superproject/main/+/main:frameworks/native/cmds/atrace/atrace.cpp;l=102?q=f:atrace.cpp%20k_categories).
 
 <?tabs>
 
-TAB: Java
+TAB: UI
 
-Use record_android_trace script
+![Atrace recording via UI](/docs/images/atrace_ui_recording.png)
 
-TAB: C++
+TAB: Command line
 
-Go through example on adding atrace
+```sh
+curl -O https://raw.githubusercontent.com/google/perfetto/main/tools/record_android_trace
+
+python3 record_android_trace \
+  -o trace_file.perfetto-trace \
+  -t 10s \
+  # To record atrace from apps.
+  -a 'com.myapp'  \  # or '*' for tracing all apps
+  # To record atrace from system services.
+  am wm webview
+```
+
+TAB: Raw config
+
+```js
+data_sources {
+  config {
+    name: "linux.ftrace"
+    ftrace_config {
+      atrace_categories: "am"
+      atrace_categories: "wm"
+      atrace_categories: "webview"
+      atrace_apps: "com.myapp1"
+      atrace_apps: "com.myapp2"
+    }
+  }
+}
+```
 
 </tabs?>
 
-## Viewing your recorded trace
-
-Video: open trace in Perfetto UI, navigate around
-
-## Instrumentation types (quick reference)
-
-### App and platform developers
-
-Slices: operations on a single thread
-
-Async slices: operations spanning multiple threads
-
-Counters
-
-### Platform developers only
-
-Instants
-
-Async slices on track
-
 ## Next Steps
 
-Collect system traces: see other page
+[Collect system traces](/docs/getting-started/recording/system-tracing)
 
-Non-atrace instrumentation
+[Collect App+System traces](/docs/learning-more/trace-recording/app-and-system-tracing)
