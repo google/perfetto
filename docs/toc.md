@@ -38,8 +38,9 @@
     - [Trace configuration](concepts/config.md)
     - [Buffers and dataflow](concepts/buffers.md)
     - [Service model](concepts/service-model.md)
+    - [Clock synchronization](concepts/clock-sync.md)
 
-  - [Trace Recording](#)
+  - [Expanding Trace Recording](#)
 
     - [App + System Tracing](learning-more/trace-recording/app-and-system-tracing.md)
     - [System Tracing on Android](learning-more/trace-recording/android.md)
@@ -90,29 +91,28 @@
       - [Frame Timeline](data-sources/frametimeline.md)
       - [Battery counters and rails](data-sources/battery-counters.md)
       - [Other data sources](data-sources/android-game-intervention-list.md)
-      - [Android Version Notes](reference/android-version-notes.md)
 
-  - [Trace Recording](#)
+  - [Trace Format Reference]
+      - [Trace Packet Proto](reference/trace-packet-proto.autogen)
+      - [Advanced Programmatic Generation](reference/synthetic-track-event.md)
 
-    - [Clock synchronization](concepts/clock-sync.md)
-    - [Detached mode](concepts/detached-mode.md)
+  - [Advanced Trace Recording](#)
+
+    - [Trace Config Proto](reference/trace-config-proto.autogen)
     - [Concurrent tracing sessions](concepts/concurrent-tracing-sessions.md)
+    - [Detached mode](concepts/detached-mode.md)
 
     - [Android](#)
 
       - [Boot Tracing](case-studies/android-boot-tracing.md)
-
-    - [Protos Reference](#)
-
-      - [Trace Config Proto](reference/trace-config-proto.autogen)
-      - [Trace Packet Proto](reference/trace-packet-proto.autogen)
+      - [Android Version Notes](reference/android-version-notes.md)
 
     - [Command Line Reference](#)
 
       - [perfetto cmdline](reference/perfetto-cli.md)
       - [heap_profile cmdline](reference/heap_profile-cli.md)
 
-  - [Trace Analysis](#)
+  - [Advanced Trace Analysis](#)
 
     - [PerfettoSQL](#)
 
@@ -130,15 +130,15 @@
       - [Bigtrace](deployment/deploying-bigtrace-on-a-single-machine.md)
       - [Bigtrace on Kubernetes](deployment/deploying-bigtrace-on-kubernetes.md)
 
-  - [Perfetto UI](#)
-
-    - [Pivot tables](analysis/pivot-tables.md)
-
-  - [Perfetto SDK](#)
+  - [Advanced Perfetto SDK](#)
 
     - [Interceptors](instrumentation/interceptors.md)
 
-  - [Contributing](#)
+  - [Advanced Custom Analysis & Viz](#)
+
+    - [Advaned ](reference/)
+
+  - [Contributor Reference](#)
 
     - [Building](contributing/build-instructions.md)
     - [Testing](contributing/testing.md)
@@ -152,6 +152,7 @@
       - [Life of a tracing session](design-docs/life-of-a-tracing-session.md)
       - [ProtoZero](design-docs/protozero.md)
       - [Security model](design-docs/security-model.md)
+      - [Statsd Checkpoint Atoms](design-docs/checkpoint-atoms.md)
 
     - [Trace analysis](#)
 
@@ -171,4 +172,3 @@
 
     - [UI release process](visualization/perfetto-ui-release-process.md)
     - [Chrome branches](contributing/chrome-branches.md)
-    - [Statsd Checkpoint Atoms](design-docs/checkpoint-atoms.md)

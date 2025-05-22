@@ -422,7 +422,6 @@ Perfetto excels in several key areas:
       [external trace formats](/docs/getting-started/adhoc/other-formats.md)
       directly in the UI.
     - **Discover UI features:** The Perfetto UI also has features like
-      [Pivot Tables](/docs/analysis/pivot-tables.md) and
       [Debug Tracks](/docs/analysis/debug-tracks.md) that allow for
       sophisticated data aggregation and custom visualizations driven by simple
       UI configurations.
