@@ -18,7 +18,7 @@ import {
   metricsFromTableOrSubquery,
   QueryFlamegraph,
 } from '../../components/query_flamegraph';
-import {MinimapRow} from '../../core/minimap_manager';
+import {MinimapRow} from '../../public/minimap';
 import {PerfettoPlugin} from '../../public/plugin';
 import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {Trace} from '../../public/trace';
@@ -46,6 +46,7 @@ export default class implements PerfettoPlugin {
     ctx.selection.registerAreaSelectionTab(new PivotTableTab(ctx));
     ctx.selection.registerAreaSelectionTab(createSliceFlameGraphPanel(ctx));
 
+    // Register the generic slice minimap provider
     ctx.minimap.registerContentProvider({
       priority: 1,
       getData: async (timeSpan, resolution) => {

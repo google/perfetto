@@ -39,7 +39,7 @@ import {CpuSliceTrack} from './cpu_slice_track';
 import {WakerOverlay} from './waker_overlay';
 import {duration, time, Time} from '../../base/time';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
-import {MinimapRow} from '../../core/minimap_manager';
+import {MinimapRow} from '../../public/minimap';
 
 function uriForThreadStateTrack(upid: number | null, utid: number): string {
   return `${getThreadUriPrefix(upid, utid)}_state`;

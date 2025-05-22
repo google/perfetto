@@ -13,8 +13,15 @@
 // limitations under the License.
 
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
-import {duration} from '../base/time';
-import {MinimapRow} from '../core/minimap_manager';
+import {duration, time} from '../base/time';
+
+export interface MinimapCell {
+  readonly ts: time;
+  readonly dur: duration;
+  readonly load: number;
+}
+
+export type MinimapRow = MinimapCell[];
 
 export interface MinimapContentProvider {
   readonly priority: number;
