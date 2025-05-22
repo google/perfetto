@@ -238,8 +238,12 @@ async function loadTraceIntoEngine(
 
   decideTabs(trace);
 
+  updateStatus(app, `Loading miniamp`);
+  await trace.minimap.load(traceDetails.start, traceDetails.end);
+
   // Trace Processor doesn't support the reliable range feature for JSON
   // traces.
+  updateStatus(app, `Loading reliable range`);
   if (
     trace.traceInfo.traceType !== 'json' &&
     ENABLE_CHROME_RELIABLE_RANGE_ANNOTATION_FLAG.get()
