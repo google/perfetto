@@ -17,6 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_SHELL_TRANSITIONS_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_SHELL_TRANSITIONS_TRACKER_H_
 
+#include <cstdint>
+#include <optional>
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -44,6 +46,15 @@ class ShellTransitionsTracker : public Destructible {
   ArgsTracker::BoundInserter AddArgsTo(int32_t transition_id);
 
   void SetTimestamp(int32_t transition_id, int64_t timestamp_ns);
+  void SetTimestampIfEmpty(int32_t transition_id, int64_t timestamp_ns);
+  void SetTransitionType(int32_t transition_id, int32_t transition_type);
+  void SetSendTime(int32_t transition_id, int64_t timestamp_ns);
+  void SetDispatchTime(int32_t transition_id, int64_t timestamp_ns);
+  void TrySetDurationFromFinishTime(int32_t transition_id,
+                                    int64_t finish_time_ns);
+  void SetHandler(int32_t transition_id, int64_t handler);
+  void SetFlags(int32_t transition_id, int32_t flags);
+  void SetStatus(int32_t transition_id, StringPool::Id status);
 
   void Flush();
 
@@ -51,9 +62,13 @@ class ShellTransitionsTracker : public Destructible {
   struct TransitionInfo {
     tables::WindowManagerShellTransitionsTable::Id row_id;
     ArgsTracker args_tracker;
+    std::optional<int64_t> finish_time_ns = std::nullopt;
   };
 
   TransitionInfo* GetOrInsertTransition(int32_t transition_id);
+
+  std::optional<tables::WindowManagerShellTransitionsTable::RowReference>
+  GetRowReference(int32_t transition_id);
 
   TraceProcessorContext* context_;
   std::unordered_map<int32_t, TransitionInfo> transitions_infos_;
