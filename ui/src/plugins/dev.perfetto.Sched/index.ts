@@ -221,31 +221,41 @@ export default class implements PerfettoPlugin {
         const cpus = await this.getCpus(trace.engine);
         const rows: MinimapRow[] = [];
 
-        // Generate a list of buckets we wanna see:
         const intervals: bigint[] = [];
         for (let i: bigint = start; i < end; i += resolution) {
           intervals.push(i);
         }
 
-        const query = intervals
-          .map(
-            (ts, index) =>
-              `SELECT ${index} AS id, ${ts} AS ts, ${resolution} AS dur`,
-          )
-          .join(' UNION ALL ');
+        const values = intervals
+          .map((ts, index) => `(${index}, ${ts}, ${resolution})`)
+          .join();
 
-        await using _intervalsTable = await createPerfettoTable(
-          trace.engine,
-          'intervals',
-          query,
-        );
+        await trace.engine.query(`
+          CREATE TABLE intervals (
+            id INTEGER PRIMARY KEY,
+            ts INTEGER,
+            dur INTEGER
+          );
+
+          INSERT INTO intervals (id, ts, dur)
+          values ${values}
+        `);
 
         for (const cpu of cpus) {
-          // TODO(stevegolton): Take this from the track instead?
+          // TODO(stevegolton): Obtain source data from the track's datasets
+          // instead of repeating it here?
           await using _schedTable = await createPerfettoTable(
             trace.engine,
             '_sched',
-            `SELECT * FROM sched WHERE dur > 0 AND ucpu = ${cpu} AND utid != 0`,
+            `
+              SELECT
+                *
+              FROM sched
+              WHERE
+                dur > 0 AND
+                ucpu = ${cpu} AND
+                NOT utid IN (SELECT utid FROM thread WHERE is_idle)
+            `,
           );
 
           const entireQuery = `
