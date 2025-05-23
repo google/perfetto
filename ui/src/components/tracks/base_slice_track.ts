@@ -314,6 +314,20 @@ export abstract class BaseSliceTrack<
     const result = await this.onInit();
     result && this.trash.use(result);
 
+    // Calc the number of rows based on the depth col.
+    const rowCount = assertExists(
+      // `ORDER BY .. LIMIT 1` is faster than `MAX(depth)`
+      (
+        await this.engine.query(`
+          SELECT
+            ifnull(depth, 0) + 1 AS rowCount
+          FROM (${this.getSqlSource()})
+          ORDER BY depth DESC
+          LIMIT 1
+        `)
+      ).maybeFirstRow({rowCount: NUM})?.rowCount,
+    );
+
     // TODO(hjd): Consider case below:
     // raw:
     // 0123456789
@@ -364,10 +378,11 @@ export abstract class BaseSliceTrack<
     this.onUpdatedSlices(incomplete);
     this.incomplete = incomplete;
 
+    // Multiply the layer parameter by the rowCount
     await this.engine.query(`
       create virtual table ${this.getTableName()}
       using __intrinsic_slice_mipmap((
-        select id, ts, dur, depth
+        select id, ts, dur, ((layer * ${rowCount}) + depth) as depth
         from (${this.getSqlSource()})
         where dur != -1
       ));
@@ -682,7 +697,7 @@ export abstract class BaseSliceTrack<
         s.ts as ts,
         s.dur as dur,
         s.id,
-        z.depth
+        s.depth
         ${extraCols ? ',' + extraCols : ''}
       FROM ${this.getTableName()}(
         ${slicesKey.start},
