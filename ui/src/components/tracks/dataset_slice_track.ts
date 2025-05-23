@@ -95,9 +95,6 @@ export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
    * - `layer` (NUM): This layer value influences the mipmap function. Slices in
    *   different layers will be mipmapped independency of each other, and the
    *   buckets of higher layers will be rendered on top of lower layers.
-   *   Warning: While using layers, depth values must be kept under 16 (see
-   *   LAYER_MULTIPLIER in base_slice_track.ts), otherwise we could run into
-   *   issues.
    */
   readonly dataset: SourceDataset<T>;
 

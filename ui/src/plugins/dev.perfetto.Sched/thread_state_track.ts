@@ -32,13 +32,13 @@ export function createThreadStateTrack(
         id: NUM,
         ts: LONG,
         dur: LONG,
-        depth: NUM,
         layer: NUM,
         cpu: NUM_NULL,
         state: STR,
         io_wait: NUM_NULL,
         utid: NUM,
         name: STR,
+        depth: NUM,
       },
       src: `
         SELECT
@@ -50,12 +50,12 @@ export function createThreadStateTrack(
           io_wait,
           utid,
           sched_state_io_to_human_readable_string(state, io_wait) AS name,
-          -- Move sleeping and idle threads to the back layer
-          case
-            when state in ('S', 'I') then 0
-            else 1
-          end as layer,
-          0 as depth
+          -- Move sleeping and idle slices to the back layer, others on top
+          CASE
+            WHEN state IN ('S', 'I') THEN 0
+            ELSE 1
+          END AS layer,
+          0 AS depth
         FROM thread_state
       `,
       filter: {

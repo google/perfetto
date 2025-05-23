@@ -51,12 +51,6 @@ const CHEVRON_WIDTH_PX = 10;
 const DEFAULT_SLICE_COLOR = UNEXPECTED_PINK;
 const INCOMPLETE_SLICE_WIDTH_PX = 20;
 
-// TODO(stevegolton): Large depth values really slow down mipmap performance so
-// we keep this multiplier small. This has the side effect of basically settings
-// an upper limit to the depth value when also using layers. We just need to fix
-// this in the mipmap operator code in the trace processor.
-const LAYER_MULTIPLIER = 16;
-
 export const CROP_INCOMPLETE_SLICE_FLAG = featureFlags.register({
   id: 'cropIncompleteSlice',
   name: 'Crop incomplete slices',
@@ -320,6 +314,17 @@ export abstract class BaseSliceTrack<
     const result = await this.onInit();
     result && this.trash.use(result);
 
+    // Calc the number of rows based on the depth parameter.
+    const rowCount = assertExists(
+      (
+        await this.engine.query(`
+          SELECT
+            MAX(depth) + 1 as rowCount
+          FROM (${this.getSqlSource()})
+        `)
+      ).maybeFirstRow({rowCount: NUM})?.rowCount,
+    );
+
     // TODO(hjd): Consider case below:
     // raw:
     // 0123456789
@@ -370,10 +375,11 @@ export abstract class BaseSliceTrack<
     this.onUpdatedSlices(incomplete);
     this.incomplete = incomplete;
 
+    // Multiply the layer parameter by the rowCount
     await this.engine.query(`
       create virtual table ${this.getTableName()}
       using __intrinsic_slice_mipmap((
-        select id, ts, dur, ((layer * ${LAYER_MULTIPLIER}) + depth) as depth
+        select id, ts, dur, ((layer * ${rowCount}) + depth) as depth
         from (${this.getSqlSource()})
         where dur != -1
       ));
