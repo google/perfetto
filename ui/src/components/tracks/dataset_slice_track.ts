@@ -284,28 +284,6 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
     return this.sqlSource;
   }
 
-  override getJoinSqlSource(): string {
-    // This is a little performance optimization. Internally BST joins the
-    // results of the mipmap table query with the sqlSource in order to get the
-    // original ts, dur and id. However this sqlSource can sometimes be a
-    // contrived, slow query, usually to calculate the depth (e.g. something
-    // based on experimental_slice_layout).
-    //
-    // We don't actually need a depth value at this point, so calculating it is
-    // worthless. We only need ts, id, and dur. We don't even need this query to
-    // be correctly filtered, as we are merely joining on this table. We do
-    // however need it to be fast.
-    //
-    // In conclusion, if the dataset source has a dur column present (ts, and id
-    // are mandatory), then we can take a shortcut and just use this much
-    // simpler query to join on.
-    if (this.attrs.dataset.implements({dur: LONG})) {
-      return this.attrs.dataset.src;
-    } else {
-      return this.sqlSource;
-    }
-  }
-
   getDataset() {
     return this.attrs.dataset;
   }
