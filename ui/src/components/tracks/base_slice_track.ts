@@ -320,7 +320,7 @@ export abstract class BaseSliceTrack<
       (
         await this.engine.query(`
           SELECT
-            depth + 1 AS rowCount
+            ifnull(depth, 0) + 1 AS rowCount
           FROM (${this.getSqlSource()})
           ORDER BY depth DESC
           LIMIT 1
