@@ -12,16 +12,19 @@ the world of performance, we suggest reading the
 what Perfetto is and why it's useful, check out the
 [What is Perfetto?](/docs/tracing-101.md) page first.
 
-Our docs make use of the terms "Tutorials" and "Case Studies":
+Our docs make use of the terms "Tutorials", "Recipes" and "Case Studies":
 
 - **Tutorials** are guides which explain how to get started using Perfetto
   tools. They are focused on teaching you the tools themselves and _not_ so much
   on how the tools can be used to solve real world problems.
+- **Recipes** are small, bite-sized guides which give you a quick idea on how to
+  solve a concrete problem with Perfetto. They will have snippets of code you
+  can copy-paste or a sequence of instructions you can follow.
 - **Case Studies** are detailed, opinionated guides which take you step-by-step
   how you can debug and root-cause a "vertical" problem using Perfetto. They
   focus more on helping you solve the problem and and less on teaching you
-  Perfetto tools generally. They may also make signifcant use of non-Perfetto
-  based tools or commands where appropriate.
+  Perfetto tools. They may also make signifcant use of non-Perfetto based tools
+  or commands where appropriate.
 
 Based on what technology you are interested in, please choose one of the
 following sections to go next:
@@ -136,11 +139,11 @@ state, Perfetto provides powerful insights.
   - Android `bugreport.zip` files often contain Perfetto traces. The Perfetto UI
     can open these directly, automatically extracting and loading the traces.
     - **Tutorial**:
-      [Visualizing Android bugreports and other formats (TODO for specific bugreport section)](/docs/getting-started/adhoc/other-formats.md)
+      [Visualizing Android bugreports and other formats (TODO for specific bugreport section)](/docs/getting-started/analysis/other-formats.md)
   - You can visualize `adb logcat` output alongside trace data. Perfetto can
     also be configured to include logcat directly into new traces.
     - **Tutorial**:
-      [Visualizing adb logcat and other formats (TODO for specific logcat section)](/docs/getting-started/adhoc/other-formats.md)
+      [Visualizing adb logcat and other formats (TODO for specific logcat section)](/docs/getting-started/analysis/other-formats.md)
 
 ### Optimizing Performance & Addressing Latency
 
@@ -192,7 +195,7 @@ section below.
   - **Tutorial**:
     [Recording CPU profiles with Perfetto](/docs/getting-started/recording/cpu-profiling.md)
   - **Tutorial**:
-    [Visualizing simpleperf files (TODO)](/docs/getting-started/adhoc/other-formats.md)
+    [Visualizing simpleperf files (TODO)](/docs/getting-started/analysis/other-formats.md)
 
 ### Diagnosing Memory Issues
 
@@ -295,7 +298,7 @@ Here's how Perfetto can assist Linux kernel development and debugging:
     [Recording CPU profiles with Perfetto](/docs/getting-started/recording/cpu-profiling.md)
     (Focus on kernel and system-wide profiling)
   - **Guide**:
-    [Visualizing perf files (TODO)](/docs/getting-started/adhoc/other-formats.md)
+    [Visualizing perf files (TODO)](/docs/getting-started/analysis/other-formats.md)
 
 ## C/C++ Developer (non-Android)
 
@@ -374,7 +377,7 @@ analysis.
   capabilities on data you may already have.
 
   - **Guide**:
-    [Visualizing external trace formats with Perfetto](/docs/getting-started/adhoc/other-formats.md)
+    [Visualizing external trace formats with Perfetto](/docs/getting-started/analysis/other-formats.md)
     (Lists supported formats and how to open them)
 
 - **I have my own custom logging or timestamped data. How can I view it in
@@ -385,7 +388,7 @@ analysis.
   slices, counters, or flow events on a timeline. Once converted, you can use
   the full power of the Perfetto UI and Trace Processor.
   - **Guide**:
-    [Converting arbitrary timestamped data to Perfetto](/docs/getting-started/adhoc/converting.md)
+    [Converting arbitrary timestamped data to Perfetto](/docs/getting-started/analysis/converting.md)
   - **Reference**:
     [TrackEvent protobuf definition for synthetic traces](/docs/reference/synthetic-track-event.md)
 
@@ -407,7 +410,7 @@ Perfetto excels in several key areas:
       [SDK tutorial](/docs/getting-started/instrumentation/sdk.md) shows how.
     - Are you working with an existing system that produces timestamped data? It
       might be convertible to a format Perfetto understands. See our
-      [guide on converting custom data](/docs/getting-started/adhoc/converting.md).
+      [guide on converting custom data](/docs/getting-started/analysis/converting.md).
 
 2.  **Powerful Timeline Visualization (No Code Required):** The
     [Perfetto UI](/docs/visualization/perfetto-ui.md) is designed to intuitively
@@ -419,7 +422,7 @@ Perfetto excels in several key areas:
     understand what your system is doing.
 
     - **Explore diverse data:** Perfetto can open various
-      [external trace formats](/docs/getting-started/adhoc/other-formats.md)
+      [external trace formats](/docs/getting-started/analysis/other-formats.md)
       directly in the UI.
     - **Discover UI features:** The Perfetto UI also has features like
       [Debug Tracks](/docs/analysis/debug-tracks.md) that allow for

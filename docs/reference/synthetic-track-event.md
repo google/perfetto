@@ -2,7 +2,7 @@
 
 This page serves as an advanced reference for programmatically creating Perfetto
 trace files. It builds upon the foundational concepts and examples presented in
-"[Converting arbitrary timestamped data to Perfetto](/docs/getting-started/adhoc/converting.md)".
+"[Converting arbitrary timestamped data to Perfetto](/docs/getting-started/analysis/converting.md)".
 
 We assume you are familiar with:
 
@@ -36,7 +36,7 @@ and its various sub-messages, including
 ## Associating Tracks with Operating System Concepts
 
 While the
-"[Converting arbitrary timestamped data to Perfetto](/docs/getting-started/adhoc/converting.md)"
+"[Converting arbitrary timestamped data to Perfetto](/docs/getting-started/analysis/converting.md)"
 guide demonstrated creating generic custom tracks, you can provide more specific
 context to Perfetto by associating your tracks with operating system (OS)
 processes and threads. This allows Perfetto's UI and analysis tools to offer
@@ -125,7 +125,7 @@ tracks to it. This includes tracks for specific threads within that process (see
 next section), as well as custom tracks for process-wide counters (as shown
 above) or groups of asynchronous operations related to this process (using the
 techniques for asynchronous slices described in the
-"[Converting arbitrary timestamped data to Perfetto](/docs/getting-started/adhoc/converting.md)"
+"[Converting arbitrary timestamped data to Perfetto](/docs/getting-started/analysis/converting.md)"
 guide).
 
 ### Associating Tracks with Threads

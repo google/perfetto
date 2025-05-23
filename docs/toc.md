@@ -20,16 +20,18 @@
       - [Android atrace](getting-started/instrumentation/atrace.md)
       - [Linux ftrace](getting-started/instrumentation/ftrace.md)
 
-    - [Custom Analysis & Viz](#)
+    - [Trace Analysis & Viz](#)
 
-      - [Non-Perfetto formats](getting-started/adhoc/other-formats.md)
-      - [Converting to Perfetto](getting-started/adhoc/converting.md)
+      - [Other trace formats](getting-started/analysis/other-formats.md)
+      - [Converting to Perfetto](getting-started/analysis/converting.md)
+
+  - [Recipes](#)
+
+    - [Android: Trace Analysis](getting-started/recipes/android-trace-analysis.md)
 
   - [Case Studies](#)
 
-    - [Android](#)
-
-      - [Debugging memory usage](case-studies/memory.md)
+    - [Android: Debugging memory usage](case-studies/memory.md)
 
 - [Learning more](#)
 
@@ -40,7 +42,7 @@
     - [Service model](concepts/service-model.md)
     - [Clock synchronization](concepts/clock-sync.md)
 
-  - [Expanding Trace Recording](#)
+  - [More Trace Recording](#)
 
     - [App + System Tracing](learning-more/trace-recording/app-and-system-tracing.md)
     - [System Tracing on Android](learning-more/trace-recording/android.md)
