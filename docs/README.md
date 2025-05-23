@@ -81,7 +81,7 @@ explicltly unsupported.
 - **Recording traces for distributed / server systems**
 
   - Perfetto is **not** a distributed tracer in the vein of OpenTelemetry,
-    Jaeger, Datadog, LTTng etc. Perfetto's recording tools are entirely for
+    Jaeger, Datadog. Perfetto's recording tools are entirely for
     recording client side traces, especially at the system level. Our team
     believes that the space of distributed/server tracing is well covered by the
     aforementioned projects, unlike Android and Linux-embeded systems.

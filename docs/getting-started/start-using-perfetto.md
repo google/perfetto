@@ -50,13 +50,13 @@ If you are a developer working on an Android app or on Android platform code
 questions:
 
 1.  Why is a specific operation taking longer than expected?
-2.  What sequence of events led to this functional bug or crash?
+2.  What sequence of events led to this bug?
 3.  How do different processes and system services interact during a particular
     use case?
 4.  Is my component behaving correctly under specific system conditions?
-5.  Why is my system using so much memory?
+5.  Why is my app - or the whole system - using so much memory?
 6.  How can I optimize my component's CPU or resource usage?
-7.  What is the exact state of various components at a critical point in time?
+7.  What is the state of various system components at a critical point in time?
 
 <?tabs>
 
@@ -66,16 +66,24 @@ As an Android App Developer, you might already be using Perfetto via one of
 the app-focused tools which use Perfetto under the hood. Examples include:
 
 - [Android Studio Profiler](https://developer.android.com/studio/profile)
+- [Android GPU Inspector](https://gpuinspector.dev/)
 - [AndroidX Macrobenchmark Library](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-overview)
 - [ProfilingManager API in Android SDK](https://developer.android.com/reference/android/os/ProfilingManager)
 
-These projects are wrappers around Perfetto trace tooling to make it more well
-integrated for app developers. However, these wrappers usually only expose one
-facet of Perfetto or simplify it to make it easier to get started.
+These projects use Perfetto trace tooling under the hoods to expose a more
+polished and curated experience to app developers. On the other hand, they tend
+to expose a reduced set of features to favour ease of use and reduce cognitive
+overwhelming.
 
-However, Perfetto as a whole is **significantly more flexible and powerful** than any
-one of these wrappers. The below guidance can help you start using Perfetto to gain
-deeper insights into your app's behavior and its interaction with the Android system.
+If you are just getting started with app tracing you should likely look first
+into the aforementioned tools, as they offer a smoother learning curve.
+If, on the other hand, you want to use the full set of features, and accept the
+cost of dealing with a larger complexity and expertise demand, you can use
+Perfetto directly and take advantage of its bleeding edge features.
+
+This guide, and the rest of these docs, can help you start using Perfetto to
+gain deeper insights into your app's behavior and its interaction with the
+Android system.
 
 TAB: Google Platform Developers
 
@@ -249,7 +257,9 @@ performance. It interfaces with:
 
 - **ftrace**: For capturing detailed, high-frequency kernel events like
   scheduling changes, syscalls, interrupts, and custom tracepoints. Perfetto
-  acts as an efficient userspace daemon for ftrace.
+  acts as an efficient userspace daemon for ftrace. Perfetto supports also
+  recording and visualizing whole funcgraph traces via ftrace, to track each
+  kernel function entry/exit on the timeline.
 - **/proc and /sys interfaces**: For polling lower-frequency kernel statistics,
   process information (like command lines and parent/child relationships), and
   system-wide counters (e.g., memory usage, CPU frequency).
@@ -348,8 +358,8 @@ Here’s how Perfetto can help:
 
 ## Chromium Developers
 
-Perfetto is the **default tracing system** for the Chromium browser and its
-related projects (e.g., V8, Blink). While the Chromium project has its own
+Perfetto underpins the chrome://tracing system for the Chromium browser and its
+related projects (Angle, Skia, V8). While the Chromium project has its own
 extensive internal documentation and best practices for recording and analyzing
 traces, Perfetto provides the foundational tools for this.
 
