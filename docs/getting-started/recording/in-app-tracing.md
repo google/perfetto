@@ -125,7 +125,6 @@ void DrawGame() {
   // ...
   TRACE_COUNTER("rendering", "Framerate", 120);
 }
-
 ```
 
 </tabs?>
@@ -188,11 +187,51 @@ points:
 
 ## Analysing your first app trace
 
-Example of query in the UI
+You can also write SQL queries to understand more about the trace.
+
+By going into the `Query (SQL)` pane and pasting the following query:
+
+```
+SELECT
+  dur AS duration_ns,
+  EXTRACT_ARG(slice.arg_set_id, 'debug.player_number') AS player_number
+FROM slice
+WHERE slice.name = 'DrawPlayer';
+```
+
+you can see how many times the `DrawPlayer` instrumentation point has been hit,
+how long each execution took and its `player_number` annotation.
+
+![SQL query example](/docs/images/sql_draw_player.png)
+
+## Combined in-app and system tracing
+
+If you want to inspect your app events alongside system events, you can:
+
+* Change your app code to connect to the perfetto central tracing service
+  instead of logging inside the process.
+
+<?tabs>
+
+TAB: C++
+
+```
+  perfetto::TracingInitArgs args;
+  args.backends |= perfetto::kSystemBackend;
+  perfetto::Tracing::Initialize(args);
+```
+
+</tabs?>
+
+* Remove the code start and stop collecting events from your app. You can start
+  and stop collecting event using the [perfetto command line
+  client](/docs/reference/perfetto-cli).
+
+* Learn more about [system tracing](/docs/getting-started/recording/system-tracing.md)
+
 
 ## Next steps
 
-* SDK: more instrumentation points.
-* SDK: system mode.
-* SDK: custom data sources.
-* Trace analysis: SQL
+* SDK: [more](/docs/getting-started/instrumentation/sdk.md) instrumentation points.
+* Learn more about SQL trace analysis with [trace
+  processor](/docs/analysis/trace-processor.md).
