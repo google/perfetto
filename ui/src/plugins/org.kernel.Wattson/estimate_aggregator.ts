@@ -20,7 +20,7 @@ import {
 import {Engine} from '../../trace_processor/engine';
 import {exists} from '../../base/utils';
 import {ColumnDef, Sorting} from '../../public/aggregation';
-import {CPUSS_ESTIMATE_TRACK_KIND} from '../../public/track_kinds';
+import {CPUSS_ESTIMATE_TRACK_KIND} from './track_kinds';
 
 export class WattsonEstimateSelectionAggregator
   implements AreaSelectionAggregator

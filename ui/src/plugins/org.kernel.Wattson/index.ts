@@ -19,13 +19,13 @@ import {
 import {
   CPUSS_ESTIMATE_TRACK_KIND,
   GPUSS_ESTIMATE_TRACK_KIND,
-  SLICE_TRACK_KIND,
-} from '../../public/track_kinds';
+} from './track_kinds';
 import {createWattsonAggregationToTabAdaptor} from './aggregation_panel';
 import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 import {Engine} from '../../trace_processor/engine';
 import {NUM} from '../../trace_processor/query_result';
 import {PerfettoPlugin} from '../../public/plugin';
+import {SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
 import {WattsonEstimateSelectionAggregator} from './estimate_aggregator';
