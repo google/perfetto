@@ -314,13 +314,16 @@ export abstract class BaseSliceTrack<
     const result = await this.onInit();
     result && this.trash.use(result);
 
-    // Calc the number of rows based on the depth parameter.
+    // Calc the number of rows based on the depth col.
     const rowCount = assertExists(
+      // `ORDER BY .. LIMIT 1` is faster than `MAX(depth)`
       (
         await this.engine.query(`
           SELECT
-            MAX(depth) + 1 as rowCount
+            depth + 1 AS rowCount
           FROM (${this.getSqlSource()})
+          ORDER BY depth DESC
+          LIMIT 1
         `)
       ).maybeFirstRow({rowCount: NUM})?.rowCount,
     );
