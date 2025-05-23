@@ -172,8 +172,7 @@ void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
 
     auto counter_id = spec.counter_id();
     auto name = spec.name();
-    if (gpu_counter_track_ids_.find(counter_id) ==
-        gpu_counter_track_ids_.end()) {
+    if (!gpu_counter_state_.Find(counter_id)) {
       auto desc = spec.description();
 
       StringId unit_id = kNullStringId;
@@ -205,7 +204,9 @@ void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
             inserter.AddArg(description_id_, Variadic::String(desc_id));
           },
           tracks::DynamicUnit(unit_id));
-      gpu_counter_track_ids_.emplace(counter_id, track_id);
+      auto [cit, inserted] =
+          gpu_counter_state_.Insert(counter_id, GpuCounterState{track_id, {}});
+      PERFETTO_CHECK(inserted);
       if (spec.has_groups()) {
         for (auto group = spec.groups(); group; ++group) {
           tables::GpuCounterGroupTable::Row row;
@@ -231,17 +232,20 @@ void GpuEventParser::ParseGpuCounterEvent(int64_t ts, ConstBytes blob) {
     GpuCounterEvent::GpuCounter::Decoder counter(*it);
     if (counter.has_counter_id() &&
         (counter.has_int_value() || counter.has_double_value())) {
-      auto counter_id = counter.counter_id();
-      // Check missing counter_id
-      if (gpu_counter_track_ids_.find(counter_id) ==
-          gpu_counter_track_ids_.end()) {
+      auto* state = gpu_counter_state_.Find(counter.counter_id());
+      if (!state) {
         continue;
       }
       double counter_val = counter.has_int_value()
                                ? static_cast<double>(counter.int_value())
                                : counter.double_value();
-      context_->event_tracker->PushCounter(ts, counter_val,
-                                           gpu_counter_track_ids_[counter_id]);
+      auto id = context_->event_tracker->PushCounter(ts, 0, state->track_id);
+      if (state->last_id) {
+        auto row = context_->storage->mutable_counter_table()->FindById(
+            *state->last_id);
+        row->set_value(counter_val);
+      }
+      state->last_id = id;
     }
   }
 }
