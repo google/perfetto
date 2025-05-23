@@ -15,6 +15,7 @@
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {clamp} from '../../base/math_utils';
 import {exists} from '../../base/utils';
+import {getColorForSlice} from '../../components/colorizer';
 import {ThreadSliceDetailsPanel} from '../../components/details/thread_slice_details_tab';
 import {
   DatasetSliceTrack,
@@ -58,8 +59,14 @@ export function createTraceProcessorSliceTrack({
         depth: NUM,
         thread_dur: LONG_NULL,
         category: STR_NULL,
+        correlation_id: STR_NULL,
       },
-      src: 'slice',
+      src: `
+        select
+          *,
+          extract_arg(arg_set_id, 'correlation_id') as correlation_id
+        from slice
+      `,
       filter: {
         col: 'track_id',
         in: trackIds,
@@ -86,6 +93,15 @@ export function createTraceProcessorSliceTrack({
     detailsPanel: detailsPanel
       ? (row) => detailsPanel(row)
       : () => new ThreadSliceDetailsPanel(trace),
+    colorizer: (row) => {
+      if (row.correlation_id) {
+        return getColorForSlice(row.correlation_id);
+      }
+      if (row.name) {
+        return getColorForSlice(row.name);
+      }
+      return getColorForSlice(`${row.id}`);
+    },
   });
 }
 

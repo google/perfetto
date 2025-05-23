@@ -213,5 +213,10 @@ PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   perfetto_protos_AppWakelockInfo,
                   app_wakelock_info,
                   42);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
+                  perfetto_protos_InternedString,
+                  correlation_id_str,
+                  43);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_INTERNED_DATA_INTERNED_DATA_PZC_H_
