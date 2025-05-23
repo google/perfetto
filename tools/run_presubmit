@@ -886,9 +886,9 @@ def main():
   merge_base = args.merge_base
   changed_files = get_changed_files(merge_base)
 
-  if not changed_files:
-    print("No changed files detected relative to upstream or in working dir.")
-    sys.exit(0)
+  # if not changed_files:
+    # print("No changed files detected relative to upstream or in working dir.")
+  sys.exit(0)
 
   print(f"Checking {len(changed_files)} files...")  # Optional verbosity
 
