@@ -310,7 +310,12 @@ export abstract class BaseSliceTrack<
     return `slice_${this.trackUuid}`;
   }
 
-  async onCreate(): Promise<void> {
+  private oldQuery?: string;
+
+  private async initialize(): Promise<void> {
+    // This disposes all already initialized stuff and empties the trash.
+    await this.trash.asyncDispose();
+
     const result = await this.onInit();
     result && this.trash.use(result);
 
@@ -390,10 +395,18 @@ export abstract class BaseSliceTrack<
 
     this.trash.defer(async () => {
       await this.engine.tryQuery(`drop table ${this.getTableName()}`);
+      this.oldQuery = undefined;
+      this.slicesKey = CacheKey.zero();
     });
   }
 
   async onUpdate({visibleWindow, size}: TrackRenderContext): Promise<void> {
+    const query = this.getSqlSource();
+    if (query !== this.oldQuery) {
+      await this.initialize();
+      this.oldQuery = query;
+    }
+
     const windowSizePx = Math.max(1, size.width);
     const timespan = visibleWindow.toTimeSpan();
     const rawSlicesKey = CacheKey.create(
