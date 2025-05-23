@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {drawIncompleteSlice} from '../../base/canvas_utils';
-import {colorCompare} from '../../base/color';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {VerticalBounds} from '../../base/geom';
 import {assertExists} from '../../base/logging';
@@ -513,19 +512,11 @@ export abstract class BaseSliceTrack<
     }
 
     // Second pass: fill slices by color.
-    const vizSlicesByColor = vizSlices.slice();
-    vizSlicesByColor.sort((a, b) =>
-      colorCompare(a.colorScheme.base, b.colorScheme.base),
-    );
-    let lastColor = undefined;
-    for (const slice of vizSlicesByColor) {
+    for (const slice of vizSlices) {
       const color = slice.isHighlighted
         ? slice.colorScheme.variant.cssString
         : slice.colorScheme.base.cssString;
-      if (color !== lastColor) {
-        lastColor = color;
-        ctx.fillStyle = color;
-      }
+      ctx.fillStyle = color;
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       if (slice.flags & SLICE_FLAGS_INSTANT) {
         this.drawChevron(ctx, slice.x, y, sliceHeight);
@@ -554,7 +545,7 @@ export abstract class BaseSliceTrack<
 
     // Pass 2.5: Draw fillRatio light section.
     ctx.fillStyle = `#FFFFFF50`;
-    for (const slice of vizSlicesByColor) {
+    for (const slice of vizSlices) {
       // Can't draw fill ratio on incomplete or instant slices.
       if (slice.flags & (SLICE_FLAGS_INCOMPLETE | SLICE_FLAGS_INSTANT)) {
         continue;
