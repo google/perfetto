@@ -20,7 +20,7 @@ import {TimeScale} from '../../base/time_scale';
 import {AppImpl} from '../../core/app_impl';
 import {featureFlags} from '../../core/feature_flags';
 import {raf} from '../../core/raf_scheduler';
-import {OverviewTimeline} from './overview_timeline_panel';
+import {Minimap} from './minimap';
 import {TabPanel} from './tab_panel';
 import {TimelineHeader} from './timeline_header';
 import {TrackTreeView} from './track_tree_view';
@@ -61,7 +61,7 @@ class ViewerPage implements m.ClassComponent<ViewerPageAttrs> {
         TabPanel,
         {trace},
         OVERVIEW_PANEL_FLAG.get() &&
-          m(OverviewTimeline, {
+          m(Minimap, {
             trace,
             className: 'pf-viewer-page__overview',
           }),

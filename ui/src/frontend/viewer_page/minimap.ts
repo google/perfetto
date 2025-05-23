@@ -18,15 +18,12 @@ import {toHTMLElement} from '../../base/dom_utils';
 import {Rect2D, Size2D} from '../../base/geom';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
 import {assertExists, assertUnreachable} from '../../base/logging';
-import {Duration, duration, Time, time, TimeSpan} from '../../base/time';
+import {Time, time, TimeSpan} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
-import {getOrCreate} from '../../base/utils';
 import {ZonedInteractionHandler} from '../../base/zoned_interaction_handler';
 import {colorForCpu} from '../../components/colorizer';
-import {raf} from '../../core/raf_scheduler';
 import {TraceImpl} from '../../core/trace_impl';
 import {TimestampFormat} from '../../public/timeline';
-import {LONG, NUM} from '../../trace_processor/query_result';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 import {OVERVIEW_TIMELINE_NON_VISIBLE_COLOR} from '../css_constants';
 import {
@@ -38,29 +35,16 @@ import {
 
 const HANDLE_SIZE_PX = 5;
 
-export interface OverviewTimelineAttrs {
+export interface MinimapAttrs {
   readonly trace: TraceImpl;
   readonly className?: string;
 }
 
-const tracesData = new WeakMap<TraceImpl, OverviewDataLoader>();
-
-export class OverviewTimeline
-  implements m.ClassComponent<OverviewTimelineAttrs>
-{
-  private readonly overviewData: OverviewDataLoader;
+export class Minimap implements m.ClassComponent<MinimapAttrs> {
   private readonly trash = new DisposableStack();
   private interactions?: ZonedInteractionHandler;
 
-  constructor({attrs}: m.CVnode<OverviewTimelineAttrs>) {
-    this.overviewData = getOrCreate(
-      tracesData,
-      attrs.trace,
-      () => new OverviewDataLoader(attrs.trace),
-    );
-  }
-
-  view({attrs}: m.CVnode<OverviewTimelineAttrs>) {
+  view({attrs}: m.CVnode<MinimapAttrs>) {
     return m(
       VirtualOverlayCanvas,
       {
@@ -76,12 +60,12 @@ export class OverviewTimeline
     );
   }
 
-  oncreate({dom}: m.VnodeDOM<OverviewTimelineAttrs, this>) {
+  oncreate({dom}: m.VnodeDOM<MinimapAttrs, this>) {
     this.interactions = new ZonedInteractionHandler(toHTMLElement(dom));
     this.trash.use(this.interactions);
   }
 
-  onremove(_: m.VnodeDOM<OverviewTimelineAttrs, this>) {
+  onremove(_: m.VnodeDOM<MinimapAttrs, this>) {
     this.trash.dispose();
   }
 
@@ -138,22 +122,21 @@ export class OverviewTimeline
       }
     }
 
-    // Draw mini-tracks with quanitzed density for each process.
-    const overviewData = this.overviewData.overviewData;
-    if (overviewData.size > 0) {
-      const numTracks = overviewData.size;
-      let y = 0;
+    // Render the minimap data
+    const rows = trace.minimap.getLoad();
+    if (rows) {
+      const numTracks = rows.length;
       const trackHeight = (tracksHeight - 1) / numTracks;
-      for (const key of overviewData.keys()) {
-        const loads = overviewData.get(key)!;
-        for (let i = 0; i < loads.length; i++) {
-          const xStart = Math.floor(timescale.timeToPx(loads[i].start));
-          const xEnd = Math.ceil(timescale.timeToPx(loads[i].end));
+      let y = 0;
+      for (const row of rows) {
+        for (const cell of row) {
+          const x = Math.floor(timescale.timeToPx(cell.ts));
+          const width = Math.ceil(timescale.durationToPx(cell.dur));
           const yOff = Math.floor(headerHeight + y * trackHeight);
-          const lightness = Math.ceil((1 - loads[i].load * 0.7) * 100);
+          const lightness = Math.ceil((1 - cell.load * 0.7) * 100);
           const color = colorForCpu(y).setHSL({s: 50, l: lightness});
           ctx.fillStyle = color.cssString;
-          ctx.fillRect(xStart, yOff, xEnd - xStart, Math.ceil(trackHeight));
+          ctx.fillRect(x, yOff, width, Math.ceil(trackHeight));
         }
         y++;
       }
@@ -320,135 +303,4 @@ function renderTimecode(
   const timecode = Time.toTimecode(time);
   const {dhhmmss} = timecode;
   ctx.fillText(dhhmmss, x, y, minWidth);
-}
-
-interface QuantizedLoad {
-  start: time;
-  end: time;
-  load: number;
-}
-
-// Kicks of a sequence of promises that load the overiew data in steps.
-// Each step schedules an animation frame.
-class OverviewDataLoader {
-  overviewData = new Map<string, QuantizedLoad[]>();
-
-  constructor(private trace: TraceImpl) {
-    this.beginLoad();
-  }
-
-  async beginLoad() {
-    const traceSpan = new TimeSpan(
-      this.trace.traceInfo.start,
-      this.trace.traceInfo.end,
-    );
-    const engine = this.trace.engine;
-    const stepSize = Duration.max(1n, traceSpan.duration / 100n);
-    const hasSchedSql = 'select ts from sched limit 1';
-    const hasSchedOverview = (await engine.query(hasSchedSql)).numRows() > 0;
-    if (hasSchedOverview) {
-      await this.loadSchedOverview(traceSpan, stepSize);
-    } else {
-      await this.loadSliceOverview(traceSpan, stepSize);
-    }
-  }
-
-  async loadSchedOverview(traceSpan: TimeSpan, stepSize: duration) {
-    const stepPromises = [];
-    for (
-      let start = traceSpan.start;
-      start < traceSpan.end;
-      start = Time.add(start, stepSize)
-    ) {
-      const progress = start - traceSpan.start;
-      const ratio = Number(progress) / Number(traceSpan.duration);
-      this.trace.omnibox.showStatusMessage(
-        'Loading overview ' + `${Math.round(ratio * 100)}%`,
-      );
-      const end = Time.add(start, stepSize);
-      // The (async() => {})() queues all the 100 async promises in one batch.
-      // Without that, we would wait for each step to be rendered before
-      // kicking off the next one. That would interleave an animation frame
-      // between each step, slowing down significantly the overall process.
-      stepPromises.push(
-        (async () => {
-          const schedResult = await this.trace.engine.query(`
-            select
-              cast(sum(dur) as float)/${stepSize} as load,
-              cpu from sched
-            where
-              ts >= ${start} and
-              ts < ${end} and
-              not utid in (select utid from thread where is_idle)
-            group by cpu
-            order by cpu
-          `);
-          const schedData: {[key: string]: QuantizedLoad} = {};
-          const it = schedResult.iter({load: NUM, cpu: NUM});
-          for (; it.valid(); it.next()) {
-            const load = it.load;
-            const cpu = it.cpu;
-            schedData[cpu] = {start, end, load};
-          }
-          this.appendData(schedData);
-        })(),
-      );
-    } // for(start = ...)
-    await Promise.all(stepPromises);
-  }
-
-  async loadSliceOverview(traceSpan: TimeSpan, stepSize: duration) {
-    // Slices overview.
-    const sliceResult = await this.trace.engine.query(`
-      select
-        bucket,
-        upid,
-        ifnull(sum(utid_sum) / cast(${stepSize} as float), 0) as load
-      from thread
-      inner join (
-        select
-          ifnull(cast((ts - ${traceSpan.start})/${stepSize} as int), 0) as bucket,
-          sum(dur) as utid_sum,
-          utid
-        from slice
-        inner join thread_track on slice.track_id = thread_track.id
-        group by bucket, utid
-      ) using(utid)
-      where upid is not null
-      group by bucket, upid
-    `);
-
-    const slicesData: {[key: string]: QuantizedLoad[]} = {};
-    const it = sliceResult.iter({bucket: LONG, upid: NUM, load: NUM});
-    for (; it.valid(); it.next()) {
-      const bucket = it.bucket;
-      const upid = it.upid;
-      const load = it.load;
-
-      const start = Time.add(traceSpan.start, stepSize * bucket);
-      const end = Time.add(start, stepSize);
-
-      const upidStr = upid.toString();
-      let loadArray = slicesData[upidStr];
-      if (loadArray === undefined) {
-        loadArray = slicesData[upidStr] = [];
-      }
-      loadArray.push({start, end, load});
-    }
-    this.appendData(slicesData);
-  }
-
-  appendData(data: {[key: string]: QuantizedLoad | QuantizedLoad[]}) {
-    for (const [key, value] of Object.entries(data)) {
-      if (!this.overviewData.has(key)) {
-        this.overviewData.set(key, []);
-      }
-      if (value instanceof Array) {
-        this.overviewData.get(key)!.push(...value);
-      } else {
-        this.overviewData.get(key)!.push(value);
-      }
-    }
-    raf.scheduleCanvasRedraw();
-  }
 }

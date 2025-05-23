@@ -45,7 +45,7 @@ class AndroidGpu(TestSuite):
         trace=Path('../../metrics/graphics/gpu_frequency_metric.textproto'),
         query="""
         INCLUDE PERFETTO MODULE android.gpu.frequency;
-        SELECT *
+        SELECT ts, dur, gpu_id, gpu_freq
         FROM android_gpu_frequency;
       """,
         out=Csv("""
