@@ -133,21 +133,6 @@ export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
   readonly instantStyle?: InstantStyle;
 
   /**
-   * This function can optionally be used to override the query that is
-   * generated for querying the slices rendered on the track. This is typically
-   * used to provide a non-standard depth value, but can be used as an escape
-   * hatch to completely override the query if required.
-   *
-   * The returned query must be in the form of a select statement or table name
-   * with the following columns:
-   * - id: NUM
-   * - ts: LONG
-   * - dur: LONG
-   * - depth: NUM
-   */
-  queryGenerator?(dataset: SourceDataset): string;
-
-  /**
    * An optional function to override the color scheme for each event.
    * If omitted, the default slice color scheme is used.
    */
@@ -216,7 +201,7 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
       attrs.initialMaxDepth,
       attrs.instantStyle?.width,
     );
-    const {dataset, queryGenerator} = attrs;
+    const {dataset} = attrs;
 
     // This is the minimum viable implementation that the source dataset must
     // implement for the track to work properly. Typescript should enforce this
@@ -224,8 +209,7 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
     // Better to error out early.
     assertTrue(this.attrs.dataset.implements(rowSchema));
 
-    this.sqlSource =
-      queryGenerator?.(dataset) ?? this.generateRenderQuery(dataset);
+    this.sqlSource = this.generateRenderQuery(dataset);
     this.rootTableName = attrs.rootTableName;
   }
 
