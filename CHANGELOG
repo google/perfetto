@@ -4,9 +4,10 @@ Unreleased:
   SQL Standard library:
     *
   Trace Processor:
-    *
+    * Improved performance of parsing JSON by 7x. JSON traces should now load
+      much faster in the Perfetto UI and the trace processor.
   UI:
-    *
+    * Improved JSON loading performance. See `Trace Processor` section above.
   SDK:
     *
 
