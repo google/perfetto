@@ -74,16 +74,6 @@ ReadKeyRes ReadOneJsonKey(const char* start,
                           std::string* key,
                           const char** next);
 
-// Takes as input a JSON dictionary and returns the value associated with
-// the provided key (if it exists).
-// Implementation note: this method does not currently support dictionaries
-// which have arrays as JSON values because current users of this method
-// do not require this.
-// Visible for testing.
-base::Status ExtractValueForJsonKey(base::StringView dict,
-                                    const std::string& key,
-                                    std::optional<std::string>* value);
-
 enum class ReadSystemLineRes {
   kFoundLine,
   kNeedsMoreData,

@@ -22,6 +22,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -33,6 +34,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/json/json_parser.h"
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/stats.h"
@@ -40,10 +42,6 @@
 
 namespace perfetto::trace_processor {
 namespace {
-
-std::string FormatErrorContext(const char* s, const char* e) {
-  return {s, static_cast<size_t>(e - s)};
-}
 
 base::Status AppendUnescapedCharacter(char c,
                                       bool is_escaping,
@@ -309,122 +307,6 @@ ReadKeyRes ReadOneJsonKey(const char* start,
   return ReadKeyRes::kNeedsMoreData;
 }
 
-base::Status ExtractValueForJsonKey(base::StringView dict,
-                                    const std::string& key,
-                                    std::optional<std::string>* value) {
-  PERFETTO_DCHECK(dict.size() >= 2);
-
-  const char* start = dict.data();
-  const char* end = dict.data() + dict.size();
-
-  enum ExtractValueState {
-    kBeforeDict,
-    kInsideDict,
-    kAfterDict,
-  };
-
-  ExtractValueState state = kBeforeDict;
-  for (const char* s = start; s < end;) {
-    if (isspace(*s)) {
-      ++s;
-      continue;
-    }
-
-    if (state == kBeforeDict) {
-      if (*s == '{') {
-        ++s;
-        state = kInsideDict;
-        continue;
-      }
-      return base::ErrStatus("Unexpected character before JSON dict: '%c'", *s);
-    }
-
-    if (state == kAfterDict) {
-      return base::ErrStatus("Unexpected character after JSON dict: '%c'", *s);
-    }
-
-    PERFETTO_DCHECK(state == kInsideDict);
-    PERFETTO_DCHECK(s < end);
-
-    if (*s == '}') {
-      ++s;
-      state = kAfterDict;
-      continue;
-    }
-
-    std::string current_key;
-    auto res = ReadOneJsonKey(s, end, &current_key, &s);
-    if (res == ReadKeyRes::kEndOfDictionary)
-      break;
-
-    if (res == ReadKeyRes::kFatalError) {
-      return base::ErrStatus(
-          "Failure parsing JSON: encountered fatal error while parsing key for "
-          "value: '%s'",
-          FormatErrorContext(s, end).c_str());
-    }
-
-    if (res == ReadKeyRes::kNeedsMoreData) {
-      return base::ErrStatus(
-          "Failure parsing JSON: partial JSON dictionary: '%s'",
-          FormatErrorContext(s, end).c_str());
-    }
-
-    PERFETTO_DCHECK(res == ReadKeyRes::kFoundKey);
-
-    if (*s == '[') {
-      return base::ErrStatus(
-          "Failure parsing JSON: unsupported JSON dictionary with array: '%s'",
-          FormatErrorContext(s, end).c_str());
-    }
-
-    std::string value_str;
-    if (*s == '{') {
-      base::StringView dict_str;
-      ReadDictRes dict_res = ReadOneJsonDict(s, end, &dict_str, &s);
-      if (dict_res == ReadDictRes::kNeedsMoreData ||
-          dict_res == ReadDictRes::kEndOfArray ||
-          dict_res == ReadDictRes::kEndOfTrace) {
-        return base::ErrStatus(
-            "Failure parsing JSON: unable to parse dictionary: '%s'",
-            FormatErrorContext(s, end).c_str());
-      }
-      value_str = dict_str.ToStdString();
-    } else if (*s == '"') {
-      auto str_res = ReadOneJsonString(s, end, &value_str, &s);
-      if (str_res == ReadStringRes::kNeedsMoreData ||
-          str_res == ReadStringRes::kFatalError) {
-        return base::ErrStatus(
-            "Failure parsing JSON: unable to parse string: '%s",
-            FormatErrorContext(s, end).c_str());
-      }
-    } else {
-      const char* value_start = s;
-      const char* value_end = end;
-      for (; s < end; ++s) {
-        if (*s == ',' || isspace(*s) || *s == '}') {
-          value_end = s;
-          break;
-        }
-      }
-      value_str = std::string(value_start, value_end);
-    }
-
-    if (key == current_key) {
-      *value = value_str;
-      return base::OkStatus();
-    }
-  }
-
-  if (state != kAfterDict) {
-    return base::ErrStatus("Failure parsing JSON: malformed dictionary: '%s'",
-                           FormatErrorContext(start, end).c_str());
-  }
-
-  *value = std::nullopt;
-  return base::OkStatus();
-}
-
 ReadSystemLineRes ReadOneSystemTraceLine(const char* start,
                                          const char* end,
                                          std::string* line,
@@ -554,34 +436,43 @@ base::Status JsonTraceTokenizer::HandleTraceEvent(const char* start,
         break;
     }
 
+    std::string_view ph;
+    std::optional<json::JsonValue> opt_raw_ts;
+    std::optional<json::JsonValue> opt_raw_dur;
+
+    json::JsonObjectFieldIterator it({unparsed.data(), unparsed.size()});
+    for (; it; ++it) {
+      if (it.key() == "ph") {
+        ph = json::GetStringValue(it.value());
+      } else if (it.key() == "ts") {
+        opt_raw_ts = it.value();
+      } else if (it.key() == "dur") {
+        opt_raw_dur = it.value();
+      }
+    }
+
     // Metadata events may omit ts. In all other cases error:
-    std::optional<std::string> opt_raw_ph;
-    RETURN_IF_ERROR(ExtractValueForJsonKey(unparsed, "ph", &opt_raw_ph));
-    if (PERFETTO_UNLIKELY(opt_raw_ph == "P")) {
+    if (PERFETTO_UNLIKELY(ph == "P")) {
       RETURN_IF_ERROR(ParseV8SampleEvent(unparsed));
       continue;
     }
 
-    std::optional<std::string> opt_raw_ts;
-    RETURN_IF_ERROR(ExtractValueForJsonKey(unparsed, "ts", &opt_raw_ts));
     std::optional<int64_t> opt_ts =
         opt_raw_ts ? json::CoerceToTs(*opt_raw_ts) : std::nullopt;
-    std::optional<std::string> opt_raw_dur;
-    RETURN_IF_ERROR(ExtractValueForJsonKey(unparsed, "dur", &opt_raw_dur));
     std::optional<int64_t> opt_dur =
         opt_raw_dur ? json::CoerceToTs(*opt_raw_dur) : std::nullopt;
     int64_t ts = 0;
     if (opt_ts.has_value()) {
       ts = opt_ts.value();
     } else {
-      if (!opt_raw_ph || *opt_raw_ph != "M") {
+      if (ph.empty() || ph != "M") {
         context_->storage->IncrementStats(stats::json_tokenizer_failure);
         continue;
       }
     }
     JsonEvent::Type type;
-    if (opt_raw_ph && opt_raw_ph->size() == 1) {
-      switch ((*opt_raw_ph)[0]) {
+    if (ph.size() == 1) {
+      switch (ph[0]) {
         case 'B':
           type = JsonEvent::Begin();
           break;
