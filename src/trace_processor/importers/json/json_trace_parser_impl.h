@@ -17,10 +17,12 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_PARSER_IMPL_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_PARSER_IMPL_H_
 
+#include <array>
 #include <cstdint>
 #include <string>
 
 #include "src/trace_processor/importers/common/trace_parser.h"
+#include "src/trace_processor/importers/json/json_parser.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/importers/systrace/systrace_line_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -49,7 +51,8 @@ class JsonTraceParserImpl : public JsonTraceParser {
   TraceProcessorContext* const context_;
   SystraceLineParser systrace_line_parser_;
 
-  void MaybeAddFlow(TrackId track_id, const Json::Value& event);
+  void MaybeAddFlow(TrackId track_id,
+                    const std::array<json::JsonValue, 18>& event);
 };
 
 }  // namespace perfetto::trace_processor

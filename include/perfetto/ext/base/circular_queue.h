@@ -25,6 +25,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/public/compiler.h"
 
 namespace perfetto {
 namespace base {
@@ -308,7 +309,7 @@ class CircularQueue {
     entries_ = std::move(new_vec);
   }
 
-  inline T* Get(uint64_t pos) {
+  PERFETTO_ALWAYS_INLINE inline T* Get(uint64_t pos) {
     PERFETTO_DCHECK(pos >= begin_ && pos < end_);
     PERFETTO_DCHECK((capacity_ & (capacity_ - 1)) == 0);  // Must be a pow2.
     auto index = static_cast<size_t>(pos & (capacity_ - 1));
