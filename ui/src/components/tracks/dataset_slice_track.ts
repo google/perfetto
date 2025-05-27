@@ -129,6 +129,14 @@ export interface DatasetSliceTrackAttrs<T extends DatasetSchema> {
   readonly instantStyle?: InstantStyle;
 
   /**
+   * Events are usually rendered in color order for performance. However for
+   * tracks that have a lot of overlapping event such as those full of instant
+   * events, this can look odd, so this setting forces events to be rendered in
+   * timestamp order, potentially at the cost of a bit of performance.
+   */
+  readonly forceTsRenderOrder?: boolean;
+
+  /**
    * An optional function to override the color scheme for each event.
    * If omitted, the default slice color scheme is used.
    */
@@ -203,6 +211,7 @@ export class DatasetSliceTrack<T extends ROW_SCHEMA> extends BaseSliceTrack<
       attrs.sliceLayout,
       attrs.initialMaxDepth,
       attrs.instantStyle?.width,
+      attrs.forceTsRenderOrder ?? false,
     );
     this.rootTableName = attrs.rootTableName;
   }
