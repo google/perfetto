@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Time} from '../../base/time';
 import {ColumnDef, Sorting} from '../../public/aggregation';
 import {AreaSelection, AreaSelectionAggregator} from '../../public/selection';
 import {Dataset} from '../../trace_processor/dataset';
@@ -35,18 +36,26 @@ export class SliceSelectionAggregator implements AreaSelectionAggregator {
   ) {
     if (!dataset) return false;
 
+    const duration = Time.durationBetween(area.start, area.end);
+    if (duration <= 0n) {
+      return false;
+    }
+
     await engine.query(`
-      create or replace perfetto table ${this.id} as
-      select
+      INCLUDE PERFETTO MODULE viz.aggregation;
+
+      CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
+      SELECT
         name,
-        sum(dur) AS total_dur,
-        sum(dur)/count() as avg_dur,
-        count() as occurrences
-        from (${dataset.query()})
-      where
-        ts + dur > ${area.start}
-        and ts < ${area.end}
-      group by name
+        SUM(ii_dur) AS total_dur,
+        SUM(ii_dur)/COUNT() AS avg_dur,
+        COUNT() AS occurrences
+      FROM _intersect_slices!(
+        ${area.start},
+        ${duration},
+        (${dataset.query()})
+      )
+      GROUP BY name
     `);
 
     return true;

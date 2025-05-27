@@ -25,6 +25,7 @@ import {
 import {AreaSelectionAggregator} from '../../public/selection';
 import {Dataset} from '../../trace_processor/dataset';
 import {colorForThreadState} from './common';
+import {Time} from '../../base/time';
 
 export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'thread_state_aggregation';
@@ -43,7 +44,14 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
   ) {
     if (dataset === undefined) return false;
 
+    const duration = Time.durationBetween(area.start, area.end);
+    if (duration <= 0n) {
+      return false;
+    }
+
     await engine.query(`
+      INCLUDE PERFETTO MODULE viz.aggregation;
+      
       create or replace perfetto table ${this.id} as
       select
         process.name as process_name,
@@ -51,15 +59,16 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
         thread.name as thread_name,
         thread.tid,
         tstate.state || ',' || ifnull(tstate.io_wait, 'NULL') as concat_state,
-        sum(tstate.dur) AS total_dur,
-        sum(tstate.dur) / count() as avg_dur,
+        sum(tstate.ii_dur) AS total_dur,
+        sum(tstate.ii_dur) / count() as avg_dur,
         count() as occurrences
-      from (${dataset.query()}) tstate
+      from _intersect_slices!(
+        ${area.start},
+        ${duration},
+        (${dataset.query()})
+      ) AS tstate
       join thread using (utid)
       left join process using (upid)
-      where
-        ts + dur > ${area.start}
-        and ts < ${area.end}
       group by utid, concat_state
     `);
 
@@ -73,15 +82,22 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
   ): Promise<BarChartData[] | undefined> {
     if (dataset === undefined) return undefined;
 
+    const duration = Time.durationBetween(area.start, area.end);
+    if (duration <= 0n) {
+      return undefined;
+    }
+
     const query = `
       select
         sched_state_io_to_human_readable_string(state, io_wait) AS name,
-        sum(dur) as totalDur
-      from (${dataset.query()}) tstate
+        sum(ii_dur) as totalDur
+      from _intersect_slices!(
+        ${area.start},
+        ${duration},
+        (${dataset.query()})
+      ) AS tstate
       join thread using (utid)
-      where tstate.ts + tstate.dur > ${area.start}
-        and tstate.ts < ${area.end}
-      group by state, io_wait
+      group by tstate.name
     `;
     const result = await engine.query(query);
 

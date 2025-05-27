@@ -19,6 +19,7 @@ import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {AreaSelectionAggregator} from '../../public/selection';
 import {Dataset} from '../../trace_processor/dataset';
 import {LONG, NUM} from '../../trace_processor/query_result';
+import {Time} from '../../base/time';
 
 export class CpuSliceByProcessSelectionAggregator
   implements AreaSelectionAggregator
@@ -38,20 +39,28 @@ export class CpuSliceByProcessSelectionAggregator
   ) {
     if (!dataset) return false;
 
+    const duration = Time.durationBetween(area.start, area.end);
+    if (duration <= 0n) {
+      return false;
+    }
+
     await engine.query(`
+      INCLUDE PERFETTO MODULE viz.aggregation;
+
       create or replace perfetto table ${this.id} as
       select
         process.name as process_name,
         process.pid,
-        sum(dur) AS total_dur,
-        sum(dur) / count() as avg_dur,
+        sum(ii_dur) AS total_dur,
+        sum(ii_dur) / count() as avg_dur,
         count() as occurrences
-      from (${dataset.query()})
+      from _intersect_slices!(
+        ${area.start},
+        ${duration},
+        (${dataset.query()})
+      )
       join thread USING (utid)
       join process USING (upid)
-      where
-        ts + dur > ${area.start}
-        and ts < ${area.end}
       group by upid
     `);
     return true;
