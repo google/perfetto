@@ -210,8 +210,9 @@ tables::SurfaceFlingerLayerTable::Id SurfaceFlingerLayersParser::InsertLayerRow(
   }
   if (layer_decoder.has_z_order_relative_of()) {
     layer.z_order_relative_of = layer_decoder.z_order_relative_of();
-    if (layers_by_id.find(layer_decoder.z_order_relative_of()) ==
-        layers_by_id.end()) {
+    if (layer_decoder.z_order_relative_of() > 0 &&
+        layers_by_id.find(layer_decoder.z_order_relative_of()) ==
+            layers_by_id.end()) {
       layer.is_missing_z_parent = true;
     }
   }

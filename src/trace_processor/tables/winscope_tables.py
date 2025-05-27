@@ -49,7 +49,6 @@ WINSCOPE_TRANSFORM_TABLE = Table(
     class_name='WinscopeTransformTable',
     sql_name='__intrinsic_winscope_transform',
     columns=[
-        C('transform_id', CppUint32()),
         C('dsdx', CppDouble()),
         C('dtdx', CppDouble()),
         C('tx', CppDouble()),
@@ -61,20 +60,12 @@ WINSCOPE_TRANSFORM_TABLE = Table(
         doc='WinscopeTransform',
         group='Winscope',
         columns={
-            'transform_id':
-                'Used to associate transform with row in __intrinsic_winscope_trace_rect',
-            'dsdx':
-                'Dsdx',
-            'dtdx':
-                'Dtdx',
-            'tx':
-                'Tx',
-            'dtdy':
-                'Dtdy',
-            'dsdy':
-                'Dsdy',
-            'ty':
-                'Ty',
+            'dsdx': 'Dsdx',
+            'dtdx': 'Dtdx',
+            'tx': 'Tx',
+            'dtdy': 'Dtdy',
+            'dsdy': 'Dsdy',
+            'ty': 'Ty',
         }))
 
 WINSCOPE_TRACE_RECT_TABLE = Table(
