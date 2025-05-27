@@ -14,13 +14,8 @@
 
 import m from 'mithril';
 
-import {TextParagraph} from '../../../widgets/text_paragraph';
-import {QueryTable} from '../../../components/query_table/query_table';
-import {runQueryForQueryTable} from '../../../components/query_table/queries';
 import {AsyncLimiter} from '../../../base/async_limiter';
-import {QueryResponse} from '../../../components/query_table/queries';
 import {QueryNode} from '../query_node';
-import {Section} from '../../../widgets/section';
 import {Engine} from '../../../trace_processor/engine';
 import protos from '../../../protos';
 import {copyToClipboard} from '../../../base/clipboard';
@@ -34,6 +29,7 @@ import {MenuItem, PopupMenu} from '../../../widgets/menu';
 export interface QueryNodeExplorerAttrs {
   readonly node: QueryNode;
   readonly trace: Trace;
+  readonly onQueryAnalyzed: (query: Query) => void;
 }
 
 enum SelectedView {
@@ -47,60 +43,13 @@ export class QueryNodeExplorer
 {
   private readonly tableAsyncLimiter = new AsyncLimiter();
 
-  private queryResult: QueryResponse | undefined;
   private selectedView: number = 0;
 
   private prevSqString?: string;
   private curSqString?: string;
 
   private currentQuery?: Query | Error;
-
-  private getAndRunQuery(node: QueryNode, engine: Engine): undefined {
-    console.log('getAndRunQuery', node);
-    const sq = node.getStructuredQuery();
-    if (sq === undefined) return;
-    console.log('sq', sq);
-
-    this.curSqString = JSON.stringify(sq.toJSON(), null, 2);
-
-    if (this.curSqString !== this.prevSqString) {
-      this.tableAsyncLimiter.schedule(async () => {
-        this.currentQuery = await analyzeNode(node, engine);
-        if (!isQueryValid(this.currentQuery)) {
-          return;
-        }
-        this.queryResult = await runQueryForQueryTable(
-          queryToRun(this.currentQuery),
-          engine,
-        );
-        this.prevSqString = this.curSqString;
-      });
-    }
-  }
-
   view({attrs}: m.CVnode<QueryNodeExplorerAttrs>) {
-    const renderTable = () => {
-      if (this.currentQuery === undefined) {
-        return m(TextParagraph, {text: `No data to display}`});
-      }
-      if (this.currentQuery instanceof Error) {
-        return m(TextParagraph, {text: `Error: ${this.currentQuery.message}`});
-      }
-      if (this.queryResult === undefined) {
-        this.getAndRunQuery(attrs.node, attrs.trace.engine);
-        return m(TextParagraph, {text: `No data to display`});
-      }
-      if (this.queryResult.error !== undefined) {
-        return m(TextParagraph, {text: `Error: ${this.queryResult.error}`});
-      }
-      return m(QueryTable, {
-        trace: attrs.trace,
-        query: queryToRun(this.currentQuery),
-        resp: this.queryResult,
-        fillParent: false,
-      });
-    };
-
     const renderModeMenu = (): m.Child => {
       return m(
         PopupMenu,
@@ -132,7 +81,27 @@ export class QueryNodeExplorer
       );
     };
 
-    this.getAndRunQuery(attrs.node, attrs.trace.engine);
+    const getAndRunQuery = (): void => {
+      console.log('getAndRunQuery', attrs.node);
+      const sq = attrs.node.getStructuredQuery();
+      if (sq === undefined) return;
+      console.log('sq', sq);
+
+      this.curSqString = JSON.stringify(sq.toJSON(), null, 2);
+
+      if (this.curSqString !== this.prevSqString) {
+        this.tableAsyncLimiter.schedule(async () => {
+          this.currentQuery = await analyzeNode(attrs.node, attrs.trace.engine);
+          if (!isQueryValid(this.currentQuery)) {
+            return;
+          }
+          attrs.onQueryAnalyzed(this.currentQuery);
+          this.prevSqString = this.curSqString;
+        });
+      }
+    };
+
+    getAndRunQuery();
     const sql: string = isQueryValid(this.currentQuery)
       ? queryToRun(this.currentQuery)
       : '';
@@ -191,7 +160,6 @@ export class QueryNodeExplorer
             ),
         ),
       ),
-      m(Section, {title: 'Sample data'}, renderTable()),
     ];
   }
 }

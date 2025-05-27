@@ -16,9 +16,10 @@ import m from 'mithril';
 
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {QueryNode} from '../query_node';
-import {QueryNodeExplorer} from './query_node_explorer';
+import {Query, QueryNodeExplorer} from './query_node_explorer';
 import {QueryCanvas} from './query_canvas';
 import {Trace} from 'src/public/trace';
+import {NodeDataViewer} from './node_data_viewer';
 
 export interface QueryBuilderAttrs {
   readonly trace: Trace;
@@ -34,6 +35,9 @@ export interface QueryBuilderAttrs {
 }
 
 export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
+  private query?: Query;
+  private queryExecuted: boolean = false;
+
   view({attrs}: m.CVnode<QueryBuilderAttrs>) {
     const {
       trace,
@@ -44,19 +48,13 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       addSourcePopupMenu,
     } = attrs;
 
-    const renderDataSourceViewer = () => {
-      return attrs.selectedNode
-        ? m(QueryNodeExplorer, {trace, node: attrs.selectedNode})
-        : undefined;
-    };
-
     return m(
       '.query-builder-layout',
       {
         style: {
           display: 'grid',
           gridTemplateColumns: '50% 50%',
-          gridTemplateRows: '1fr auto',
+          gridTemplateRows: '50% 50%',
           gap: '10px',
           height: '100%',
         },
@@ -72,7 +70,32 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
           addSourcePopupMenu,
         }),
       ),
-      m('', {style: {gridColumn: 2, gridRow: 1}}, renderDataSourceViewer()),
+      attrs.selectedNode &&
+        m(
+          '',
+          {style: {gridColumn: 2, gridRow: 1, overflow: 'auto'}},
+          m(QueryNodeExplorer, {
+            trace,
+            node: attrs.selectedNode,
+            onQueryAnalyzed: (query: Query) => {
+              this.query = query;
+              this.queryExecuted = false;
+            },
+          }),
+        ),
+      attrs.selectedNode &&
+        m(
+          '',
+          {style: {gridColumn: 2, gridRow: 2, overflow: 'auto'}},
+          m(NodeDataViewer, {
+            trace,
+            query: this.query,
+            executeQuery: !this.queryExecuted,
+            onQueryExecuted: () => {
+              this.queryExecuted = true;
+            },
+          }),
+        ),
     );
   }
 }
