@@ -15,17 +15,17 @@
 
 -- Android transition participants (from com.android.wm.shell.transition data source).
 CREATE PERFETTO VIEW android_window_manager_shell_transition_participants (
-  -- Snapshot id
+  -- Transition id
   transition_id LONG,
-  -- Timestamp when the snapshot was triggered
+  -- Layer participant
   layer_id LONG,
-  -- Extra args parsed from the proto message
+  -- Window participant
   window_id LONG
 ) AS
 SELECT
-  id,
-  ts,
-  arg_set_id
+  transition_id,
+  layer_id,
+  window_id
 FROM __intrinsic_window_manager_shell_transition_participants;
 
 -- Android transition protos (from com.android.wm.shell.transition data source).
