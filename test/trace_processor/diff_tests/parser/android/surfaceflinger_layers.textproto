@@ -50,6 +50,7 @@ packet {
         children: 87
         layer_stack: 0
         z: 0
+        z_order_relative_of: 5
         crop {
           right: -1
           bottom: -1
@@ -219,6 +220,7 @@ packet {
   surfaceflinger_layers_snapshot {
     elapsed_realtime_nanos: 2749500341063
     where: "bufferLatched"
+    excludes_composition_state: true
     layers {
       layers {
         id: 3
@@ -345,16 +347,24 @@ packet {
           bottom: 24000.000000
         }
         bounds {
-          left: -10800.000000
-          top: -24000.000000
-          right: 10800.000000
-          bottom: 24000.000000
+          left: 0
+          top: 0
+          right: 0
+          bottom: 0
         }
         screen_bounds {
-          left: -10800.000000
-          top: -24000.000000
-          right: 10800.000000
-          bottom: 24000.000000
+          left: -1080.000000
+          top: -2400.000000
+          right: 1080.000000
+          bottom: 2400.000000
+        }
+        visible_region {
+          rect {
+            left: 0
+            top: 0
+            right: 1080
+            bottom: 2400
+          }
         }
         shadow_radius: 0.000000
         is_relative_of: false
@@ -388,7 +398,7 @@ packet {
       transform {
         type: 0
       }
-      is_virtual: false
+      is_virtual: true
     }
     displays {
       id: 4619827677550801153
@@ -400,6 +410,978 @@ packet {
       layer_stack_space_rect {
         right: 1080
         bottom: 2400
+      }
+    }
+    vsync_id: 24767
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  trusted_pid: 592
+}
+
+packet {
+  timestamp: 2749600000000
+  timestamp_clock_id: 3
+  surfaceflinger_layers_snapshot {
+    elapsed_realtime_nanos: 2749600000000
+    excludes_composition_state: false
+    layers {
+      layers {
+        id: 1
+        name: "layer1"
+        layer_stack: 0
+        z: 1
+        children: 4
+        children: 7
+        corner_radius: 1
+        hwc_composition_type: 2
+        screen_bounds {
+          left: 0
+          top: 0
+          right: 1080
+          bottom: 2400
+        }
+        active_buffer {
+          width: 0
+          height: 0
+        }
+        color {
+          r: -1
+          a: 1
+        }
+        visible_region {
+          rect {
+            left: 0
+            top: 0
+            right: 1080
+            bottom: 2400
+          }
+        }
+      }
+      layers {
+        id: 4
+        name: "layer4"
+        layer_stack: 0
+        z: 1
+        parent: 1
+        screen_bounds {
+          left: 0
+          top: 0
+          right: 1080
+          bottom: 2400
+        }
+        color {
+          a: 1
+        }
+        active_buffer {
+          width: 1
+          height: 1
+          stride: 1
+          format: 1
+        }
+      }
+      layers {
+        id: 7
+        name: "layer7"
+        layer_stack: 0
+        z: 0
+        parent: 1
+        screen_bounds {
+          left: 0
+          top: 0
+          right: 1080
+          bottom: 2400
+        }
+        color {
+          r: -1
+          a: 1
+        }
+        visible_region {
+          rect {
+            left: 0
+            top: 0
+            right: 1080
+            bottom: 2400
+          }
+        }
+      }
+      layers {
+        id: 2
+        name: "layer2"
+        layer_stack: 0
+        z: 2
+        screen_bounds {
+          left: 0
+          top: 0
+          right: 1080
+          bottom: 2400
+        }
+        color {
+          a: 1
+        }
+        active_buffer {
+          width: 1
+          height: 1
+          stride: 1
+          format: 1
+        }
+        visible_region {
+          rect {
+            left: 0
+            top: 0
+            right: 0
+            bottom: 0
+          }
+        }
+      }
+      layers {
+        id: 3
+        name: "layer3"
+        layer_stack: 0
+        flags: 1
+        z: 0
+        screen_bounds {
+          left: 0
+          top: 0
+          right: 1080
+          bottom: 2400
+        }
+        color {
+          a: 1
+        }
+        active_buffer {
+          width: 1
+          height: 1
+          stride: 1
+          format: 1
+        }
+        visible_region {
+          rect {
+            left: 0
+            top: 0
+            right: 1080
+            bottom: 2400
+          }
+        }
+      }
+      layers {
+        id: 5
+        name: "layer5"
+        layer_stack: 0
+        z: 0
+        z_order_relative_of: 1
+        screen_bounds {
+          left: 0
+          top: 0
+          right: 1080
+          bottom: 2400
+        }
+        color {}
+        active_buffer {
+          width: 1
+          height: 1
+          stride: 1
+          format: 1
+        }
+        visible_region {
+          rect {
+            left: 0
+            top: 0
+            right: 1080
+            bottom: 2400
+          }
+        }
+      }
+      layers {
+        id: 6
+        name: "layer6"
+        layer_stack: 0
+        z: -6
+        screen_bounds {
+          left: 0
+          top: 0
+          right: 1080
+          bottom: 2400
+        }
+        color {
+          a: 1
+        }
+        active_buffer {
+          width: 1
+          height: 1
+          stride: 1
+          format: 1
+        }
+        visible_region {
+          rect {
+            left: 0
+            top: 0
+            right: 1080
+            bottom: 2400
+          }
+        }
+      }
+      layers {
+        id: 9
+        name: "layer9"
+        layer_stack: 0
+        z: 2
+        children: 8
+        children: 10
+        screen_bounds {
+          left: 0
+          top: 0
+          right: 1080
+          bottom: 2400
+        }
+      }
+      layers {
+        id: 8
+        name: "layer8"
+        layer_stack: 0
+        z: 4
+        parent: 9
+        screen_bounds {
+          left: 0
+          top: 0
+          right: 1080
+          bottom: 2400
+        }
+      }
+      layers {
+        id: 10
+        name: "layer10"
+        layer_stack: 0
+        z: 5
+        parent: 9
+        screen_bounds {
+          left: 0
+          top: 0
+          right: 1080
+          bottom: 2400
+        }
+      }
+      layers {
+        id: 11
+        name: "layer11"
+        layer_stack: 0
+        z: 0
+        screen_bounds {
+          left: 0
+          top: 0
+          right: 1080
+          bottom: 2400
+        }
+        color {
+          a: 1
+        }
+        parent: 3
+        z_order_relative_of: 6
+        active_buffer {
+          width: 1
+          height: 1
+          stride: 1
+          format: 1
+        }
+        visible_region {
+          rect {
+            left: 0
+            top: 0
+            right: 1080
+            bottom: 2400
+          }
+        }
+      }
+    }
+    displays {
+      id: 4619827677550801152
+      layer_stack: 0
+      size {
+        w: 1080
+        h: 2400
+      }
+      layer_stack_space_rect {
+        left: 0
+        top: 0
+        right: 1080
+        bottom: 2400
+      }
+      transform {}
+      is_virtual: false
+    }
+    displays {
+      id: 4619827677550801153
+      name: "Other"
+      size {
+        w: 1080
+        h: 2400
+      }
+      layer_stack_space_rect {
+        right: 1080
+        bottom: 1080
+      }
+    }
+    vsync_id: 24767
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  trusted_pid: 592
+}
+
+packet {
+  timestamp: 2749700000000
+  timestamp_clock_id: 3
+  surfaceflinger_layers_snapshot {
+    elapsed_realtime_nanos: 2749700000000
+    excludes_composition_state: true
+    layers {
+      layers {
+        id: 1
+        name: "layer1"
+        layer_stack: 0
+        is_opaque: true
+        z: 0
+        color {
+          a: 1
+        }
+        bounds {
+          left: 0
+          top: 0
+          right: 1
+          bottom: 1
+        }
+        screen_bounds {
+          left: 0
+          top: 0
+          right: 1
+          bottom: 1
+        }
+        active_buffer {
+          width: 1
+          height: 1
+          stride: 1
+          format: 1
+        }
+        visible_region { 
+          rect {
+            left: 0
+            top: 0
+            right: 1
+            bottom: 1
+          }
+        }
+        input_window_info {
+          input_config: 16384
+          frame {
+            left: 0
+            top: 0
+            right: 1
+            bottom: 1
+          }
+          visible: true
+        }
+      }
+      layers {
+        id: 2
+        name: "layer2"
+        layer_stack: 0
+        is_opaque: true
+        z: 0
+        bounds {
+          left: 0
+          top: 0
+          right: 2
+          bottom: 2
+        }
+        screen_bounds {
+          left: 0
+          top: 0
+          right: 2
+          bottom: 2
+        }
+        color {
+          a: 1
+        }
+        active_buffer {
+          width: 1
+          height: 1
+          stride: 1
+          format: 1
+        }
+        visible_region {
+          rect {
+            left: 0
+            top: 0
+            right: 2
+            bottom: 2
+          }
+        }
+        input_window_info {
+          input_config: 0
+          frame {
+            left: 0
+            top: 0
+            right: 2
+            bottom: 2
+          }
+          visible: false
+        }
+      }
+      layers {
+        id: 3
+        name: "layer3"
+        layer_stack: 0
+        is_opaque: true
+        z: 0
+        bounds {
+          left: 0
+          top: 0
+          right: 2
+          bottom: 2
+        }
+        screen_bounds {
+          left: 0
+          top: 0
+          right: 2
+          bottom: 2
+        }
+        color {
+          a: 0.5
+        }
+        active_buffer {
+          width: 1
+          height: 1
+          stride: 1
+          format: 1
+        }
+        visible_region {
+          rect {
+            left: 0
+            top: 0
+            right: 2
+            bottom: 2
+          }
+        }
+        input_window_info {
+          input_config: 64
+          frame {
+            left: -999,
+            top: -999,
+            right: 999,
+            bottom: 999
+          }
+          visible: true
+        }
+      }
+      layers {
+        id: 4
+        name: "layer4"
+        layer_stack: 1
+        is_opaque: true
+        z: 0
+        color {
+          a: 1
+        }
+        bounds {
+          left: 0
+          top: 0
+          right: 1
+          bottom: 1
+        }
+        screen_bounds {
+          left: 0
+          top: 0
+          right: 1
+          bottom: 1
+        }
+        active_buffer {
+          width: 1
+          height: 1
+          stride: 1
+          format: 1
+        }
+        visible_region {
+          rect {
+            left: 0
+            top: 0
+            right: 1
+            bottom: 1
+          }
+        }
+        input_window_info {
+          frame {
+            left: 0
+            top: 0
+            right: 5
+            bottom: 5
+          }
+          visible: true
+        }
+      }
+      layers {
+        id: 5
+        name: "layer5"
+        layer_stack: 0
+        is_opaque: true
+        z: 0
+        color {
+          a: 1
+        }
+        bounds {
+          left: 0
+          top: 0
+          right: 1
+          bottom: 1
+        }
+        screen_bounds {
+          left: 0
+          top: 0
+          right: 1
+          bottom: 1
+        }
+        active_buffer {
+          width: 1
+          height: 1
+          stride: 1
+          format: 1
+        }
+        visible_region { 
+          rect {
+            left: 0
+            top: 0
+            right: 1
+            bottom: 1
+          }
+        }
+      }
+      layers {
+        id: 6
+        name: "layer6"
+        layer_stack: 0
+        is_opaque: true
+        z: 0
+        color {
+          a: 1
+        }
+        bounds {
+          left: 2
+          top: 2
+          right: 3
+          bottom: 3
+        }
+        screen_bounds {
+          left: 2
+          top: 2
+          right: 3
+          bottom: 3
+        }
+        active_buffer {
+          width: 1
+          height: 1
+          stride: 1
+          format: 1
+        }
+        visible_region {
+          rect {
+            left: 2
+            top: 2
+            right: 3
+            bottom: 3
+          }
+        }
+        input_window_info {
+          input_config: 8
+          frame {
+          left: 0
+          top: 0
+          right: 5
+          bottom: 5
+        }
+        }
+      }
+      layers {
+        id: 7
+        name: "layer7"
+        layer_stack: 0
+        is_opaque: false
+        z: 0
+        color {
+          a: 1
+        }
+        bounds {
+          left: 2
+          top: 2
+          right: 3
+          bottom: 3
+        }
+        screen_bounds {
+          left: 2
+          top: 2
+          right: 3
+          bottom: 3
+        }
+        active_buffer {
+          width: 1
+          height: 1
+          stride: 1
+          format: 1
+        }
+        visible_region {
+          rect {
+            left: 2
+            top: 2
+            right: 3
+            bottom: 3
+          }
+        }
+        input_window_info {
+          input_config: 0
+          frame {
+            left: 0
+            top: 0
+            right: 5
+            bottom: 5
+          }
+          touchable_region {
+            rect {
+              left: 0
+              top: 0
+              right: 2
+              bottom: 2
+            }
+            rect {
+              left: 2
+              top: 2
+              right: 3
+              bottom: 3
+            }
+          }
+        }
+      }
+      layers {
+        id: 8
+        name: "layer8"
+        layer_stack: 1
+        is_opaque: false
+        z: 0
+        color {
+          a: 1
+        }
+        bounds {
+          left: 2
+          top: 2
+          right: 3
+          bottom: 3
+        }
+        active_buffer {
+          width: 1
+          height: 1
+          stride: 1
+          format: 1
+        }
+        visible_region {
+          rect {
+            left: 2
+            top: 2
+            right: 3
+            bottom: 3
+          }
+        }
+        input_window_info {
+          input_config: 0
+          frame {
+            left: 0
+            top: 0
+            right: 5
+            bottom: 5
+          }
+          touchable_region {
+            rect {
+              left: 0
+              top: 0
+              right: 2
+              bottom: 2
+            }
+          }
+        }
+      }
+      layers {
+        id: 9
+        name: "layer9"
+        layer_stack: 2
+        is_opaque: false
+        z: 0
+        color {
+          a: 1
+        }
+        bounds {
+          left: -50
+          top: -100
+          right: 50
+          bottom: 100
+        }
+        screen_bounds {
+          left: -50
+          top: -100
+          right: 50
+          bottom: 100
+        }
+        active_buffer {
+          width: 1
+          height: 1
+          stride: 1
+          format: 1
+        }
+        visible_region {
+          rect {
+            left: -50
+            top: -100
+            right: 50
+            bottom: 100
+          }
+        }
+        input_window_info {
+          input_config: 0
+          frame: {}
+          touchable_region {
+            rect {
+              left: -999
+              top: -999
+              right: 999
+              bottom: 999
+            }
+          }
+        }
+      }
+      layers {
+        id: 10
+        name: "layer10"
+        layer_stack: 0
+        is_opaque: false
+        z: 0
+        bounds {
+          left: -50
+          top: -100
+          right: 50
+          bottom: 100
+        }
+        screen_bounds {
+          left: -50
+          top: -100
+          right: 50
+          bottom: 100
+        }
+        active_buffer {
+          width: 1
+          height: 1
+          stride: 1
+          format: 1
+        }
+        visible_region {
+          rect {
+            left: -50
+            top: -100
+            right: 50
+            bottom: 100
+          }
+        }
+      }
+      layers {
+        id: 11
+        name: "layer11"
+        layer_stack: 0
+        is_opaque: false
+        z: 0
+        bounds {
+          left: -50
+          top: -100
+          right: 50
+          bottom: 100
+        }
+        screen_bounds {
+          left: -49.991
+          top: -100
+          right: 50
+          bottom: 100
+        }
+        active_buffer {
+          width: 1
+          height: 1
+          stride: 1
+          format: 1
+        }
+        visible_region {
+          rect {
+            left: -50
+            top: -100
+            right: 50
+            bottom: 100
+          }
+        }
+      }
+      layers {
+        id: 12
+        name: "layer12"
+        layer_stack: 0
+        is_opaque: false
+        z: 0
+        bounds {
+          left: -50000
+          top: -50000
+          right: 50000
+          bottom: 50000
+        }
+        screen_bounds {
+          left: -50000
+          top: -50000
+          right: 50000
+          bottom: 50000
+        }
+        active_buffer {
+          width: 1
+          height: 1
+          stride: 1
+          format: 1
+        }
+        visible_region {
+          rect {
+            left: -50000
+            top: -50000
+            right: 50000
+            bottom: 50000
+          }
+        }
+      }
+      layers {
+        id: 13
+        name: "layer13"
+        layer_stack: 0
+        is_opaque: false
+        z: 0
+        bounds {
+          left: -100
+          top: -50
+          right: 100
+          bottom: 50
+        }
+        screen_bounds {
+          left: -100
+          top: -50
+          right: 100
+          bottom: 50
+        }
+        active_buffer {
+          width: 1
+          height: 1
+          stride: 1
+          format: 1
+        }
+        visible_region {
+          rect {
+            left: -100
+            top: -50
+            right: 100
+            bottom: 50
+          }
+        }
+      }
+      layers {
+        id: 14
+        name: "layer14"
+        layer_stack: 0
+        is_opaque: false
+        z: 0
+        bounds {
+          left: -100
+          top: -100
+          right: 100
+          bottom: 100
+        }
+        screen_bounds {
+          left: -100
+          top: -100
+          right: 100
+          bottom: 100
+        }
+        active_buffer {
+          width: 1
+          height: 1
+          stride: 1
+          format: 1
+        }
+        visible_region {
+          rect {
+            left: -100
+            top: -100
+            right: 100
+            bottom: 100
+          }
+        }
+      }
+    }
+    displays {
+      id: 1
+      layer_stack: 0
+      size {
+        w: 1
+        h: 1
+      }
+      name: "Display1"
+      layer_stack_space_rect {
+        left: 0
+        top: 0
+        right: 5
+        bottom: 5
+      }
+    }
+    displays {
+      id: 2
+      layer_stack: 1
+      name: "Display2"
+      size {
+        w: 2
+        h: 2
+      }
+    }
+    displays {
+      id: 3
+      layer_stack: 2
+      name: "Display3"
+      size {
+        w: 5
+        h: 10
+      }
+      transform {
+        type: 1024
+      }
+    }
+    displays {
+      id: 4
+      layer_stack: 3
+      name: "Display4"
+      size {
+        w: 5
+        h: 10
+      }
+      layer_stack_space_rect {
+        right: 5
+        bottom: 10
+      }
+    }
+    displays {
+      id: 5
+      layer_stack: 2
+      name: "Display5"
+      size {
+        w: 5
+        h: 10
+      }
+      layer_stack_space_rect {
+        right: 5
+        bottom: 10
+      }
+      transform {
+        type: 1024
       }
     }
     vsync_id: 24767
