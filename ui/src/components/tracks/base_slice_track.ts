@@ -268,6 +268,7 @@ export abstract class BaseSliceTrack<
     sliceLayout: Partial<SliceLayout> = {},
     protected readonly depthGuess: number = 0,
     protected readonly instantWidthPx: number = CHEVRON_WIDTH_PX,
+    protected readonly forceTimestampRenderOrder: boolean = false,
   ) {
     // Work out the extra columns.
     // This is the union of the embedder-defined columns and the base columns
@@ -513,12 +514,8 @@ export abstract class BaseSliceTrack<
     }
 
     // Second pass: fill slices by color.
-    const vizSlicesByColor = vizSlices.slice();
-    vizSlicesByColor.sort((a, b) =>
-      colorCompare(a.colorScheme.base, b.colorScheme.base),
-    );
     let lastColor = undefined;
-    for (const slice of vizSlicesByColor) {
+    for (const slice of vizSlices) {
       const color = slice.isHighlighted
         ? slice.colorScheme.variant.cssString
         : slice.colorScheme.base.cssString;
@@ -526,6 +523,7 @@ export abstract class BaseSliceTrack<
         lastColor = color;
         ctx.fillStyle = color;
       }
+      ctx.fillStyle = color;
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       if (slice.flags & SLICE_FLAGS_INSTANT) {
         this.drawChevron(ctx, slice.x, y, sliceHeight);
@@ -554,7 +552,7 @@ export abstract class BaseSliceTrack<
 
     // Pass 2.5: Draw fillRatio light section.
     ctx.fillStyle = `#FFFFFF50`;
-    for (const slice of vizSlicesByColor) {
+    for (const slice of vizSlices) {
       // Can't draw fill ratio on incomplete or instant slices.
       if (slice.flags & (SLICE_FLAGS_INCOMPLETE | SLICE_FLAGS_INSTANT)) {
         continue;
@@ -741,6 +739,17 @@ export abstract class BaseSliceTrack<
 
     this.slicesKey = slicesKey;
     this.onUpdatedSlices(slices);
+
+    // Sort slices by color - this can make rendering more efficient as it
+    // reduces the number of times we need to switch colors. For slice heavy
+    // tracks the result looks identical, however on tracks that have a lot of
+    // instant slices the result can look very different, so we might want to
+    // force timestamp render order for these tracks.
+    if (!this.forceTimestampRenderOrder) {
+      slices.sort((a, b) =>
+        colorCompare(a.colorScheme.base, b.colorScheme.base),
+      );
+    }
     this.slices = slices;
 
     raf.scheduleCanvasRedraw();
