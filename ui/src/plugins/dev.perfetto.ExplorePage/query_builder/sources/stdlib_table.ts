@@ -114,10 +114,7 @@ export class StdlibTableNode implements QueryNode {
   }
 
   getTitle(): string {
-    if (this.state.customTitle) {
-      return this.state.customTitle;
-    }
-    return `Table ${this.state.sqlTable?.name}`;
+    return this.state.customTitle ?? `Table ${this.state.sqlTable?.name}`;
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {

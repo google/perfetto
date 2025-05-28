@@ -78,10 +78,7 @@ export class SlicesSourceNode implements QueryNode {
   }
 
   getTitle(): string {
-    if (this.state.customTitle) {
-      return this.state.customTitle;
-    }
-    return `Simple slices`;
+    return this.state.customTitle ?? 'Simple slices';
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {

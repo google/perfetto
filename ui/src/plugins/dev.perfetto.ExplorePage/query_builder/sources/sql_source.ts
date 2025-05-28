@@ -80,10 +80,7 @@ export class SqlSourceNode implements QueryNode {
   }
 
   getTitle(): string {
-    if (this.state.customTitle) {
-      return this.state.customTitle;
-    }
-    return `Sql source`;
+    return this.state.customTitle ?? 'Sql source';
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
