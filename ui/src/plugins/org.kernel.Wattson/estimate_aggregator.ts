@@ -112,8 +112,6 @@ export class WattsonEstimateSelectionAggregator
     ];
   }
 
-  async getExtra() {}
-
   getTabName() {
     return 'Wattson estimates';
   }
