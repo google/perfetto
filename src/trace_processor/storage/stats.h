@@ -552,7 +552,13 @@ namespace perfetto::trace_processor::stats {
       "the presence of one is usually a sign that something went wrong while " \
       "recording a trace. Common causes of this include incorrect "            \
       "incremental timestamps, bad clock synchronization or kernel bugs in "   \
-      "drivers emitting timestamps")
+      "drivers emitting timestamps"),                                          \
+  F(slice_drop_overlapping_complete_event,        kSingle,  kError,  kTrace,   \
+      "A complete slice was dropped because it overlaps with another "         \
+      "slice. This can happen e.g. in JSON traces using X events or in other " \
+      "cases where a duration is part of the trace. To solve this problem "    \
+      "make sure that your X events do not overlap on the same track (e.g. "   \
+      "thread/process) ")
 // clang-format on
 
 enum Type {
