@@ -36,7 +36,7 @@ export const ROUTE_PREFIX = '#!';
 
 function safeParseRoute(rawRoute: unknown): RouteArgs {
   const res = ROUTE_SCHEMA.safeParse(rawRoute);
-  return res.success ? res.data : {};
+  return res.success ? res.data : {};  //
 }
 
 // A broken down representation of a route.
