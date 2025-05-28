@@ -33,6 +33,7 @@ std::atomic<bool> MaybeRtMutex::enabled_flag =
     MaybeRtMutex::kRtMutexDefaultFlagValue;
 
 namespace internal {
+
 #if PERFETTO_HAS_RT_FUTEX()
 
 void RtFutex::LockSlowpath() {
@@ -63,7 +64,6 @@ thread_local int g_cached_tid = -1;
 }
 
 int RtFutex::GetTid() {
-  return gettid();
   if (PERFETTO_UNLIKELY(g_cached_tid == -1)) {
     static int register_atfork_once = [] {
       return pthread_atfork(/* prepare = */ nullptr,
@@ -78,6 +78,8 @@ int RtFutex::GetTid() {
 #endif  // !PERFETTO_GETTID_IS_FAST
 
 #endif  // PERFETTO_HAS_RT_FUTEX
+
+#if PERFETTO_HAS_POSIX_RT_MUTEX()
 
 RtPosixMutex::RtPosixMutex() noexcept {
   pthread_mutexattr_t at{};
@@ -95,7 +97,7 @@ bool RtPosixMutex::try_lock() noexcept {
   if (res == 0)
     return true;
   // NOTE: Unlike most Linux APIs, pthread_mutex_trylock "returns" the error
-  // code. It does not return -1 and pass the error in errno.
+  // code, it does NOT use errno.
   if (res == EBUSY)
     return false;
   PERFETTO_FATAL("pthread_mutex_trylock() failed");
@@ -108,6 +110,8 @@ void RtPosixMutex::lock() noexcept {
 void RtPosixMutex::unlock() noexcept {
   PERFETTO_CHECK(pthread_mutex_unlock(&mutex_) == 0);
 }
+
+#endif  // PERFETTO_HAS_POSIX_RT_MUTEX
 
 }  // namespace internal
 }  // namespace perfetto::base

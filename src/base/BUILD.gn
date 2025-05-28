@@ -292,6 +292,7 @@ if (enable_perfetto_benchmarks) {
     sources = [
       "flat_hash_map_benchmark.cc",
       "flat_set_benchmark.cc",
+      "rt_mutex_benchmark.cc",
     ]
   }
 }

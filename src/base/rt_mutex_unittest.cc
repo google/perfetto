@@ -19,7 +19,6 @@
 #include "test/gtest_and_gmock.h"
 
 #include <thread>
-#include <vector>
 
 namespace perfetto {
 namespace base {
@@ -48,10 +47,14 @@ class NameGenerator {
   static std::string GetName(int) {
     if constexpr (std::is_same_v<T, std::mutex>)
       return "StdMutex";
+#if PERFETTO_HAS_POSIX_RT_MUTEX()
     if constexpr (std::is_same_v<T, internal::RtPosixMutex>)
       return "RtPosix";
+#endif
+#if PERFETTO_HAS_RT_FUTEX()
     if constexpr (std::is_same_v<T, internal::RtFutex>)
       return "RtFutex";
+#endif
   }
 };
 

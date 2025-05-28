@@ -63,6 +63,10 @@
 #include <pthread.h>
 #endif
 
+#if PERFETTO_HAS_RT_FUTEX()
+#include <unistd.h>
+#endif
+
 #include "perfetto/base/thread_annotations.h"
 #include "perfetto/public/compiler.h"
 
