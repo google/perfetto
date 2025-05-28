@@ -60,10 +60,6 @@ export class WattsonAggregationPanel
           },
           title: 'Select power units',
         }),
-        attrs.data.extra !== undefined &&
-          attrs.data.extra.kind === 'THREAD_STATE'
-          ? this.showStateSummary(attrs.data.extra)
-          : null,
         this.showTimeRange(),
         m(
           'table',

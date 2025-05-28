@@ -27,6 +27,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/thread_annotations.h"
+#include "perfetto/base/thread_utils.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/string_splitter.h"
@@ -857,6 +858,68 @@ void WriteTrackEvent(perfetto::shlib::TrackEventIncrementalState* incr,
   }
 }
 
+uint64_t EmitNamedTrack(uint64_t parent_uuid,
+                        const char* name,
+                        uint64_t id,
+                        perfetto::shlib::TrackEventIncrementalState* incr_state,
+                        perfetto::TraceWriterBase* trace_writer) {
+  uint64_t uuid = parent_uuid;
+  uuid ^= PerfettoFnv1a(name, strlen(name));
+  uuid ^= id;
+  if (incr_state->seen_track_uuids.insert(uuid).second) {
+    auto packet = trace_writer->NewTracePacket();
+    auto* track_descriptor = packet->set_track_descriptor();
+    track_descriptor->set_uuid(uuid);
+    if (parent_uuid) {
+      track_descriptor->set_parent_uuid(parent_uuid);
+    }
+    track_descriptor->set_name(name);
+  }
+  return uuid;
+}
+
+uint64_t EmitRegisteredTrack(
+    const PerfettoTeRegisteredTrackImpl* registered_track,
+    perfetto::shlib::TrackEventIncrementalState* incr_state,
+    perfetto::TraceWriterBase* trace_writer) {
+  if (incr_state->seen_track_uuids.insert(registered_track->uuid).second) {
+    auto packet = trace_writer->NewTracePacket();
+    auto* track_descriptor = packet->set_track_descriptor();
+    track_descriptor->AppendRawProtoBytes(registered_track->descriptor,
+                                          registered_track->descriptor_size);
+  }
+  return registered_track->uuid;
+}
+
+uint64_t EmitProtoTrack(uint64_t uuid,
+                        PerfettoTeHlProtoField* const* fields,
+                        perfetto::shlib::TrackEventIncrementalState* incr_state,
+                        perfetto::TraceWriterBase* trace_writer) {
+  if (incr_state->seen_track_uuids.insert(uuid).second) {
+    auto packet = trace_writer->NewTracePacket();
+    auto* track_descriptor = packet->set_track_descriptor();
+    track_descriptor->set_uuid(uuid);
+    AppendHlProtoFields(track_descriptor, fields);
+  }
+  return uuid;
+}
+
+uint64_t EmitProtoTrackWithParentUuid(
+    uint64_t uuid,
+    uint64_t parent_uuid,
+    PerfettoTeHlProtoField* const* fields,
+    perfetto::shlib::TrackEventIncrementalState* incr_state,
+    perfetto::TraceWriterBase* trace_writer) {
+  if (incr_state->seen_track_uuids.insert(uuid).second) {
+    auto packet = trace_writer->NewTracePacket();
+    auto* track_descriptor = packet->set_track_descriptor();
+    track_descriptor->set_uuid(uuid);
+    track_descriptor->set_parent_uuid(parent_uuid);
+    AppendHlProtoFields(track_descriptor, fields);
+  }
+  return uuid;
+}
+
 }  // namespace
 
 struct PerfettoTeCategoryImpl* PerfettoTeCategoryImplCreate(
@@ -971,7 +1034,8 @@ static void InstanceOp(
 
   std::variant<std::monostate, const PerfettoTeRegisteredTrackImpl*,
                const PerfettoTeHlExtraNamedTrack*,
-               const PerfettoTeHlExtraProtoTrack*>
+               const PerfettoTeHlExtraProtoTrack*,
+               const PerfettoTeHlExtraNestedTracks*>
       track;
   std::optional<uint64_t> track_uuid;
 
@@ -995,6 +1059,10 @@ static void InstanceOp(
     } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_PROTO_TRACK) {
       track =
           &reinterpret_cast<const struct PerfettoTeHlExtraProtoTrack&>(extra);
+    } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_NESTED_TRACKS) {
+      auto* nested =
+          &reinterpret_cast<const struct PerfettoTeHlExtraNestedTracks&>(extra);
+      track = nested;
     } else if (extra.type == PERFETTO_TE_HL_EXTRA_TYPE_TIMESTAMP) {
       custom_timestamp =
           &reinterpret_cast<const struct PerfettoTeHlExtraTimestamp&>(extra);
@@ -1033,55 +1101,75 @@ static void InstanceOp(
     }
   }
 
+  perfetto::TraceWriterBase* trace_writer = ii->instance->trace_writer.get();
+
   const auto& track_event_tls =
       *static_cast<perfetto::shlib::TrackEventTlsState*>(
           ii->instance->data_source_custom_tls.get());
 
   auto* incr_state = static_cast<perfetto::shlib::TrackEventIncrementalState*>(
       ds->GetIncrementalState(ii->instance, ii->i));
-  ResetIncrementalStateIfRequired(ii->instance->trace_writer.get(), incr_state,
-                                  track_event_tls, ts);
+  ResetIncrementalStateIfRequired(trace_writer, incr_state, track_event_tls,
+                                  ts);
 
   if (std::holds_alternative<const PerfettoTeRegisteredTrackImpl*>(track)) {
     auto* registered_track =
         std::get<const PerfettoTeRegisteredTrackImpl*>(track);
-    if (incr_state->seen_track_uuids.insert(registered_track->uuid).second) {
-      auto packet = ii->instance->trace_writer->NewTracePacket();
-      auto* track_descriptor = packet->set_track_descriptor();
-      track_descriptor->AppendRawProtoBytes(registered_track->descriptor,
-                                            registered_track->descriptor_size);
-    }
-    track_uuid = registered_track->uuid;
+    track_uuid =
+        EmitRegisteredTrack(registered_track, incr_state, trace_writer);
   } else if (std::holds_alternative<const PerfettoTeHlExtraNamedTrack*>(
                  track)) {
     auto* named_track = std::get<const PerfettoTeHlExtraNamedTrack*>(track);
-    uint64_t uuid = named_track->parent_uuid;
-    uuid ^= PerfettoFnv1a(named_track->name, strlen(named_track->name));
-    uuid ^= named_track->id;
-    if (incr_state->seen_track_uuids.insert(uuid).second) {
-      auto packet = ii->instance->trace_writer->NewTracePacket();
-      auto* track_descriptor = packet->set_track_descriptor();
-      track_descriptor->set_uuid(uuid);
-      if (named_track->parent_uuid) {
-        track_descriptor->set_parent_uuid(named_track->parent_uuid);
-      }
-      track_descriptor->set_name(named_track->name);
-    }
-    track_uuid = uuid;
+    track_uuid = EmitNamedTrack(named_track->parent_uuid, named_track->name,
+                                named_track->id, incr_state, trace_writer);
   } else if (std::holds_alternative<const PerfettoTeHlExtraProtoTrack*>(
                  track)) {
-    auto* counter_track = std::get<const PerfettoTeHlExtraProtoTrack*>(track);
-    uint64_t uuid = counter_track->uuid;
-    if (incr_state->seen_track_uuids.insert(uuid).second) {
-      auto packet = ii->instance->trace_writer->NewTracePacket();
-      auto* track_descriptor = packet->set_track_descriptor();
-      track_descriptor->set_uuid(uuid);
-      AppendHlProtoFields(track_descriptor, counter_track->fields);
+    auto* proto_track = std::get<const PerfettoTeHlExtraProtoTrack*>(track);
+    track_uuid = EmitProtoTrack(proto_track->uuid, proto_track->fields,
+                                incr_state, trace_writer);
+  } else if (std::holds_alternative<const PerfettoTeHlExtraNestedTracks*>(
+                 track)) {
+    auto* nested = std::get<const PerfettoTeHlExtraNestedTracks*>(track);
+
+    uint64_t uuid = 0;
+
+    for (PerfettoTeHlNestedTrack* const* tp = nested->tracks; *tp != nullptr;
+         tp++) {
+      auto track_type =
+          static_cast<enum PerfettoTeHlNestedTrackType>((*tp)->type);
+
+      switch (track_type) {
+        case PERFETTO_TE_HL_NESTED_TRACK_TYPE_NAMED: {
+          auto* named_track =
+              reinterpret_cast<PerfettoTeHlNestedTrackNamed*>(*tp);
+          uuid = EmitNamedTrack(uuid, named_track->name, named_track->id,
+                                incr_state, trace_writer);
+        } break;
+        case PERFETTO_TE_HL_NESTED_TRACK_TYPE_PROCESS: {
+          uuid = perfetto_te_process_track_uuid;
+        } break;
+        case PERFETTO_TE_HL_NESTED_TRACK_TYPE_THREAD: {
+          uuid = perfetto_te_process_track_uuid ^
+                 static_cast<uint64_t>(perfetto::base::GetThreadId());
+        } break;
+        case PERFETTO_TE_HL_NESTED_TRACK_TYPE_PROTO: {
+          auto* proto_track =
+              reinterpret_cast<PerfettoTeHlNestedTrackProto*>(*tp);
+          uuid = EmitProtoTrackWithParentUuid(proto_track->id ^ uuid, uuid,
+                                              proto_track->fields, incr_state,
+                                              trace_writer);
+        } break;
+        case PERFETTO_TE_HL_NESTED_TRACK_TYPE_REGISTERED: {
+          auto* registered_track =
+              reinterpret_cast<PerfettoTeHlNestedTrackRegistered*>(*tp);
+          uuid = EmitRegisteredTrack(registered_track->track, incr_state,
+                                     trace_writer);
+        } break;
+      }
     }
     track_uuid = uuid;
   }
 
-  perfetto::TraceWriterBase* trace_writer = ii->instance->trace_writer.get();
   {
     auto packet = NewTracePacketInternal(
         trace_writer, incr_state, track_event_tls, ts,

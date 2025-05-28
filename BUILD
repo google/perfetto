@@ -2213,6 +2213,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_importers_json_minimal",
     srcs = [
+        "src/trace_processor/importers/json/json_parser.h",
         "src/trace_processor/importers/json/json_utils.cc",
         "src/trace_processor/importers/json/json_utils.h",
     ],

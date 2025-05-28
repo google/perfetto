@@ -56,7 +56,7 @@ package perfetto.protos;
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 43.
+// Next id: 44.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -144,6 +144,9 @@ message InternedData {
 
   // Interned context for android.app_wakelocks.
   repeated AppWakelockInfo app_wakelock_info = 42;
+
+  // Interned correlation ids in track_event.
+  repeated InternedString correlation_id_str = 43;
 
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 21;

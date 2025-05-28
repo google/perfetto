@@ -30,15 +30,15 @@ export function createFtraceTrack(
   cpu: Cpu,
   store: Store<FtraceFilter>,
 ) {
-  const excludeList = store.state.excludeList;
   return new DatasetSliceTrack({
     trace,
     uri,
-    dataset: () =>
+    dataset: () => {
       // This dataset can change depending on the filter settings, so we pass a
       // function in here instead of a static dataset. This function is called
       // every render cycle by the track to see if the dataset has changed.
-      new SourceDataset({
+      const excludeList = store.state.excludeList;
+      return new SourceDataset({
         src: `
           SELECT *
           FROM ftrace_event
@@ -55,7 +55,8 @@ export function createFtraceTrack(
           col: 'ucpu',
           eq: cpu.ucpu,
         },
-      }),
+      });
+    },
     colorizer: (row) => materialColorScheme(row.name),
     instantStyle: {
       width: FTRACE_INSTANT_WIDTH_PX,
