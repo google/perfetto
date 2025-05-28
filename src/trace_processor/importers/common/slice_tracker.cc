@@ -55,9 +55,10 @@ std::optional<SliceId> SliceTracker::Begin(int64_t timestamp,
       context_->slice_translation_table->TranslateName(raw_name);
   tables::SliceTable::Row row(timestamp, kPendingDuration, track_id, category,
                               name);
-  return StartSlice(timestamp, track_id, args_callback, [this, &row]() {
-    return context_->storage->mutable_slice_table()->Insert(row).id;
-  });
+  return StartSlice(
+      timestamp, row.dur, track_id, args_callback, [this, &row]() {
+        return context_->storage->mutable_slice_table()->Insert(row).id;
+      });
 }
 
 void SliceTracker::BeginLegacyUnnestable(tables::SliceTable::Row row,
@@ -80,7 +81,7 @@ void SliceTracker::BeginLegacyUnnestable(tables::SliceTable::Row row,
   // Ensure that StartSlice knows that this track is unnestable.
   stacks_[row.track_id].is_legacy_unnestable = true;
 
-  StartSlice(row.ts, row.track_id, args_callback, [this, &row]() {
+  StartSlice(row.ts, row.dur, row.track_id, args_callback, [this, &row]() {
     return context_->storage->mutable_slice_table()->Insert(row).id;
   });
 }
@@ -96,9 +97,10 @@ std::optional<SliceId> SliceTracker::Scoped(int64_t timestamp,
   const StringId name =
       context_->slice_translation_table->TranslateName(raw_name);
   tables::SliceTable::Row row(timestamp, duration, track_id, category, name);
-  return StartSlice(timestamp, track_id, args_callback, [this, &row]() {
-    return context_->storage->mutable_slice_table()->Insert(row).id;
-  });
+  return StartSlice(
+      timestamp, row.dur, track_id, args_callback, [this, &row]() {
+        return context_->storage->mutable_slice_table()->Insert(row).id;
+      });
 }
 
 std::optional<SliceId> SliceTracker::End(int64_t timestamp,
@@ -145,6 +147,7 @@ std::optional<uint32_t> SliceTracker::AddArgs(TrackId track_id,
 
 std::optional<SliceId> SliceTracker::StartSlice(
     int64_t timestamp,
+    int64_t duration,
     TrackId track_id,
     SetArgsCallback args_callback,
     std::function<SliceId()> inserter) {
@@ -165,7 +168,9 @@ std::optional<SliceId> SliceTracker::StartSlice(
   }
 
   auto* slices = context_->storage->mutable_slice_table();
-  MaybeCloseStack(timestamp, stack, track_id);
+  MaybeCloseStack(
+      duration == kPendingDuration ? timestamp : timestamp + duration, stack,
+      track_id);
 
   size_t depth = stack.size();
 

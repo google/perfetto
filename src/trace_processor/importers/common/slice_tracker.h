@@ -69,7 +69,7 @@ class SliceTracker {
     if (row.name) {
       row.name = context_->slice_translation_table->TranslateName(*row.name);
     }
-    return StartSlice(row.ts, row.track_id, args_callback,
+    return StartSlice(row.ts, row.dur, row.track_id, args_callback,
                       [table, &row]() { return table->Insert(row).id; });
   }
 
@@ -91,7 +91,7 @@ class SliceTracker {
     if (row.name) {
       row.name = context_->slice_translation_table->TranslateName(*row.name);
     }
-    return StartSlice(row.ts, row.track_id, args_callback,
+    return StartSlice(row.ts, row.dur, row.track_id, args_callback,
                       [table, &row]() { return table->Insert(row).id; });
   }
 
@@ -146,6 +146,7 @@ class SliceTracker {
 
   // virtual for testing.
   virtual std::optional<SliceId> StartSlice(int64_t timestamp,
+                                            int64_t duration,
                                             TrackId track_id,
                                             SetArgsCallback args_callback,
                                             std::function<SliceId()> inserter);
