@@ -52,6 +52,8 @@ def main():
   print('Done')
   print("FOoo")
 
+  return 0
+
 
 if __name__ == "__main__":
   sys.exit(main())
