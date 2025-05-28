@@ -58,6 +58,7 @@ class AndroidKernelWakelocksDataSource : public ProbesDataSource {
   base::WeakPtr<AndroidKernelWakelocksDataSource> GetWeakPtr() const;
 
   uint32_t poll_interval_ms_ = 0;
+  uint64_t max_plausible_diff_ms_ = 0;
   base::FlatHashMap<std::string, KernelWakelockInfo> wakelocks_;
   uint32_t next_id_ = 0;
 

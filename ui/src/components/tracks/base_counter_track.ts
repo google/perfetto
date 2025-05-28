@@ -889,7 +889,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
         min_value as minDisplayValue,
         max_value as maxDisplayValue
       from ${this.getTableName()}(
-        trace_start(), trace_end(), trace_dur()
+        trace_start(), trace_end() + 1, trace_dur() + 1
       );
     `);
 

@@ -55,9 +55,10 @@ std::optional<SliceId> SliceTracker::Begin(int64_t timestamp,
       context_->slice_translation_table->TranslateName(raw_name);
   tables::SliceTable::Row row(timestamp, kPendingDuration, track_id, category,
                               name);
-  return StartSlice(timestamp, track_id, args_callback, [this, &row]() {
-    return context_->storage->mutable_slice_table()->Insert(row).id;
-  });
+  return StartSlice(
+      timestamp, row.dur, track_id, args_callback, [this, &row]() {
+        return context_->storage->mutable_slice_table()->Insert(row).id;
+      });
 }
 
 void SliceTracker::BeginLegacyUnnestable(tables::SliceTable::Row row,
@@ -80,7 +81,7 @@ void SliceTracker::BeginLegacyUnnestable(tables::SliceTable::Row row,
   // Ensure that StartSlice knows that this track is unnestable.
   stacks_[row.track_id].is_legacy_unnestable = true;
 
-  StartSlice(row.ts, row.track_id, args_callback, [this, &row]() {
+  StartSlice(row.ts, row.dur, row.track_id, args_callback, [this, &row]() {
     return context_->storage->mutable_slice_table()->Insert(row).id;
   });
 }
@@ -96,9 +97,10 @@ std::optional<SliceId> SliceTracker::Scoped(int64_t timestamp,
   const StringId name =
       context_->slice_translation_table->TranslateName(raw_name);
   tables::SliceTable::Row row(timestamp, duration, track_id, category, name);
-  return StartSlice(timestamp, track_id, args_callback, [this, &row]() {
-    return context_->storage->mutable_slice_table()->Insert(row).id;
-  });
+  return StartSlice(
+      timestamp, row.dur, track_id, args_callback, [this, &row]() {
+        return context_->storage->mutable_slice_table()->Insert(row).id;
+      });
 }
 
 std::optional<SliceId> SliceTracker::End(int64_t timestamp,
@@ -145,6 +147,7 @@ std::optional<uint32_t> SliceTracker::AddArgs(TrackId track_id,
 
 std::optional<SliceId> SliceTracker::StartSlice(
     int64_t timestamp,
+    int64_t duration,
     TrackId track_id,
     SetArgsCallback args_callback,
     std::function<SliceId()> inserter) {
@@ -165,7 +168,9 @@ std::optional<SliceId> SliceTracker::StartSlice(
   }
 
   auto* slices = context_->storage->mutable_slice_table();
-  MaybeCloseStack(timestamp, stack, track_id);
+  if (!MaybeCloseStack(timestamp, duration, stack, track_id)) {
+    return std::nullopt;
+  }
 
   size_t depth = stack.size();
 
@@ -216,9 +221,12 @@ std::optional<SliceId> SliceTracker::CompleteSlice(
 
   TrackInfo& track_info = *it;
   SlicesStack& stack = track_info.slice_stack;
-  MaybeCloseStack(timestamp, stack, track_id);
-  if (stack.empty())
+  if (!MaybeCloseStack(timestamp, kPendingDuration, stack, track_id)) {
     return std::nullopt;
+  }
+  if (stack.empty()) {
+    return std::nullopt;
+  }
 
   auto* slices = context_->storage->mutable_slice_table();
   std::optional<uint32_t> stack_idx = finder(stack);
@@ -345,7 +353,8 @@ std::optional<SliceId> SliceTracker::GetTopmostSliceOnTrack(
   return stack.back().row.ToRowReference(slice).id();
 }
 
-void SliceTracker::MaybeCloseStack(int64_t ts,
+bool SliceTracker::MaybeCloseStack(int64_t new_ts,
+                                   int64_t new_dur,
                                    const SlicesStack& stack,
                                    TrackId track_id) {
   auto* slices = context_->storage->mutable_slice_table();
@@ -363,10 +372,10 @@ void SliceTracker::MaybeCloseStack(int64_t ts,
     }
 
     if (incomplete_descendent) {
-      PERFETTO_DCHECK(ts >= start_ts);
+      PERFETTO_DCHECK(new_ts >= start_ts);
 
       // Only process slices if the ts is past the end of the slice.
-      if (ts <= end_ts)
+      if (new_ts <= end_ts)
         continue;
 
       // This usually happens because we have two slices that are partially
@@ -383,7 +392,7 @@ void SliceTracker::MaybeCloseStack(int64_t ts,
           "%s[%" PRId64 ", %" PRId64 "] due to an event at ts=%" PRId64 ".",
           context_->storage->GetString(ref.name().value_or(kNullStringId))
               .c_str(),
-          start_ts, end_ts, ts);
+          start_ts, end_ts, new_ts);
       context_->storage->IncrementStats(stats::misplaced_end_event);
 
       // Every slice below this one should have a pending duration. Update
@@ -404,10 +413,23 @@ void SliceTracker::MaybeCloseStack(int64_t ts,
       continue;
     }
 
-    if (end_ts <= ts) {
+    if (end_ts <= new_ts) {
       StackPop(track_id);
+      continue;
+    }
+
+    if (new_dur == kPendingDuration) {
+      // If we don't have a duration, nothing to close.
+      continue;
+    }
+
+    if (end_ts <= new_ts + new_dur) {
+      context_->storage->IncrementStats(
+          stats::slice_drop_overlapping_complete_event);
+      return false;
     }
   }
+  return true;
 }
 
 int64_t SliceTracker::GetStackHash(const SlicesStack& stack) {

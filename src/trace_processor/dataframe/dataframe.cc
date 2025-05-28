@@ -19,7 +19,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -31,6 +30,7 @@
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/types.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -73,14 +73,13 @@ base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
     uint64_t cols_used) const {
   ASSIGN_OR_RETURN(auto plan,
                    impl::QueryPlanBuilder::Build(
-                       row_count_, columns_, filter_specs, distinct_specs,
-                       sort_specs, limit_spec, cols_used));
+                       row_count_, columns_, indexes_, filter_specs,
+                       distinct_specs, sort_specs, limit_spec, cols_used));
   return QueryPlan(std::move(plan));
 }
 
-base::StatusOr<Dataframe::Index> Dataframe::BuildIndex(
-    const uint32_t* columns_start,
-    const uint32_t* columns_end) const {
+base::StatusOr<Index> Dataframe::BuildIndex(const uint32_t* columns_start,
+                                            const uint32_t* columns_end) const {
   std::vector<uint32_t> cols(columns_start, columns_end);
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts;
@@ -92,15 +91,15 @@ base::StatusOr<Dataframe::Index> Dataframe::BuildIndex(
 
   // Heap allocate to avoid potential stack overflows due to large cursor
   // object.
-  auto c = std::make_unique<std::optional<Cursor<ErrorValueFetcher>>>();
-  PrepareCursor(std::move(plan), *c);
+  auto c = std::make_unique<Cursor<ErrorValueFetcher>>();
+  PrepareCursor(plan, *c);
   ErrorValueFetcher vf{};
-  c->value().Execute(vf);
+  c->Execute(vf);
 
   std::vector<uint32_t> permutation;
   permutation.reserve(row_count_);
-  for (; !c->value().Eof(); c->value().Next()) {
-    permutation.push_back(c->value().RowIndex());
+  for (; !c->Eof(); c->Next()) {
+    permutation.push_back(c->RowIndex());
   }
   return Index(std::move(cols),
                std::make_shared<std::vector<uint32_t>>(std::move(permutation)));
@@ -178,8 +177,8 @@ dataframe::Dataframe Dataframe::Copy() const {
   return *this;
 }
 
-Dataframe::Spec Dataframe::CreateSpec() const {
-  Spec spec{column_names_, {}};
+DataframeSpec Dataframe::CreateSpec() const {
+  DataframeSpec spec{column_names_, {}};
   spec.column_specs.reserve(columns_.size());
   for (const auto& c : columns_) {
     spec.column_specs.push_back(
@@ -237,6 +236,13 @@ std::vector<std::shared_ptr<impl::Column>> Dataframe::CreateColumnVector(
         column_specs[i].sort_state}));
   }
   return columns;
+}
+
+void Dataframe::TypedCursorBase::PrepareCursorInternal() {
+  auto plan = dataframe_->PlanQuery(filter_specs_, {}, sort_specs_, {}, 0);
+  PERFETTO_CHECK(plan.ok());
+  dataframe_->PrepareCursor(*plan, cursor_);
+  last_execution_mutation_count_ = dataframe_->mutations_;
 }
 
 }  // namespace perfetto::trace_processor::dataframe

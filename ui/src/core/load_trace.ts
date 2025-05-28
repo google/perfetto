@@ -238,6 +238,9 @@ async function loadTraceIntoEngine(
 
   decideTabs(trace);
 
+  updateStatus(app, `Loading minimap`);
+  await trace.minimap.load(traceDetails.start, traceDetails.end);
+
   // Trace Processor doesn't support the reliable range feature for JSON
   // traces.
   if (

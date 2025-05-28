@@ -20,8 +20,10 @@
 #include <cstdint>
 #include <optional>
 #include <tuple>
+#include <unordered_set>
 #include <vector>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 
@@ -62,13 +64,22 @@ class StackProfileTracker {
 
   void OnFrameCreated(FrameId frame_id);
 
+  void SetPackageForFrame(StringId package, FrameId);
+
+  bool FrameHasUnknownPackage(FrameId) const;
+
+  bool HasFramesWithoutKnownPackage() const;
+
  private:
   TraceProcessorContext* const context_;
   base::FlatHashMap<tables::StackProfileCallsiteTable::Row, CallsiteId>
       callsite_unique_row_index_;
 
-  base::FlatHashMap<NameInPackage, std::vector<FrameId>, NameInPackage::Hasher>
-      java_frames_for_name_;
+  base::
+      FlatHashMap<NameInPackage, base::FlatSet<FrameId>, NameInPackage::Hasher>
+          java_frames_for_name_;
+
+  std::unordered_set<FrameId> java_frames_with_unknown_packages_;
 };
 
 }  // namespace trace_processor

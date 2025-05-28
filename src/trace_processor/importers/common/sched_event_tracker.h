@@ -65,6 +65,23 @@ class SchedEventTracker : public Destructible {
     r.set_end_state(prev_state);
   }
 
+  PERFETTO_ALWAYS_INLINE
+  int64_t GetEndTimestampForPendingSlice(uint32_t pending_slice_idx) {
+    auto* slices = context_->storage->mutable_sched_slice_table();
+    auto r = (*slices)[pending_slice_idx];
+    if (r.dur() < 0)
+      return -1;
+    return r.ts() + r.dur();
+  }
+
+  PERFETTO_ALWAYS_INLINE
+  void SetEndStateForPendingSlice(uint32_t pending_slice_idx,
+                                  StringId prev_state) {
+    auto* slices = context_->storage->mutable_sched_slice_table();
+    auto r = (*slices)[pending_slice_idx];
+    r.set_end_state(prev_state);
+  }
+
  private:
   TraceProcessorContext* const context_;
 };

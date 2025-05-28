@@ -1,0 +1,95 @@
+packet {
+  ftrace_events {
+    cpu: 0
+    event {
+      timestamp: 106000000000
+      pid: 1
+      suspend_resume_minimal {
+        start: 1
+      }
+    }
+    event {
+      timestamp: 109000000000
+      pid: 1
+      suspend_resume_minimal {
+        start: 0
+      }
+    }
+    previous_bundle_end_timestamp: 100000000000
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+}
+
+packet {
+  trusted_uid: 9999
+  timestamp: 100000000000
+  trusted_packet_sequence_id: 2
+  sequence_flags: 3
+  previous_packet_dropped: true
+  first_packet_on_sequence: true
+  kernel_wakelock_data {
+    wakelock {
+      wakelock_id: 1
+      wakelock_name: "kernel_wakelock_1"
+      wakelock_type: WAKELOCK_TYPE_KERNEL
+    }
+    wakelock {
+      wakelock_id: 2
+      wakelock_name: "native_wakelock_2"
+      wakelock_type: WAKELOCK_TYPE_NATIVE
+    }
+    wakelock {
+      wakelock_id: 3
+      wakelock_name: "kernel_wakelock_3"
+      wakelock_type: WAKELOCK_TYPE_KERNEL
+    }
+    wakelock_id: 1
+    wakelock_id: 2
+    wakelock_id: 3
+    time_held_millis: 10000
+    time_held_millis: 20000
+    time_held_millis: 30000
+  }
+}
+
+packet {
+  trusted_uid: 9999
+  timestamp: 105000000000
+  trusted_packet_sequence_id: 2
+  sequence_flags: 2
+  kernel_wakelock_data {
+    wakelock_id: 1
+    wakelock_id: 2
+    wakelock_id: 3
+    time_held_millis: 1
+    time_held_millis: 2
+    time_held_millis: 3
+  }
+}
+
+packet {
+  trusted_uid: 9999
+  timestamp: 110000000000
+  trusted_packet_sequence_id: 2
+  sequence_flags: 2
+  kernel_wakelock_data {
+    wakelock_id: 1
+    time_held_millis: 10
+  }
+}
+
+packet {
+  trusted_uid: 9999
+  timestamp: 115000000000
+  trusted_packet_sequence_id: 2
+  sequence_flags: 2
+  kernel_wakelock_data {
+    wakelock_id: 1
+    wakelock_id: 2
+    wakelock_id: 3
+    time_held_millis: 100
+    time_held_millis: 200
+    time_held_millis: 300
+  }
+}

@@ -17,9 +17,8 @@ import {
   AggregateData,
   Column,
   Sorting,
-  ThreadStateExtra,
+  BarChartData,
 } from '../public/aggregation';
-import {colorForState} from './colorizer';
 import {DurationWidget} from './widgets/duration';
 import {translateState} from './sql_utils/thread_state';
 import {Trace} from '../public/trace';
@@ -49,10 +48,8 @@ export class AggregationPanel
       '.details-panel',
       m(
         '.details-panel-heading.aggregation',
-        attrs.data.extra !== undefined &&
-          attrs.data.extra.kind === 'THREAD_STATE'
-          ? this.showStateSummary(attrs.data.extra)
-          : null,
+        attrs.data.barChart !== undefined &&
+          this.renderBarChart(attrs.data.barChart),
         this.showTimeRange(),
         m(
           'table',
@@ -138,27 +135,24 @@ export class AggregationPanel
     );
   }
 
-  // Thread state aggregation panel only
-  showStateSummary(data: ThreadStateExtra) {
-    if (data === undefined) return undefined;
-    const states = [];
-    for (let i = 0; i < data.states.length; i++) {
-      const colorScheme = colorForState(data.states[i]);
-      const width = (data.values[i] / data.totalMs) * 100;
-      states.push(
-        m(
+  renderBarChart(data: ReadonlyArray<BarChartData>) {
+    const totalTime = data.reduce((sum, item) => sum + item.timeInStateMs, 0);
+    return m(
+      '.states',
+      data.map((d) => {
+        const width = (d.timeInStateMs / totalTime) * 100;
+        return m(
           '.state',
           {
             style: {
-              background: colorScheme.base.cssString,
-              color: colorScheme.textBase.cssString,
+              background: d.color.base.cssString,
+              color: d.color.textBase.cssString,
               width: `${width}%`,
             },
           },
-          `${data.states[i]}: ${data.values[i]} ms`,
-        ),
-      );
-    }
-    return m('.states', states);
+          `${d.name}: ${d.timeInStateMs} ms`,
+        );
+      }),
+    );
   }
 }

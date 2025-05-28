@@ -1,10 +1,17 @@
 #ifndef SRC_TRACE_PROCESSOR_DATAFRAME_SPECS_H_
 #define SRC_TRACE_PROCESSOR_DATAFRAME_SPECS_H_
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <tuple>
+#include <type_traits>
+#include <variant>
+#include <vector>
 
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/type_set.h"
 
 namespace perfetto::trace_processor::dataframe {
@@ -194,6 +201,75 @@ struct LimitSpec {
   std::optional<uint32_t> limit;
   std::optional<uint32_t> offset;
 };
+
+// -----------------------------------------------------------------------------
+// Dataframe and Column Specifications
+// -----------------------------------------------------------------------------
+
+// Defines the properties of a column in the dataframe.
+struct ColumnSpec {
+  StorageType type;
+  Nullability nullability;
+  SortState sort_state;
+};
+
+// Defines the properties of the dataframe.
+struct DataframeSpec {
+  std::vector<std::string> column_names;
+  std::vector<ColumnSpec> column_specs;
+};
+
+// Same as ColumnSpec but for cases where the spec is known at compile time.
+template <typename T, typename N, typename S>
+struct TypedColumnSpec {
+ public:
+  using type = T;
+  using null_storage_type = N;
+  using sort_state = S;
+  ColumnSpec spec;
+
+  // Inferred properties from the above.
+  using mutate_variant = std::variant<std::monostate,
+                                      uint32_t,
+                                      int32_t,
+                                      int64_t,
+                                      double,
+                                      StringPool::Id>;
+  using non_null_mutate_type =
+      StorageType::VariantTypeAtIndex<T, mutate_variant>;
+  using mutate_type = std::conditional_t<std::is_same_v<N, NonNull>,
+                                         non_null_mutate_type,
+                                         std::optional<non_null_mutate_type>>;
+};
+
+// Same as Spec but for cases where the spec is known at compile time.
+template <typename... C>
+struct TypedDataframeSpec {
+  static constexpr uint32_t kColumnCount = sizeof...(C);
+  using columns = std::tuple<C...>;
+  using mutate_types = std::tuple<typename C::mutate_type...>;
+
+  template <size_t I>
+  using column_spec = typename std::tuple_element_t<I, columns>;
+
+  static_assert(kColumnCount > 0,
+                "TypedSpec must have at least one column type");
+
+  std::array<const char*, kColumnCount> column_names;
+  std::array<ColumnSpec, kColumnCount> column_specs;
+};
+
+template <typename... C>
+static constexpr TypedDataframeSpec<C...> CreateTypedDataframeSpec(
+    std::array<const char*, sizeof...(C)> _column_names,
+    C... _columns) {
+  return TypedDataframeSpec<C...>{_column_names, {_columns.spec...}};
+}
+
+template <typename T, typename N, typename S>
+static constexpr TypedColumnSpec<T, N, S> CreateTypedColumnSpec(T, N, S) {
+  return TypedColumnSpec<T, N, S>{ColumnSpec{T{}, N{}, S{}}};
+}
 
 }  // namespace perfetto::trace_processor::dataframe
 
