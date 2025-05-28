@@ -2128,4 +2128,124 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlProtoFieldString) {
                           VarIntField(42)))))))))));
 }
 
+TEST_F(SharedLibTrackEventTest, TrackEventHlNestedTrack) {
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
+
+  PerfettoTeRegisteredTrack my_named_track;
+  PerfettoTeNamedTrackRegister(&my_named_track, "registered_track1", 0,
+                               PerfettoTeProcessTrackUuid());
+
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event1"),
+              PERFETTO_TE_NESTED_TRACKS(
+                  PERFETTO_TE_NESTED_TRACK_PROCESS(),
+                  PERFETTO_TE_NESTED_TRACK_NAMED("track_name1", 1)));
+  PERFETTO_TE(cat1, PERFETTO_TE_COUNTER(),
+              PERFETTO_TE_NESTED_TRACKS(
+                  PERFETTO_TE_NESTED_TRACK_REGISTERED(&my_named_track),
+                  PERFETTO_TE_NESTED_TRACK_COUNTER("counter_name")),
+              PERFETTO_TE_INT_COUNTER(42));
+
+  PerfettoTeRegisteredTrackUnregister(&my_named_track);
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+
+  std::optional<uint64_t> instant_track_uuid = 0;
+  std::optional<uint64_t> counter_track_uuid = 0;
+
+  std::optional<uint64_t> track_name1_uuid = 0;
+  std::optional<uint64_t> track_name1_parent_uuid = 0;
+  std::optional<uint64_t> process_uuid = 0;
+  std::optional<uint64_t> registered_track_uuid = 0;
+  std::optional<uint64_t> counter_uuid = 0;
+  std::optional<uint64_t> counter_parent_uuid = 0;
+
+  auto trace_view = FieldView(data);
+  for (auto trace_field = trace_view.begin(); trace_field != trace_view.end();
+       trace_field++) {
+    ASSERT_THAT(*trace_field, PbField(perfetto_protos_Trace_packet_field_number,
+                                      MsgField(_)));
+    auto packet_view = FieldView(*trace_field);
+    for (auto it = packet_view.begin(); it != packet_view.end(); it++) {
+      struct PerfettoPbDecoderField packet_field = *it;
+      if (packet_field.id ==
+          perfetto_protos_TracePacket_track_event_field_number) {
+        ASSERT_THAT(
+            packet_field,
+            PbField(perfetto_protos_TracePacket_track_event_field_number,
+                    MsgField(_)));
+        IdFieldView track_uuid_field(
+            packet_field, perfetto_protos_TrackEvent_track_uuid_field_number);
+        ASSERT_THAT(track_uuid_field, ElementsAre(VarIntField(_)));
+
+        IdFieldView type_field(packet_field,
+                               perfetto_protos_TrackEvent_type_field_number);
+        ASSERT_THAT(type_field, ElementsAre(VarIntField(_)));
+
+        if (type_field.front().value.integer64 ==
+            perfetto_protos_TrackEvent_TYPE_COUNTER) {
+          counter_track_uuid = track_uuid_field.front().value.integer64;
+        } else if (type_field.front().value.integer64 ==
+                   perfetto_protos_TrackEvent_TYPE_INSTANT) {
+          instant_track_uuid = track_uuid_field.front().value.integer64;
+        }
+      } else if (packet_field.id ==
+                 perfetto_protos_TracePacket_track_descriptor_field_number) {
+        ASSERT_THAT(
+            packet_field,
+            PbField(perfetto_protos_TracePacket_track_descriptor_field_number,
+                    MsgField(_)));
+        IdFieldView uuid_field(
+            packet_field, perfetto_protos_TrackDescriptor_uuid_field_number);
+        ASSERT_THAT(uuid_field, ElementsAre(VarIntField(_)));
+
+        IdFieldView process_field(
+            packet_field, perfetto_protos_TrackDescriptor_process_field_number);
+        IdFieldView counter_field(
+            packet_field, perfetto_protos_TrackDescriptor_counter_field_number);
+        IdFieldView name_field(
+            packet_field, perfetto_protos_TrackDescriptor_name_field_number);
+        IdFieldView parent_uuid_field(
+            packet_field,
+            perfetto_protos_TrackDescriptor_parent_uuid_field_number);
+
+        if (process_field.size() == 1) {
+          process_uuid = uuid_field.front().value.integer64;
+        } else if (counter_field.size() == 1) {
+          ASSERT_THAT(parent_uuid_field, ElementsAre(VarIntField(_)));
+
+          counter_uuid = uuid_field.front().value.integer64;
+          counter_parent_uuid = parent_uuid_field.front().value.integer64;
+        } else if (name_field.size() == 1) {
+          ASSERT_THAT(parent_uuid_field, ElementsAre(VarIntField(_)));
+          ASSERT_THAT(name_field.front(), StringField(_));
+
+          std::string_view name(reinterpret_cast<const char*>(
+                                    name_field.front().value.delimited.start),
+                                name_field.front().value.delimited.len);
+          if (name == "track_name1") {
+            track_name1_uuid = uuid_field.front().value.integer64;
+            track_name1_parent_uuid = parent_uuid_field.front().value.integer64;
+          } else if (name == "registered_track1") {
+            registered_track_uuid = uuid_field.front().value.integer64;
+          }
+        }
+      }
+    }
+  }
+
+  EXPECT_NE(instant_track_uuid, std::nullopt);
+  EXPECT_NE(track_name1_parent_uuid, std::nullopt);
+  EXPECT_NE(counter_track_uuid, std::nullopt);
+  EXPECT_NE(counter_parent_uuid, std::nullopt);
+
+  EXPECT_EQ(instant_track_uuid, track_name1_uuid);
+  EXPECT_EQ(track_name1_parent_uuid, process_uuid);
+  EXPECT_EQ(counter_track_uuid, counter_uuid);
+  EXPECT_EQ(counter_parent_uuid, registered_track_uuid);
+}
+
 }  // namespace
