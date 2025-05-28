@@ -1176,7 +1176,7 @@ class TrackEventParser::EventImporter {
       }
     }
     if (event_.has_correlation_id()) {
-      base::StackString<512> id_str("tp:#%lu", event_.correlation_id());
+      base::StackString<512> id_str("tp:#%" PRIu64, event_.correlation_id());
       inserter->AddArg(parser_->correlation_id_key_id_,
                        Variadic::String(context_->storage->InternString(
                            id_str.string_view())));

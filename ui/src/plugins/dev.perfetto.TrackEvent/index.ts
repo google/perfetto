@@ -153,7 +153,11 @@ export default class implements PerfettoPlugin {
             upid: upid ?? undefined,
             utid: utid ?? undefined,
           },
-          track: createTraceProcessorSliceTrack({trace: ctx, uri, trackIds}),
+          track: await createTraceProcessorSliceTrack({
+            trace: ctx,
+            uri,
+            trackIds,
+          }),
         });
       }
       const parent = this.findParentTrackNode(

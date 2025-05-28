@@ -28,7 +28,10 @@ import {Trace} from '../../public/trace';
 import {extensions} from '../extensions';
 
 // Renders slice arguments (key/value pairs) as a subtree.
-export function renderArguments(trace: Trace, args: Arg[]): m.Children {
+export function renderArguments(
+  trace: Trace,
+  args: ReadonlyArray<Arg>,
+): m.Children {
   if (args.length > 0) {
     const tree = convertArgsToTree(args);
     return renderArgTreeNodes(trace, tree);

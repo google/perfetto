@@ -136,10 +136,11 @@ class ShellTransitions(TestSuite):
     return DiffTestBlueprint(
         trace=Path('shell_transitions.textproto'),
         query="""
+        INCLUDE PERFETTO MODULE android.winscope.transitions;
         SELECT
           transition_id, layer_id, window_id
         FROM
-          __intrinsic_window_manager_shell_transition_participants
+          android_window_manager_shell_transition_participants
         ORDER BY transition_id;
         """,
         out=Csv("""

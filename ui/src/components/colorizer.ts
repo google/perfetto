@@ -109,7 +109,15 @@ const GRAY = makeColorScheme(new HSLColor([0, 0, 62]));
 const DESAT_RED = makeColorScheme(new HSLColor([3, 30, 49]));
 const DARK_GREEN = makeColorScheme(new HSLColor([120, 44, 34]));
 const LIME_GREEN = makeColorScheme(new HSLColor([75, 55, 47]));
-const TRANSPARENT_WHITE = makeColorScheme(new HSLColor([0, 1, 97], 0.55));
+const TRANSLUCENT_GRAY = {
+  base: new HSLColor([0, 1, 50], 0),
+  variant: new HSLColor([0, 1, 50], 0.2),
+  disabled: GRAY_COLOR,
+  // Make the text invisible
+  textBase: new HSLColor([0, 0, 0], 0),
+  textVariant: new HSLColor([0, 0, 0], 0),
+  textDisabled: new HSLColor([0, 0, 0], 0),
+};
 const ORANGE = makeColorScheme(new HSLColor([36, 100, 50]));
 const INDIGO = makeColorScheme(new HSLColor([231, 48, 48]));
 
@@ -168,7 +176,7 @@ export function colorForState(state: string): ColorScheme {
   } else if (state.includes('Dead')) {
     return GRAY;
   } else if (state.includes('Sleeping') || state.includes('Idle')) {
-    return TRANSPARENT_WHITE;
+    return TRANSLUCENT_GRAY;
   }
   return INDIGO;
 }
