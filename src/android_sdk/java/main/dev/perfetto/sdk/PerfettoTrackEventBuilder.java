@@ -35,12 +35,12 @@ import dev.perfetto.sdk.PerfettoTrackEventExtra.NamedTrack;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.PerfettoPointer;
 import dev.perfetto.sdk.PerfettoTrackEventExtra.Proto;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.function.Supplier;
 
 /** Builder for Perfetto track event extras. */
 public final class PerfettoTrackEventBuilder {
   private static final int DEFAULT_EXTRA_CACHE_SIZE = 5;
+  private static final int DEFAULT_PENDING_POINTERS_LIST_SIZE = 16;
 
   private PerfettoTrackEventExtra mExtra;
 
@@ -147,7 +147,7 @@ public final class PerfettoTrackEventBuilder {
 
   private final boolean mIsCategoryEnabled;
 
-  private List<PerfettoPointer> mPendingPointers;
+  private ArrayList<PerfettoPointer> mPendingPointers;
 
   private final Supplier<PerfettoTrackEventBuilder> perfettoTrackEventBuilderSupplier =
       () -> new PerfettoTrackEventBuilder(true, this);
@@ -190,6 +190,7 @@ public final class PerfettoTrackEventBuilder {
       mObjectsPool = new ObjectsPool(DEFAULT_EXTRA_CACHE_SIZE);
       mObjectsCache = new ObjectsCache(DEFAULT_EXTRA_CACHE_SIZE);
       mLazyInitObjects = new LazyInitObjects(mNativeMemoryCleaner);
+      mPendingPointers = new ArrayList<>(DEFAULT_PENDING_POINTERS_LIST_SIZE);
     } else {
       // We are create a child builder for proto fields, read all cache fields from the parent.
       mParent = parent;
@@ -198,7 +199,6 @@ public final class PerfettoTrackEventBuilder {
     }
 
     mExtra = new PerfettoTrackEventExtra(mNativeMemoryCleaner);
-    mPendingPointers = new ArrayList<>();
   }
 
   /** Emits the track event. */
@@ -276,6 +276,7 @@ public final class PerfettoTrackEventBuilder {
     mObjectsPool = parent.mObjectsPool;
     mObjectsCache = parent.mObjectsCache;
     mLazyInitObjects = parent.mLazyInitObjects;
+    mPendingPointers = parent.mPendingPointers;
   }
 
   /** Sets the event name for the track event. */
