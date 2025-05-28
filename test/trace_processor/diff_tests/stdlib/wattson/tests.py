@@ -267,7 +267,10 @@ class WattsonStdlib(TestSuite):
         trace=DataPath('wattson_dsu_pmu.pb'),
         query=("""
             INCLUDE PERFETTO MODULE wattson.estimates;
-              select * from _system_state_mw
+              SELECT
+                ts, dur, cpu0_mw, cpu1_mw, cpu2_mw, cpu3_mw, cpu4_mw, cpu5_mw,
+                cpu6_mw, cpu7_mw, dsu_scu_mw
+              FROM _system_state_mw
               WHERE ts > 359661672577
               ORDER by ts ASC
               LIMIT 10
@@ -387,7 +390,10 @@ class WattsonStdlib(TestSuite):
         trace=DataPath('wattson_tk4_pcmark.pb'),
         query=("""
             INCLUDE PERFETTO MODULE wattson.estimates;
-            SELECT * FROM _system_state_mw
+            SELECT
+               ts, dur, cpu0_mw, cpu1_mw, cpu2_mw, cpu3_mw, cpu4_mw, cpu5_mw,
+               cpu6_mw, cpu7_mw, dsu_scu_mw
+            FROM _system_state_mw
             WHERE ts > 4108586775197
             LIMIT 20
             """),

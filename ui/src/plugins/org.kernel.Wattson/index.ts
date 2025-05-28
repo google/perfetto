@@ -123,7 +123,7 @@ class GpuSubsystemEstimateTrack extends BaseCounterTrack {
   }
 
   getSqlSource() {
-    return `select ts, ${this.queryKey} as value from _gpu_estimates`;
+    return `select ts, ${this.queryKey} as value from _gpu_estimates_mw`;
   }
 }
 
