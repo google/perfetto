@@ -452,12 +452,11 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     context_.reader_registry->RegisterTraceReader<ZipTraceReader>(kZipFile);
   }
 
-  if constexpr (json::IsJsonSupported()) {
-    context_.reader_registry->RegisterTraceReader<JsonTraceTokenizer>(
-        kJsonTraceType);
-    context_.json_trace_parser =
-        std::make_unique<JsonTraceParserImpl>(&context_);
+  context_.reader_registry->RegisterTraceReader<JsonTraceTokenizer>(
+      kJsonTraceType);
+  context_.json_trace_parser = std::make_unique<JsonTraceParserImpl>(&context_);
 
+  if constexpr (json::IsJsonSupported()) {
     context_.reader_registry
         ->RegisterTraceReader<gecko_importer::GeckoTraceTokenizer>(
             kGeckoTraceType);
