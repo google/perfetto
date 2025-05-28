@@ -50,6 +50,7 @@ const schema = {
   depth: NUM,
   thread_dur: LONG_NULL,
   category: STR_NULL,
+  correlation_id: STR_NULL,
 };
 
 export async function createTraceProcessorSliceTrack({
@@ -62,32 +63,7 @@ export async function createTraceProcessorSliceTrack({
   return new DatasetSliceTrack({
     trace,
     uri,
-<<<<<<< HEAD
-    dataset: new SourceDataset({
-      schema: {
-        id: NUM,
-        ts: LONG,
-        dur: LONG,
-        name: STR_NULL,
-        depth: NUM,
-        thread_dur: LONG_NULL,
-        category: STR_NULL,
-        correlation_id: STR_NULL,
-      },
-      src: `
-        select
-          *,
-          extract_arg(arg_set_id, 'correlation_id') as correlation_id
-        from slice
-      `,
-      filter: {
-        col: 'track_id',
-        in: trackIds,
-      },
-    }),
-=======
     dataset: await getDataset(trace.engine, trackIds),
->>>>>>> origin/main
     sliceName: (row) => (row.name === null ? '[null]' : row.name),
     initialMaxDepth: maxDepth,
     rootTableName: 'slice',
@@ -126,10 +102,22 @@ async function getDataset(engine: Engine, trackIds: ReadonlyArray<number>) {
   if (trackIds.length === 1) {
     return new SourceDataset({
       schema,
-      src: 'slice',
+      src: `
+        select
+          slice.id,
+          ts,
+          dur,
+          depth,
+          name,
+          thread_dur,
+          track_id,
+          category,
+          extract_arg(arg_set_id, 'correlation_id') as correlation_id
+        from slice
+      `,
       filter: {
         col: 'track_id',
-        eq: trackIds[0],
+        in: trackIds,
       },
     });
   } else {
@@ -160,7 +148,8 @@ async function getDataset(engine: Engine, trackIds: ReadonlyArray<number>) {
           name,
           thread_dur,
           track_id,
-          category
+          category,
+          extract_arg(arg_set_id, 'correlation_id') as correlation_id
         from slice
         join ${tableName} d using (id)
       `,

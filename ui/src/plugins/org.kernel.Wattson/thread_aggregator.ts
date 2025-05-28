@@ -227,8 +227,6 @@ export class WattsonThreadSelectionAggregator
     ];
   }
 
-  async getExtra() {}
-
   getTabName() {
     return 'Wattson by thread';
   }
