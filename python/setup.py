@@ -8,8 +8,13 @@ setup(
         'perfetto.common',
         'perfetto.trace_processor',
         'perfetto.trace_uri_resolver',
+        'perfetto.bigtrace',
+        'perfetto.bigtrace.protos',
     ],
-    package_data={'perfetto.trace_processor': ['*.descriptor']},
+    package_data={
+        'perfetto.trace_processor': ['*.descriptor'],
+        'perfetto.bigtrace.protos': ['**/*']
+    },
     include_package_data=True,
     version='0.11.0',
     license='apache-2.0',
@@ -21,6 +26,8 @@ setup(
     keywords=['trace processor', 'tracing', 'perfetto'],
     install_requires=[
         'protobuf',
+        'grpcio',
+        'pandas',
     ],
     classifiers=[
         'Development Status :: 3 - Alpha',
