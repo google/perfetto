@@ -113,6 +113,7 @@ def run_code_formatters(formatters: list[CodeFormatterBase]):
   files = CodeFormatterBase.build_file_list(args)
   skip_list = set(args.skip.split(','))
   formatters = [f for f in formatters if f.name not in skip_list]
+  print('FFF', args.skip, 'L=', skip_list, list(skip_list), 'F=', formatters)
   for formatter in formatters:
     files_to_check = formatter.filter_files(files)
     if not args.quiet:
