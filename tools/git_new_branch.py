@@ -50,6 +50,7 @@ def main():
   run_git_command(
       ['config', f'branch.{args.new_branch_name}.parent', parent_branch])
   print('Done')
+  print("FOoo")
 
 
 if __name__ == "__main__":
