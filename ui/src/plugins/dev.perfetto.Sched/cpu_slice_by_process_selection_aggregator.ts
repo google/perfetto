@@ -61,8 +61,6 @@ export class CpuSliceByProcessSelectionAggregator
     return 'CPU by process';
   }
 
-  async getExtra() {}
-
   getDefaultSorting(): Sorting {
     return {column: 'total_dur', direction: 'DESC'};
   }
