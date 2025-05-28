@@ -65,6 +65,7 @@ export class SqlSourceNode implements QueryNode {
       groupByColumns: newColumnControllerRows(this.state.groupByColumns),
       filters: this.state.filters.map((f) => ({...f})),
       aggregations: this.state.aggregations.map((a) => ({...a})),
+      customTitle: this.state.customTitle,
     };
     return newState;
   }
@@ -79,6 +80,9 @@ export class SqlSourceNode implements QueryNode {
   }
 
   getTitle(): string {
+    if (this.state.customTitle) {
+      return this.state.customTitle;
+    }
     return `Sql source`;
   }
 
