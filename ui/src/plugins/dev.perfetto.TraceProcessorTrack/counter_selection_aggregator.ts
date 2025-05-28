@@ -186,8 +186,6 @@ export class CounterSelectionAggregator implements AreaSelectionAggregator {
     ];
   }
 
-  async getExtra() {}
-
   getTabName() {
     return 'Counters';
   }

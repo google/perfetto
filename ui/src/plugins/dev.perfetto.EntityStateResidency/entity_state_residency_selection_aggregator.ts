@@ -112,8 +112,6 @@ export class EntityStateResidencySelectionAggregator
     ];
   }
 
-  async getExtra() {}
-
   getTabName() {
     return 'Entity State Residency';
   }
