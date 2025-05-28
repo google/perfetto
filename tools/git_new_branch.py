@@ -49,6 +49,7 @@ def main():
       ['checkout', '--no-track', '-b', args.new_branch_name, parent_branch])
   run_git_command(
       ['config', f'branch.{args.new_branch_name}.parent', parent_branch])
+  print('Done')
 
 
 if __name__ == "__main__":
