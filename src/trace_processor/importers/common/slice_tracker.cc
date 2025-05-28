@@ -168,7 +168,9 @@ std::optional<SliceId> SliceTracker::StartSlice(
   }
 
   auto* slices = context_->storage->mutable_slice_table();
-  MaybeCloseStack(timestamp, duration, stack, track_id);
+  if (!MaybeCloseStack(timestamp, duration, stack, track_id)) {
+    return std::nullopt;
+  }
 
   size_t depth = stack.size();
 
@@ -219,9 +221,12 @@ std::optional<SliceId> SliceTracker::CompleteSlice(
 
   TrackInfo& track_info = *it;
   SlicesStack& stack = track_info.slice_stack;
-  MaybeCloseStack(timestamp, kPendingDuration, stack, track_id);
-  if (stack.empty())
+  if (!MaybeCloseStack(timestamp, kPendingDuration, stack, track_id)) {
     return std::nullopt;
+  }
+  if (stack.empty()) {
+    return std::nullopt;
+  }
 
   auto* slices = context_->storage->mutable_slice_table();
   std::optional<uint32_t> stack_idx = finder(stack);
@@ -410,6 +415,7 @@ bool SliceTracker::MaybeCloseStack(int64_t new_ts,
 
     if (end_ts <= new_ts) {
       StackPop(track_id);
+      continue;
     }
 
     if (new_dur == kPendingDuration) {
@@ -418,7 +424,8 @@ bool SliceTracker::MaybeCloseStack(int64_t new_ts,
     }
 
     if (end_ts <= new_ts + new_dur) {
-      context_->storage->IncrementStats(stats::slice_closed);
+      context_->storage->IncrementStats(
+          stats::slice_drop_overlapping_complete_event);
       return false;
     }
   }
