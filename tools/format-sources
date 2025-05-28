@@ -15,4 +15,5 @@
 
 set -eu
 ROOT_DIR="$(dirname $(cd -P ${BASH_SOURCE[0]%/*}; pwd))"
+echo "FORMATTING" "$@"
 exec /usr/bin/env python3 $ROOT_DIR/python/tools/code_format_all.py "$@"
