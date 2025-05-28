@@ -37,6 +37,7 @@ export interface QueryBuilderAttrs {
 export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
   private query?: Query;
   private queryExecuted: boolean = false;
+  private tablePosition: 'left' | 'right' | 'bottom' = 'right';
 
   view({attrs}: m.CVnode<QueryBuilderAttrs>) {
     const {
@@ -47,6 +48,38 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       renderNodeActionsMenuItems,
       addSourcePopupMenu,
     } = attrs;
+
+    console.log('Table position:', this.tablePosition);
+
+    const canvasStyle: m.Attributes['style'] = {
+      gridColumn: 1,
+      gridRow: 1,
+      overflow: 'auto',
+    };
+    const explorerStyle: m.Attributes['style'] = {
+      gridColumn: 2,
+      gridRow: 1,
+      overflow: 'auto',
+    };
+    const viewerStyle: m.Attributes['style'] = {
+      gridColumn: 2,
+      gridRow: 2,
+      overflow: 'auto',
+    };
+
+    switch (this.tablePosition) {
+      case 'left':
+        viewerStyle.gridColumn = 1;
+        explorerStyle.gridRow = '1/span 2';
+        break;
+      case 'right':
+        viewerStyle.gridColumn = 2;
+        canvasStyle.gridRow = '1/ span 2';
+        break;
+      case 'bottom':
+        viewerStyle.gridColumn = '1/span 2';
+        break;
+    }
 
     return m(
       '.query-builder-layout',
@@ -61,7 +94,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       },
       m(
         '',
-        {style: {gridColumn: 1, gridRow: 1}},
+        {style: canvasStyle},
         m(QueryCanvas, {
           rootNodes,
           selectedNode,
@@ -73,7 +106,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       attrs.selectedNode &&
         m(
           '',
-          {style: {gridColumn: 2, gridRow: 1, overflow: 'auto'}},
+          {style: explorerStyle},
           m(QueryNodeExplorer, {
             trace,
             node: attrs.selectedNode,
@@ -86,13 +119,16 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       attrs.selectedNode &&
         m(
           '',
-          {style: {gridColumn: 2, gridRow: 2, overflow: 'auto'}},
+          {style: viewerStyle},
           m(NodeDataViewer, {
             trace,
             query: this.query,
             executeQuery: !this.queryExecuted,
             onQueryExecuted: () => {
               this.queryExecuted = true;
+            },
+            onPositionChange: (pos: 'left' | 'right' | 'bottom') => {
+              this.tablePosition = pos;
             },
           }),
         ),

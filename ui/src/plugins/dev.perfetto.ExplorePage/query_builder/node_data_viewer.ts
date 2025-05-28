@@ -19,15 +19,18 @@ import {QueryTable} from '../../../components/query_table/query_table';
 import {runQueryForQueryTable} from '../../../components/query_table/queries';
 import {AsyncLimiter} from '../../../base/async_limiter';
 import {QueryResponse} from '../../../components/query_table/queries';
-import {Section} from '../../../widgets/section';
 import {Trace} from '../../../public/trace';
 import {Query, queryToRun} from './query_node_explorer';
+import {MenuItem, PopupMenu} from '../../../widgets/menu';
+import {Button} from '../../../widgets/button';
+import {Icons} from '../../../base/semantic_icons';
 
 export interface NodeDataViewerAttrs {
   readonly query?: Query | Error;
   readonly executeQuery: boolean;
   readonly trace: Trace;
   readonly onQueryExecuted: () => void;
+  readonly onPositionChange: (pos: 'left' | 'right' | 'bottom') => void;
 }
 
 export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
@@ -41,8 +44,9 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
           attrs.query === undefined ||
           attrs.query instanceof Error ||
           !attrs.executeQuery
-        )
+        ) {
           return;
+        }
 
         this.queryResult = await runQueryForQueryTable(
           queryToRun(attrs.query),
@@ -51,9 +55,7 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
         attrs.onQueryExecuted();
       });
     };
-    console.log('NodeDataViewer view called with query:', attrs.query);
     if (attrs.query === undefined) {
-      console.log('NodeDataViewer: No query to run');
       return m(TextParagraph, {text: `No data to display}`});
     }
     if (attrs.query instanceof Error) {
@@ -70,14 +72,49 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
     runQuery();
     return [
       m(
-        Section,
-        {title: 'Query data'},
-        m(QueryTable, {
-          trace: attrs.trace,
-          query: queryToRun(attrs.query),
-          resp: this.queryResult,
-          fillParent: false,
-        }),
+        '.pf-node-data-viewer',
+        m(
+          '.pf-node-data-viewer__title-row',
+          m('.title', 'Query data'),
+          m('span.spacer'), // Added spacer to push menu to the right
+          m(
+            PopupMenu,
+            {
+              trigger: m(Button, {
+                icon: Icons.ContextMenuAlt,
+              }),
+            },
+            [
+              m(MenuItem, {
+                label: 'Left',
+                onclick: () => {
+                  attrs.onPositionChange('left');
+                },
+              }),
+              m(MenuItem, {
+                label: 'Right',
+                onclick: () => {
+                  attrs.onPositionChange('right');
+                },
+              }),
+              m(MenuItem, {
+                label: 'Bottom',
+                onclick: () => {
+                  attrs.onPositionChange('bottom');
+                },
+              }),
+            ],
+          ),
+        ),
+        m(
+          'article',
+          m(QueryTable, {
+            trace: attrs.trace,
+            query: queryToRun(attrs.query),
+            resp: this.queryResult,
+            fillParent: false,
+          }),
+        ),
       ),
     ];
   }
