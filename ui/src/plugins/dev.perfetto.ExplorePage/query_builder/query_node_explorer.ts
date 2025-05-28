@@ -82,17 +82,15 @@ export class QueryNodeExplorer
     };
 
     const getAndRunQuery = (): void => {
-      console.log('getAndRunQuery', attrs.node);
       const sq = attrs.node.getStructuredQuery();
       if (sq === undefined) return;
-      console.log('sq', sq);
 
       this.curSqString = JSON.stringify(sq.toJSON(), null, 2);
 
       if (this.curSqString !== this.prevSqString) {
         this.tableAsyncLimiter.schedule(async () => {
           this.currentQuery = await analyzeNode(attrs.node, attrs.trace.engine);
-          if (!isQueryValid(this.currentQuery)) {
+          if (!isAQuery(this.currentQuery)) {
             return;
           }
           attrs.onQueryAnalyzed(this.currentQuery);
@@ -102,10 +100,10 @@ export class QueryNodeExplorer
     };
 
     getAndRunQuery();
-    const sql: string = isQueryValid(this.currentQuery)
+    const sql: string = isAQuery(this.currentQuery)
       ? queryToRun(this.currentQuery)
       : '';
-    const textproto: string = isQueryValid(this.currentQuery)
+    const textproto: string = isAQuery(this.currentQuery)
       ? this.currentQuery.textproto
       : '';
 
@@ -232,7 +230,7 @@ export async function analyzeNode(
   return sql;
 }
 
-export function isQueryValid(
+export function isAQuery(
   maybeQuery: Query | undefined | Error,
 ): maybeQuery is Query {
   return (
