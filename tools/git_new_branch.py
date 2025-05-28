@@ -45,6 +45,8 @@ def main():
       print('Error: Unable to determine the current branch.')
       return 1
 
+  print('Change in parent')
+
   run_git_command(
       ['checkout', '--no-track', '-b', args.new_branch_name, parent_branch])
   run_git_command(
