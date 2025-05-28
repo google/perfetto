@@ -149,6 +149,18 @@ public final class PerfettoTrackEventBuilder {
 
   private List<PerfettoPointer> mPendingPointers;
 
+  private final Supplier<PerfettoTrackEventBuilder> perfettoTrackEventBuilderSupplier =
+      () -> new PerfettoTrackEventBuilder(true, this);
+  private final Supplier<FieldNested> fieldNestedSupplier =
+      () -> new FieldNested(mNativeMemoryCleaner);
+  private final Supplier<Proto> protoSupplier = () -> new Proto(mNativeMemoryCleaner);
+  private final Supplier<FieldInt64> fieldInt64Supplier =
+      () -> new FieldInt64(mNativeMemoryCleaner);
+  private final Supplier<FieldDouble> fieldDoubleSupplier =
+      () -> new FieldDouble(mNativeMemoryCleaner);
+  private final Supplier<FieldString> fieldStringSupplier =
+      () -> new FieldString(mNativeMemoryCleaner);
+
   private static final PerfettoTrackEventBuilder NO_OP_BUILDER =
       new PerfettoTrackEventBuilder(/* isCategoryEnabled= */ false, /* parent= */ null);
 
@@ -240,11 +252,13 @@ public final class PerfettoTrackEventBuilder {
   }
 
   private void updateNativeMemoryCleanerForDebug(boolean enableDebug) {
-    // In current implementation it is possible, that the 'PerfettoTrackEventBuilder' will be used
+    // In current implementation it is possible, that the 'PerfettoTrackEventBuilder' will be
+    // used
     // with the 'isDebug' value that differs from the value the builder was created and/or
     // previously used.
     // To correctly handle this situation and to not allocate memory in the fast-path (when the
-    // cached builder is used with the same 'isDebug' value), we check the state of the previously
+    // cached builder is used with the same 'isDebug' value), we check the state of the
+    // previously
     // created cleaner and create the new one only if 'isDebug' value is updated.
     boolean debugIsAlreadyEnabled = mNativeMemoryCleaner.isReportAllocationStats();
     if (debugIsAlreadyEnabled == enableDebug) {
@@ -487,7 +501,7 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkBuildingProto();
     }
-    FieldInt64 field = mObjectsPool.mFieldInt64Pool.get(() -> new FieldInt64(mNativeMemoryCleaner));
+    FieldInt64 field = mObjectsPool.mFieldInt64Pool.get(fieldInt64Supplier);
     field.setValue(id, val);
     addFieldToContainer(field);
     return this;
@@ -501,8 +515,7 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkBuildingProto();
     }
-    FieldDouble field =
-        mObjectsPool.mFieldDoublePool.get(() -> new FieldDouble(mNativeMemoryCleaner));
+    FieldDouble field = mObjectsPool.mFieldDoublePool.get(fieldDoubleSupplier);
     field.setValue(id, val);
     addFieldToContainer(field);
     return this;
@@ -516,8 +529,7 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkBuildingProto();
     }
-    FieldString field =
-        mObjectsPool.mFieldStringPool.get(() -> new FieldString(mNativeMemoryCleaner));
+    FieldString field = mObjectsPool.mFieldStringPool.get(fieldStringSupplier);
     field.setValue(id, val);
     addFieldToContainer(field);
     return this;
@@ -537,11 +549,11 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkNotBuildingProto();
     }
-    Proto proto = mObjectsPool.mProtoPool.get(() -> new Proto(mNativeMemoryCleaner));
+    Proto proto = mObjectsPool.mProtoPool.get(protoSupplier);
     proto.clearFields();
     addPerfettoPointerToExtra(proto);
     return mChildBuildersCache
-        .get(() -> new PerfettoTrackEventBuilder(true, this))
+        .get(perfettoTrackEventBuilderSupplier)
         .initChildBuilderForProto(this, proto);
   }
 
@@ -567,12 +579,11 @@ public final class PerfettoTrackEventBuilder {
     if (mIsDebug) {
       checkBuildingProto();
     }
-    FieldNested field =
-        mObjectsPool.mFieldNestedPool.get(() -> new FieldNested(mNativeMemoryCleaner));
+    FieldNested field = mObjectsPool.mFieldNestedPool.get(fieldNestedSupplier);
     field.setId(id);
     addFieldToContainer(field);
     return mChildBuildersCache
-        .get(() -> new PerfettoTrackEventBuilder(true, this))
+        .get(perfettoTrackEventBuilderSupplier)
         .initChildBuilderForProto(this, field);
   }
 
