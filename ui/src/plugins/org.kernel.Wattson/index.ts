@@ -79,12 +79,14 @@ export default class implements PerfettoPlugin {
   }
 }
 
-class CpuSubsystemEstimateTrack extends BaseCounterTrack {
+class WattsonSubsystemEstimateTrack extends BaseCounterTrack {
   readonly queryKey: string;
+  readonly yRangeKey: string;
 
-  constructor(trace: Trace, uri: string, queryKey: string) {
+  constructor(trace: Trace, uri: string, queryKey: string, yRangeKey: string) {
     super(trace, uri);
     this.queryKey = queryKey;
+    this.yRangeKey = yRangeKey;
   }
 
   async onInit() {
@@ -93,37 +95,13 @@ class CpuSubsystemEstimateTrack extends BaseCounterTrack {
 
   protected getDefaultCounterOptions(): CounterOptions {
     const options = super.getDefaultCounterOptions();
-    options.yRangeSharingKey = `CpuSubsystem`;
+    options.yRangeSharingKey = this.yRangeKey;
     options.unit = `mW`;
     return options;
   }
 
   getSqlSource() {
     return `select ts, ${this.queryKey} as value from _system_state_mw`;
-  }
-}
-
-class GpuSubsystemEstimateTrack extends BaseCounterTrack {
-  readonly queryKey: string;
-
-  constructor(trace: Trace, uri: string, queryKey: string) {
-    super(trace, uri);
-    this.queryKey = queryKey;
-  }
-
-  async onInit() {
-    await this.engine.query(`INCLUDE PERFETTO MODULE wattson.gpu.estimates;`);
-  }
-
-  protected getDefaultCounterOptions(): CounterOptions {
-    const options = super.getDefaultCounterOptions();
-    options.yRangeSharingKey = `GpuSubsystem`;
-    options.unit = `mW`;
-    return options;
-  }
-
-  getSqlSource() {
-    return `select ts, ${this.queryKey} as value from _gpu_estimates_mw`;
   }
 }
 
@@ -197,7 +175,12 @@ async function addWattsonCpuElements(ctx: Trace, group: TrackNode) {
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: new CpuSubsystemEstimateTrack(ctx, uri, queryKey),
+      track: new WattsonSubsystemEstimateTrack(
+        ctx,
+        uri,
+        queryKey,
+        `CpuSubsystem`,
+      ),
       tags: {
         kind: CPUSS_ESTIMATE_TRACK_KIND,
         wattson: `CPU${cpu.ucpu}`,
@@ -212,7 +195,12 @@ async function addWattsonCpuElements(ctx: Trace, group: TrackNode) {
   ctx.tracks.registerTrack({
     uri,
     title,
-    track: new CpuSubsystemEstimateTrack(ctx, uri, `dsu_scu_mw`),
+    track: new WattsonSubsystemEstimateTrack(
+      ctx,
+      uri,
+      `dsu_scu_mw`,
+      `CpuSubsystem`,
+    ),
     tags: {
       kind: CPUSS_ESTIMATE_TRACK_KIND,
       wattson: 'Dsu_Scu',
@@ -256,7 +244,12 @@ async function addWattsonGpuElements(ctx: Trace, group: TrackNode) {
   ctx.tracks.registerTrack({
     uri,
     title,
-    track: new GpuSubsystemEstimateTrack(ctx, uri, `gpu_mw`),
+    track: new WattsonSubsystemEstimateTrack(
+      ctx,
+      uri,
+      `gpu_mw`,
+      `GpuSubsystem`,
+    ),
     tags: {
       kind: GPUSS_ESTIMATE_TRACK_KIND,
       wattson: 'Gpu',
