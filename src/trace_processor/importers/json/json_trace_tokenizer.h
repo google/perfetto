@@ -23,7 +23,6 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/json/json_parser.h"

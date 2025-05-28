@@ -68,6 +68,7 @@ std::optional<uint64_t> MaybeExtractFlowIdentifier(StringPool* pool,
     case JsonEvent::IdType::kUint64:
       return id_key.id_uint64;
   }
+  PERFETTO_FATAL("For GCC");
 }
 
 inline std::string_view GetStringValue(const json::JsonValue& value) {
