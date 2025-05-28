@@ -61,8 +61,6 @@ export class CpuSliceSelectionAggregator implements AreaSelectionAggregator {
     return 'CPU by thread';
   }
 
-  async getExtra() {}
-
   getDefaultSorting(): Sorting {
     return {column: 'total_dur', direction: 'DESC'};
   }

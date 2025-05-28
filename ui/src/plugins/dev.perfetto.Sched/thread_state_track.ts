@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {colorForState} from '../../components/colorizer';
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
+import {colorForThreadState} from './common';
 import {ThreadStateDetailsPanel} from './thread_state_details_panel';
 
 export function createThreadStateTrack(
@@ -68,7 +68,7 @@ export function createThreadStateTrack(
       sliceHeight: 12,
       titleSizePx: 10,
     },
-    colorizer: (row) => colorForState(row.name),
+    colorizer: (row) => colorForThreadState(row.name),
     detailsPanel: (row) => new ThreadStateDetailsPanel(trace, row.id),
     rootTableName: 'thread_state',
   });
