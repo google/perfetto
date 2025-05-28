@@ -101,6 +101,12 @@ int main(void) {
                 PERFETTO_TE_DOUBLE_COUNTER(3.14),
                 PERFETTO_TE_REGISTERED_TRACK(&mycounter),
                 PERFETTO_TE_DYNAMIC_CATEGORY_STRING("physics"));
+    PERFETTO_TE(physics, PERFETTO_TE_COUNTER(),
+                PERFETTO_TE_NESTED_TRACKS(
+                    PERFETTO_TE_NESTED_TRACK_REGISTERED(&mytrack),
+                    PERFETTO_TE_NESTED_TRACK_NAMED("dynamictrack", 2),
+                    PERFETTO_TE_NESTED_TRACK_COUNTER("dynamiccounter")),
+                PERFETTO_TE_INT_COUNTER(99));
     sleep(1);
   }
 }
