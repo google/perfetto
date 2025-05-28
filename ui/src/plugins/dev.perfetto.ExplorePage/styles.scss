@@ -196,3 +196,19 @@
     font-size: 14px;
   }
 }
+
+.pf-node-data-viewer {
+  border-radius: $pf-border-radius;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  &__title-row {
+    padding: 6px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  article {
+    padding: 6px;
+    font-size: 14px;
+  }
+}

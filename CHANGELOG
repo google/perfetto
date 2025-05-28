@@ -11,8 +11,10 @@ Unreleased:
       events would break the data model of trace processor and cause signifcant
       glitches in the UI. These events are now dropped, fixing all the visual
       glitches and an error stat is emitted to make the user aware.
+    * Improved performance of parsing JSON by 7x. JSON traces should now load
+      much faster in the Perfetto UI and the trace processor.
   UI:
-    *
+    * Improved JSON loading performance. See `Trace Processor` section above.
   SDK:
     *
 
