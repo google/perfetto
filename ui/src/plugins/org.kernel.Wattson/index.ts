@@ -37,38 +37,18 @@ export default class implements PerfettoPlugin {
   static readonly id = `org.kernel.Wattson`;
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    const markersSupported = await hasWattsonMarkersSupport(ctx.engine);
     const cpuSupported = await hasWattsonCpuSupport(ctx.engine);
     const gpuSupported = await hasWattsonGpuSupport(ctx.engine);
+
     // Short circuit if Wattson is not supported for this Perfetto trace
-    if (!(cpuSupported || gpuSupported)) return;
+    if (!(markersSupported || cpuSupported || gpuSupported)) return;
 
     const group = new TrackNode({title: 'Wattson', isSummary: true});
     ctx.workspace.addChildInOrder(group);
 
-    // Add Wattson markers window track if markers are present
-    const checkValue = await ctx.engine.query(`
-        INCLUDE PERFETTO MODULE wattson.utils;
-        SELECT COUNT(*) as numRows from _wattson_markers_window
-    `);
-    if (checkValue.firstRow({numRows: NUM}).numRows > 0) {
-      const uri = `/wattson/markers_window`;
-      const title = `Wattson markers window`;
-      const track = await createQuerySliceTrack({
-        trace: ctx,
-        uri,
-        data: {
-          sqlSource: `SELECT ts, dur, name FROM _wattson_markers_window`,
-        },
-      });
-      ctx.tracks.registerTrack({
-        uri,
-        title,
-        tags: {
-          kind: SLICE_TRACK_KIND,
-        },
-        track,
-      });
-      group.addChildInOrder(new TrackNode({uri, title}));
+    if (markersSupported) {
+      await addWattsonMarkersElements(ctx, group);
     }
     if (cpuSupported) {
       await addWattsonCpuElements(ctx, group);
@@ -103,6 +83,14 @@ class WattsonSubsystemEstimateTrack extends BaseCounterTrack {
   getSqlSource() {
     return `select ts, ${this.queryKey} as value from _system_state_mw`;
   }
+}
+
+async function hasWattsonMarkersSupport(engine: Engine): Promise<boolean> {
+  const checkValue = await engine.query(`
+      INCLUDE PERFETTO MODULE wattson.utils;
+      SELECT COUNT(*) as numRows from _wattson_markers_window
+  `);
+  return checkValue.firstRow({numRows: NUM}).numRows > 0;
 }
 
 async function hasWattsonCpuSupport(engine: Engine): Promise<boolean> {
@@ -149,6 +137,27 @@ async function hasWattsonGpuSupport(engine: Engine): Promise<boolean> {
   }
 
   return true;
+}
+
+async function addWattsonMarkersElements(ctx: Trace, group: TrackNode) {
+  const uri = `/wattson/markers_window`;
+  const title = `Wattson markers window`;
+  const track = await createQuerySliceTrack({
+    trace: ctx,
+    uri,
+    data: {
+      sqlSource: `SELECT ts, dur, name FROM _wattson_markers_window`,
+    },
+  });
+  ctx.tracks.registerTrack({
+    uri,
+    title,
+    tags: {
+      kind: SLICE_TRACK_KIND,
+    },
+    track,
+  });
+  group.addChildInOrder(new TrackNode({uri, title}));
 }
 
 async function addWattsonCpuElements(ctx: Trace, group: TrackNode) {
