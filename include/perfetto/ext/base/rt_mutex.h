@@ -30,6 +30,7 @@
 //   https://github.com/MicrosoftDocs/win32/commit/a43cb3b5039c5cfc53642bfcea174003a2f1168f
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/thread_annotations.h"
 
 // Note: PERFETTO_HAS_RT_FUTEX() does not imply that we will use futexes. For
 // now the usage of futexes is gated behind a runtime flag (for experiment
@@ -91,8 +92,8 @@ namespace internal {
 //   waiters.
 class PERFETTO_LOCKABLE RtFutex {
  public:
-  RtFutex() = default;
-  ~RtFutex() = default;
+  RtFutex() { PERFETTO_TSAN_MUTEX_CREATE(this, __tsan_mutex_not_static); }
+  ~RtFutex() { PERFETTO_TSAN_MUTEX_DESTROY(this, __tsan_mutex_not_static); }
 
   // Disable copy or move. Copy doesn't make sense. Move isn't feasible because
   // the pointer to the atomic integer is the handle used by the kernel to setup
@@ -112,29 +113,37 @@ class PERFETTO_LOCKABLE RtFutex {
   }
 
   bool try_lock() noexcept PERFETTO_EXCLUSIVE_TRYLOCK_FUNCTION(true) {
-    if (PERFETTO_LIKELY(TryLockFastpath())) {
+    PERFETTO_TSAN_MUTEX_PRE_LOCK(this, __tsan_mutex_try_lock);
+    if (PERFETTO_LIKELY(TryLockFastpath()) || TryLockSlowpath()) {
+      PERFETTO_TSAN_MUTEX_POST_LOCK(this, __tsan_mutex_try_lock, 0);
       return true;
     }
-    return TryLockSlowpath();
+    PERFETTO_TSAN_MUTEX_POST_LOCK(
+        this, __tsan_mutex_try_lock | __tsan_mutex_try_lock_failed, 0);
+    return false;
   }
 
   void lock() PERFETTO_EXCLUSIVE_LOCK_FUNCTION() {
+    PERFETTO_TSAN_MUTEX_PRE_LOCK(this, 0);
     if (!PERFETTO_LIKELY(TryLockFastpath())) {
       LockSlowpath();
     }
+    PERFETTO_TSAN_MUTEX_POST_LOCK(this, 0, 0);
   }
 
   void unlock() noexcept PERFETTO_UNLOCK_FUNCTION() {
+    PERFETTO_TSAN_MUTEX_PRE_UNLOCK(this, 0);
     int expected = GetTid();
-    if (lock_.compare_exchange_strong(expected, 0, std::memory_order_release,
-                                      std::memory_order_relaxed)) {
-      // If the current value is our tid, we can unlock without a syscall since
-      // there are no current waiters.
-      return;
+    // If the current value is our tid, we can unlock without a syscall since
+    // there are no current waiters.
+    if (!PERFETTO_LIKELY(lock_.compare_exchange_strong(
+            expected, 0, std::memory_order_release,
+            std::memory_order_relaxed))) {
+      // The tid doesn't match because the kernel appended the FUTEX_WAITERS
+      // bit. There are waiters, tell the kernel to notify them and unlock.
+      UnlockSlowpath();
     }
-    // The tid doesn't match because the kernel appended the FUTEX_WAITERS bit.
-    // There are waiters, tell the kernel to notify them and unlock.
-    UnlockSlowpath();
+    PERFETTO_TSAN_MUTEX_POST_UNLOCK(this, 0);
   }
 
  private:
