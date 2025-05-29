@@ -19,7 +19,9 @@ syntax = "proto2";
 message FakeFtraceEvent {
   optional uint32 common_field = 1;
   optional uint32 common_pid = 2;
-  oneof event { FakeAllFieldsFtraceEvent all_fields = 42; }
+  oneof event {
+    FakeAllFieldsFtraceEvent all_fields = 42;
+  }
 }
 
 message FakeAllFieldsFtraceEvent {

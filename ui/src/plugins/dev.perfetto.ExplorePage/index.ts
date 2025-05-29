@@ -33,13 +33,12 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(trace: Trace): Promise<void> {
     trace.pages.registerPage({
       route: '/explore',
-      page: {
-        view: ({attrs}) =>
-          m(ExplorePage, {
-            ...attrs,
-            state: this.state,
-            sqlModulesPlugin: attrs.trace.plugins.getPlugin(SqlModulesPlugin),
-          }),
+      render: () => {
+        return m(ExplorePage, {
+          trace,
+          state: this.state,
+          sqlModulesPlugin: trace.plugins.getPlugin(SqlModulesPlugin),
+        });
       },
     });
     trace.sidebar.addMenuItem({

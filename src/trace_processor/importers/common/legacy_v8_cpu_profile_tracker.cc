@@ -19,7 +19,9 @@
 #include <cstdint>
 #include <optional>
 #include <utility>
+#include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
@@ -42,7 +44,8 @@ void LegacyV8CpuProfileTracker::SetStartTsForSessionAndPid(uint64_t session_id,
                                                            int64_t ts) {
   auto [it, inserted] = state_by_session_and_pid_.Insert(
       std::make_pair(session_id, pid),
-      State{ts, base::FlatHashMap<uint32_t, CallsiteId>(), nullptr});
+      State{ts, base::FlatHashMap<uint32_t, CallsiteId>(),
+            base::FlatHashMap<uint32_t, uint32_t>(), nullptr});
   it->ts = ts;
   if (inserted) {
     it->mapping = &context_->mapping_tracker->CreateDummyMapping("");
@@ -55,15 +58,40 @@ base::Status LegacyV8CpuProfileTracker::AddCallsite(
     uint32_t raw_callsite_id,
     std::optional<uint32_t> parent_raw_callsite_id,
     base::StringView script_url,
-    base::StringView function_name) {
+    base::StringView function_name,
+    const std::vector<uint32_t>& raw_children_callsite_ids) {
   auto* state = state_by_session_and_pid_.Find(std::make_pair(session_id, pid));
   if (!state) {
     return base::ErrStatus(
         "v8 profile id does not exist: cannot insert callsite");
   }
+
+  auto* existing_callsite = state->callsites.Find(raw_callsite_id);
+  if (existing_callsite) {
+    return base::ErrStatus("v8 profile: callsite with id already exists");
+  }
+
   FrameId frame_id =
       state->mapping->InternDummyFrame(function_name, script_url);
+
+  // V8 and NodeJS/DevTools have different formats they expect for parent <->
+  // child releationships for stack sampling data.
+  //
+  // V8 works by providing the parent for every frame, while NodeJS/Devtools
+  // follow the devtools protocol [1] which specifies the children. Try to
+  // work with either.
+  //
+  // [1]
+  // https://chromedevtools.github.io/devtools-protocol/tot/Profiler/#type-ProfileNode
+  if (!parent_raw_callsite_id) {
+    auto* parent_ptr = state->callsite_inferred_parents.Find(raw_callsite_id);
+    if (parent_ptr) {
+      parent_raw_callsite_id = *parent_ptr;
+    }
+  }
+
   CallsiteId callsite_id;
+  uint32_t depth;
   if (parent_raw_callsite_id) {
     auto* parent_id = state->callsites.Find(*parent_raw_callsite_id);
     if (!parent_id) {
@@ -74,12 +102,43 @@ base::Status LegacyV8CpuProfileTracker::AddCallsite(
         context_->storage->stack_profile_callsite_table().FindById(*parent_id);
     callsite_id = context_->stack_profile_tracker->InternCallsite(
         *parent_id, frame_id, row->depth() + 1);
+    depth = row->depth() + 1;
   } else {
     callsite_id = context_->stack_profile_tracker->InternCallsite(std::nullopt,
                                                                   frame_id, 0);
+    depth = 0;
   }
-  if (!state->callsites.Insert(raw_callsite_id, callsite_id).second) {
-    return base::ErrStatus("v8 profile: callsite with id already exists");
+
+  // We already asserted above that we don't already have a node with this
+  // callsite id.
+  PERFETTO_CHECK(state->callsites.Insert(raw_callsite_id, callsite_id).second);
+
+  // Insert the children so it can be picked up if the node is added in the
+  // future. Also go through all the nodes in the table itself and fix the
+  // parent/depth relationships up if the node is already in the table.
+  for (uint32_t raw_child_id : raw_children_callsite_ids) {
+    auto [it, inserted] =
+        state->callsite_inferred_parents.Insert(raw_child_id, raw_callsite_id);
+    if (!inserted) {
+      return base::ErrStatus(
+          "v8 profile: multiple nodes specify the same node id %u as child",
+          raw_child_id);
+    }
+
+    auto* child_callsite_id = state->callsites.Find(raw_child_id);
+
+    // This means that we havent' seen the node yet. We expect it to appear in
+    // the future and be picked up by the `!parent_raw_callsite_id` above when
+    // it does.
+    if (!child_callsite_id) {
+      continue;
+    }
+    auto row =
+        context_->storage->mutable_stack_profile_callsite_table()->FindById(
+            *child_callsite_id);
+    PERFETTO_CHECK(row);
+    row->set_depth(depth + 1);
+    row->set_parent_id(callsite_id);
   }
   return base::OkStatus();
 }

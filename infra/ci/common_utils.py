@@ -99,8 +99,8 @@ def get_github_registration_token():
 async def req_async(method, url, body=None):
   loop = asyncio.get_running_loop()
   # run_in_executor cannot take kwargs, we need to stick with order.
-  return await loop.run_in_executor(thread_pool, req, method, url, body,
-                                    False, None)
+  return await loop.run_in_executor(thread_pool, req, method, url, body, False,
+                                    None)
 
 
 def req(method, url, body=None, req_etag=False, etag=None):

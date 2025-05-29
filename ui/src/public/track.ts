@@ -56,6 +56,15 @@ export interface TrackManager {
    * power to the user compared to e.g. purely filtering by name.
    */
   registerTrackFilterCriteria(filter: TrackFilterCriteria): void;
+
+  /**
+   * Register a timeline overlay renderer.
+   *
+   * Overlays are rendered on top of all tracks in the timeline view and can be
+   * used to draw annotations that span multiple tracks, such as flow arrows or
+   * vertical lines marking specific events.
+   */
+  registerOverlay(overlay: Overlay): void;
 }
 
 export interface TrackContext {
@@ -105,20 +114,27 @@ export interface Track {
   // A unique identifier for this track.
   readonly uri: string;
 
-  // A factory function returning a new track instance.
+  // Describes how to render the track.
   readonly track: TrackRenderer;
 
   // Human readable title. Always displayed.
   readonly title: string;
 
-  // Human readable subtitle. Sometimes displayed if there is room.
+  // Optional: A human readable description of the track.
+  readonly description?: string;
+
+  // Optional: Human readable subtitle. Sometimes displayed if there is room.
   readonly subtitle?: string;
 
-  // Optional: A list of tags used for sorting, grouping and "chips".
+  // Optional: A list of tags which provide additional metadata about the track.
+  // Used mainly for legacy purposes that predate dataset.
   readonly tags?: TrackTags;
 
+  // Optional: A list of strings which are displayed as "chips" in the track
+  // shell.
   readonly chips?: ReadonlyArray<string>;
 
+  // Filled in by the core.
   readonly pluginId?: string;
 }
 
@@ -217,6 +233,10 @@ export interface TrackRenderer {
   // event selection. This is called each time the selection is changed (and the
   // selection is relevant to this track).
   detailsPanel?(sel: TrackEventSelection): TrackEventDetailsPanel | undefined;
+
+  // Optional: Returns tooltip content if available. If the return value is
+  // falsy, no tooltip is rendered.
+  renderTooltip?(): m.Children;
 }
 
 // An set of key/value pairs describing a given track. These are used for
@@ -262,6 +282,9 @@ interface WellKnownTrackTags {
 
   // Group name, used as a hint to ask track decider to put this in a group
   groupName: string;
+
+  // Track type, used for filtering
+  type: string;
 }
 
 export interface Slice {
@@ -293,4 +316,21 @@ export interface Slice {
   subTitle: string;
   colorScheme: ColorScheme;
   isHighlighted: boolean;
+}
+
+/**
+ * Contains a track and it's top and bottom coordinates in the timeline.
+ */
+export interface TrackBounds {
+  readonly node: TrackNode;
+  readonly verticalBounds: VerticalBounds;
+}
+
+export interface Overlay {
+  render(
+    ctx: CanvasRenderingContext2D,
+    timescale: TimeScale,
+    size: Size2D,
+    tracks: ReadonlyArray<TrackBounds>,
+  ): void;
 }

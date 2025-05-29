@@ -111,7 +111,7 @@ ConvertThreadId(const PerfettoLegacyCurrentThreadId&);
     /* First check the scope for instant events. */                        \
     if ((phase) == TRACE_EVENT_PHASE_INSTANT) {                            \
       /* Note: Avoids the need to set LegacyEvent::instant_event_scope. */ \
-      auto scope = (flags)&TRACE_EVENT_FLAG_SCOPE_MASK;                    \
+      auto scope = (flags) & TRACE_EVENT_FLAG_SCOPE_MASK;                  \
       switch (scope) {                                                     \
         case TRACE_EVENT_SCOPE_GLOBAL:                                     \
           PERFETTO_INTERNAL_LEGACY_EVENT_WITH_FLAGS_ON_TRACK(              \
@@ -135,7 +135,7 @@ ConvertThreadId(const PerfettoLegacyCurrentThreadId&);
     if (std::is_same<                                                      \
             decltype(thread_id),                                           \
             ::perfetto::legacy::PerfettoLegacyCurrentThreadId>::value ||   \
-        ((flags)&TRACE_EVENT_FLAG_HAS_PROCESS_ID)) {                       \
+        ((flags) & TRACE_EVENT_FLAG_HAS_PROCESS_ID)) {                     \
       PERFETTO_INTERNAL_LEGACY_EVENT_WITH_FLAGS_ON_TRACK(                  \
           phase, category, name, TrackEventInternal::kDefaultTrack, flags, \
           ##__VA_ARGS__);                                                  \
@@ -155,7 +155,7 @@ ConvertThreadId(const PerfettoLegacyCurrentThreadId&);
     /* First check the scope for instant events. */                          \
     if ((phase) == TRACE_EVENT_PHASE_INSTANT) {                              \
       /* Note: Avoids the need to set LegacyEvent::instant_event_scope. */   \
-      auto scope = (flags)&TRACE_EVENT_FLAG_SCOPE_MASK;                      \
+      auto scope = (flags) & TRACE_EVENT_FLAG_SCOPE_MASK;                    \
       switch (scope) {                                                       \
         case TRACE_EVENT_SCOPE_GLOBAL:                                       \
           PERFETTO_INTERNAL_LEGACY_EVENT_WITH_ID_ON_TRACK(                   \
@@ -179,7 +179,7 @@ ConvertThreadId(const PerfettoLegacyCurrentThreadId&);
     if (std::is_same<                                                        \
             decltype(thread_id),                                             \
             ::perfetto::legacy::PerfettoLegacyCurrentThreadId>::value ||     \
-        ((flags)&TRACE_EVENT_FLAG_HAS_PROCESS_ID)) {                         \
+        ((flags) & TRACE_EVENT_FLAG_HAS_PROCESS_ID)) {                       \
       PERFETTO_INTERNAL_LEGACY_EVENT_WITH_ID_ON_TRACK(                       \
           phase, category, name, TrackEventInternal::kDefaultTrack, flags,   \
           thread_id, id, ##__VA_ARGS__);                                     \
@@ -941,13 +941,6 @@ ConvertThreadId(const PerfettoLegacyCurrentThreadId&);
       TRACE_EVENT_PHASE_SNAPSHOT_OBJECT, category_group, name, id,    \
       TRACE_EVENT_FLAG_NONE, "snapshot", snapshot)
 
-#define TRACE_EVENT_OBJECT_SNAPSHOT_WITH_ID_AND_TIMESTAMP(                 \
-    category_group, name, id, timestamp, snapshot)                         \
-  INTERNAL_TRACE_EVENT_ADD_WITH_ID_TID_AND_TIMESTAMP(                      \
-      TRACE_EVENT_PHASE_SNAPSHOT_OBJECT, category_group, name, id,         \
-      TRACE_EVENT_API_CURRENT_THREAD_ID, timestamp, TRACE_EVENT_FLAG_NONE, \
-      "snapshot", snapshot)
-
 #define TRACE_EVENT_OBJECT_DELETED_WITH_ID(category_group, name, id) \
   INTERNAL_TRACE_EVENT_ADD_WITH_ID(TRACE_EVENT_PHASE_DELETE_OBJECT,  \
                                    category_group, name, id,         \
@@ -987,8 +980,10 @@ ConvertThreadId(const PerfettoLegacyCurrentThreadId&);
 // involvement from the embedder. APIs such as TRACE_EVENT_API_ADD_TRACE_EVENT
 // are still up to the embedder to define.
 
-#define TRACE_STR_COPY(str) \
-  ::perfetto::DynamicString { ::perfetto::internal::PossiblyNull(str) }
+#define TRACE_STR_COPY(str)                 \
+  ::perfetto::DynamicString {               \
+    ::perfetto::internal::PossiblyNull(str) \
+  }
 
 #define TRACE_ID_WITH_SCOPE(scope, ...) \
   ::perfetto::internal::LegacyTraceId::WithScope(scope, ##__VA_ARGS__)

@@ -23,6 +23,8 @@ INCLUDE PERFETTO MODULE wattson.curves.utils;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
+INCLUDE PERFETTO MODULE wattson.utils;
+
 CREATE PERFETTO TABLE _cpu_curves AS
 SELECT
   ts,

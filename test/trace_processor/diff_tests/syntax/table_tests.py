@@ -457,13 +457,14 @@ class PerfettoTable(TestSuite):
         query="""
         SELECT flat_key, key, int_value, string_value, real_value FROM __intrinsic_winscope_proto_to_args_with_defaults('surfaceflinger_layer') AS sfl
         ORDER BY sfl.base64_proto_id, key
-        LIMIT 95
+        LIMIT 96
         """,
         out=Csv("""
         "flat_key","key","int_value","string_value","real_value"
         "active_buffer","active_buffer","[NULL]","[NULL]","[NULL]"
         "app_id","app_id",0,"[NULL]","[NULL]"
         "background_blur_radius","background_blur_radius",0,"[NULL]","[NULL]"
+        "background_blur_scale","background_blur_scale","[NULL]","[NULL]",0.000000
         "barrier_layer","barrier_layer","[NULL]","[NULL]","[NULL]"
         "blur_regions","blur_regions","[NULL]","[NULL]","[NULL]"
         "bounds.bottom","bounds.bottom","[NULL]","[NULL]",24000.000000
@@ -607,15 +608,16 @@ class PerfettoTable(TestSuite):
         "displays.dpi_x","displays[0].dpi_x","[NULL]","[NULL]",0.000000
         """))
 
-  def test_winscope_proto_to_args_with_defaults_with_multiple_packets_per_proto(self):
-      return DiffTestBlueprint(
-          trace=Path('../parser/android/shell_transitions.textproto'),
-          query="""
+  def test_winscope_proto_to_args_with_defaults_with_multiple_packets_per_proto(
+      self):
+    return DiffTestBlueprint(
+        trace=Path('../parser/android/shell_transitions.textproto'),
+        query="""
           SELECT key, int_value, real_value FROM __intrinsic_winscope_proto_to_args_with_defaults('__intrinsic_window_manager_shell_transition_protos') as tbl
           ORDER BY tbl.base64_proto_id, key
-          LIMIT 53
+          LIMIT 54
           """,
-          out=Csv("""
+        out=Csv("""
           "key","int_value","real_value"
           "create_time_ns",76799049027,"[NULL]"
           "finish_time_ns",0,"[NULL]"
@@ -631,6 +633,7 @@ class PerfettoTable(TestSuite):
           "type",0,"[NULL]"
           "wm_abort_time_ns",0,"[NULL]"
           "create_time_ns",77854865352,"[NULL]"
+          "dispatch_time_ns",77899001013,"[NULL]"
           "finish_transaction_id",5604932322159,"[NULL]"
           "flags",0,"[NULL]"
           "merge_request_time_ns",0,"[NULL]"

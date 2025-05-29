@@ -33,6 +33,7 @@
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/metrics.h"
+#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
@@ -152,6 +153,8 @@ class TraceProcessorImpl : public TraceProcessor,
   void IncludeAfterEofPrelude();
 
   const Config config_;
+
+  DataframeSharedStorage dataframe_shared_storage_;
   std::unique_ptr<PerfettoSqlEngine> engine_;
 
   DescriptorPool metrics_descriptor_pool_;

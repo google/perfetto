@@ -78,13 +78,12 @@ def main():
       if args.verbose:
         obj_count = len(parsed.functions) + len(parsed.table_functions) + len(
             parsed.table_views) + len(parsed.macros)
-        print(
-            f"Parsing '{rel_path}' ({obj_count} objects, "
-            f"{len(parsed.errors)} errors) - "
-            f"{len(parsed.functions)} functions, "
-            f"{len(parsed.table_functions)} table functions, "
-            f"{len(parsed.table_views)} tables/views, "
-            f"{len(parsed.macros)} macros.")
+        print(f"Parsing '{rel_path}' ({obj_count} objects, "
+              f"{len(parsed.errors)} errors) - "
+              f"{len(parsed.functions)} functions, "
+              f"{len(parsed.table_functions)} table functions, "
+              f"{len(parsed.table_views)} tables/views, "
+              f"{len(parsed.macros)} macros.")
 
   all_errors = 0
   for path, sql, parsed in modules:

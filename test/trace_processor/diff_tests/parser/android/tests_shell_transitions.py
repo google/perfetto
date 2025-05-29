@@ -26,18 +26,19 @@ class ShellTransitions(TestSuite):
         trace=Path('shell_transitions.textproto'),
         query="""
         SELECT
-          id, transition_id
+          id, ts, transition_id
         FROM
-          window_manager_shell_transitions;
+          window_manager_shell_transitions
+        ORDER BY id;
         """,
         out=Csv("""
-        "id","transition_id"
-        0,7
-        1,10
-        2,11
-        3,8
-        4,9
-        5,12
+        "id","ts","transition_id"
+        0,76879063147,7
+        1,77899001013,10
+        2,82536817137,11
+        3,77320527177,8
+        4,77876414832,9
+        5,0,12
         """))
 
   def test_has_expected_transition_args(self):
@@ -112,4 +113,21 @@ class ShellTransitions(TestSuite):
         out=Csv("""
         "COUNT(*)"
         3
+        """))
+
+  def test_handles_weird_args_table_issue(self):
+    return DiffTestBlueprint(
+        trace=Path('args_table_issue.textproto'),
+        query="""
+        SELECT
+          args.key, args.display_value
+        FROM
+          window_manager_shell_transitions JOIN args ON window_manager_shell_transitions.arg_set_id = args.arg_set_id
+        ORDER BY args.key;
+        """,
+        out=Csv("""
+        "key","display_value"
+        "handler","2"
+        "id","729"
+        "targets[0].flags","1048577"
         """))

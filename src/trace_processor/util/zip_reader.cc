@@ -434,7 +434,7 @@ base::Status ZipFile::DoDecompressionChecks() const {
 int64_t ZipFile::GetDatetime() const {
   // Date: 7 bits year, 4 bits month, 5 bits day.
   // Time: 5 bits hour, 6 bits minute, 5 bits second.
-  struct tm mdt {};
+  struct tm mdt{};
   // As per man 3 mktime, `tm_year` is relative to 1900 not Epoch. Go figure.
   mdt.tm_year = 1980 + (hdr_.mdate >> (16 - 7)) - 1900;
 

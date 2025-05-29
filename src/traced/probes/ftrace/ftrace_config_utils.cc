@@ -53,13 +53,6 @@ bool IsValidFtraceEventName(const std::string& str) {
 
 }  // namespace
 
-FtraceConfig CreateFtraceConfig(std::set<std::string> names) {
-  FtraceConfig config;
-  for (const std::string& name : names)
-    *config.add_ftrace_events() = name;
-  return config;
-}
-
 bool RequiresAtrace(const FtraceConfig& config) {
   return !config.atrace_categories().empty() || !config.atrace_apps().empty();
 }

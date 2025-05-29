@@ -47,6 +47,7 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
     realtimeOffset: Time.ZERO,
     utcOffset: Time.ZERO,
     traceTzOffset: Time.ZERO,
+    tzOffMin: 0,
     cpus: [],
     importErrors: 0,
     traceType: 'proto',
@@ -55,11 +56,14 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
     cached: false,
     downloadable: false,
   };
-  return TraceImpl.createInstanceForCore(
+  AppImpl.instance.closeCurrentTrace();
+  const trace = TraceImpl.createInstanceForCore(
     AppImpl.instance,
     new FakeEngine(args.allowQueries ?? false),
     fakeTraceInfo,
   );
+  AppImpl.instance.setActiveTrace(trace);
+  return trace;
 }
 
 class FakeEngine extends EngineBase {

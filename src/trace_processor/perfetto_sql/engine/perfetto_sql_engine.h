@@ -33,6 +33,8 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
+#include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
+#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
@@ -67,7 +69,9 @@ class PerfettoSqlEngine {
     ExecutionStats stats;
   };
 
-  PerfettoSqlEngine(StringPool* pool, bool enable_extra_checks);
+  PerfettoSqlEngine(StringPool* pool,
+                    DataframeSharedStorage* storage,
+                    bool enable_extra_checks);
 
   // Executes all the statements in |sql| and returns a |ExecutionResult|
   // object. The metadata will reference all the statements executed and the
@@ -278,14 +282,11 @@ class PerfettoSqlEngine {
   }
 
   // Find table (Static or Runtime) registered with engine with provided name.
-  //
-  // This function is O(n) in the number of tables registered with the engine so
-  // should not be called in performance sensitive contexts.
-  const Table* GetTableOrNullSlow(std::string_view name) const {
-    if (const auto* r = GetRuntimeTableOrNullSlow(name); r) {
+  const Table* GetTableOrNull(const std::string& name) const {
+    if (const auto* r = GetRuntimeTableOrNull(name); r) {
       return r;
     }
-    return GetStaticTableOrNullSlow(name);
+    return GetStaticTableOrNull(name);
   }
 
  private:
@@ -304,7 +305,17 @@ class PerfettoSqlEngine {
 
   base::Status ExecuteCreateIndex(const PerfettoSqlParser::CreateIndex&);
 
+  base::Status DropIndexBeforeCreate(const PerfettoSqlParser::CreateIndex&);
+
+  static base::Status ExecuteCreateIndexUsingTable(
+      const PerfettoSqlParser::CreateIndex&,
+      Table&);
+
   base::Status ExecuteDropIndex(const PerfettoSqlParser::DropIndex&);
+
+  static base::Status ExecuteDropIndexUsingTable(
+      const PerfettoSqlParser::DropIndex&,
+      Table&);
 
   base::Status ExecuteCreateTableUsingRuntimeTable(
       const PerfettoSqlParser::CreateTable& create_table,
@@ -365,30 +376,40 @@ class PerfettoSqlEngine {
   // transactions in SQLite.
   void OnRollback();
 
-  Table* GetTableOrNullSlow(std::string_view name) {
-    if (auto* maybe_runtime = GetRuntimeTableOrNullSlow(name); maybe_runtime) {
+  Table* GetTableOrNull(const std::string& name) {
+    if (auto* maybe_runtime = GetRuntimeTableOrNull(name); maybe_runtime) {
       return maybe_runtime;
     }
-    return GetStaticTableOrNullSlow(name);
+    return GetStaticTableOrNull(name);
   }
 
   // Find RuntimeTable registered with engine with provided name.
-  RuntimeTable* GetRuntimeTableOrNullSlow(std::string_view);
+  RuntimeTable* GetRuntimeTableOrNull(const std::string&);
 
   // Find static table registered with engine with provided name.
-  Table* GetStaticTableOrNullSlow(std::string_view);
+  Table* GetStaticTableOrNull(const std::string&);
 
   // Find RuntimeTable registered with engine with provided name.
-  const RuntimeTable* GetRuntimeTableOrNullSlow(std::string_view) const;
+  const RuntimeTable* GetRuntimeTableOrNull(const std::string&) const;
 
   // Find static table registered with engine with provided name.
-  const Table* GetStaticTableOrNullSlow(std::string_view) const;
+  const Table* GetStaticTableOrNull(const std::string&) const;
 
   StringPool* pool_ = nullptr;
+
+  // Storage for shared Dataframe objects.
+  //
+  // Note that this class can be shared between multiple PerfettoSqlEngine
+  // instances which are operating on different threads.
+  DataframeSharedStorage* dataframe_shared_storage_;
 
   // If true, engine will perform additional consistency checks when e.g.
   // creating tables and views.
   const bool enable_extra_checks_;
+
+  // A stack which keeps track of the modules which are being included. Used to
+  // know when dataframes should be shared.
+  std::vector<std::string> module_include_stack_;
 
   uint64_t static_function_count_ = 0;
   uint64_t static_aggregate_function_count_ = 0;
@@ -403,6 +424,7 @@ class PerfettoSqlEngine {
   DbSqliteModule::Context* runtime_table_context_ = nullptr;
   DbSqliteModule::Context* static_table_context_ = nullptr;
   DbSqliteModule::Context* static_table_fn_context_ = nullptr;
+  DataframeModule::Context* dataframe_context_ = nullptr;
   base::FlatHashMap<std::string, sql_modules::RegisteredPackage> packages_;
   base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro> macros_;
   std::unique_ptr<SqliteEngine> engine_;

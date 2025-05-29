@@ -91,7 +91,9 @@ class HttpCli {
 
 class HttpServerTest : public ::testing::Test {
  public:
-  HttpServerTest() : srv_(&task_runner_, &handler_) { srv_.Start(kTestPort); }
+  HttpServerTest() : srv_(&task_runner_, &handler_) {
+    srv_.Start("localhost", kTestPort);
+  }
 
   TestTaskRunner task_runner_;
   MockHttpHandler handler_;

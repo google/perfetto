@@ -54,6 +54,7 @@ import "protos/perfetto/trace/ftrace/i2c.proto";
 import "protos/perfetto/trace/ftrace/ion.proto";
 import "protos/perfetto/trace/ftrace/ipi.proto";
 import "protos/perfetto/trace/ftrace/irq.proto";
+import "protos/perfetto/trace/ftrace/irq_vectors.proto";
 import "protos/perfetto/trace/ftrace/kgsl.proto";
 import "protos/perfetto/trace/ftrace/kmem.proto";
 import "protos/perfetto/trace/ftrace/kvm.proto";
@@ -86,6 +87,7 @@ import "protos/perfetto/trace/ftrace/task.proto";
 import "protos/perfetto/trace/ftrace/tcp.proto";
 import "protos/perfetto/trace/ftrace/thermal.proto";
 import "protos/perfetto/trace/ftrace/thermal_exynos.proto";
+import "protos/perfetto/trace/ftrace/timer.proto";
 import "protos/perfetto/trace/ftrace/trusty.proto";
 import "protos/perfetto/trace/ftrace/ufs.proto";
 import "protos/perfetto/trace/ftrace/v4l2.proto";
@@ -109,6 +111,9 @@ message FtraceEvent {
   // existence of this common field. If this becomes needed for all events:
   // consider merging with common_preempt_count to avoid extra proto tags.
   optional uint32 common_flags = 5;
+
+  // Range reserved for self-describing messages.
+  reserved 65536 to 131072;
 
   oneof event {
     PrintFtraceEvent print = 3;
@@ -691,5 +696,15 @@ message FtraceEvent {
     MaliGpuPowerStateFtraceEvent mali_gpu_power_state = 548;
     DpuDispDpuUnderrunFtraceEvent dpu_disp_dpu_underrun = 549;
     DpuDispVblankIrqEnableFtraceEvent dpu_disp_vblank_irq_enable = 550;
+    HrtimerStartFtraceEvent hrtimer_start = 551;
+    HrtimerCancelFtraceEvent hrtimer_cancel = 552;
+    HrtimerExpireEntryFtraceEvent hrtimer_expire_entry = 553;
+    HrtimerExpireExitFtraceEvent hrtimer_expire_exit = 554;
+    TimerStartFtraceEvent timer_start = 555;
+    TimerCancelFtraceEvent timer_cancel = 556;
+    TimerExpireEntryFtraceEvent timer_expire_entry = 557;
+    TimerExpireExitFtraceEvent timer_expire_exit = 558;
+    LocalTimerEntryFtraceEvent local_timer_entry = 559;
+    LocalTimerExitFtraceEvent local_timer_exit = 560;
   }
 }

@@ -22,7 +22,6 @@
 #include <set>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 #include "src/kernel_utils/syscall_table.h"
 #include "src/traced/probes/ftrace/atrace_wrapper.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
@@ -30,6 +29,8 @@
 #include "src/traced/probes/ftrace/ftrace_print_filter.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
+
+#include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 
 namespace perfetto {
 
@@ -58,7 +59,10 @@ struct FtraceDataSourceConfig {
       bool symbolize_ksyms_in,
       uint32_t buffer_percent_in,
       base::FlatSet<int64_t> syscalls_returning_fd_in,
-      bool debug_ftrace_abi_in)
+      base::FlatHashMap<uint32_t, protos::pbzero::KprobeEvent::KprobeType>
+          kprobes_in,
+      bool debug_ftrace_abi_in,
+      bool write_generic_evt_descriptors_in)
       : event_filter(std::move(event_filter_in)),
         syscall_filter(std::move(syscall_filter_in)),
         compact_sched(compact_sched_in),
@@ -70,7 +74,9 @@ struct FtraceDataSourceConfig {
         symbolize_ksyms(symbolize_ksyms_in),
         buffer_percent(buffer_percent_in),
         syscalls_returning_fd(std::move(syscalls_returning_fd_in)),
-        debug_ftrace_abi(debug_ftrace_abi_in) {}
+        kprobes(std::move(kprobes_in)),
+        debug_ftrace_abi(debug_ftrace_abi_in),
+        write_generic_evt_descriptors(write_generic_evt_descriptors_in) {}
 
   // The event filter allows to quickly check if a certain ftrace event with id
   // x is enabled for this data source.
@@ -98,15 +104,18 @@ struct FtraceDataSourceConfig {
   // FtraceConfig.drain_buffer_percent for poll-based reads. Zero if unset.
   const uint32_t buffer_percent;
 
-  // List of syscalls monitored to return a new filedescriptor upon success
+  // Niche: syscall numbers to scan for new file descriptors.
   base::FlatSet<int64_t> syscalls_returning_fd;
 
-  // Keep track of the kprobe type for the given tracefs event id
+  // Keyed by ftrace event id.
   base::FlatHashMap<uint32_t, protos::pbzero::KprobeEvent::KprobeType> kprobes;
 
   // For development/debugging, serialise raw ring buffer pages if on a
   // debuggable android build.
   const bool debug_ftrace_abi;
+
+  // If true, use the newer format for generic events.
+  const bool write_generic_evt_descriptors;
 };
 
 // Ftrace is a bunch of globally modifiable persistent state.
@@ -133,6 +142,9 @@ class FtraceConfigMuxer {
       std::map<std::string, std::vector<GroupAndName>> vendor_events,
       bool secondary_instance = false);
   virtual ~FtraceConfigMuxer();
+
+  FtraceConfigMuxer(const FtraceConfigMuxer&) = delete;
+  FtraceConfigMuxer& operator=(const FtraceConfigMuxer&) = delete;
 
   // Ask FtraceConfigMuxer to adjust ftrace procfs settings to
   // match the requested config. Returns true on success and false on failure.
@@ -216,9 +228,6 @@ class FtraceConfigMuxer {
     // Set of kprobes that we've installed, to be cleaned up when tracing stops.
     base::FlatSet<GroupAndName> installed_kprobes;
   };
-
-  FtraceConfigMuxer(const FtraceConfigMuxer&) = delete;
-  FtraceConfigMuxer& operator=(const FtraceConfigMuxer&) = delete;
 
   void SetupClock(const FtraceConfig& request);
   void SetupBufferSize(const FtraceConfig& request);

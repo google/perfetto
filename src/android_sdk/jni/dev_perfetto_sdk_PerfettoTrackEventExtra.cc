@@ -166,177 +166,186 @@ class StringBuffer {
   }
 };
 
-static jlong android_os_PerfettoTrackEventExtraArgInt64_init(JNIEnv* env,
-                                                             jclass,
-                                                             jstring name) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgInt64_init(
+    JNIEnv* env,
+    jclass,
+    jstring name) {
   return toJLong(new sdk_for_jni::DebugArg<int64_t>(
       StringBuffer::utf16_to_ascii(env, name).data()));
 }
 
-static jlong android_os_PerfettoTrackEventExtraArgBool_init(JNIEnv* env,
-                                                            jclass,
-                                                            jstring name) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgBool_init(
+    JNIEnv* env,
+    jclass,
+    jstring name) {
   return toJLong(new sdk_for_jni::DebugArg<bool>(
       StringBuffer::utf16_to_ascii(env, name).data()));
 }
 
-static jlong android_os_PerfettoTrackEventExtraArgDouble_init(JNIEnv* env,
-                                                              jclass,
-                                                              jstring name) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgDouble_init(
+    JNIEnv* env,
+    jclass,
+    jstring name) {
   return toJLong(new sdk_for_jni::DebugArg<double>(
       StringBuffer::utf16_to_ascii(env, name).data()));
 }
 
-static jlong android_os_PerfettoTrackEventExtraArgString_init(JNIEnv* env,
-                                                              jclass,
-                                                              jstring name) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgString_init(
+    JNIEnv* env,
+    jclass,
+    jstring name) {
   return toJLong(new sdk_for_jni::DebugArg<const char*>(
       StringBuffer::utf16_to_ascii(env, name).data()));
 }
 
-static jlong android_os_PerfettoTrackEventExtraArgInt64_delete() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgInt64_delete() {
   return toJLong(&sdk_for_jni::DebugArg<int64_t>::delete_arg);
 }
 
-static jlong android_os_PerfettoTrackEventExtraArgBool_delete() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgBool_delete() {
   return toJLong(&sdk_for_jni::DebugArg<bool>::delete_arg);
 }
 
-static jlong android_os_PerfettoTrackEventExtraArgDouble_delete() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgDouble_delete() {
   return toJLong(&sdk_for_jni::DebugArg<double>::delete_arg);
 }
 
-static jlong android_os_PerfettoTrackEventExtraArgString_delete() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgString_delete() {
   return toJLong(&sdk_for_jni::DebugArg<const char*>::delete_arg);
 }
 
-static jlong android_os_PerfettoTrackEventExtraArgInt64_get_extra_ptr(
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgInt64_get_extra_ptr(
     jlong ptr) {
   sdk_for_jni::DebugArg<int64_t>* arg =
       toPointer<sdk_for_jni::DebugArg<int64_t>>(ptr);
   return toJLong(arg->get());
 }
 
-static jlong android_os_PerfettoTrackEventExtraArgBool_get_extra_ptr(
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgBool_get_extra_ptr(
     jlong ptr) {
   sdk_for_jni::DebugArg<bool>* arg =
       toPointer<sdk_for_jni::DebugArg<bool>>(ptr);
   return toJLong(arg->get());
 }
 
-static jlong android_os_PerfettoTrackEventExtraArgDouble_get_extra_ptr(
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgDouble_get_extra_ptr(
     jlong ptr) {
   sdk_for_jni::DebugArg<double>* arg =
       toPointer<sdk_for_jni::DebugArg<double>>(ptr);
   return toJLong(arg->get());
 }
 
-static jlong android_os_PerfettoTrackEventExtraArgString_get_extra_ptr(
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraArgString_get_extra_ptr(
     jlong ptr) {
   sdk_for_jni::DebugArg<const char*>* arg =
       toPointer<sdk_for_jni::DebugArg<const char*>>(ptr);
   return toJLong(arg->get());
 }
 
-static void android_os_PerfettoTrackEventExtraArgInt64_set_value(jlong ptr,
-                                                                 jlong val) {
+static void dev_perfetto_sdk_PerfettoTrackEventExtraArgInt64_set_value(
+    jlong ptr,
+    jlong val) {
   sdk_for_jni::DebugArg<int64_t>* arg =
       toPointer<sdk_for_jni::DebugArg<int64_t>>(ptr);
   arg->set_value(val);
 }
 
-static void android_os_PerfettoTrackEventExtraArgBool_set_value(jlong ptr,
-                                                                jboolean val) {
+static void dev_perfetto_sdk_PerfettoTrackEventExtraArgBool_set_value(
+    jlong ptr,
+    jboolean val) {
   sdk_for_jni::DebugArg<bool>* arg =
       toPointer<sdk_for_jni::DebugArg<bool>>(ptr);
   arg->set_value(val);
 }
 
-static void android_os_PerfettoTrackEventExtraArgDouble_set_value(jlong ptr,
-                                                                  jdouble val) {
+static void dev_perfetto_sdk_PerfettoTrackEventExtraArgDouble_set_value(
+    jlong ptr,
+    jdouble val) {
   sdk_for_jni::DebugArg<double>* arg =
       toPointer<sdk_for_jni::DebugArg<double>>(ptr);
   arg->set_value(val);
 }
 
-static void android_os_PerfettoTrackEventExtraArgString_set_value(JNIEnv* env,
-                                                                  jclass,
-                                                                  jlong ptr,
-                                                                  jstring val) {
+static void dev_perfetto_sdk_PerfettoTrackEventExtraArgString_set_value(
+    JNIEnv* env,
+    jclass,
+    jlong ptr,
+    jstring val) {
   sdk_for_jni::DebugArg<const char*>* arg =
       toPointer<sdk_for_jni::DebugArg<const char*>>(ptr);
   arg->set_value(StringBuffer::utf16_to_ascii(env, val).data());
 }
 
-static jlong android_os_PerfettoTrackEventExtraFieldInt64_init() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldInt64_init() {
   return toJLong(new sdk_for_jni::ProtoField<int64_t>());
 }
 
-static jlong android_os_PerfettoTrackEventExtraFieldDouble_init() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldDouble_init() {
   return toJLong(new sdk_for_jni::ProtoField<double>());
 }
 
-static jlong android_os_PerfettoTrackEventExtraFieldString_init() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_init() {
   return toJLong(new sdk_for_jni::ProtoField<const char*>());
 }
 
-static jlong android_os_PerfettoTrackEventExtraFieldNested_init() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_init() {
   return toJLong(new sdk_for_jni::ProtoFieldNested());
 }
 
-static jlong android_os_PerfettoTrackEventExtraFieldInt64_delete() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldInt64_delete() {
   return toJLong(&sdk_for_jni::ProtoField<int64_t>::delete_field);
 }
 
-static jlong android_os_PerfettoTrackEventExtraFieldDouble_delete() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldDouble_delete() {
   return toJLong(&sdk_for_jni::ProtoField<double>::delete_field);
 }
 
-static jlong android_os_PerfettoTrackEventExtraFieldString_delete() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_delete() {
   return toJLong(&sdk_for_jni::ProtoField<const char*>::delete_field);
 }
 
-static jlong android_os_PerfettoTrackEventExtraFieldNested_delete() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_delete() {
   return toJLong(&sdk_for_jni::ProtoFieldNested::delete_field);
 }
 
-static jlong android_os_PerfettoTrackEventExtraFieldInt64_get_extra_ptr(
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldInt64_get_extra_ptr(
     jlong ptr) {
   sdk_for_jni::ProtoField<int64_t>* field =
       toPointer<sdk_for_jni::ProtoField<int64_t>>(ptr);
   return toJLong(field->get());
 }
 
-static jlong android_os_PerfettoTrackEventExtraFieldDouble_get_extra_ptr(
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldDouble_get_extra_ptr(
     jlong ptr) {
   sdk_for_jni::ProtoField<double>* field =
       toPointer<sdk_for_jni::ProtoField<double>>(ptr);
   return toJLong(field->get());
 }
 
-static jlong android_os_PerfettoTrackEventExtraFieldString_get_extra_ptr(
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_get_extra_ptr(
     jlong ptr) {
   sdk_for_jni::ProtoField<const char*>* field =
       toPointer<sdk_for_jni::ProtoField<const char*>>(ptr);
   return toJLong(field->get());
 }
 
-static jlong android_os_PerfettoTrackEventExtraFieldNested_get_extra_ptr(
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_get_extra_ptr(
     jlong ptr) {
   sdk_for_jni::ProtoFieldNested* field =
       toPointer<sdk_for_jni::ProtoFieldNested>(ptr);
   return toJLong(field->get());
 }
 
-static void android_os_PerfettoTrackEventExtraFieldInt64_set_value(jlong ptr,
-                                                                   jlong id,
-                                                                   jlong val) {
+static void dev_perfetto_sdk_PerfettoTrackEventExtraFieldInt64_set_value(
+    jlong ptr,
+    jlong id,
+    jlong val) {
   sdk_for_jni::ProtoField<int64_t>* field =
       toPointer<sdk_for_jni::ProtoField<int64_t>>(ptr);
   field->set_value(id, val);
 }
 
-static void android_os_PerfettoTrackEventExtraFieldDouble_set_value(
+static void dev_perfetto_sdk_PerfettoTrackEventExtraFieldDouble_set_value(
     jlong ptr,
     jlong id,
     jdouble val) {
@@ -345,7 +354,7 @@ static void android_os_PerfettoTrackEventExtraFieldDouble_set_value(
   field->set_value(id, val);
 }
 
-static void android_os_PerfettoTrackEventExtraFieldString_set_value(
+static void dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_set_value(
     JNIEnv* env,
     jclass,
     jlong ptr,
@@ -356,7 +365,7 @@ static void android_os_PerfettoTrackEventExtraFieldString_set_value(
   field->set_value(id, StringBuffer::utf16_to_ascii(env, val).data());
 }
 
-static void android_os_PerfettoTrackEventExtraFieldNested_add_field(
+static void dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_add_field(
     jlong field_ptr,
     jlong arg_ptr) {
   sdk_for_jni::ProtoFieldNested* field =
@@ -364,40 +373,44 @@ static void android_os_PerfettoTrackEventExtraFieldNested_add_field(
   field->add_field(toPointer<PerfettoTeHlProtoField>(arg_ptr));
 }
 
-static void android_os_PerfettoTrackEventExtraFieldNested_set_id(jlong ptr,
-                                                                 jlong id) {
+static void dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_set_id(
+    jlong ptr,
+    jlong id) {
   sdk_for_jni::ProtoFieldNested* field =
       toPointer<sdk_for_jni::ProtoFieldNested>(ptr);
   field->set_id(id);
 }
 
-static jlong android_os_PerfettoTrackEventExtraFlow_init() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFlow_init() {
   return toJLong(new sdk_for_jni::Flow());
 }
 
-static void android_os_PerfettoTrackEventExtraFlow_set_process_flow(jlong ptr,
-                                                                    jlong id) {
+static void dev_perfetto_sdk_PerfettoTrackEventExtraFlow_set_process_flow(
+    jlong ptr,
+    jlong id) {
   sdk_for_jni::Flow* flow = toPointer<sdk_for_jni::Flow>(ptr);
   flow->set_process_flow(id);
 }
 
-static void android_os_PerfettoTrackEventExtraFlow_set_process_terminating_flow(
+static void
+dev_perfetto_sdk_PerfettoTrackEventExtraFlow_set_process_terminating_flow(
     jlong ptr,
     jlong id) {
   sdk_for_jni::Flow* flow = toPointer<sdk_for_jni::Flow>(ptr);
   flow->set_process_terminating_flow(id);
 }
 
-static jlong android_os_PerfettoTrackEventExtraFlow_delete() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFlow_delete() {
   return toJLong(&sdk_for_jni::Flow::delete_flow);
 }
 
-static jlong android_os_PerfettoTrackEventExtraFlow_get_extra_ptr(jlong ptr) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraFlow_get_extra_ptr(
+    jlong ptr) {
   sdk_for_jni::Flow* flow = toPointer<sdk_for_jni::Flow>(ptr);
   return toJLong(flow->get());
 }
 
-static jlong android_os_PerfettoTrackEventExtraNamedTrack_init(
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNamedTrack_init(
     JNIEnv* env,
     jclass,
     jlong id,
@@ -407,17 +420,17 @@ static jlong android_os_PerfettoTrackEventExtraNamedTrack_init(
       id, parent_uuid, StringBuffer::utf16_to_ascii(env, name).data()));
 }
 
-static jlong android_os_PerfettoTrackEventExtraNamedTrack_delete() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNamedTrack_delete() {
   return toJLong(&sdk_for_jni::NamedTrack::delete_track);
 }
 
-static jlong android_os_PerfettoTrackEventExtraNamedTrack_get_extra_ptr(
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraNamedTrack_get_extra_ptr(
     jlong ptr) {
   sdk_for_jni::NamedTrack* track = toPointer<sdk_for_jni::NamedTrack>(ptr);
   return toJLong(track->get());
 }
 
-static jlong android_os_PerfettoTrackEventExtraCounterTrack_init(
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_init(
     JNIEnv* env,
     jclass,
     jstring name,
@@ -426,26 +439,26 @@ static jlong android_os_PerfettoTrackEventExtraCounterTrack_init(
       1, parent_uuid, StringBuffer::utf16_to_ascii(env, name).data(), true));
 }
 
-static jlong android_os_PerfettoTrackEventExtraCounterTrack_delete() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_delete() {
   return toJLong(&sdk_for_jni::RegisteredTrack::delete_track);
 }
 
-static jlong android_os_PerfettoTrackEventExtraCounterTrack_get_extra_ptr(
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_get_extra_ptr(
     jlong ptr) {
   sdk_for_jni::RegisteredTrack* track =
       toPointer<sdk_for_jni::RegisteredTrack>(ptr);
   return toJLong(track->get());
 }
 
-static jlong android_os_PerfettoTrackEventExtraCounterInt64_init() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterInt64_init() {
   return toJLong(new sdk_for_jni::Counter<int64_t>());
 }
 
-static jlong android_os_PerfettoTrackEventExtraCounterInt64_delete() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterInt64_delete() {
   return toJLong(&sdk_for_jni::Counter<int64_t>::delete_counter);
 }
 
-static void android_os_PerfettoTrackEventExtraCounterInt64_set_value(
+static void dev_perfetto_sdk_PerfettoTrackEventExtraCounterInt64_set_value(
     jlong ptr,
     jlong val) {
   sdk_for_jni::Counter<int64_t>* counter =
@@ -453,22 +466,22 @@ static void android_os_PerfettoTrackEventExtraCounterInt64_set_value(
   counter->set_value(val);
 }
 
-static jlong android_os_PerfettoTrackEventExtraCounterInt64_get_extra_ptr(
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterInt64_get_extra_ptr(
     jlong ptr) {
   sdk_for_jni::Counter<int64_t>* counter =
       toPointer<sdk_for_jni::Counter<int64_t>>(ptr);
   return toJLong(counter->get());
 }
 
-static jlong android_os_PerfettoTrackEventExtraCounterDouble_init() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterDouble_init() {
   return toJLong(new sdk_for_jni::Counter<double>());
 }
 
-static jlong android_os_PerfettoTrackEventExtraCounterDouble_delete() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraCounterDouble_delete() {
   return toJLong(&sdk_for_jni::Counter<double>::delete_counter);
 }
 
-static void android_os_PerfettoTrackEventExtraCounterDouble_set_value(
+static void dev_perfetto_sdk_PerfettoTrackEventExtraCounterDouble_set_value(
     jlong ptr,
     jdouble val) {
   sdk_for_jni::Counter<double>* counter =
@@ -476,38 +489,38 @@ static void android_os_PerfettoTrackEventExtraCounterDouble_set_value(
   counter->set_value(val);
 }
 
-static jlong android_os_PerfettoTrackEventExtraCounterDouble_get_extra_ptr(
-    jlong ptr) {
+static jlong
+dev_perfetto_sdk_PerfettoTrackEventExtraCounterDouble_get_extra_ptr(jlong ptr) {
   sdk_for_jni::Counter<double>* counter =
       toPointer<sdk_for_jni::Counter<double>>(ptr);
   return toJLong(counter->get());
 }
 
-static jlong android_os_PerfettoTrackEventExtra_init() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtra_init() {
   return toJLong(new sdk_for_jni::Extra());
 }
 
-static jlong android_os_PerfettoTrackEventExtra_delete() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtra_delete() {
   return toJLong(&sdk_for_jni::Extra::delete_extra);
 }
 
-static void android_os_PerfettoTrackEventExtra_add_arg(jlong extra_ptr,
-                                                       jlong arg_ptr) {
+static void dev_perfetto_sdk_PerfettoTrackEventExtra_add_arg(jlong extra_ptr,
+                                                             jlong arg_ptr) {
   sdk_for_jni::Extra* extra = toPointer<sdk_for_jni::Extra>(extra_ptr);
   extra->push_extra(toPointer<PerfettoTeHlExtra>(arg_ptr));
 }
 
-static void android_os_PerfettoTrackEventExtra_clear_args(jlong ptr) {
+static void dev_perfetto_sdk_PerfettoTrackEventExtra_clear_args(jlong ptr) {
   sdk_for_jni::Extra* extra = toPointer<sdk_for_jni::Extra>(ptr);
   extra->clear_extras();
 }
 
-static void android_os_PerfettoTrackEventExtra_emit(JNIEnv* env,
-                                                    jclass,
-                                                    jint type,
-                                                    jlong cat_ptr,
-                                                    jstring name,
-                                                    jlong extra_ptr) {
+static void dev_perfetto_sdk_PerfettoTrackEventExtra_emit(JNIEnv* env,
+                                                          jclass,
+                                                          jint type,
+                                                          jlong cat_ptr,
+                                                          jstring name,
+                                                          jlong extra_ptr) {
   sdk_for_jni::Category* category = toPointer<sdk_for_jni::Category>(cat_ptr);
   trace_event(type, category->get(),
               StringBuffer::utf16_to_ascii(env, name).data(),
@@ -515,195 +528,205 @@ static void android_os_PerfettoTrackEventExtra_emit(JNIEnv* env,
   StringBuffer::reset();
 }
 
-static jlong android_os_PerfettoTrackEventExtraProto_init() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraProto_init() {
   return toJLong(new sdk_for_jni::Proto());
 }
 
-static jlong android_os_PerfettoTrackEventExtraProto_delete() {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraProto_delete() {
   return toJLong(&sdk_for_jni::Proto::delete_proto);
 }
 
-static jlong android_os_PerfettoTrackEventExtraProto_get_extra_ptr(jlong ptr) {
+static jlong dev_perfetto_sdk_PerfettoTrackEventExtraProto_get_extra_ptr(
+    jlong ptr) {
   sdk_for_jni::Proto* proto = toPointer<sdk_for_jni::Proto>(ptr);
   return toJLong(proto->get());
 }
 
-static void android_os_PerfettoTrackEventExtraProto_add_field(long proto_ptr,
-                                                              jlong arg_ptr) {
+static void dev_perfetto_sdk_PerfettoTrackEventExtraProto_add_field(
+    long proto_ptr,
+    jlong arg_ptr) {
   sdk_for_jni::Proto* proto = toPointer<sdk_for_jni::Proto>(proto_ptr);
   proto->add_field(toPointer<PerfettoTeHlProtoField>(arg_ptr));
 }
 
-static void android_os_PerfettoTrackEventExtraProto_clear_fields(jlong ptr) {
+static void dev_perfetto_sdk_PerfettoTrackEventExtraProto_clear_fields(
+    jlong ptr) {
   sdk_for_jni::Proto* proto = toPointer<sdk_for_jni::Proto>(ptr);
   proto->clear_fields();
 }
 
 static const JNINativeMethod gExtraMethods[] = {
-    {"native_init", "()J", (void*)android_os_PerfettoTrackEventExtra_init},
-    {"native_delete", "()J", (void*)android_os_PerfettoTrackEventExtra_delete},
+    {"native_init", "()J",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_init},
+    {"native_delete", "()J",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_delete},
     {"native_add_arg", "(JJ)V",
-     (void*)android_os_PerfettoTrackEventExtra_add_arg},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_add_arg},
     {"native_clear_args", "(J)V",
-     (void*)android_os_PerfettoTrackEventExtra_clear_args},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_clear_args},
     {"native_emit", "(IJLjava/lang/String;J)V",
-     (void*)android_os_PerfettoTrackEventExtra_emit}};
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtra_emit}};
 
 static const JNINativeMethod gProtoMethods[] = {
-    {"native_init", "()J", (void*)android_os_PerfettoTrackEventExtraProto_init},
+    {"native_init", "()J",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraProto_init},
     {"native_delete", "()J",
-     (void*)android_os_PerfettoTrackEventExtraProto_delete},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraProto_delete},
     {"native_get_extra_ptr", "(J)J",
-     (void*)android_os_PerfettoTrackEventExtraProto_get_extra_ptr},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraProto_get_extra_ptr},
     {"native_add_field", "(JJ)V",
-     (void*)android_os_PerfettoTrackEventExtraProto_add_field},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraProto_add_field},
     {"native_clear_fields", "(J)V",
-     (void*)android_os_PerfettoTrackEventExtraProto_clear_fields}};
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraProto_clear_fields}};
 
 static const JNINativeMethod gArgInt64Methods[] = {
     {"native_init", "(Ljava/lang/String;)J",
-     (void*)android_os_PerfettoTrackEventExtraArgInt64_init},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgInt64_init},
     {"native_delete", "()J",
-     (void*)android_os_PerfettoTrackEventExtraArgInt64_delete},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgInt64_delete},
     {"native_get_extra_ptr", "(J)J",
-     (void*)android_os_PerfettoTrackEventExtraArgInt64_get_extra_ptr},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgInt64_get_extra_ptr},
     {"native_set_value", "(JJ)V",
-     (void*)android_os_PerfettoTrackEventExtraArgInt64_set_value},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgInt64_set_value},
 };
 
 static const JNINativeMethod gArgBoolMethods[] = {
     {"native_init", "(Ljava/lang/String;)J",
-     (void*)android_os_PerfettoTrackEventExtraArgBool_init},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgBool_init},
     {"native_delete", "()J",
-     (void*)android_os_PerfettoTrackEventExtraArgBool_delete},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgBool_delete},
     {"native_get_extra_ptr", "(J)J",
-     (void*)android_os_PerfettoTrackEventExtraArgBool_get_extra_ptr},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgBool_get_extra_ptr},
     {"native_set_value", "(JZ)V",
-     (void*)android_os_PerfettoTrackEventExtraArgBool_set_value},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgBool_set_value},
 };
 
 static const JNINativeMethod gArgDoubleMethods[] = {
     {"native_init", "(Ljava/lang/String;)J",
-     (void*)android_os_PerfettoTrackEventExtraArgDouble_init},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgDouble_init},
     {"native_delete", "()J",
-     (void*)android_os_PerfettoTrackEventExtraArgDouble_delete},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgDouble_delete},
     {"native_get_extra_ptr", "(J)J",
-     (void*)android_os_PerfettoTrackEventExtraArgDouble_get_extra_ptr},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgDouble_get_extra_ptr},
     {"native_set_value", "(JD)V",
-     (void*)android_os_PerfettoTrackEventExtraArgDouble_set_value},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgDouble_set_value},
 };
 
 static const JNINativeMethod gArgStringMethods[] = {
     {"native_init", "(Ljava/lang/String;)J",
-     (void*)android_os_PerfettoTrackEventExtraArgString_init},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgString_init},
     {"native_delete", "()J",
-     (void*)android_os_PerfettoTrackEventExtraArgString_delete},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgString_delete},
     {"native_get_extra_ptr", "(J)J",
-     (void*)android_os_PerfettoTrackEventExtraArgString_get_extra_ptr},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgString_get_extra_ptr},
     {"native_set_value", "(JLjava/lang/String;)V",
-     (void*)android_os_PerfettoTrackEventExtraArgString_set_value},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraArgString_set_value},
 };
 
 static const JNINativeMethod gFieldInt64Methods[] = {
     {"native_init", "()J",
-     (void*)android_os_PerfettoTrackEventExtraFieldInt64_init},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldInt64_init},
     {"native_delete", "()J",
-     (void*)android_os_PerfettoTrackEventExtraFieldInt64_delete},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldInt64_delete},
     {"native_get_extra_ptr", "(J)J",
-     (void*)android_os_PerfettoTrackEventExtraFieldInt64_get_extra_ptr},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldInt64_get_extra_ptr},
     {"native_set_value", "(JJJ)V",
-     (void*)android_os_PerfettoTrackEventExtraFieldInt64_set_value},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldInt64_set_value},
 };
 
 static const JNINativeMethod gFieldDoubleMethods[] = {
     {"native_init", "()J",
-     (void*)android_os_PerfettoTrackEventExtraFieldDouble_init},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldDouble_init},
     {"native_delete", "()J",
-     (void*)android_os_PerfettoTrackEventExtraFieldDouble_delete},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldDouble_delete},
     {"native_get_extra_ptr", "(J)J",
-     (void*)android_os_PerfettoTrackEventExtraFieldDouble_get_extra_ptr},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldDouble_get_extra_ptr},
     {"native_set_value", "(JJD)V",
-     (void*)android_os_PerfettoTrackEventExtraFieldDouble_set_value},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldDouble_set_value},
 };
 
 static const JNINativeMethod gFieldStringMethods[] = {
     {"native_init", "()J",
-     (void*)android_os_PerfettoTrackEventExtraFieldString_init},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_init},
     {"native_delete", "()J",
-     (void*)android_os_PerfettoTrackEventExtraFieldString_delete},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_delete},
     {"native_get_extra_ptr", "(J)J",
-     (void*)android_os_PerfettoTrackEventExtraFieldString_get_extra_ptr},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_get_extra_ptr},
     {"native_set_value", "(JJLjava/lang/String;)V",
-     (void*)android_os_PerfettoTrackEventExtraFieldString_set_value},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldString_set_value},
 };
 
 static const JNINativeMethod gFieldNestedMethods[] = {
     {"native_init", "()J",
-     (void*)android_os_PerfettoTrackEventExtraFieldNested_init},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_init},
     {"native_delete", "()J",
-     (void*)android_os_PerfettoTrackEventExtraFieldNested_delete},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_delete},
     {"native_get_extra_ptr", "(J)J",
-     (void*)android_os_PerfettoTrackEventExtraFieldNested_get_extra_ptr},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_get_extra_ptr},
     {"native_add_field", "(JJ)V",
-     (void*)android_os_PerfettoTrackEventExtraFieldNested_add_field},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_add_field},
     {"native_set_id", "(JJ)V",
-     (void*)android_os_PerfettoTrackEventExtraFieldNested_set_id}};
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFieldNested_set_id}};
 
 static const JNINativeMethod gFlowMethods[] = {
-    {"native_init", "()J", (void*)android_os_PerfettoTrackEventExtraFlow_init},
+    {"native_init", "()J",
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFlow_init},
     {"native_delete", "()J",
-     (void*)android_os_PerfettoTrackEventExtraFlow_delete},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFlow_delete},
     {"native_set_process_flow", "(JJ)V",
-     (void*)android_os_PerfettoTrackEventExtraFlow_set_process_flow},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFlow_set_process_flow},
     {"native_set_process_terminating_flow", "(JJ)V",
      (void*)
-         android_os_PerfettoTrackEventExtraFlow_set_process_terminating_flow},
+         dev_perfetto_sdk_PerfettoTrackEventExtraFlow_set_process_terminating_flow},
     {"native_get_extra_ptr", "(J)J",
-     (void*)android_os_PerfettoTrackEventExtraFlow_get_extra_ptr},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraFlow_get_extra_ptr},
 };
 
 static const JNINativeMethod gNamedTrackMethods[] = {
     {"native_init", "(JLjava/lang/String;J)J",
-     (void*)android_os_PerfettoTrackEventExtraNamedTrack_init},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraNamedTrack_init},
     {"native_delete", "()J",
-     (void*)android_os_PerfettoTrackEventExtraNamedTrack_delete},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraNamedTrack_delete},
     {"native_get_extra_ptr", "(J)J",
-     (void*)android_os_PerfettoTrackEventExtraNamedTrack_get_extra_ptr},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraNamedTrack_get_extra_ptr},
 };
 
 static const JNINativeMethod gCounterTrackMethods[] = {
     {"native_init", "(Ljava/lang/String;J)J",
-     (void*)android_os_PerfettoTrackEventExtraCounterTrack_init},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_init},
     {"native_delete", "()J",
-     (void*)android_os_PerfettoTrackEventExtraCounterTrack_delete},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_delete},
     {"native_get_extra_ptr", "(J)J",
-     (void*)android_os_PerfettoTrackEventExtraCounterTrack_get_extra_ptr}};
+     (void*)
+         dev_perfetto_sdk_PerfettoTrackEventExtraCounterTrack_get_extra_ptr}};
 
 static const JNINativeMethod gCounterInt64Methods[] = {
     {"native_init", "()J",
-     (void*)android_os_PerfettoTrackEventExtraCounterInt64_init},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounterInt64_init},
     {"native_delete", "()J",
-     (void*)android_os_PerfettoTrackEventExtraCounterInt64_delete},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounterInt64_delete},
     {"native_set_value", "(JJ)V",
-     (void*)android_os_PerfettoTrackEventExtraCounterInt64_set_value},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounterInt64_set_value},
     {"native_get_extra_ptr", "(J)J",
-     (void*)android_os_PerfettoTrackEventExtraCounterInt64_get_extra_ptr}};
+     (void*)
+         dev_perfetto_sdk_PerfettoTrackEventExtraCounterInt64_get_extra_ptr}};
 
 static const JNINativeMethod gCounterDoubleMethods[] = {
     {"native_init", "()J",
-     (void*)android_os_PerfettoTrackEventExtraCounterDouble_init},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounterDouble_init},
     {"native_delete", "()J",
-     (void*)android_os_PerfettoTrackEventExtraCounterDouble_delete},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounterDouble_delete},
     {"native_set_value", "(JD)V",
-     (void*)android_os_PerfettoTrackEventExtraCounterDouble_set_value},
+     (void*)dev_perfetto_sdk_PerfettoTrackEventExtraCounterDouble_set_value},
     {"native_get_extra_ptr", "(J)J",
-     (void*)android_os_PerfettoTrackEventExtraCounterDouble_get_extra_ptr}};
+     (void*)
+         dev_perfetto_sdk_PerfettoTrackEventExtraCounterDouble_get_extra_ptr}};
 
 #define LOG_ALWAYS_FATAL_IF(cond, fmt) \
   if (cond)                            \
     __android_log_assert(nullptr, "PerfettoJNI", fmt);
 
-int register_android_os_PerfettoTrackEventExtra(JNIEnv* env) {
+int register_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env) {
   int res = jniRegisterNativeMethods(
       env, "dev/perfetto/sdk/PerfettoTrackEventExtra$ArgInt64",
       gArgInt64Methods, NELEM(gArgInt64Methods));

@@ -42,7 +42,6 @@ import {TextInput} from '../../widgets/text_input';
 import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 import {LazyTreeNode, Tree, TreeNode} from '../../widgets/tree';
 import {VegaView} from '../../components/widgets/vega_view';
-import {PageAttrs} from '../../public/page';
 import {TableShowcase} from './table_showcase';
 import {TreeTable, TreeTableAttrs} from '../../components/widgets/treetable';
 import {Intent} from '../../widgets/common';
@@ -61,6 +60,16 @@ import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
 import {SplitPanel} from '../../widgets/split_panel';
 import {TabbedSplitPanel} from '../../widgets/tabbed_split_panel';
 import {parseAndPrintTree} from '../../base/perfetto_sql_lang/language';
+import {CursorTooltip} from '../../widgets/cursor_tooltip';
+import {MultiselectInput} from '../../widgets/multiselect_input';
+import {
+  DataGrid,
+  DataGridAttrs,
+} from '../../components/widgets/data_grid/data_grid';
+import {InMemoryDataSource} from '../../components/widgets/data_grid/in_memory_data_source';
+import {SQLDataSource} from '../../components/widgets/data_grid/sql_data_source';
+import {App} from '../../public/app';
+import {Engine} from '../../trace_processor/engine';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -666,14 +675,21 @@ function SegmentedButtonsDemo({attrs}: {attrs: {}}) {
   };
 }
 
-export class WidgetsPage implements m.ClassComponent<PageAttrs> {
-  view() {
+export class WidgetsPage implements m.ClassComponent<{app: App}> {
+  view({attrs}: m.Vnode<{app: App}>) {
     return m(
       '.widgets-page',
       m('h1', 'Widgets'),
       m(WidgetShowcase, {
         label: 'Button',
-        renderWidget: ({label, icon, rightIcon, showAsGrid, ...rest}) =>
+        renderWidget: ({
+          label,
+          icon,
+          rightIcon,
+          showAsGrid,
+          showInlineWithText,
+          ...rest
+        }) =>
           Boolean(showAsGrid)
             ? m(
                 '',
@@ -698,13 +714,17 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
                   });
                 }),
               )
-            : m(Button, {
-                icon: arg(icon, 'send'),
-                rightIcon: arg(rightIcon, 'arrow_forward'),
-                label: arg(label, 'Button', ''),
-                onclick: () => alert('button pressed'),
-                ...rest,
-              }),
+            : m('', [
+                Boolean(showInlineWithText) && 'Inline',
+                m(Button, {
+                  icon: arg(icon, 'send'),
+                  rightIcon: arg(rightIcon, 'arrow_forward'),
+                  label: arg(label, 'Button', ''),
+                  onclick: () => alert('button pressed'),
+                  ...rest,
+                }),
+                Boolean(showInlineWithText) && 'text',
+              ]),
         initialOpts: {
           label: true,
           icon: true,
@@ -719,6 +739,7 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
             Object.values(ButtonVariant),
           ),
           showAsGrid: false,
+          showInlineWithText: false,
         },
       }),
       m(WidgetShowcase, {
@@ -750,15 +771,42 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
         },
       }),
       m(WidgetShowcase, {
+        label: 'Anchor',
+        renderWidget: ({icon, showInlineWithText, long}) =>
+          m('', [
+            Boolean(showInlineWithText) && 'Inline',
+            m(
+              Anchor,
+              {
+                icon: arg(icon, 'open_in_new'),
+                href: 'https://perfetto.dev/docs/',
+                target: '_blank',
+              },
+              Boolean(long)
+                ? 'This is some really long text and it will probably overflow the container'
+                : 'Link',
+            ),
+            Boolean(showInlineWithText) && 'text',
+          ]),
+
+        initialOpts: {
+          icon: true,
+          showInlineWithText: false,
+          long: false,
+        },
+      }),
+      m(WidgetShowcase, {
         label: 'Text Input',
-        renderWidget: ({placeholder, ...rest}) =>
+        renderWidget: ({placeholder, leftIcon, ...rest}) =>
           m(TextInput, {
             placeholder: arg(placeholder, 'Placeholder...', ''),
+            leftIcon: arg(leftIcon, 'search'),
             ...rest,
           }),
         initialOpts: {
           placeholder: true,
           disabled: false,
+          leftIcon: true,
         },
       }),
       m(WidgetShowcase, {
@@ -786,22 +834,6 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
         initialOpts: {
           header: true,
           content: true,
-        },
-      }),
-      m(WidgetShowcase, {
-        label: 'Anchor',
-        renderWidget: ({icon}) =>
-          m(
-            Anchor,
-            {
-              icon: arg(icon, 'open_in_new'),
-              href: 'https://perfetto.dev/docs/',
-              target: '_blank',
-            },
-            'This is some really long text and it will probably overflow the container',
-          ),
-        initialOpts: {
-          icon: true,
         },
       }),
       m(WidgetShowcase, {
@@ -924,6 +956,13 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
         },
       }),
       m(WidgetShowcase, {
+        label: 'MultiselectInput',
+        description: `Tag input with options`,
+        renderWidget: () => {
+          return m(MultiselectInputDemo);
+        },
+      }),
+      m(WidgetShowcase, {
         label: 'Menu',
         renderWidget: () =>
           m(
@@ -999,6 +1038,11 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
             Object.values(PopupPosition),
           ),
         },
+      }),
+      m(WidgetShowcase, {
+        label: 'CursorTooltip',
+        description: 'A tooltip that follows the mouse around.',
+        renderWidget: () => m(CursorTooltipShowcase),
       }),
       m(WidgetShowcase, {
         label: 'Spinner',
@@ -1536,8 +1580,177 @@ export class WidgetsPage implements m.ClassComponent<PageAttrs> {
           showCloseButtons: true,
         },
       }),
+
+      renderWidgetShowcase({
+        label: 'DataGrid (memory backed)',
+        description: `An interactive data explorer and viewer.`,
+        renderWidget: ({readonlyFilters, readonlySorting, ...rest}) =>
+          m(DataGridShowcase, {
+            ...rest,
+            filters: readonlyFilters ? [] : undefined,
+            sortBy: readonlySorting ? {direction: 'unsorted'} : undefined,
+          }),
+        initialOpts: {
+          showFiltersInToolbar: true,
+          readonlyFilters: false,
+          readonlySorting: false,
+        },
+      }),
+
+      renderWidgetShowcase({
+        label: 'DataGrid (query backed)',
+        description: `An interactive data explorer and viewer - fetched from SQL.`,
+        renderWidget: ({readonlyFilters, readonlySorting, ...rest}) => {
+          const trace = attrs.app.trace;
+          if (trace) {
+            return m(DataGridSqlShowcase, {
+              ...rest,
+              engine: trace.engine,
+              filters: readonlyFilters ? [] : undefined,
+              sortBy: readonlySorting ? {direction: 'unsorted'} : undefined,
+            });
+          } else {
+            return 'Load a trace to start';
+          }
+        },
+        initialOpts: {
+          showFiltersInToolbar: true,
+          readonlyFilters: false,
+          readonlySorting: false,
+        },
+      }),
     );
   }
+}
+
+function renderWidgetShowcase<T extends Options = {}>(attrs: {
+  label: string;
+  description?: string;
+  renderWidget(opts: T): m.Children;
+  initialOpts?: T;
+  wide?: boolean;
+}) {
+  return m(WidgetShowcase, attrs);
+}
+
+function CursorTooltipShowcase() {
+  let show = false;
+  return {
+    view() {
+      return m(
+        '',
+        {
+          style: {
+            width: '150px',
+            height: '150px',
+            border: '1px dashed gray',
+            userSelect: 'none',
+            color: 'gray',
+            textAlign: 'center',
+            lineHeight: '150px',
+          },
+          onmouseover: () => (show = true),
+          onmouseout: () => (show = false),
+        },
+        'Hover here...',
+        show && m(CursorTooltip, 'Hi!'),
+      );
+    },
+  };
+}
+
+function MultiselectInputDemo() {
+  const options = [
+    'foo',
+    'bar',
+    'baz',
+    'qux',
+    'quux',
+    'corge',
+    'grault',
+    'garply',
+    'waldo',
+    'fred',
+  ];
+  let selectedOptions: string[] = [];
+  return {
+    view() {
+      return m(MultiselectInput, {
+        options: options.map((o) => ({key: o, label: o})),
+        selectedOptions,
+        onOptionAdd: (key) => selectedOptions.push(key),
+        onOptionRemove: (key) => {
+          selectedOptions = selectedOptions.filter((x) => x !== key);
+        },
+      });
+    },
+  };
+}
+
+function DataGridShowcase() {
+  const dataSource = new InMemoryDataSource([
+    {
+      id: 1,
+      name: 'foo',
+      ts: 123n,
+      dur: 16n,
+      data: new Uint8Array(),
+      maybe_null: null,
+    },
+    {
+      id: 2,
+      name: 'bar',
+      ts: 185n,
+      dur: 4n,
+      data: new Uint8Array([1, 2, 3]),
+      maybe_null: 'Non null',
+    },
+    {
+      id: 3,
+      name: 'baz',
+      ts: 575n,
+      dur: 12n,
+      data: new Uint8Array([1, 2, 3]),
+      maybe_null: null,
+    },
+  ]);
+
+  return {
+    view({attrs}: m.Vnode<Partial<DataGridAttrs>>) {
+      return m(DataGrid, {
+        ...attrs,
+        columns: [
+          {name: 'id'},
+          {name: 'ts'},
+          {name: 'dur'},
+          {name: 'name'},
+          {name: 'data'},
+          {name: 'maybe_null'},
+        ],
+        dataSource,
+      });
+    },
+  };
+}
+
+function DataGridSqlShowcase(
+  vnode: m.Vnode<Partial<DataGridAttrs> & {engine: Engine}>,
+) {
+  const dataSource = new SQLDataSource(
+    vnode.attrs.engine,
+    'SELECT * FROM slice',
+  );
+
+  return {
+    view({attrs}: m.Vnode<Partial<DataGridAttrs> & {engine: Engine}>) {
+      return m(DataGrid, {
+        ...attrs,
+        columns: [{name: 'id'}, {name: 'ts'}, {name: 'dur'}],
+        dataSource,
+        maxRowsPerPage: 10,
+      });
+    },
+  };
 }
 
 class ModalShowcase implements m.ClassComponent {

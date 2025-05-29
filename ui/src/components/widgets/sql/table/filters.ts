@@ -140,4 +140,32 @@ export class StandardFilters {
       op: (cols) => `${cols[0]} = ${sqlValueToSqliteString(value)}`,
     };
   }
+
+  static valueNotEquals(col: SqlColumn, value: SqlValue): Filter {
+    if (value === null) {
+      return {
+        columns: [col],
+        op: (cols) => `${cols[0]} IS NOT NULL`,
+      };
+    }
+    return {
+      columns: [col],
+      op: (cols) => `${cols[0]} != ${sqlValueToSqliteString(value)}`,
+    };
+  }
+
+  static valueIsOneOf(col: SqlColumn, values: SqlValue[]): Filter {
+    if (values.length === 1) return StandardFilters.valueEquals(col, values[0]);
+    if (values.length === 0) {
+      return {
+        columns: [],
+        op: () => 'FALSE',
+      };
+    }
+    return {
+      op: (cols) =>
+        `${cols[0]} IN (${values.map(sqlValueToSqliteString).join(', ')})`,
+      columns: [col],
+    };
+  }
 }

@@ -41,6 +41,7 @@ template("perfetto_android_library") {
     "sources",
     "deps",
     "manifest",
+    "android_bp_generate_java_target",
     "testonly",
     "visibility",
   ]
@@ -60,6 +61,10 @@ template("perfetto_android_library") {
       perfetto_action_type_for_generator = [ "perfetto_android_library" ]
       if (defined(manifest)) {
         perfetto_android_manifest = [ get_path_info(manifest, "abspath") ]
+      }
+      if (defined(android_bp_generate_java_target)) {
+        perfetto_android_library_android_bp_generate_java_target =
+            [ android_bp_generate_java_target ]
       }
     }
   }

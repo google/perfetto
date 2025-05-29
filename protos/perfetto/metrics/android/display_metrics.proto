@@ -29,8 +29,8 @@ message AndroidDisplayMetrics {
   optional uint32 duplicate_frames_logged = 2;
 
   // Stat that reports the number of dpu underrrun occurs count.
-  optional uint32 total_dpu_underrun_count = 3;
-
+  // Deprecated as of 04/2025
+  optional uint32 total_dpu_underrun_count = 3 [deprecated = true];
 
   message RefreshRateStat {
     // The refresh rate value (the number of frames per second)
@@ -62,4 +62,22 @@ message AndroidDisplayMetrics {
   }
 
   optional UpdatePowerState update_power_state = 6;
+
+  message DpuUnderrunDetail {
+    // display_id
+    optional string name = 1;
+
+    // The number of dpu underrun occurs.
+    optional uint32 dpu_underrun_count = 2;
+  }
+
+  message DpuState {
+    // Stat that reports the number of dpu underrrun occurs count.
+    optional uint32 total_dpu_underrun_count = 1;
+
+    // Dpu underun count for differnt display_id.
+    repeated DpuUnderrunDetail dpu_underrun_detail = 2;
+  }
+
+  optional DpuState dpu_state = 7;
 }

@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_SHELL_TRANSITIONS_TRACKER_H_
 
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/winscope_proto_mapping.h"
@@ -40,13 +41,22 @@ class ShellTransitionsTracker : public Destructible {
         context->shell_transitions_tracker.get());
   }
 
-  tables::WindowManagerShellTransitionsTable::Id InternTransition(
-      int32_t transition_id);
+  ArgsTracker::BoundInserter AddArgsTo(int32_t transition_id);
+
+  void SetTimestamp(int32_t transition_id, int64_t timestamp_ns);
+
+  void Flush();
 
  private:
+  struct TransitionInfo {
+    tables::WindowManagerShellTransitionsTable::Id row_id;
+    ArgsTracker args_tracker;
+  };
+
+  TransitionInfo* GetOrInsertTransition(int32_t transition_id);
+
   TraceProcessorContext* context_;
-  std::unordered_map<int32_t, tables::WindowManagerShellTransitionsTable::Id>
-      transition_id_to_row_mapping_;
+  std::unordered_map<int32_t, TransitionInfo> transitions_infos_;
 };
 
 }  // namespace trace_processor
