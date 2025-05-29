@@ -697,6 +697,7 @@ struct CommandLineOptions {
 
   bool enable_httpd = false;
   std::string port_number;
+  std::string listen_ip;
   bool enable_stdiod = false;
   bool launch_shell = false;
 
@@ -705,8 +706,8 @@ struct CommandLineOptions {
 
   std::string query_file_path;
   std::string query_string;
-  std::string sql_module_path;
-  std::vector<std::string> override_sql_module_paths;
+  std::vector<std::string> sql_package_paths;
+  std::vector<std::string> override_sql_package_paths;
 
   bool summary = false;
   std::string summary_metrics_v2;
@@ -750,6 +751,7 @@ General purpose:
 Behavioural:
  -D, --httpd                          Enables the HTTP RPC server.
  --http-port PORT                     Specify what port to run HTTP RPC server.
+ --http-ip-address ip                 Specify what ip address to run HTTP RPC server.
  --stdiod                             Enables the stdio RPC server.
  -i, --interactive                    Starts interactive mode even after
                                       executing some other commands (-q, -Q,
@@ -774,11 +776,11 @@ PerfettoSQL:
                                       If used with --run-metrics, the query is
                                       executed after the selected metrics and
                                       the metrics output is suppressed.
- --add-sql-module PACKAGE_PATH         Files from the directory will be treated
+ --add-sql-package PACKAGE_PATH       Files from the directory will be treated
                                       as a new SQL package and can be used for
                                       INCLUDE PERFETTO MODULE statements. The
-                                      name of the directory is the module name.
- --override-sql-module PACKAGE_PATH   Will override trace processor package with
+                                      name of the directory is the package name.
+ --override-sql-package PACKAGE_PATH  Will override trace processor package with
                                       passed contents. The outer directory will
                                       specify the package name.
 
@@ -861,6 +863,12 @@ Advanced:
                                       passed contents. The outer directory will
                                       be ignored. Only allowed when --dev is
                                       specified.
+ --add-sql-module PACKAGE_PATH        Alias for --add-sql-package, kept for
+                                      backwards compatibility. Prefer
+                                      --add-sql-package.
+ --override-sql-module PACKAGE_PATH   Alias for --override-sql-package, kept for
+                                      backwards compatibility. Prefer
+                                      --override-sql-package.
 
 Metrics (v1):
 
@@ -894,13 +902,14 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   CommandLineOptions command_line_options;
   enum LongOption {
     OPT_HTTP_PORT = 1000,
+    OPT_HTTP_IP,
     OPT_STDIOD,
 
     OPT_FORCE_FULL_SORT,
     OPT_NO_FTRACE_RAW,
 
-    OPT_ADD_SQL_MODULE,
-    OPT_OVERRIDE_SQL_MODULE,
+    OPT_ADD_SQL_PACKAGE,
+    OPT_OVERRIDE_SQL_PACKAGE,
 
     OPT_SUMMARY,
     OPT_SUMMARY_METRICS_V2,
@@ -931,6 +940,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
       {"httpd", no_argument, nullptr, 'D'},
       {"http-port", required_argument, nullptr, OPT_HTTP_PORT},
+      {"http-ip-address", required_argument, nullptr, OPT_HTTP_IP},
       {"stdiod", no_argument, nullptr, OPT_STDIOD},
       {"interactive", no_argument, nullptr, 'i'},
 
@@ -939,9 +949,12 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
       {"query-file", required_argument, nullptr, 'q'},
       {"query-string", required_argument, nullptr, 'Q'},
-      {"add-sql-module", required_argument, nullptr, OPT_ADD_SQL_MODULE},
+      {"add-sql-module", required_argument, nullptr, OPT_ADD_SQL_PACKAGE},
+      {"add-sql-package", required_argument, nullptr, OPT_ADD_SQL_PACKAGE},
       {"override-sql-module", required_argument, nullptr,
-       OPT_OVERRIDE_SQL_MODULE},
+       OPT_OVERRIDE_SQL_PACKAGE},
+      {"override-sql-package", required_argument, nullptr,
+       OPT_OVERRIDE_SQL_PACKAGE},
 
       {"summary", no_argument, nullptr, OPT_SUMMARY},
       {"summary-metrics-v2", required_argument, nullptr,
@@ -1026,6 +1039,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       continue;
     }
 
+    if (option == OPT_HTTP_IP) {
+      command_line_options.listen_ip = optarg;
+      continue;
+    }
+
     if (option == OPT_STDIOD) {
       command_line_options.enable_stdiod = true;
       continue;
@@ -1088,13 +1106,13 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       continue;
     }
 
-    if (option == OPT_ADD_SQL_MODULE) {
-      command_line_options.sql_module_path = optarg;
+    if (option == OPT_ADD_SQL_PACKAGE) {
+      command_line_options.sql_package_paths.emplace_back(optarg);
       continue;
     }
 
-    if (option == OPT_OVERRIDE_SQL_MODULE) {
-      command_line_options.override_sql_module_paths.emplace_back(optarg);
+    if (option == OPT_OVERRIDE_SQL_PACKAGE) {
+      command_line_options.override_sql_package_paths.emplace_back(optarg);
       continue;
     }
 
@@ -1337,7 +1355,7 @@ base::Status ParseMetricExtensionPaths(
   return CheckForDuplicateMetricExtension(metric_extensions);
 }
 
-base::Status IncludeSqlModule(std::string root, bool allow_override) {
+base::Status IncludeSqlPackage(std::string root, bool allow_override) {
   // Remove trailing slash
   if (root.back() == '/')
     root = root.substr(0, root.length() - 1);
@@ -1345,14 +1363,14 @@ base::Status IncludeSqlModule(std::string root, bool allow_override) {
   if (!base::FileExists(root))
     return base::ErrStatus("Directory %s does not exist.", root.c_str());
 
-  // Get module name
+  // Get package name
   size_t last_slash = root.rfind('/');
   if ((last_slash == std::string::npos) ||
       (root.find('.') != std::string::npos))
-    return base::ErrStatus("Module path must point to the directory: %s",
+    return base::ErrStatus("Package path must point to the directory: %s",
                            root.c_str());
 
-  std::string module_name = root.substr(last_slash + 1);
+  std::string package_name = root.substr(last_slash + 1);
 
   std::vector<std::string> paths;
   RETURN_IF_ERROR(base::ListFilesRecursive(root, paths));
@@ -1367,8 +1385,8 @@ base::Status IncludeSqlModule(std::string root, bool allow_override) {
       return base::ErrStatus("Cannot read file %s", filename.c_str());
 
     std::string import_key =
-        module_name + "." + sql_modules::GetIncludeKey(path);
-    modules.Insert(module_name, {})
+        package_name + "." + sql_modules::GetIncludeKey(path);
+    modules.Insert(package_name, {})
         .first->push_back({import_key, file_contents});
   }
   for (auto module_it = modules.GetIterator(); module_it; ++module_it) {
@@ -1697,7 +1715,7 @@ base::Status MaybeWriteMetatrace(const std::string& metatrace_path) {
   return base::OkStatus();
 }
 
-base::Status MaybeUpdateSqlModules(const CommandLineOptions& options) {
+base::Status MaybeUpdateSqlPackages(const CommandLineOptions& options) {
   if (!options.override_stdlib_path.empty()) {
     if (!options.dev)
       return base::ErrStatus("Overriding stdlib requires --dev flag");
@@ -1708,20 +1726,23 @@ base::Status MaybeUpdateSqlModules(const CommandLineOptions& options) {
                              status.c_message());
   }
 
-  if (!options.override_sql_module_paths.empty()) {
-    for (const auto& override_sql_module_path :
-         options.override_sql_module_paths) {
-      auto status = IncludeSqlModule(override_sql_module_path, true);
+  if (!options.override_sql_package_paths.empty()) {
+    for (const auto& override_sql_package_path :
+         options.override_sql_package_paths) {
+      auto status = IncludeSqlPackage(override_sql_package_path, true);
       if (!status.ok())
-        return base::ErrStatus("Couldn't override stdlib module: %s",
+        return base::ErrStatus("Couldn't override stdlib package: %s",
                                status.c_message());
     }
   }
 
-  if (!options.sql_module_path.empty()) {
-    auto status = IncludeSqlModule(options.sql_module_path, false);
-    if (!status.ok())
-      return base::ErrStatus("Couldn't add SQL module: %s", status.c_message());
+  if (!options.sql_package_paths.empty()) {
+    for (const auto& add_sql_package_path : options.sql_package_paths) {
+      auto status = IncludeSqlPackage(add_sql_package_path, false);
+      if (!status.ok())
+        return base::ErrStatus("Couldn't add SQL package: %s",
+                               status.c_message());
+    }
   }
   return base::OkStatus();
 }
@@ -1814,7 +1835,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
   g_tp = tp.get();
 
-  RETURN_IF_ERROR(MaybeUpdateSqlModules(options));
+  RETURN_IF_ERROR(MaybeUpdateSqlPackages(options));
 
   // Enable metatracing as soon as possible.
   if (!options.metatrace_path.empty()) {
@@ -1965,7 +1986,8 @@ base::Status TraceProcessorMain(int argc, char** argv) {
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
-    RunHttpRPCServer(std::move(tp), options.port_number);
+    RunHttpRPCServer(std::move(tp), !options.trace_file_path.empty(),
+                     options.listen_ip, options.port_number);
     PERFETTO_FATAL("Should never return");
 #else
     PERFETTO_FATAL("HTTP not available");
@@ -1973,7 +1995,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   }
 
   if (options.enable_stdiod) {
-    return RunStdioRpcServer(std::move(tp));
+    return RunStdioRpcServer(std::move(tp), !options.trace_file_path.empty());
   }
 
   if (options.launch_shell) {

@@ -121,6 +121,7 @@ SURFACE_FLINGER_TRANSACTIONS_TABLE = Table(
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppOptional(CppUint32())),
         C('base64_proto_id', CppOptional(CppUint32())),
+        C('vsync_id', CppOptional(CppInt64())),
     ],
     tabledoc=TableDoc(
         doc='SurfaceFlinger transactions. Each row contains a set of ' +
@@ -130,6 +131,67 @@ SURFACE_FLINGER_TRANSACTIONS_TABLE = Table(
             'ts': 'Timestamp of the transactions commit',
             'arg_set_id': 'Extra args parsed from the proto message',
             'base64_proto_id': 'String id for raw proto message',
+            'vsync_id': 'Vsync id taken from raw proto message',
+        }))
+
+SURFACE_FLINGER_TRANSACTION_TABLE = Table(
+    python_module=__file__,
+    class_name='SurfaceFlingerTransactionTable',
+    sql_name='__intrinsic_surfaceflinger_transaction',
+    columns=[
+        C('snapshot_id', CppTableId(SURFACE_FLINGER_TRANSACTIONS_TABLE)),
+        C('arg_set_id', CppOptional(CppUint32())),
+        C('base64_proto_id', CppOptional(CppUint32())),
+        C('transaction_id', CppOptional(CppInt64())),
+        C('pid', CppOptional(CppUint32())),
+        C('uid', CppOptional(CppUint32())),
+        C('layer_id', CppOptional(CppUint32())),
+        C('display_id', CppOptional(CppUint32())),
+        C('flags_id', CppOptional(CppUint32())),
+        C('transaction_type', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc='SurfaceFlinger transaction',
+        group='Winscope',
+        columns={
+            'snapshot_id':
+                'The snapshot that generated this transaction',
+            'arg_set_id':
+                'Extra args parsed from the proto message',
+            'base64_proto_id':
+                'String id for raw proto message',
+            'transaction_id':
+                'Transaction id taken from raw proto message',
+            'pid':
+                'Pid taken from raw proto message',
+            'uid':
+                'Uid taken from raw proto message',
+            'layer_id':
+                'Layer id taken from raw proto message',
+            'display_id':
+                'Display id taken from raw proto message',
+            'flags_id':
+                'Flags id used to retrieve associated flags from __intrinsic_surfaceflinger_transaction_flag',
+            'transaction_type':
+                'Transaction type'
+        }))
+
+SURFACE_FLINGER_TRANSACTION_FLAG_TABLE = Table(
+    python_module=__file__,
+    class_name='SurfaceFlingerTransactionFlagTable',
+    sql_name='__intrinsic_surfaceflinger_transaction_flag',
+    columns=[
+        C('flags_id', CppOptional(CppUint32())),
+        C('flag', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc='SurfaceFlinger transaction',
+        group='Winscope',
+        columns={
+            'flags_id':
+                'The flags_id corresponding to a row in __intrinsic_surfaceflinger_transaction',
+            'flag':
+                'The translated flag string',
         }))
 
 VIEWCAPTURE_TABLE = Table(
@@ -298,6 +360,8 @@ ALL_TABLES = [
     SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE,
     SURFACE_FLINGER_LAYER_TABLE,
     SURFACE_FLINGER_TRANSACTIONS_TABLE,
+    SURFACE_FLINGER_TRANSACTION_TABLE,
+    SURFACE_FLINGER_TRANSACTION_FLAG_TABLE,
     VIEWCAPTURE_TABLE,
     VIEWCAPTURE_VIEW_TABLE,
     VIEWCAPTURE_INTERNED_DATA_TABLE,

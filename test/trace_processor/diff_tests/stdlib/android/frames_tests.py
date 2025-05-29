@@ -34,6 +34,8 @@ class Frames(TestSuite):
         "frame_id","name","depth"
         10,"Choreographer#doFrame 10",0
         11,"Choreographer#doFrame 11",1
+        12,"Choreographer#doFrame 12",4
+        13,"Choreographer#doFrame 13",3
         """))
 
   def test_android_frames_choreographer_do_frame(self):
@@ -47,20 +49,20 @@ class Frames(TestSuite):
         out=Csv("""
         "id","frame_id","ui_thread_utid","upid","ts"
         2,10,2,2,0
-        15,20,2,2,20000000
-        22,30,2,2,30000000
-        35,40,2,2,40000000
-        46,60,2,2,70000000
-        55,90,2,2,100000000
-        63,100,2,2,200000000
-        73,110,2,2,300000000
-        79,120,2,2,400000000
-        87,130,2,2,550000000
-        93,140,2,2,608500000
-        99,145,2,2,655000000
-        102,150,2,2,700000000
-        108,160,2,2,800000000
-        140,1000,2,2,1100000000
+        20,20,2,2,20000000
+        27,30,2,2,30000000
+        40,40,2,2,40000000
+        51,60,2,2,70000000
+        61,90,2,2,100000000
+        69,100,2,2,200000000
+        79,110,2,2,300000000
+        85,120,2,2,400000000
+        93,130,2,2,550000000
+        99,140,2,2,608500000
+        105,145,2,2,655000000
+        108,150,2,2,700000000
+        114,160,2,2,800000000
+        147,1000,2,2,1100000000
         """))
 
   def test_android_frames_draw_frame(self):
@@ -73,23 +75,23 @@ class Frames(TestSuite):
         """,
         out=Csv("""
         "id","frame_id","render_thread_utid","upid"
-        8,10,4,2
-        16,20,4,2
-        23,30,4,2
-        41,40,4,2
-        50,60,4,2
-        57,90,4,2
-        60,90,4,2
-        66,100,4,2
-        69,100,4,2
-        74,110,4,2
-        80,120,4,2
-        89,130,4,2
-        95,140,4,2
-        100,145,4,2
-        105,150,4,2
-        109,160,4,2
-        146,1000,4,2
+        13,10,4,2
+        21,20,4,2
+        28,30,4,2
+        46,40,4,2
+        55,60,4,2
+        63,90,4,2
+        66,90,4,2
+        72,100,4,2
+        75,100,4,2
+        80,110,4,2
+        86,120,4,2
+        95,130,4,2
+        101,140,4,2
+        106,145,4,2
+        111,150,4,2
+        115,160,4,2
+        153,1000,4,2
         """))
 
   def test_android_frames(self):
@@ -102,53 +104,53 @@ class Frames(TestSuite):
         """,
         out=Csv("""
         "frame_id","ts","dur","do_frame_id","draw_frame_id","actual_frame_timeline_id","expected_frame_timeline_id","render_thread_utid","ui_thread_utid","actual_frame_timeline_count","expected_frame_timeline_count","draw_frame_count","upid","process_name"
-        10,0,16000000,2,8,1,0,4,2,1,1,1,2,"com.android.systemui"
-        20,8000000,28000000,15,16,12,11,4,2,1,1,1,2,"com.android.systemui"
-        30,30000000,25000000,22,23,21,20,4,2,1,1,1,2,"com.android.systemui"
-        40,40000000,40000000,35,41,37,36,4,2,1,1,1,2,"com.android.systemui"
-        60,70000000,20000000,46,50,48,47,4,2,2,1,1,2,"com.android.systemui"
-        90,100000000,23000000,55,57,54,53,4,2,1,1,2,2,"com.android.systemui"
-        100,200000000,22000000,63,66,65,64,4,2,1,1,2,2,"com.android.systemui"
-        110,300000000,80000000,73,74,71,70,4,2,2,1,1,2,"com.android.systemui"
-        120,400000000,61000000,79,80,78,77,4,2,1,1,1,2,"com.android.systemui"
-        130,500000000,6000000,87,89,85,84,4,2,2,1,1,2,"com.android.systemui"
-        140,608600000,17000000,93,95,94,91,4,2,1,1,1,2,"com.android.systemui"
-        145,650000000,20000000,99,100,98,97,4,2,1,1,1,2,"com.android.systemui"
-        150,700500000,14500000,102,105,104,103,4,2,1,1,1,2,"com.android.systemui"
-        160,800000000,2000000,108,109,"[NULL]",107,4,2,0,1,1,2,"com.android.systemui"
-        1000,1100000000,500000000,140,146,138,137,4,2,1,1,1,2,"com.android.systemui"
+        10,0,16000000,2,13,1,0,4,2,1,1,1,2,"com.android.systemui"
+        20,8000000,28000000,20,21,17,16,4,2,1,1,1,2,"com.android.systemui"
+        30,30000000,25000000,27,28,26,25,4,2,1,1,1,2,"com.android.systemui"
+        40,40000000,40000000,40,46,42,41,4,2,1,1,1,2,"com.android.systemui"
+        60,70000000,20000000,51,55,53,52,4,2,2,1,1,2,"com.android.systemui"
+        90,100000000,23000000,61,63,60,59,4,2,1,1,2,2,"com.android.systemui"
+        100,200000000,22000000,69,72,71,70,4,2,1,1,2,2,"com.android.systemui"
+        110,300000000,80000000,79,80,77,76,4,2,2,1,1,2,"com.android.systemui"
+        120,400000000,61000000,85,86,84,83,4,2,1,1,1,2,"com.android.systemui"
+        130,500000000,6000000,93,95,91,90,4,2,2,1,1,2,"com.android.systemui"
+        140,608600000,17000000,99,101,100,97,4,2,1,1,1,2,"com.android.systemui"
+        145,650000000,20000000,105,106,104,103,4,2,1,1,1,2,"com.android.systemui"
+        150,700500000,14500000,108,111,110,109,4,2,1,1,1,2,"com.android.systemui"
+        160,800000000,2000000,114,115,"[NULL]",113,4,2,0,1,1,2,"com.android.systemui"
+        1000,1100000000,500000000,147,153,145,144,4,2,1,1,1,2,"com.android.systemui"
         """))
 
   def test_android_frames_layers(self):
-      return DiffTestBlueprint(
-          trace=Path('../../metrics/graphics/android_jank_cuj.py'),
-          query="""
+    return DiffTestBlueprint(
+        trace=Path('../../metrics/graphics/android_jank_cuj.py'),
+        query="""
           INCLUDE PERFETTO MODULE android.frames.timeline;
 
           SELECT * FROM android_frames_layers;
           """,
-          out=Csv("""
+        out=Csv("""
           "frame_id","ts","dur","ts_end","do_frame_id","draw_frame_id","actual_frame_timeline_id","expected_frame_timeline_id","render_thread_utid","ui_thread_utid","layer_id","layer_name","upid","process_name"
-          10,0,16000000,16000000,2,8,1,0,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          20,8000000,28000000,36000000,15,16,12,11,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          30,30000000,25000000,55000000,22,23,21,20,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          40,40000000,40000000,80000000,35,41,37,36,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          60,70000000,10000000,80000000,46,50,48,47,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          60,70000000,20000000,90000000,46,50,49,47,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          90,100000000,23000000,123000000,55,57,54,53,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          90,100000000,23000000,123000000,55,60,54,53,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          100,200000000,22000000,222000000,63,66,65,64,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          100,200000000,22000000,222000000,63,69,65,64,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          110,300000000,61000000,361000000,73,74,71,70,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          110,300000000,80000000,380000000,73,74,72,70,4,2,1,"TX - JankyLayer#1",2,"com.android.systemui"
-          120,400000000,61000000,461000000,79,80,78,77,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          130,500000000,2000000,502000000,87,89,85,84,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          130,550000000,6000000,556000000,87,89,88,84,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          140,608600000,17000000,625600000,93,95,94,91,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          145,650000000,20000000,670000000,99,100,98,97,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          150,700500000,14500000,715000000,102,105,104,103,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
-          160,800000000,2000000,802000000,108,109,"[NULL]",107,4,2,"[NULL]","[NULL]",2,"com.android.systemui"
-          1000,1100000000,500000000,1600000000,140,146,138,137,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          10,0,16000000,16000000,2,13,1,0,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          20,8000000,28000000,36000000,20,21,17,16,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          30,30000000,25000000,55000000,27,28,26,25,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          40,40000000,40000000,80000000,40,46,42,41,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          60,70000000,10000000,80000000,51,55,53,52,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          60,70000000,20000000,90000000,51,55,54,52,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          90,100000000,23000000,123000000,61,63,60,59,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          90,100000000,23000000,123000000,61,66,60,59,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          100,200000000,22000000,222000000,69,72,71,70,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          100,200000000,22000000,222000000,69,75,71,70,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          110,300000000,61000000,361000000,79,80,77,76,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          110,300000000,80000000,380000000,79,80,78,76,4,2,1,"TX - JankyLayer#1",2,"com.android.systemui"
+          120,400000000,61000000,461000000,85,86,84,83,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          130,500000000,2000000,502000000,93,95,91,90,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          130,550000000,6000000,556000000,93,95,94,90,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          140,608600000,17000000,625600000,99,101,100,97,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          145,650000000,20000000,670000000,105,106,104,103,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          150,700500000,14500000,715000000,108,111,110,109,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
+          160,800000000,2000000,802000000,114,115,"[NULL]",113,4,2,"[NULL]","[NULL]",2,"com.android.systemui"
+          1000,1100000000,500000000,1600000000,147,153,145,144,4,2,0,"TX - NotificationShade#0",2,"com.android.systemui"
           """))
 
   def test_android_first_frame_after(self):

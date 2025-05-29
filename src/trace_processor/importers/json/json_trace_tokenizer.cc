@@ -22,6 +22,8 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -623,15 +625,23 @@ base::Status JsonTraceTokenizer::ParseV8SampleEvent(base::StringView unparsed) {
   const auto& profile = val["cpuProfile"];
   for (const auto& n : profile["nodes"]) {
     uint32_t node_id = n["id"].asUInt();
-    std::optional<uint32_t> parent_node_id =
-        n.isMember("parent") ? std::make_optional(n["parent"].asUInt())
-                             : std::nullopt;
+    std::optional<uint32_t> parent_node_id;
+    if (n.isMember("parent")) {
+      parent_node_id = std::make_optional(n["parent"].asUInt());
+    }
+    std::vector<uint32_t> children;
+    if (n.isMember("children")) {
+      children.reserve(n.size());
+      for (const auto& c : n["children"]) {
+        children.push_back(c.asUInt());
+      }
+    }
     const auto& frame = n["callFrame"];
     base::StringView url =
         frame.isMember("url") ? frame["url"].asCString() : base::StringView();
     base::StringView function_name = frame["functionName"].asCString();
     base::Status status = context_->legacy_v8_cpu_profile_tracker->AddCallsite(
-        *id, pid, node_id, parent_node_id, url, function_name);
+        *id, pid, node_id, parent_node_id, url, function_name, children);
     if (!status.ok()) {
       context_->storage->IncrementStats(
           stats::legacy_v8_cpu_profile_invalid_callsite);

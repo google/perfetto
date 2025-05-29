@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {AggregationPanel} from './aggregation_panel';
+import {AggregationPanel, AggregationPanelAttrs} from './aggregation_panel';
 import {
   AreaSelection,
   AreaSelectionAggregator,
@@ -23,18 +23,25 @@ import {
 import {Trace} from '../public/trace';
 import {SelectionAggregationManager} from './selection_aggregation_manager';
 
+// Define a type for the expected props of the panel components so that a
+// generic AggregationPanel can be specificed as an argument to
+// createBaseAggregationToTabAdaptor()
+type PanelComponent = m.ComponentTypes<AggregationPanelAttrs>;
+
 /**
  * Creates an adapter that adapts an old style aggregation to a new area
  * selection sub-tab.
  */
-export function createAggregationToTabAdaptor(
+export function createBaseAggregationToTabAdaptor(
   trace: Trace,
   aggregator: AreaSelectionAggregator,
+  PanelComponent: PanelComponent,
+  tabPriorityOverride?: number,
 ): AreaSelectionTab {
   const schemaSpecificity =
     (aggregator.schema && Object.keys(aggregator.schema).length) ?? 0;
   const kindRating = aggregator.trackKind === undefined ? 0 : 100;
-  const priority = kindRating + schemaSpecificity;
+  const priority = tabPriorityOverride ?? kindRating + schemaSpecificity;
   const aggMan = new SelectionAggregationManager(trace.engine, aggregator);
   let currentSelection: AreaSelection | undefined;
 
@@ -58,7 +65,7 @@ export function createAggregationToTabAdaptor(
 
       return {
         isLoading: false,
-        content: m(AggregationPanel, {
+        content: m(PanelComponent, {
           data,
           trace,
           model: aggMan,
@@ -66,4 +73,17 @@ export function createAggregationToTabAdaptor(
       };
     },
   };
+}
+
+export function createAggregationToTabAdaptor(
+  trace: Trace,
+  aggregator: AreaSelectionAggregator,
+  tabPriorityOverride?: number,
+): AreaSelectionTab {
+  return createBaseAggregationToTabAdaptor(
+    trace,
+    aggregator,
+    AggregationPanel,
+    tabPriorityOverride,
+  );
 }

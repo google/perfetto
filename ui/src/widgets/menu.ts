@@ -101,9 +101,10 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
         ...htmlAttrs,
         className: classes,
       },
-      icon && m(Icon, {className: 'pf-left-icon', icon}),
-      rightIcon && m(Icon, {className: 'pf-right-icon', icon: rightIcon}),
-      label,
+      icon && m(Icon, {className: 'pf-menu-item__left-icon', icon}),
+      m('.pf-menu-item__label', label),
+      rightIcon &&
+        m(Icon, {className: 'pf-menu-item__right-icon', icon: rightIcon}),
     );
   }
 }

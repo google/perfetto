@@ -18,6 +18,8 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Time, TimeSpan} from '../../base/time';
 import {redrawModal, showModal} from '../../widgets/modal';
 import {assertExists} from '../../base/logging';
+import {Button, ButtonBar, ButtonVariant} from '../../widgets/button';
+import {Intent} from '../../widgets/common';
 
 const PLUGIN_ID = 'dev.perfetto.TimelineSync';
 const DEFAULT_BROADCAST_CHANNEL = `${PLUGIN_ID}#broadcastChannel`;
@@ -82,6 +84,38 @@ export default class implements PerfettoPlugin {
       defaultHotkey: 'Mod+Alt+S',
     });
 
+    ctx.statusbar.registerItem({
+      renderItem: () => {
+        return {
+          label: `Timeline Sync`,
+          icon: 'sync',
+          intent: this.active ? Intent.Success : Intent.None,
+          onclick: this.active
+            ? undefined
+            : () => this.showTimelineSyncDialog(),
+        };
+      },
+      popupContent: () => {
+        return this.active
+          ? m(
+              '.pf-timeline-sync-popup',
+              `Timeline Sync Active`,
+              m(
+                ButtonBar,
+                m(Button, {
+                  label: 'Stop',
+                  icon: 'stop_circle',
+                  intent: Intent.Danger,
+                  variant: ButtonVariant.Filled,
+                  dismissPopup: true,
+                  onclick: () => this.disableTimelineSync(this._sessionId),
+                }),
+              ),
+            )
+          : undefined;
+      },
+    });
+
     // Start advertising this tab. This allows the command run in other
     // instances to discover us.
     this._chan = new BroadcastChannel(DEFAULT_BROADCAST_CHANNEL);
@@ -92,10 +126,10 @@ export default class implements PerfettoPlugin {
 
     // Allow auto-enabling of timeline sync from the URI. The user can
     // optionally specify a session id, otherwise we just use a default one.
-    const m = /dev.perfetto.TimelineSync:enable(=\d+)?/.exec(location.hash);
-    if (m !== null) {
-      this._sessionidFromUrl = m[1]
-        ? parseInt(m[1].substring(1))
+    const regex = /dev.perfetto.TimelineSync:enable(=\d+)?/.exec(location.hash);
+    if (regex !== null) {
+      this._sessionidFromUrl = regex[1]
+        ? parseInt(regex[1].substring(1))
         : DEFAULT_SESSION_ID;
     }
 

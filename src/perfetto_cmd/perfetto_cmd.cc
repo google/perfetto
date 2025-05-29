@@ -1037,6 +1037,7 @@ void PerfettoCmd::OnConnect() {
       args.clone_trigger_trusted_producer_uid =
           snapshot_trigger_info_->producer_uid;
       args.clone_trigger_boot_time_ns = snapshot_trigger_info_->boot_time_ns;
+      args.clone_trigger_delay_ms = snapshot_trigger_info_->trigger_delay_ms;
     }
     consumer_endpoint_->CloneSession(std::move(args));
     return;
@@ -1488,7 +1489,9 @@ void PerfettoCmd::OnObservableEvents(
         observable_events.clone_trigger_hit().trigger_name(),
         observable_events.clone_trigger_hit().producer_name(),
         static_cast<uid_t>(
-            observable_events.clone_trigger_hit().producer_uid())};
+            observable_events.clone_trigger_hit().producer_uid()),
+        observable_events.clone_trigger_hit().trigger_delay_ms(),
+    };
     OnCloneSnapshotTriggerReceived(static_cast<TracingSessionID>(tsid),
                                    trigger);
   }

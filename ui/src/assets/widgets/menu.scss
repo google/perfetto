@@ -31,26 +31,35 @@
     font-family: $pf-font;
     user-select: none;
     text-align: left;
-    padding: 5px 10px;
+    padding: 6px 10px;
     white-space: nowrap;
     min-width: max-content;
+    line-height: 1;
     cursor: pointer;
 
     background: $pf-minimal-background;
     color: $pf-minimal-foreground;
+
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas: "left-icon label right-icon";
+
+    .pf-menu-item__label {
+      grid-area: label;
+    }
 
     & > .material-icons {
       font-size: inherit;
       line-height: inherit;
     }
 
-    & > .pf-left-icon {
-      float: left;
+    &__left-icon {
+      grid-area: left-icon;
       margin-right: 6px; // Make some room between the icon and label
     }
 
-    & > .pf-right-icon {
-      float: right;
+    &__right-icon {
+      grid-area: right-icon;
       margin-left: 6px; // Make some room between the icon and label
     }
 

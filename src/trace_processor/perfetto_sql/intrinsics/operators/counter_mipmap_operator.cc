@@ -142,7 +142,6 @@ int CounterMipmapOperator::Connect(sqlite3* db,
 
 int CounterMipmapOperator::Disconnect(sqlite3_vtab* vtab) {
   std::unique_ptr<Vtab> tab(GetVtab(vtab));
-  sqlite::ModuleStateManager<CounterMipmapOperator>::OnDisconnect(tab->state);
   return SQLITE_OK;
 }
 

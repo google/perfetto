@@ -18,10 +18,6 @@ import {findRef} from '../base/dom_utils';
 import {FuzzyFinder} from '../base/fuzzy';
 import {assertExists, assertUnreachable} from '../base/logging';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
-import {
-  setDurationPrecision,
-  setTimestampFormat,
-} from '../core/timestamp_format';
 import {Command} from '../public/command';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
@@ -38,7 +34,6 @@ import {DisposableStack} from '../base/disposable_stack';
 import {Spinner} from '../widgets/spinner';
 import {TraceImpl} from '../core/trace_impl';
 import {AppImpl} from '../core/app_impl';
-import {NotesListEditor} from './notes_list_editor';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../public/utils';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {Workspace} from '../public/workspace';
@@ -51,6 +46,14 @@ import {
 } from '../core/state_serialization';
 import {featureFlags} from '../core/feature_flags';
 import {trackMatchesFilter} from '../core/track_manager';
+import {renderStatusBar} from './statusbar';
+import {Time} from '../base/time';
+
+const showStatusBarFlag = featureFlags.register({
+  id: 'Enable status bar',
+  description: 'Enable status bar at the bottom of the window',
+  defaultValue: true,
+});
 
 const QUICKSAVE_LOCALSTORAGE_KEY = 'quicksave';
 const OMNIBOX_INPUT_REF = 'omnibox';
@@ -108,28 +111,18 @@ export class UiMainPerTrace implements m.ClassComponent {
     document.title = `${trace.traceInfo.traceTitle || 'Trace'} - Perfetto UI`;
     this.maybeShowJsonWarning();
 
-    this.trash.use(
-      trace.tabs.registerTab({
-        uri: 'notes.manager',
-        isEphemeral: false,
-        content: {
-          getTitle: () => 'Notes & markers',
-          render: () => m(NotesListEditor, {trace}),
-        },
-      }),
-    );
-
     const cmds: Command[] = [
       {
         id: 'perfetto.SetTimestampFormat',
         name: 'Set timestamp and duration format',
         callback: async () => {
           const TF = TimestampFormat;
+          const timeZone = Time.formatTimezone(trace.traceInfo.tzOffMin);
           const result = await app.omnibox.prompt('Select format...', {
             values: [
               {format: TF.Timecode, name: 'Timecode'},
               {format: TF.UTC, name: 'Realtime (UTC)'},
-              {format: TF.TraceTz, name: 'Realtime (Trace TZ)'},
+              {format: TF.TraceTz, name: `Realtime (Trace TZ - ${timeZone})`},
               {format: TF.Seconds, name: 'Seconds'},
               {format: TF.Milliseconds, name: 'Milliseconds'},
               {format: TF.Microseconds, name: 'Microseconds'},
@@ -141,7 +134,7 @@ export class UiMainPerTrace implements m.ClassComponent {
             ],
             getName: (x) => x.name,
           });
-          result && setTimestampFormat(result.format);
+          result && (trace.timeline.timestampFormat = result.format);
         },
       },
       {
@@ -159,7 +152,7 @@ export class UiMainPerTrace implements m.ClassComponent {
               getName: (x) => x.name,
             },
           );
-          result && setDurationPrecision(result.format);
+          result && (trace.timeline.durationPrecision = result.format);
         },
       },
       {
@@ -222,56 +215,6 @@ export class UiMainPerTrace implements m.ClassComponent {
           trace.selection.clear();
         },
         defaultHotkey: 'Escape',
-      },
-      {
-        id: 'perfetto.SetTemporarySpanNote',
-        name: 'Set the temporary span note based on the current selection',
-        callback: () => {
-          const range = trace.selection.findTimeRangeOfSelection();
-          if (range) {
-            trace.notes.addSpanNote({
-              start: range.start,
-              end: range.end,
-              id: '__temp__',
-            });
-
-            // Also select an area for this span
-            const selection = trace.selection.selection;
-            if (selection.kind === 'track_event') {
-              trace.selection.selectArea({
-                start: range.start,
-                end: range.end,
-                trackUris: [selection.trackUri],
-              });
-            }
-          }
-        },
-        defaultHotkey: 'M',
-      },
-      {
-        id: 'perfetto.AddSpanNote',
-        name: 'Add a new span note based on the current selection',
-        callback: () => {
-          const range = trace.selection.findTimeRangeOfSelection();
-          if (range) {
-            trace.notes.addSpanNote({
-              start: range.start,
-              end: range.end,
-            });
-          }
-        },
-        defaultHotkey: 'Shift+M',
-      },
-      {
-        id: 'perfetto.RemoveSelectedNote',
-        name: 'Remove selected note',
-        callback: () => {
-          const selection = trace.selection.selection;
-          if (selection.kind === 'note') {
-            trace.notes.removeNote(selection.id);
-          }
-        },
-        defaultHotkey: 'Delete',
       },
       {
         id: 'perfetto.NextFlow',
@@ -366,7 +309,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       },
       {
         id: 'perfetto.ConvertSelectionToArea',
-        name: 'Convert the current selection to an area selection',
+        name: 'Convert selection to area selection',
         callback: () => {
           const selection = trace.selection.selection;
           const range = trace.selection.findTimeRangeOfSelection();
@@ -378,8 +321,7 @@ export class UiMainPerTrace implements m.ClassComponent {
             });
           }
         },
-        // TODO(stevegolton): Decide on a sensible hotkey.
-        // defaultHotkey: 'L',
+        defaultHotkey: 'R',
       },
       {
         id: 'perfetto.ToggleDrawer',
@@ -799,9 +741,10 @@ export class UiMainPerTrace implements m.ClassComponent {
           omnibox: this.renderOmnibox(),
           trace: this.trace,
         }),
-        app.pages.renderPageForCurrentRoute(app.trace),
+        app.pages.renderPageForCurrentRoute(),
         m(CookieConsent),
         maybeRenderFullscreenModalDialog(),
+        showStatusBarFlag.get() && renderStatusBar(app.trace),
         app.perfDebugging.renderPerfStats(),
       ),
     );

@@ -161,6 +161,27 @@ struct CompareBackendByType {
   }
 };
 
+BufferExhaustedPolicy ComputeBufferExhaustedPolicy(
+    const DataSourceConfig& cfg,
+    const DataSourceParams& params) {
+  if (!params.buffer_exhausted_policy_configurable) {
+    return params.default_buffer_exhausted_policy;
+  }
+
+  switch (cfg.buffer_exhausted_policy()) {
+    case DataSourceConfig::BUFFER_EXHAUSTED_UNSPECIFIED:
+      return params.default_buffer_exhausted_policy;
+    case DataSourceConfig::BUFFER_EXHAUSTED_DROP:
+      return BufferExhaustedPolicy::kDrop;
+    case DataSourceConfig::BUFFER_EXHAUSTED_STALL_THEN_ABORT:
+      return BufferExhaustedPolicy::kStall;
+    case DataSourceConfig::BUFFER_EXHAUSTED_STALL_THEN_DROP:
+      return BufferExhaustedPolicy::kStallThenDrop;
+  }
+
+  return params.default_buffer_exhausted_policy;
+}
+
 }  // namespace
 
 // ----- Begin of TracingMuxerImpl::ProducerImpl
@@ -1107,21 +1128,21 @@ bool TracingMuxerImpl::RegisterDataSource(
   hash.Update(base::GetWallTimeNs().count());
   static_state->id = hash.digest() ? hash.digest() : 1;
 
-  task_runner_->PostTask([this, descriptor, factory, static_state, params,
-                          no_flush] {
-    data_sources_.emplace_back();
-    RegisteredDataSource& rds = data_sources_.back();
-    rds.descriptor = descriptor;
-    rds.factory = factory;
-    rds.supports_multiple_instances =
-        supports_multiple_data_source_instances_ &&
-        params.supports_multiple_instances;
-    rds.requires_callbacks_under_lock = params.requires_callbacks_under_lock;
-    rds.static_state = static_state;
-    rds.no_flush = no_flush;
+  task_runner_->PostTask(
+      [this, descriptor, factory, static_state, params, no_flush] {
+        data_sources_.emplace_back();
+        RegisteredDataSource& rds = data_sources_.back();
+        rds.descriptor = descriptor;
+        rds.factory = factory;
+        rds.params = params;
+        if (!supports_multiple_data_source_instances_) {
+          rds.params.supports_multiple_instances = false;
+        }
+        rds.static_state = static_state;
+        rds.no_flush = no_flush;
 
-    UpdateDataSourceOnAllBackends(rds, /*is_changed=*/false);
-  });
+        UpdateDataSourceOnAllBackends(rds, /*is_changed=*/false);
+      });
   return true;
 }
 
@@ -1229,6 +1250,8 @@ static bool MaybeAdoptStartupTracingInDataSource(
         internal_state->data_source_instance_id = instance_id;
         internal_state->buffer_id =
             static_cast<internal::BufferId>(cfg.target_buffer());
+        internal_state->buffer_exhausted_policy =
+            ComputeBufferExhaustedPolicy(cfg, rds.params);
         internal_state->config.reset(new DataSourceConfig(cfg));
 
         // TODO(eseckler): Should the data source config provided by the service
@@ -1307,7 +1330,7 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
 
   // If any bit is set in `static_state.valid_instances` then at least one
   // other instance of data source is running.
-  if (!rds.supports_multiple_instances &&
+  if (!rds.params.supports_multiple_instances &&
       static_state.valid_instances.load(std::memory_order_acquire) != 0) {
     PERFETTO_ELOG(
         "Failed to setup data source because some another instance of this "
@@ -1350,6 +1373,8 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
     internal_state->data_source_instance_id = instance_id;
     internal_state->buffer_id =
         static_cast<internal::BufferId>(cfg.target_buffer());
+    internal_state->buffer_exhausted_policy =
+        ComputeBufferExhaustedPolicy(cfg, rds.params);
     internal_state->config.reset(new DataSourceConfig(cfg));
     internal_state->startup_session_id = startup_session_id;
     internal_state->data_source = rds.factory();
@@ -1386,12 +1411,12 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
     setup_args.backend_type = backend.type;
     setup_args.internal_instance_index = i;
 
-    if (!rds.requires_callbacks_under_lock)
+    if (!rds.params.requires_callbacks_under_lock)
       lock.unlock();
     internal_state->data_source->OnSetup(setup_args);
 
     return FindDataSourceRes(&static_state, internal_state, i,
-                             rds.requires_callbacks_under_lock);
+                             rds.params.requires_callbacks_under_lock);
   }
   PERFETTO_ELOG(
       "Maximum number of data source instances exhausted. "
@@ -2230,7 +2255,7 @@ void TracingMuxerImpl::OnProducerDisconnected(ProducerImpl* producer) {
                     std::memory_order_relaxed)) {
           StopDataSource_AsyncBeginImpl(
               FindDataSourceRes(static_state, internal_state, i,
-                                rds.requires_callbacks_under_lock));
+                                rds.params.requires_callbacks_under_lock));
         }
       }
     }
@@ -2280,7 +2305,7 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::FindDataSource(
                   std::memory_order_relaxed) &&
           internal_state->data_source_instance_id == instance_id) {
         return FindDataSourceRes(static_state, internal_state, i,
-                                 rds.requires_callbacks_under_lock);
+                                 rds.params.requires_callbacks_under_lock);
       }
     }
   }
@@ -2608,7 +2633,7 @@ void TracingMuxerImpl::AbortStartupTracingSession(
           session_it->num_aborting_data_sources++;
           StopDataSource_AsyncBeginImpl(
               FindDataSourceRes(static_state, internal_state, i,
-                                rds.requires_callbacks_under_lock));
+                                rds.params.requires_callbacks_under_lock));
         }
       }
     }

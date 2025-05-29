@@ -40,7 +40,7 @@ TracingService::RelayEndpoint* RelayIPCService::GetRelayEndpoint(
 
 void RelayIPCService::OnClientDisconnected() {
   auto client_id = ipc::Service::client_info().client_id();
-  PERFETTO_DLOG("Relay endpoint %" PRIu64 "disconnected ", client_id);
+  PERFETTO_DLOG("Relay endpoint %" PRIu64 " disconnected ", client_id);
 
   auto* endpoint = GetRelayEndpoint(client_id);
   if (!endpoint)
@@ -48,6 +48,26 @@ void RelayIPCService::OnClientDisconnected() {
 
   endpoint->Disconnect();
   relay_endpoints_.Erase(client_id);
+}
+
+void RelayIPCService::InitRelay(const protos::gen::InitRelayRequest& req,
+                                DeferredInitRelayResponse resp) {
+  // Send the response to client to reduce RTT.
+  auto async_resp = ipc::AsyncResult<protos::gen::InitRelayResponse>::Create();
+  resp.Resolve(std::move(async_resp));
+
+  // Handle the request in the core service.
+  auto machine_id = ipc::Service::client_info().machine_id();
+  auto client_id = ipc::Service::client_info().client_id();
+  auto* endpoint = GetRelayEndpoint(client_id);
+  if (!endpoint) {
+    auto ep = core_service_->ConnectRelayClient(
+        std::make_pair(machine_id, client_id));
+    endpoint = ep.get();
+    relay_endpoints_.Insert(client_id, std::move(ep));
+  }
+
+  endpoint->CacheSystemInfo(req.system_info().SerializeAsArray());
 }
 
 void RelayIPCService::SyncClock(const protos::gen::SyncClockRequest& req,

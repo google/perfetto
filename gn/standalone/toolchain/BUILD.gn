@@ -55,11 +55,10 @@ declare_args() {
   sysroot = ""
   gcc_toolchain = ""
   ar = "ar"
-  linker = ""
+  linker = ""  # If left to "" uses the default linker (Linux:bfd, Mac:ld64).
   strip = ""
 
   if (is_linux_host) {
-    linker = "gold"
     if (linux_llvm_objcopy != "") {
       # If we are using the hermetic clang toolchain llvm-objcopy from there as
       # it works with Linux-arm cross toolchains. The |_llvm_strip_wrapper| is
@@ -174,11 +173,7 @@ declare_args() {
 
 declare_args() {
   target_strip = ""
-  if (is_linux || is_android) {
-    target_linker = "gold"
-  } else {
-    target_linker = ""
-  }
+  target_linker = ""
 
   if (!is_cross_compiling || is_perfetto_build_generator ||
       is_system_compiler) {
@@ -428,14 +423,29 @@ gcc_like_toolchain("gcc_like_host") {
                                  ])
 }
 
-gcc_like_toolchain("wasm") {
-  # emsdk_dir and em_config are defined in wasm.gni.
-  cpu = host_cpu
-  os = host_os
-  ar = "$emsdk_dir/emscripten/emar --em-config $em_config"
-  cc = "$emsdk_dir/emscripten/emcc --em-config $em_config"
-  cxx = "$emsdk_dir/emscripten/em++ --em-config $em_config"
-  strip = ""
+# The 32 and 64 bit wasm toolchains are configured identically, but differ in
+# the fact that is_wasm_memory64=true (in gn_vars.gni, which looks at the
+# current_toolchain) conditions cflags and ldflags. We actually need different
+# toolchains because the same .cc files will be build twice for each wasm
+# bitness, and they need different output paths.
+template("wasm_toolchain") {
+  gcc_like_toolchain(target_name) {
+    forward_variables_from(invoker, "*")
+
+    # emsdk_dir and em_config are defined in wasm.gni.
+    cpu = host_cpu
+    os = host_os
+    ar = "$emsdk_dir/emscripten/emar --em-config $em_config"
+    cc = "$emsdk_dir/emscripten/emcc --em-config $em_config"
+    cxx = "$emsdk_dir/emscripten/em++ --em-config $em_config"
+    strip = ""
+  }
+}
+
+# Istantiates both wasm toolchains.
+wasm_toolchain("wasm") {
+}
+wasm_toolchain("wasm_memory64") {
 }
 
 # This is used both for MSVC anc clang-cl. clang-cl cmdline interface pretends

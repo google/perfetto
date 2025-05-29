@@ -62,6 +62,7 @@ namespace perfetto::trace_processor {
 
 AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context)
     : context_(context),
+      power_rails_args_tracker_(std::make_unique<ArgsTracker>(context)),
       battery_status_id_(context->storage->InternString("BatteryStatus")),
       plug_type_id_(context->storage->InternString("PlugType")),
       rail_packet_timestamp_id_(context->storage->InternString("packet_ts")),
@@ -165,9 +166,10 @@ void AndroidProbesParser::ParsePowerRails(int64_t ts,
     auto maybe_counter_id = context_->event_tracker->PushCounter(
         ts, static_cast<double>(desc.energy()), *opt_track);
     if (maybe_counter_id) {
-      context_->args_tracker->AddArgsTo(*maybe_counter_id)
+      power_rails_args_tracker_->AddArgsTo(*maybe_counter_id)
           .AddArg(rail_packet_timestamp_id_,
                   Variadic::UnsignedInteger(trace_packet_ts));
+      power_rails_args_tracker_->Flush();
     }
   } else {
     context_->storage->IncrementStats(stats::power_rail_unknown_index);

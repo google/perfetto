@@ -205,13 +205,6 @@ export interface TrackEventDetails {
   // undefined if this selection has no duration, i.e. profile / counter
   // samples.
   readonly dur?: duration;
-
-  // Optional additional information.
-  // TODO(stevegolton): Find an elegant way of moving this information out of
-  // the core.
-  readonly wakeupTs?: time;
-  readonly wakerCpu?: number;
-  readonly utid?: number;
 }
 
 export interface Area {

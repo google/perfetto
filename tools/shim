@@ -6,6 +6,7 @@
 # & code sharing.
 import os
 import sys
+
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NAME = os.path.basename(sys.argv[0]).replace('-', '_')
 NAME = NAME if NAME.endswith('.py') else NAME + '.py'

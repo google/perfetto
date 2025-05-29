@@ -21,8 +21,8 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "src/traceconv/trace.descriptor.h"
-#include "src/traceconv/winscope.descriptor.h"
 #include "src/traceconv/utils.h"
+#include "src/traceconv/winscope.descriptor.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"

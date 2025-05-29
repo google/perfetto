@@ -51,7 +51,7 @@ export class SearchOverviewTrack implements AsyncDisposable {
   }
 
   render(ctx: CanvasRenderingContext2D, size: Size2D) {
-    this.maybeUpdate(size);
+    this.maybeUpdate(size.width);
     this.renderSearchOverview(ctx, size);
   }
 
@@ -151,7 +151,7 @@ export class SearchOverviewTrack implements AsyncDisposable {
     return summary;
   }
 
-  private maybeUpdate(size: Size2D) {
+  private maybeUpdate(timelineWidth: number) {
     const searchManager = this.trace.search;
     const timeline = this.trace.timeline;
     if (!searchManager.hasResults) {
@@ -159,7 +159,11 @@ export class SearchOverviewTrack implements AsyncDisposable {
     }
     const newSpan = timeline.visibleWindow;
     const newSearchGeneration = searchManager.searchGeneration;
-    const newResolution = calculateResolution(newSpan, size.width);
+    const maybeNewResolution = calculateResolution(newSpan, timelineWidth);
+    if (!maybeNewResolution.ok) {
+      return;
+    }
+    const newResolution = maybeNewResolution.value;
     const newTimeSpan = newSpan.toTimeSpan();
     if (
       this.previousSpan?.containsSpan(newTimeSpan.start, newTimeSpan.end) &&

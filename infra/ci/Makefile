@@ -26,7 +26,6 @@ help:
 	@echo "build-worker:       Builds the worker container"
 	@echo "build-sandbox:      Builds the sandbox container"
 	@echo "push:               Pushes the containers to the registry"
-	@echo "deploy-controller:  Deploys and restarts the controller"
 	@echo "deploy-frontend:    Deploys and restarts the controller"
 	@echo "stop-workers:       Stops the whole workers GCE instance group"
 	@echo "start-workers:      Starts the whole workers GCE instance group"
@@ -88,10 +87,6 @@ clean:
 		--local-ssd=interface=NVME \
 		--local-ssd=interface=NVME
 	touch $@
-
-.PHONY: deploy-controller
-deploy-controller:
-	make -C controller deploy
 
 .PHONY: deploy-frontend
 deploy-frontend:

@@ -16,15 +16,32 @@
 
 syntax = "proto2";
 
+import "protos/perfetto/common/system_info.proto";
+
 package perfetto.protos;
 
 // IPC interface definition for serving the requests from the relay service.
 service RelayPort {
+  // Sends SystemInfo packet to the host tracing service. This is used in
+  // multi-machine tracing to provide remote machines' sys information in
+  // the final trace.
+  rpc InitRelay(InitRelayRequest) returns (InitRelayResponse) {}
+
   // Synchronize the clocks with a guest. This is used for multi-machine tracing
   // with a VM guest or a remote machine. The client may make consecutive calls
   // of this method to get better results.
   rpc SyncClock(SyncClockRequest) returns (SyncClockResponse) {}
 }
+
+// Arguments for rpc SyncClock
+
+message InitRelayRequest {
+  optional SystemInfo system_info = 1;
+}
+
+message InitRelayResponse {}
+
+// Arguments for rpc SyncClock
 
 // For the client to send its clock readings to the host.
 message SyncClockRequest {

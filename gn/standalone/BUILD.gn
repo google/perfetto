@@ -329,6 +329,13 @@ config("default") {
     cflags += [ "-msimd128" ]
   }
 
+  if (is_wasm_memory64) {
+    cflags += [
+      "-s",
+      "MEMORY64=1",
+    ]
+  }
+
   if (is_linux) {
     # Enable LFS (large file support) for stat() and other syscalls.
     cflags += [
@@ -454,7 +461,7 @@ config("release") {
       "-Wl,--gc-sections",
       "-Wl,-O1",
     ]
-  } else if (!is_win && !is_wasm) {
+  } else if (!is_wasm && (is_android || (is_linux && is_hermetic_clang))) {
     ldflags = [
       "-Wl,--gc-sections",
       "-Wl,--icf=all",
@@ -508,9 +515,12 @@ config("android_liblog") {
 
 # Checks that tools/install-build-deps has been run since it last changed.
 perfetto_check_build_deps("check_build_deps") {
-  args = []
+  args = [ "--no-dev-tools" ]
 }
 
 perfetto_check_build_deps("check_build_deps_android") {
-  args = [ "--android" ]
+  args = [
+    "--no-dev-tools",
+    "--android",
+  ]
 }

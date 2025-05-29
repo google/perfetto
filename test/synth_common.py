@@ -199,7 +199,23 @@ class Trace(object):
     self.add_print(ts, tid, 'I|{}|{}'.format(pid, buf))
 
   def add_atrace_instant_for_track(self, ts, tid, pid, track_name, buf):
-        self.add_print(ts, tid, 'N|{}|{}|{}'.format(pid, track_name, buf))
+    self.add_print(ts, tid, 'N|{}|{}|{}'.format(pid, track_name, buf))
+
+  def add_atrace_for_thread(self, ts, ts_end, buf, tid, pid):
+    self.add_atrace_begin(ts=ts, tid=tid, pid=pid, buf=buf)
+    self.add_atrace_end(ts=ts_end, tid=tid, pid=pid)
+
+  def add_async_atrace_for_thread(self, ts, ts_end, buf, tid, pid):
+    self.add_atrace_async_begin(ts=ts, tid=tid, pid=pid, buf=buf)
+    self.add_atrace_async_end(ts=ts_end, tid=tid, pid=pid, buf=buf)
+
+  def add_frame(self, vsync, ts_do_frame, ts_end_do_frame, tid, pid):
+    self.add_atrace_for_thread(
+        ts=ts_do_frame,
+        ts_end=ts_end_do_frame,
+        buf="Choreographer#doFrame %d" % vsync,
+        tid=tid,
+        pid=pid)
 
   def add_process(self, pid, ppid, cmdline, uid=None):
     process = self.packet.process_tree.processes.add()

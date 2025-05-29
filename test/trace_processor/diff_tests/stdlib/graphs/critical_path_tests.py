@@ -18,6 +18,7 @@ from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
+
 class CriticalPathTests(TestSuite):
 
   def test_critical_path_empty(self):

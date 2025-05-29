@@ -1,10 +1,17 @@
 #ifndef SRC_TRACE_PROCESSOR_DATAFRAME_SPECS_H_
 #define SRC_TRACE_PROCESSOR_DATAFRAME_SPECS_H_
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <tuple>
+#include <type_traits>
+#include <variant>
+#include <vector>
 
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/type_set.h"
 
 namespace perfetto::trace_processor::dataframe {
@@ -114,12 +121,26 @@ struct NonNull {};
 // containing data for non-NULL values.
 struct SparseNull {};
 
+// Represents a column that contains NULL values with the storage only
+// containing data for non-NULL values while still needing to access the
+// non-null values in O(1) time at any time.
+struct SparseNullSupportingCellGetAlways {};
+
+// Represents a column that contains NULL values with the storage only
+// containing data for non-NULL values while still needing to access the
+// non-null values in O(1) time only until the dataframe is finalized.
+struct SparseNullSupportingCellGetUntilFinalization {};
+
 // Represents a column that contains NULL values with the storage containing
 // data for all values (with undefined values at positions that would be NULL).
 struct DenseNull {};
 
 // TypeSet of all possible column nullability states.
-using Nullability = TypeSet<NonNull, SparseNull, DenseNull>;
+using Nullability = TypeSet<NonNull,
+                            SparseNull,
+                            SparseNullSupportingCellGetAlways,
+                            SparseNullSupportingCellGetUntilFinalization,
+                            DenseNull>;
 
 // -----------------------------------------------------------------------------
 // Filter Specifications
@@ -129,7 +150,7 @@ using Nullability = TypeSet<NonNull, SparseNull, DenseNull>;
 // This is used to generate query plans for filtering rows.
 struct FilterSpec {
   // Index of the column in the dataframe to filter.
-  uint32_t column_index;
+  uint32_t col;
 
   // Original index from the client query (used for tracking).
   uint32_t source_index;
@@ -141,6 +162,114 @@ struct FilterSpec {
   // This is populated during query planning.
   std::optional<uint32_t> value_index;
 };
+
+// -----------------------------------------------------------------------------
+// Distinct Specifications
+// -----------------------------------------------------------------------------
+
+// Specifies a distinct operation to be applied to the dataframe rows.
+struct DistinctSpec {
+  // Index of the column in the dataframe to perform a distinct on.
+  uint32_t col;
+};
+
+// -----------------------------------------------------------------------------
+// Sort Specifications
+// -----------------------------------------------------------------------------
+
+// Defines the direction for sorting.
+enum class SortDirection : uint32_t {
+  kAscending,
+  kDescending,
+};
+
+// Specifies a sort operation to be applied to the dataframe rows.
+struct SortSpec {
+  // Index of the column in the dataframe to sort by.
+  uint32_t col;
+
+  // Direction of the sort (ascending or descending).
+  SortDirection direction;
+};
+
+// -----------------------------------------------------------------------------
+// Limit Specification
+// -----------------------------------------------------------------------------
+
+// Specifies limit and offset parameters for a query.
+struct LimitSpec {
+  std::optional<uint32_t> limit;
+  std::optional<uint32_t> offset;
+};
+
+// -----------------------------------------------------------------------------
+// Dataframe and Column Specifications
+// -----------------------------------------------------------------------------
+
+// Defines the properties of a column in the dataframe.
+struct ColumnSpec {
+  StorageType type;
+  Nullability nullability;
+  SortState sort_state;
+};
+
+// Defines the properties of the dataframe.
+struct DataframeSpec {
+  std::vector<std::string> column_names;
+  std::vector<ColumnSpec> column_specs;
+};
+
+// Same as ColumnSpec but for cases where the spec is known at compile time.
+template <typename T, typename N, typename S>
+struct TypedColumnSpec {
+ public:
+  using type = T;
+  using null_storage_type = N;
+  using sort_state = S;
+  ColumnSpec spec;
+
+  // Inferred properties from the above.
+  using mutate_variant = std::variant<std::monostate,
+                                      uint32_t,
+                                      int32_t,
+                                      int64_t,
+                                      double,
+                                      StringPool::Id>;
+  using non_null_mutate_type =
+      StorageType::VariantTypeAtIndex<T, mutate_variant>;
+  using mutate_type = std::conditional_t<std::is_same_v<N, NonNull>,
+                                         non_null_mutate_type,
+                                         std::optional<non_null_mutate_type>>;
+};
+
+// Same as Spec but for cases where the spec is known at compile time.
+template <typename... C>
+struct TypedDataframeSpec {
+  static constexpr uint32_t kColumnCount = sizeof...(C);
+  using columns = std::tuple<C...>;
+  using mutate_types = std::tuple<typename C::mutate_type...>;
+
+  template <size_t I>
+  using column_spec = typename std::tuple_element_t<I, columns>;
+
+  static_assert(kColumnCount > 0,
+                "TypedSpec must have at least one column type");
+
+  std::array<const char*, kColumnCount> column_names;
+  std::array<ColumnSpec, kColumnCount> column_specs;
+};
+
+template <typename... C>
+static constexpr TypedDataframeSpec<C...> CreateTypedDataframeSpec(
+    std::array<const char*, sizeof...(C)> _column_names,
+    C... _columns) {
+  return TypedDataframeSpec<C...>{_column_names, {_columns.spec...}};
+}
+
+template <typename T, typename N, typename S>
+static constexpr TypedColumnSpec<T, N, S> CreateTypedColumnSpec(T, N, S) {
+  return TypedColumnSpec<T, N, S>{ColumnSpec{T{}, N{}, S{}}};
+}
 
 }  // namespace perfetto::trace_processor::dataframe
 

@@ -17,10 +17,16 @@ import sys
 
 from code_format_utils import run_code_formatters
 from code_format_clang import ClangFormat
+from code_format_gn import GnFormat
+from code_format_python import Yapf
+from code_format_sql import SqlGlot
 from code_format_ui import UI_CODE_FORMATTERS
 
 if __name__ == '__main__':
   formatters = [
       ClangFormat(),
+      GnFormat(),
+      Yapf(),
+      SqlGlot(),
   ] + UI_CODE_FORMATTERS
   sys.exit(run_code_formatters(formatters))

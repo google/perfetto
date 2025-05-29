@@ -114,5 +114,6 @@ def Main():
   print('Running clang-format (might fail if depot_tools isn\'t in the PATH)')
   os.system('clang-format -i ' + dst_file)
 
+
 if __name__ == '__main__':
   sys.exit(Main())

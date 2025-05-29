@@ -62,6 +62,7 @@ CLEANUP_OLD_DIRS = [
     'buildtools/emsdk',  # Moved to buildtools/{mac,linux64}/emsdk
     'buildtools/test_data',  # Moved to test/data by r.android.com/1539381 .
     'buildtools/d8',  # Removed by r.android.com/1424334 .
+    'buildtools/sqlglot',
 
     # Build tools moved to third_party/ by r.android.com/2327602 .
     'buildtools/mac/clang-format',
@@ -110,34 +111,34 @@ BUILD_DEPS_TOOLCHAIN_HOST = [
     # https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/mac/clang-format.arm64.sha1
     Dependency(
         'third_party/clang-format/clang-format',
-        'https://storage.googleapis.com/chromium-clang-format/5553d7a3d912b7d49381ad68c9a56740601a57a0',
-        'e077990b2ea6807f6abc71b4cf1e487719d7e40574baddd2b51187fdcc8db803',
+        'https://storage.googleapis.com/chromium-clang-format/8503422f469ae56cc74f0ea2c03f2d872f4a2303',
+        'dabf93691361e8bd1d07466d67584072ece5c24e2b812c16458b8ff801c33e29',
         'darwin', 'arm64'),
     # From
     # https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/mac/clang-format.x64.sha1
     Dependency(
         'third_party/clang-format/clang-format',
-        'https://storage.googleapis.com/chromium-clang-format/87d69aeff220c916b85b5d6d162fa5668aa9d64f',
-        '71179a8788a009cfd589636d50f0eb9f95f58b0cfda4351430bed7c0a48c080b',
+        'https://storage.googleapis.com/chromium-clang-format/7d46d237f9664f41ef46b10c1392dcb559250f25',
+        '0c3c13febeb0495ef0086509c24605ecae9e3d968ff9669d12514b8a55c7824e',
         'darwin', 'x64'),
     # From https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/linux64/clang-format.sha1
     Dependency(
         'third_party/clang-format/clang-format',
-        'https://storage.googleapis.com/chromium-clang-format/1facab3101fc6da6b9467543f27f0622b966bc19',
-        '5e459118d8ac825452e9e1f2717e4de5a36399dc6cc6aec7ec483ad27a0c927e',
+        'https://storage.googleapis.com/chromium-clang-format/79a7b4e5336339c17b828de10d80611ff0f85961',
+        '889266a51681d55bd4b9e02c9a104fa6ee22ecdfa7e8253532e5ea47e2e4cb4a',
         'linux', 'x64'),
     # From https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/win/clang-format.exe.sha1
     Dependency(
         'third_party/clang-format/clang-format.exe',
-        'https://storage.googleapis.com/chromium-clang-format/2e569921b9884daf157021d6ae9e21991cd6cf81',
-        '2227376ada89ea832995b832222b722a27c4d5d8d59e9c4d7842877f99a1e30d',
+        'https://storage.googleapis.com/chromium-clang-format/565cab9c66d61360c27c7d4df5defe1a78ab56d3',
+        '5557943a174e3b67cdc389c10b0ceea2195f318c5c665dd77a427ed01a094557',
         'windows', 'x64'),
 
     # Keep the SHA1 in sync with |clang_format_rev| in chromium //buildtools/DEPS.
     Dependency(
         'buildtools/clang_format/script',
         'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/clang/tools/clang-format.git',
-        'f97059df7f8b205064625cdb5f97b56668a125ef', 'all', 'all'),
+        '37f6e68a107df43b7d7e044fd36a13cbae3413f2', 'all', 'all'),
 
     # Ninja
     Dependency(
@@ -308,9 +309,10 @@ BUILD_DEPS_HOST = [
     # Zlib used both in the tracing binaries, as well as the trace processor and
     # assorted tools.
     # If updating the version, also update bazel/deps.bzl.
-    Dependency('buildtools/zlib',
-               'https://android.googlesource.com/platform/external/zlib.git',
-               '6d3f6aa0f87c9791ca7724c279ef61384f331dfd', 'all', 'all'),
+    Dependency(
+        'buildtools/zlib',
+        'https://chromium.googlesource.com/chromium/src/third_party/zlib.git',
+        '6f9b4e61924021237d474569027cfb8ac7933ee6', 'all', 'all'),
 
     # Linenoise, used only by trace_processor in standalone builds.
     # If updating the version, also update bazel/deps.bzl.
@@ -328,10 +330,6 @@ BUILD_DEPS_HOST = [
         'buildtools/open_csd',
         'https://android.googlesource.com/platform/external/OpenCSD.git',
         '0ce01e934f95efb6a216a6efa35af1245151c779', 'all', 'all'),
-
-    # sqlglot for SQL formatting.
-    Dependency('buildtools/sqlglot', 'https://github.com/tobymao/sqlglot.git',
-               'dd1cdb0b91ac597a9cb1f1f517a616c264f5b654', 'all', 'all'),
 ]
 
 # Dependencies required to build code on the host using Bazel build system.
@@ -446,13 +444,13 @@ UI_DEPS = [
         'linux', 'x64'),
     Dependency(
         'buildtools/mac/emsdk.tgz',
-        'https://storage.googleapis.com/perfetto/emscripten-2.0.12-mac.tgz',
-        'aa125f8c8ff8a386d43e18c8ea0c98c875cc19160a899403e8967a5478f96f31',
+        'https://storage.googleapis.com/perfetto/emscripten-4.0.8-mac.tgz',
+        '2682c43580ae2265b4c7f3c7963629f7f501eb24a8ffa01be0059f9f5b3b8cd0',
         'darwin', 'all'),
     Dependency(
         'buildtools/linux64/emsdk.tgz',
-        'https://storage.googleapis.com/perfetto/emscripten-2.0.12-linux.tgz',
-        'bfff9fb0326363c12e19b542f27a5f12cedbfc310f30621dc497c9af51d2d2e3',
+        'https://storage.googleapis.com/perfetto/emscripten-4.0.8-linux.tgz',
+        '2fd3e39b5e233bad39799c31029b6d6d5295135cb00c1bb2fd9a4b2c4b7c264b',
         'linux', 'x64'),
     Dependency(
         'buildtools/catapult_trace_viewer.tgz',
@@ -518,6 +516,12 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UI_DIR = os.path.join(ROOT_DIR, 'ui')
 TOOLS_DIR = os.path.join(ROOT_DIR, 'tools')
 NODE_MODULES_STATUS_FILE = os.path.join(UI_DIR, 'node_modules', '.last_install')
+PYTHON_VENV_DIR = os.path.join(ROOT_DIR, '.venv')
+PYTHON_VENV_BIN_DIR = os.path.join(
+    PYTHON_VENV_DIR, 'bin') if sys.platform != 'win32' else os.path.join(
+        PYTHON_VENV_DIR, 'Scripts')
+PYTHON_STATUS_FILE = os.path.join(PYTHON_VENV_DIR, '.last_install')
+PYTHON_REQUIREMENTS = os.path.join(ROOT_DIR, 'python', 'requirements.txt')
 TEST_DATA_SCRIPT = os.path.join(TOOLS_DIR, 'test_data')
 
 
@@ -686,6 +690,31 @@ def CheckNodeModules():
   return expected == actual
 
 
+def CheckPythonVenv():
+  """Returns True if the python venv is up-to-date."""
+  if not os.path.exists(PYTHON_STATUS_FILE):
+    return False
+  with open(PYTHON_STATUS_FILE, 'r') as f:
+    actual = f.read()
+  expected = HashLocalFile(PYTHON_REQUIREMENTS)
+  return expected == actual
+
+
+def InstallPythonVenv():
+  venv_pip = os.path.join(PYTHON_VENV_BIN_DIR, 'pip3')
+  cur_python_interpreter = sys.executable
+  if not os.path.exists(venv_pip):
+    cmd = [cur_python_interpreter, '-m', 'venv', PYTHON_VENV_DIR]
+    logging.info(f'Installing python venv {" ".join(cmd)}')
+    subprocess.check_call(cmd)
+
+  cmd = [venv_pip, 'install', '-r', PYTHON_REQUIREMENTS]
+  logging.info(f'Updating pythong packages {" ".join(cmd)}')
+  subprocess.check_call(cmd)
+  with open(PYTHON_STATUS_FILE, 'w') as f:
+    f.write(HashLocalFile(PYTHON_REQUIREMENTS))
+
+
 def CheckHashes():
   for dep in ALL_DEPS:
     if dep.source_url.endswith('.git'):
@@ -742,6 +771,10 @@ def Main():
   parser.add_argument('--verify', help='Check all URLs', action='store_true')
   parser.add_argument(
       '--no-toolchain', help='Do not download toolchain', action='store_true')
+  parser.add_argument(
+      '--no-dev-tools',
+      help='Some tools are required exclusively when changing the source code (they are not required when just building it, e.g. in CI). Do not install those tools',
+      action='store_true')
   parser.add_argument(
       '--build-os',
       default=system().lower(),
@@ -878,14 +911,24 @@ def Main():
     else:
       InstallNodeModules(force_clean=nodejs_updated)
 
+  if not args.no_dev_tools:
+    # Check the python venv
+    venv_needs_update = not CheckPythonVenv()
+    if args.check_only:
+      deps_updated |= venv_needs_update
+    elif venv_needs_update:
+      InstallPythonVenv()
+
   # Install the pre-push hook if the .git/hooks directory exists and it's a
-  # non check-only invocation.
-  git_hook_dir = os.path.join(ROOT_DIR, '.git', 'hooks')
-  if not args.check_only and os.path.exists(git_hook_dir):
-    git_hook_path = os.path.join(git_hook_dir, 'pre-push')
-    if not os.path.exists(git_hook_path):
-      tools_hook_path = os.path.join(ROOT_DIR, 'tools', 'run_presubmit')
-      os.symlink(tools_hook_path, git_hook_path)
+  # non check-only invocation. Not on windows (symlinks are not supported
+  # there).
+  if sys.platform != 'win32':
+    git_hook_dir = os.path.join(ROOT_DIR, '.git', 'hooks')
+    if not args.check_only and os.path.exists(git_hook_dir):
+      git_hook_path = os.path.join(git_hook_dir, 'pre-push')
+      if not os.path.exists(git_hook_path):
+        tools_hook_path = os.path.join(ROOT_DIR, 'tools', 'run_presubmit')
+        os.symlink(tools_hook_path, git_hook_path)
 
   cur_python_interpreter = sys.executable
   test_data_synced = 0 == subprocess.call([

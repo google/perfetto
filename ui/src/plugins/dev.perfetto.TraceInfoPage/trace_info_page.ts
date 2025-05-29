@@ -16,8 +16,7 @@ import m from 'mithril';
 import {Engine, EngineAttrs} from '../../trace_processor/engine';
 import {QueryResult, UNKNOWN} from '../../trace_processor/query_result';
 import {assertExists} from '../../base/logging';
-import {TraceAttrs} from '../../public/trace';
-import {PageWithTraceAttrs} from '../../public/page';
+import {Trace, TraceAttrs} from '../../public/trace';
 
 /**
  * Extracts and copies fields from a source object based on the keys present in
@@ -420,14 +419,18 @@ class PackageListSection implements m.ClassComponent<EngineAttrs> {
   }
 }
 
-export class TraceInfoPage implements m.ClassComponent<PageWithTraceAttrs> {
+export interface TraceInfoPageAttrs {
+  readonly trace: Trace;
+}
+
+export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
   private engine?: Engine;
 
-  oninit({attrs}: m.CVnode<PageWithTraceAttrs>) {
+  oninit({attrs}: m.CVnode<TraceInfoPageAttrs>) {
     this.engine = attrs.trace.engine.getProxy('TraceInfoPage');
   }
 
-  view({attrs}: m.CVnode<PageWithTraceAttrs>) {
+  view({attrs}: m.CVnode<TraceInfoPageAttrs>) {
     const engine = assertExists(this.engine);
     return m(
       '.trace-info-page',

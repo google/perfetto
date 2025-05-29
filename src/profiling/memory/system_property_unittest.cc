@@ -52,7 +52,9 @@ TEST(SystemPropertyTest, RefcountAll) {
       .WillOnce(Return(true));
   {
     auto handle = prop.SetAll();
-    { auto handle2 = prop.SetAll(); }
+    {
+      auto handle2 = prop.SetAll();
+    }
   }
 }
 
@@ -63,7 +65,9 @@ TEST(SystemPropertyTest, CleanupAll) {
       .WillOnce(Return(true));
   EXPECT_CALL(prop, SetAndroidProperty("heapprofd.enable", ""))
       .WillOnce(Return(true));
-  { auto handle = prop.SetAll(); }
+  {
+    auto handle = prop.SetAll();
+  }
 }
 
 TEST(SystemPropertyTest, Specific) {
@@ -93,7 +97,9 @@ TEST(SystemPropertyTest, RefcountSpecific) {
       .WillOnce(Return(true));
   {
     auto handle = prop.SetProperty("system_server");
-    { auto handle2 = prop.SetProperty("system_server"); }
+    {
+      auto handle2 = prop.SetProperty("system_server");
+    }
   }
 }
 
@@ -108,7 +114,9 @@ TEST(SystemPropertyTest, CleanupSpecific) {
       .WillOnce(Return(true));
   EXPECT_CALL(prop, SetAndroidProperty("heapprofd.enable", ""))
       .WillOnce(Return(true));
-  { auto handle2 = prop.SetProperty("system_server"); }
+  {
+    auto handle2 = prop.SetProperty("system_server");
+  }
 }
 
 TEST(SystemPropertyTest, AllAndSpecific) {
@@ -126,7 +134,9 @@ TEST(SystemPropertyTest, AllAndSpecific) {
       .WillOnce(Return(true));
   auto handle = prop.SetAll();
   auto handle2 = prop.SetProperty("system_server");
-  { SystemProperties::Handle destroy = std::move(handle); }
+  {
+    SystemProperties::Handle destroy = std::move(handle);
+  }
 }
 
 TEST(SystemPropertyTest, AllFailed) {

@@ -612,7 +612,7 @@ base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
         "Package '%s' is already registered. Choose a different name.\n"
         "If you want to replace the existing package using trace processor "
         "shell, you need to pass the --dev flag and use "
-        "--override-sql-module "
+        "--override-sql-package "
         "to pass the module path.",
         name.c_str());
   }
@@ -939,7 +939,8 @@ std::vector<uint8_t> TraceProcessorImpl::GetMetricDescriptors() {
 
 void TraceProcessorImpl::InitPerfettoSqlEngine() {
   engine_ = std::make_unique<PerfettoSqlEngine>(
-      context_.storage->mutable_string_pool(), config_.enable_extra_checks);
+      context_.storage->mutable_string_pool(), &dataframe_shared_storage_,
+      config_.enable_extra_checks);
   sqlite3* db = engine_->sqlite_engine()->db();
   sqlite3_str_split_init(db);
 
@@ -1188,6 +1189,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->mutable_surfaceflinger_layers_snapshot_table());
   RegisterStaticTable(storage->mutable_surfaceflinger_layer_table());
   RegisterStaticTable(storage->mutable_surfaceflinger_transactions_table());
+  RegisterStaticTable(storage->mutable_surfaceflinger_transaction_table());
+  RegisterStaticTable(storage->mutable_surfaceflinger_transaction_flag_table());
 
   RegisterStaticTable(storage->mutable_viewcapture_table());
   RegisterStaticTable(storage->mutable_viewcapture_view_table());

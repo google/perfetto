@@ -1209,6 +1209,23 @@ TEST_F(SharedLibProducerTest, ActivateTriggers) {
                           StringField("trigger1"))))))))));
 }
 
+TEST(SharedLibNonInitializedTest, DataSourceTrace) {
+  EXPECT_FALSE(PERFETTO_ATOMIC_LOAD(data_source_1.enabled));
+
+  bool executed = false;
+
+  PERFETTO_DS_TRACE(data_source_1, ctx) {
+    executed = true;
+  }
+
+  EXPECT_FALSE(executed);
+}
+
+TEST(SharedLibNonInitializedTest, TeMacro) {
+  EXPECT_FALSE(std::atomic_load(cat1.enabled));
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
+}
+
 class SharedLibTrackEventTest : public testing::Test {
  protected:
   void SetUp() override {
@@ -1865,7 +1882,9 @@ TEST_F(SharedLibTrackEventTest, ScopedDisabled) {
                                        .Build();
   // Check that the PERFETTO_TE_SCOPED macro does not have any effect if the
   // category is disabled.
-  { PERFETTO_TE_SCOPED(cat1, PERFETTO_TE_SLICE("slice")); }
+  {
+    PERFETTO_TE_SCOPED(cat1, PERFETTO_TE_SLICE("slice"));
+  }
 
   tracing_session.StopBlocking();
   std::vector<uint8_t> data = tracing_session.ReadBlocking();
@@ -2012,7 +2031,9 @@ TEST_F(SharedLibTrackEventTest, ScopedFunc) {
                                        .Build();
 
   // Check that using __func__ works as expected.
-  { PERFETTO_TE_SCOPED(cat1, PERFETTO_TE_SLICE(__func__)); }
+  {
+    PERFETTO_TE_SCOPED(cat1, PERFETTO_TE_SLICE(__func__));
+  }
 
   tracing_session.StopBlocking();
   std::vector<uint8_t> data = tracing_session.ReadBlocking();

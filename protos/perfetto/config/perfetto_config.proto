@@ -811,8 +811,8 @@ message SurfaceFlingerLayersConfig {
     MODE_DUMP = 3;
 
     // Default mode (applied by SurfaceFlinger if no mode is specified).
-    // Same as MODE_GENERATED, but triggers the layers snapshots generation only when a bugreport
-    // is taken.
+    // Same as MODE_GENERATED, but triggers the layers snapshots generation only
+    // when a bugreport is taken.
     MODE_GENERATED_BUGREPORT_ONLY = 4;
   }
   optional Mode mode = 1;
@@ -922,6 +922,9 @@ message ChromeConfig {
   // If |json_agent_label_filter| is not empty, only data pertaining to
   // the specified tracing agent label (e.g. "traceEvents") will be returned.
   optional string json_agent_label_filter = 5;
+
+  //  When enabled, event names should not contain package names.
+  optional bool event_package_name_filter_enabled = 6;
 }
 
 // End of protos/perfetto/config/chrome/chrome_config.proto
@@ -993,9 +996,18 @@ message EtwConfig {
 }
 // End of protos/perfetto/config/etw/etw_config.proto
 
+// Begin of protos/perfetto/config/ftrace/frozen_ftrace_config.proto
+
+message FrozenFtraceConfig {
+  // The instance name which stores the previous boot ftrace data. Required.
+  optional string instance_name = 1;
+}
+
+// End of protos/perfetto/config/ftrace/frozen_ftrace_config.proto
+
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 31
+// Next id: 34
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
@@ -1131,6 +1143,12 @@ message FtraceConfig {
   // For more context: go/rss-stat-throttled.
   optional bool throttle_rss_stat = 15;
 
+  // If true, use self-describing proto messages when writing events not known
+  // at compile time (aka generic events). Each event bundle will have a set of
+  // serialised proto descriptors for events within that bundle.
+  // Added in: perfetto v50.
+  optional bool denser_generic_event_encoding = 32;
+
   // If true, avoid enabling events that aren't statically known by
   // traced_probes. Otherwise, the default is to emit such events as
   // GenericFtraceEvent protos.
@@ -1237,6 +1255,17 @@ message FtraceConfig {
 
   // Previously drain_buffer_percent, perfetto v43-v47.
   reserved 26;
+
+  // If |enable_function_graph| is true, only trace the specified
+  // number of calls down the stack. Sets the max_graph_depth value
+  // in sys/kernel/tracing/
+  //
+  // Only respected for the first tracing session that enables
+  // function_graph tracing.
+  //
+  // Introduced in: perfetto v51.
+  // Supported on: Android 25Q3+.
+  optional uint32 function_graph_max_depth = 33;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto
@@ -3617,7 +3646,7 @@ message SysStatsConfig {
 
 // End of protos/perfetto/config/sys_stats/sys_stats_config.proto
 
-// Begin of protos/perfetto/config/system_info/system_info.proto
+// Begin of protos/perfetto/config/system_info/system_info_config.proto
 
 // This data-source does a one-off recording of system information when
 // the trace starts.
@@ -3627,7 +3656,7 @@ message SysStatsConfig {
 // datasource has no configuration options at present.
 message SystemInfoConfig {}
 
-// End of protos/perfetto/config/system_info/system_info.proto
+// End of protos/perfetto/config/system_info/system_info_config.proto
 
 // Begin of protos/perfetto/config/test_config.proto
 
@@ -3767,7 +3796,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 136
+// Next id: 137
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -3819,7 +3848,28 @@ message DataSourceConfig {
   // DO NOT SET in consumer as this will be overridden by the service.
   optional uint64 tracing_session_id = 4;
 
-  // Keeep the lower IDs (up to 99) for fields that are *not* specific to
+  enum BufferExhaustedPolicy {
+    // The data source will use its default buffer exhausted policy, specified
+    // by the code when the data source is registered.
+    BUFFER_EXHAUSTED_UNSPECIFIED = 0;
+    // The data source will drop packets when there's no space in the shared
+    // memory buffer.
+    BUFFER_EXHAUSTED_DROP = 1;
+    // The data source will wait when there's no space in the shared memory
+    // buffer. If there's still not space, after a few seconds, the whole
+    // producer process will be aborted.
+    BUFFER_EXHAUSTED_STALL_THEN_ABORT = 2;
+    // The data source will wait when there's no space in the shared memory
+    // buffer.  If there's still not space, after a few seconds, the data source
+    // will drop packets.
+    BUFFER_EXHAUSTED_STALL_THEN_DROP = 3;
+  };
+  // How to behave when the producer runs out of space in the shared memory
+  // buffer. This is only honored by some data sources (in the SDK, the data
+  // sources registered with a configurable buffer exhausted policy).
+  optional BufferExhaustedPolicy buffer_exhausted_policy = 9;
+
+  // Keep the lower IDs (up to 99) for fields that are *not* specific to
   // data-sources and needs to be processed by the traced daemon.
 
   // All data source config fields must be marked as [lazy=true]. This prevents
@@ -3868,6 +3918,8 @@ message DataSourceConfig {
   optional StatsdTracingConfig statsd_tracing_config = 117 [lazy = true];
   // Data source name: linux.system_info
   optional SystemInfoConfig system_info_config = 119;
+  // Data source name: linux.frozen_ftrace
+  optional FrozenFtraceConfig frozen_ftrace_config = 136 [lazy = true];
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
   // avoid proto serialization and de-serialization there because that would
@@ -3923,7 +3975,8 @@ message DataSourceConfig {
   optional WindowManagerConfig windowmanager_config = 130 [lazy = true];
 
   // Data source name: org.chromium.system_metrics
-  optional ChromiumSystemMetricsConfig chromium_system_metrics = 131 [lazy = true];
+  optional ChromiumSystemMetricsConfig chromium_system_metrics = 131
+      [lazy = true];
 
   // Data source name: android.kernel_wakelocks
   optional KernelWakelocksConfig kernel_wakelocks_config = 132 [lazy = true];

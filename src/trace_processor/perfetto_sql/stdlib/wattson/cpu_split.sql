@@ -27,6 +27,8 @@ INCLUDE PERFETTO MODULE wattson.curves.utils;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
+INCLUDE PERFETTO MODULE wattson.utils;
+
 -- Helper macro to do pivot function without policy information
 CREATE PERFETTO MACRO _stats_wo_policy_subquery(
     cpu Expr,

@@ -48,4 +48,6 @@ message KernelWakelockData {
   // the wakelock has been held.
   // If not, it's a delta from the last time we saw it.
   repeated uint64 time_held_millis = 3 [packed = true];
+
+  optional uint64 error_flags = 4;
 }

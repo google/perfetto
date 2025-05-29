@@ -93,7 +93,7 @@ message AndroidBootMetric {
     optional double avg_duration = 2;
     optional int64 max_duration = 3;
     optional int64 sum_duration = 4;
-}
+  }
   optional ProcessStartAggregation full_trace_process_start_aggregation = 6;
   optional ProcessStartAggregation post_boot_process_start_aggregation = 7;
   optional GarbageCollectionAggregation full_trace_gc_aggregation = 8;
@@ -109,9 +109,11 @@ message AndroidBootMetric {
   repeated OomAdjBucketDurationAggregation
       post_boot_oom_adj_bucket_duration_agg_by_process = 14;
   repeated OomAdjDurationAggregation post_boot_oom_adj_duration_agg = 15;
-  repeated BroadcastCountAggregation post_boot_broadcast_process_count_by_intent = 16;
+  repeated BroadcastCountAggregation
+      post_boot_broadcast_process_count_by_intent = 16;
   repeated BroadcastCountAggregation post_boot_broadcast_count_by_process = 17;
-  repeated BroadcastDurationAggregation post_boot_brodcast_duration_agg_by_intent = 18;
-  repeated BroadcastDurationAggregation post_boot_brodcast_duration_agg_by_process = 19;
-
+  repeated BroadcastDurationAggregation
+      post_boot_brodcast_duration_agg_by_intent = 18;
+  repeated BroadcastDurationAggregation
+      post_boot_brodcast_duration_agg_by_process = 19;
 }

@@ -154,7 +154,6 @@ inline SystraceParseResult ParseSystraceTracePoint(
       break;
   }
   base::StringView str = str_untrimmed.substr(0, len);
-
   size_t off = 0;
 
   // This function reads the next field up to the next '|', '\0' or end(). It
@@ -324,6 +323,8 @@ class SystraceParser : public Destructible {
   const StringId cookie_id_;
   const StringId utid_id_;
   const StringId end_utid_id_;
+  // temp string used to store trace events after removing non UTF-8 chars
+  std::string temp_string_utf8_;
 };
 
 }  // namespace trace_processor

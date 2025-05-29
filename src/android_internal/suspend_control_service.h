@@ -39,8 +39,9 @@ extern "C" {
 
 // These functions are not thread safe unless specified otherwise.
 
-bool __attribute__((visibility("default")))
-GetKernelWakelocks(KernelWakelock* wakelocks, size_t* size_of_arr);
+bool __attribute__((visibility("default"))) GetKernelWakelocks(
+    KernelWakelock* wakelocks,
+    size_t* size_of_arr);
 
 }  // extern "C"
 

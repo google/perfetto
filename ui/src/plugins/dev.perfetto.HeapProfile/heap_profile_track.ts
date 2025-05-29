@@ -39,6 +39,10 @@ export function createHeapProfileTrack(
         type: STR,
         id: NUM,
       },
+      filter: {
+        col: 'upid',
+        eq: upid,
+      },
     }),
     detailsPanel: (row) => {
       const ts = Time.fromRaw(row.ts);
@@ -51,8 +55,6 @@ export function createHeapProfileTrack(
         ts,
       );
     },
-    tooltip: (row) => {
-      return [row.type];
-    },
+    tooltip: (slice) => slice.row.type,
   });
 }

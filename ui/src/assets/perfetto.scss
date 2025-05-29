@@ -26,12 +26,15 @@
 @import "trace_info_page";
 @import "flags_page";
 @import "hiring_banner";
+@import "statusbar";
 
-// Widgets - keep these sorted (they should NOT have any inter-dependencies)
+// Widgets/components - keep these sorted alphabetically
+@import "components/data_grid";
 @import "widgets/anchor";
 @import "widgets/button";
 @import "widgets/callout";
 @import "widgets/card";
+@import "widgets/charts";
 @import "widgets/checkbox";
 @import "widgets/chip";
 @import "widgets/details_shell";
@@ -45,12 +48,13 @@
 @import "widgets/icon";
 @import "widgets/menu";
 @import "widgets/middle_ellipsis";
+@import "widgets/multiselect_input";
 @import "widgets/multiselect";
 @import "widgets/popup";
 @import "widgets/section";
 @import "widgets/segmented_buttons";
 @import "widgets/select";
-@import "widgets/settings_page";
+@import "widgets/settings_shell";
 @import "widgets/spinner";
 @import "widgets/split_panel";
 @import "widgets/sql_table";
@@ -60,6 +64,7 @@
 @import "widgets/text_input";
 @import "widgets/text_paragraph";
 @import "widgets/timestamp";
+@import "widgets/tooltip";
 @import "widgets/track_shell";
 @import "widgets/tree";
 @import "widgets/treetable";
