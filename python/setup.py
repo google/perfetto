@@ -13,7 +13,7 @@ setup(
     ],
     package_data={
         'perfetto.trace_processor': ['*.descriptor'],
-        'perfetto.bigtrace.protos': ['**/*']
+        'perfetto.bigtrace.protos': ['**/*.py', '**/*.pyi']
     },
     include_package_data=True,
     version='0.12.0',
@@ -26,8 +26,6 @@ setup(
     keywords=['trace processor', 'tracing', 'perfetto'],
     install_requires=[
         'protobuf',
-        'grpcio',
-        'pandas',
     ],
     extras_requires=[
         'numpy',
