@@ -4127,7 +4127,7 @@ void FtraceParser::ParseKevinEvent(uint32_t cpu,
 
   // Push the global counter.
   TrackId track = context_->track_tracker->InternTrack(
-      kKevinBlueprint, tracks::Dimensions(base::StringView()));
+      kKevinBlueprint, tracks::Dimensions("Kevin Counter"));
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(kevin.id()), track);
 }
