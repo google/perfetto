@@ -2028,6 +2028,17 @@ constexpr auto kIonChangeBlueprint = tracks::CounterBlueprint(
 
 }  // namespace
 
+namespace {
+
+    static constexpr auto kKevinBlueprint = tracks::CounterBlueprint(
+      "kevin", tracks::UnknownUnitBlueprint(),
+      tracks::DimensionBlueprints(tracks::StringDimensionBlueprint("kevin")),
+      tracks::FnNameBlueprint([](base::StringView key) {
+        return base::StackString<1024>("%.*s", int(key.size()), key.data());
+      }));
+
+}  // namespace
+
 /** Parses ion heap events present in Pixel kernels. */
 void FtraceParser::ParseIonHeapGrowOrShrink(int64_t timestamp,
                                             uint32_t pid,
@@ -4114,38 +4125,11 @@ void FtraceParser::ParseKevinEvent(uint32_t cpu,
   PERFETTO_LOG("Parsing kevin event: %" PRId64 ", %u, %d", timestamp, cpu,
                kevin.id());
 
-  // // Push the global counter.
-  // TrackId track = context_->track_tracker->InternTrack(
-  //     kIonBlueprint, tracks::Dimensions(base::StringView()));
-  // context_->event_tracker->PushCounter(
-  //     timestamp, static_cast<double>(kevin.total_allocated()), track);
-
-  // // Push the change counter.
-  // // TODO(b/121331269): these should really be instant events.
-  // UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  // track = context_->track_tracker->InternTrack(
-  //     kIonChangeBlueprint, tracks::Dimensions(base::StringView(), utid));
-  // context_->event_tracker->PushCounter(timestamp,
-  //                                      static_cast<double>(kevin.len()),
-  //                                      track);
-
-  // static constexpr auto kBlueprint = TrackCompressor::SliceBlueprint(
-  //     "kevin_counter", tracks::DimensionBlueprints(),
-  //     tracks::StaticNameBlueprint("kevin.counter"));
-
-  // // Global track for individual buffer tracking
-  // if (ion.len() > 0) {
-  //   TrackId id = context_->track_compressor->InternBegin(
-  //       kBlueprint, tracks::Dimensions(), kevin.buffer_id());
-  //   std::string buf = std::to_string(kevin.len() / 1024) + " kB";
-  //   context_->slice_tracker->Begin(
-  //       timestamp, id, kNullStringId,
-  //       context_->storage->InternString(base::StringView(buf)));
-  // } else {
-  //   TrackId id = context_->track_compressor->InternEnd(
-  //       kBlueprint, tracks::Dimensions(), kevin.buffer_id());
-  //   context_->slice_tracker->End(timestamp, id);
-  // }
+  // Push the global counter.
+  TrackId track = context_->track_tracker->InternTrack(
+      kKevinBlueprint, tracks::Dimensions(base::StringView()));
+  context_->event_tracker->PushCounter(
+      timestamp, static_cast<double>(kevin.id()), track);
 }
 
 void FtraceParser::ParseCpuhpEnter(uint32_t fld_id,
