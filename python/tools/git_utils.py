@@ -19,10 +19,11 @@ def run_command(
   try:
     env = kwargs.pop('env', {})
     current_env = {**os.environ, 'LC_ALL': 'C', **env}
+    kwargs.setdefault('stdout', subprocess.PIPE)
+    kwargs.setdefault('stderr', subprocess.PIPE)
     return subprocess.run(
         cmd,
         check=check,
-        capture_output=True,
         text=True,
         encoding='utf-8',
         errors='replace',

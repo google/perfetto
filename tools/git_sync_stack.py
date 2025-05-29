@@ -120,13 +120,19 @@ def main():
       push_remote = branch_remote_result.stdout.strip()
 
     remote_branch_name = get_upstream_branch_name(branch)
-    if remote_branch_name:
-      refspec = f"{branch}:{remote_branch_name}"  # Push local to its tracking remote branch
-    else:
+    if not remote_branch_name:
+      # Fallback: push local name to same remote name. If the user created a
+      # branch following our convention (dev/username/xxx) keep that. Otherwise
+      # add the dev/username/ prefix
+      if branch.startswith('dev/'):
+        remote_branch_name = branch
+      else:
+        remote_branch_name = f'dev/{os.getlogin()}/{branch}'
       print(
-          f"Warning: No upstream for '{branch}'. Pushing to '{push_remote}/{branch}'.",
+          f"Warning: No upstream for '{branch}'. " +
+          f"Pushing to '{remote_branch_name}'.",
           file=sys.stderr)
-      refspec = f"{branch}:{branch}"  # Fallback: push local name to same remote name
+    refspec = f"{branch}:{remote_branch_name}"
 
     push_args.extend([push_remote, refspec])
     if args.force:
@@ -141,7 +147,7 @@ def main():
       continue
 
     try:
-      pr_info = get_existing_pr_info(branch)
+      pr_info = get_existing_pr_info(remote_branch_name)
       if pr_info:
         pr_number = pr_info.get('number')
         current_base = pr_info.get('baseRefName')
@@ -153,20 +159,33 @@ def main():
                str(pr_number), '--base', desired_base])
       else:
         print(f"Creating PR with base '{desired_base}'...")
+        # Create the PR body by concatenating the commits. We cannot use --fill
+        # because it assumes that the local and remote branch name match.
+        pr_body = '/tmp/gh_pr_body'
+        with open(pr_body, 'w', encoding='utf-8') as f:
+          run_git_command([
+              'log', f'{push_remote}/{desired_base}..{branch}', '--no-merges',
+              '--pretty=format:"%s%n%n%b%n"'
+          ],
+                          stdout=f)
         create_command = [
-            'gh', 'pr', 'create', '--head', branch, '--base', desired_base,
-            '--fill'
+            'gh', 'pr', 'create', '--draft', '--head', remote_branch_name,
+            '--base', desired_base, '--body-file', pr_body
         ]
         if args.draft:
           create_command.append('--draft')
         run_command(create_command)
     except SystemExit:
       errors_occurred = True
-      print(f"Error managing PR for {branch} via 'gh'.", file=sys.stderr)
+      print(
+          f"Error managing PR for {remote_branch_name} via 'gh'.",
+          file=sys.stderr)
       continue
     except Exception as e:
       errors_occurred = True
-      print(f"Unexpected error managing PR for {branch}: {e}", file=sys.stderr)
+      print(
+          f"Unexpected error managing PR for {remote_branch_name}: {e}",
+          file=sys.stderr)
       continue
 
   print("\n--- Stack sync process finished ---")
