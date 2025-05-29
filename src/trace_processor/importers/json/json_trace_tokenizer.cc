@@ -422,7 +422,10 @@ base::Status JsonTraceTokenizer::HandleTraceEvent(const char* start,
     }
     it_.Reset(cur, end);
     if (!it_.ParseStart() || !ParseTraceEventContents()) {
-      RETURN_IF_ERROR(it_.status());
+      if (!it_.status().ok()) {
+        return base::ErrStatus("Failure parsing JSON: %s",
+                               it_.status().c_message());
+      }
       return SetOutAndReturn(global_cur, out);
     }
     global_cur = it_.cur();
