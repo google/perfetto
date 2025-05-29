@@ -142,13 +142,6 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     group: 'Diskstat',
   },
   {
-    type: 'entity_state',
-    topLevelGroup: 'POWER',
-    group: 'Entity Residency',
-    shareYAxis: true,
-    mode: 'rate',
-  },
-  {
     type: 'f2fs_iostat_latency',
     topLevelGroup: 'IO',
     group: 'F2FS IOStat Latency',

@@ -129,6 +129,8 @@ source_set("full") {
     "android_probes_tracker.h",
     "content_analyzer.cc",
     "content_analyzer.h",
+    "deobfuscation_module.cc",
+    "deobfuscation_module.h",
     "frame_timeline_event_parser.cc",
     "frame_timeline_event_parser.h",
     "gpu_event_parser.cc",
@@ -211,6 +213,7 @@ source_set("full") {
     "../common:parser_types",
     "../etw:full",
     "../ftrace:full",
+    "../generic_kernel:full",
     "../syscalls:full",
     "winscope:full",
   ]

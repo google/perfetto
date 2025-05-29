@@ -34,6 +34,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Fetch the upstream branch as well, so we can diff and see the list of
+      # changed files (unless this is a post-submit test).
+      - name: Fetch upstream branch
+        if: ${{ github.base_ref != '' }}
+        run: git fetch origin ${{ github.base_ref }} --depth=1
+
       - name: Setup artifacts
         run: |
           PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_ROOT/$PERFETTO_CI_JOB_ID
@@ -57,32 +63,40 @@ jobs:
 
       - name: Build Perfetto UI
         run: |
-          ui/build --out out/dist
-          cp -a out/dist/ui/dist/ "$PERFETTO_ARTIFACTS_DIR/ui"
+          ui/build --out out/ui
+          cp -a out/ui/ui/dist/ "$PERFETTO_ARTIFACTS_DIR/ui"
 
       - name: Print ccache stats
         run: ccache --show-stats
 
 
       - name: UI unittests
-        run: ui/run-unittests --out out/dist --no-build
+        run: ui/run-unittests --out out/ui --no-build
 
       - name: Install Chrome
         run: |
           mkdir /tmp/chrome
           cd /tmp/chrome
-          CHROME_VERSION=135.0.7049.52
+          CHROME_VERSION=136.0.7103.113
           curl -Ls -o chrome.deb https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_${CHROME_VERSION}-1_amd64.deb
           dpkg-deb -x chrome.deb  .
 
       - name: UI integrationtests
-        run: ui/run-integrationtests --out out/dist --no-build
+        run: ui/run-integrationtests --out out/ui --no-build
+
+        # UI code formatting checks must be done here, rather than repo-checks,
+        # because they need a out/ui build.
+      - name: Check UI code is formatted
+        # base_ref is "" in post-submit, skip the presubmit check in postsubmit
+        # as there is nothing do diff against.
+        if: ${{ github.base_ref != '' }}
+        run: ui/format-sources --check-only
 
       - name: Upload artifacts to GCS
         if: ${{ always() }}
         run: |
-          if [ -d out/dist/ui-test-artifacts ]; then
-            cp -a out/dist/ui-test-artifacts "$PERFETTO_ARTIFACTS_DIR/ui-test-artifacts"
+          if [ -d out/ui/ui-test-artifacts ]; then
+            cp -a out/ui/ui-test-artifacts "$PERFETTO_ARTIFACTS_DIR/ui-test-artifacts"
           fi
           /opt/ci/artifacts_uploader.py --rm ${{ env.PERFETTO_ARTIFACTS_ROOT }}
           echo "UI integration test report with screnshots:"

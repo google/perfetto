@@ -747,7 +747,8 @@ class TrackEvent(TestSuite):
         "FlowSlice3Begin","FlowSlice3End4Begin"
         "FlowSlice3End4Begin","FlowSlice4Step"
         "FlowSlice4Step","FlowSlice4Step2_FlowIdOnAsyncEndEvent"
-        "FlowSlice4Step2_FlowIdOnAsyncEndEvent","FlowSlice4End"
+        "FlowSlice4Step2_FlowIdOnAsyncEndEvent","FlowSlice4Step2_FlowIdOnEndEvent"
+        "FlowSlice4Step2_FlowIdOnEndEvent","FlowSlice4End"
         """))
 
   def test_flow_events_proto_v2(self):

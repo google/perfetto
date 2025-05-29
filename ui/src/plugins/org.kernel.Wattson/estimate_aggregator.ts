@@ -20,7 +20,7 @@ import {
 import {Engine} from '../../trace_processor/engine';
 import {exists} from '../../base/utils';
 import {ColumnDef, Sorting} from '../../public/aggregation';
-import {CPUSS_ESTIMATE_TRACK_KIND} from '../../public/track_kinds';
+import {CPUSS_ESTIMATE_TRACK_KIND} from './track_kinds';
 
 export class WattsonEstimateSelectionAggregator
   implements AreaSelectionAggregator
@@ -53,7 +53,7 @@ export class WattsonEstimateSelectionAggregator
   ): string {
     const duration = area.end - area.start;
     let query = `
-      INCLUDE PERFETTO MODULE wattson.curves.estimates;
+      INCLUDE PERFETTO MODULE wattson.estimates;
 
       CREATE OR REPLACE PERFETTO TABLE wattson_plugin_ui_selection_window AS
       SELECT
@@ -111,8 +111,6 @@ export class WattsonEstimateSelectionAggregator
       },
     ];
   }
-
-  async getExtra() {}
 
   getTabName() {
     return 'Wattson estimates';

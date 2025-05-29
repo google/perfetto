@@ -339,25 +339,15 @@ base::Status ListFilesRecursive(const std::string& dir_path,
           strcmp(dirent->d_name, "..") == 0) {
         continue;
       }
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
-      struct stat* dirstat;
-      const std::string full_path = cur_dir + dirent->d_name;
-      PERFETTO_CHECK(stat(full_path.c_str(), dirstat) == 0);
-      if (S_ISDIR(dirstat->st_mode)) {
+      struct stat dirstat;
+      std::string full_path = cur_dir + dirent->d_name;
+      PERFETTO_CHECK(stat(full_path.c_str(), &dirstat) == 0);
+      if (S_ISDIR(dirstat.st_mode)) {
         dir_queue.push_back(full_path + '/');
-      } else if (S_ISREG(dirstat->st_mode)) {
+      } else if (S_ISREG(dirstat.st_mode)) {
         PERFETTO_CHECK(full_path.length() > root_dir_path.length());
         output.push_back(full_path.substr(root_dir_path.length()));
       }
-#else
-      if (dirent->d_type == DT_DIR) {
-        dir_queue.push_back(cur_dir + dirent->d_name + '/');
-      } else if (dirent->d_type == DT_REG) {
-        const std::string full_path = cur_dir + dirent->d_name;
-        PERFETTO_CHECK(full_path.length() > root_dir_path.length());
-        output.push_back(full_path.substr(root_dir_path.length()));
-      }
-#endif
     }
 #endif
   }
