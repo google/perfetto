@@ -190,17 +190,15 @@ class TraceSorter {
                     machine_id);
   }
 
-  void PushJsonValue(int64_t timestamp,
-                     std::string json_value,
-                     const JsonEvent::Type& type) {
-    if (const auto* scoped = std::get_if<JsonEvent::Scoped>(&type); scoped) {
+  void PushJsonValue(int64_t timestamp, JsonEvent json_value) {
+    if (json_value.phase == 'X') {
       // We need to account for slices with duration by sorting them specially:
       // this requires us to use the slower comparator which takes this into
       // account.
       use_slow_sorting_ = true;
     }
     AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kJsonValue,
-                         JsonEvent{std::move(json_value), type});
+                         std::move(json_value));
   }
 
   void PushFuchsiaRecord(int64_t timestamp, FuchsiaRecord fuchsia_record) {
@@ -410,21 +408,18 @@ class TraceSorter {
       // For std::sort() in slow mode.
       bool operator()(const TimestampedEvent& a,
                       const TimestampedEvent& b) const {
-        int64_t a_key =
-            KeyForType(buffer.Get<JsonEvent>(GetTokenBufferId(a))->type);
-        int64_t b_key =
-            KeyForType(buffer.Get<JsonEvent>(GetTokenBufferId(b))->type);
+        int64_t a_key = KeyForType(*buffer.Get<JsonEvent>(GetTokenBufferId(a)));
+        int64_t b_key = KeyForType(*buffer.Get<JsonEvent>(GetTokenBufferId(b)));
         return std::tie(a.ts, a_key, a.chunk_index, a.chunk_offset) <
                std::tie(b.ts, b_key, b.chunk_index, b.chunk_offset);
       }
 
-      static int64_t KeyForType(const JsonEvent::Type& type) {
-        switch (type.index()) {
-          case base::variant_index<JsonEvent::Type, JsonEvent::End>():
+      static int64_t KeyForType(const JsonEvent& event) {
+        switch (event.phase) {
+          case 'E':
             return std::numeric_limits<int64_t>::min();
-          case base::variant_index<JsonEvent::Type, JsonEvent::Scoped>():
-            return std::numeric_limits<int64_t>::max() -
-                   std::get<JsonEvent::Scoped>(type).dur;
+          case 'X':
+            return std::numeric_limits<int64_t>::max() - event.dur;
           default:
             return std::numeric_limits<int64_t>::max();
         }

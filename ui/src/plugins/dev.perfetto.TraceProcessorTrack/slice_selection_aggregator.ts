@@ -56,8 +56,6 @@ export class SliceSelectionAggregator implements AreaSelectionAggregator {
     return 'Slices';
   }
 
-  async getExtra() {}
-
   getDefaultSorting(): Sorting {
     return {column: 'total_dur', direction: 'DESC'};
   }

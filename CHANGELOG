@@ -4,9 +4,17 @@ Unreleased:
   SQL Standard library:
     *
   Trace Processor:
-    *
+    * Improved handling of traces containing overlapping "complete" events
+      (i.e. events with a duration, AKA 'X' events in the JSON format).
+      While overlapping events are prohibited by the JSON spec, they do
+      appear in many synthetically generated JSON traces. Previously, such
+      events would break the data model of trace processor and cause signifcant
+      glitches in the UI. These events are now dropped, fixing all the visual
+      glitches and an error stat is emitted to make the user aware.
+    * Improved performance of parsing JSON by 7x. JSON traces should now load
+      much faster in the Perfetto UI and the trace processor.
   UI:
-    *
+    * Improved JSON loading performance. See `Trace Processor` section above.
   SDK:
     *
 
