@@ -6391,6 +6391,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/ftrace/dmabuf_heap.proto",
         "protos/perfetto/trace/ftrace/dpu.proto",
         "protos/perfetto/trace/ftrace/drm.proto",
+        "protos/perfetto/trace/ftrace/dwc3.proto",
         "protos/perfetto/trace/ftrace/ext4.proto",
         "protos/perfetto/trace/ftrace/f2fs.proto",
         "protos/perfetto/trace/ftrace/fastrpc.proto",
