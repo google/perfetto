@@ -38,8 +38,8 @@ static void BM_RtMutex_NoContention(benchmark::State& state) {
   for (auto _ : state) {
     mutex.lock();
     n++;
-    mutex.unlock();
     benchmark::DoNotOptimize(n);
+    mutex.unlock();
     benchmark::ClobberMemory();
   }
 }
@@ -55,8 +55,8 @@ static void BM_RtMutex_Contention(benchmark::State& state) {
     while (!stop.load(std::memory_order_relaxed)) {
       mutex.lock();
       counter++;
-      mutex.unlock();
       benchmark::DoNotOptimize(counter);
+      mutex.unlock();
     }
   };
 
