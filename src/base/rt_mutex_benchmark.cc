@@ -15,6 +15,8 @@
 #include <benchmark/benchmark.h>
 
 #include <atomic>
+#include <random>
+#include <string>
 #include <thread>
 
 #include "perfetto/ext/base/rt_mutex.h"
@@ -34,11 +36,31 @@ void BenchmarkArgs(benchmark::internal::Benchmark* b) {
 template <typename MutexType>
 static void BM_RtMutex_NoContention(benchmark::State& state) {
   MutexType mutex;
-  volatile int n = 0;
+
+  // Prepare a vector of pointers to simulate pointer chasing.
+  constexpr size_t kPointerChaseSize = 64;
+  std::vector<std::string> data(kPointerChaseSize, "someSampleText123");
+  std::vector<std::string*> ptrs;
+  for (auto& s : data)
+    ptrs.push_back(&s);
+
+  // Shuffle to simulate random memory access
+  std::mt19937 rng(42);
+  std::shuffle(ptrs.begin(), ptrs.end(), rng);
+  std::hash<std::string> hasher;
+  size_t dummy = 0;
+
   for (auto _ : state) {
     mutex.lock();
-    n++;
-    benchmark::DoNotOptimize(n);
+
+    // Simulate pointer chasing + workload
+    for (size_t i = 0; i < 8; ++i) {
+      std::string& str = *ptrs[i % kPointerChaseSize];
+      for (char& c : str)
+        c = static_cast<char>(std::toupper(c));
+      dummy += hasher(str);
+    }
+    benchmark::DoNotOptimize(dummy);
     mutex.unlock();
     benchmark::ClobberMemory();
   }
