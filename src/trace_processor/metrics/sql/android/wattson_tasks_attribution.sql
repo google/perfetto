@@ -13,8 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.curves.estimates;
-INCLUDE PERFETTO MODULE wattson.curves.idle_attribution;
+INCLUDE PERFETTO MODULE wattson.cpu.idle_attribution;
+INCLUDE PERFETTO MODULE wattson.estimates;
 INCLUDE PERFETTO MODULE wattson.utils;
 INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
 

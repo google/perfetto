@@ -48,6 +48,7 @@
 #include "src/trace_processor/importers/perf_text/perf_text_event.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/sorter/trace_token_buffer.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/bump_allocator.h"
@@ -189,17 +190,15 @@ class TraceSorter {
                     machine_id);
   }
 
-  void PushJsonValue(int64_t timestamp,
-                     std::string json_value,
-                     const JsonEvent::Type& type) {
-    if (const auto* scoped = std::get_if<JsonEvent::Scoped>(&type); scoped) {
+  void PushJsonValue(int64_t timestamp, JsonEvent json_value) {
+    if (json_value.phase == 'X') {
       // We need to account for slices with duration by sorting them specially:
       // this requires us to use the slower comparator which takes this into
       // account.
       use_slow_sorting_ = true;
     }
     AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kJsonValue,
-                         JsonEvent{std::move(json_value), type});
+                         std::move(json_value));
   }
 
   void PushFuchsiaRecord(int64_t timestamp, FuchsiaRecord fuchsia_record) {
@@ -253,7 +252,7 @@ class TraceSorter {
                     TraceBlobView tbv,
                     RefPtr<PacketSequenceStateGeneration> state,
                     std::optional<MachineId> machine_id = std::nullopt) {
-    if (PERFETTO_UNLIKELY(event_handling_ == EventHandling::kDrop)) {
+    if (ShouldDropData(timestamp)) {
       return;
     }
     TraceTokenBuffer::Id id =
@@ -269,7 +268,7 @@ class TraceSorter {
                        TraceBlobView tbv,
                        RefPtr<PacketSequenceStateGeneration> state,
                        std::optional<MachineId> machine_id = std::nullopt) {
-    if (PERFETTO_UNLIKELY(event_handling_ == EventHandling::kDrop)) {
+    if (ShouldDropData(timestamp)) {
       return;
     }
     TraceTokenBuffer::Id id =
@@ -285,7 +284,7 @@ class TraceSorter {
       int64_t timestamp,
       const InlineSchedSwitch& inline_sched_switch,
       std::optional<MachineId> machine_id = std::nullopt) {
-    if (PERFETTO_UNLIKELY(event_handling_ == EventHandling::kDrop)) {
+    if (ShouldDropData(timestamp)) {
       return;
     }
     // TODO(rsavitski): if a trace has a mix of normal & "compact" events
@@ -307,7 +306,7 @@ class TraceSorter {
       int64_t timestamp,
       const InlineSchedWaking& inline_sched_waking,
       std::optional<MachineId> machine_id = std::nullopt) {
-    if (PERFETTO_UNLIKELY(event_handling_ == EventHandling::kDrop)) {
+    if (ShouldDropData(timestamp)) {
       return;
     }
     TraceTokenBuffer::Id id = token_buffer_.Append(inline_sched_waking);
@@ -409,21 +408,18 @@ class TraceSorter {
       // For std::sort() in slow mode.
       bool operator()(const TimestampedEvent& a,
                       const TimestampedEvent& b) const {
-        int64_t a_key =
-            KeyForType(buffer.Get<JsonEvent>(GetTokenBufferId(a))->type);
-        int64_t b_key =
-            KeyForType(buffer.Get<JsonEvent>(GetTokenBufferId(b))->type);
+        int64_t a_key = KeyForType(*buffer.Get<JsonEvent>(GetTokenBufferId(a)));
+        int64_t b_key = KeyForType(*buffer.Get<JsonEvent>(GetTokenBufferId(b)));
         return std::tie(a.ts, a_key, a.chunk_index, a.chunk_offset) <
                std::tie(b.ts, b_key, b.chunk_index, b.chunk_offset);
       }
 
-      static int64_t KeyForType(const JsonEvent::Type& type) {
-        switch (type.index()) {
-          case base::variant_index<JsonEvent::Type, JsonEvent::End>():
+      static int64_t KeyForType(const JsonEvent& event) {
+        switch (event.phase) {
+          case 'E':
             return std::numeric_limits<int64_t>::min();
-          case base::variant_index<JsonEvent::Type, JsonEvent::Scoped>():
-            return std::numeric_limits<int64_t>::max() -
-                   std::get<JsonEvent::Scoped>(type).dur;
+          case 'X':
+            return std::numeric_limits<int64_t>::max() - event.dur;
           default:
             return std::numeric_limits<int64_t>::max();
         }
@@ -521,20 +517,24 @@ class TraceSorter {
       TimestampedEvent::Type event_type,
       E&& evt,
       std::optional<MachineId> machine_id = std::nullopt) {
-    if (PERFETTO_UNLIKELY(event_handling_ == EventHandling::kDrop)) {
+    if (ShouldDropData(ts)) {
       return;
     }
     TraceTokenBuffer::Id id = token_buffer_.Append(std::forward<E>(evt));
-    AppendNonFtraceEventWithId(ts, event_type, id, machine_id);
-  }
-
-  void AppendNonFtraceEventWithId(int64_t ts,
-                                  TimestampedEvent::Type event_type,
-                                  TraceTokenBuffer::Id id,
-                                  std::optional<MachineId> machine_id) {
     Queue* queue = GetQueue(0, machine_id);
     queue->Append(ts, event_type, id, use_slow_sorting_);
     UpdateAppendMaxTs(queue);
+  }
+
+  PERFETTO_ALWAYS_INLINE bool ShouldDropData(int64_t timestamp) const {
+    if (PERFETTO_UNLIKELY(event_handling_ == EventHandling::kDrop)) {
+      return true;
+    }
+    if (PERFETTO_UNLIKELY(timestamp < 0)) {
+      storage_->IncrementStats(stats::trace_sorter_negative_timestamp_dropped);
+      return true;
+    }
+    return false;
   }
 
   void UpdateAppendMaxTs(Queue* queue) {

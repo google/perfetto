@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_REPLACE_NUMBERS_FUNCTION_H_
 
 #include <sqlite3.h>
+#include <stdint.h>
 
 #include "perfetto/base/status.h"
 

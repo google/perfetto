@@ -112,6 +112,10 @@ void AndroidKernelWakelocksModule::ParseTracePacketData(
     context_->storage->IncrementStats(
         stats::kernel_wakelock_non_monotonic_value_reported);
   }
+  if (traced_errors & kKernelWakelockErrorImplausiblyLargeValue) {
+    context_->storage->IncrementStats(
+        stats::kernel_wakelock_implausibly_large_value_reported);
+  }
 
   // Anything we knew about but didn't see in this packet must not have
   // incremented.
