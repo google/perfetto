@@ -260,7 +260,7 @@ void TraceSorter::ParseTracePacket(TraceProcessorContext& context,
       return;
     case TimestampedEvent::Type::kJsonValue:
       context.json_trace_parser->ParseJsonPacket(
-          event.ts, std::move(token_buffer_.Extract<JsonEvent>(id).value));
+          event.ts, token_buffer_.Extract<JsonEvent>(id));
       return;
     case TimestampedEvent::Type::kSpeRecord:
       context.spe_record_parser->ParseSpeRecord(

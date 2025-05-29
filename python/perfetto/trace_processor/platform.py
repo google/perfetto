@@ -42,7 +42,7 @@ class PlatformDelegate:
   def get_shell_path(self, bin_path: str) -> str:
     if bin_path is not None:
       if not os.path.isfile(bin_path):
-        raise Exception('Path to binary is not valid')
+        raise Exception(f'Path to binary is not valid ({bin_path}).')
       return bin_path
 
     tp_path = os.path.join(tempfile.gettempdir(), 'trace_processor_python_api')

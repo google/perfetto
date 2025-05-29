@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.cpu_split;
+INCLUDE PERFETTO MODULE wattson.cpu.split;
 
 -- The final system state for the CPU subsystem, which has all the information
 -- needed by Wattson to estimate energy for the CPU subsystem.

@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.h"
+#include <cstdint>
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -34,18 +35,84 @@ ArgsTracker::BoundInserter ShellTransitionsTracker::AddArgsTo(
 
 void ShellTransitionsTracker::SetTimestamp(int32_t transition_id,
                                            int64_t timestamp_ns) {
-  auto pos = transitions_infos_.find(transition_id);
-  if (pos == transitions_infos_.end()) {
-    context_->storage->IncrementStats(
-        stats::winscope_shell_transitions_parse_errors);
-    return;
+  auto row_ref = GetRowReference(transition_id);
+  if (row_ref.has_value()) {
+    auto row = row_ref.value();
+    row.set_ts(timestamp_ns);
   }
+}
 
-  auto* window_manager_shell_transitions_table =
-      context_->storage->mutable_window_manager_shell_transitions_table();
-  window_manager_shell_transitions_table->FindById(pos->second.row_id)
-      .value()
-      .set_ts(timestamp_ns);
+void ShellTransitionsTracker::SetTimestampIfEmpty(int32_t transition_id,
+                                                  int64_t timestamp_ns) {
+  auto row_ref = GetRowReference(transition_id);
+  if (row_ref.has_value()) {
+    auto row = row_ref.value();
+    if (!row.ts()) {
+      row.set_ts(timestamp_ns);
+    }
+  }
+}
+
+void ShellTransitionsTracker::SetTransitionType(int32_t transition_id,
+                                                int32_t transition_type) {
+  auto row = GetRowReference(transition_id);
+  if (row.has_value()) {
+    row.value().set_transition_type(static_cast<uint32_t>(transition_type));
+  }
+}
+
+void ShellTransitionsTracker::SetSendTime(int32_t transition_id,
+                                          int64_t timestamp_ns) {
+  auto row = GetRowReference(transition_id);
+  if (row.has_value()) {
+    row.value().set_send_time_ns(timestamp_ns);
+  }
+}
+
+void ShellTransitionsTracker::SetDispatchTime(int32_t transition_id,
+                                              int64_t timestamp_ns) {
+  auto row = GetRowReference(transition_id);
+  if (row.has_value()) {
+    row.value().set_dispatch_time_ns(timestamp_ns);
+  }
+}
+
+void ShellTransitionsTracker::TrySetDurationFromFinishTime(
+    int32_t transition_id,
+    int64_t finish_time_ns) {
+  auto row = GetRowReference(transition_id);
+  if (row.has_value()) {
+    auto send_time_ns = row->send_time_ns();
+    if (send_time_ns) {
+      row.value().set_duration_ns(finish_time_ns - send_time_ns.value());
+    } else {
+      auto transition = GetOrInsertTransition(transition_id);
+      transition->finish_time_ns = finish_time_ns;
+    }
+  }
+}
+
+void ShellTransitionsTracker::SetHandler(int32_t transition_id,
+                                         int64_t handler) {
+  auto row = GetRowReference(transition_id);
+  if (row.has_value()) {
+    row.value().set_handler(handler);
+  }
+}
+
+void ShellTransitionsTracker::SetFlags(int32_t transition_id, int32_t flags) {
+  auto row = GetRowReference(transition_id);
+  if (row.has_value()) {
+    row.value().set_flags(static_cast<uint32_t>(flags));
+  }
+}
+
+void ShellTransitionsTracker::SetStatus(int32_t transition_id,
+                                        StringPool::Id status) {
+  auto row = GetRowReference(transition_id);
+  if (row.has_value()) {
+    row.value().set_status(status);
+  }
 }
 
 void ShellTransitionsTracker::Flush() {
@@ -72,6 +139,20 @@ ShellTransitionsTracker::GetOrInsertTransition(int32_t transition_id) {
 
   pos = transitions_infos_.find(transition_id);
   return &pos->second;
+}
+
+std::optional<tables::WindowManagerShellTransitionsTable::RowReference>
+ShellTransitionsTracker::GetRowReference(int32_t transition_id) {
+  auto pos = transitions_infos_.find(transition_id);
+  if (pos == transitions_infos_.end()) {
+    context_->storage->IncrementStats(
+        stats::winscope_shell_transitions_parse_errors);
+    return std::nullopt;
+  }
+
+  auto* window_manager_shell_transitions_table =
+      context_->storage->mutable_window_manager_shell_transitions_table();
+  return window_manager_shell_transitions_table->FindById(pos->second.row_id);
 }
 
 }  // namespace trace_processor

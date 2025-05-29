@@ -35,6 +35,7 @@ packet {
     send_time_ns: 82535513345
     start_transaction_id: 5604932322346
     finish_transaction_id: 5604932322347
+    targets { window_id: 11 }
   }
 }
 packet {
@@ -121,11 +122,22 @@ packet {
   trusted_uid: 10241
   trusted_packet_sequence_id: 6
   trusted_pid: 2528
-  shell_transition { id: 11 dispatch_time_ns: 82536817137 handler: 2 }
+  shell_transition {
+    id: 11
+    dispatch_time_ns: 82536817137
+    handler: 2
+    targets { layer_id: 4 }
+  }
 }
 packet {
   trusted_uid: 10241
   trusted_packet_sequence_id: 6
   trusted_pid: 2528
-  shell_transition { id: 12 merge_time_ns: 82697060749 merge_target: 11 }
+  shell_transition {
+    id: 12
+    type: 1
+    merge_time_ns: 82697060749
+    merge_target: 11
+    targets { window_id: 12 layer_id: 4 }
+  }
 }

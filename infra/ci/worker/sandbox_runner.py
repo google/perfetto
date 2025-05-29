@@ -29,6 +29,7 @@ import sys
 
 from config import SANDBOX_IMG, GITHUB_REPO, SANDBOX_SVC_ACCOUNT
 from common_utils import get_github_registration_token
+from pathlib import Path
 
 CUR_DIR = os.path.dirname(__file__)
 
@@ -71,6 +72,10 @@ def main():
 
   signal.signal(signal.SIGTERM, sig_handler)
   signal.signal(signal.SIGINT, sig_handler)
+
+  # Update the mtime of perfetto_ci_lastrun. This is used to shutdown the
+  # GCE vm when idle for too long.
+  Path('/tmp/perfetto_ci_lastrun').touch()
 
   # Remove stale sandbox from previous runs, if any.
   subprocess.call(['docker', 'rm', '-f', SANDBOX_NAME],

@@ -88,7 +88,7 @@ std::optional<std::string> HasDuplicateColumns(
   return std::nullopt;
 }
 
-std::string OpToString(int op) {
+std::optional<std::string> OpToString(int op) {
   switch (op) {
     case SQLITE_INDEX_CONSTRAINT_EQ:
       return "=";
@@ -113,8 +113,7 @@ std::string OpToString(int op) {
       // The "null" will be added below in EscapedSqliteValueAsString.
       return " is not ";
     default:
-      PERFETTO_FATAL("Operator to string conversion not implemented for %d",
-                     op);
+      return std::nullopt;
   }
 }
 
@@ -198,12 +197,17 @@ std::string SpanJoinOperatorModule::Vtab::BestIndexStrForDefinition(
       continue;
     }
 
+    // If we cannot handle the constraint, skip it.
+    std::optional<std::string> op = OpToString(
+        c.op == kSourceGeqOpCode ? SQLITE_INDEX_CONSTRAINT_GE : c.op);
+    if (!op) {
+      continue;
+    }
+
     PERFETTO_DCHECK(info->aConstraintUsage[i].argvIndex > 0);
     std::string argvIndex =
         std::to_string(info->aConstraintUsage[i].argvIndex - 1);
-    std::string op = OpToString(
-        c.op == kSourceGeqOpCode ? SQLITE_INDEX_CONSTRAINT_GE : c.op);
-    constraints += "," + argvIndex + "," + "`" + col_name + "`" + op;
+    constraints += "," + argvIndex + "," + "`" + col_name + "`" + *op;
     count++;
   }
   return std::to_string(count) + constraints;

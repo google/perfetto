@@ -66,9 +66,9 @@ const MD_PALETTE_RAW: Color[] = [
   new HSLColor({h: 54, s: 100, l: 62}),
 ];
 
-const WHITE_COLOR = new HSLColor([0, 0, 100]);
-const BLACK_COLOR = new HSLColor([0, 0, 0]);
-const GRAY_COLOR = new HSLColor([0, 0, 90]);
+export const WHITE_COLOR = new HSLColor([0, 0, 100]);
+export const BLACK_COLOR = new HSLColor([0, 0, 0]);
+export const GRAY_COLOR = new HSLColor([0, 0, 90]);
 
 const MD_PALETTE: ColorScheme[] = MD_PALETTE_RAW.map((color): ColorScheme => {
   const base = color.lighten(10, 60).desaturate(20);
@@ -105,13 +105,7 @@ export function makeColorScheme(base: Color, variant?: Color): ColorScheme {
   };
 }
 
-const GRAY = makeColorScheme(new HSLColor([0, 0, 62]));
-const DESAT_RED = makeColorScheme(new HSLColor([3, 30, 49]));
-const DARK_GREEN = makeColorScheme(new HSLColor([120, 44, 34]));
-const LIME_GREEN = makeColorScheme(new HSLColor([75, 55, 47]));
-const TRANSPARENT_WHITE = makeColorScheme(new HSLColor([0, 1, 97], 0.55));
-const ORANGE = makeColorScheme(new HSLColor([36, 100, 50]));
-const INDIGO = makeColorScheme(new HSLColor([231, 48, 48]));
+export const GRAY = makeColorScheme(new HSLColor([0, 0, 62]));
 
 // A piece of wisdom from a long forgotten blog post: "Don't make
 // colors you want to change something normal like grey."
@@ -153,24 +147,6 @@ function proceduralColorScheme(seed: string): ColorScheme {
 
     return colorScheme;
   }
-}
-
-export function colorForState(state: string): ColorScheme {
-  if (state === 'Running') {
-    return DARK_GREEN;
-  } else if (state.startsWith('Runnable')) {
-    return LIME_GREEN;
-  } else if (state.includes('Uninterruptible Sleep')) {
-    if (state.includes('non-IO')) {
-      return DESAT_RED;
-    }
-    return ORANGE;
-  } else if (state.includes('Dead')) {
-    return GRAY;
-  } else if (state.includes('Sleeping') || state.includes('Idle')) {
-    return TRANSPARENT_WHITE;
-  }
-  return INDIGO;
 }
 
 export function colorForTid(tid: number): ColorScheme {

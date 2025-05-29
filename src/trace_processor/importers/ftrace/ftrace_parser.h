@@ -331,6 +331,7 @@ class FtraceParser {
   void ParseHrtimerExpireExit(uint32_t cpu,
                               int64_t timestamp,
                               protozero::ConstBytes blob);
+  void ParseMaliGpuPowerState(int64_t ts, protozero::ConstBytes blob);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;

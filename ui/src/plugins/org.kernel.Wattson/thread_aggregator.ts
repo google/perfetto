@@ -38,8 +38,8 @@ export class WattsonThreadSelectionAggregator
     const cpusCsv = `(` + selectedCpus.join() + `)`;
     engine.query(`
       INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
-      INCLUDE PERFETTO MODULE wattson.curves.idle_attribution;
-      INCLUDE PERFETTO MODULE wattson.curves.estimates;
+      INCLUDE PERFETTO MODULE wattson.cpu.idle_attribution;
+      INCLUDE PERFETTO MODULE wattson.estimates;
 
       CREATE OR REPLACE PERFETTO TABLE wattson_plugin_ui_selection_window AS
       SELECT
@@ -226,8 +226,6 @@ export class WattsonThreadSelectionAggregator
       },
     ];
   }
-
-  async getExtra() {}
 
   getTabName() {
     return 'Wattson by thread';
