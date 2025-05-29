@@ -141,6 +141,8 @@ def main():
     try:
       print(f"Pushing {branch} ({refspec})...")
       run_git_command(push_args)
+      print(f"Fetching back ({remote_branch_name})...")
+      run_git_command(['fetch', push_remote, remote_branch_name])
     except SystemExit:
       errors_occurred = True
       print(f"Error pushing {branch}.", file=sys.stderr)
