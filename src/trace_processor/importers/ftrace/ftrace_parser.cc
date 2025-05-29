@@ -4106,12 +4106,12 @@ constexpr auto kCpuHpBlueprint = tracks::SliceBlueprint(
     }));
 }  // namespace
 
-void FtraceParser::ParseKevinEvent(int64_t timestamp,
-                                   uint32_t pid,
+void FtraceParser::ParseKevinEvent(uint32_t cpu,
+                                   int64_t timestamp,
                                    protozero::ConstBytes data) {
   protos::pbzero::KevinEventFtraceEvent::Decoder kevin(data);
 
-  PERFETTO_LOG("Parsing kevin event: %" PRId64 ", %u, %d", timestamp, pid,
+  PERFETTO_LOG("Parsing kevin event: %" PRId64 ", %u, %d", timestamp, cpu,
                kevin.id());
 
   // // Push the global counter.
