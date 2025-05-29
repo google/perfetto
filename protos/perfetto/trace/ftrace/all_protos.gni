@@ -55,6 +55,7 @@ ftrace_proto_names = [
   "ipi.proto",
   "irq.proto",
   "irq_vectors.proto",
+  "kevin.proto",
   "kgsl.proto",
   "kmem.proto",
   "kvm.proto",

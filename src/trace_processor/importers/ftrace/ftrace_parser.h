@@ -116,6 +116,7 @@ class FtraceParser {
                                 protozero::ConstBytes,
                                 bool grow);
   void ParseIonStat(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
+  void ParseKevinEvent(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
   void ParseBclIrq(int64_t timestamp, protozero::ConstBytes);
   void ParseDmaHeapStat(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
   void ParseSignalGenerate(int64_t timestamp, protozero::ConstBytes);

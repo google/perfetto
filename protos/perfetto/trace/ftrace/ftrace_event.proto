@@ -55,6 +55,7 @@ import "protos/perfetto/trace/ftrace/ion.proto";
 import "protos/perfetto/trace/ftrace/ipi.proto";
 import "protos/perfetto/trace/ftrace/irq.proto";
 import "protos/perfetto/trace/ftrace/irq_vectors.proto";
+import "protos/perfetto/trace/ftrace/kevin.proto";
 import "protos/perfetto/trace/ftrace/kgsl.proto";
 import "protos/perfetto/trace/ftrace/kmem.proto";
 import "protos/perfetto/trace/ftrace/kvm.proto";
@@ -706,5 +707,6 @@ message FtraceEvent {
     TimerExpireExitFtraceEvent timer_expire_exit = 558;
     LocalTimerEntryFtraceEvent local_timer_entry = 559;
     LocalTimerExitFtraceEvent local_timer_exit = 560;
+    KevinEventFtraceEvent kevin_event = 561;
   }
 }

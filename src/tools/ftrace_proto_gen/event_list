@@ -554,3 +554,4 @@ timer/timer_expire_entry
 timer/timer_expire_exit
 irq_vectors/local_timer_entry
 irq_vectors/local_timer_exit
+kevin/kevin_event
