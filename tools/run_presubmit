@@ -235,7 +235,6 @@ def CheckCodeFormatted(skip_formatters: str) -> List[str]:
   # tools/format_sources succeeds because they diverge in their diff logic.
   tool = os.path.join(REPO_ROOT, 'tools/format-sources')
   try:
-    print('CheckCodeFormatted', skip_formatters)
     run_command([tool, '--quiet', '--check-only', '--skip=' + skip_formatters],
                 stderr=subprocess.STDOUT)
   except subprocess.CalledProcessError:
@@ -856,7 +855,7 @@ def main():
     print("No changed files detected relative to upstream or in working dir.")
     sys.exit(0)
 
-  print(f"Checking {len(changed_files)} files...", args.skip_formatters, args)  # Optional verbosity
+  print(f"Checking {len(changed_files)} files...")  # Optional verbosity
 
   # 3. Run all checks
   all_results = []
