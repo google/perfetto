@@ -64,7 +64,7 @@
 #endif
 
 #if PERFETTO_HAS_RT_FUTEX()
-#include <unistd.h>
+#include <unistd.h>  // For gettid().
 #endif
 
 #include "perfetto/base/thread_annotations.h"
@@ -179,7 +179,7 @@ class PERFETTO_LOCKABLE RtPosixMutex {
 #if PERFETTO_HAS_RT_FUTEX()
 using RtMutex = internal::RtFutex;
 #elif PERFETTO_HAS_POSIX_RT_MUTEX()
-using RtMutex = internal::PiPosixMutex;
+using RtMutex = internal::RtPosixMutex;
 #else
 using RtMutex = std::mutex;
 #endif
