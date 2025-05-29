@@ -261,6 +261,16 @@ bool FtraceProcfs::ClearFunctionFilters() {
   return ClearFile(path);
 }
 
+bool FtraceProcfs::SetMaxGraphDepth(uint32_t depth) {
+  std::string path = root_ + "max_graph_depth";
+  return WriteNumberToFile(path, depth);
+}
+
+bool FtraceProcfs::ClearMaxGraphDepth() {
+  std::string path = root_ + "max_graph_depth";
+  return WriteNumberToFile(path, 0);
+}
+
 bool FtraceProcfs::AppendFunctionGraphFilters(
     const std::vector<std::string>& filters) {
   std::string path = root_ + "set_graph_function";

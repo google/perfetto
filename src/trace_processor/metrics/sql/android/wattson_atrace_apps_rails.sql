@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.curves.estimates;
+INCLUDE PERFETTO MODULE wattson.estimates;
 
 -- Create the base table (`android_jank_cuj`) containing all completed CUJs
 -- found in the trace.

@@ -118,14 +118,14 @@ export class SelectionAggregationManager {
     const columnSums = await Promise.all(
       defs.map((def) => this.getSum(aggr.id, def)),
     );
-    const extraData = await aggr.getExtra(this.engine, area);
+    const extraData = await aggr.getBarChartData?.(this.engine, area, dataset);
     const extra = extraData ? extraData : undefined;
     const data: AggregateData = {
       tabName: aggr.getTabName(),
       columns,
       columnSums,
       strings: [],
-      extra,
+      barChart: extra,
     };
 
     const stringIndexes = new Map<string, number>();

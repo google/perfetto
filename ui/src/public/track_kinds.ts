@@ -23,7 +23,6 @@ export const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
 export const INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND =
   'InstrumentsSamplesProfileTrack';
 export const COUNTER_TRACK_KIND = 'CounterTrack';
-export const CPUSS_ESTIMATE_TRACK_KIND = 'CpuSubsystemEstimateTrack';
 export const CPU_PROFILE_TRACK_KIND = 'CpuProfileTrack';
 export const HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
 export const ANDROID_LOGS_TRACK_KIND = 'AndroidLogTrack';

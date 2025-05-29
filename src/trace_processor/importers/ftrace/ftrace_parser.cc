@@ -464,7 +464,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
           context_->storage->InternString("disp_vblank_irq_enable")),
       disp_vblank_irq_enable_output_id_arg_name_(
           context_->storage->InternString("output_id")),
-      hrtimer_id_(context_->storage->InternString("hrtimer")) {
+      hrtimer_id_(context_->storage->InternString("hrtimer")),
+      local_timer_id_(context_->storage->InternString("IRQ (LocalTimer)")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -980,6 +981,14 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseWorkqueueExecuteEnd(ts, pid, fld_bytes);
         break;
       }
+      case FtraceEvent::kLocalTimerEntryFieldNumber: {
+        ParseLocalTimerEntry(cpu, ts);
+        break;
+      }
+      case FtraceEvent::kLocalTimerExitFieldNumber: {
+        ParseLocalTimerExit(cpu, ts);
+        break;
+      }
       case FtraceEvent::kIrqHandlerEntryFieldNumber: {
         ParseIrqHandlerEntry(cpu, ts, fld_bytes);
         break;
@@ -1290,6 +1299,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       case FtraceEvent::kMaliMaliPMMCUPOWERDOWNFieldNumber:
       case FtraceEvent::kMaliMaliPMMCURESETWAITFieldNumber: {
         mali_gpu_event_tracker_.ParseMaliGpuMcuStateEvent(ts, fld.id());
+        break;
+      }
+      case FtraceEvent::kMaliGpuPowerStateFieldNumber: {
+        ParseMaliGpuPowerState(ts, fld_bytes);
         break;
       }
       case FtraceEvent::kTracingMarkWriteFieldNumber: {
@@ -2747,6 +2760,18 @@ void FtraceParser::ParseIrqHandlerExit(uint32_t cpu,
       });
 }
 
+void FtraceParser::ParseLocalTimerEntry(uint32_t cpu, int64_t timestamp) {
+  TrackId track = context_->track_tracker->InternTrack(kIrqBlueprint,
+                                                       tracks::Dimensions(cpu));
+  context_->slice_tracker->Begin(timestamp, track, irq_id_, local_timer_id_);
+}
+
+void FtraceParser::ParseLocalTimerExit(uint32_t cpu, int64_t timestamp) {
+  TrackId track = context_->track_tracker->InternTrack(kIrqBlueprint,
+                                                       tracks::Dimensions(cpu));
+  context_->slice_tracker->End(timestamp, track, irq_id_, {});
+}
+
 namespace {
 
 constexpr auto kSoftIrqBlueprint = tracks::SliceBlueprint(
@@ -4155,5 +4180,18 @@ void FtraceParser::ParseHrtimerExpireExit(uint32_t cpu,
   TrackId track = context_->track_tracker->InternTrack(kHrtimerBlueprint,
                                                        tracks::Dimensions(cpu));
   context_->slice_tracker->End(timestamp, track, hrtimer_id_);
+}
+
+void FtraceParser::ParseMaliGpuPowerState(int64_t ts,
+                                          protozero::ConstBytes blob) {
+  static constexpr auto kMaliGpuPowerStateBlueprint = tracks::CounterBlueprint(
+      "mali_gpu_power_state", tracks::UnknownUnitBlueprint(),
+      tracks::DimensionBlueprints(),
+      tracks::StaticNameBlueprint("mali_gpu_power_state"));
+
+  protos::pbzero::MaliGpuPowerStateFtraceEvent::Decoder event(blob);
+  TrackId track =
+      context_->track_tracker->InternTrack(kMaliGpuPowerStateBlueprint);
+  context_->event_tracker->PushCounter(ts, event.to_state(), track);
 }
 }  // namespace perfetto::trace_processor

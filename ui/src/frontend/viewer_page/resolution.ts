@@ -14,27 +14,36 @@
 
 import {BigintMath} from '../../base/bigint_math';
 import {HighPrecisionTimeSpan} from '../../base/high_precision_time_span';
+import {errResult, okResult, Result} from '../../base/result';
 import {duration} from '../../base/time';
 
 /**
  * Work out an appropriate "resolution" for a given time span stretched over a
- * given number of pixels.
- *
- * The returned value will be rounded down to the nearest power of 2, and will
- * always be >= 1.
+ * given number of pixels, rounded down to the nearest power of 2.
  *
  * @param timeSpan The span of time to represent.
  * @param widthPx How many pixels we have to represent the time span.
- * @returns The resultant resolution.
+ * @returns The resultant resolution, or an error if the input parameters are
+ * invalid.
  */
 export function calculateResolution(
   timeSpan: HighPrecisionTimeSpan,
   widthPx: number,
-): duration {
-  // Work out how much time corresponds to one pixel
-  const timePerPixel = Number(timeSpan.duration) / widthPx;
+): Result<duration> {
+  if (widthPx <= 0) {
+    return errResult('Parameter "widthPx" must be greater than 0.');
+  }
 
-  // Round down to the nearest power of 2, noting that the smallest value this
-  // function can return is 1
-  return BigintMath.bitFloor(BigInt(Math.floor(timePerPixel)));
+  const dur = timeSpan.duration;
+  if (dur <= 0) {
+    return errResult(
+      'The duration of the "timeSpan" parameter must be greater than 0.',
+    );
+  }
+
+  // Work out how much time corresponds to one pixel.
+  const timePerPixel = Number(dur) / widthPx;
+
+  // Convert to a bigint and round down to the nearest power of 2.
+  return okResult(BigintMath.bitFloor(BigInt(Math.floor(timePerPixel))));
 }

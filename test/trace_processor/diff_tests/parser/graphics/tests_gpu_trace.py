@@ -33,15 +33,15 @@ class GraphicsGpuTrace(TestSuite):
         """,
         out=Csv("""
         "ts","value","name","gpu_id","description","unit"
-        11,5.000000,"Vertex / Second",0,"Number of vertices per second","25/22"
-        12,7.000000,"Fragment / Second",0,"Number of fragments per second","26/22"
-        14,0.000000,"Triangle Acceleration",0,"Number of triangles per ms-ms","27/21:21"
-        21,10.000000,"Vertex / Second",0,"Number of vertices per second","25/22"
-        22,14.000000,"Fragment / Second",0,"Number of fragments per second","26/22"
-        24,9.000000,"Triangle Acceleration",0,"Number of triangles per ms-ms","27/21:21"
-        31,15.000000,"Vertex / Second",0,"Number of vertices per second","25/22"
-        32,21.000000,"Fragment / Second",0,"Number of fragments per second","26/22"
-        34,7.000000,"Triangle Acceleration",0,"Number of triangles per ms-ms","27/21:21"
+        11,10.000000,"Vertex / Second",0,"Number of vertices per second","25/22"
+        12,14.000000,"Fragment / Second",0,"Number of fragments per second","26/22"
+        14,9.000000,"Triangle Acceleration",0,"Number of triangles per ms-ms","27/21:21"
+        21,15.000000,"Vertex / Second",0,"Number of vertices per second","25/22"
+        22,21.000000,"Fragment / Second",0,"Number of fragments per second","26/22"
+        24,7.000000,"Triangle Acceleration",0,"Number of triangles per ms-ms","27/21:21"
+        31,0.000000,"Vertex / Second",0,"Number of vertices per second","25/22"
+        32,0.000000,"Fragment / Second",0,"Number of fragments per second","26/22"
+        34,0.000000,"Triangle Acceleration",0,"Number of triangles per ms-ms","27/21:21"
         """))
 
   def test_gpu_counter_specs(self):

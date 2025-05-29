@@ -13,7 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.curves.device;
+INCLUDE PERFETTO MODULE wattson.curves.device_cpu;
+
+INCLUDE PERFETTO MODULE wattson.curves.device_gpu;
 
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
@@ -146,3 +148,35 @@ SELECT
 FROM _filtered_curves_l3_raw;
 
 CREATE PERFETTO INDEX freq_l3 ON _filtered_curves_l3(freq_khz, other_policy, other_freq_khz, action);
+
+-- Device specific GPU curves
+CREATE PERFETTO TABLE _gpu_filtered_curves_raw AS
+SELECT
+  freq_khz,
+  active,
+  idle1,
+  idle2
+FROM _gpu_device_curves AS dc
+JOIN _wattson_device AS device
+  ON dc.device = device.name;
+
+CREATE PERFETTO TABLE _gpu_filtered_curves AS
+SELECT
+  freq_khz,
+  2 AS idle,
+  active AS curve_value
+FROM _gpu_filtered_curves_raw
+UNION ALL
+SELECT
+  freq_khz,
+  1 AS idle,
+  idle1 AS curve_value
+FROM _gpu_filtered_curves_raw
+UNION ALL
+SELECT
+  freq_khz,
+  0 AS idle,
+  idle2 AS curve_value
+FROM _gpu_filtered_curves_raw;
+
+CREATE PERFETTO INDEX gpu_freq ON _gpu_filtered_curves(freq_khz, idle);

@@ -206,18 +206,18 @@ class Fuchsia(TestSuite):
         """,
         out=Csv('''
           "depth","count"
-          0,15283
-          1,11621
-          2,10182
-          3,1927
-          4,4001
-          5,2543
-          6,1856
-          7,2209
-          8,2200
-          9,1672
-          10,353
-          11,331
+          0,15294
+          1,11654
+          2,9722
+          3,2009
+          4,3882
+          5,2441
+          6,1825
+          7,2215
+          8,2192
+          9,1666
+          10,348
+          11,329
           12,304
           13,246
           14,207
@@ -245,7 +245,7 @@ class Fuchsia(TestSuite):
         "Escher frame number",33
         "Expected presentation time",17
         "Frame number",33
-        "MinikinFontsCount",2
+        "MinikinFontsCount",1
         "Predicted frame duration(ms)",21
         "Render time(ms)",21
         "Timestamp",917

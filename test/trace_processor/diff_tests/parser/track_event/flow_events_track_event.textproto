@@ -102,7 +102,7 @@ packet {
     track_uuid: 2
     flow_ids: 2
     legacy_event {
-      duration_us: 10
+      duration_us: 5
       phase: 88 # 'X'
     }
   }
