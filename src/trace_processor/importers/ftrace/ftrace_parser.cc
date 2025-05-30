@@ -749,7 +749,6 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         stats::ftrace_packet_before_tracing_start);
     return base::OkStatus();
   }
-  PERFETTO_LOG("Parsing ftrace event on cpu %d at ts %" PRId64, cpu, ts);
   using protos::pbzero::FtraceEvent;
   const TraceBlobView& event = data.packet;
   PacketSequenceStateGeneration* seq_state = data.sequence_state.get();
@@ -1396,7 +1395,6 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kTickerTickFieldNumber: {
-        PERFETTO_LOG("Ticker event found!");
         ParseTickerEvent(cpu, ts, fld_bytes);
         break;
       }

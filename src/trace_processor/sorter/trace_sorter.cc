@@ -339,9 +339,6 @@ void TraceSorter::ParseFtracePacket(TraceProcessorContext& context,
                                     uint32_t cpu,
                                     const TimestampedEvent& event) {
   TraceTokenBuffer::Id id = GetTokenBufferId(event);
-
-  PERFETTO_LOG("Parsing ftrace event type %d", event.event_type);
-
   switch (static_cast<TimestampedEvent::Type>(event.event_type)) {
     case TimestampedEvent::Type::kInlineSchedSwitch:
       context.proto_trace_parser->ParseInlineSchedSwitch(
