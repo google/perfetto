@@ -1,5 +1,6 @@
 from perfetto.bigtrace.protos.perfetto.common import descriptor_pb2 as _descriptor_pb2
 from perfetto.bigtrace.protos.perfetto.trace_processor import metatrace_categories_pb2 as _metatrace_categories_pb2
+from perfetto.bigtrace.protos.perfetto.perfetto_sql import structured_query_pb2 as _structured_query_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
@@ -20,7 +21,7 @@ class TraceProcessorRpcStream(_message.Message):
     def __init__(self, msg: _Optional[_Iterable[_Union[TraceProcessorRpc, _Mapping]]] = ...) -> None: ...
 
 class TraceProcessorRpc(_message.Message):
-    __slots__ = ("seq", "fatal_error", "request", "response", "invalid_request", "append_trace_data", "query_args", "compute_metric_args", "enable_metatrace_args", "reset_trace_processor_args", "append_result", "query_result", "metric_result", "metric_descriptors", "metatrace", "status")
+    __slots__ = ("seq", "fatal_error", "request", "response", "invalid_request", "append_trace_data", "query_args", "compute_metric_args", "enable_metatrace_args", "reset_trace_processor_args", "register_sql_package_args", "analyze_structured_query_args", "append_result", "query_result", "metric_result", "metric_descriptors", "metatrace", "status", "register_sql_package_result", "finalize_data_result", "analyze_structured_query_result")
     class TraceProcessorMethod(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         TPM_UNSPECIFIED: _ClassVar[TraceProcessorRpc.TraceProcessorMethod]
@@ -34,6 +35,8 @@ class TraceProcessorRpc(_message.Message):
         TPM_DISABLE_AND_READ_METATRACE: _ClassVar[TraceProcessorRpc.TraceProcessorMethod]
         TPM_GET_STATUS: _ClassVar[TraceProcessorRpc.TraceProcessorMethod]
         TPM_RESET_TRACE_PROCESSOR: _ClassVar[TraceProcessorRpc.TraceProcessorMethod]
+        TPM_REGISTER_SQL_PACKAGE: _ClassVar[TraceProcessorRpc.TraceProcessorMethod]
+        TPM_ANALYZE_STRUCTURED_QUERY: _ClassVar[TraceProcessorRpc.TraceProcessorMethod]
     TPM_UNSPECIFIED: TraceProcessorRpc.TraceProcessorMethod
     TPM_APPEND_TRACE_DATA: TraceProcessorRpc.TraceProcessorMethod
     TPM_FINALIZE_TRACE_DATA: TraceProcessorRpc.TraceProcessorMethod
@@ -45,6 +48,8 @@ class TraceProcessorRpc(_message.Message):
     TPM_DISABLE_AND_READ_METATRACE: TraceProcessorRpc.TraceProcessorMethod
     TPM_GET_STATUS: TraceProcessorRpc.TraceProcessorMethod
     TPM_RESET_TRACE_PROCESSOR: TraceProcessorRpc.TraceProcessorMethod
+    TPM_REGISTER_SQL_PACKAGE: TraceProcessorRpc.TraceProcessorMethod
+    TPM_ANALYZE_STRUCTURED_QUERY: TraceProcessorRpc.TraceProcessorMethod
     SEQ_FIELD_NUMBER: _ClassVar[int]
     FATAL_ERROR_FIELD_NUMBER: _ClassVar[int]
     REQUEST_FIELD_NUMBER: _ClassVar[int]
@@ -55,12 +60,17 @@ class TraceProcessorRpc(_message.Message):
     COMPUTE_METRIC_ARGS_FIELD_NUMBER: _ClassVar[int]
     ENABLE_METATRACE_ARGS_FIELD_NUMBER: _ClassVar[int]
     RESET_TRACE_PROCESSOR_ARGS_FIELD_NUMBER: _ClassVar[int]
+    REGISTER_SQL_PACKAGE_ARGS_FIELD_NUMBER: _ClassVar[int]
+    ANALYZE_STRUCTURED_QUERY_ARGS_FIELD_NUMBER: _ClassVar[int]
     APPEND_RESULT_FIELD_NUMBER: _ClassVar[int]
     QUERY_RESULT_FIELD_NUMBER: _ClassVar[int]
     METRIC_RESULT_FIELD_NUMBER: _ClassVar[int]
     METRIC_DESCRIPTORS_FIELD_NUMBER: _ClassVar[int]
     METATRACE_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
+    REGISTER_SQL_PACKAGE_RESULT_FIELD_NUMBER: _ClassVar[int]
+    FINALIZE_DATA_RESULT_FIELD_NUMBER: _ClassVar[int]
+    ANALYZE_STRUCTURED_QUERY_RESULT_FIELD_NUMBER: _ClassVar[int]
     seq: int
     fatal_error: str
     request: TraceProcessorRpc.TraceProcessorMethod
@@ -71,13 +81,18 @@ class TraceProcessorRpc(_message.Message):
     compute_metric_args: ComputeMetricArgs
     enable_metatrace_args: EnableMetatraceArgs
     reset_trace_processor_args: ResetTraceProcessorArgs
+    register_sql_package_args: RegisterSqlPackageArgs
+    analyze_structured_query_args: AnalyzeStructuredQueryArgs
     append_result: AppendTraceDataResult
     query_result: QueryResult
     metric_result: ComputeMetricResult
     metric_descriptors: DescriptorSet
     metatrace: DisableAndReadMetatraceResult
     status: StatusResult
-    def __init__(self, seq: _Optional[int] = ..., fatal_error: _Optional[str] = ..., request: _Optional[_Union[TraceProcessorRpc.TraceProcessorMethod, str]] = ..., response: _Optional[_Union[TraceProcessorRpc.TraceProcessorMethod, str]] = ..., invalid_request: _Optional[_Union[TraceProcessorRpc.TraceProcessorMethod, str]] = ..., append_trace_data: _Optional[bytes] = ..., query_args: _Optional[_Union[QueryArgs, _Mapping]] = ..., compute_metric_args: _Optional[_Union[ComputeMetricArgs, _Mapping]] = ..., enable_metatrace_args: _Optional[_Union[EnableMetatraceArgs, _Mapping]] = ..., reset_trace_processor_args: _Optional[_Union[ResetTraceProcessorArgs, _Mapping]] = ..., append_result: _Optional[_Union[AppendTraceDataResult, _Mapping]] = ..., query_result: _Optional[_Union[QueryResult, _Mapping]] = ..., metric_result: _Optional[_Union[ComputeMetricResult, _Mapping]] = ..., metric_descriptors: _Optional[_Union[DescriptorSet, _Mapping]] = ..., metatrace: _Optional[_Union[DisableAndReadMetatraceResult, _Mapping]] = ..., status: _Optional[_Union[StatusResult, _Mapping]] = ...) -> None: ...
+    register_sql_package_result: RegisterSqlPackageResult
+    finalize_data_result: FinalizeDataResult
+    analyze_structured_query_result: AnalyzeStructuredQueryResult
+    def __init__(self, seq: _Optional[int] = ..., fatal_error: _Optional[str] = ..., request: _Optional[_Union[TraceProcessorRpc.TraceProcessorMethod, str]] = ..., response: _Optional[_Union[TraceProcessorRpc.TraceProcessorMethod, str]] = ..., invalid_request: _Optional[_Union[TraceProcessorRpc.TraceProcessorMethod, str]] = ..., append_trace_data: _Optional[bytes] = ..., query_args: _Optional[_Union[QueryArgs, _Mapping]] = ..., compute_metric_args: _Optional[_Union[ComputeMetricArgs, _Mapping]] = ..., enable_metatrace_args: _Optional[_Union[EnableMetatraceArgs, _Mapping]] = ..., reset_trace_processor_args: _Optional[_Union[ResetTraceProcessorArgs, _Mapping]] = ..., register_sql_package_args: _Optional[_Union[RegisterSqlPackageArgs, _Mapping]] = ..., analyze_structured_query_args: _Optional[_Union[AnalyzeStructuredQueryArgs, _Mapping]] = ..., append_result: _Optional[_Union[AppendTraceDataResult, _Mapping]] = ..., query_result: _Optional[_Union[QueryResult, _Mapping]] = ..., metric_result: _Optional[_Union[ComputeMetricResult, _Mapping]] = ..., metric_descriptors: _Optional[_Union[DescriptorSet, _Mapping]] = ..., metatrace: _Optional[_Union[DisableAndReadMetatraceResult, _Mapping]] = ..., status: _Optional[_Union[StatusResult, _Mapping]] = ..., register_sql_package_result: _Optional[_Union[RegisterSqlPackageResult, _Mapping]] = ..., finalize_data_result: _Optional[_Union[FinalizeDataResult, _Mapping]] = ..., analyze_structured_query_result: _Optional[_Union[AnalyzeStructuredQueryResult, _Mapping]] = ...) -> None: ...
 
 class AppendTraceDataResult(_message.Message):
     __slots__ = ("total_bytes_parsed", "error")
@@ -213,19 +228,83 @@ class DescriptorSet(_message.Message):
     def __init__(self, descriptors: _Optional[_Iterable[_Union[_descriptor_pb2.DescriptorProto, _Mapping]]] = ...) -> None: ...
 
 class ResetTraceProcessorArgs(_message.Message):
-    __slots__ = ("drop_track_event_data_before", "ingest_ftrace_in_raw_table", "analyze_trace_proto_content", "ftrace_drop_until_all_cpus_valid")
+    __slots__ = ("drop_track_event_data_before", "ingest_ftrace_in_raw_table", "analyze_trace_proto_content", "ftrace_drop_until_all_cpus_valid", "parsing_mode")
     class DropTrackEventDataBefore(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         NO_DROP: _ClassVar[ResetTraceProcessorArgs.DropTrackEventDataBefore]
         TRACK_EVENT_RANGE_OF_INTEREST: _ClassVar[ResetTraceProcessorArgs.DropTrackEventDataBefore]
     NO_DROP: ResetTraceProcessorArgs.DropTrackEventDataBefore
     TRACK_EVENT_RANGE_OF_INTEREST: ResetTraceProcessorArgs.DropTrackEventDataBefore
+    class ParsingMode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = ()
+        DEFAULT: _ClassVar[ResetTraceProcessorArgs.ParsingMode]
+        TOKENIZE_ONLY: _ClassVar[ResetTraceProcessorArgs.ParsingMode]
+        TOKENIZE_AND_SORT: _ClassVar[ResetTraceProcessorArgs.ParsingMode]
+    DEFAULT: ResetTraceProcessorArgs.ParsingMode
+    TOKENIZE_ONLY: ResetTraceProcessorArgs.ParsingMode
+    TOKENIZE_AND_SORT: ResetTraceProcessorArgs.ParsingMode
     DROP_TRACK_EVENT_DATA_BEFORE_FIELD_NUMBER: _ClassVar[int]
     INGEST_FTRACE_IN_RAW_TABLE_FIELD_NUMBER: _ClassVar[int]
     ANALYZE_TRACE_PROTO_CONTENT_FIELD_NUMBER: _ClassVar[int]
     FTRACE_DROP_UNTIL_ALL_CPUS_VALID_FIELD_NUMBER: _ClassVar[int]
+    PARSING_MODE_FIELD_NUMBER: _ClassVar[int]
     drop_track_event_data_before: ResetTraceProcessorArgs.DropTrackEventDataBefore
     ingest_ftrace_in_raw_table: bool
     analyze_trace_proto_content: bool
     ftrace_drop_until_all_cpus_valid: bool
-    def __init__(self, drop_track_event_data_before: _Optional[_Union[ResetTraceProcessorArgs.DropTrackEventDataBefore, str]] = ..., ingest_ftrace_in_raw_table: bool = ..., analyze_trace_proto_content: bool = ..., ftrace_drop_until_all_cpus_valid: bool = ...) -> None: ...
+    parsing_mode: ResetTraceProcessorArgs.ParsingMode
+    def __init__(self, drop_track_event_data_before: _Optional[_Union[ResetTraceProcessorArgs.DropTrackEventDataBefore, str]] = ..., ingest_ftrace_in_raw_table: bool = ..., analyze_trace_proto_content: bool = ..., ftrace_drop_until_all_cpus_valid: bool = ..., parsing_mode: _Optional[_Union[ResetTraceProcessorArgs.ParsingMode, str]] = ...) -> None: ...
+
+class RegisterSqlPackageArgs(_message.Message):
+    __slots__ = ("package_name", "modules", "allow_override")
+    class Module(_message.Message):
+        __slots__ = ("name", "sql")
+        NAME_FIELD_NUMBER: _ClassVar[int]
+        SQL_FIELD_NUMBER: _ClassVar[int]
+        name: str
+        sql: str
+        def __init__(self, name: _Optional[str] = ..., sql: _Optional[str] = ...) -> None: ...
+    PACKAGE_NAME_FIELD_NUMBER: _ClassVar[int]
+    MODULES_FIELD_NUMBER: _ClassVar[int]
+    ALLOW_OVERRIDE_FIELD_NUMBER: _ClassVar[int]
+    package_name: str
+    modules: _containers.RepeatedCompositeFieldContainer[RegisterSqlPackageArgs.Module]
+    allow_override: bool
+    def __init__(self, package_name: _Optional[str] = ..., modules: _Optional[_Iterable[_Union[RegisterSqlPackageArgs.Module, _Mapping]]] = ..., allow_override: bool = ...) -> None: ...
+
+class RegisterSqlPackageResult(_message.Message):
+    __slots__ = ("error",)
+    ERROR_FIELD_NUMBER: _ClassVar[int]
+    error: str
+    def __init__(self, error: _Optional[str] = ...) -> None: ...
+
+class FinalizeDataResult(_message.Message):
+    __slots__ = ("error",)
+    ERROR_FIELD_NUMBER: _ClassVar[int]
+    error: str
+    def __init__(self, error: _Optional[str] = ...) -> None: ...
+
+class AnalyzeStructuredQueryArgs(_message.Message):
+    __slots__ = ("queries",)
+    QUERIES_FIELD_NUMBER: _ClassVar[int]
+    queries: _containers.RepeatedCompositeFieldContainer[_structured_query_pb2.PerfettoSqlStructuredQuery]
+    def __init__(self, queries: _Optional[_Iterable[_Union[_structured_query_pb2.PerfettoSqlStructuredQuery, _Mapping]]] = ...) -> None: ...
+
+class AnalyzeStructuredQueryResult(_message.Message):
+    __slots__ = ("error", "results")
+    class StructuredQueryResult(_message.Message):
+        __slots__ = ("sql", "textproto", "modules", "preambles")
+        SQL_FIELD_NUMBER: _ClassVar[int]
+        TEXTPROTO_FIELD_NUMBER: _ClassVar[int]
+        MODULES_FIELD_NUMBER: _ClassVar[int]
+        PREAMBLES_FIELD_NUMBER: _ClassVar[int]
+        sql: str
+        textproto: str
+        modules: _containers.RepeatedScalarFieldContainer[str]
+        preambles: _containers.RepeatedScalarFieldContainer[str]
+        def __init__(self, sql: _Optional[str] = ..., textproto: _Optional[str] = ..., modules: _Optional[_Iterable[str]] = ..., preambles: _Optional[_Iterable[str]] = ...) -> None: ...
+    ERROR_FIELD_NUMBER: _ClassVar[int]
+    RESULTS_FIELD_NUMBER: _ClassVar[int]
+    error: str
+    results: _containers.RepeatedCompositeFieldContainer[AnalyzeStructuredQueryResult.StructuredQueryResult]
+    def __init__(self, error: _Optional[str] = ..., results: _Optional[_Iterable[_Union[AnalyzeStructuredQueryResult.StructuredQueryResult, _Mapping]]] = ...) -> None: ...
