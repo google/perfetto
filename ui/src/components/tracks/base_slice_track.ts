@@ -321,18 +321,7 @@ export abstract class BaseSliceTrack<
     result && this.trash.use(result);
 
     // Calc the number of rows based on the depth col.
-    const rowCount = assertExists(
-      // `ORDER BY .. LIMIT 1` is faster than `MAX(depth)`
-      (
-        await this.engine.query(`
-          SELECT
-            ifnull(depth, 0) + 1 AS rowCount
-          FROM (${this.getSqlSource()})
-          ORDER BY depth DESC
-          LIMIT 1
-        `)
-      ).maybeFirstRow({rowCount: NUM})?.rowCount,
-    );
+    const rowCount = await this.getRowCount();
 
     // TODO(hjd): Consider case below:
     // raw:
@@ -388,7 +377,7 @@ export abstract class BaseSliceTrack<
     await this.engine.query(`
       create virtual table ${this.getTableName()}
       using __intrinsic_slice_mipmap((
-        select id, ts, dur, ((layer * ${rowCount}) + depth) as depth
+        select id, ts, dur, ((layer * ${rowCount ?? 1}) + depth) as depth
         from (${this.getSqlSource()})
         where dur != -1
       ));
@@ -399,6 +388,23 @@ export abstract class BaseSliceTrack<
       this.oldQuery = undefined;
       this.slicesKey = CacheKey.zero();
     });
+  }
+
+  /**
+   * Calculate the number of rows in the track from the max depth value.
+   *
+   * @returns The number of rows in the track, or undefined if track is empty.
+   */
+  private async getRowCount(): Promise<number | undefined> {
+    const result = await this.engine.query(`
+      SELECT
+        IFNULL(depth, 0) + 1 AS rowCount
+      FROM (${this.getSqlSource()})
+      ORDER BY depth DESC
+      LIMIT 1
+    `);
+
+    return result.maybeFirstRow({rowCount: NUM})?.rowCount;
   }
 
   async onUpdate({visibleWindow, size}: TrackRenderContext): Promise<void> {

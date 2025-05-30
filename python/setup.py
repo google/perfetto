@@ -8,8 +8,13 @@ setup(
         'perfetto.common',
         'perfetto.trace_processor',
         'perfetto.trace_uri_resolver',
+        'perfetto.bigtrace',
+        'perfetto.bigtrace.protos',
     ],
-    package_data={'perfetto.trace_processor': ['*.descriptor']},
+    package_data={
+        'perfetto.trace_processor': ['*.descriptor'],
+        'perfetto.bigtrace.protos': ['**/*.py', '**/*.pyi']
+    },
     include_package_data=True,
     version='0.12.0',
     license='apache-2.0',

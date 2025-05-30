@@ -123,6 +123,7 @@ class TrackEventParser {
   const StringId chrome_process_type_id_;
   const StringId event_category_key_id_;
   const StringId event_name_key_id_;
+  const StringId correlation_id_key_id_;
 
   ChromeStringLookup chrome_string_lookup_;
   std::vector<uint32_t> reflect_fields_;
