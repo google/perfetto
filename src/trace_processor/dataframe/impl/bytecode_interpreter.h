@@ -375,14 +375,14 @@ class Interpreter {
     if constexpr (std::is_same_v<RangeOp, EqualRange>) {
       PERFETTO_DCHECK(bound_modifier.Is<BothBounds>());
       const DataType* eq_start = std::lower_bound(begin, end, val);
-      for (auto* it = eq_start; it != end; ++it) {
-        if (std::not_equal_to<>()(*it, val)) {
-          update.b = static_cast<uint32_t>(eq_start - data);
-          update.e = static_cast<uint32_t>(it - data);
-          return;
+      const DataType* eq_end = eq_start;
+      for (; eq_end != end; ++eq_end) {
+        if (std::not_equal_to<>()(*eq_end, val)) {
+          break;
         }
       }
-      update.e = update.b;
+      update.b = static_cast<uint32_t>(eq_start - data);
+      update.e = static_cast<uint32_t>(eq_end - data);
     } else if constexpr (std::is_same_v<RangeOp, LowerBound>) {
       auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
       res = static_cast<uint32_t>(std::lower_bound(begin, end, val) - data);
@@ -411,14 +411,14 @@ class Interpreter {
       }
       const StringPool::Id* eq_start = std::lower_bound(
           begin, end, val, comparators::StringComparator<Lt>{string_pool_});
-      for (const StringPool::Id* it = eq_start; it != end; ++it) {
-        if (*it != *id) {
-          update.b = static_cast<uint32_t>(eq_start - data);
-          update.e = static_cast<uint32_t>(it - data);
-          return;
+      const StringPool::Id* eq_end = eq_start;
+      for (; eq_end != end; ++eq_end) {
+        if (*eq_end != *id) {
+          break;
         }
       }
-      update.e = update.b;
+      update.b = static_cast<uint32_t>(eq_start - data);
+      update.e = static_cast<uint32_t>(eq_end - data);
     } else if constexpr (std::is_same_v<RangeOp, LowerBound>) {
       auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
       const auto* it = std::lower_bound(
