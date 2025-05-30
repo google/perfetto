@@ -96,7 +96,7 @@ implementation.
 
 ![UI Recording](/docs/images/heapprofd-ui.png)
 
-TAB: Android (Command Line)
+TAB: Android (Command line)
 
 On Android Perfetto heap profiling hooks are seamlessly integrated into the libc
 implementation.
@@ -113,7 +113,6 @@ implementation.
   See the [heapprofd documentation][hdocs] for more details.
 
 [hdocs]: /docs/data-sources/native-heap-profiler.md#heapprofd-targets
-
 
 #### Instructions
 
@@ -144,28 +143,109 @@ python3 heap_profile -n com.google.android.apps.nexuslauncher
 Run your test patterns, interact with the process and press Ctrl-C when done
 (or pass `-d 10000` for a time-limited profiling)
 
-TAB: Linux
+When you press Ctrl-C the heap_profile script will pull the traces and store
+them in /tmp/heap_profile-latest. Look for the message that says
 
-TODO update below
+```bash
+Wrote profiles to /tmp/53dace (symlink /tmp/heap_profile-latest)
+The raw-trace file can be viewed using https://ui.perfetto.dev
+```
 
-Use heap_profile script
+TAB: Linux (Command line)
 
+#### Prerequisites
+
+* You need to build the `libheapprofd_glibc_preload.so` library from a Perfetto
+  checkout ([instructions](/docs/data-sources/native-heap-profiler#-non-android-linux-support))
+
+#### Instructions
+
+Download tracebox and the heap_profile script
+```bash
+curl -LO https://get.perfetto.dev/tracebox
+curl -LO https://raw.githubusercontent.com/google/perfetto/main/tools/heap_profile
+chmod +x tracebox heap_profile
+```
+
+Start the tracing service
+```bash
+./tracebox traced &
+```
+
+Generate the heapprofd config and start the tracing session.
+```bash
+# Replace trace_processor_shell with with the name of the process you want to
+# profile.
+./heap_profile -n trace_processor_shell --print-config | \
+  ./tracebox perfetto --txt -c - -o ~/trace_processor_memory.pftrace
+```
+
+Open another terminal (or tab), start the process you want to profile,
+preloading the heapprofd's .so. Example:
+```bash
+PERFETTO_HEAPPROFD_BLOCKING_INIT=1 \
+LD_PRELOAD=out/lnx/libheapprofd_glibc_preload.so \
+trace_processor_shell /dev/null
+
+# Typing this will cause a 40MB allocation.
+> CREATE TABLE x as SELECT randomblob(40000000) as data
+```
+
+By default, heapprofd lazily initalizes to avoid blocking your program's
+main thread. However, if your program makes memory allocations on startup,
+these can be missed. To avoid this from happening, set the enironment variable
+`PERFETTO_HEAPPROFD_BLOCKING_INIT=1`; on the first malloc, your program will
+be blocked until heapprofd initializes fully but means every allocation will
+be correctly tracked.
+
+At this point:
+
+* If your process terminates first, it will flush all the profiling data into
+  the tracing buffer.
+* If not, you can request a flush of the profiling data by stopping the trace.
+
+In either case: press Ctrl-C on the `tracebox perfetto` command of the previous
+step. That will write the trace file (e.g. `~/trace_processor_memory.pftrace`)
+which you can then open with the Perfetto UI.
+
+Remember also to kill the `tracebox traced` service once you are done.
+```bash
+fg
+# Ctrl-C
+```
 </tabs?>
 
 ### Visualizing your first heap profile
 
-TODO update below
-
-Upload the `raw-trace` file from the output directory to the
+Open the `/tmp/heap_profile-latest` file in the
 [Perfetto UI](https://ui.perfetto.dev) and click on diamond marker in the UI
 track labeled _"Heap profile"_.
 
 ![Profile Diamond](/docs/images/profile-diamond.png)
 ![Native Flamegraph](/docs/images/native-heap-prof.png)
 
-### Analysing your first heap profile
+The aggregated flamechart by default shows unreleased memory (i.e. memory that
+has not been free()d) aggregated by call stack. The frames at the top represent
+the earliest entrypoint in your call stack (typically `main()` or
+`pthread_start()`). As you go towards the bottom, you'll get closer to the
+frames that ultimately invoked `malloc()`.
 
-Video: run queries in UI
+You can also change the aggregation to the following modes:
+
+![Heap Profiling modes](/docs/images/heapprof-modes.png)
+
+* **Unreleased Malloc Size**: the default mode and aggregates callstacks by
+  SUM(non-freed memory bytes).
+* **Unreleased Malloc Count**: aggregates un-freed allocations by count,
+  ignoring the size of each allocation. This can be useful to spot leaks of
+  small size, where each object is small, but a large number of them accumulates
+  over time.
+* **Total Malloc Size**: aggregates callstack by bytes allocated via malloc(),
+  whether they have been freed or not. This is helpful to investigate heap
+  churn, code paths that create a lot of pressure on the allocator, even though
+  they release memory in the end.
+* **Total Malloc Count**: like the above, but aggregates by number of calls to
+   `malloc()` and ignores the size of each allocation.
 
 ## Java/Managed Heap Dumps
 
