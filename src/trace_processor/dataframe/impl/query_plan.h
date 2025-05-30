@@ -330,6 +330,9 @@ class QueryPlanBuilder {
     // Whether, instead of copying the string column, we should replace it
     // with a rank of the string.
     bool replace_string_with_rank = false;
+
+    // Whether the bits when copied should be inverted.
+    bool invert_copied_bits = false;
   };
   uint16_t CalculateRowLayoutStride(
       const std::vector<RowLayoutParams>& row_layout_params);

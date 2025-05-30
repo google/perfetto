@@ -589,11 +589,10 @@ class Interpreter {
         ReadFromRegister(bytecode.arg<B::source_indices_register>());
     auto& dest_buffer =
         ReadFromRegister(bytecode.arg<B::dest_buffer_register>());
-    uint32_t stride = bytecode.arg<B::row_layout_stride>();
-    uint32_t offset = bytecode.arg<B::row_layout_offset>();
+    auto params = bytecode.arg<B::iteration_params>();
     uint32_t copy_size = bytecode.arg<B::copy_size>();
 
-    uint8_t* dest_addr = dest_buffer.data() + offset;
+    uint8_t* dest_addr = dest_buffer.data() + params.offset;
     const auto& storage = GetColumn(col_idx).storage;
     const uint8_t* source_base = storage.byte_data();
 
@@ -606,7 +605,7 @@ class Interpreter {
       // TODO(lalitm): consider branching over the size to help the
       // compiler figure out more optimized copy loops.
       memcpy(dest_addr, source_addr, copy_size);
-      dest_addr += stride;
+      dest_addr += params.stride;
     }
   }
 
@@ -618,11 +617,10 @@ class Interpreter {
         ReadFromRegister(bytecode.arg<B::source_indices_register>());
     auto& dest_buffer =
         ReadFromRegister(bytecode.arg<B::dest_buffer_register>());
-    uint32_t stride = bytecode.arg<B::row_layout_stride>();
-    uint32_t offset = bytecode.arg<B::row_layout_offset>();
+    auto params = bytecode.arg<B::iteration_params>();
     uint32_t copy_size = bytecode.arg<B::copy_size>();
 
-    uint8_t* dest_addr = dest_buffer.data() + offset;
+    uint8_t* dest_addr = dest_buffer.data() + params.offset;
     const auto& col = GetColumn(col_idx);
     const auto& storage = col.storage;
     const auto& bv = col.null_storage.GetNullBitVector();
@@ -644,7 +642,7 @@ class Interpreter {
       } else {
         memset(dest_addr + 1, 0, copy_size);
       }
-      dest_addr += stride;
+      dest_addr += params.stride;
     }
   }
 
@@ -658,11 +656,10 @@ class Interpreter {
         ReadFromRegister(bytecode.arg<B::dest_buffer_register>());
     const auto& popcount_slab =
         ReadFromRegister(bytecode.arg<B::popcount_register>());
-    uint32_t stride = bytecode.arg<B::row_layout_stride>();
-    uint32_t offset = bytecode.arg<B::row_layout_offset>();
+    auto params = bytecode.arg<B::iteration_params>();
     uint32_t copy_size = bytecode.arg<B::copy_size>();
 
-    uint8_t* dest_addr = dest_buffer.data() + offset;
+    uint8_t* dest_addr = dest_buffer.data() + params.offset;
     const auto& col = GetColumn(col_idx);
     const auto& storage = col.storage;
     const auto& bv = col.null_storage.GetNullBitVector();
@@ -687,7 +684,7 @@ class Interpreter {
       } else {
         memset(dest_addr + 1, 0, copy_size);
       }
-      dest_addr += stride;
+      dest_addr += params.stride;
     }
   }
 
@@ -878,12 +875,13 @@ class Interpreter {
     PERFETTO_DCHECK(column.null_storage.nullability().template Is<NonNull>());
     const auto* strings = column.storage.template unchecked_data<String>();
 
-    uint8_t* dest = dest_buf.data() + bytecode.arg<B::row_layout_offset>();
-    uint16_t stride = bytecode.arg<B::row_layout_stride>();
-    for (const auto* ptr = source.b; ptr != source.e; ++ptr, dest += stride) {
+    auto params = bytecode.arg<B::iteration_params>();
+    uint8_t* dest = dest_buf.data() + params.offset;
+    for (const auto* ptr = source.b; ptr != source.e; ++ptr) {
       auto* it = rank_map.Find(strings[*ptr]);
       PERFETTO_DCHECK(it);
       memcpy(dest, it, sizeof(uint32_t));
+      dest += params.stride;
     }
   }
 
@@ -909,9 +907,9 @@ class Interpreter {
         column.null_storage.template unchecked_get<dataframe::DenseNull>();
     const auto& nulls = null_storage.bit_vector;
 
-    uint8_t* dest = dest_buf.data() + bytecode.arg<B::row_layout_offset>();
-    uint16_t stride = bytecode.arg<B::row_layout_stride>();
-    for (const auto* ptr = source.b; ptr != source.e; ++ptr, dest += stride) {
+    auto params = bytecode.arg<B::iteration_params>();
+    uint8_t* dest = dest_buf.data() + params.offset;
+    for (const auto* ptr = source.b; ptr != source.e; ++ptr) {
       uint32_t idx = *ptr;
       bool is_non_null = nulls.is_set(idx);
       *dest = is_non_null;
@@ -922,6 +920,7 @@ class Interpreter {
       } else {
         memset(dest + 1, 0, sizeof(uint32_t));
       }
+      dest += params.stride;
     }
   }
 
@@ -951,9 +950,9 @@ class Interpreter {
         column.null_storage.template unchecked_get<dataframe::SparseNull>();
     const auto& nulls = null_storage.bit_vector;
 
-    uint8_t* dest = dest_buf.data() + bytecode.arg<B::row_layout_offset>();
-    uint16_t stride = bytecode.arg<B::row_layout_stride>();
-    for (const auto* ptr = source.b; ptr != source.e; ++ptr, dest += stride) {
+    auto params = bytecode.arg<B::iteration_params>();
+    uint8_t* dest = dest_buf.data() + params.offset;
+    for (const auto* ptr = source.b; ptr != source.e; ++ptr) {
       uint32_t idx = *ptr;
       bool is_non_null = nulls.is_set(idx);
       *dest = is_non_null;
@@ -966,12 +965,13 @@ class Interpreter {
       } else {
         memset(dest + 1, 0, sizeof(uint32_t));
       }
+      dest += params.stride;
     }
   }
 
-  PERFETTO_ALWAYS_INLINE void StableSortByRowLayout(
-      const bytecode::StableSortByRowLayout& bytecode) {
-    using B = bytecode::StableSortByRowLayout;
+  PERFETTO_ALWAYS_INLINE void SortRowLayout(
+      const bytecode::SortRowLayout& bytecode) {
+    using B = bytecode::SortRowLayout;
 
     const auto& buffer_slab =
         ReadFromRegister(bytecode.arg<B::buffer_register>());

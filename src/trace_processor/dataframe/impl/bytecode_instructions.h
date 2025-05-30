@@ -340,20 +340,18 @@ struct CopyToRowLayoutNonNull : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{5};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_7(uint32_t,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_6(uint32_t,
                                      col,
                                      reg::ReadHandle<Span<uint32_t>>,
                                      source_indices_register,
                                      reg::RwHandle<Slab<uint8_t>>,
                                      dest_buffer_register,
-                                     uint32_t,
-                                     pad,
+                                     RowLayoutIterationParams,
+                                     iteration_params,
                                      uint16_t,
-                                     row_layout_offset,
+                                     copy_size,
                                      uint16_t,
-                                     row_layout_stride,
-                                     uint16_t,
-                                     copy_size);
+                                     invert_copied_bits);
 };
 
 // Copies data for a DenseNull column into the row layout buffer,
@@ -364,20 +362,18 @@ struct CopyToRowLayoutDenseNull : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{5};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_7(uint32_t,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_6(uint32_t,
                                      col,
                                      reg::ReadHandle<Span<uint32_t>>,
                                      source_indices_register,
                                      reg::RwHandle<Slab<uint8_t>>,
                                      dest_buffer_register,
-                                     uint32_t,
-                                     pad,
+                                     RowLayoutIterationParams,
+                                     iteration_params,
                                      uint16_t,
-                                     row_layout_offset,
+                                     copy_size,
                                      uint16_t,
-                                     row_layout_stride,
-                                     uint16_t,
-                                     copy_size);
+                                     invert_copied_bits);
 };
 
 // Copies data for a SparseNull column into the row layout buffer,
@@ -396,12 +392,12 @@ struct CopyToRowLayoutSparseNull : Bytecode {
                                      dest_buffer_register,
                                      reg::ReadHandle<Slab<uint32_t>>,
                                      popcount_register,
+                                     RowLayoutIterationParams,
+                                     iteration_params,
                                      uint16_t,
-                                     row_layout_offset,
+                                     copy_size,
                                      uint16_t,
-                                     row_layout_stride,
-                                     uint16_t,
-                                     copy_size);
+                                     invert_copied_bits);
 };
 
 // Performs distinct operation on row layout buffer using opaque byte
@@ -551,6 +547,7 @@ struct FinalizeRanksInMap : Bytecode {
   PERFETTO_DATAFRAME_BYTECODE_IMPL_1(reg::RwHandle<reg::StringIdToRankMap>,
                                      update_register);
 };
+
 // Copies string ranks (as uint32_t) for a non-null column into the row layout
 // buffer.
 struct CopyStringRankToRowLayoutNonNull : Bytecode {
@@ -567,10 +564,10 @@ struct CopyStringRankToRowLayoutNonNull : Bytecode {
                                      dest_buffer_register,
                                      reg::ReadHandle<reg::StringIdToRankMap>,
                                      rank_map_register,
-                                     uint16_t,
-                                     row_layout_offset,
-                                     uint16_t,
-                                     row_layout_stride);
+                                     RowLayoutIterationParams,
+                                     iteration_params,
+                                     uint32_t,
+                                     invert_copied_bits);
 };
 
 // Copies string ranks (as uint32_t) for a DenseNull column into the row
@@ -589,10 +586,10 @@ struct CopyStringRankToRowLayoutDenseNull : Bytecode {
                                      dest_buffer_register,
                                      reg::ReadHandle<reg::StringIdToRankMap>,
                                      rank_map_register,
-                                     uint16_t,
-                                     row_layout_offset,
-                                     uint16_t,
-                                     row_layout_stride);
+                                     RowLayoutIterationParams,
+                                     iteration_params,
+                                     uint32_t,
+                                     invert_copied_bits);
 };
 
 // Copies string ranks (as uint32_t) for a SparseNull column into the row
@@ -613,14 +610,14 @@ struct CopyStringRankToRowLayoutSparseNull : Bytecode {
                                      rank_map_register,
                                      reg::ReadHandle<Slab<uint32_t>>,
                                      popcount_register,
-                                     uint16_t,
-                                     row_layout_offset,
-                                     uint16_t,
-                                     row_layout_stride);
+                                     RowLayoutIterationParams,
+                                     iteration_params,
+                                     uint32_t,
+                                     invert_copied_bits);
 };
 
 // Performs a stable sort on indices based on a pre-built row layout buffer.
-struct StableSortByRowLayout : Bytecode {
+struct SortRowLayout : Bytecode {
   // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
   // is plucked from thin air and has no real foundation. Fix this by creating
   // benchmarks and backing it up with actual data.
@@ -744,7 +741,7 @@ struct StableSortByRowLayout : Bytecode {
   X(CopyStringRankToRowLayoutNonNull)        \
   X(CopyStringRankToRowLayoutDenseNull)      \
   X(CopyStringRankToRowLayoutSparseNull)     \
-  X(StableSortByRowLayout)
+  X(SortRowLayout)
 
 #define PERFETTO_DATAFRAME_BYTECODE_VARIANT(...) __VA_ARGS__,
 

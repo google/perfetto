@@ -407,13 +407,14 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
   row_layout_params.reserve(sort_specs.size());
   for (const auto& spec : sort_specs) {
     row_layout_params.push_back(
-        {spec.col, columns_[spec.col]->storage.type().Is<String>()});
+        {spec.col, columns_[spec.col]->storage.type().Is<String>(),
+         spec.direction == SortDirection::kDescending});
   }
   uint16_t total_row_stride = CalculateRowLayoutStride(row_layout_params);
   auto buffer_reg = CopyToRowLayout(total_row_stride, indices, string_rank_map,
                                     row_layout_params);
   {
-    using B = bytecode::StableSortByRowLayout;
+    using B = bytecode::SortRowLayout;
     auto& op = AddOpcode<B>(UnchangedRowCount{});
     op.arg<B::buffer_register>() = buffer_reg;
     op.arg<B::total_row_stride>() = total_row_stride;
@@ -1068,8 +1069,8 @@ bytecode::reg::RwHandle<Slab<uint8_t>> QueryPlanBuilder::CopyToRowLayout(
           op.arg<B::source_indices_register>() = indices;
           op.arg<B::dest_buffer_register>() = new_buffer_reg;
           op.arg<B::rank_map_register>() = rank_map;
-          op.arg<B::row_layout_offset>() = current_offset;
-          op.arg<B::row_layout_stride>() = row_stride;
+          op.arg<B::iteration_params>() = {current_offset, row_stride};
+          op.arg<B::invert_copied_bits>() = param.invert_copied_bits;
           break;
         }
         case Nullability::GetTypeIndex<DenseNull>(): {
@@ -1079,8 +1080,8 @@ bytecode::reg::RwHandle<Slab<uint8_t>> QueryPlanBuilder::CopyToRowLayout(
           op.arg<B::source_indices_register>() = indices;
           op.arg<B::dest_buffer_register>() = new_buffer_reg;
           op.arg<B::rank_map_register>() = rank_map;
-          op.arg<B::row_layout_offset>() = current_offset;
-          op.arg<B::row_layout_stride>() = row_stride;
+          op.arg<B::iteration_params>() = {current_offset, row_stride};
+          op.arg<B::invert_copied_bits>() = param.invert_copied_bits;
           break;
         }
         case Nullability::GetTypeIndex<SparseNull>():
@@ -1095,8 +1096,8 @@ bytecode::reg::RwHandle<Slab<uint8_t>> QueryPlanBuilder::CopyToRowLayout(
           op.arg<B::dest_buffer_register>() = new_buffer_reg;
           op.arg<B::rank_map_register>() = rank_map;
           op.arg<B::popcount_register>() = popcount_reg;
-          op.arg<B::row_layout_offset>() = current_offset;
-          op.arg<B::row_layout_stride>() = row_stride;
+          op.arg<B::iteration_params>() = {current_offset, row_stride};
+          op.arg<B::invert_copied_bits>() = param.invert_copied_bits;
           break;
         }
         default:
@@ -1111,20 +1112,20 @@ bytecode::reg::RwHandle<Slab<uint8_t>> QueryPlanBuilder::CopyToRowLayout(
           op.arg<B::col>() = param.column;
           op.arg<B::source_indices_register>() = indices;
           op.arg<B::dest_buffer_register>() = new_buffer_reg;
-          op.arg<B::row_layout_offset>() = current_offset;
-          op.arg<B::row_layout_stride>() = row_stride;
+          op.arg<B::iteration_params>() = {current_offset, row_stride};
           op.arg<B::copy_size>() = data_size;
+          op.arg<B::invert_copied_bits>() = param.invert_copied_bits;
           break;
         }
         case Nullability::GetTypeIndex<DenseNull>(): {
           using B = bytecode::CopyToRowLayoutDenseNull;
-          auto& bc = AddOpcode<B>(UnchangedRowCount{});
-          bc.arg<B::col>() = param.column;
-          bc.arg<B::source_indices_register>() = indices;
-          bc.arg<B::dest_buffer_register>() = new_buffer_reg;
-          bc.arg<B::row_layout_offset>() = current_offset;
-          bc.arg<B::row_layout_stride>() = row_stride;
-          bc.arg<B::copy_size>() = data_size;
+          auto& op = AddOpcode<B>(UnchangedRowCount{});
+          op.arg<B::col>() = param.column;
+          op.arg<B::source_indices_register>() = indices;
+          op.arg<B::dest_buffer_register>() = new_buffer_reg;
+          op.arg<B::iteration_params>() = {current_offset, row_stride};
+          op.arg<B::copy_size>() = data_size;
+          op.arg<B::invert_copied_bits>() = param.invert_copied_bits;
           break;
         }
         case Nullability::GetTypeIndex<SparseNull>():
@@ -1138,9 +1139,9 @@ bytecode::reg::RwHandle<Slab<uint8_t>> QueryPlanBuilder::CopyToRowLayout(
           op.arg<B::source_indices_register>() = indices;
           op.arg<B::dest_buffer_register>() = new_buffer_reg;
           op.arg<B::popcount_register>() = popcount_reg;
-          op.arg<B::row_layout_offset>() = current_offset;
-          op.arg<B::row_layout_stride>() = row_stride;
+          op.arg<B::iteration_params>() = {current_offset, row_stride};
           op.arg<B::copy_size>() = data_size;
+          op.arg<B::invert_copied_bits>() = param.invert_copied_bits;
           break;
         }
         default:

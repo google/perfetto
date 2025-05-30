@@ -436,6 +436,17 @@ struct Span {
   bool empty() const { return b == e; }
 };
 
+// Represents the parameters for bytecode instructions which translate to/from
+// row layout.
+struct RowLayoutIterationParams {
+  // Offset of the column in the row layout.
+  uint16_t offset;
+
+  // The stride to get to the next row for the same column.
+  uint16_t stride;
+};
+static_assert(sizeof(RowLayoutIterationParams) == 4);
+
 }  // namespace perfetto::trace_processor::dataframe::impl
 
 #endif  // SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_TYPES_H_

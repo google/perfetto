@@ -164,6 +164,12 @@ PERFETTO_NO_INLINE inline base::StackString<64> ArgToString(
   return base::StackString<64>("NullsLocation(%u)", location.index());
 }
 
+PERFETTO_NO_INLINE inline base::StackString<64> ArgToString(
+    RowLayoutIterationParams params) {
+  return base::StackString<64>("RowLayoutParams(pffset=%u, stride=%u)",
+                               params.offset, params.stride);
+}
+
 PERFETTO_NO_INLINE inline void BytecodeFieldToString(
     std::string_view name,
     const char* value,
