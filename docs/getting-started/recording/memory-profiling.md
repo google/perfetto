@@ -1,4 +1,4 @@
-# Recording Memory Profiles with Perfetto
+# Recording memory profiles with Perfetto
 
 The memory use of a process plays a key role in the performance of processes and
 impact on overall system statbility. Understanding where and how your process is
@@ -23,7 +23,7 @@ Perfetto offers two complimentary techniques for debugging the above:
 
 - [**heap profiling**](#native-c-c-rust-heap-profling) for native code:
   this is based on sampling callstacks when a
-  malloc/free happens and showing aggregated flamecharts to break down memory
+  malloc/free happens and showing aggregated flamegraphs to break down memory
   usage by call site.
 
 - [**heap dumps**](#java-managed-heap-dumps) for Java/managed code:
@@ -218,13 +218,13 @@ fg
 ### Visualizing your first heap profile
 
 Open the `/tmp/heap_profile-latest` file in the
-[Perfetto UI](https://ui.perfetto.dev) and click on diamond marker in the UI
+[Perfetto UI](https://ui.perfetto.dev) and click on the chevron marker in the UI
 track labeled _"Heap profile"_.
 
 ![Profile Diamond](/docs/images/profile-diamond.png)
 ![Native Flamegraph](/docs/images/native-heap-prof.png)
 
-The aggregated flamechart by default shows unreleased memory (i.e. memory that
+The aggregated flamegraph by default shows unreleased memory (i.e. memory that
 has not been free()d) aggregated by call stack. The frames at the top represent
 the earliest entrypoint in your call stack (typically `main()` or
 `pthread_start()`). As you go towards the bottom, you'll get closer to the
@@ -245,9 +245,27 @@ You can also change the aggregation to the following modes:
   churn, code paths that create a lot of pressure on the allocator, even though
   they release memory in the end.
 * **Total Malloc Count**: like the above, but aggregates by number of calls to
-   `malloc()` and ignores the size of each allocation.
+  `malloc()` and ignores the size of each allocation.
 
 ## Java/Managed Heap Dumps
+
+Java—and managed languages built on top of it, like Kotlin—use a runtime
+environment to handle memory management and garbage collection. In these
+languages, (almost) every object is a heap allocation. Memory is managed through
+object references: objects retain other objects, and memory is automatically
+reclaimed by the garbage collector once objects become unreachable. There is no
+free() call as in manual memory management.
+
+As a result, most profiling tools for managed languages work by capturing and
+analyzing a complete heap dump, which includes all live objects and their
+retaining relationships—a full object graph.
+
+This approach has the advantage of retroactive analysis: it provides a
+consistent snapshot of the entire heap without requiring prior instrumentation.
+However, it comes with a trade-off: while you can see which objects are keeping
+others alive, you typically cannot see the exact call sites where those objects
+were allocated. This can make it harder to reason about memory usage, especially
+when the same type of object is allocated from multiple locations in the code.
 
 NOTE: Java heap dumps with Perfetto only works on Android. This is due to the
 deep integration with the JVM (Android Runtime - ART) required to effficiently
@@ -255,18 +273,106 @@ capture a heap dump without impacting the performance of the process.
 
 ### Collecting your first heap dump
 
-TODO update below
-Use java_heap_dump script
+<?tabs>
+
+TAB: Android (Perfetto UI)
+
+On Android Perfetto heap profiling hooks are seamlessly integrated into the libc
+implementation.
+
+#### Prerequisites
+
+* A device running Android 10+.
+* A _Profileable_ or _Debuggable_ app. If you are running on a _"user"_ build of
+  Android (as opposed to _"userdebug"_ or _"eng"_), your app needs to be marked
+  as profileable or debuggable in its manifest.
+
+#### Instructions
+- Open https://ui.perfetto.dev/#!/record
+- Select Android as target device and use one of the available transports.
+  If in doubt, WebUSB is the easiest choice.
+- Click on the `Memory` probe on the left and then toggle the
+  `Java heap dumps` option.
+- Enter the process name in the `Names` box.
+- The process name you have to enter is (the first argument of the) the process
+  cmdline. That is the right-most column (NAME) of `adb shell ps -A`.
+- Select a short duration in the `Buffers and duration` page (10 s or less).
+  The trace duration is meaningless for this particular data source, as it emits
+  a whole dump at the end of the trace. A longer trace will not lead to more
+  or better data.
+- Press the red button to start recording the trace.
+
+![UI Recording](/docs/images/jheapprof-ui.png)
+
+TAB: Android (Command line)
+
+On Android Perfetto heap profiling hooks are seamlessly integrated into the libc
+implementation.
+
+#### Prerequisites
+
+* [ADB](https://developer.android.com/studio/command-line/adb) installed.
+* _Windows users_: Make sure that the downloaded adb.exe is in the PATH.  
+  `set PATH=%PATH%;%USERPROFILE%\Downloads\platform-tools`
+* A device running Android 10+.
+* A _Profileable_ or _Debuggable_ app. If you are running on a _"user"_ build of
+  Android (as opposed to _"userdebug"_ or _"eng"_), your app needs to be marked
+  as profileable or debuggable in its manifest.
+
+#### Instructions
+
+```bash
+$ adb devices -l
+List of devices attached
+24121FDH20006S         device usb:2-2.4.2 product:panther model:Pixel_7 device:panther transport_id:1
+```
+
+If more than one device or emulator is reported you must select one upfront as follows:
+
+```bash
+export ANDROID_SERIAL=24121FDH20006S
+```
+
+Download the `tools/java_heap_dump` (if you don't have a perfetto checkout):
+
+```bash
+curl -LO https://raw.githubusercontent.com/google/perfetto/main/tools/java_heap_dump
+```
+
+Then start the profile:
+
+```bash
+python3 java_heap_dump -n com.google.android.apps.nexuslauncher
+```
+The script will record a trace with the heap dump and print the path of the
+trace file (e.g. /tmp/tmpmhuvqmnqprofile)
+
+```bash
+Wrote profile to /tmp/tmpmhuvqmnqprofile
+This can be viewed using https://ui.perfetto.dev.
+```
+</tabs?>
 
 ### Visualizing your first heap dump
 
-TODO update below
-Video: open trace in the UI
+Open the `/tmp/xxxx` file in the Perfetto UI and click on the chevron marker in
+the UI track labeled "Heap profile".
 
-### Analysing your first heap dump
+The UI will show a flattened version of the heap graph, in the shape of a
+flamegraph. The flamegraph aggregates together summing objects of the same type
+that share the same reachability path. Two flattening strategies are possible:
 
-TODO update below
-Video: run queries in UI
+* **Shortest path**: this is the default option when selecting `Object Size`
+  in the flamegraph header. This arranges objects based on heuristics that
+  minimize the distance between them.
+
+* **Dominator tree**: when selecting `Dominated Size`, it uses the dominator
+  tree algorithm to flatten the graph.
+
+You can learn more about them in the
+[Debugging memory usage](/docs/case-studies/memory#java-hprof) case study
+
+![Sample heap dump in the UI](/docs/images/jheapprof-dump.png)
 
 
 ## Other types of memory
@@ -279,11 +385,12 @@ There are other, more subtle, ways a process can use memory:
 - Native processes using custom allocators. This eventually decays in the mmap
   case above. However in this case we support instrumenting your custom
   allocator and offering heap profiling capabilities to it.
-  See [/docs/instrumentation/heapprofd-api](heapprofd's Custom Allocator API)
+  See [heapprofd's Custom Allocator API](/docs/instrumentation/heapprofd-api).
 
 - dmabuf: this typically happens with apps that exchange buffers directly with
   hardware blocks (e.g. Camera apps). We support tracking of dmabuf allocations
-  in the timeline recorder [DOCUMENTATION NEEDED]
+  in the timeline recorder enabling the `dmabuf_heap/dma_heap_stat` ftrace
+  event.
 
 ## Next steps
 
