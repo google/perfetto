@@ -210,6 +210,7 @@ def CheckChangeHasNoTabs(changed_files: List[str]) -> List[str]:
       files_to_skip=[
           '*.cc',
           '*.h',
+          '*.md',
           '*.pb',
           '*.png',
           '*.jpg',
