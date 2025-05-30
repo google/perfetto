@@ -607,16 +607,17 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
                     [&create_table](metatrace::Record* record) {
                       record->AddArg("table_name", create_table.name);
                     });
-  auto stmt_or = engine_->PrepareStatement(create_table.sql);
-  RETURN_IF_ERROR(stmt_or.status());
-  SqliteEngine::PreparedStatement stmt = std::move(stmt_or);
-  ASSIGN_OR_RETURN(auto column_names, GetColumnNamesFromSelectStatement(
-                                          stmt, "CREATE PERFETTO TABLE"));
-  ASSIGN_OR_RETURN(auto effective_schema, ValidateAndGetEffectiveSchema(
-                                              column_names, create_table.schema,
-                                              "CREATE PERFETTO TABLE"));
   if (create_table.implementation ==
       PerfettoSqlParser::CreateTable::kRuntimeTable) {
+    auto stmt_or = engine_->PrepareStatement(create_table.sql);
+    RETURN_IF_ERROR(stmt_or.status());
+    SqliteEngine::PreparedStatement stmt = std::move(stmt_or);
+    ASSIGN_OR_RETURN(auto column_names, GetColumnNamesFromSelectStatement(
+                                            stmt, "CREATE PERFETTO TABLE"));
+    ASSIGN_OR_RETURN(
+        auto effective_schema,
+        ValidateAndGetEffectiveSchema(column_names, create_table.schema,
+                                      "CREATE PERFETTO TABLE"));
     return ExecuteCreateTableUsingRuntimeTable(create_table, std::move(stmt),
                                                column_names, effective_schema);
   }
@@ -630,13 +631,24 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
   std::string key = make_key();
   auto df = dataframe_shared_storage_->Find(key);
   if (!df) {
+    auto stmt_or = engine_->PrepareStatement(create_table.sql);
+    RETURN_IF_ERROR(stmt_or.status());
+    SqliteEngine::PreparedStatement stmt = std::move(stmt_or);
+    ASSIGN_OR_RETURN(auto column_names, GetColumnNamesFromSelectStatement(
+                                            stmt, "CREATE PERFETTO TABLE"));
+    ASSIGN_OR_RETURN(
+        auto effective_schema,
+        ValidateAndGetEffectiveSchema(column_names, create_table.schema,
+                                      "CREATE PERFETTO TABLE"));
     int res;
     auto* sqlite_stmt = stmt.sqlite_stmt();
     SqliteStmtValueFetcher fetcher{{}, sqlite_stmt};
     dataframe::RuntimeDataframeBuilder builder(std::move(column_names), pool_);
     for (res = sqlite3_step(sqlite_stmt); res == SQLITE_ROW;
          res = sqlite3_step(sqlite_stmt)) {
-      builder.AddRow(&fetcher);
+      if (!builder.AddRow(&fetcher)) {
+        RETURN_IF_ERROR(builder.status());
+      }
     }
     static const char* err_tag = "CREATE PERFETTO TABLE";
     if (res != SQLITE_DONE) {
