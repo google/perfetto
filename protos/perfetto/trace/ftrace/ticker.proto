@@ -5,8 +5,6 @@
 syntax = "proto2";
 package perfetto.protos;
 
-message KevinEventFtraceEvent {
-  optional uint32 id = 1;
-  optional string task_comm = 2;
-  optional int32 pid = 3;
+message TickerTickFtraceEvent {
+  optional uint32 count = 1;
 }

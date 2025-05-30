@@ -257,7 +257,7 @@ print fmt: "count=%u", REC->id
 
 Copy and paste that into a file called
 `src/traced/probes/ftrace/test/data/synthetic/events/ticker/ticker_tick/format`,
-and add teh event naem to the file `src/tools/ftrace_proto_gen/event_list`
+and add the event name to the file `src/tools/ftrace_proto_gen/event_list`
 
 Then run the following command:
 

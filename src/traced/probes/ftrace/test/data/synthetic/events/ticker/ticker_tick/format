@@ -1,4 +1,4 @@
-name: kevin_event
+name: ticker_tick
 ID: 1783
 format:
         field:unsigned short common_type;       offset:0;       size:2; signed:0;
@@ -6,8 +6,6 @@ format:
         field:unsigned char common_preempt_count;       offset:3;       size:1; signed:0;
         field:int common_pid;   offset:4;       size:4; signed:1;
 
-        field:unsigned int id;  offset:8;       size:4; signed:0;
-        field:char task_comm[16];       offset:12;      size:16;        signed:0;
-        field:pid_t pid;        offset:28;      size:4; signed:1;
+        field:unsigned int count;       offset:8;       size:4; signed:0;
 
-print fmt: "id=%u task='%s' pid=%d", REC->id, REC->task_comm, REC->pid
+print fmt: "count=%u", REC->count

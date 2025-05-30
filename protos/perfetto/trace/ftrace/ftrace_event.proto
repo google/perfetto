@@ -55,7 +55,6 @@ import "protos/perfetto/trace/ftrace/ion.proto";
 import "protos/perfetto/trace/ftrace/ipi.proto";
 import "protos/perfetto/trace/ftrace/irq.proto";
 import "protos/perfetto/trace/ftrace/irq_vectors.proto";
-import "protos/perfetto/trace/ftrace/kevin.proto";
 import "protos/perfetto/trace/ftrace/kgsl.proto";
 import "protos/perfetto/trace/ftrace/kmem.proto";
 import "protos/perfetto/trace/ftrace/kvm.proto";
@@ -88,6 +87,7 @@ import "protos/perfetto/trace/ftrace/task.proto";
 import "protos/perfetto/trace/ftrace/tcp.proto";
 import "protos/perfetto/trace/ftrace/thermal.proto";
 import "protos/perfetto/trace/ftrace/thermal_exynos.proto";
+import "protos/perfetto/trace/ftrace/ticker.proto";
 import "protos/perfetto/trace/ftrace/timer.proto";
 import "protos/perfetto/trace/ftrace/trusty.proto";
 import "protos/perfetto/trace/ftrace/ufs.proto";
@@ -707,6 +707,6 @@ message FtraceEvent {
     TimerExpireExitFtraceEvent timer_expire_exit = 558;
     LocalTimerEntryFtraceEvent local_timer_entry = 559;
     LocalTimerExitFtraceEvent local_timer_exit = 560;
-    KevinEventFtraceEvent kevin_event = 561;
+    TickerTickFtraceEvent ticker_tick = 561;
   }
 }

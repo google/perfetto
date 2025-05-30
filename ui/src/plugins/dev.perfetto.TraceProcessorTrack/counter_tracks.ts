@@ -407,7 +407,7 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     group: undefined,
   },
   {
-    type: 'kevin',
+    type: 'ticker',
     topLevelGroup: 'SYSTEM',
     group: undefined,
   },

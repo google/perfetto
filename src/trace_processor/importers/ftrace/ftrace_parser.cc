@@ -95,7 +95,6 @@
 #include "protos/perfetto/trace/ftrace/i2c.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ion.pbzero.h"
 #include "protos/perfetto/trace/ftrace/irq.pbzero.h"
-#include "protos/perfetto/trace/ftrace/kevin.pbzero.h"
 #include "protos/perfetto/trace/ftrace/kgsl.pbzero.h"
 #include "protos/perfetto/trace/ftrace/kmem.pbzero.h"
 #include "protos/perfetto/trace/ftrace/lwis.pbzero.h"
@@ -119,6 +118,7 @@
 #include "protos/perfetto/trace/ftrace/systrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
 #include "protos/perfetto/trace/ftrace/tcp.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ticker.pbzero.h"
 #include "protos/perfetto/trace/ftrace/timer.pbzero.h"
 #include "protos/perfetto/trace/ftrace/trusty.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ufs.pbzero.h"
@@ -1395,9 +1395,9 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseHrtimerExpireExit(cpu, ts, fld_bytes);
         break;
       }
-      case FtraceEvent::kKevinEventFieldNumber: {
-        PERFETTO_LOG("Kevin event found!");
-        ParseKevinEvent(cpu, ts, fld_bytes);
+      case FtraceEvent::kTickerTickFieldNumber: {
+        PERFETTO_LOG("Ticker event found!");
+        ParseTickerEvent(cpu, ts, fld_bytes);
         break;
       }
       default:
@@ -2030,12 +2030,13 @@ constexpr auto kIonChangeBlueprint = tracks::CounterBlueprint(
 
 namespace {
 
-    static constexpr auto kKevinBlueprint = tracks::CounterBlueprint(
-      "kevin", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(tracks::StringDimensionBlueprint("kevin")),
-      tracks::FnNameBlueprint([](base::StringView key) {
-        return base::StackString<1024>("%.*s", int(key.size()), key.data());
-      }));
+static constexpr auto kTickerBlueprint = tracks::CounterBlueprint(
+    "ticker",
+    tracks::UnknownUnitBlueprint(),
+    tracks::DimensionBlueprints(tracks::StringDimensionBlueprint("ticker")),
+    tracks::FnNameBlueprint([](base::StringView key) {
+      return base::StackString<1024>("%.*s", int(key.size()), key.data());
+    }));
 
 }  // namespace
 
@@ -4117,19 +4118,19 @@ constexpr auto kCpuHpBlueprint = tracks::SliceBlueprint(
     }));
 }  // namespace
 
-void FtraceParser::ParseKevinEvent(uint32_t cpu,
-                                   int64_t timestamp,
-                                   protozero::ConstBytes data) {
-  protos::pbzero::KevinEventFtraceEvent::Decoder kevin(data);
+void FtraceParser::ParseTickerEvent(uint32_t cpu,
+                                    int64_t timestamp,
+                                    protozero::ConstBytes data) {
+  protos::pbzero::TickerTickFtraceEvent::Decoder ticker(data);
 
-  PERFETTO_LOG("Parsing kevin event: %" PRId64 ", %u, %d", timestamp, cpu,
-               kevin.id());
+  PERFETTO_LOG("Parsing ticker event: %" PRId64 ", %u, %d", timestamp, cpu,
+               ticker.count());
 
   // Push the global counter.
   TrackId track = context_->track_tracker->InternTrack(
-      kKevinBlueprint, tracks::Dimensions("Kevin Counter"));
+      kTickerBlueprint, tracks::Dimensions("Ticker Tick Count"));
   context_->event_tracker->PushCounter(
-      timestamp, static_cast<double>(kevin.id()), track);
+      timestamp, static_cast<double>(ticker.count()), track);
 }
 
 void FtraceParser::ParseCpuhpEnter(uint32_t fld_id,

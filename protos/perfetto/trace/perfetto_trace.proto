@@ -9428,8 +9428,10 @@ message DrmSchedProcessJobFtraceEvent {
 
 // Begin of protos/perfetto/trace/ftrace/hyp.proto
 
-message HypEnterFtraceEvent {}
-message HypExitFtraceEvent {}
+message HypEnterFtraceEvent {
+}
+message HypExitFtraceEvent {
+}
 message HostHcallFtraceEvent {
   optional uint32 id = 1;
   optional uint32 invalid = 2;
@@ -10785,7 +10787,8 @@ message ScmCallStartFtraceEvent {
   optional uint64 x0 = 2;
   optional uint64 x5 = 3;
 }
-message ScmCallEndFtraceEvent {}
+message ScmCallEndFtraceEvent {
+}
 
 // End of protos/perfetto/trace/ftrace/scm.proto
 
@@ -11003,6 +11006,14 @@ message ThermalExynosAcpmHighOverheadFtraceEvent {
 }
 
 // End of protos/perfetto/trace/ftrace/thermal_exynos.proto
+
+// Begin of protos/perfetto/trace/ftrace/ticker.proto
+
+message TickerTickFtraceEvent {
+  optional uint32 count = 1;
+}
+
+// End of protos/perfetto/trace/ftrace/ticker.proto
 
 // Begin of protos/perfetto/trace/ftrace/timer.proto
 
@@ -12011,6 +12022,7 @@ message FtraceEvent {
     TimerExpireExitFtraceEvent timer_expire_exit = 558;
     LocalTimerEntryFtraceEvent local_timer_entry = 559;
     LocalTimerExitFtraceEvent local_timer_exit = 560;
+    TickerTickFtraceEvent ticker_tick = 561;
   }
 }
 

@@ -5,8 +5,10 @@
 syntax = "proto2";
 package perfetto.protos;
 
-message HypEnterFtraceEvent {}
-message HypExitFtraceEvent {}
+message HypEnterFtraceEvent {
+}
+message HypExitFtraceEvent {
+}
 message HostHcallFtraceEvent {
   optional uint32 id = 1;
   optional uint32 invalid = 2;
