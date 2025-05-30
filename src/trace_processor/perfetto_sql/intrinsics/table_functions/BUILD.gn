@@ -53,6 +53,7 @@ source_set("table_functions") {
     "../../../../base",
     "../../../../protozero",
     "../../../containers",
+    "../../../dataframe",
     "../../../db",
     "../../../db/column",
     "../../../importers/proto:full",
