@@ -46,6 +46,7 @@
 
     - [App + System Tracing](learning-more/trace-recording/app-and-system-tracing.md)
     - [System Tracing on Android](learning-more/trace-recording/android.md)
+    - [Tracing in Background](learning-more/trace-recording/tracing-in-background.md)
 
   - [Trace Analysis](#)
 
