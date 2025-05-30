@@ -205,32 +205,6 @@ class Storage {
     }
   }
 
-  // Returns a raw byte pointer to the underlying data.
-  // Returns nullptr if the storage type is Id (which has no buffer).
-  const uint8_t* byte_data() const {
-    switch (type_.index()) {
-      case StorageType::GetTypeIndex<dataframe::Id>():
-        return nullptr;
-      case StorageType::GetTypeIndex<dataframe::Uint32>():
-        return reinterpret_cast<const uint8_t*>(
-            base::unchecked_get<Storage::Uint32>(data_).data());
-      case StorageType::GetTypeIndex<dataframe::Int32>():
-        return reinterpret_cast<const uint8_t*>(
-            base::unchecked_get<Storage::Int32>(data_).data());
-      case StorageType::GetTypeIndex<dataframe::Int64>():
-        return reinterpret_cast<const uint8_t*>(
-            base::unchecked_get<Storage::Int64>(data_).data());
-      case StorageType::GetTypeIndex<dataframe::Double>():
-        return reinterpret_cast<const uint8_t*>(
-            base::unchecked_get<Storage::Double>(data_).data());
-      case StorageType::GetTypeIndex<dataframe::String>():
-        return reinterpret_cast<const uint8_t*>(
-            base::unchecked_get<Storage::String>(data_).data());
-      default:
-        PERFETTO_FATAL("Should not reach here");
-    }
-  }
-
   template <typename T>
   static auto* CastDataPtr(const DataPointer& ptr) {
     using U = StorageType::VariantTypeAtIndex<T, DataPointer>;
@@ -351,6 +325,19 @@ class NullStorage {
     }
   }
 
+  const BitVector* MaybeGetNullBitVector() const {
+    switch (data_.index()) {
+      case TypeIndex<SparseNull>():
+        return &unchecked_get<dataframe::SparseNull>().bit_vector;
+      case TypeIndex<DenseNull>():
+        return &unchecked_get<dataframe::DenseNull>().bit_vector;
+      case TypeIndex<NonNull>():
+        return nullptr;
+      default:
+        PERFETTO_FATAL("Unsupported overlay type");
+    }
+  }
+
   Nullability nullability() const { return nullability_; }
 
  private:
@@ -435,17 +422,6 @@ struct Span {
   size_t size() const { return static_cast<size_t>(e - b); }
   bool empty() const { return b == e; }
 };
-
-// Represents the parameters for bytecode instructions which translate to/from
-// row layout.
-struct RowLayoutIterationParams {
-  // Offset of the column in the row layout.
-  uint16_t offset;
-
-  // The stride to get to the next row for the same column.
-  uint16_t stride;
-};
-static_assert(sizeof(RowLayoutIterationParams) == 4);
 
 }  // namespace perfetto::trace_processor::dataframe::impl
 

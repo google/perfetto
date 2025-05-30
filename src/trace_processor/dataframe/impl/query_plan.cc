@@ -1025,15 +1025,8 @@ uint16_t QueryPlanBuilder::CalculateRowLayoutStride(
   for (const auto& param : row_layout_params) {
     const Column& col = GetColumn(param.column);
     bool is_non_null = col.null_storage.nullability().Is<NonNull>();
-
-    uint8_t layout_size;
-    if (param.replace_string_with_rank) {
-      PERFETTO_DCHECK(col.storage.type().Is<String>());
-      layout_size = sizeof(uint32_t);
-    } else {
-      layout_size = GetDataSize(col.storage.type());
-    }
-    calculated_total_row_stride += (is_non_null ? 0u : 1u) + layout_size;
+    calculated_total_row_stride +=
+        (is_non_null ? 0u : 1u) + GetDataSize(col.storage.type());
   }
   return calculated_total_row_stride;
 }
@@ -1055,100 +1048,27 @@ bytecode::reg::RwHandle<Slab<uint8_t>> QueryPlanBuilder::CopyToRowLayout(
   for (const auto& param : row_layout_params) {
     const Column& col = GetColumn(param.column);
     const auto& nullability = col.null_storage.nullability();
-    uint16_t data_size;
-    if (param.replace_string_with_rank) {
-      // If we are replacing the string with its rank, the data size is
-      // the size of the rank (uint32_t).
-      data_size = sizeof(uint32_t);
-      PERFETTO_DCHECK(col.storage.type().Is<String>());
-      switch (nullability.index()) {
-        case Nullability::GetTypeIndex<NonNull>(): {
-          using B = bytecode::CopyStringRankToRowLayoutNonNull;
-          auto& op = AddOpcode<B>(UnchangedRowCount{});
-          op.arg<B::col>() = param.column;
-          op.arg<B::source_indices_register>() = indices;
-          op.arg<B::dest_buffer_register>() = new_buffer_reg;
-          op.arg<B::rank_map_register>() = rank_map;
-          op.arg<B::iteration_params>() = {current_offset, row_stride};
-          op.arg<B::invert_copied_bits>() = param.invert_copied_bits;
-          break;
-        }
-        case Nullability::GetTypeIndex<DenseNull>(): {
-          using B = bytecode::CopyStringRankToRowLayoutDenseNull;
-          auto& op = AddOpcode<B>(UnchangedRowCount{});
-          op.arg<B::col>() = param.column;
-          op.arg<B::source_indices_register>() = indices;
-          op.arg<B::dest_buffer_register>() = new_buffer_reg;
-          op.arg<B::rank_map_register>() = rank_map;
-          op.arg<B::iteration_params>() = {current_offset, row_stride};
-          op.arg<B::invert_copied_bits>() = param.invert_copied_bits;
-          break;
-        }
-        case Nullability::GetTypeIndex<SparseNull>():
-        case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
-        case Nullability::GetTypeIndex<
-            SparseNullSupportingCellGetUntilFinalization>(): {
-          using B = bytecode::CopyStringRankToRowLayoutSparseNull;
-          auto popcount_reg = PrefixPopcountRegisterFor(param.column);
-          auto& op = AddOpcode<B>(UnchangedRowCount{});
-          op.arg<B::col>() = param.column;
-          op.arg<B::source_indices_register>() = indices;
-          op.arg<B::dest_buffer_register>() = new_buffer_reg;
-          op.arg<B::rank_map_register>() = rank_map;
-          op.arg<B::popcount_register>() = popcount_reg;
-          op.arg<B::iteration_params>() = {current_offset, row_stride};
-          op.arg<B::invert_copied_bits>() = param.invert_copied_bits;
-          break;
-        }
-        default:
-          PERFETTO_FATAL("Unknown nullability for string rank copy");
-      }
-    } else {
-      data_size = GetDataSize(col.storage.type());
-      switch (nullability.index()) {
-        case Nullability::GetTypeIndex<NonNull>(): {
-          using B = bytecode::CopyToRowLayoutNonNull;
-          auto& op = AddOpcode<B>(UnchangedRowCount{});
-          op.arg<B::col>() = param.column;
-          op.arg<B::source_indices_register>() = indices;
-          op.arg<B::dest_buffer_register>() = new_buffer_reg;
-          op.arg<B::iteration_params>() = {current_offset, row_stride};
-          op.arg<B::copy_size>() = data_size;
-          op.arg<B::invert_copied_bits>() = param.invert_copied_bits;
-          break;
-        }
-        case Nullability::GetTypeIndex<DenseNull>(): {
-          using B = bytecode::CopyToRowLayoutDenseNull;
-          auto& op = AddOpcode<B>(UnchangedRowCount{});
-          op.arg<B::col>() = param.column;
-          op.arg<B::source_indices_register>() = indices;
-          op.arg<B::dest_buffer_register>() = new_buffer_reg;
-          op.arg<B::iteration_params>() = {current_offset, row_stride};
-          op.arg<B::copy_size>() = data_size;
-          op.arg<B::invert_copied_bits>() = param.invert_copied_bits;
-          break;
-        }
-        case Nullability::GetTypeIndex<SparseNull>():
-        case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
-        case Nullability::GetTypeIndex<
-            SparseNullSupportingCellGetUntilFinalization>(): {
-          using B = bytecode::CopyToRowLayoutSparseNull;
-          auto popcount_reg = PrefixPopcountRegisterFor(param.column);
-          auto& op = AddOpcode<B>(UnchangedRowCount{});
-          op.arg<B::col>() = param.column;
-          op.arg<B::source_indices_register>() = indices;
-          op.arg<B::dest_buffer_register>() = new_buffer_reg;
-          op.arg<B::popcount_register>() = popcount_reg;
-          op.arg<B::iteration_params>() = {current_offset, row_stride};
-          op.arg<B::copy_size>() = data_size;
-          op.arg<B::invert_copied_bits>() = param.invert_copied_bits;
-          break;
-        }
-        default:
-          PERFETTO_FATAL("Unknown nullability for string rank copy");
-      }
+    auto popcount = nullability.IsAnyOf<SparseNullTypes>()
+                        ? PrefixPopcountRegisterFor(param.column)
+                        : bytecode::reg::ReadHandle<Slab<uint32_t>>{
+                              std::numeric_limits<uint32_t>::max()};
+    {
+      using B = bytecode::CopyToRowLayoutBase;
+      auto index = bytecode::Index<bytecode::CopyToRowLayout>(
+          col.storage.type(),
+          NullabilityToSparseNullCollapsedNullability(nullability));
+      auto& op = AddOpcode<B>(index, UnchangedRowCount{});
+      op.arg<B::col>() = param.column;
+      op.arg<B::source_indices_register>() = indices;
+      op.arg<B::dest_buffer_register>() = new_buffer_reg;
+      op.arg<B::rank_map_register>() = rank_map;
+      op.arg<B::row_layout_offset>() = current_offset;
+      op.arg<B::row_layout_stride>() = row_stride;
+      op.arg<B::invert_copied_bits>() = param.invert_copied_bits;
+      op.arg<B::popcount_register>() = popcount;
     }
-    current_offset += (nullability.Is<NonNull>() ? 0u : 1u) + data_size;
+    current_offset +=
+        (nullability.Is<NonNull>() ? 0u : 1u) + GetDataSize(col.storage.type());
   }
   PERFETTO_CHECK(current_offset == row_stride);
   return new_buffer_reg;

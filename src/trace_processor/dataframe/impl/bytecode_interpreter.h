@@ -37,6 +37,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/endian.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
@@ -581,110 +582,113 @@ class Interpreter {
     WriteToRegister(dest_reg, Slab<uint8_t>::Alloc(size));
   }
 
-  PERFETTO_ALWAYS_INLINE void CopyToRowLayoutNonNull(
-      const bytecode::CopyToRowLayoutNonNull& bytecode) {
-    using B = bytecode::CopyToRowLayoutNonNull;
-    uint32_t col_idx = bytecode.arg<B::col>();
+  template <typename T, typename Nullability>
+  PERFETTO_ALWAYS_INLINE void CopyToRowLayout(
+      const bytecode::CopyToRowLayoutBase& bytecode) {
+    using B = bytecode::CopyToRowLayoutBase;
+
+    const auto& col = GetColumn(bytecode.arg<B::col>());
     const auto& source =
         ReadFromRegister(bytecode.arg<B::source_indices_register>());
+    bool invert = bytecode.arg<B::invert_copied_bits>();
+
     auto& dest_buffer =
         ReadFromRegister(bytecode.arg<B::dest_buffer_register>());
-    auto params = bytecode.arg<B::iteration_params>();
-    uint32_t copy_size = bytecode.arg<B::copy_size>();
+    uint8_t* dest = dest_buffer.data() + bytecode.arg<B::row_layout_offset>();
+    uint32_t stride = bytecode.arg<B::row_layout_stride>();
 
-    uint8_t* dest_addr = dest_buffer.data() + params.offset;
-    const auto& storage = GetColumn(col_idx).storage;
-    const uint8_t* source_base = storage.byte_data();
-
+    const Slab<uint32_t>* popcount_slab = MaybeReadFromRegister<Slab<uint32_t>>(
+        bytecode.arg<B::popcount_register>());
+    const reg::StringIdToRankMap* rank_map_ptr =
+        MaybeReadFromRegister(bytecode.arg<B::rank_map_register>());
+    const auto* null_bv = col.null_storage.MaybeGetNullBitVector();
+    const auto* data = col.storage.template unchecked_data<T>();
     for (uint32_t* ptr = source.b; ptr != source.e; ++ptr) {
-      // If the pointer is null, then use the index directly as the
-      // value we need to copy.
-      const uint8_t* source_addr = source_base
-                                       ? source_base + (*ptr * copy_size)
-                                       : reinterpret_cast<uint8_t*>(ptr);
-      // TODO(lalitm): consider branching over the size to help the
-      // compiler figure out more optimized copy loops.
-      memcpy(dest_addr, source_addr, copy_size);
-      dest_addr += params.stride;
+      uint32_t table_index = *ptr;
+      uint32_t storage_index;
+      bool is_non_null;
+      uint32_t offset;
+      if constexpr (std::is_same_v<Nullability, NonNull>) {
+        is_non_null = true;
+        storage_index = table_index;
+        offset = 0;
+      } else if constexpr (std::is_same_v<Nullability, SparseNull>) {
+        PERFETTO_DCHECK(popcount_slab);
+        is_non_null = null_bv->is_set(table_index);
+        storage_index = is_non_null
+                            ? static_cast<uint32_t>(
+                                  (*popcount_slab)[*ptr / 64] +
+                                  null_bv->count_set_bits_until_in_word(*ptr))
+                            : std::numeric_limits<uint32_t>::max();
+        uint8_t res = is_non_null ? 0xFF : 0;
+        *dest = invert ? ~res : res;
+        offset = 1;
+      } else if constexpr (std::is_same_v<Nullability, DenseNull>) {
+        is_non_null = null_bv->is_set(table_index);
+        storage_index = table_index;
+        uint8_t res = is_non_null ? 0xFF : 0;
+        *dest = invert ? ~res : res;
+        offset = 1;
+      } else {
+        static_assert(std::is_same_v<Nullability, NonNull>,
+                      "Unsupported Nullability type");
+      }
+      if constexpr (std::is_same_v<T, Id>) {
+        if (is_non_null) {
+          uint32_t res = GetComparableRowLayoutRepr(storage_index);
+          res = invert ? ~res : res;
+          memcpy(dest + offset, &res, sizeof(uint32_t));
+        } else {
+          memset(dest + offset, 0, sizeof(uint32_t));
+        }
+      } else if constexpr (std::is_same_v<T, String>) {
+        if (is_non_null) {
+          uint32_t res;
+          if (rank_map_ptr) {
+            auto* rank = (*rank_map_ptr)->Find(data[storage_index]);
+            PERFETTO_DCHECK(rank);
+            res = GetComparableRowLayoutRepr(*rank);
+          } else {
+            res = GetComparableRowLayoutRepr(data[storage_index].raw_id());
+          }
+          res = invert ? ~res : res;
+          memcpy(dest + offset, &res, sizeof(uint32_t));
+        } else {
+          memset(dest + offset, 0, sizeof(uint32_t));
+        }
+      } else {
+        if (is_non_null) {
+          auto res = GetComparableRowLayoutRepr(data[storage_index]);
+          res = invert ? ~res : res;
+          memcpy(dest + offset, &res, sizeof(res));
+        } else {
+          memset(dest + offset, 0, sizeof(decltype(*data)));
+        }
+      }
+      dest += stride;
     }
   }
 
-  PERFETTO_ALWAYS_INLINE void CopyToRowLayoutDenseNull(
-      const bytecode::CopyToRowLayoutDenseNull& bytecode) {
-    using B = bytecode::CopyToRowLayoutDenseNull;
-    uint32_t col_idx = bytecode.arg<B::col>();
-    const auto& source =
-        ReadFromRegister(bytecode.arg<B::source_indices_register>());
-    auto& dest_buffer =
-        ReadFromRegister(bytecode.arg<B::dest_buffer_register>());
-    auto params = bytecode.arg<B::iteration_params>();
-    uint32_t copy_size = bytecode.arg<B::copy_size>();
-
-    uint8_t* dest_addr = dest_buffer.data() + params.offset;
-    const auto& col = GetColumn(col_idx);
-    const auto& storage = col.storage;
-    const auto& bv = col.null_storage.GetNullBitVector();
-    const uint8_t* source_base = storage.byte_data();
-
-    for (uint32_t* ptr = source.b; ptr != source.e; ++ptr) {
-      // If the pointer is null, then use the index directly as the
-      // value we need to copy.
-      bool is_non_null = bv.is_set(*ptr);
-      *dest_addr = static_cast<uint8_t>(is_non_null);
-      if (is_non_null) {
-        const uint8_t* source_addr =
-            source_base ? source_base + (*ptr * copy_size)
-                        : reinterpret_cast<const uint8_t*>(ptr);
-
-        // TODO(lalitm): consider branching over the size to help the
-        // compiler figure out more optimized copy loops.
-        memcpy(dest_addr + 1, source_addr, copy_size);
-      } else {
-        memset(dest_addr + 1, 0, copy_size);
-      }
-      dest_addr += params.stride;
-    }
-  }
-
-  PERFETTO_ALWAYS_INLINE void CopyToRowLayoutSparseNull(
-      const bytecode::CopyToRowLayoutSparseNull& bytecode) {
-    using B = bytecode::CopyToRowLayoutSparseNull;
-    uint32_t col_idx = bytecode.arg<B::col>();
-    const auto& source =
-        ReadFromRegister(bytecode.arg<B::source_indices_register>());
-    auto& dest_buffer =
-        ReadFromRegister(bytecode.arg<B::dest_buffer_register>());
-    const auto& popcount_slab =
-        ReadFromRegister(bytecode.arg<B::popcount_register>());
-    auto params = bytecode.arg<B::iteration_params>();
-    uint32_t copy_size = bytecode.arg<B::copy_size>();
-
-    uint8_t* dest_addr = dest_buffer.data() + params.offset;
-    const auto& col = GetColumn(col_idx);
-    const auto& storage = col.storage;
-    const auto& bv = col.null_storage.GetNullBitVector();
-    const uint8_t* source_base = storage.byte_data();
-
-    for (uint32_t* ptr = source.b; ptr != source.e; ++ptr) {
-      bool is_non_null = bv.is_set(*ptr);
-      *dest_addr = static_cast<uint8_t>(is_non_null);
-      if (is_non_null) {
-        auto storage_idx = static_cast<uint32_t>(
-            popcount_slab[*ptr / 64] + bv.count_set_bits_until_in_word(*ptr));
-
-        // If the pointer is null, then use the index directly as the
-        // value we need to copy.
-        const uint8_t* source_addr =
-            source_base ? source_base + (storage_idx * copy_size)
-                        : reinterpret_cast<const uint8_t*>(&storage_idx);
-
-        // TODO(lalitm): consider branching over the size to help the
-        // compiler figure out more optimized copy loops.
-        memcpy(dest_addr + 1, source_addr, copy_size);
-      } else {
-        memset(dest_addr + 1, 0, copy_size);
-      }
-      dest_addr += params.stride;
+  template <typename T>
+  auto GetComparableRowLayoutRepr(T x) {
+    // The inspiration behind this function comes from:
+    // https://arrow.apache.org/blog/2022/11/07/multi-column-sorts-in-arrow-rust-part-2/
+    if constexpr (std::is_same_v<T, uint32_t>) {
+      return base::HostToBE32(x);
+    } else if constexpr (std::is_same_v<T, int32_t>) {
+      return base::HostToBE32(
+          static_cast<uint32_t>(x ^ static_cast<int32_t>(0x80000000)));
+    } else if constexpr (std::is_same_v<T, int64_t>) {
+      return base::HostToBE64(
+          static_cast<uint64_t>(x ^ static_cast<int64_t>(0x8000000000000000)));
+    } else if constexpr (std::is_same_v<T, double>) {
+      int64_t bits;
+      memcpy(&bits, &x, sizeof(double));
+      bits ^= static_cast<int64_t>(static_cast<uint64_t>(bits >> 63) >> 1);
+      return GetComparableRowLayoutRepr(bits);
+    } else {
+      static_assert(std::is_same_v<T, uint32_t>,
+                    "Unsupported type for row layout representation");
     }
   }
 
@@ -857,124 +861,14 @@ class Interpreter {
     }
   }
 
-  PERFETTO_ALWAYS_INLINE void CopyStringRankToRowLayoutNonNull(
-      const bytecode::CopyStringRankToRowLayoutNonNull& bytecode) {
-    using B = bytecode::CopyStringRankToRowLayoutNonNull;
-
-    const reg::StringIdToRankMap& rank_map_ptr =
-        ReadFromRegister(bytecode.arg<B::rank_map_register>());
-    PERFETTO_DCHECK(rank_map_ptr && rank_map_ptr.get());
-    const auto& rank_map = *rank_map_ptr;
-
-    const auto& source =
-        ReadFromRegister(bytecode.arg<B::source_indices_register>());
-    auto& dest_buf = ReadFromRegister(bytecode.arg<B::dest_buffer_register>());
-
-    const auto& column = GetColumn(bytecode.arg<B::col>());
-    PERFETTO_DCHECK(column.storage.type().template Is<String>());
-    PERFETTO_DCHECK(column.null_storage.nullability().template Is<NonNull>());
-    const auto* strings = column.storage.template unchecked_data<String>();
-
-    auto params = bytecode.arg<B::iteration_params>();
-    uint8_t* dest = dest_buf.data() + params.offset;
-    for (const auto* ptr = source.b; ptr != source.e; ++ptr) {
-      auto* it = rank_map.Find(strings[*ptr]);
-      PERFETTO_DCHECK(it);
-      memcpy(dest, it, sizeof(uint32_t));
-      dest += params.stride;
-    }
-  }
-
-  PERFETTO_ALWAYS_INLINE void CopyStringRankToRowLayoutDenseNull(
-      const bytecode::CopyStringRankToRowLayoutDenseNull& bytecode) {
-    using B = bytecode::CopyStringRankToRowLayoutDenseNull;
-
-    const auto& source =
-        ReadFromRegister(bytecode.arg<B::source_indices_register>());
-    auto& dest_buf = ReadFromRegister(bytecode.arg<B::dest_buffer_register>());
-
-    const reg::StringIdToRankMap& rank_map_ptr =
-        ReadFromRegister(bytecode.arg<B::rank_map_register>());
-    PERFETTO_DCHECK(rank_map_ptr && rank_map_ptr.get());
-    const auto& rank_map = *rank_map_ptr;
-
-    const auto& column = GetColumn(bytecode.arg<B::col>());
-    PERFETTO_DCHECK(column.storage.type().template Is<String>());
-    PERFETTO_DCHECK(column.null_storage.nullability().template Is<DenseNull>());
-
-    const auto* strings = column.storage.template unchecked_data<String>();
-    const auto& null_storage =
-        column.null_storage.template unchecked_get<dataframe::DenseNull>();
-    const auto& nulls = null_storage.bit_vector;
-
-    auto params = bytecode.arg<B::iteration_params>();
-    uint8_t* dest = dest_buf.data() + params.offset;
-    for (const auto* ptr = source.b; ptr != source.e; ++ptr) {
-      uint32_t idx = *ptr;
-      bool is_non_null = nulls.is_set(idx);
-      *dest = is_non_null;
-      if (is_non_null) {
-        const uint32_t* rank_val_ptr = rank_map.Find(strings[idx]);
-        PERFETTO_DCHECK(rank_val_ptr);
-        memcpy(dest + 1, rank_val_ptr, sizeof(uint32_t));
-      } else {
-        memset(dest + 1, 0, sizeof(uint32_t));
-      }
-      dest += params.stride;
-    }
-  }
-
-  PERFETTO_ALWAYS_INLINE void CopyStringRankToRowLayoutSparseNull(
-      const bytecode::CopyStringRankToRowLayoutSparseNull& bytecode) {
-    using B = bytecode::CopyStringRankToRowLayoutSparseNull;
-
-    const auto& source =
-        ReadFromRegister(bytecode.arg<B::source_indices_register>());
-    auto& dest_buf = ReadFromRegister(bytecode.arg<B::dest_buffer_register>());
-
-    const reg::StringIdToRankMap& rank_map_ptr =
-        ReadFromRegister(bytecode.arg<B::rank_map_register>());
-    PERFETTO_DCHECK(rank_map_ptr && rank_map_ptr.get());
-    const auto& rank_map = *rank_map_ptr;
-
-    const auto& column = GetColumn(bytecode.arg<B::col>());
-    PERFETTO_DCHECK(column.storage.type().template Is<String>());
-    PERFETTO_DCHECK(
-        column.null_storage.nullability().template IsAnyOf<SparseNullTypes>());
-
-    const auto& popcount =
-        ReadFromRegister(bytecode.arg<B::popcount_register>());
-
-    const auto* strings = column.storage.template unchecked_data<String>();
-    const auto& null_storage =
-        column.null_storage.template unchecked_get<dataframe::SparseNull>();
-    const auto& nulls = null_storage.bit_vector;
-
-    auto params = bytecode.arg<B::iteration_params>();
-    uint8_t* dest = dest_buf.data() + params.offset;
-    for (const auto* ptr = source.b; ptr != source.e; ++ptr) {
-      uint32_t idx = *ptr;
-      bool is_non_null = nulls.is_set(idx);
-      *dest = is_non_null;
-      if (is_non_null) {
-        auto storage_idx = static_cast<uint32_t>(
-            popcount[idx / 64] + nulls.count_set_bits_until_in_word(idx));
-        const uint32_t* rank_val_ptr = rank_map.Find(strings[storage_idx]);
-        PERFETTO_DCHECK(rank_val_ptr);
-        memcpy(dest + 1, rank_val_ptr, sizeof(uint32_t));
-      } else {
-        memset(dest + 1, 0, sizeof(uint32_t));
-      }
-      dest += params.stride;
-    }
-  }
-
   PERFETTO_ALWAYS_INLINE void SortRowLayout(
       const bytecode::SortRowLayout& bytecode) {
     using B = bytecode::SortRowLayout;
 
     const auto& buffer_slab =
         ReadFromRegister(bytecode.arg<B::buffer_register>());
+    const uint8_t* buf = buffer_slab.data();
+
     auto& indices = ReadFromRegister(bytecode.arg<B::indices_register>());
     auto num_indices = static_cast<size_t>(indices.e - indices.b);
     uint32_t stride = bytecode.arg<B::total_row_stride>();
@@ -989,7 +883,6 @@ class Interpreter {
       p.push_back({indices.b[i], i * stride});
     }
 
-    const uint8_t* buf = buffer_slab.data();
     std::stable_sort(
         p.begin(), p.end(), [buf, stride](SortToken a, SortToken b) {
           return memcmp(buf + a.buf_offset, buf + b.buf_offset, stride) < 0;
