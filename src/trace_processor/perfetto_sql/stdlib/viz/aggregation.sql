@@ -15,12 +15,10 @@
 
 INCLUDE PERFETTO MODULE intervals.intersect;
 
--- This macro is basically interval_intersect_single! but it returns instants
--- within the time range too. Returns all the original columns from the table or
--- subquery + ii_dur which is the duration of the slice that lies within the
--- provided bounds.
--- Incomplete slices (dur < 0) are utterly ignored.
--- Useful for aggregations.
+-- Extends `interval_intersect_single!` to handle instants within a time range.
+-- Returns all original columns from the input table/subquery, plus `ii_dur`:
+-- the duration of the slice segment within the specified bounds.
+-- Slices with `dur < 0` are ignored. Useful for aggregations.
 CREATE PERFETTO MACRO _intersect_slices(
     ts Expr,
     dur Expr,

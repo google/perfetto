@@ -19,7 +19,6 @@ import {Engine} from '../../trace_processor/engine';
 import {AreaSelectionAggregator} from '../../public/selection';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {Dataset} from '../../trace_processor/dataset';
-import {Time} from '../../base/time';
 
 export class CpuSliceSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'cpu_aggregation';
@@ -32,35 +31,24 @@ export class CpuSliceSelectionAggregator implements AreaSelectionAggregator {
 
   async createAggregateView(
     engine: Engine,
-    area: AreaSelection,
+    _area: AreaSelection,
     dataset?: Dataset,
   ) {
     if (!dataset) return false;
 
-    const duration = Time.durationBetween(area.start, area.end);
-    if (duration <= 0n) {
-      return false;
-    }
-
     await engine.query(`
-      INCLUDE PERFETTO MODULE viz.aggregation;
-
       create or replace perfetto table ${this.id} as
       select
         process.name as process_name,
         pid,
         thread.name as thread_name,
         tid,
-        sum(ii_dur) AS total_dur,
-        sum(ii_dur) / count() as avg_dur,
+        sum(dur) AS total_dur,
+        sum(dur) / count() as avg_dur,
         count() as occurrences
       from process
       join thread using (upid)
-      join _intersect_slices!(
-        ${area.start},
-        ${duration},
-        (${dataset.query()})
-      ) AS sched using (utid)
+      join (${dataset.query()}) as sched using (utid)
       group by utid
     `);
     return true;
