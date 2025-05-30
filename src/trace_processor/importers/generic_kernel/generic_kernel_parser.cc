@@ -56,7 +56,10 @@ void GenericKernelParser::RemovePendingStateInfoForTid(UniqueTid utid) {
 
 GenericKernelParser::GenericKernelParser(TraceProcessorContext* context)
     : context_(context),
+      created_string_id_(context_->storage->InternString("Created")),
       running_string_id_(context_->storage->InternString("Running")),
+      dead_string_id_(context_->storage->InternString("Z")),
+      destroyed_string_id_(context_->storage->InternString("X")),
       task_states_({
           context_->storage->InternString("Unknown"),
           context_->storage->InternString("Created"),
@@ -78,16 +81,40 @@ void GenericKernelParser::ParseGenericTaskStateEvent(
   const uint32_t cpu = static_cast<uint32_t>(task_event.cpu());
   const uint32_t tid = static_cast<uint32_t>(task_event.tid());
   const int32_t prio = task_event.prio();
+  const size_t state = static_cast<size_t>(task_event.state());
 
-  // TODO(jahdiel): Handle the TASK_STATE_CREATED in order to set
-  // the thread's creation timestamp.
-  UniqueTid utid = context_->process_tracker->UpdateThreadName(
-      tid, comm_id, ThreadNamePriority::kGenericKernelTask);
-
-  StringId state_string_id =
-      task_states_[static_cast<size_t>(task_event.state())];
-  if (state_string_id == kNullStringId) {
+  if (state > task_states_.size()) {
     context_->storage->IncrementStats(stats::task_state_invalid);
+  }
+
+  StringId state_string_id = task_states_[state];
+
+  // Handle thread creation
+  auto utid_opt = context_->process_tracker->GetThreadOrNull(tid);
+  if (!utid_opt) {
+    if (state_string_id == destroyed_string_id_) {
+      // Ignore a DESTROYED event for a non-existing thread.
+      return;
+    }
+    utid_opt = context_->process_tracker->StartNewThread(
+        state_string_id == created_string_id_ ? std::optional{ts}
+                                              : std::nullopt,
+        tid);
+    context_->process_tracker->UpdateThreadNameByUtid(
+        *utid_opt, comm_id, ThreadNamePriority::kGenericKernelTask);
+  } else if (state_string_id == created_string_id_) {
+    context_->storage->IncrementStats(stats::generic_task_state_invalid_order);
+  }
+
+  UniqueTid utid = *utid_opt;
+
+  if (state_string_id == dead_string_id_) {
+    if (ThreadStateTracker::GetOrCreate(context_)->GetPrevEndState(utid) ==
+        destroyed_string_id_) {
+      context_->storage->IncrementStats(
+          stats::generic_task_state_invalid_order);
+    }
+    context_->process_tracker->EndThread(ts, tid);
   }
 
   // Given |PushSchedSwitch| updates the pending slice, run this

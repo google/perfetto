@@ -77,7 +77,10 @@ class GenericKernelParser {
   std::vector<std::optional<SchedEventState::PendingSchedInfo>>
       pending_state_per_utid_;
 
+  StringId created_string_id_;
   StringId running_string_id_;
+  StringId dead_string_id_;
+  StringId destroyed_string_id_;
   const std::vector<StringId> task_states_;
 };
 

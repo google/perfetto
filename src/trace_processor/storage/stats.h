@@ -96,6 +96,8 @@ namespace perfetto::trace_processor::stats {
   F(fuchsia_invalid_event_arg_name,       kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_unknown_event_arg,            kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_invalid_string_ref,           kSingle,  kError,    kAnalysis, ""), \
+  F(generic_task_state_invalid_order,     kSingle,  kError,    kAnalysis,      \
+       "Invalid order of generic task state events. Should never happen."),    \
   F(gpu_counters_invalid_spec,            kSingle,  kError,    kAnalysis, ""), \
   F(gpu_counters_missing_spec,            kSingle,  kError,    kAnalysis, ""), \
   F(gpu_render_stage_parser_errors,       kSingle,  kError,    kAnalysis, ""), \
