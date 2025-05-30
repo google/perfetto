@@ -312,6 +312,7 @@ struct SqlPackage {
 struct TraceSummaryComputationSpec {
   // The set of metric ids which should be computed and returned in the
   // `TraceSummary` proto.
+  // If the vector is empty, all metrics will be computed.
   std::vector<std::string> v2_metric_ids;
 
   // The id of the query (which must exist in the `query` field of one of the

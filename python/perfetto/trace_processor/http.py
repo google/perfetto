@@ -46,12 +46,13 @@ class TraceProcessorHttp:
       return result
 
   def trace_summary(self,
-                    metric_ids: List[str],
                     specs: List[str],
+                    metric_ids: Optional[List[str]] = None,
                     metadata_query_id: Optional[str] = None):
     args = self.protos.TraceSummaryArgs()
     args.textproto_specs.extend(specs)
-    args.computation_spec.metric_ids.extend(metric_ids)
+    if (metric_ids is not None and len(metric_ids) > 0):
+      args.computation_spec.metric_ids.extend(metric_ids)
     if (metadata_query_id is not None):
       args.computation_spec.metadata_query_id = metadata_query_id
     args.output_format = self.protos.TraceSummaryArgs.Format.BINARY_PROTOBUF

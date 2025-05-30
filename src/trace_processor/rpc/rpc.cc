@@ -628,10 +628,7 @@ void Rpc::ComputeTraceSummaryInternal(
   auto comp_spec = args.computation_spec();
   protos::pbzero::TraceSummaryArgs::ComputationSpec::Decoder comp_spec_decoder(
       comp_spec.data, comp_spec.size);
-  if (!comp_spec_decoder.has_metric_ids()) {
-    result->set_error("TraceSummary computation spec missing v2_metric_ids");
-    return;
-  }
+
   TraceSummaryComputationSpec computation_spec;
   for (auto it = comp_spec_decoder.metric_ids(); it; ++it) {
     computation_spec.v2_metric_ids.push_back(it->as_std_string());
