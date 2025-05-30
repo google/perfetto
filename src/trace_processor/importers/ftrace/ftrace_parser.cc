@@ -4121,7 +4121,7 @@ void FtraceParser::ParseTickerEvent(uint32_t cpu,
                                     protozero::ConstBytes data) {
   protos::pbzero::TickerTickFtraceEvent::Decoder ticker(data);
 
-  PERFETTO_LOG("Parsing ticker event: %" PRId64 ", %u, %d", timestamp, cpu,
+  PERFETTO_LOG("Parsing ticker event: ts: %" PRId64 ", cpu: %u, count: %d", timestamp, cpu,
                ticker.count());
 
   // Push the global counter.
