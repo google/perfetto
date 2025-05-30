@@ -35,6 +35,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
@@ -57,6 +58,7 @@ using testing::AllOf;
 using testing::ElementsAre;
 using testing::ElementsAreArray;
 using testing::IsEmpty;
+using testing::Pointee;
 using testing::SizeIs;
 using testing::UnorderedElementsAre;
 
@@ -1512,157 +1514,6 @@ TEST_F(BytecodeInterpreterTest, Uint32SetIdSortedEq) {
   }
 }
 
-TEST_F(BytecodeInterpreterTest, ExecuteSortUint32Asc) {
-  AddColumn(CreateNonNullUnsortedColumn<uint32_t>({50u, 10u, 30u, 20u, 40u}));
-
-  std::vector<uint32_t> initial_indices = {0, 1, 2, 3, 4};
-  SetRegistersAndExecute(
-      "StableSortIndices<Uint32>: [col=0, direction=SortDirection(0), "
-      "update_register=Register(0)]",
-      GetSpan(initial_indices));
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1, 3, 2, 4, 0));
-}
-
-TEST_F(BytecodeInterpreterTest, ExecuteSortDoubleDesc) {
-  AddColumn(CreateNonNullUnsortedColumn<double>({1.1, 5.5, 2.2, 4.4, 3.3}));
-
-  std::vector<uint32_t> initial_indices = {0, 1, 2, 3, 4};
-  SetRegistersAndExecute(
-      "StableSortIndices<Double>: [col=0, direction=SortDirection(1), "
-      "update_register=Register(0)]",
-      GetSpan(initial_indices));
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1, 3, 4, 2, 0));
-}
-
-TEST_F(BytecodeInterpreterTest, ExecuteSortStringAsc) {
-  columns_vec_.clear();
-  AddColumn(CreateNonNullUnsortedColumn<StringPool::Id>(
-      {"banana", "apple", "cherry", "date"}, &spool_));
-
-  std::vector<uint32_t> initial_indices = {0, 1, 2, 3};
-  SetRegistersAndExecute(
-      "StableSortIndices<String>: [col=0, direction=SortDirection(0), "
-      "update_register=Register(0)]",
-      GetSpan(initial_indices));
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1, 0, 2, 3));
-}
-
-TEST_F(BytecodeInterpreterTest, ExecuteSortIdAsc) {
-  AddColumn(impl::Column{impl::Storage{impl::Storage::Id{5}},
-                         impl::NullStorage::NonNull{}, IdSorted{}});
-
-  std::vector<uint32_t> initial_indices = {3, 0, 4, 1, 2};
-  SetRegistersAndExecute(
-      "StableSortIndices<Id>: [col=0, direction=SortDirection(0), "
-      "update_register=Register(0)]",
-      GetSpan(initial_indices));
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0, 1, 2, 3, 4));
-}
-
-TEST_F(BytecodeInterpreterTest, ExecuteStableSort) {
-  AddColumn(CreateNonNullUnsortedColumn<int64_t>({10, 20, 10, 20, 10}));
-  AddColumn(CreateNonNullUnsortedColumn<StringPool::Id>(
-      {"c", "e", "a", "d", "b"}, &spool_));
-
-  BytecodeVector bytecode;
-  bytecode.emplace_back(ParseBytecode(
-      "StableSortIndices<String>: [col=1, direction=SortDirection(1), "
-      "update_register=Register(0)]"));
-  bytecode.emplace_back(ParseBytecode(
-      "StableSortIndices<Int64>: [col=0, direction=SortDirection(0), "
-      "update_register=Register(0)]"));
-
-  SetupInterpreterWithBytecode(bytecode);
-
-  std::vector<uint32_t> initial_indices = {0, 1, 2, 3, 4};
-  interpreter_->SetRegisterValueForTesting(reg::WriteHandle<Span<uint32_t>>(0),
-                                           GetSpan(initial_indices));
-
-  interpreter_->Execute(fetcher_);
-
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0, 4, 2, 1, 3));
-}
-
-TEST_F(BytecodeInterpreterTest, ExecuteNullPartitionNullsAtStart) {
-  auto data_vec = CreateFlexVectorForTesting<uint32_t>({100, 300, 400, 600});
-  auto bv = BitVector::CreateWithSize(7);
-  bv.set(1);
-  bv.set(3);
-  bv.set(4);
-  bv.set(6);
-  AddColumn(impl::Column{
-      impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
-      Unsorted{}});
-
-  std::vector<uint32_t> initial_indices = {0, 1, 2, 3, 4, 5, 6};
-  SetRegistersAndExecute(
-      "NullIndicesStablePartition: [col=0, nulls_location=NullsLocation(0), "
-      "partition_register=Register(0), dest_non_null_register=Register(1)]",
-      GetSpan(initial_indices), impl::Span<uint32_t>{nullptr, nullptr});
-
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0, 2, 5, 1, 3, 4, 6));
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(1), ElementsAre(1, 3, 4, 6));
-}
-
-TEST_F(BytecodeInterpreterTest, ExecuteNullPartitionNullsAtEnd) {
-  auto data_vec = CreateFlexVectorForTesting<uint32_t>({100, 300, 400, 600});
-  auto bv = BitVector::CreateWithSize(7);
-  bv.set(1);
-  bv.set(3);
-  bv.set(4);
-  bv.set(6);
-  AddColumn(impl::Column{
-      impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
-      Unsorted{}});
-
-  std::vector<uint32_t> initial_indices = {0, 1, 2, 3, 4, 5, 6};
-  SetRegistersAndExecute(
-      "NullIndicesStablePartition: [col=0, nulls_location=NullsLocation(1), "
-      "partition_register=Register(0), dest_non_null_register=Register(1)]",
-      GetSpan(initial_indices), impl::Span<uint32_t>{nullptr, nullptr});
-
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1, 3, 4, 6, 0, 2, 5));
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(1), ElementsAre(1, 3, 4, 6));
-}
-
-TEST_F(BytecodeInterpreterTest, ExecuteNullPartitionAllNulls) {
-  auto data_vec = CreateFlexVectorForTesting<uint32_t>({});
-  auto bv = BitVector::CreateWithSize(3);
-  AddColumn(impl::Column{
-      impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
-      Unsorted{}});
-
-  std::vector<uint32_t> initial_indices = {0, 1, 2};
-  SetRegistersAndExecute(
-      "NullIndicesStablePartition: [col=0, nulls_location=NullsLocation(0), "
-      "partition_register=Register(0), dest_non_null_register=Register(1)]",
-      GetSpan(initial_indices), impl::Span<uint32_t>{nullptr, nullptr});
-
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0, 1, 2));
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(1), ElementsAre());
-}
-
-TEST_F(BytecodeInterpreterTest, ExecuteNullPartitionEmptyInput) {
-  auto data_vec = CreateFlexVectorForTesting<uint32_t>({});
-  auto bv = BitVector::CreateWithSize(0);
-  AddColumn(impl::Column{
-      impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
-      Unsorted{}});
-
-  std::vector<uint32_t> initial_indices = {};
-  SetRegistersAndExecute(
-      "NullIndicesStablePartition: [col=0, nulls_location=NullsLocation(0), "
-      "partition_register=Register(0), dest_non_null_register=Register(1)]",
-      GetSpan(initial_indices), impl::Span<uint32_t>{nullptr, nullptr});
-
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre());
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(1), ElementsAre());
-}
-
 TEST_F(BytecodeInterpreterTest, CopyToRowLayoutNonNull_Int32) {
   // Column: {100, 200, 300}
   AddColumn(CreateNonNullUnsortedColumn<int32_t>({100, 200, 300}));
@@ -2197,6 +2048,86 @@ TEST_F(BytecodeInterpreterTest, CopySpanIntersectingRange_NoOverlap) {
   SetRegistersAndExecute(bytecode_str, GetSpan(source_span_data),
                          Range{100, 200}, GetSpan(update_buffer));
   EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+}
+
+TEST_F(BytecodeInterpreterTest, CollectIdIntoRankMap) {
+  AddColumn(CreateSparseNullableStringColumn(
+      {std::make_optional("apple"), std::nullopt, std::make_optional("banana")},
+      &spool_));
+
+  std::vector<uint32_t> data = {0, 1};
+
+  std::string bytecode_str = R"(
+    InitRankMap: [dest_register=Register(1)]
+    CollectIdIntoRankMap: [col=0, source_register=Register(0), rank_map_register=Register(1)]
+  )";
+  SetRegistersAndExecute(
+      bytecode_str, Span<uint32_t>(data.data(), data.data() + data.size()));
+
+  const auto& rank_map = *GetRegister<reg::StringIdToRankMap>(1);
+  EXPECT_EQ(rank_map.size(), 2u);
+  EXPECT_THAT(rank_map.Find(*spool_.GetId("apple")), Pointee(0u));
+  EXPECT_THAT(rank_map.Find(*spool_.GetId("banana")), Pointee(0u));
+}
+
+TEST_F(BytecodeInterpreterTest, FinalizeRanksInMap_Simple) {
+  StringPool::Id apple_id = spool_.InternString("apple");
+  StringPool::Id banana_id = spool_.InternString("banana");
+  StringPool::Id cherry_id = spool_.InternString("cherry");
+
+  auto map = std::make_unique<base::FlatHashMap<StringPool::Id, uint32_t>>();
+  map->Insert(banana_id, 0);
+  map->Insert(cherry_id, 0);
+  map->Insert(apple_id, 0);
+
+  std::string bytecode_str =
+      "FinalizeRanksInMap: [update_register=Register(0)]";
+  SetRegistersAndExecute(bytecode_str, std::move(map));
+
+  const auto& rank_map = *GetRegister<reg::StringIdToRankMap>(0);
+  EXPECT_EQ(rank_map.size(), 3u);
+  EXPECT_THAT(rank_map.Find(apple_id), Pointee(0u));
+  EXPECT_THAT(rank_map.Find(banana_id), Pointee(1u));
+  EXPECT_THAT(rank_map.Find(cherry_id), Pointee(2u));
+}
+
+TEST_F(BytecodeInterpreterTest, CopyStringRankToRowLayoutSparseNull) {
+  AddColumn(CreateSparseNullableStringColumn(
+      {std::make_optional("apple"), std::nullopt, std::make_optional("banana")},
+      &spool_));
+
+  StringPool::Id apple_id = spool_.InternString("apple");
+  StringPool::Id banana_id = spool_.InternString("banana");
+
+  auto map = std::make_unique<base::FlatHashMap<StringPool::Id, uint32_t>>();
+  map->Insert(apple_id, 0);
+  map->Insert(banana_id, 1);
+
+  std::vector<uint32_t> indices = {0, 1, 2};
+  Span<uint32_t> span(indices.data(), indices.data() + indices.size());
+
+  Slab<uint32_t> popcount_slab =
+      columns_vec_.back()->null_storage.GetNullBitVector().PrefixPopcount();
+
+  std::string bytecode_str = R"(
+    AllocateRowLayoutBuffer: [buffer_size=15, dest_buffer_register=Register(3)]
+    CopyStringRankToRowLayoutSparseNull: [col=0, source_indices_register=Register(1), dest_buffer_register=Register(3), rank_map_register=Register(0), popcount_register=Register(2), row_layout_offset=0, row_layout_stride=5]
+  )";
+  SetRegistersAndExecute(bytecode_str, std::move(map), span,
+                         std::move(popcount_slab));
+
+  const auto& buf = GetRegister<Slab<uint8_t>>(3);
+  EXPECT_EQ(buf[0], 1u);
+  uint32_t rank_val0;
+  memcpy(&rank_val0, &buf[1], sizeof(uint32_t));
+  EXPECT_EQ(rank_val0, 0u);
+
+  EXPECT_EQ(buf[5], 0u);
+
+  EXPECT_EQ(buf[10], 1u);
+  uint32_t rank_val2;
+  memcpy(&rank_val2, &buf[11], sizeof(uint32_t));
+  EXPECT_EQ(rank_val2, 1u);
 }
 
 }  // namespace

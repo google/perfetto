@@ -297,73 +297,15 @@ void QueryPlanBuilder::Distinct(
   if (distinct_specs.empty()) {
     return;
   }
+  std::vector<RowLayoutParams> row_layout_params;
+  row_layout_params.reserve(distinct_specs.size());
+  for (const auto& spec : distinct_specs) {
+    row_layout_params.push_back({spec.col, false});
+  }
+  uint16_t total_row_stride = CalculateRowLayoutStride(row_layout_params);
   bytecode::reg::RwHandle<Span<uint32_t>> indices = EnsureIndicesAreInSlab();
-  uint16_t total_row_stride = 0;
-  for (const auto& spec : distinct_specs) {
-    const Column& col = GetColumn(spec.col);
-    bool is_nullable = !col.null_storage.nullability().Is<NonNull>();
-    total_row_stride +=
-        (is_nullable ? 1u : 0u) + GetDataSize(col.storage.type());
-  }
-
-  uint32_t buffer_size = plan_.params.max_row_count * total_row_stride;
-  bytecode::reg::RwHandle<Slab<uint8_t>> buffer_reg{register_count_++};
-  {
-    using B = bytecode::AllocateRowLayoutBuffer;
-    auto& bc = AddOpcode<B>(UnchangedRowCount{});
-    bc.arg<B::buffer_size>() = buffer_size;
-    bc.arg<B::dest_buffer_register>() = buffer_reg;
-  }
-  uint16_t current_offset = 0;
-  for (const auto& spec : distinct_specs) {
-    const Column& col = GetColumn(spec.col);
-    const auto& nullability = col.null_storage.nullability();
-    uint8_t data_size = GetDataSize(col.storage.type());
-    switch (nullability.index()) {
-      case Nullability::GetTypeIndex<NonNull>(): {
-        using B = bytecode::CopyToRowLayoutNonNull;
-        auto& bc = AddOpcode<B>(UnchangedRowCount{});
-        bc.arg<B::col>() = spec.col;
-        bc.arg<B::source_indices_register>() = indices;
-        bc.arg<B::dest_buffer_register>() = buffer_reg;
-        bc.arg<B::row_layout_offset>() = current_offset;
-        bc.arg<B::row_layout_stride>() = total_row_stride;
-        bc.arg<B::copy_size>() = data_size;
-        break;
-      }
-      case Nullability::GetTypeIndex<DenseNull>(): {
-        using B = bytecode::CopyToRowLayoutDenseNull;
-        auto& bc = AddOpcode<B>(UnchangedRowCount{});
-        bc.arg<B::col>() = spec.col;
-        bc.arg<B::source_indices_register>() = indices;
-        bc.arg<B::dest_buffer_register>() = buffer_reg;
-        bc.arg<B::row_layout_offset>() = current_offset;
-        bc.arg<B::row_layout_stride>() = total_row_stride;
-        bc.arg<B::copy_size>() = data_size;
-        break;
-      }
-      case Nullability::GetTypeIndex<SparseNull>():
-      case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
-      case Nullability::GetTypeIndex<
-          SparseNullSupportingCellGetUntilFinalization>(): {
-        auto popcount_reg = PrefixPopcountRegisterFor(spec.col);
-        using B = bytecode::CopyToRowLayoutSparseNull;
-        auto& bc = AddOpcode<B>(UnchangedRowCount{});
-        bc.arg<B::col>() = spec.col;
-        bc.arg<B::source_indices_register>() = indices;
-        bc.arg<B::dest_buffer_register>() = buffer_reg;
-        bc.arg<B::row_layout_offset>() = current_offset;
-        bc.arg<B::row_layout_stride>() = total_row_stride;
-        bc.arg<B::copy_size>() = data_size;
-        bc.arg<B::popcount_register>() = popcount_reg;
-        break;
-      }
-      default:
-        PERFETTO_FATAL("Unreachable");
-    }
-    current_offset += (nullability.Is<NonNull>() ? 0u : 1u) + data_size;
-  }
-  PERFETTO_CHECK(current_offset == total_row_stride);
+  auto buffer_reg =
+      CopyToRowLayout(total_row_stride, indices, {}, row_layout_params);
   {
     using B = bytecode::Distinct;
     auto& bc = AddOpcode<B>(DoubleLog2RowCount{});
@@ -378,92 +320,104 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
     return;
   }
 
-  // As our data is columnar, it's always more efficient to sort one column
-  // at a time rather than try and sort lexiographically all at once.
-  // To preserve correctness, we need to stably sort the index vector once
-  // for each order by in *reverse* order. Reverse order is important as it
-  // preserves the lexiographical property.
-  //
-  // For example, suppose we have the following:
-  // Table {
-  //   Column x;
-  //   Column y
-  //   Column z;
-  // }
-  //
-  // Then, to sort "y asc, x desc", we could do one of two things:
-  //  1) sort the index vector all at once and on each index, we compare
-  //     y then z. This is slow as the data is columnar and we need to
-  //     repeatedly branch inside each column.
-  //  2) we can stably sort first on x desc and then sort on y asc. This will
-  //     first put all the x in the correct order such that when we sort on
-  //     y asc, we will have the correct order of x where y is the same (since
-  //     the sort is stable).
-  //
-  // TODO(lalitm): it is possible that we could sort the last constraint (i.e.
-  // the first constraint in the below loop) in a non-stable way. However,
-  // this is more subtle than it appears as we would then need special
-  // handling where there are order bys on a column which is already sorted
-  // (e.g. ts, id). Investigate whether the performance gains from this are
-  // worthwhile. This also needs changes to the constraint modification logic
-  // in DbSqliteTable which currently eliminates constraints on sorted
-  // columns.
+  // main_indices_span will be modified by the final sort operation.
+  // EnsureIndicesAreInSlab makes it an RwHandle.
   bytecode::reg::RwHandle<Span<uint32_t>> indices = EnsureIndicesAreInSlab();
-  for (auto it = sort_specs.rbegin(); it != sort_specs.rend(); ++it) {
-    const SortSpec& sort_spec = *it;
-    const Column& sort_col = GetColumn(sort_spec.col);
-    StorageType sort_col_type = sort_col.storage.type();
 
-    uint32_t nullability_type_index =
-        sort_col.null_storage.nullability().index();
-    bytecode::reg::RwHandle<Span<uint32_t>> sort_indices;
-    switch (nullability_type_index) {
-      case Nullability::GetTypeIndex<SparseNull>():
-      case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
-      case Nullability::GetTypeIndex<
-          SparseNullSupportingCellGetUntilFinalization>():
-      case Nullability::GetTypeIndex<DenseNull>(): {
-        sort_indices =
-            bytecode::reg::RwHandle<Span<uint32_t>>{register_count_++};
-
-        using B = bytecode::NullIndicesStablePartition;
-        B& bc = AddOpcode<B>(UnchangedRowCount{});
-        bc.arg<B::col>() = sort_spec.col;
-        bc.arg<B::nulls_location>() = it->direction == SortDirection::kAscending
-                                          ? NullsLocation{NullsAtStart{}}
-                                          : NullsLocation{NullsAtEnd{}};
-        bc.arg<B::partition_register>() = indices;
-        bc.arg<B::dest_non_null_register>() = sort_indices;
-
-        // If in sparse mode, we also need to translate all the indices.
-        if (sort_col.null_storage.nullability().IsAnyOf<SparseNullTypes>()) {
-          auto popcount_reg = PrefixPopcountRegisterFor(sort_spec.col);
-          {
-            using BI = bytecode::TranslateSparseNullIndices;
-            auto& bi = AddOpcode<BI>(UnchangedRowCount{});
-            bi.arg<BI::col>() = sort_spec.col;
-            bi.arg<BI::popcount_register>() = popcount_reg;
-            bi.arg<BI::source_register>() = sort_indices;
-            bi.arg<BI::update_register>() = sort_indices;
-          }
-        }
-        break;
-      }
-      case Nullability::GetTypeIndex<NonNull>():
-        sort_indices = indices;
-        break;
-      default:
-        PERFETTO_FATAL("Unreachable");
+  bool has_string_sort_keys = false;
+  for (const auto& spec : sort_specs) {
+    if (GetColumn(spec.col).storage.type().Is<String>()) {
+      has_string_sort_keys = true;
+      break;
     }
-    using B = bytecode::StableSortIndicesBase;
+  }
+
+  using Map = bytecode::reg::StringIdToRankMap;
+  bytecode::reg::RwHandle<Map> string_rank_map;
+  if (has_string_sort_keys) {
+    string_rank_map = bytecode::reg::RwHandle<Map>{register_count_++};
     {
-      auto& bc = AddOpcode<B>(
-          bytecode::Index<bytecode::StableSortIndices>(sort_col_type),
-          UnchangedRowCount{});
-      bc.arg<B::col>() = sort_spec.col;
-      bc.arg<B::direction>() = sort_spec.direction;
-      bc.arg<B::update_register>() = sort_indices;
+      using B = bytecode::InitRankMap;
+      auto& op = AddOpcode<B>(UnchangedRowCount{});
+      op.arg<B::dest_register>() = string_rank_map;
     }
+
+    // For each string column in the sort specification, collect its unique IDs.
+    // This involves preparing a temporary set of indices for that column which
+    // are non-null and translated to storage indices if originally sparse.
+    for (const auto& spec : sort_specs) {
+      const Column& col = GetColumn(spec.col);
+      if (!col.storage.type().Is<String>()) {
+        continue;
+      }
+
+      bytecode::reg::RwHandle<Span<uint32_t>> translated;
+      if (col.null_storage.nullability().Is<NonNull>()) {
+        // If the column is non-null, we can use the main indices directly.
+        translated = indices;
+      } else {
+        // Get a scratch register to prepare indices for this specific column.
+        // This ensures that the main_indices_span is not modified, allowing
+        // each string column to be processed independently from the original
+        // set of rows.
+        bytecode::reg::RwHandle<Span<uint32_t>> scratch =
+            GetOrCreateScratchSpanRegister(plan_.params.max_row_count);
+
+        // 1. Copy the current indices to our temporary scratch span.
+        {
+          auto& op = AddOpcode<bytecode::StrideCopy>(UnchangedRowCount{});
+          op.arg<bytecode::StrideCopy::source_register>() = indices;
+          op.arg<bytecode::StrideCopy::update_register>() = scratch;
+          op.arg<bytecode::StrideCopy::stride>() = 1;
+        }
+
+        // 2. Prune nulls from this temporary span in-place.
+        PruneNullIndices(spec.col, scratch);
+
+        // 3. Translate these non-null table indices to storage indices if
+        // necessary.
+        translated = TranslateNonNullIndices(spec.col, scratch, true);
+        PERFETTO_CHECK(translated.index == scratch.index);
+      }
+
+      // Collect IDs using the prepared (non-null, translated) indices.
+      {
+        using B = bytecode::CollectIdIntoRankMap;
+        auto& op = AddOpcode<B>(UnchangedRowCount{});
+        op.arg<B::col>() = spec.col;
+        op.arg<B::source_register>() = translated;
+        op.arg<B::rank_map_register>() = string_rank_map;
+      }
+
+      // Maybe release the scratch register if we used one.
+      MaybeReleaseScratchSpanRegister();
+    }
+
+    // Finalize ranks in the map (sorts keys, updates map values to ranks).
+    // The argument name in the patch for FinalizeRanksInMap was
+    // 'update_register_register'.
+    {
+      using B = bytecode::FinalizeRanksInMap;
+      auto& op = AddOpcode<B>(UnchangedRowCount{});
+      op.arg<B::update_register>() = string_rank_map;
+    }
+  }
+
+  std::vector<RowLayoutParams> row_layout_params;
+  row_layout_params.reserve(sort_specs.size());
+  for (const auto& spec : sort_specs) {
+    row_layout_params.push_back(
+        {spec.col, columns_[spec.col]->storage.type().Is<String>()});
+  }
+  uint16_t total_row_stride = CalculateRowLayoutStride(row_layout_params);
+  auto buffer_reg = CopyToRowLayout(total_row_stride, indices, string_rank_map,
+                                    row_layout_params);
+  {
+    using B = bytecode::StableSortByRowLayout;
+    auto& op = AddOpcode<B>(UnchangedRowCount{});
+    op.arg<B::buffer_register>() = buffer_reg;
+    op.arg<B::total_row_stride>() = total_row_stride;
+    op.arg<B::indices_register>() = indices;
   }
 }
 
@@ -533,22 +487,22 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
   bytecode::reg::RwHandle<Span<uint32_t>> storage_update_register;
   if (plan_.params.output_per_row > 1) {
     bytecode::reg::RwHandle<Slab<uint32_t>> slab_register{register_count_++};
-    bytecode::reg::RwHandle<Span<uint32_t>> span_register{register_count_++};
+    storage_update_register =
+        bytecode::reg::RwHandle<Span<uint32_t>>{register_count_++};
     {
       using B = bytecode::AllocateIndices;
       auto& bc = AddOpcode<B>(UnchangedRowCount{});
       bc.arg<B::size>() =
           plan_.params.max_row_count * plan_.params.output_per_row;
       bc.arg<B::dest_slab_register>() = slab_register;
-      bc.arg<B::dest_span_register>() = span_register;
+      bc.arg<B::dest_span_register>() = storage_update_register;
     }
     {
       using B = bytecode::StrideCopy;
       auto& bc = AddOpcode<B>(UnchangedRowCount{});
       bc.arg<B::source_register>() = in_memory_indices;
-      bc.arg<B::update_register>() = span_register;
+      bc.arg<B::update_register>() = storage_update_register;
       bc.arg<B::stride>() = plan_.params.output_per_row;
-      storage_update_register = span_register;
     }
     for (auto [col, offset] : null_cols) {
       const auto& c = GetColumn(col);
@@ -597,7 +551,9 @@ void QueryPlanBuilder::NonStringConstraint(
     const NonStringType& type,
     const NonStringOp& op,
     const bytecode::reg::ReadHandle<CastFilterValueResult>& result) {
-  auto source = MaybeAddOverlayTranslation(c);
+  auto update = EnsureIndicesAreInSlab();
+  PruneNullIndices(c.col, update);
+  auto source = TranslateNonNullIndices(c.col, update, false);
   {
     using B = bytecode::NonStringFilterBase;
     B& bc = AddOpcode<B>(bytecode::Index<bytecode::NonStringFilter>(type, op),
@@ -606,8 +562,9 @@ void QueryPlanBuilder::NonStringConstraint(
     bc.arg<B::col>() = c.col;
     bc.arg<B::val_register>() = result;
     bc.arg<B::source_register>() = source;
-    bc.arg<B::update_register>() = EnsureIndicesAreInSlab();
+    bc.arg<B::update_register>() = update;
   }
+  MaybeReleaseScratchSpanRegister();
 }
 
 base::Status QueryPlanBuilder::StringConstraint(
@@ -620,7 +577,9 @@ base::Status QueryPlanBuilder::StringConstraint(
     }
   }
 
-  auto source = MaybeAddOverlayTranslation(c);
+  auto update = EnsureIndicesAreInSlab();
+  PruneNullIndices(c.col, update);
+  auto source = TranslateNonNullIndices(c.col, update, false);
   {
     using B = bytecode::StringFilterBase;
     B& bc = AddOpcode<B>(bytecode::Index<bytecode::StringFilter>(op),
@@ -629,8 +588,9 @@ base::Status QueryPlanBuilder::StringConstraint(
     bc.arg<B::col>() = c.col;
     bc.arg<B::val_register>() = result;
     bc.arg<B::source_register>() = source;
-    bc.arg<B::update_register>() = EnsureIndicesAreInSlab();
+    bc.arg<B::update_register>() = update;
   }
+  MaybeReleaseScratchSpanRegister();
   return base::OkStatus();
 }
 
@@ -795,51 +755,55 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
   return true;
 }
 
+void QueryPlanBuilder::PruneNullIndices(
+    uint32_t col,
+    bytecode::reg::RwHandle<Span<uint32_t>> indices) {
+  switch (GetColumn(col).null_storage.nullability().index()) {
+    case Nullability::GetTypeIndex<SparseNull>():
+    case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
+    case Nullability::GetTypeIndex<
+        SparseNullSupportingCellGetUntilFinalization>():
+    case Nullability::GetTypeIndex<DenseNull>(): {
+      using B = bytecode::NullFilter<IsNotNull>;
+      bytecode::NullFilterBase& bc = AddOpcode<B>(DoubleLog2RowCount{});
+      bc.arg<B::col>() = col;
+      bc.arg<B::update_register>() = indices;
+      break;
+    }
+    case Nullability::GetTypeIndex<NonNull>():
+      break;
+    default:
+      PERFETTO_FATAL("Unreachable");
+  }
+}
+
 bytecode::reg::RwHandle<Span<uint32_t>>
-QueryPlanBuilder::MaybeAddOverlayTranslation(const FilterSpec& c) {
-  bytecode::reg::RwHandle<Span<uint32_t>> main = EnsureIndicesAreInSlab();
-  const auto& col = GetColumn(c.col);
-  uint32_t nullability_type_index = col.null_storage.nullability().index();
-  switch (nullability_type_index) {
+QueryPlanBuilder::TranslateNonNullIndices(
+    uint32_t col,
+    bytecode::reg::RwHandle<Span<uint32_t>> table_indices_register,
+    bool in_place) {
+  switch (GetColumn(col).null_storage.nullability().index()) {
     case Nullability::GetTypeIndex<SparseNull>():
     case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
     case Nullability::GetTypeIndex<
         SparseNullSupportingCellGetUntilFinalization>(): {
-      bytecode::reg::RwHandle<Slab<uint32_t>> scratch_slab{register_count_++};
-      bytecode::reg::RwHandle<Span<uint32_t>> scratch_span{register_count_++};
-      {
-        using B = bytecode::NullFilter<IsNotNull>;
-        bytecode::NullFilterBase& bc = AddOpcode<B>(DoubleLog2RowCount{});
-        bc.arg<B::col>() = c.col;
-        bc.arg<B::update_register>() = main;
-      }
-      {
-        using B = bytecode::AllocateIndices;
-        auto& bc = AddOpcode<B>(UnchangedRowCount{});
-        bc.arg<B::size>() = plan_.params.max_row_count;
-        bc.arg<B::dest_slab_register>() = scratch_slab;
-        bc.arg<B::dest_span_register>() = scratch_span;
-      }
-      auto popcount_reg = PrefixPopcountRegisterFor(c.col);
+      auto update =
+          in_place ? table_indices_register
+                   : GetOrCreateScratchSpanRegister(plan_.params.max_row_count);
+      auto popcount_reg = PrefixPopcountRegisterFor(col);
       {
         using B = bytecode::TranslateSparseNullIndices;
         auto& bc = AddOpcode<B>(UnchangedRowCount{});
-        bc.arg<B::col>() = c.col;
+        bc.arg<B::col>() = col;
         bc.arg<B::popcount_register>() = popcount_reg;
-        bc.arg<B::source_register>() = main;
-        bc.arg<B::update_register>() = scratch_span;
+        bc.arg<B::source_register>() = table_indices_register;
+        bc.arg<B::update_register>() = update;
       }
-      return scratch_span;
+      return update;
     }
-    case Nullability::GetTypeIndex<DenseNull>(): {
-      using B = bytecode::NullFilter<IsNotNull>;
-      bytecode::NullFilterBase& bc = AddOpcode<B>(DoubleLog2RowCount{});
-      bc.arg<B::col>() = c.col;
-      bc.arg<B::update_register>() = main;
-      return main;
-    }
+    case Nullability::GetTypeIndex<DenseNull>():
     case Nullability::GetTypeIndex<NonNull>():
-      return main;
+      return table_indices_register;
     default:
       PERFETTO_FATAL("Unreachable");
   }
@@ -1021,6 +985,172 @@ QueryPlanBuilder::CastFilterValue(FilterSpec& c,
     c.value_index = plan_.params.filter_value_count++;
   }
   return value_reg;
+}
+
+bytecode::reg::RwHandle<Span<uint32_t>>
+QueryPlanBuilder::GetOrCreateScratchSpanRegister(uint32_t size) {
+  bytecode::reg::RwHandle<Slab<uint32_t>> scratch_slab;
+  bytecode::reg::RwHandle<Span<uint32_t>> scratch_span;
+  if (scratch_indices_) {
+    PERFETTO_CHECK(size <= scratch_indices_->size);
+    PERFETTO_CHECK(!scratch_indices_->in_use);
+    scratch_slab = scratch_indices_->slab;
+    scratch_span = scratch_indices_->span;
+  } else {
+    scratch_slab = bytecode::reg::RwHandle<Slab<uint32_t>>{register_count_++};
+    scratch_span = bytecode::reg::RwHandle<Span<uint32_t>>{register_count_++};
+  }
+  {
+    using B = bytecode::AllocateIndices;
+    auto& bc = AddOpcode<B>(UnchangedRowCount{});
+    bc.arg<B::size>() = size;
+    bc.arg<B::dest_slab_register>() = scratch_slab;
+    bc.arg<B::dest_span_register>() = scratch_span;
+  }
+  scratch_indices_ = ScratchIndices{size, scratch_slab, scratch_span, true};
+  return scratch_span;
+}
+
+void QueryPlanBuilder::MaybeReleaseScratchSpanRegister() {
+  if (scratch_indices_) {
+    scratch_indices_->in_use = false;
+  }
+}
+
+uint16_t QueryPlanBuilder::CalculateRowLayoutStride(
+    const std::vector<RowLayoutParams>& row_layout_params) {
+  PERFETTO_CHECK(!row_layout_params.empty());
+  uint16_t calculated_total_row_stride = 0;
+  for (const auto& param : row_layout_params) {
+    const Column& col = GetColumn(param.column);
+    bool is_non_null = col.null_storage.nullability().Is<NonNull>();
+
+    uint8_t layout_size;
+    if (param.replace_string_with_rank) {
+      PERFETTO_DCHECK(col.storage.type().Is<String>());
+      layout_size = sizeof(uint32_t);
+    } else {
+      layout_size = GetDataSize(col.storage.type());
+    }
+    calculated_total_row_stride += (is_non_null ? 0u : 1u) + layout_size;
+  }
+  return calculated_total_row_stride;
+}
+
+bytecode::reg::RwHandle<Slab<uint8_t>> QueryPlanBuilder::CopyToRowLayout(
+    uint16_t row_stride,
+    bytecode::reg::RwHandle<Span<uint32_t>> indices,
+    bytecode::reg::ReadHandle<bytecode::reg::StringIdToRankMap> rank_map,
+    const std::vector<RowLayoutParams>& row_layout_params) {
+  uint32_t buffer_size = plan_.params.max_row_count * row_stride;
+  bytecode::reg::RwHandle<Slab<uint8_t>> new_buffer_reg{register_count_++};
+  {
+    using B = bytecode::AllocateRowLayoutBuffer;
+    auto& op = AddOpcode<B>(UnchangedRowCount{});
+    op.arg<B::buffer_size>() = buffer_size;
+    op.arg<B::dest_buffer_register>() = new_buffer_reg;
+  }
+  uint16_t current_offset = 0;
+  for (const auto& param : row_layout_params) {
+    const Column& col = GetColumn(param.column);
+    const auto& nullability = col.null_storage.nullability();
+    uint16_t data_size;
+    if (param.replace_string_with_rank) {
+      // If we are replacing the string with its rank, the data size is
+      // the size of the rank (uint32_t).
+      data_size = sizeof(uint32_t);
+      PERFETTO_DCHECK(col.storage.type().Is<String>());
+      switch (nullability.index()) {
+        case Nullability::GetTypeIndex<NonNull>(): {
+          using B = bytecode::CopyStringRankToRowLayoutNonNull;
+          auto& op = AddOpcode<B>(UnchangedRowCount{});
+          op.arg<B::col>() = param.column;
+          op.arg<B::source_indices_register>() = indices;
+          op.arg<B::dest_buffer_register>() = new_buffer_reg;
+          op.arg<B::rank_map_register>() = rank_map;
+          op.arg<B::row_layout_offset>() = current_offset;
+          op.arg<B::row_layout_stride>() = row_stride;
+          break;
+        }
+        case Nullability::GetTypeIndex<DenseNull>(): {
+          using B = bytecode::CopyStringRankToRowLayoutDenseNull;
+          auto& op = AddOpcode<B>(UnchangedRowCount{});
+          op.arg<B::col>() = param.column;
+          op.arg<B::source_indices_register>() = indices;
+          op.arg<B::dest_buffer_register>() = new_buffer_reg;
+          op.arg<B::rank_map_register>() = rank_map;
+          op.arg<B::row_layout_offset>() = current_offset;
+          op.arg<B::row_layout_stride>() = row_stride;
+          break;
+        }
+        case Nullability::GetTypeIndex<SparseNull>():
+        case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
+        case Nullability::GetTypeIndex<
+            SparseNullSupportingCellGetUntilFinalization>(): {
+          using B = bytecode::CopyStringRankToRowLayoutSparseNull;
+          auto popcount_reg = PrefixPopcountRegisterFor(param.column);
+          auto& op = AddOpcode<B>(UnchangedRowCount{});
+          op.arg<B::col>() = param.column;
+          op.arg<B::source_indices_register>() = indices;
+          op.arg<B::dest_buffer_register>() = new_buffer_reg;
+          op.arg<B::rank_map_register>() = rank_map;
+          op.arg<B::popcount_register>() = popcount_reg;
+          op.arg<B::row_layout_offset>() = current_offset;
+          op.arg<B::row_layout_stride>() = row_stride;
+          break;
+        }
+        default:
+          PERFETTO_FATAL("Unknown nullability for string rank copy");
+      }
+    } else {
+      data_size = GetDataSize(col.storage.type());
+      switch (nullability.index()) {
+        case Nullability::GetTypeIndex<NonNull>(): {
+          using B = bytecode::CopyToRowLayoutNonNull;
+          auto& op = AddOpcode<B>(UnchangedRowCount{});
+          op.arg<B::col>() = param.column;
+          op.arg<B::source_indices_register>() = indices;
+          op.arg<B::dest_buffer_register>() = new_buffer_reg;
+          op.arg<B::row_layout_offset>() = current_offset;
+          op.arg<B::row_layout_stride>() = row_stride;
+          op.arg<B::copy_size>() = data_size;
+          break;
+        }
+        case Nullability::GetTypeIndex<DenseNull>(): {
+          using B = bytecode::CopyToRowLayoutDenseNull;
+          auto& bc = AddOpcode<B>(UnchangedRowCount{});
+          bc.arg<B::col>() = param.column;
+          bc.arg<B::source_indices_register>() = indices;
+          bc.arg<B::dest_buffer_register>() = new_buffer_reg;
+          bc.arg<B::row_layout_offset>() = current_offset;
+          bc.arg<B::row_layout_stride>() = row_stride;
+          bc.arg<B::copy_size>() = data_size;
+          break;
+        }
+        case Nullability::GetTypeIndex<SparseNull>():
+        case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
+        case Nullability::GetTypeIndex<
+            SparseNullSupportingCellGetUntilFinalization>(): {
+          using B = bytecode::CopyToRowLayoutSparseNull;
+          auto popcount_reg = PrefixPopcountRegisterFor(param.column);
+          auto& op = AddOpcode<B>(UnchangedRowCount{});
+          op.arg<B::col>() = param.column;
+          op.arg<B::source_indices_register>() = indices;
+          op.arg<B::dest_buffer_register>() = new_buffer_reg;
+          op.arg<B::popcount_register>() = popcount_reg;
+          op.arg<B::row_layout_offset>() = current_offset;
+          op.arg<B::row_layout_stride>() = row_stride;
+          op.arg<B::copy_size>() = data_size;
+          break;
+        }
+        default:
+          PERFETTO_FATAL("Unknown nullability for string rank copy");
+      }
+    }
+    current_offset += (nullability.Is<NonNull>() ? 0u : 1u) + data_size;
+  }
+  PERFETTO_CHECK(current_offset == row_stride);
+  return new_buffer_reg;
 }
 
 }  // namespace perfetto::trace_processor::dataframe::impl

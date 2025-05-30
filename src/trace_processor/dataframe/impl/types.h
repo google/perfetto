@@ -162,12 +162,14 @@ class Storage {
   template <typename T>
   auto& unchecked_get() {
     using U = StorageType::VariantTypeAtIndex<T, Variant>;
+    PERFETTO_DCHECK(std::holds_alternative<U>(data_));
     return base::unchecked_get<U>(data_);
   }
 
   template <typename T>
   const auto& unchecked_get() const {
     using U = StorageType::VariantTypeAtIndex<T, Variant>;
+    PERFETTO_DCHECK(std::holds_alternative<U>(data_));
     return base::unchecked_get<U>(data_);
   }
 
