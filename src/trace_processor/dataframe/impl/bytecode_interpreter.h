@@ -322,18 +322,75 @@ class Interpreter {
       } else {
         static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
       }
-    } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
+    } else {
       BoundModifier bound_modifier = f.arg<B::write_result_to>();
       const auto* data =
           GetColumn(f.arg<B::col>()).storage.template unchecked_data<T>();
-      SortedIntegerOrDoubleFilter<RangeOp>(data, val, bound_modifier, update);
-    } else if constexpr (std::is_same_v<T, String>) {
-      BoundModifier bound_modifier = f.arg<B::write_result_to>();
-      const auto* data =
-          GetColumn(f.arg<B::col>()).storage.template unchecked_data<String>();
-      SortedStringFilter<RangeOp>(data, val, bound_modifier, update);
+      NonIdSortedFilter<RangeOp>(data, val, bound_modifier, update);
+    }
+  }
+
+  template <typename RangeOp, typename DataType, typename ValueType>
+  PERFETTO_ALWAYS_INLINE void NonIdSortedFilter(const DataType* data,
+                                                ValueType val,
+                                                BoundModifier bound_modifier,
+                                                Range& update) {
+    auto* begin = data + update.b;
+    auto* end = data + update.e;
+    if constexpr (std::is_same_v<RangeOp, EqualRange>) {
+      PERFETTO_DCHECK(bound_modifier.Is<BothBounds>());
+      DataType cmp_value;
+      if constexpr (std::is_same_v<DataType, StringPool::Id>) {
+        std::optional<StringPool::Id> id =
+            string_pool_->GetId(base::StringView(val));
+        if (!id) {
+          update.e = update.b;
+          return;
+        }
+        cmp_value = *id;
+      } else {
+        cmp_value = val;
+      }
+      const DataType* eq_start =
+          std::lower_bound(begin, end, val, GetLbComprarator<DataType>());
+      const DataType* eq_end = eq_start;
+      for (; eq_end != end; ++eq_end) {
+        if (std::not_equal_to<>()(*eq_end, cmp_value)) {
+          break;
+        }
+      }
+      update.b = static_cast<uint32_t>(eq_start - data);
+      update.e = static_cast<uint32_t>(eq_end - data);
+    } else if constexpr (std::is_same_v<RangeOp, LowerBound>) {
+      auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
+      res = static_cast<uint32_t>(
+          std::lower_bound(begin, end, val, GetLbComprarator<DataType>()) -
+          data);
+    } else if constexpr (std::is_same_v<RangeOp, UpperBound>) {
+      auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
+      res = static_cast<uint32_t>(
+          std::upper_bound(begin, end, val, GetUbComparator<DataType>()) -
+          data);
     } else {
-      static_assert(std::is_same_v<T, Id>, "Unsupported type");
+      static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
+    }
+  }
+
+  template <typename DataType>
+  auto GetLbComprarator() {
+    if constexpr (std::is_same_v<DataType, StringPool::Id>) {
+      return comparators::StringComparator<Lt>{string_pool_};
+    } else {
+      return std::less<>();
+    }
+  }
+
+  template <typename DataType>
+  auto GetUbComparator() {
+    if constexpr (std::is_same_v<DataType, StringPool::Id>) {
+      return comparators::StringLessInvert{string_pool_};
+    } else {
+      return std::less<>();
     }
   }
 
@@ -362,76 +419,6 @@ class Interpreter {
       }
     }
     update.e = static_cast<uint32_t>(it - storage);
-  }
-
-  template <typename RangeOp, typename DataType>
-  PERFETTO_ALWAYS_INLINE void SortedIntegerOrDoubleFilter(
-      const DataType* data,
-      DataType val,
-      BoundModifier bound_modifier,
-      Range& update) {
-    auto* begin = data + update.b;
-    auto* end = data + update.e;
-    if constexpr (std::is_same_v<RangeOp, EqualRange>) {
-      PERFETTO_DCHECK(bound_modifier.Is<BothBounds>());
-      const DataType* eq_start = std::lower_bound(begin, end, val);
-      for (auto* it = eq_start; it != end; ++it) {
-        if (std::not_equal_to<>()(*it, val)) {
-          update.b = static_cast<uint32_t>(eq_start - data);
-          update.e = static_cast<uint32_t>(it - data);
-          return;
-        }
-      }
-      update.e = update.b;
-    } else if constexpr (std::is_same_v<RangeOp, LowerBound>) {
-      auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
-      res = static_cast<uint32_t>(std::lower_bound(begin, end, val) - data);
-    } else if constexpr (std::is_same_v<RangeOp, UpperBound>) {
-      auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
-      res = static_cast<uint32_t>(std::upper_bound(begin, end, val) - data);
-    } else {
-      static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
-    }
-  }
-
-  template <typename RangeOp>
-  PERFETTO_ALWAYS_INLINE void SortedStringFilter(const StringPool::Id* data,
-                                                 const char* val,
-                                                 BoundModifier bound_modifier,
-                                                 Range& update) {
-    const StringPool::Id* begin = data + update.b;
-    const StringPool::Id* end = data + update.e;
-    if constexpr (std::is_same_v<RangeOp, EqualRange>) {
-      PERFETTO_DCHECK(bound_modifier.Is<BothBounds>());
-      std::optional<StringPool::Id> id =
-          string_pool_->GetId(base::StringView(val));
-      if (!id) {
-        update.e = update.b;
-        return;
-      }
-      const StringPool::Id* eq_start = std::lower_bound(
-          begin, end, val, comparators::StringComparator<Lt>{string_pool_});
-      for (const StringPool::Id* it = eq_start; it != end; ++it) {
-        if (*it != *id) {
-          update.b = static_cast<uint32_t>(eq_start - data);
-          update.e = static_cast<uint32_t>(it - data);
-          return;
-        }
-      }
-      update.e = update.b;
-    } else if constexpr (std::is_same_v<RangeOp, LowerBound>) {
-      auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
-      const auto* it = std::lower_bound(
-          begin, end, val, comparators::StringComparator<Lt>{string_pool_});
-      res = static_cast<uint32_t>(it - data);
-    } else if constexpr (std::is_same_v<RangeOp, UpperBound>) {
-      auto& res = bound_modifier.Is<BeginBound>() ? update.b : update.e;
-      const auto* it = std::upper_bound(
-          begin, end, val, comparators::StringLessInvert{string_pool_});
-      res = static_cast<uint32_t>(it - data);
-    } else {
-      static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
-    }
   }
 
   template <typename T, typename Op>
