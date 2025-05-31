@@ -558,7 +558,11 @@ namespace perfetto::trace_processor::stats {
       "slice. This can happen e.g. in JSON traces using X events or in other " \
       "cases where a duration is part of the trace. To solve this problem "    \
       "make sure that your X events do not overlap on the same track (e.g. "   \
-      "thread/process) ")
+      "thread/process)"),                                                      \
+  F(perf_text_importer_sample_no_frames,        kSingle,  kError,  kTrace,     \
+      "A perf sample was encountered that has no frames. This can happen "     \
+      "if the kernel is unable to unwind the stack while sampling. Check "     \
+      "Linux kernel documentation for causes of this and potential fixes.")
 // clang-format on
 
 enum Type {
