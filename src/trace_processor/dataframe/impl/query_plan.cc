@@ -445,12 +445,17 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
     uint32_t offset;
   };
 
-  base::SmallVector<ColAndOffset, 64> null_cols;
+  base::SmallVector<ColAndOffset, 24> null_cols;
   plan_.params.output_per_row = 1;
+  for (uint32_t i = 0; i < columns_.size(); ++i) {
+    plan_.col_to_output_offset.emplace_back();
+  }
 
   // Process each column that will be used in the output
-  for (uint32_t i = 0; i < 64; ++i, cols_used >>= 1) {
-    if ((cols_used & 1u) == 0) {
+  for (uint32_t i = 0; i < columns_.size(); ++i) {
+    // Any column with index >= 64 uses the 64th bit in cols_used.
+    uint64_t mask = 1ULL << std::min(i, 63u);
+    if ((cols_used & mask) == 0) {
       continue;
     }
     const auto& col = GetColumn(i);
@@ -459,13 +464,15 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
       case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
       case Nullability::GetTypeIndex<
           SparseNullSupportingCellGetUntilFinalization>():
-      case Nullability::GetTypeIndex<DenseNull>():
-        null_cols.emplace_back(ColAndOffset{i, plan_.params.output_per_row});
-        plan_.params.col_to_output_offset[i] = plan_.params.output_per_row++;
+      case Nullability::GetTypeIndex<DenseNull>(): {
+        uint32_t offset = plan_.params.output_per_row++;
+        null_cols.emplace_back(ColAndOffset{i, offset});
+        plan_.col_to_output_offset[i] = offset;
         break;
+      }
       case Nullability::GetTypeIndex<NonNull>():
         // For non-null columns, we can directly use the indices
-        plan_.params.col_to_output_offset[i] = 0;
+        plan_.col_to_output_offset[i] = 0;
         break;
       default:
         PERFETTO_FATAL("Unreachable");

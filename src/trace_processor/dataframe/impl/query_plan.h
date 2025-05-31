@@ -33,6 +33,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
@@ -46,8 +47,6 @@
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::dataframe::impl {
-
-static constexpr uint32_t kMaxColumns = 64;
 
 // A QueryPlan encapsulates all the information needed to execute a query,
 // including the bytecode instructions and interpreter configuration.
@@ -69,9 +68,6 @@ struct QueryPlan {
     // Register holding the final filtered indices.
     bytecode::reg::ReadHandle<Span<uint32_t>> output_register;
 
-    // Maps column indices to output offsets.
-    std::array<uint32_t, kMaxColumns> col_to_output_offset{};
-
     // Number of output indices per row.
     uint32_t output_per_row = 0;
 
@@ -81,16 +77,21 @@ struct QueryPlan {
   };
   static_assert(std::is_trivially_copyable_v<ExecutionParams>);
   static_assert(std::is_trivially_destructible_v<ExecutionParams>);
-  static_assert(sizeof(ExecutionParams) == 288);
+  static_assert(sizeof(ExecutionParams) == 32);
 
   // Serializes the query plan to a Base64-encoded string.
   // This allows plans to be stored or transmitted between processes.
   std::string Serialize() const {
-    size_t size = sizeof(size_t) +
+    size_t size = sizeof(params) + sizeof(size_t) +
                   (bytecode.size() * sizeof(bytecode::Bytecode)) +
-                  sizeof(params);
+                  sizeof(size_t) +
+                  (col_to_output_offset.size() * sizeof(uint32_t));
     std::string res(size, '\0');
     char* p = res.data();
+    {
+      memcpy(p, &params, sizeof(params));
+      p += sizeof(params);
+    }
     {
       size_t bytecode_size = bytecode.size();
       memcpy(p, &bytecode_size, sizeof(bytecode_size));
@@ -101,8 +102,14 @@ struct QueryPlan {
       p += bytecode.size() * sizeof(bytecode::Bytecode);
     }
     {
-      memcpy(p, &params, sizeof(params));
-      p += sizeof(params);
+      size_t columns_size = col_to_output_offset.size();
+      memcpy(p, &columns_size, sizeof(columns_size));
+      p += sizeof(columns_size);
+    }
+    {
+      size_t columns_size = col_to_output_offset.size();
+      memcpy(p, col_to_output_offset.data(), columns_size * sizeof(uint32_t));
+      p += columns_size * sizeof(uint32_t);
     }
     PERFETTO_CHECK(p == res.data() + res.size());
     return base::Base64Encode(base::StringView(res));
@@ -117,6 +124,11 @@ struct QueryPlan {
     PERFETTO_CHECK(raw_data);
     const char* p = raw_data->data();
     size_t bytecode_size;
+    size_t columns_size;
+    {
+      memcpy(&res.params, p, sizeof(res.params));
+      p += sizeof(res.params);
+    }
     {
       memcpy(&bytecode_size, p, sizeof(bytecode_size));
       p += sizeof(bytecode_size);
@@ -130,8 +142,16 @@ struct QueryPlan {
       p += bytecode_size * sizeof(bytecode::Bytecode);
     }
     {
-      memcpy(&res.params, p, sizeof(res.params));
-      p += sizeof(res.params);
+      memcpy(&columns_size, p, sizeof(columns_size));
+      p += sizeof(columns_size);
+    }
+    {
+      for (uint32_t i = 0; i < columns_size; ++i) {
+        res.col_to_output_offset.emplace_back();
+      }
+      memcpy(res.col_to_output_offset.data(), p,
+             columns_size * sizeof(uint32_t));
+      p += columns_size * sizeof(uint32_t);
     }
     PERFETTO_CHECK(p == raw_data->data() + raw_data->size());
     return res;
@@ -139,6 +159,7 @@ struct QueryPlan {
 
   ExecutionParams params;
   bytecode::BytecodeVector bytecode;
+  base::SmallVector<uint32_t, 24> col_to_output_offset;
 };
 
 // Builder class for creating query plans.
