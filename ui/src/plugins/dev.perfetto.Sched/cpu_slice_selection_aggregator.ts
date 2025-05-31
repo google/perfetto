@@ -31,7 +31,7 @@ export class CpuSliceSelectionAggregator implements AreaSelectionAggregator {
 
   async createAggregateView(
     engine: Engine,
-    area: AreaSelection,
+    _area: AreaSelection,
     dataset?: Dataset,
   ) {
     if (!dataset) return false;
@@ -49,9 +49,6 @@ export class CpuSliceSelectionAggregator implements AreaSelectionAggregator {
       from process
       join thread using (upid)
       join (${dataset.query()}) as sched using (utid)
-      where
-        sched.ts + sched.dur > ${area.start}
-        and sched.ts < ${area.end}
       group by utid
     `);
     return true;

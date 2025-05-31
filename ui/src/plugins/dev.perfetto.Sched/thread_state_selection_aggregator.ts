@@ -38,7 +38,7 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
 
   async createAggregateView(
     engine: Engine,
-    area: AreaSelection,
+    _area: AreaSelection,
     dataset?: Dataset,
   ) {
     if (dataset === undefined) return false;
@@ -57,9 +57,6 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
       from (${dataset.query()}) tstate
       join thread using (utid)
       left join process using (upid)
-      where
-        ts + dur > ${area.start}
-        and ts < ${area.end}
       group by utid, concat_state
     `);
 
@@ -68,7 +65,7 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
 
   async getBarChartData(
     engine: Engine,
-    area: AreaSelection,
+    _area: AreaSelection,
     dataset?: Dataset,
   ): Promise<BarChartData[] | undefined> {
     if (dataset === undefined) return undefined;
@@ -79,9 +76,7 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
         sum(dur) as totalDur
       from (${dataset.query()}) tstate
       join thread using (utid)
-      where tstate.ts + tstate.dur > ${area.start}
-        and tstate.ts < ${area.end}
-      group by state, io_wait
+      group by tstate.name
     `;
     const result = await engine.query(query);
 

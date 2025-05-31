@@ -155,7 +155,8 @@ export interface AreaSelectionAggregator {
    * @param engine - The query engine used to execute queries.
    * @param area - The currently selected area to aggregate.
    * @param dataset - The dataset representing a union of the data in the
-   * selected tracks.
+   * selected tracks sliced by the intersection of the area assuming datasets
+   * have a `dur` column. If no tracks have a dataset, this will be undefined.
    */
   createAggregateView(
     engine: Engine,

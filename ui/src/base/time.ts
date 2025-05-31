@@ -142,6 +142,10 @@ export class Time {
     return a - b;
   }
 
+  static durationBetween(a: time, b: time): duration {
+    return a >= b ? a - b : b - a;
+  }
+
   static min(a: time, b: time): time {
     return Time.fromRaw(BigintMath.min(a, b));
   }
