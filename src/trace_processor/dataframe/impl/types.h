@@ -162,12 +162,14 @@ class Storage {
   template <typename T>
   auto& unchecked_get() {
     using U = StorageType::VariantTypeAtIndex<T, Variant>;
+    PERFETTO_DCHECK(std::holds_alternative<U>(data_));
     return base::unchecked_get<U>(data_);
   }
 
   template <typename T>
   const auto& unchecked_get() const {
     using U = StorageType::VariantTypeAtIndex<T, Variant>;
+    PERFETTO_DCHECK(std::holds_alternative<U>(data_));
     return base::unchecked_get<U>(data_);
   }
 
@@ -198,32 +200,6 @@ class Storage {
         return base::unchecked_get<Storage::Double>(data_).data();
       case StorageType::GetTypeIndex<dataframe::String>():
         return base::unchecked_get<Storage::String>(data_).data();
-      default:
-        PERFETTO_FATAL("Should not reach here");
-    }
-  }
-
-  // Returns a raw byte pointer to the underlying data.
-  // Returns nullptr if the storage type is Id (which has no buffer).
-  const uint8_t* byte_data() const {
-    switch (type_.index()) {
-      case StorageType::GetTypeIndex<dataframe::Id>():
-        return nullptr;
-      case StorageType::GetTypeIndex<dataframe::Uint32>():
-        return reinterpret_cast<const uint8_t*>(
-            base::unchecked_get<Storage::Uint32>(data_).data());
-      case StorageType::GetTypeIndex<dataframe::Int32>():
-        return reinterpret_cast<const uint8_t*>(
-            base::unchecked_get<Storage::Int32>(data_).data());
-      case StorageType::GetTypeIndex<dataframe::Int64>():
-        return reinterpret_cast<const uint8_t*>(
-            base::unchecked_get<Storage::Int64>(data_).data());
-      case StorageType::GetTypeIndex<dataframe::Double>():
-        return reinterpret_cast<const uint8_t*>(
-            base::unchecked_get<Storage::Double>(data_).data());
-      case StorageType::GetTypeIndex<dataframe::String>():
-        return reinterpret_cast<const uint8_t*>(
-            base::unchecked_get<Storage::String>(data_).data());
       default:
         PERFETTO_FATAL("Should not reach here");
     }
@@ -344,6 +320,19 @@ class NullStorage {
         return unchecked_get<dataframe::SparseNull>().bit_vector;
       case TypeIndex<DenseNull>():
         return unchecked_get<dataframe::DenseNull>().bit_vector;
+      default:
+        PERFETTO_FATAL("Unsupported overlay type");
+    }
+  }
+
+  const BitVector* MaybeGetNullBitVector() const {
+    switch (data_.index()) {
+      case TypeIndex<SparseNull>():
+        return &unchecked_get<dataframe::SparseNull>().bit_vector;
+      case TypeIndex<DenseNull>():
+        return &unchecked_get<dataframe::DenseNull>().bit_vector;
+      case TypeIndex<NonNull>():
+        return nullptr;
       default:
         PERFETTO_FATAL("Unsupported overlay type");
     }

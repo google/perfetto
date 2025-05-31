@@ -263,10 +263,25 @@ class QueryPlanBuilder {
                            const StorageType& ct,
                            const NonNullOp& op);
 
-  // Adds overlay translation for handling special column properties like
-  // nullability.
-  bytecode::reg::RwHandle<Span<uint32_t>> MaybeAddOverlayTranslation(
-      const FilterSpec& c);
+  // Given a list of indices, prunes any indices that point to null rows
+  // in the given column. The indices are pruned in-place, and the
+  // `indices_register` is updated to contain only non-null indices.
+  void PruneNullIndices(uint32_t col,
+                        bytecode::reg::RwHandle<Span<uint32_t>> indices);
+
+  // Given a list of table indices pointing to *only* non-null rows,
+  // if necessary, translates them to the storage indices for the given column.
+  // If no translation is needed, the indices are returned as-is.
+  // If translation *is* needed, the value of `in_place` determines
+  // whether the translation is done in-place or whether the data is stored
+  // in the scratch register.
+  //
+  // Returns a register handle to the translated indices (either
+  // `indices_register` or the scratch register).
+  bytecode::reg::RwHandle<Span<uint32_t>> TranslateNonNullIndices(
+      uint32_t col,
+      bytecode::reg::RwHandle<Span<uint32_t>> indices_register,
+      bool in_place);
 
   // Ensures indices are stored in a Slab, converting from Range if necessary.
   PERFETTO_NO_INLINE bytecode::reg::RwHandle<Span<uint32_t>>
@@ -304,6 +319,32 @@ class QueryPlanBuilder {
   bytecode::reg::ReadHandle<CastFilterValueResult>
   CastFilterValue(FilterSpec& c, const StorageType& ct, NonNullOp non_null_op);
 
+  bytecode::reg::RwHandle<Span<uint32_t>> GetOrCreateScratchSpanRegister(
+      uint32_t size);
+
+  // Parameters for conversion to row layout.
+  struct RowLayoutParams {
+    // The column to be copied.
+    uint32_t column;
+
+    // Whether, instead of copying the string column, we should replace it
+    // with a rank of the string.
+    bool replace_string_with_rank = false;
+
+    // Whether the bits when copied should be inverted.
+    bool invert_copied_bits = false;
+  };
+  uint16_t CalculateRowLayoutStride(
+      const std::vector<RowLayoutParams>& row_layout_params);
+
+  bytecode::reg::RwHandle<Slab<uint8_t>> CopyToRowLayout(
+      uint16_t row_stride,
+      bytecode::reg::RwHandle<Span<uint32_t>> indices,
+      bytecode::reg::ReadHandle<bytecode::reg::StringIdToRankMap> rank_map,
+      const std::vector<RowLayoutParams>& row_layout_params);
+
+  void MaybeReleaseScratchSpanRegister();
+
   bool CanUseMinMaxOptimization(const std::vector<SortSpec>&, const LimitSpec&);
 
   const Column& GetColumn(uint32_t idx) { return *columns_[idx]; }
@@ -325,6 +366,16 @@ class QueryPlanBuilder {
 
   // Current register holding the set of matching indices.
   IndicesReg indices_reg_;
+
+  // If scratch indices are needed, this holds the size and handles to
+  // the scratch indices in both Span and Slab forms.
+  struct ScratchIndices {
+    uint32_t size;
+    bytecode::reg::RwHandle<Slab<uint32_t>> slab;
+    bytecode::reg::RwHandle<Span<uint32_t>> span;
+    bool in_use = false;
+  };
+  std::optional<ScratchIndices> scratch_indices_;
 };
 
 }  // namespace perfetto::trace_processor::dataframe::impl
