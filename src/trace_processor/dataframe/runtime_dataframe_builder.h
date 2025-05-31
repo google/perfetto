@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_DATAFRAME_RUNTIME_DATAFRAME_BUILDER_H_
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -156,27 +157,22 @@ class RuntimeDataframeBuilder {
       typename ValueFetcherImpl::Type fetched_type = fetcher->GetValueType(i);
       switch (fetched_type) {
         case ValueFetcherImpl::kInt64: {
-          auto* r = EnsureColumnType<int64_t>(i, state.data);
-          if (PERFETTO_UNLIKELY(!r)) {
+          if (!Push(i, state.data, fetcher->GetInt64Value(i))) {
             return false;
           }
-          r->push_back(fetcher->GetInt64Value(i));
           break;
         }
         case ValueFetcherImpl::kDouble: {
-          auto* r = EnsureColumnType<double>(i, state.data);
-          if (PERFETTO_UNLIKELY(!r)) {
+          if (!Push(i, state.data, fetcher->GetDoubleValue(i))) {
             return false;
           }
-          r->push_back(fetcher->GetDoubleValue(i));
           break;
         }
         case ValueFetcherImpl::kString: {
-          auto* r = EnsureColumnType<StringPool::Id>(i, state.data);
-          if (PERFETTO_UNLIKELY(!r)) {
+          if (!Push(i, state.data,
+                    string_pool_->InternString(fetcher->GetStringValue(i)))) {
             return false;
           }
-          r->push_back(string_pool_->InternString(fetcher->GetStringValue(i)));
           break;
         }
         case ValueFetcherImpl::kNull:
@@ -301,22 +297,66 @@ class RuntimeDataframeBuilder {
   };
 
   template <typename T>
-  PERFETTO_ALWAYS_INLINE impl::FlexVector<T>* EnsureColumnType(
-      uint32_t i,
-      DataVariant& data) {
+  PERFETTO_ALWAYS_INLINE bool Push(uint32_t col, DataVariant& data, T value) {
     switch (data.index()) {
-      case base::variant_index<DataVariant, std::nullopt_t>():
+      case base::variant_index<DataVariant, std::nullopt_t>(): {
         data = impl::FlexVector<T>();
-        return &base::unchecked_get<impl::FlexVector<T>>(data);
-      case base::variant_index<DataVariant, impl::FlexVector<T>>():
-        return &base::unchecked_get<impl::FlexVector<T>>(data);
-      default:
+        auto& vec = base::unchecked_get<impl::FlexVector<T>>(data);
+        vec.push_back(value);
+        return true;
+      }
+      case base::variant_index<DataVariant, impl::FlexVector<T>>(): {
+        auto& vec = base::unchecked_get<impl::FlexVector<T>>(data);
+        vec.push_back(value);
+        return true;
+      }
+      default: {
+        if constexpr (std::is_same_v<T, double>) {
+          if (std::holds_alternative<impl::FlexVector<int64_t>>(data)) {
+            auto& vec = base::unchecked_get<impl::FlexVector<int64_t>>(data);
+            auto res = impl::FlexVector<double>::CreateWithSize(vec.size());
+            for (uint32_t i = 0; i < vec.size(); ++i) {
+              int64_t v = vec[i];
+              if (!IsPerfectlyRepresentableAsDouble(v)) {
+                current_status_ =
+                    base::ErrStatus("Unable to represent %" PRId64
+                                    " in column %s at row %u as a double.",
+                                    v, column_names_[i].c_str(), i);
+                return false;
+              }
+              res[i] = static_cast<double>(v);
+            }
+            res.push_back(value);
+            data = std::move(res);
+            return true;
+          }
+        } else if constexpr (std::is_same_v<T, int64_t>) {
+          if (std::holds_alternative<impl::FlexVector<double>>(data)) {
+            if (IsPerfectlyRepresentableAsDouble(value)) {
+              auto& vec = base::unchecked_get<impl::FlexVector<double>>(data);
+              vec.push_back(static_cast<double>(value));
+              return true;
+            }
+            current_status_ =
+                base::ErrStatus("Inserting a too-large integer (%" PRId64
+                                ") in column '%s' at row "
+                                "%u. Column currently holds doubles.",
+                                value, column_names_[col].c_str(), row_count_);
+            return false;
+          }
+        }
         current_status_ = base::ErrStatus(
             "Type mismatch in column '%s' at row %u. Existing type != "
             "fetched type.",
-            column_names_[i].c_str(), row_count_);
-        return nullptr;
+            column_names_[col].c_str(), row_count_);
+        return false;
+      }
     }
+  }
+
+  static constexpr bool IsPerfectlyRepresentableAsDouble(int64_t res) {
+    constexpr int64_t kMaxDoubleRepresentible = 1ull << 53;
+    return res >= -kMaxDoubleRepresentible && res <= kMaxDoubleRepresentible;
   }
 
   static impl::Storage CreateIntegerStorage(impl::FlexVector<int64_t> data,

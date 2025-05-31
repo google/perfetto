@@ -271,13 +271,10 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
       continue;
     }
 
-    // Create a register for the coerced filter value
-    auto value_reg = CastFilterValue(c, ct, *non_null_op);
-
     // Handle non-string data types
     if (const auto& n = ct.TryDowncast<NonStringType>(); n) {
       if (auto op = c.op.TryDowncast<NonStringOp>(); op) {
-        NonStringConstraint(c, *n, *op, value_reg);
+        NonStringConstraint(c, *n, *op, CastFilterValue(c, ct, *non_null_op));
       } else {
         SetGuaranteedToBeEmpty();
       }
@@ -287,7 +284,8 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
     PERFETTO_CHECK(ct.Is<String>());
     auto op = non_null_op->TryDowncast<StringOp>();
     PERFETTO_CHECK(op);
-    RETURN_IF_ERROR(StringConstraint(c, *op, value_reg));
+    RETURN_IF_ERROR(
+        StringConstraint(c, *op, CastFilterValue(c, ct, *non_null_op)));
   }
   return base::OkStatus();
 }
@@ -447,12 +445,17 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
     uint32_t offset;
   };
 
-  base::SmallVector<ColAndOffset, 64> null_cols;
+  base::SmallVector<ColAndOffset, 24> null_cols;
   plan_.params.output_per_row = 1;
+  for (uint32_t i = 0; i < columns_.size(); ++i) {
+    plan_.col_to_output_offset.emplace_back();
+  }
 
   // Process each column that will be used in the output
-  for (uint32_t i = 0; i < 64; ++i, cols_used >>= 1) {
-    if ((cols_used & 1u) == 0) {
+  for (uint32_t i = 0; i < columns_.size(); ++i) {
+    // Any column with index >= 64 uses the 64th bit in cols_used.
+    uint64_t mask = 1ULL << std::min(i, 63u);
+    if ((cols_used & mask) == 0) {
       continue;
     }
     const auto& col = GetColumn(i);
@@ -461,13 +464,15 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
       case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
       case Nullability::GetTypeIndex<
           SparseNullSupportingCellGetUntilFinalization>():
-      case Nullability::GetTypeIndex<DenseNull>():
-        null_cols.emplace_back(ColAndOffset{i, plan_.params.output_per_row});
-        plan_.params.col_to_output_offset[i] = plan_.params.output_per_row++;
+      case Nullability::GetTypeIndex<DenseNull>(): {
+        uint32_t offset = plan_.params.output_per_row++;
+        null_cols.emplace_back(ColAndOffset{i, offset});
+        plan_.col_to_output_offset[i] = offset;
         break;
+      }
       case Nullability::GetTypeIndex<NonNull>():
         // For non-null columns, we can directly use the indices
-        plan_.params.col_to_output_offset[i] = 0;
+        plan_.col_to_output_offset[i] = 0;
         break;
       default:
         PERFETTO_FATAL("Unreachable");
@@ -725,6 +730,7 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
   if (ct.Is<Uint32>() && col.sort_state.Is<SetIdSorted>() && op.Is<Eq>()) {
     using B = bytecode::Uint32SetIdSortedEq;
     auto& bc = AddOpcode<B>(RowCountModifier{DoubleLog2RowCount{}});
+    bc.arg<B::col>() = fs.col;
     bc.arg<B::val_register>() = value_reg;
     bc.arg<B::update_register>() = reg;
     return true;
@@ -846,6 +852,7 @@ PERFETTO_NO_INLINE bytecode::Bytecode& QueryPlanBuilder::AddRawOpcode(
     uint32_t option,
     RowCountModifier rc,
     bytecode::Cost cost) {
+  static constexpr uint32_t kFixedBytecodeCost = 5;
   switch (cost.index()) {
     case base::variant_index<bytecode::Cost, bytecode::FixedCost>(): {
       const auto& c = base::unchecked_get<bytecode::FixedCost>(cost);
@@ -854,18 +861,27 @@ PERFETTO_NO_INLINE bytecode::Bytecode& QueryPlanBuilder::AddRawOpcode(
     }
     case base::variant_index<bytecode::Cost, bytecode::LogPerRowCost>(): {
       const auto& c = base::unchecked_get<bytecode::LogPerRowCost>(cost);
-      plan_.params.estimated_cost += c.cost * log2(plan_.params.estimated_cost);
+      plan_.params.estimated_cost +=
+          plan_.params.estimated_row_count == 0
+              ? kFixedBytecodeCost
+              : c.cost * log2(plan_.params.estimated_row_count);
       break;
     }
     case base::variant_index<bytecode::Cost, bytecode::LinearPerRowCost>(): {
       const auto& c = base::unchecked_get<bytecode::LinearPerRowCost>(cost);
-      plan_.params.estimated_cost += c.cost * plan_.params.estimated_cost;
+      plan_.params.estimated_cost +=
+          plan_.params.estimated_row_count == 0
+              ? kFixedBytecodeCost
+              : c.cost * plan_.params.estimated_row_count;
       break;
     }
     case base::variant_index<bytecode::Cost, bytecode::LogLinearPerRowCost>(): {
       const auto& c = base::unchecked_get<bytecode::LogLinearPerRowCost>(cost);
-      plan_.params.estimated_cost += c.cost * plan_.params.estimated_cost *
-                                     log2(plan_.params.estimated_cost);
+      plan_.params.estimated_cost +=
+          plan_.params.estimated_row_count == 0
+              ? kFixedBytecodeCost
+              : c.cost * plan_.params.estimated_row_count *
+                    log2(plan_.params.estimated_row_count);
       break;
     }
     case base::variant_index<bytecode::Cost,
