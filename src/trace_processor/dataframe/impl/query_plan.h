@@ -81,7 +81,7 @@ struct QueryPlan {
   };
   static_assert(std::is_trivially_copyable_v<ExecutionParams>);
   static_assert(std::is_trivially_destructible_v<ExecutionParams>);
-  static_assert(sizeof(ExecutionParams) == 544);
+  static_assert(sizeof(ExecutionParams) == 288);
 
   // Serializes the query plan to a Base64-encoded string.
   // This allows plans to be stored or transmitted between processes.

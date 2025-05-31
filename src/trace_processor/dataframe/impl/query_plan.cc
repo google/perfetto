@@ -845,6 +845,7 @@ PERFETTO_NO_INLINE bytecode::Bytecode& QueryPlanBuilder::AddRawOpcode(
     uint32_t option,
     RowCountModifier rc,
     bytecode::Cost cost) {
+  static constexpr uint32_t kFixedBytecodeCost = 5;
   switch (cost.index()) {
     case base::variant_index<bytecode::Cost, bytecode::FixedCost>(): {
       const auto& c = base::unchecked_get<bytecode::FixedCost>(cost);
@@ -853,18 +854,27 @@ PERFETTO_NO_INLINE bytecode::Bytecode& QueryPlanBuilder::AddRawOpcode(
     }
     case base::variant_index<bytecode::Cost, bytecode::LogPerRowCost>(): {
       const auto& c = base::unchecked_get<bytecode::LogPerRowCost>(cost);
-      plan_.params.estimated_cost += c.cost * log2(plan_.params.estimated_cost);
+      plan_.params.estimated_cost +=
+          plan_.params.estimated_row_count == 0
+              ? kFixedBytecodeCost
+              : c.cost * log2(plan_.params.estimated_row_count);
       break;
     }
     case base::variant_index<bytecode::Cost, bytecode::LinearPerRowCost>(): {
       const auto& c = base::unchecked_get<bytecode::LinearPerRowCost>(cost);
-      plan_.params.estimated_cost += c.cost * plan_.params.estimated_cost;
+      plan_.params.estimated_cost +=
+          plan_.params.estimated_row_count == 0
+              ? kFixedBytecodeCost
+              : c.cost * plan_.params.estimated_row_count;
       break;
     }
     case base::variant_index<bytecode::Cost, bytecode::LogLinearPerRowCost>(): {
       const auto& c = base::unchecked_get<bytecode::LogLinearPerRowCost>(cost);
-      plan_.params.estimated_cost += c.cost * plan_.params.estimated_cost *
-                                     log2(plan_.params.estimated_cost);
+      plan_.params.estimated_cost +=
+          plan_.params.estimated_row_count == 0
+              ? kFixedBytecodeCost
+              : c.cost * plan_.params.estimated_row_count *
+                    log2(plan_.params.estimated_row_count);
       break;
     }
     case base::variant_index<bytecode::Cost,
