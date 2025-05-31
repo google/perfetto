@@ -270,6 +270,12 @@ class RuntimeDataframeBuilder {
         }
       }
     }
+    // Create an implicit id column for acting as a primary key even if there
+    // are no other id columns.
+    column_names_.emplace_back("_auto_id");
+    columns.emplace_back(std::make_shared<impl::Column>(
+        impl::Column{impl::Storage{impl::Storage::Id{row_count_}},
+                     impl::NullStorage::NonNull{}, IdSorted{}}));
     return Dataframe(true, std::move(column_names_), std::move(columns),
                      row_count_, string_pool_);
   }

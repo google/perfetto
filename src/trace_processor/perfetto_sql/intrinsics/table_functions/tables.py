@@ -159,13 +159,23 @@ DFS_WEIGHT_BOUNDED_TABLE = Table(
           flags=ColumnFlag.HIDDEN),
     ])
 
+DATAFRAME_QUERY_PLAN_DECODER_TABLE_TABLE = Table(
+    python_module=__file__,
+    class_name="DataframeQueryPlanDecoderTable",
+    sql_name="__intrinsic_dataframe_query_plan_decoder",
+    columns=[
+        C("bytecode_str", CppString()),
+        C("serialized_bc", CppString(), flags=ColumnFlag.HIDDEN),
+    ])
+
 # Keep this list sorted.
 ALL_TABLES = [
     ANCESTOR_SLICE_BY_STACK_TABLE,
     ANCESTOR_SLICE_TABLE,
     ANCESTOR_STACK_PROFILE_CALLSITE_TABLE,
-    CONNECTED_FLOW_TABLE,
     ARGS_WITH_DEFAULTS_TABLE,
+    CONNECTED_FLOW_TABLE,
+    DATAFRAME_QUERY_PLAN_DECODER_TABLE_TABLE,
     DESCENDANT_SLICE_BY_STACK_TABLE,
     DESCENDANT_SLICE_TABLE,
     DFS_WEIGHT_BOUNDED_TABLE,

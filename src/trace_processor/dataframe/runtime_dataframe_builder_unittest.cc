@@ -83,8 +83,9 @@ TEST_F(DataframeBuilderTest, BuildEmpty) {
   ASSERT_OK(df.status());
 
   auto spec = df->CreateSpec();
-  ASSERT_THAT(spec.column_specs, IsEmpty());
-  ASSERT_THAT(spec.column_names, IsEmpty());
+  ASSERT_THAT(spec.column_specs,
+              ElementsAre(ColumnSpec{Id{}, NonNull{}, IdSorted{}}));
+  ASSERT_THAT(spec.column_names, ElementsAre("_auto_id"));
 }
 
 TEST_F(DataframeBuilderTest, AddSingleRowSimple) {
@@ -94,11 +95,12 @@ TEST_F(DataframeBuilderTest, AddSingleRowSimple) {
 
   auto spec = df->CreateSpec();
   ASSERT_THAT(spec.column_names,
-              ElementsAre("int_col", "double_col", "str_col"));
+              ElementsAre("int_col", "double_col", "str_col", "_auto_id"));
   ASSERT_THAT(spec.column_specs,
               ElementsAre(ColumnSpec{Uint32{}, NonNull{}, Sorted{}},
                           ColumnSpec{Double{}, NonNull{}, Sorted{}},
-                          ColumnSpec{String{}, NonNull{}, Sorted{}}));
+                          ColumnSpec{String{}, NonNull{}, Sorted{}},
+                          ColumnSpec{Id{}, NonNull{}, IdSorted{}}));
   VerifyData(*df, 7,
              Rows(Row(uint32_t{123}, 45.6, NullTermStringView{"hello"})));
 }
@@ -108,10 +110,11 @@ TEST_F(DataframeBuilderTest, AddMultipleRowsConsistentTypes) {
       {"a", "b"}, {{int64_t{10}, "A"}, {int64_t{20}, "B"}, {int64_t{5}, "C"}});
   ASSERT_OK(df.status());
   auto spec = df->CreateSpec();
-  ASSERT_THAT(spec.column_names, ElementsAre("a", "b"));
+  ASSERT_THAT(spec.column_names, ElementsAre("a", "b", "_auto_id"));
   ASSERT_THAT(spec.column_specs,
               ElementsAre(ColumnSpec{Uint32{}, NonNull{}, Unsorted{}},
-                          ColumnSpec{String{}, NonNull{}, Sorted{}}));
+                          ColumnSpec{String{}, NonNull{}, Sorted{}},
+                          ColumnSpec{Id{}, NonNull{}, IdSorted{}}));
   VerifyData(*df, 3,
              Rows(Row(uint32_t{10}, NullTermStringView{"A"}),
                   Row(uint32_t{20}, NullTermStringView{"B"}),
@@ -127,12 +130,13 @@ TEST_F(DataframeBuilderTest, AddRowsWithNulls) {
                {int64_t{2}, std::nullopt, 4.4}});
   ASSERT_OK(df.status());
   auto spec = df->CreateSpec();
-  ASSERT_THAT(spec.column_names,
-              ElementsAre("nullable_int", "nullable_str", "non_null"));
+  ASSERT_THAT(spec.column_names, ElementsAre("nullable_int", "nullable_str",
+                                             "non_null", "_auto_id"));
   ASSERT_THAT(spec.column_specs,
               ElementsAre(ColumnSpec{Uint32{}, SparseNull{}, Unsorted{}},
                           ColumnSpec{String{}, SparseNull{}, Unsorted{}},
-                          ColumnSpec{Double{}, NonNull{}, Sorted{}}));
+                          ColumnSpec{Double{}, NonNull{}, Sorted{}},
+                          ColumnSpec{Id{}, NonNull{}, IdSorted{}}));
   VerifyData(*df, 7,
              Rows(Row(uint32_t{1}, nullptr, 1.1),
                   Row(nullptr, NullTermStringView{"A"}, 2.2),
@@ -178,13 +182,14 @@ TEST_F(DataframeBuilderTest, BuildIntegerDowncasting) {
        {int64_t{50}, int64_t{-2'000'000'000}, int64_t{-5'000'000'000LL}}});
   ASSERT_OK(df.status());
   auto spec = df->CreateSpec();
-  ASSERT_THAT(
-      spec.column_names,
-      ElementsAre("should_be_uint32", "should_be_int32", "should_be_int64"));
+  ASSERT_THAT(spec.column_names,
+              ElementsAre("should_be_uint32", "should_be_int32",
+                          "should_be_int64", "_auto_id"));
   ASSERT_THAT(spec.column_specs,
               ElementsAre(ColumnSpec{Uint32{}, NonNull{}, Unsorted{}},
                           ColumnSpec{Int32{}, NonNull{}, Unsorted{}},
-                          ColumnSpec{Int64{}, NonNull{}, Unsorted{}}));
+                          ColumnSpec{Int64{}, NonNull{}, Unsorted{}},
+                          ColumnSpec{Id{}, NonNull{}, IdSorted{}}));
 }
 
 TEST_F(DataframeBuilderTest, BuildIdColumn) {
@@ -192,9 +197,10 @@ TEST_F(DataframeBuilderTest, BuildIdColumn) {
       {"id_col"}, {{int64_t{0}}, {int64_t{1}}, {int64_t{2}}, {int64_t{3}}});
   ASSERT_OK(df.status());
   auto spec = df->CreateSpec();
-  ASSERT_THAT(spec.column_names, ElementsAre("id_col"));
+  ASSERT_THAT(spec.column_names, ElementsAre("id_col", "_auto_id"));
   ASSERT_THAT(spec.column_specs,
-              ElementsAre(ColumnSpec{Id{}, NonNull{}, IdSorted{}}));
+              ElementsAre(ColumnSpec{Id{}, NonNull{}, IdSorted{}},
+                          ColumnSpec{Id{}, NonNull{}, IdSorted{}}));
   VerifyData(*df, 1,
              Rows(Row(uint32_t{0}), Row(uint32_t{1}), Row(uint32_t{2}),
                   Row(uint32_t{3})));
@@ -211,9 +217,10 @@ TEST_F(DataframeBuilderTest, BuildSetIdSortedColumn) {
                                                          {int64_t{7}}});
   ASSERT_OK(df.status());
   auto spec = df->CreateSpec();
-  ASSERT_THAT(spec.column_names, ElementsAre("setid_col"));
+  ASSERT_THAT(spec.column_names, ElementsAre("setid_col", "_auto_id"));
   ASSERT_THAT(spec.column_specs,
-              ElementsAre(ColumnSpec{Uint32{}, NonNull{}, SetIdSorted{}}));
+              ElementsAre(ColumnSpec{Uint32{}, NonNull{}, SetIdSorted{}},
+                          ColumnSpec{Id{}, NonNull{}, IdSorted{}}));
 }
 
 TEST_F(DataframeBuilderTest, BuildSetIdSortedViolated) {
@@ -222,9 +229,10 @@ TEST_F(DataframeBuilderTest, BuildSetIdSortedViolated) {
               {{int64_t{0}}, {int64_t{0}}, {int64_t{2}}, {int64_t{1}}});
   ASSERT_OK(df.status());
   auto spec = df->CreateSpec();
-  ASSERT_THAT(spec.column_names, ElementsAre("not_setid_col"));
+  ASSERT_THAT(spec.column_names, ElementsAre("not_setid_col", "_auto_id"));
   ASSERT_THAT(spec.column_specs,
-              ElementsAre(ColumnSpec{Uint32{}, NonNull{}, Unsorted{}}));
+              ElementsAre(ColumnSpec{Uint32{}, NonNull{}, Unsorted{}},
+                          ColumnSpec{Id{}, NonNull{}, IdSorted{}}));
 }
 
 TEST_F(DataframeBuilderTest, InferTypeAfterNull) {
@@ -234,10 +242,11 @@ TEST_F(DataframeBuilderTest, InferTypeAfterNull) {
                                        {int64_t{888}, std::nullopt}});
   ASSERT_OK(df.status());
   auto spec = df->CreateSpec();
-  ASSERT_THAT(spec.column_names, ElementsAre("int_col", "str_col"));
+  ASSERT_THAT(spec.column_names, ElementsAre("int_col", "str_col", "_auto_id"));
   ASSERT_THAT(spec.column_specs,
               ElementsAre(ColumnSpec{Uint32{}, SparseNull{}, Unsorted{}},
-                          ColumnSpec{String{}, SparseNull{}, Unsorted{}}));
+                          ColumnSpec{String{}, SparseNull{}, Unsorted{}},
+                          ColumnSpec{Id{}, NonNull{}, IdSorted{}}));
 }
 
 TEST_F(DataframeBuilderTest, BuildIntegerNoDowncast) {
@@ -251,10 +260,11 @@ TEST_F(DataframeBuilderTest, BuildIntegerNoDowncast) {
                                    {int64_t{int32_min - 1}, std::nullopt}});
   ASSERT_OK(df.status());
   auto spec = df->CreateSpec();
-  ASSERT_THAT(spec.column_names, ElementsAre("col_a", "col_b"));
+  ASSERT_THAT(spec.column_names, ElementsAre("col_a", "col_b", "_auto_id"));
   ASSERT_THAT(spec.column_specs,
               ElementsAre(ColumnSpec{Int64{}, NonNull{}, Unsorted{}},
-                          ColumnSpec{Uint32{}, SparseNull{}, Unsorted{}}));
+                          ColumnSpec{Uint32{}, SparseNull{}, Unsorted{}},
+                          ColumnSpec{Id{}, NonNull{}, IdSorted{}}));
 }
 
 TEST_F(DataframeBuilderTest, BuildAllNullColumn) {
@@ -264,10 +274,12 @@ TEST_F(DataframeBuilderTest, BuildAllNullColumn) {
                                                  {int64_t{2}, std::nullopt}});
   ASSERT_OK(df.status());
   auto spec = df->CreateSpec();
-  ASSERT_THAT(spec.column_names, ElementsAre("non_null_col", "all_null_col"));
+  ASSERT_THAT(spec.column_names,
+              ElementsAre("non_null_col", "all_null_col", "_auto_id"));
   ASSERT_THAT(spec.column_specs,
               ElementsAre(ColumnSpec{Id{}, NonNull{}, IdSorted{}},
-                          ColumnSpec{Uint32{}, SparseNull{}, Unsorted{}}));
+                          ColumnSpec{Uint32{}, SparseNull{}, Unsorted{}},
+                          ColumnSpec{Id{}, NonNull{}, IdSorted{}}));
 }
 
 TEST_F(DataframeBuilderTest, BuildSortStateUnsortedAfterNull) {
@@ -276,9 +288,10 @@ TEST_F(DataframeBuilderTest, BuildSortStateUnsortedAfterNull) {
               {{int64_t{10}}, {int64_t{20}}, {std::nullopt}, {int64_t{30}}});
   ASSERT_OK(df.status());
   auto spec = df->CreateSpec();
-  ASSERT_THAT(spec.column_names, ElementsAre("sorted_then_null"));
+  ASSERT_THAT(spec.column_names, ElementsAre("sorted_then_null", "_auto_id"));
   ASSERT_THAT(spec.column_specs,
-              ElementsAre(ColumnSpec{Uint32{}, SparseNull{}, Unsorted{}}));
+              ElementsAre(ColumnSpec{Uint32{}, SparseNull{}, Unsorted{}},
+                          ColumnSpec{Id{}, NonNull{}, IdSorted{}}));
 }
 
 TEST_F(DataframeBuilderTest, BuildEmptyColumn) {
@@ -288,10 +301,12 @@ TEST_F(DataframeBuilderTest, BuildEmptyColumn) {
                                                {int64_t{30}, std::nullopt}});
   ASSERT_OK(df.status());
   auto spec = df->CreateSpec();
-  ASSERT_THAT(spec.column_names, ElementsAre("populated_col", "empty_col"));
+  ASSERT_THAT(spec.column_names,
+              ElementsAre("populated_col", "empty_col", "_auto_id"));
   ASSERT_THAT(spec.column_specs,
               ElementsAre(ColumnSpec{Uint32{}, NonNull{}, Sorted{}},
-                          ColumnSpec{Uint32{}, SparseNull{}, Unsorted{}}));
+                          ColumnSpec{Uint32{}, SparseNull{}, Unsorted{}},
+                          ColumnSpec{Id{}, NonNull{}, IdSorted{}}));
 }
 
 }  // namespace

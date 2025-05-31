@@ -72,7 +72,7 @@ std::string ToSqliteCreateTableType(dataframe::StorageType type) {
     case dataframe::StorageType::GetTypeIndex<dataframe::Int64>():
       return "INTEGER";
     case dataframe::StorageType::GetTypeIndex<dataframe::Double>():
-      return "REAL";
+      return "DOUBLE";
     case dataframe::StorageType::GetTypeIndex<dataframe::String>():
       return "TEXT";
     default:
@@ -84,9 +84,13 @@ std::string CreateTableStmt(const dataframe::DataframeSpec& spec) {
   std::string create_stmt = "CREATE TABLE x(";
   for (uint32_t i = 0; i < spec.column_specs.size(); ++i) {
     create_stmt += spec.column_names[i] + " " +
-                   ToSqliteCreateTableType(spec.column_specs[i].type) + ", ";
+                   ToSqliteCreateTableType(spec.column_specs[i].type);
+    if (spec.column_names[i] == "_auto_id") {
+      create_stmt += " HIDDEN";
+    }
+    create_stmt += ", ";
   }
-  create_stmt += "PRIMARY KEY(id)) WITHOUT ROWID";
+  create_stmt += "PRIMARY KEY(_auto_id)) WITHOUT ROWID";
   return create_stmt;
 }
 
