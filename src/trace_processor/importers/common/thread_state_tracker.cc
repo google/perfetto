@@ -240,6 +240,15 @@ void ThreadStateTracker::UpdatePendingState(
   }
 }
 
+StringId ThreadStateTracker::GetPrevEndState(UniqueTid utid) {
+  if (!HasPreviousRowNumbersForUtid(utid))
+    return kNullStringId;
+
+  auto row_ref = RowNumToRef(prev_row_numbers_for_thread_[utid]->last_row);
+
+  return row_ref.state();
+}
+
 bool ThreadStateTracker::IsRunning(StringId state) {
   return state == running_string_id_;
 }

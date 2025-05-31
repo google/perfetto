@@ -81,6 +81,7 @@ class ThreadStateTracker : public Destructible {
   //
   // - PushThreadState
   // - UpdatePendingState
+  // - GetPrevEndState
   //
   // To update the thread state track accordingly. Updating pending state is
   // necessary in this scenario because single thread state change events don't
@@ -97,6 +98,8 @@ class ThreadStateTracker : public Destructible {
                           std::optional<uint16_t> cpu = std::nullopt,
                           std::optional<UniqueTid> waker_utid = std::nullopt,
                           std::optional<uint16_t> common_flags = std::nullopt);
+
+  StringId GetPrevEndState(UniqueTid utid);
 
  private:
   void AddOpenState(int64_t ts,
