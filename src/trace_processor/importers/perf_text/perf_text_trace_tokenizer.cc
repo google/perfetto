@@ -131,9 +131,9 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
           mapping->InternDummyFrame(symbol_name, base::StringView()));
     }
     if (frames.empty()) {
-      return base::ErrStatus(
-          "Perf text parser: no frames in sample (context: '%s')",
-          std::string(first_line).c_str());
+      context_->storage->IncrementStats(
+          storage::stats::perf_text_importer_sample_no_frames);
+      continue;
     }
 
     std::optional<CallsiteId> parent_callsite;
