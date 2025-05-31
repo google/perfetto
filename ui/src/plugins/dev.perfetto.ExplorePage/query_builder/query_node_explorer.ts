@@ -25,6 +25,7 @@ import {Icons} from '../../../base/semantic_icons';
 import {Operator} from './operations/operation_component';
 import {Trace} from '../../../public/trace';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
+import {TextInput} from '../../../widgets/text_input';
 
 export interface QueryNodeExplorerAttrs {
   readonly node: QueryNode;
@@ -118,7 +119,18 @@ export class QueryNodeExplorer
               filled: true,
               title: 'Invalid node',
             }),
-          m('.title', attrs.node.getTitle()),
+          m(
+            '.title',
+            m(TextInput, {
+              placeholder: attrs.node.getTitle(),
+              oninput: (e: KeyboardEvent) => {
+                if (!e.target) return;
+                attrs.node.state.customTitle = (
+                  e.target as HTMLInputElement
+                ).value.trim();
+              },
+            }),
+          ),
           m('span.spacer'), // Added spacer to push menu to the right
           renderModeMenu(),
         ),
