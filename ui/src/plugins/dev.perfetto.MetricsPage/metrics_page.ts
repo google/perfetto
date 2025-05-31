@@ -24,7 +24,6 @@ import {assertExists, assertUnreachable} from '../../base/logging';
 import {Trace} from '../../public/trace';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {Editor} from '../../widgets/editor';
-import {TextInput} from '../../widgets/text_input';
 import {Button} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 
@@ -56,12 +55,11 @@ async function getMetricV1(
 async function getMetricV2(
   engine: Engine,
   metric: string,
-  metricId: string,
   format: Format,
 ): Promise<string> {
   const result = await engine.summarizeTrace(
     [metric],
-    [metricId],
+    [],
     undefined,
     format === 'proto' ? 'proto' : 'prototext',
   );
@@ -261,12 +259,10 @@ interface MetricV2FetcherAttrs {
 }
 
 class MetricV2Fetcher implements m.ClassComponent<MetricV2FetcherAttrs> {
-  private metricId: string = '';
   private text: string = '';
 
   view({attrs}: m.CVnode<MetricV2FetcherAttrs>) {
     if (attrs.showExample) {
-      this.metricId = 'memory_per_process';
       this.text = `id: "memory_per_process"
 dimensions: "process_name"
 value: "avg_rss_and_swap"
@@ -287,30 +283,13 @@ query: {
     }
     return m(
       '.pf-metricsv2-page',
-      m(
-        '.pf-metricsv2-page__metric_id_box',
-        'Metric id: ',
-        m(TextInput, {
-          value: this.metricId,
-          oninput: (e: KeyboardEvent) => {
-            if (!e.target) return;
-            attrs.onUpdateText();
-            this.metricId = (e.target as HTMLInputElement).value;
-          },
-        }),
-      ),
       'Provide metric v2 spec in prototext format ',
       m(Editor, {
         generation: attrs.editorGeneration,
         initialText: this.text,
         onExecute: (text: string) => {
           this.text = text;
-          getMetricV2(
-            attrs.engine,
-            `metric_spec: {${text}}`,
-            this.metricId,
-            'prototext',
-          )
+          getMetricV2(attrs.engine, `metric_spec: {${text}}`, 'prototext')
             .then((result) => {
               attrs.onExecuteRunMetric(okResult(result));
             })

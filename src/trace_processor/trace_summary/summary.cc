@@ -346,7 +346,39 @@ base::Status Summarize(TraceProcessor* processor,
   }
 
   base::FlatHashMap<std::string, Metric> queries_per_metric;
-  if (!computation.v2_metric_ids.empty()) {
+  if (computation.v2_metric_ids.empty()) {
+    // If no v2_metric_ids are specified, we assume that all metrics in the
+    // specs are to be computed.
+    for (const auto& spec : spec_decoders) {
+      for (auto it = spec.metric_spec(); it; ++it) {
+        protos::pbzero::TraceMetricV2Spec::Decoder m(*it);
+        std::string id = m.id().ToStdString();
+        if (id.empty()) {
+          return base::ErrStatus(
+              "Metric with empty id field: this is not allowed");
+        }
+        if (queries_per_metric.Find(id)) {
+          return base::ErrStatus(
+              "Duplicate definitions for metric %s received: this is not "
+              "allowed",
+              id.c_str());
+        }
+        Metric metric;
+        base::StatusOr<std::string> query_or =
+            generator.Generate(m.query().data, m.query().size);
+        if (!query_or.ok()) {
+          return base::ErrStatus("Unable to build query for metric %s: %s",
+                                 id.c_str(), query_or.status().c_message());
+        }
+        metric.query = *query_or;
+        metric.spec = protozero::ConstBytes{
+            m.begin(),
+            static_cast<size_t>(m.end() - m.begin()),
+        };
+        queries_per_metric.Insert(id, std::move(metric));
+      }
+    }
+  } else {
     for (const auto& id : computation.v2_metric_ids) {
       queries_per_metric.Insert(id, Metric{});
     }
