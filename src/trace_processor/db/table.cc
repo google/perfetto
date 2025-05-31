@@ -33,11 +33,8 @@
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/column/arrangement_overlay.h"
 #include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/overlay_layer.h"
-#include "src/trace_processor/db/column/range_overlay.h"
-#include "src/trace_processor/db/column/selector_overlay.h"
 #include "src/trace_processor/db/column/storage_layer.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column_storage_overlay.h"
@@ -195,54 +192,6 @@ RowMap Table::QueryToRowMap(const Query& q) const {
   }
 
   return rm;
-}
-
-Table Table::Sort(const std::vector<Order>& ob) const {
-  if (ob.empty()) {
-    return Copy();
-  }
-
-  // Return a copy of this table with the RowMaps using the computed ordered
-  // RowMap.
-  Table table = CopyExceptOverlays();
-  Query q;
-  q.orders = ob;
-  RowMap rm = QueryToRowMap(q);
-  for (const ColumnStorageOverlay& overlay : overlays_) {
-    table.overlays_.emplace_back(overlay.SelectRows(rm));
-    PERFETTO_DCHECK(table.overlays_.back().size() == table.row_count());
-  }
-
-  // Remove the sorted and row set flags from all the columns.
-  for (auto& col : table.columns_) {
-    col.flags_ &= ~ColumnLegacy::Flag::kSorted;
-    col.flags_ &= ~ColumnLegacy::Flag::kSetId;
-  }
-
-  // For the first order by, make the column flag itself as sorted but
-  // only if the sort was in ascending order.
-  if (!ob.front().desc) {
-    table.columns_[ob.front().col_idx].flags_ |= ColumnLegacy::Flag::kSorted;
-  }
-
-  std::vector<RefPtr<column::OverlayLayer>> overlay_layers(
-      table.overlays_.size());
-  for (uint32_t i = 0; i < table.overlays_.size(); ++i) {
-    if (table.overlays_[i].row_map().IsIndexVector()) {
-      overlay_layers[i].reset(new column::ArrangementOverlay(
-          table.overlays_[i].row_map().GetIfIndexVector(),
-          column::DataLayerChain::Indices::State::kNonmonotonic));
-    } else if (table.overlays_[i].row_map().IsBitVector()) {
-      overlay_layers[i].reset(new column::SelectorOverlay(
-          table.overlays_[i].row_map().GetIfBitVector()));
-    } else if (table.overlays_[i].row_map().IsRange()) {
-      overlay_layers[i].reset(
-          new column::RangeOverlay(table.overlays_[i].row_map().GetIfIRange()));
-    }
-  }
-  table.OnConstructionCompleted(storage_layers_, null_layers_,
-                                std::move(overlay_layers));
-  return table;
 }
 
 void Table::OnConstructionCompleted(

@@ -96,15 +96,6 @@ struct DbSqliteModule : public sqlite::Module<DbSqliteModule> {
 
     bool eof = true;
 
-    // Stores a sorted version of |db_table| sorted on a repeated equals
-    // constraint. This allows speeding up repeated subqueries in joins
-    // significantly.
-    std::optional<Table> sorted_cache_table;
-
-    // Stores the count of repeated equality queries to decide whether it is
-    // wortwhile to sort |db_table| to create |sorted_cache_table|.
-    uint32_t repeated_cache_count = 0;
-
     Mode mode = Mode::kSingleRow;
 
     int last_idx_num = -1;
