@@ -43,10 +43,11 @@ SELECT AndroidWattsonTimePeriodMetric(
         'period_id', period_id,
         'period_name', cuj_name,
         'period_dur', period_dur,
-        'cpu_subsystem', proto
+        'cpu_subsystem', cpu_proto,
+        'gpu_subsystem', gpu_proto
       )
     )
-    FROM _estimate_cpu_subsystem_sum AS est
+    FROM _estimate_subsystems_sum AS est
     JOIN android_jank_cuj AS cuj ON cuj.cuj_id = est.period_id
   )
 );
