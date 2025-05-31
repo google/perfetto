@@ -70,13 +70,18 @@ struct QueryPlan {
     bytecode::reg::ReadHandle<Span<uint32_t>> output_register;
 
     // Maps column indices to output offsets.
-    std::array<uint32_t, kMaxColumns> col_to_output_offset;
+    std::array<uint32_t, kMaxColumns> col_to_output_offset{};
 
     // Number of output indices per row.
     uint32_t output_per_row = 0;
+
+    // Explicit padding to ensure msan does not complain about uninitialized
+    // memory.
+    uint8_t padding[4]{};
   };
   static_assert(std::is_trivially_copyable_v<ExecutionParams>);
   static_assert(std::is_trivially_destructible_v<ExecutionParams>);
+  static_assert(sizeof(ExecutionParams) == 544);
 
   // Serializes the query plan to a Base64-encoded string.
   // This allows plans to be stored or transmitted between processes.

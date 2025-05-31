@@ -93,6 +93,7 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   struct Vtab : sqlite::Module<DataframeModule>::Vtab {
     const dataframe::Dataframe* dataframe;
     sqlite::ModuleStateManager<DataframeModule>::PerVtabState* state;
+    std::string name;
   };
   using DfCursor = dataframe::Cursor<SqliteValueFetcher>;
   struct Cursor : sqlite::Module<DataframeModule>::Cursor {

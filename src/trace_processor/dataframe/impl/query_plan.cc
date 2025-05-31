@@ -271,13 +271,10 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
       continue;
     }
 
-    // Create a register for the coerced filter value
-    auto value_reg = CastFilterValue(c, ct, *non_null_op);
-
     // Handle non-string data types
     if (const auto& n = ct.TryDowncast<NonStringType>(); n) {
       if (auto op = c.op.TryDowncast<NonStringOp>(); op) {
-        NonStringConstraint(c, *n, *op, value_reg);
+        NonStringConstraint(c, *n, *op, CastFilterValue(c, ct, *non_null_op));
       } else {
         SetGuaranteedToBeEmpty();
       }
@@ -287,7 +284,8 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
     PERFETTO_CHECK(ct.Is<String>());
     auto op = non_null_op->TryDowncast<StringOp>();
     PERFETTO_CHECK(op);
-    RETURN_IF_ERROR(StringConstraint(c, *op, value_reg));
+    RETURN_IF_ERROR(
+        StringConstraint(c, *op, CastFilterValue(c, ct, *non_null_op)));
   }
   return base::OkStatus();
 }
@@ -725,6 +723,7 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
   if (ct.Is<Uint32>() && col.sort_state.Is<SetIdSorted>() && op.Is<Eq>()) {
     using B = bytecode::Uint32SetIdSortedEq;
     auto& bc = AddOpcode<B>(RowCountModifier{DoubleLog2RowCount{}});
+    bc.arg<B::col>() = fs.col;
     bc.arg<B::val_register>() = value_reg;
     bc.arg<B::update_register>() = reg;
     return true;

@@ -116,6 +116,7 @@ int DataframeModule::Create(sqlite3* db,
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
   res->dataframe = &*create_state->handle;
   res->state = ctx->OnCreate(argc, argv, std::move(create_state));
+  res->name = argv[2];
   *vtab = res.release();
   return SQLITE_OK;
 }
@@ -144,6 +145,7 @@ int DataframeModule::Connect(sqlite3* db,
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
   res->dataframe = &*df_state->handle;
   res->state = vtab_state;
+  res->name = argv[2];
   *vtab = res.release();
   return SQLITE_OK;
 }
@@ -159,6 +161,7 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
   std::vector<dataframe::FilterSpec> filter_specs;
   dataframe::LimitSpec limit_spec;
   filter_specs.reserve(static_cast<size_t>(info->nConstraint));
+  bool has_unknown_constraint = false;
   for (int i = 0; i < info->nConstraint; ++i) {
     if (!info->aConstraint[i].usable) {
       continue;
@@ -187,6 +190,7 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
     }
     auto df_op = SqliteOpToDataframeOp(op);
     if (!df_op) {
+      has_unknown_constraint = true;
       continue;
     }
     filter_specs.emplace_back(dataframe::FilterSpec{
@@ -195,6 +199,12 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
         *df_op,
         std::nullopt,
     });
+  }
+
+  // If we have a constraint we don't understand, we should ignore the limit
+  // and offset constraints.
+  if (has_unknown_constraint) {
+    limit_spec = dataframe::LimitSpec{};
   }
 
   bool should_sort_using_order_by = true;
