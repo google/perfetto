@@ -28,6 +28,8 @@ namespace perfetto::trace_processor {
 
 using protozero::ConstBytes;
 
+using TaskStateEnum =
+    protos::pbzero::GenericKernelTaskStateEvent::TaskStateEnum;
 using PendingSchedInfo = SchedEventState::PendingSchedInfo;
 
 PERFETTO_ALWAYS_INLINE
@@ -83,39 +85,66 @@ void GenericKernelParser::ParseGenericTaskStateEvent(
   const int32_t prio = task_event.prio();
   const size_t state = static_cast<size_t>(task_event.state());
 
-  if (state > task_states_.size()) {
+  if (state == 0 || state >= task_states_.size()) {
     context_->storage->IncrementStats(stats::task_state_invalid);
+    return;
   }
 
   StringId state_string_id = task_states_[state];
 
   // Handle thread creation
   auto utid_opt = context_->process_tracker->GetThreadOrNull(tid);
-  if (!utid_opt) {
-    if (state_string_id == destroyed_string_id_) {
-      // Ignore a DESTROYED event for a non-existing thread.
+  switch (state) {
+    case TaskStateEnum::TASK_STATE_CREATED: {
+      if (!utid_opt) {
+        utid_opt = context_->process_tracker->StartNewThread(ts, tid);
+        context_->process_tracker->UpdateThreadNameByUtid(
+            *utid_opt, comm_id, ThreadNamePriority::kGenericKernelTask);
+      } else {
+        context_->storage->IncrementStats(
+            stats::generic_task_state_invalid_order);
+        return;
+      }
+      break;
+    }
+    case TaskStateEnum::TASK_STATE_DESTROYED: {
+      if (!utid_opt) {
+        // Ignore a DESTROYED event for a non-existing thread.
+        return;
+      }
+      break;
+    }
+    case TaskStateEnum::TASK_STATE_DEAD: {
+      if (!utid_opt) {
+        utid_opt = context_->process_tracker->UpdateThreadName(
+            tid, comm_id, ThreadNamePriority::kGenericKernelTask);
+      }
+      if (ThreadStateTracker::GetOrCreate(context_)->GetPrevEndState(
+              *utid_opt) == destroyed_string_id_) {
+        context_->storage->IncrementStats(
+            stats::generic_task_state_invalid_order);
+        return;
+      }
+      context_->process_tracker->EndThread(ts, tid);
+      break;
+    }
+    case TaskStateEnum::TASK_STATE_RUNNABLE:
+    case TaskStateEnum::TASK_STATE_RUNNING:
+    case TaskStateEnum::TASK_STATE_INTERRUPTIBLE_SLEEP:
+    case TaskStateEnum::TASK_STATE_UNINTERRUPTIBLE_SLEEP:
+    case TaskStateEnum::TASK_STATE_STOPPED: {
+      if (!utid_opt) {
+        utid_opt = context_->process_tracker->UpdateThreadName(
+            tid, comm_id, ThreadNamePriority::kGenericKernelTask);
+      }
+      break;
+    }
+    case TaskStateEnum::TASK_STATE_UNKNOWN: {
       return;
     }
-    utid_opt = context_->process_tracker->StartNewThread(
-        state_string_id == created_string_id_ ? std::optional{ts}
-                                              : std::nullopt,
-        tid);
-    context_->process_tracker->UpdateThreadNameByUtid(
-        *utid_opt, comm_id, ThreadNamePriority::kGenericKernelTask);
-  } else if (state_string_id == created_string_id_) {
-    context_->storage->IncrementStats(stats::generic_task_state_invalid_order);
   }
 
   UniqueTid utid = *utid_opt;
-
-  if (state_string_id == dead_string_id_) {
-    if (ThreadStateTracker::GetOrCreate(context_)->GetPrevEndState(utid) ==
-        destroyed_string_id_) {
-      context_->storage->IncrementStats(
-          stats::generic_task_state_invalid_order);
-    }
-    context_->process_tracker->EndThread(ts, tid);
-  }
 
   // Given |PushSchedSwitch| updates the pending slice, run this
   // method before it.
