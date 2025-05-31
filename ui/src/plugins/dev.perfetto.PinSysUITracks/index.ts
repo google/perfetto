@@ -15,6 +15,7 @@
 import {NUM} from '../../trace_processor/query_result';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
+import {addDebugSliceTrack} from '../../components/tracks/debug_tracks';
 
 // List of tracks to pin
 const TRACKS_TO_PIN: string[] = [
@@ -73,6 +74,35 @@ export default class implements PerfettoPlugin {
           }
         });
       },
+    });
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.PinSysUITracks#PinSysUITracksFiniteSlices',
+      name: 'Pin: System UI Related Tracks & Finite Slices (Main)',
+      callback: async () => {
+        // Pin all SysUI tracks first
+        await ctx.commands.runCommand('dev.perfetto.PinSysUITracks#PinSysUITracks');
+
+        await addDebugSliceTrack({
+          trace: ctx,
+          data: {
+            sqlSource: `
+              SELECT *
+                FROM slice
+                WHERE track_id = (
+                    SELECT thread_track.id
+                    FROM process
+                    JOIN thread USING (upid)
+                    JOIN thread_track USING (utid)
+                    WHERE is_main_thread = 1
+                      AND process.name = 'com.android.systemui'
+                )
+                AND dur != -1
+            `,
+          },
+          title: "System UI (Main) complete slices",
+        });
+      }
     });
   }
 }
