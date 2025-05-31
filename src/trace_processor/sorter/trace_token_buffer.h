@@ -66,7 +66,7 @@ class TraceTokenBuffer {
   PERFETTO_WARN_UNUSED_RESULT Id Append(TrackEventData);
   PERFETTO_WARN_UNUSED_RESULT Id Append(TracePacketData data) {
     // While in theory we could add a special case for TracePacketData, the
-    // judgement call we make is that the code complexity does not justify the
+    // judgment call we make is that the code complexity does not justify the
     // micro-performance gain you might hope to see by avoiding the few if
     // conditions in the |TracePacketData| path.
     return Append(TrackEventData(std::move(data)));
