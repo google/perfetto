@@ -26,6 +26,7 @@
 #include <optional>
 #include <string>
 #include <type_traits>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -215,7 +216,7 @@ class RuntimeDataframeBuilder {
           columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
               impl::Storage{impl::FlexVector<uint32_t>()},
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
-              Unsorted{}}));
+              Unsorted{}, HasDuplicates{}}));
           break;
         case base::variant_index<DataVariant, impl::FlexVector<int64_t>>(): {
           auto& data =
@@ -225,6 +226,8 @@ class RuntimeDataframeBuilder {
           bool is_sorted = true;
           int64_t min = data.empty() ? 0 : data[0];
           int64_t max = data.empty() ? 0 : data[0];
+          bool has_duplicates = false;
+          std::unordered_set<int64_t> seen_values;
           for (uint32_t j = 1; j < data.size(); ++j) {
             is_id_sorted = is_id_sorted && (data[j] == j);
             is_setid_sorted =
@@ -232,36 +235,65 @@ class RuntimeDataframeBuilder {
             is_sorted = is_sorted && data[j - 1] <= data[j];
             min = std::min(min, data[j]);
             max = std::max(max, data[j]);
+            has_duplicates =
+                has_duplicates || !seen_values.insert(data[j]).second;
           }
           bool is_nullable = state.null_overlay.has_value();
           columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
               CreateIntegerStorage(std::move(data), is_id_sorted, min, max),
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
               GetIntegerSortStateFromProperties(is_nullable, is_id_sorted,
-                                                is_setid_sorted, is_sorted)}));
+                                                is_setid_sorted, is_sorted),
+              is_nullable || has_duplicates ? DuplicateState{HasDuplicates{}}
+                                            : DuplicateState{NoDuplicates{}}}));
           break;
         }
         case base::variant_index<DataVariant, impl::FlexVector<double>>(): {
           auto& data =
               base::unchecked_get<impl::FlexVector<double>>(state.data);
-          SortState sort_state =
-              GetSortStateForDouble(state.null_overlay.has_value(), data);
+          bool is_nullable = state.null_overlay.has_value();
+          bool is_sorted = true;
+          bool has_duplicates = false;
+          std::unordered_set<double> seen_values;
+          for (uint32_t j = 1; j < data.size(); ++j) {
+            is_sorted = is_sorted && data[j - 1] <= data[j];
+            has_duplicates =
+                has_duplicates || !seen_values.insert(data[j]).second;
+          }
           columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
               impl::Storage{std::move(data)},
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
-              sort_state}));
+              is_sorted && !is_nullable ? SortState{Sorted{}}
+                                        : SortState{Unsorted{}},
+              is_nullable || has_duplicates ? DuplicateState{HasDuplicates{}}
+                                            : DuplicateState{NoDuplicates{}}}));
           break;
         }
         case base::variant_index<DataVariant,
                                  impl::FlexVector<StringPool::Id>>(): {
           auto& data =
               base::unchecked_get<impl::FlexVector<StringPool::Id>>(state.data);
-          SortState sort_state = GetStringSortState(
-              state.null_overlay.has_value(), data, string_pool_);
+          bool is_nullable = state.null_overlay.has_value();
+          bool is_sorted = true;
+          bool has_duplicates = false;
+          std::unordered_set<StringPool::Id> seen_values;
+          if (!data.empty()) {
+            NullTermStringView prev = string_pool_->Get(data[0]);
+            for (uint32_t j = 1; j < data.size(); ++j) {
+              NullTermStringView curr = string_pool_->Get(data[j]);
+              is_sorted = is_sorted && prev <= curr;
+              has_duplicates =
+                  has_duplicates || !seen_values.insert(data[j]).second;
+              prev = curr;
+            }
+          }
           columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
               impl::Storage{std::move(data)},
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
-              sort_state}));
+              is_sorted && !is_nullable ? SortState{Sorted{}}
+                                        : SortState{Unsorted{}},
+              is_nullable || has_duplicates ? DuplicateState{HasDuplicates{}}
+                                            : DuplicateState{NoDuplicates{}}}));
           break;
         }
       }
@@ -269,9 +301,9 @@ class RuntimeDataframeBuilder {
     // Create an implicit id column for acting as a primary key even if there
     // are no other id columns.
     column_names_.emplace_back("_auto_id");
-    columns.emplace_back(std::make_shared<impl::Column>(
-        impl::Column{impl::Storage{impl::Storage::Id{row_count_}},
-                     impl::NullStorage::NonNull{}, IdSorted{}}));
+    columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
+        impl::Storage{impl::Storage::Id{row_count_}},
+        impl::NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}}));
     return Dataframe(true, std::move(column_names_), std::move(columns),
                      row_count_, string_pool_);
   }
@@ -405,39 +437,6 @@ class RuntimeDataframeBuilder {
       res[i] = static_cast<T>(data[i]);
     }
     return res;
-  }
-
-  static SortState GetSortStateForDouble(bool is_nullable,
-                                         const impl::FlexVector<double>& data) {
-    if (is_nullable) {
-      return SortState{Unsorted{}};
-    }
-    for (uint32_t i = 1; i < data.size(); ++i) {
-      if (data[i - 1] > data[i]) {
-        return SortState{Unsorted{}};
-      }
-    }
-    return SortState{Sorted{}};
-  }
-
-  static SortState GetStringSortState(
-      bool is_nullable,
-      const impl::FlexVector<StringPool::Id>& data,
-      StringPool* pool) {
-    if (is_nullable) {
-      return SortState{Unsorted{}};
-    }
-    if (!data.empty()) {
-      NullTermStringView prev = pool->Get(data[0]);
-      for (uint32_t i = 1; i < data.size(); ++i) {
-        NullTermStringView curr = pool->Get(data[i]);
-        if (prev > curr) {
-          return SortState{Unsorted{}};
-        }
-        prev = curr;
-      }
-    }
-    return SortState{Sorted{}};
   }
 
   static SortState GetIntegerSortStateFromProperties(bool is_nullable,

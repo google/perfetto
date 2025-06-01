@@ -306,7 +306,7 @@ void QueryPlanBuilder::Distinct(
       CopyToRowLayout(total_row_stride, indices, {}, row_layout_params);
   {
     using B = bytecode::Distinct;
-    auto& bc = AddOpcode<B>(DoubleLog2RowCount{});
+    auto& bc = AddOpcode<B>(NonEqualityFilterRowCount{});
     bc.arg<B::buffer_register>() = buffer_reg;
     bc.arg<B::total_row_stride>() = total_row_stride;
     bc.arg<B::indices_register>() = indices;
@@ -557,14 +557,17 @@ void QueryPlanBuilder::NonStringConstraint(
     const NonStringType& type,
     const NonStringOp& op,
     const bytecode::reg::ReadHandle<CastFilterValueResult>& result) {
+  const auto& col = GetColumn(c.col);
   auto update = EnsureIndicesAreInSlab();
   PruneNullIndices(c.col, update);
   auto source = TranslateNonNullIndices(c.col, update, false);
   {
     using B = bytecode::NonStringFilterBase;
-    B& bc = AddOpcode<B>(bytecode::Index<bytecode::NonStringFilter>(type, op),
-                         op.Is<Eq>() ? RowCountModifier{DoubleLog2RowCount{}}
-                                     : RowCountModifier{Div2RowCount{}});
+    B& bc = AddOpcode<B>(
+        bytecode::Index<bytecode::NonStringFilter>(type, op),
+        op.Is<Eq>()
+            ? RowCountModifier{EqualityFilterRowCount{col.duplicate_state}}
+            : RowCountModifier{NonEqualityFilterRowCount{}});
     bc.arg<B::col>() = c.col;
     bc.arg<B::val_register>() = result;
     bc.arg<B::source_register>() = source;
@@ -579,18 +582,22 @@ base::Status QueryPlanBuilder::StringConstraint(
     const bytecode::reg::ReadHandle<CastFilterValueResult>& result) {
   if constexpr (!regex::IsRegexSupported()) {
     if (op.Is<Regex>()) {
-      return base::ErrStatus("Regex is not supported");
+      return base::ErrStatus(
+          "Regex is not supported on non-Unix platforms (e.g. Windows).");
     }
   }
 
+  const auto& col = GetColumn(c.col);
   auto update = EnsureIndicesAreInSlab();
   PruneNullIndices(c.col, update);
   auto source = TranslateNonNullIndices(c.col, update, false);
   {
     using B = bytecode::StringFilterBase;
-    B& bc = AddOpcode<B>(bytecode::Index<bytecode::StringFilter>(op),
-                         op.Is<Eq>() ? RowCountModifier{DoubleLog2RowCount{}}
-                                     : RowCountModifier{Div2RowCount{}});
+    B& bc = AddOpcode<B>(
+        bytecode::Index<bytecode::StringFilter>(op),
+        op.Is<Eq>()
+            ? RowCountModifier{EqualityFilterRowCount{col.duplicate_state}}
+            : RowCountModifier{NonEqualityFilterRowCount{}});
     bc.arg<B::col>() = c.col;
     bc.arg<B::val_register>() = result;
     bc.arg<B::source_register>() = source;
@@ -617,7 +624,7 @@ void QueryPlanBuilder::NullConstraint(const NullOp& op, FilterSpec& c) {
       {
         using B = bytecode::NullFilterBase;
         B& bc = AddOpcode<B>(bytecode::Index<bytecode::NullFilter>(op),
-                             DoubleLog2RowCount{});
+                             NonEqualityFilterRowCount{});
         bc.arg<B::col>() = c.col;
         bc.arg<B::update_register>() = indices;
       }
@@ -667,11 +674,11 @@ void QueryPlanBuilder::IndexConstraints(
         popcount_register =
             bytecode::reg::ReadHandle<Slab<uint32_t>>{register_count_++};
       }
-      auto& bc =
-          AddOpcode<B>(bytecode::Index<bytecode::IndexedFilterEq>(
-                           *non_id, NullabilityToSparseNullCollapsedNullability(
-                                        column.null_storage.nullability())),
-                       Div2RowCount{});
+      auto& bc = AddOpcode<B>(
+          bytecode::Index<bytecode::IndexedFilterEq>(
+              *non_id, NullabilityToSparseNullCollapsedNullability(
+                           column.null_storage.nullability())),
+          RowCountModifier{EqualityFilterRowCount{column.duplicate_state}});
       bc.arg<B::col>() = fs.col;
       bc.arg<B::filter_value_reg>() = value_reg;
       bc.arg<B::popcount_register>() = popcount_register;
@@ -729,7 +736,8 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
   // Handle set id equality with a specialized opcode.
   if (ct.Is<Uint32>() && col.sort_state.Is<SetIdSorted>() && op.Is<Eq>()) {
     using B = bytecode::Uint32SetIdSortedEq;
-    auto& bc = AddOpcode<B>(RowCountModifier{DoubleLog2RowCount{}});
+    auto& bc = AddOpcode<B>(
+        RowCountModifier{EqualityFilterRowCount{col.duplicate_state}});
     bc.arg<B::col>() = fs.col;
     bc.arg<B::val_register>() = value_reg;
     bc.arg<B::update_register>() = reg;
@@ -738,16 +746,10 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
   const auto& [bound, erlbub] = GetSortedFilterArgs(*range_op);
 
   RowCountModifier modifier;
-  if (ct.Is<Id>()) {
-    if (op.Is<Eq>()) {
-      modifier = OneRowCount{};
-    } else {
-      modifier = DoubleLog2RowCount{};
-    }
-  } else if (op.Is<Eq>()) {
-    modifier = DoubleLog2RowCount{};
+  if (op.Is<Eq>()) {
+    modifier = EqualityFilterRowCount{col.duplicate_state};
   } else {
-    modifier = Div2RowCount{};
+    modifier = NonEqualityFilterRowCount{};
   }
   {
     using B = bytecode::SortedFilterBase;
@@ -772,7 +774,7 @@ void QueryPlanBuilder::PruneNullIndices(
         SparseNullSupportingCellGetUntilFinalization>():
     case Nullability::GetTypeIndex<DenseNull>(): {
       using B = bytecode::NullFilter<IsNotNull>;
-      bytecode::NullFilterBase& bc = AddOpcode<B>(DoubleLog2RowCount{});
+      bytecode::NullFilterBase& bc = AddOpcode<B>(NonEqualityFilterRowCount{});
       bc.arg<B::col>() = col;
       bc.arg<B::update_register>() = indices;
       break;
@@ -893,17 +895,25 @@ PERFETTO_NO_INLINE bytecode::Bytecode& QueryPlanBuilder::AddRawOpcode(
   switch (rc.index()) {
     case base::variant_index<RowCountModifier, UnchangedRowCount>():
       break;
-    case base::variant_index<RowCountModifier, Div2RowCount>():
+    case base::variant_index<RowCountModifier, NonEqualityFilterRowCount>():
       plan_.params.estimated_row_count =
           std::min(std::max(1u, plan_.params.estimated_row_count / 2),
                    plan_.params.estimated_row_count);
       break;
-    case base::variant_index<RowCountModifier, DoubleLog2RowCount>(): {
-      double new_count = plan_.params.estimated_row_count /
-                         (2 * log2(plan_.params.estimated_row_count));
-      plan_.params.estimated_row_count =
-          std::min(std::max(1u, static_cast<uint32_t>(new_count)),
-                   plan_.params.estimated_row_count);
+    case base::variant_index<RowCountModifier, EqualityFilterRowCount>(): {
+      const auto& eq = base::unchecked_get<EqualityFilterRowCount>(rc);
+      if (eq.duplicate_state.Is<HasDuplicates>()) {
+        double new_count = plan_.params.estimated_row_count /
+                           (2 * log2(plan_.params.estimated_row_count));
+        plan_.params.estimated_row_count =
+            std::min(std::max(1u, static_cast<uint32_t>(new_count)),
+                     plan_.params.estimated_row_count);
+      } else {
+        PERFETTO_CHECK(eq.duplicate_state.Is<NoDuplicates>());
+        plan_.params.estimated_row_count =
+            std::min(1u, plan_.params.estimated_row_count);
+        plan_.params.max_row_count = std::min(1u, plan_.params.max_row_count);
+      }
       break;
     }
     case base::variant_index<RowCountModifier, OneRowCount>():

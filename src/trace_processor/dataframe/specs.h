@@ -143,6 +143,20 @@ using Nullability = TypeSet<NonNull,
                             DenseNull>;
 
 // -----------------------------------------------------------------------------
+// Duplicate State Types
+// -----------------------------------------------------------------------------
+
+// Represents a column that is known to have no duplicate values.
+struct NoDuplicates {};
+
+// Represents a column that may or does contain duplicate values.
+// This should be the default/conservative assumption.
+struct HasDuplicates {};
+
+// TypeSet of all possible column duplicate states.
+using DuplicateState = TypeSet<NoDuplicates, HasDuplicates>;
+
+// -----------------------------------------------------------------------------
 // Filter Specifications
 // -----------------------------------------------------------------------------
 
