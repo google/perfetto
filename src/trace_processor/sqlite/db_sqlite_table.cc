@@ -817,7 +817,7 @@ DbSqliteModule::QueryCost DbSqliteModule::EstimateCost(
 
   // We estimate the fixed cost of set-up and tear-down of a query in terms of
   // the number of rows scanned.
-  constexpr double kFixedQueryCost = 1000.0;
+  constexpr double kFixedQueryCost = 100.0;
 
   // Setup the variables for estimating the number of rows we will have at the
   // end of filtering. Note that |current_row_count| should always be at least
