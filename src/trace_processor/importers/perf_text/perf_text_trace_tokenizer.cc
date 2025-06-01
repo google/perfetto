@@ -36,6 +36,7 @@
 #include "src/trace_processor/importers/perf_text/perf_text_event.h"
 #include "src/trace_processor/importers/perf_text/perf_text_sample_line_parser.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
@@ -132,7 +133,7 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
     }
     if (frames.empty()) {
       context_->storage->IncrementStats(
-          storage::stats::perf_text_importer_sample_no_frames);
+          stats::perf_text_importer_sample_no_frames);
       continue;
     }
 
