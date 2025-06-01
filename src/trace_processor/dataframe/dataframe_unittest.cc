@@ -627,12 +627,13 @@ TEST_F(DataframeBytecodeTest, SortSingleUint32Asc) {
       impl::Storage::Uint32{}, impl::NullStorage::NonNull{}, Unsorted{}});
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kAscending}};
-  // Expect direction=SortDirection(0) and StableSortIndices
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
-    StableSortIndices<Uint32>: [col=0, direction=SortDirection(0), update_register=Register(2)]
+    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
+    CopyToRowLayout<Uint32, NonNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    SortRowLayout: [buffer_register=Register(3), total_row_stride=4, indices_register=Register(2)]
   )",
                   /*cols_used=*/1);
 }
@@ -643,12 +644,16 @@ TEST_F(DataframeBytecodeTest, SortSingleStringDesc) {
       impl::Storage::String{}, impl::NullStorage::NonNull{}, Unsorted{}});
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kDescending}};
-  // Expect direction=SortDirection(1) and StableSortIndices
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
-    StableSortIndices<String>: [col=0, direction=SortDirection(1), update_register=Register(2)]
+    InitRankMap: [dest_register=Register(3)]
+    CollectIdIntoRankMap: [col=0, source_register=Register(2), rank_map_register=Register(3)]
+    FinalizeRanksInMap: [update_register=Register(3)]
+    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(4)]
+    CopyToRowLayout<String, NonNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(4), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=1, popcount_register=Register(4294967295), rank_map_register=Register(3)]
+    SortRowLayout: [buffer_register=Register(4), total_row_stride=4, indices_register=Register(2)]
   )",
                   /*cols_used=*/1);
 }
@@ -664,13 +669,14 @@ TEST_F(DataframeBytecodeTest, SortMultiColumnStable) {
   // Sort specs: Primary Int64 DESC, Secondary Double ASC
   std::vector<SortSpec> sorts = {{0, SortDirection::kDescending},
                                  {1, SortDirection::kAscending}};
-  // Expect direction=SortDirection(...) and StableSortIndices
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
-    StableSortIndices<Double>: [col=1, direction=SortDirection(0), update_register=Register(2)]
-    StableSortIndices<Int64>: [col=0, direction=SortDirection(1), update_register=Register(2)]
+    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
+    CopyToRowLayout<Int64, NonNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=16, invert_copied_bits=1, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<Double, NonNull>: [col=1, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=8, row_layout_stride=16, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    SortRowLayout: [buffer_register=Register(3), total_row_stride=16, indices_register=Register(2)]
   )",
                   /*cols_used=*/3);
 }
@@ -684,14 +690,15 @@ TEST_F(DataframeBytecodeTest, SortWithFilter) {
                                     impl::NullStorage::NonNull{}, Unsorted{}});
   std::vector<FilterSpec> filters = {{0, 0, Gt{}, std::nullopt}};
   std::vector<SortSpec> sorts = {{1, SortDirection::kAscending}};
-  // Expect direction=SortDirection(0) and StableSortIndices
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(4)]
     SortedFilter<Id, UpperBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
     Iota: [source_register=Register(0), update_register=Register(3)]
-    StableSortIndices<Double>: [col=1, direction=SortDirection(0), update_register=Register(3)]
+    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(4)]
+    CopyToRowLayout<Double, NonNull>: [col=1, source_indices_register=Register(3), dest_buffer_register=Register(4), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    SortRowLayout: [buffer_register=Register(4), total_row_stride=8, indices_register=Register(3)]
   )",
                   /*cols_used=*/3);
 }
@@ -702,22 +709,19 @@ TEST_F(DataframeBytecodeTest, SortNullableColumn) {
       impl::Storage::Int32{}, impl::NullStorage::SparseNull{}, Unsorted{}});
   std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts = {{0, SortDirection::kDescending}};
-  // Expect direction=SortDirection(1) and StableSortIndices
-  // Also check the output bytecode which was generated when cols_used=1
   RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
-    NullIndicesStablePartition: [col=0, nulls_location=NullsLocation(1), partition_register=Register(2), dest_non_null_register=Register(3)]
+    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
     PrefixPopcount: [col=0, dest_register=Register(4)]
-    TranslateSparseNullIndices: [col=0, popcount_register=Register(4), source_register=Register(3), update_register=Register(3)]
-    StableSortIndices<Int32>: [col=0, direction=SortDirection(1), update_register=Register(3)]
+    CopyToRowLayout<Int32, SparseNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=5, invert_copied_bits=1, popcount_register=Register(4), rank_map_register=Register(4294967295)]
+    SortRowLayout: [buffer_register=Register(3), total_row_stride=5, indices_register=Register(2)]
     AllocateIndices: [size=0, dest_slab_register=Register(5), dest_span_register=Register(6)]
     StrideCopy: [source_register=Register(2), update_register=Register(6), stride=2]
     StrideTranslateAndCopySparseNullIndices: [col=0, popcount_register=Register(4), update_register=Register(6), offset=1, stride=2]
   )",
-                  /*cols_used=*/1);  // cols_used=1 requires output generation
-                                     // for the nullable column
+                  /*cols_used=*/1);
 }
 
 TEST_F(DataframeBytecodeTest, PlanQuery_DistinctTwoNonNullCols) {
@@ -731,26 +735,15 @@ TEST_F(DataframeBytecodeTest, PlanQuery_DistinctTwoNonNullCols) {
   std::vector<DistinctSpec> distinct_specs = {{0}, {1}};
   uint64_t cols_used = 0b11;
 
-  uint16_t int_size = sizeof(int32_t);
-  uint16_t str_id_size = sizeof(StringPool::Id);
-  uint16_t stride = int_size + str_id_size;
-  uint16_t col0_offset = 0;
-  uint16_t col1_offset = int_size;
-
-  const std::string expected_bytecode =
-      base::StackString<2048>(
-          R"(
-            InitRange: [size=0, dest_register=Register(0)]
-            AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
-            Iota: [source_register=Register(0), update_register=Register(2)]
-            AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
-            CopyToRowLayoutNonNull: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=%u, row_layout_stride=%u, copy_size=%u]
-            CopyToRowLayoutNonNull: [col=1, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=%u, row_layout_stride=%u, copy_size=%u]
-            Distinct: [buffer_register=Register(3), total_row_stride=%u, indices_register=Register(2)]
-          )",
-          col0_offset, stride, int_size, col1_offset, stride, str_id_size,
-          static_cast<uint32_t>(stride))
-          .ToStdString();
+  const std::string expected_bytecode = R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
+    Iota: [source_register=Register(0), update_register=Register(2)]
+    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
+    CopyToRowLayout<Int32, NonNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<String, NonNull>: [col=1, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=4, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    Distinct: [buffer_register=Register(3), total_row_stride=8, indices_register=Register(2)]
+  )";
 
   RunBytecodeTest(cols, filters, distinct_specs, {}, {}, expected_bytecode,
                   cols_used);
@@ -768,7 +761,6 @@ TEST_F(DataframeBytecodeTest, LimitOffsetPlacement) {
   spec.offset = 2;
   spec.limit = 10;
 
-  // cols_used=2 requests the sparse null column (index 1)
   RunBytecodeTest(cols, filters, {}, {}, spec, R"(
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
@@ -781,7 +773,7 @@ TEST_F(DataframeBytecodeTest, LimitOffsetPlacement) {
     PrefixPopcount: [col=1, dest_register=Register(6)]
     StrideTranslateAndCopySparseNullIndices: [col=1, popcount_register=Register(6), update_register=Register(5), offset=1, stride=2]
   )",
-                  /*cols_used=*/2);  // Request col_sparse output
+                  /*cols_used=*/2);
 }
 
 TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationApplied) {
@@ -821,10 +813,10 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationNotAppliedNullable) {
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
-    NullIndicesStablePartition: [col=0, nulls_location=NullsLocation(0), partition_register=Register(2), dest_non_null_register=Register(3)]
+    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
     PrefixPopcount: [col=0, dest_register=Register(4)]
-    TranslateSparseNullIndices: [col=0, popcount_register=Register(4), source_register=Register(3), update_register=Register(3)]
-    StableSortIndices<Uint32>: [col=0, direction=SortDirection(0), update_register=Register(3)]
+    CopyToRowLayout<Uint32, SparseNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=5, invert_copied_bits=0, popcount_register=Register(4), rank_map_register=Register(4294967295)]
+    SortRowLayout: [buffer_register=Register(3), total_row_stride=5, indices_register=Register(2)]
     LimitOffsetIndices: [offset_value=0, limit_value=1, update_register=Register(2)]
     AllocateIndices: [size=0, dest_slab_register=Register(5), dest_span_register=Register(6)]
     StrideCopy: [source_register=Register(2), update_register=Register(6), stride=2]
