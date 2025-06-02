@@ -883,12 +883,15 @@ class Interpreter {
     for (uint32_t i = 0; i < num_indices; ++i) {
       p.push_back({indices.b[i], i * stride});
     }
-
+    // TODO(lalitm): this does *not* need to be a stable sort but we're using it
+    // right now to avoid breaking people who are implicitly relying on the
+    // stability. Once dataframe has landed and been stable for a while, we
+    // should switch away from stable_sort as std::sort is much faster and if we
+    // use a specialized algorithm like radix sort, it can be even faster still.
     std::stable_sort(
         p.begin(), p.end(), [buf, stride](SortToken a, SortToken b) {
           return memcmp(buf + a.buf_offset, buf + b.buf_offset, stride) < 0;
         });
-
     for (uint32_t i = 0; i < num_indices; ++i) {
       indices.b[i] = p[i].index;
     }
