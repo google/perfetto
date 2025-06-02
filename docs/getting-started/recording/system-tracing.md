@@ -38,10 +38,12 @@ TAB: Android (Perfetto UI)
    the guide.
 2. Click on "Record New Trace" on the left sidebar.
 3. This should take you to the _Recording page_ of the UI which looks like this:
-   ![Record page of the Perfetto UI](/docs/images/record-trace.png)
-4. Set the "Target Platform" to Android Q+/10+, ensure your device is connected
-   and select "Add ADB device". Then follow the pop-ups of your browser to pair
-   the device to the UI.
+   ![Record page of the Perfetto UI](/docs/images/record-trace-adb-websocket-success.png)
+4. You can choose between different ways of connecting to your Android device.
+    Follow the instructions on the screen to connect to your device. Perfetto UI
+    will check if all the condition is met or show a descriptive error message
+    otherwise. For example, for the _ABD+Websocket_ transport the success
+    message will look like on the screenshot above.
 
    NOTE: you may need to allow USB debugging on the device.
 
@@ -165,8 +167,6 @@ out/linux/tracebox -o trace_file.perfetto-trace --txt -c test/configs/scheduling
 
 ## Viewing your first trace
 
-TODO update below
-
 We can now explore the captured trace visually by using the web-based trace
 visualizer: the Perfetto UI.
 
@@ -184,29 +184,54 @@ traces manually:
 2. Click the **Open trace file** on the left-hand menu, and load the captured
    tracs.
 
-![Perfetto UI with a trace loaded](/docs/images/trace-view.png)
+![Perfetto UI with a trace loaded](/docs/images/system-tracing-trace-view.png)
 
 - Explore the trace by zooming/panning using WASD, and mouse for expanding
   process tracks (rows) into their constituent thread tracks. Press "?" for
   further navigation controls.
+- Please also take a look at our Perfetto UI
+  [documentation page](/docs/visualization/perfetto-ui.md)  
 
 ## Querying your first trace
 
-TODO update below
+The trace you captured looks very complex, it could be hard to understand what
+is going on. You can always open the **Query (SQL)** panel and write a Perfetto
+SQL query. Perfetto SQL is a dialect of an SQL, see it
+[syntax](/docs/analysis/perfetto-sql-syntax.md) and the rich
+[standard library](/docs/analysis/stdlib-docs.autogen). 
+In the screenshot below we can see the result of the following query:
+```
+INCLUDE PERFETTO MODULE android.garbage_collection;
+
+select * from android_garbage_collection_events;
+```
+
+that returns the list of all Garbage Collection events, with additional
+information for each event.
+
+To further explore the trace and the standard library, you can separately
+import each `MODULE` (no need to explicitly import `prelude`) and do the
+`select * from` each table, e.g. the following query
+```
+select * from process;
+```
+
+returns the list of all processes captured by the trace.
 
 Alternatively, you can explore the trace contents issuing SQL queries through
 the [trace processor](/docs/analysis/trace-processor).
 
 ## Next steps
 
-TODO update below
-
 Learn more about recording:
 
-- Data sources
-- Trace types
+The trace you captured consists of multiple **Data sources**, you can open the
+interesting page from the left sidebar, some of them are listed here:
+- [Heap profiler](/docs/data-sources/native-heap-profiler.md)
+- [ATrace: Android system and app trace events](/docs/data-sources/atrace.md)
 
 Learn more about trace analysis:
 
-- PerfettoSQL
-- Python API for programatic analysis
+- PerfettoSQL [syntax](/docs/analysis/perfetto-sql-syntax.md) and the [standard library](/docs/analysis/stdlib-docs.autogen)
+- Python [API](/docs/analysis/trace-processor-python.md) for programmatic trace analysis
+- C++ [API](/docs/analysis/trace-processor.md) for programmatic trace analysis
