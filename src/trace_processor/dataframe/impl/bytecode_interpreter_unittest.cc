@@ -1523,11 +1523,8 @@ TEST_F(BytecodeInterpreterTest, Distinct_TwoNonNullCols_SimpleDuplicates) {
 
   std::string bytecode_sequence = R"(
     AllocateRowLayoutBuffer: [buffer_size=40, dest_buffer_register=Register(2)]
-    InitRankMap: [dest_register=Register(3)]
-    CollectIdIntoRankMap: [col=1, source_register=Register(0), rank_map_register=Register(3)]
-    FinalizeRanksInMap: [update_register=Register(3)]
     CopyToRowLayout<Int32, NonNull>: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
-    CopyToRowLayout<String, NonNull>: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=4, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(3)]
+    CopyToRowLayout<String, NonNull>: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=4, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
     Distinct: [buffer_register=Register(2), total_row_stride=8, indices_register=Register(0)]
   )";
 
@@ -1547,11 +1544,8 @@ TEST_F(BytecodeInterpreterTest,
 
   std::string bytecode_sequence = R"(
     AllocateRowLayoutBuffer: [buffer_size=70, dest_buffer_register=Register(2)]
-    InitRankMap: [dest_register=Register(3)]
-    CollectIdIntoRankMap: [col=1, source_register=Register(0), rank_map_register=Register(3)]
-    FinalizeRanksInMap: [update_register=Register(3)]
     CopyToRowLayout<Int32, DenseNull>: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=0, row_layout_stride=10, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
-    CopyToRowLayout<String, DenseNull>: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=5, row_layout_stride=10, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(3)]
+    CopyToRowLayout<String, DenseNull>: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=5, row_layout_stride=10, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
     Distinct: [buffer_register=Register(2), total_row_stride=10, indices_register=Register(0)]
   )";
 
@@ -1576,11 +1570,8 @@ TEST_F(BytecodeInterpreterTest,
     AllocateRowLayoutBuffer: [buffer_size=70, dest_buffer_register=Register(2)]
     PrefixPopcount: [col=0, dest_register=Register(3)]
     PrefixPopcount: [col=1, dest_register=Register(4)]
-    InitRankMap: [dest_register=Register(5)]
-    CollectIdIntoRankMap: [col=1, source_register=Register(0), rank_map_register=Register(5)]
-    FinalizeRanksInMap: [update_register=Register(5)]
     CopyToRowLayout<Int32, SparseNull>: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=0, row_layout_stride=10, invert_copied_bits=0, popcount_register=Register(3), rank_map_register=Register(4294967295)]
-    CopyToRowLayout<String, SparseNull>: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=5, row_layout_stride=10, invert_copied_bits=0, popcount_register=Register(4), rank_map_register=Register(5)]
+    CopyToRowLayout<String, SparseNull>: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=5, row_layout_stride=10, invert_copied_bits=0, popcount_register=Register(4), rank_map_register=Register(4294967295)]
     Distinct: [buffer_register=Register(2), total_row_stride=10, indices_register=Register(0)]
   )";
 
@@ -1599,11 +1590,8 @@ TEST_F(BytecodeInterpreterTest, Distinct_TwoNonNullCols_InputAlreadyDistinct) {
 
   std::string bytecode_sequence = R"(
     AllocateRowLayoutBuffer: [buffer_size=24, dest_buffer_register=Register(2)]
-    InitRankMap: [dest_register=Register(3)]
-    CollectIdIntoRankMap: [col=1, source_register=Register(0), rank_map_register=Register(3)]
-    FinalizeRanksInMap: [update_register=Register(3)]
     CopyToRowLayout<Int32, NonNull>: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
-    CopyToRowLayout<String, NonNull>: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=4, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(3)]
+    CopyToRowLayout<String, NonNull>: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=4, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
     Distinct: [buffer_register=Register(2), total_row_stride=8, indices_register=Register(0)]
   )";
 
@@ -1619,11 +1607,8 @@ TEST_F(BytecodeInterpreterTest, Distinct_EmptyInput) {
 
   std::string bytecode_sequence = R"(
     AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(2)]
-    InitRankMap: [dest_register=Register(3)]
-    CollectIdIntoRankMap: [col=1, source_register=Register(0), rank_map_register=Register(3)]
-    FinalizeRanksInMap: [update_register=Register(3)]
     CopyToRowLayout<Int32, NonNull>: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
-    CopyToRowLayout<String, NonNull>: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=4, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(3)]
+    CopyToRowLayout<String, NonNull>: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=4, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
     Distinct: [buffer_register=Register(2), total_row_stride=8, indices_register=Register(0)]
   )";
 

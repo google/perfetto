@@ -1423,7 +1423,8 @@ class Interpreter {
   template <typename T>
   PERFETTO_ALWAYS_INLINE const T* MaybeReadFromRegister(
       reg::ReadHandle<T> reg) {
-    if (std::holds_alternative<T>(registers_[reg.index])) {
+    if (reg.index != std::numeric_limits<uint32_t>::max() &&
+        std::holds_alternative<T>(registers_[reg.index])) {
       return &base::unchecked_get<T>(registers_[reg.index]);
     }
     return nullptr;
@@ -1433,7 +1434,8 @@ class Interpreter {
   // Returns nullptr if the register holds a different type.
   template <typename T>
   PERFETTO_ALWAYS_INLINE T* MaybeReadFromRegister(reg::WriteHandle<T> reg) {
-    if (std::holds_alternative<T>(registers_[reg.index])) {
+    if (reg.index != std::numeric_limits<uint32_t>::max() &&
+        std::holds_alternative<T>(registers_[reg.index])) {
       return &base::unchecked_get<T>(registers_[reg.index]);
     }
     return nullptr;
