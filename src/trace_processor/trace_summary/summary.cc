@@ -358,7 +358,9 @@ base::Status Summarize(TraceProcessor* processor,
               "Metric with empty id field: this is not allowed");
         }
         if (base::CaseInsensitiveEqual(id, "all")) {
-          return base::ErrStatus("Metric with id 'all' is not allowed: ");
+          return base::ErrStatus(
+              "Metric with `id` field value `all` is not allowed. Please "
+              "change the value of the `id` field of the metric spec.");
         }
         if (queries_per_metric.Find(id)) {
           return base::ErrStatus(
