@@ -15,8 +15,13 @@ Unreleased:
       much faster in the Perfetto UI and the trace processor.
   UI:
     * Improved JSON loading performance. See `Trace Processor` section above.
+    * Improved duration based slice aggregators - slices are now trimmed to the
+      width of the area selection.
   SDK:
-    *
+    * TrackEvent priority of enabled/disabled category and tags were reorded.
+      The new logic ranks (in this order)
+      specific > pattern > single char "*" wildcard,
+      categories (enabled > disabled) > tags (disabled > enabled).
 
 
 v50.1 - 2025-04-17:
