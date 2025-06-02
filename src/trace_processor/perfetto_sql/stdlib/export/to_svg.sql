@@ -83,7 +83,7 @@ SELECT
 CREATE PERFETTO FUNCTION _get_link()
 RETURNS STRING AS
 SELECT
-  'http://go/trace-uuid/' || str_value
+  str_value
 FROM metadata
 WHERE
   name = 'trace_uuid';
@@ -193,13 +193,86 @@ SELECT
 CREATE PERFETTO FUNCTION _svg_defs()
 RETURNS STRING AS
 SELECT
-  '<defs>' || '<filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">' || '<feDropShadow dx="0" dy="0.5" stdDeviation="0.5" flood-opacity="0.08"/>' || '</filter>' || '</defs>';
+  '<defs>
+  <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+    <feDropShadow dx="0" dy="0.5" stdDeviation="0.5" flood-opacity="0.08"/>
+  </filter>
+</defs>';
 
 -- CSS styles for hover effects and visual hierarchy
 CREATE PERFETTO FUNCTION _svg_styles()
 RETURNS STRING AS
 SELECT
-  '<style>' || '* { box-sizing: border-box; }' || 'rect { filter: url(#shadow); stroke: none; shape-rendering: crispEdges; }' || 'rect:hover { filter: url(#shadow) drop-shadow(0 1px 3px rgba(0,0,0,0.15)); }' || '.clickable-slice, .clickable-state { cursor: pointer !important; }' || '.clickable-slice:hover, .clickable-state:hover { ' || '  stroke: rgba(37,99,235,0.3) !important; stroke-width: 1 !important; ' || '  filter: url(#shadow) drop-shadow(0 1px 2px rgba(37,99,235,0.1)) !important; }' || '.thread-state { opacity: 0.9; }' || '.thread-state:hover { opacity: 1; }' || 'text { dominant-baseline: central; text-rendering: optimizeLegibility; ' || '       pointer-events: none; user-select: none; }' || '.chart-title { pointer-events: all !important; cursor: pointer !important; }' || '.chart-title:hover { fill: #2563eb !important; }' || 'a { text-decoration: none; cursor: pointer !important; pointer-events: all !important; }' || 'title { transition: opacity 0.1s ease-in; }' || '</style>';
+  '<style>
+* {
+  box-sizing: border-box;
+}
+
+
+rect {
+  filter: url(#shadow);
+  stroke: none;
+  shape-rendering: crispEdges;
+}
+
+
+rect:hover {
+  filter: url(#shadow) drop-shadow(0 1px 3px rgba(0,0,0,0.15));
+}
+
+
+.clickable-slice, .clickable-state {
+  cursor: pointer !important;
+}
+
+
+.clickable-slice:hover, .clickable-state:hover {
+  stroke: rgba(37,99,235,0.3) !important;
+  stroke-width: 1 !important;
+  filter: url(#shadow) drop-shadow(0 1px 2px rgba(37,99,235,0.1)) !important;
+}
+
+
+.thread-state {
+  opacity: 0.9;
+}
+
+
+.thread-state:hover {
+  opacity: 1;
+}
+
+
+text {
+  dominant-baseline: central;
+  text-rendering: optimizeLegibility;
+  pointer-events: none;
+  user-select: none;
+}
+
+
+.chart-title {
+  pointer-events: all !important;
+  cursor: pointer !important;
+}
+
+
+.chart-title:hover {
+  fill: #2563eb !important;
+}
+
+
+a {
+  text-decoration: none;
+  cursor: pointer !important;
+  pointer-events: all !important;
+}
+
+
+title {
+  transition: opacity 0.1s ease-in;
+}
+</style>';
 
 -- Generate clickable chart title with optional hyperlink
 CREATE PERFETTO FUNCTION _svg_chart_title(
