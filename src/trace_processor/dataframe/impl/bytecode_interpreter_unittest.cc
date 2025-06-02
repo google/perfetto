@@ -1537,7 +1537,7 @@ TEST_F(BytecodeInterpreterTest, Distinct_TwoNonNullCols_SimpleDuplicates) {
 }
 
 TEST_F(BytecodeInterpreterTest,
-       DISABLED_Distinct_TwoDenseNullCols_MixedNullsAndDuplicates) {
+       Distinct_TwoDenseNullCols_MixedNullsAndDuplicates) {
   uint32_t num_rows = 7;
   AddColumn(CreateDenseNullableColumn<int32_t>(
       {10, std::nullopt, 10, std::nullopt, 10, std::nullopt, std::nullopt}));
@@ -1564,7 +1564,7 @@ TEST_F(BytecodeInterpreterTest,
 }
 
 TEST_F(BytecodeInterpreterTest,
-       DISABLED_Distinct_TwoSparseNullCols_MixedNullsAndDuplicates) {
+       Distinct_TwoSparseNullCols_MixedNullsAndDuplicates) {
   uint32_t num_rows = 7;
   AddColumn(CreateSparseNullableColumn<int32_t>(
       {10, std::nullopt, 10, std::nullopt, 10, std::nullopt, std::nullopt}));
@@ -1592,8 +1592,7 @@ TEST_F(BytecodeInterpreterTest,
   EXPECT_THAT(GetRegister<Span<uint32_t>>(0), SizeIs(4));
 }
 
-TEST_F(BytecodeInterpreterTest,
-       DISABLED_Distinct_TwoNonNullCols_InputAlreadyDistinct) {
+TEST_F(BytecodeInterpreterTest, Distinct_TwoNonNullCols_InputAlreadyDistinct) {
   AddColumn(CreateNonNullUnsortedColumn<int32_t>({10, 20, 30}));
   AddColumn(
       CreateNonNullUnsortedColumn<StringPool::Id>({"A", "B", "C"}, &spool_));
@@ -1613,7 +1612,7 @@ TEST_F(BytecodeInterpreterTest,
   EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0, 1, 2));
 }
 
-TEST_F(BytecodeInterpreterTest, DISABLED_Distinct_EmptyInput) {
+TEST_F(BytecodeInterpreterTest, Distinct_EmptyInput) {
   AddColumn(CreateNonNullUnsortedColumn<int32_t, int32_t>({}));
   AddColumn(
       CreateNonNullUnsortedColumn<StringPool::Id, const char*>({}, &spool_));
@@ -1633,8 +1632,7 @@ TEST_F(BytecodeInterpreterTest, DISABLED_Distinct_EmptyInput) {
   EXPECT_THAT(GetRegister<Span<uint32_t>>(0), IsEmpty());
 }
 
-TEST_F(BytecodeInterpreterTest,
-       DISABLED_Distinct_OneNonNullCol_SimpleDuplicates) {
+TEST_F(BytecodeInterpreterTest, Distinct_OneNonNullCol_SimpleDuplicates) {
   AddColumn(CreateNonNullUnsortedColumn<int32_t>({10, 20, 10, 30, 20}));
 
   std::string bytecode_sequence = R"(
