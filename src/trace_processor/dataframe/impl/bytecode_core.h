@@ -41,8 +41,13 @@ namespace perfetto::trace_processor::dataframe::impl::bytecode {
 // Base bytecode structure representing a single instruction with operation
 // code and fixed-size buffer for arguments.
 struct Bytecode {
+<<<<<<< HEAD
   uint32_t option = 0;                    // Opcode determining instruction type
   std::array<uint8_t, 32> args_buffer{};  // Storage for instruction arguments
+=======
+  uint32_t option;                      // Opcode determining instruction type
+  std::array<uint8_t, 32> args_buffer;  // Storage for instruction arguments
+>>>>>>> dev/lalitm/df-sort
 
  protected:
   // Helper for generating the offsets array for instruction arguments.

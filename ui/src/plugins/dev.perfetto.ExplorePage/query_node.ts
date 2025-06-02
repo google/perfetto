@@ -36,6 +36,7 @@ export enum NodeType {
 export interface QueryNodeState {
   prevNode?: QueryNode;
   sourceCols: ColumnControllerRow[];
+  customTitle?: string;
 
   filters: Filter[];
   groupByColumns: ColumnControllerRow[];
