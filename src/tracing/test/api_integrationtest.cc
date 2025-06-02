@@ -60,13 +60,19 @@
 // production code).
 // yyy.gen.h includes are for the test readback path (the code in the test that
 // checks that the results are valid).
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/tracing/core/forward_decls.h"
+#include "protos/perfetto/common/builtin_clock.gen.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/interceptor_descriptor.gen.h"
 #include "protos/perfetto/common/trace_stats.gen.h"
 #include "protos/perfetto/common/tracing_service_state.gen.h"
 #include "protos/perfetto/common/track_event_descriptor.gen.h"
 #include "protos/perfetto/common/track_event_descriptor.pbzero.h"
+#include "protos/perfetto/config/chrome/chrome_config.gen.h"
+#include "protos/perfetto/config/data_source_config.gen.h"
 #include "protos/perfetto/config/interceptor_config.gen.h"
+#include "protos/perfetto/config/trace_config.gen.h"
 #include "protos/perfetto/config/track_event/track_event_config.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -122,6 +128,7 @@ PERFETTO_DEFINE_CATEGORIES(
     perfetto::Category::Group("baz,bar,quux"),
     perfetto::Category::Group("red,green,blue,foo"),
     perfetto::Category::Group("red,green,blue,yellow"),
+    perfetto::Category(TRACE_DISABLED_BY_DEFAULT("devtools.screenshot")),
     perfetto::Category(TRACE_DISABLED_BY_DEFAULT("cat")));
 PERFETTO_TRACK_EVENT_STATIC_STORAGE();
 
@@ -1542,6 +1549,90 @@ TEST_P(PerfettoApiTest, TrackEventCategories) {
   // TODO(skyostil): Come up with a nicer way to verify trace contents.
   EXPECT_THAT(trace, HasSubstr("Enabled"));
   EXPECT_THAT(trace, Not(HasSubstr("NotEnabled")));
+}
+
+// https://jpst.it/4mL_a.
+std::unique_ptr<perfetto::TraceConfig> CreateReproConfig() {
+  auto trace_config = std::make_unique<perfetto::TraceConfig>();
+  perfetto::TraceConfig::BufferConfig* buffer = trace_config->add_buffers();
+  buffer->set_size_kb(204800);
+  buffer->set_fill_policy(perfetto::TraceConfig::BufferConfig::DISCARD);
+
+  perfetto::TraceConfig::DataSource* data_source1 =
+      trace_config->add_data_sources();
+  data_source1->add_producer_name_filter("org.chromium-3382142");
+  data_source1->add_producer_name_filter("org.chromium-3382062");
+  data_source1->add_producer_name_filter("org.chromium-3382176");
+  perfetto::DataSourceConfig* config1 = data_source1->mutable_config();
+  config1->set_name("track_event");
+  config1->set_target_buffer(0);
+
+  perfetto::protos::gen::TrackEventConfig track_event_config;
+  track_event_config.add_enabled_categories("*");
+  track_event_config.add_enabled_categories(
+      "disabled-by-default-devtools.screenshot");
+  track_event_config.add_enabled_categories("__metadata");
+  track_event_config.set_timestamp_unit_multiplier(1000);
+  track_event_config.set_enable_thread_time_sampling(true);
+  config1->set_track_event_config_raw(track_event_config.SerializeAsString());
+
+  perfetto::ChromeConfig* chrome_config1 = config1->mutable_chrome_config();
+  chrome_config1->set_trace_config(
+      "{\"enable_argument_filter\":false,\"enable_package_name_filter\":false,"
+      "\"enable_systrace\":false,\"included_categories\":[\"disabled-by-"
+      "default-devtools.screenshot\"],"
+      "\"record_mode\":\"record-until-full\"}");
+  chrome_config1->set_privacy_filtering_enabled(false);
+  chrome_config1->set_convert_to_legacy_json(true);
+  chrome_config1->set_client_priority(perfetto::ChromeConfig::USER_INITIATED);
+  chrome_config1->set_json_agent_label_filter("traceEvents");
+  chrome_config1->set_event_package_name_filter_enabled(false);
+
+  perfetto::TraceConfig::DataSource* data_source2 =
+      trace_config->add_data_sources();
+  perfetto::DataSourceConfig* config2 = data_source2->mutable_config();
+  config2->set_name("org.chromium.trace_metadata");
+  config2->set_target_buffer(0);
+
+  perfetto::ChromeConfig* chrome_config2 = config2->mutable_chrome_config();
+  chrome_config2->set_trace_config(
+      "{\"enable_argument_filter\":false,\"enable_package_name_filter\":false,"
+      "\"enable_systrace\":false,\"included_categories\":[\"disabled-by-"
+      "default-devtools.screenshot\"],"
+      "\"record_mode\":\"record-until-full\"}");
+  chrome_config2->set_privacy_filtering_enabled(false);
+  chrome_config2->set_convert_to_legacy_json(true);
+  chrome_config2->set_client_priority(perfetto::ChromeConfig::USER_INITIATED);
+  chrome_config2->set_json_agent_label_filter("traceEvents");
+  chrome_config2->set_event_package_name_filter_enabled(false);
+
+  perfetto::TraceConfig::BuiltinDataSource* builtin_data_source =
+      trace_config->mutable_builtin_data_sources();
+  builtin_data_source->set_disable_trace_config(false);
+  builtin_data_source->set_disable_system_info(false);
+  builtin_data_source->set_disable_service_events(false);
+  builtin_data_source->set_primary_trace_clock(
+      perfetto::protos::gen::BUILTIN_CLOCK_MONOTONIC);
+
+  perfetto::TraceConfig::IncrementalStateConfig* incremental_state_config =
+      trace_config->mutable_incremental_state_config();
+  incremental_state_config->set_clear_period_ms(500);
+
+  return trace_config;
+}
+
+TEST_P(PerfettoApiTest, Repro) {
+  TestTracingSessionHandle* tracing_session = NewTrace(*CreateReproConfig());
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_INSTANT(TRACE_DISABLED_BY_DEFAULT("devtools.screenshot"),
+                      "Screenshot");
+
+  // For now, saving the output to a file to verify manually.
+  std::vector<char> raw_trace = StopSessionAndReturnBytes(tracing_session);
+  perfetto::base::ScopedFile file =
+      perfetto::base::OpenFile("out.pb.gz", O_CREAT | O_RDWR | O_TRUNC, 0600);
+  perfetto::base::WriteAll(*file, raw_trace.data(), raw_trace.size());
 }
 
 TEST_P(PerfettoApiTest, ClearIncrementalState) {
@@ -7670,8 +7761,7 @@ struct BackendTypeAsString {
 
 INSTANTIATE_TEST_SUITE_P(PerfettoApiTest,
                          PerfettoApiTest,
-                         ::testing::Values(perfetto::kInProcessBackend,
-                                           perfetto::kSystemBackend),
+                         ::testing::Values(perfetto::kCustomBackend),
                          BackendTypeAsString());
 
 // In-process backend doesn't support startup tracing.
