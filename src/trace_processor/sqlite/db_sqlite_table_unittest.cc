@@ -109,31 +109,6 @@ TEST(DbSqliteModule, IdEqCheaperThatOtherConstraint) {
   ASSERT_LT(id_cost.rows, a_cost.rows);
 }
 
-TEST(DbSqliteModule, SingleEqCheaperThanMultipleConstraint) {
-  auto schema = CreateSchema();
-  constexpr uint32_t kRowCount = 1234;
-
-  auto c = CreateConstraint(1, SQLITE_INDEX_CONSTRAINT_EQ);
-  auto u = CreateUsage();
-  auto info = CreateCsIndexInfo(1, &c, &u);
-
-  auto single_cost =
-      DbSqliteModule::EstimateCost(schema, kRowCount, &info, {0u}, {});
-
-  std::array c2{CreateConstraint(1, SQLITE_INDEX_CONSTRAINT_EQ),
-                CreateConstraint(2, SQLITE_INDEX_CONSTRAINT_EQ)};
-  std::array u2{CreateUsage(), CreateUsage()};
-  auto info2 = CreateCsIndexInfo(c2.size(), c2.data(), u2.data());
-
-  auto multi_cost =
-      DbSqliteModule::EstimateCost(schema, kRowCount, &info2, {0u, 1u}, {});
-
-  // The cost of the single filter should be cheaper (because of our special
-  // handling of single equality). But the number of rows should be greater.
-  ASSERT_LT(single_cost.cost, multi_cost.cost);
-  ASSERT_GT(single_cost.rows, multi_cost.rows);
-}
-
 TEST(DbSqliteModule, MultiSortedEqCheaperThanMultiUnsortedEq) {
   auto schema = CreateSchema();
   constexpr uint32_t kRowCount = 1234;

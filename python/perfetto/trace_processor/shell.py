@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import shutil
 from typing import List, Optional
 from urllib import request, error
 
@@ -41,8 +42,15 @@ def load_shell(bin_path: str,
   url = f'{addr}:{str(port)}'
 
   shell_path = platform_delegate.get_shell_path(bin_path=bin_path)
+
+  # get Python interpreter path
+  if not getattr(sys, 'frozen', False):
+    python_executable_path = sys.executable
+  else:
+    python_executable_path = shutil.which('python')
+
   if os.name == 'nt' and not shell_path.endswith('.exe'):
-    tp_exec = [sys.executable, shell_path]
+    tp_exec = [python_executable_path, shell_path]
   else:
     tp_exec = [shell_path]
 
