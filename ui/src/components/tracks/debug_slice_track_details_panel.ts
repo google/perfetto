@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
-import {hasArgs, renderArguments} from '../details/slice_args';
+import {hasArgs} from '../details/args';
 import {getSlice, SliceDetails} from '../sql_utils/slice';
 import {asSliceSqlId, Utid} from '../sql_utils/core_types';
 import {getThreadState, ThreadState} from '../sql_utils/thread_state';
@@ -39,6 +39,7 @@ import {sliceRef} from '../widgets/slice';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 import {SqlRef} from '../../widgets/sql_ref';
+import {renderSliceArguments} from '../details/slice_args';
 
 export const ARG_PREFIX = 'arg_';
 
@@ -176,7 +177,7 @@ export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
           {
             left: 'Args',
           },
-          renderArguments(this.trace, this.slice.args),
+          renderSliceArguments(this.trace, this.slice.args),
         ),
     );
   }
