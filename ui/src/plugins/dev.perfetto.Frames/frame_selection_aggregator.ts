@@ -71,20 +71,20 @@ export class FrameSelectionAggregator implements AreaSelectionAggregator {
       },
       {
         title: 'Min duration',
-        kind: 'NUMBER',
-        columnConstructor: Uint16Array,
+        kind: 'TIMESTAMP_NS',
+        columnConstructor: Float64Array,
         columnId: 'minDur',
       },
       {
         title: 'Max duration',
-        kind: 'NUMBER',
-        columnConstructor: Uint16Array,
+        kind: 'TIMESTAMP_NS',
+        columnConstructor: Float64Array,
         columnId: 'maxDur',
       },
       {
         title: 'Mean duration',
-        kind: 'NUMBER',
-        columnConstructor: Uint16Array,
+        kind: 'TIMESTAMP_NS',
+        columnConstructor: Float64Array,
         columnId: 'meanDur',
       },
       {
