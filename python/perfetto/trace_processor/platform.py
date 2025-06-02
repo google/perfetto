@@ -21,6 +21,8 @@ import socket
 import stat
 import subprocess
 import tempfile
+import ssl
+import certifi
 from typing import Tuple
 from urllib import request
 
@@ -48,9 +50,11 @@ class PlatformDelegate:
     tp_path = os.path.join(tempfile.gettempdir(), 'trace_processor_python_api')
     if self._should_download_tp(tp_path):
       with contextlib.ExitStack() as stack:
-        req = stack.enter_context(request.urlopen(request.Request(SHELL_URL)))
-        file = stack.enter_context(open(tp_path, 'wb'))
-        file.write(req.read())
+        ssl_context = ssl.create_default_context(cafile=certifi.where())
+        req_obj = request.Request(SHELL_URL)
+        req_http_response = stack.enter_context(request.urlopen(req_obj, context=ssl_context))
+        file_handle = stack.enter_context(open(tp_path, 'wb'))
+        file_handle.write(req_http_response.read())
     st = os.stat(tp_path)
     os.chmod(tp_path, st.st_mode | stat.S_IEXEC)
     return tp_path
