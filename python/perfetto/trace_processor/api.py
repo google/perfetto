@@ -14,7 +14,7 @@
 
 import dataclasses as dc
 from urllib.parse import urlparse
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from perfetto.common.exceptions import PerfettoException
 from perfetto.common.query_result_iterator import QueryResultIterator
@@ -167,7 +167,7 @@ class TraceProcessor:
     return metrics
 
   def trace_summary(self,
-                    specs: List[str],
+                    specs: List[Union[str, bytes]],
                     metric_ids: Optional[List[str]] = None,
                     metadata_query_id: Optional[str] = None):
     """Returns the trace summary data corresponding to the passed in metric
@@ -175,8 +175,9 @@ class TraceProcessor:
     an error.
 
     Args:
-      metric_ids: A list of metric IDs as defined in TraceMetrics
-      specs: A list of textproto specs to be used for the summary
+      specs: A list of textproto/bytes specs to be used for the summary
+      metric_ids: Optional list of metric IDs as defined in TraceMetrics. 
+        If `None` all metrics will be executed.
       metadata_query_id: Optional query ID for metadata
 
     Returns:
