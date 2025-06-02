@@ -630,8 +630,15 @@ void Rpc::ComputeTraceSummaryInternal(
       comp_spec.data, comp_spec.size);
 
   TraceSummaryComputationSpec computation_spec;
-  for (auto it = comp_spec_decoder.metric_ids(); it; ++it) {
-    computation_spec.v2_metric_ids.push_back(it->as_std_string());
+
+  if (comp_spec_decoder.has_dont_execute_metrics() &&
+      comp_spec_decoder.dont_execute_metrics() == true) {
+    computation_spec.v2_metric_ids = std::vector<std::string>();
+  } else if (comp_spec_decoder.metric_ids()) {
+    computation_spec.v2_metric_ids = std::vector<std::string>();
+    for (auto it = comp_spec_decoder.metric_ids(); it; ++it) {
+      computation_spec.v2_metric_ids->push_back(it->as_std_string());
+    }
   }
 
   if (comp_spec_decoder.has_metadata_query_id()) {

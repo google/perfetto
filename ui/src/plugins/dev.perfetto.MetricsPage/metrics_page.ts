@@ -59,7 +59,7 @@ async function getMetricV2(
 ): Promise<string> {
   const result = await engine.summarizeTrace(
     [metric],
-    [],
+    undefined,
     undefined,
     format === 'proto' ? 'proto' : 'prototext',
   );

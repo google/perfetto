@@ -385,6 +385,23 @@ class TestApi(unittest.TestCase):
     self.assertTrue(hasattr(trace_summary, 'metadata'))
     tp.close()
 
+  def test_trace_summary_dont_execute(self):
+    metric_spec = """metric_spec: {
+        id: "memory_per_process"
+        value: "dur"
+        query: {
+          simple_slices {
+            process_name_glob: "ab*"
+          }
+        }
+      }
+      """
+
+    tp = create_tp(trace=example_android_trace_path())
+    trace_summary = tp.trace_summary([metric_spec], [])
+    self.assertEqual(len(trace_summary.metric), 0)
+    tp.close()
+
   def test_trace_summary_no_ids_specified(self):
     metric_spec_1 = """metric_spec: {
         id: "metric_one"

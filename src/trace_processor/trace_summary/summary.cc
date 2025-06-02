@@ -27,6 +27,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -346,9 +347,8 @@ base::Status Summarize(TraceProcessor* processor,
   }
 
   base::FlatHashMap<std::string, Metric> queries_per_metric;
-  if (computation.v2_metric_ids.empty()) {
-    // If no v2_metric_ids are specified, we assume that all metrics in the
-    // specs are to be computed.
+  if (!computation.v2_metric_ids.has_value()) {
+    // If nullopt, compute all metrics.
     for (const auto& spec : spec_decoders) {
       for (auto it = spec.metric_spec(); it; ++it) {
         protos::pbzero::TraceMetricV2Spec::Decoder m(*it);
@@ -356,6 +356,9 @@ base::Status Summarize(TraceProcessor* processor,
         if (id.empty()) {
           return base::ErrStatus(
               "Metric with empty id field: this is not allowed");
+        }
+        if (base::CaseInsensitiveEqual(id, "all")) {
+          return base::ErrStatus("Metric with id 'all' is not allowed: ");
         }
         if (queries_per_metric.Find(id)) {
           return base::ErrStatus(
@@ -378,8 +381,8 @@ base::Status Summarize(TraceProcessor* processor,
         queries_per_metric.Insert(id, std::move(metric));
       }
     }
-  } else {
-    for (const auto& id : computation.v2_metric_ids) {
+  } else if (!computation.v2_metric_ids->empty()) {
+    for (const auto& id : *computation.v2_metric_ids) {
       queries_per_metric.Insert(id, Metric{});
     }
     for (const auto& spec : spec_decoders) {
@@ -417,6 +420,7 @@ base::Status Summarize(TraceProcessor* processor,
       }
     }
   }
+  // If `v2_metric_ids` is an empty vector, we will not compute any metrics.
 
   std::optional<std::string> metadata_sql;
   if (computation.metadata_query_id) {
