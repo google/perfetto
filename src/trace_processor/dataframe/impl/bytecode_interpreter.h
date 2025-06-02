@@ -599,10 +599,13 @@ class Interpreter {
 
     const Slab<uint32_t>* popcount_slab = MaybeReadFromRegister<Slab<uint32_t>>(
         bytecode.arg<B::popcount_register>());
-    const reg::StringIdToRankMap* rank_map_ptr =
-        MaybeReadFromRegister(bytecode.arg<B::rank_map_register>());
-    const auto* null_bv = col.null_storage.MaybeGetNullBitVector();
     const auto* data = col.storage.template unchecked_data<T>();
+
+    // GCC complains that these variables are not used in the NonNull branches.
+    [[maybe_unused]] const reg::StringIdToRankMap* rank_map_ptr =
+        MaybeReadFromRegister(bytecode.arg<B::rank_map_register>());
+    [[maybe_unused]] const auto* null_bv =
+        col.null_storage.MaybeGetNullBitVector();
     for (uint32_t* ptr = source.b; ptr != source.e; ++ptr) {
       uint32_t table_index = *ptr;
       uint32_t storage_index;
