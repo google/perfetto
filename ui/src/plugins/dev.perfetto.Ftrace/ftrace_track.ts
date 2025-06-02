@@ -1,4 +1,4 @@
-// Copyright (C) 2024 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,170 +12,60 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {duration, Time, time} from '../../base/time';
+import {Cpu} from '../../base/multi_machine_trace';
+import {Store} from '../../base/store';
 import {materialColorScheme} from '../../components/colorizer';
-import {LIMIT} from '../../components/tracks/track_data';
-import {Store, TimelineFetcher} from '../../components/tracks/track_helper';
-import {checkerboardExcept} from '../../components/checkerboard';
-import {TrackData} from '../../components/tracks/track_data';
-import {Engine} from '../../trace_processor/engine';
-import {TrackRenderer} from '../../public/track';
+import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
+import {Trace} from '../../public/trace';
+import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {FtraceFilter} from './common';
-import {Monitor} from '../../base/monitor';
-import {TrackRenderContext} from '../../public/track';
-import {SourceDataset} from '../../trace_processor/dataset';
-import {TrackEventDetails} from '../../public/selection';
+import {FtraceEventDetailsPanel} from './ftrace_details_panel';
 
-const MARGIN = 2;
-const RECT_HEIGHT = 18;
-const RECT_WIDTH = 8;
-const TRACK_HEIGHT = RECT_HEIGHT + 2 * MARGIN;
+const FTRACE_INSTANT_WIDTH_PX = 8;
 
-interface Data extends TrackData {
-  events: Array<{
-    timestamp: time;
-    color: string;
-  }>;
-}
-
-export interface Config {
-  cpu?: number;
-}
-
-export class FtraceRawTrack implements TrackRenderer {
-  private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
-  private engine: Engine;
-  private ucpu: number;
-  private store: Store<FtraceFilter>;
-  private readonly monitor: Monitor;
-
-  constructor(engine: Engine, ucpu: number, store: Store<FtraceFilter>) {
-    this.engine = engine;
-    this.ucpu = ucpu;
-    this.store = store;
-
-    this.monitor = new Monitor([() => store.state]);
-  }
-
-  getDataset() {
-    return new SourceDataset({
-      // 'ftrace_event' doesn't have a dur column, but injecting dur=0 (all
-      // ftrace events are effectively 'instant') allows us to participate in
-      // generic slice aggregations
-      src: 'select id, ts, 0 as dur, name, ucpu from ftrace_event',
-      schema: {
-        id: NUM,
-        name: STR,
-        ts: LONG,
-        dur: LONG,
-      },
-      filter: {
-        col: 'ucpu',
-        eq: this.ucpu,
-      },
-    });
-  }
-
-  async getSelectionDetails(
-    eventId: number,
-  ): Promise<TrackEventDetails | undefined> {
-    const queryRes = await this.engine.query(`
-      SELECT
-        ts
-      FROM ftrace_event
-      WHERE id = ${eventId}
-    `);
-
-    if (queryRes.numRows() === 0) {
-      return undefined;
-    }
-
-    const firstRow = queryRes.maybeFirstRow({ts: LONG});
-    if (!firstRow) return undefined;
-
-    return {
-      ts: Time.fromRaw(firstRow.ts),
-    };
-  }
-
-  async onUpdate({
-    visibleWindow,
-    resolution,
-  }: TrackRenderContext): Promise<void> {
-    this.monitor.ifStateChanged(() => {
-      this.fetcher.invalidate();
-    });
-    await this.fetcher.requestData(visibleWindow.toTimeSpan(), resolution);
-  }
-
-  async onDestroy?(): Promise<void> {
-    this.fetcher[Symbol.dispose]();
-  }
-
-  getHeight(): number {
-    return TRACK_HEIGHT;
-  }
-
-  async onBoundsChange(
-    start: time,
-    end: time,
-    resolution: duration,
-  ): Promise<Data> {
-    const excludeList = Array.from(this.store.state.excludeList);
-    const excludeListSql = excludeList.map((s) => `'${s}'`).join(',');
-    const cpuFilter = this.ucpu === undefined ? '' : `and ucpu = ${this.ucpu}`;
-
-    const queryRes = await this.engine.query(`
-      select
-        cast(ts / ${resolution} as integer) * ${resolution} as tsQuant,
-        name
-      from ftrace_event
-      where
-        name not in (${excludeListSql}) and
-        ts >= ${start} and ts <= ${end} ${cpuFilter}
-      group by tsQuant
-      order by tsQuant limit ${LIMIT};`);
-
-    const rowCount = queryRes.numRows();
-
-    const it = queryRes.iter({tsQuant: LONG, name: STR});
-    const events = [];
-    for (let row = 0; it.valid(); it.next(), row++) {
-      events.push({
-        timestamp: Time.fromRaw(it.tsQuant),
-        color: materialColorScheme(it.name).base.cssString,
+export function createFtraceTrack(
+  trace: Trace,
+  uri: string,
+  cpu: Cpu,
+  store: Store<FtraceFilter>,
+) {
+  return new DatasetSliceTrack({
+    trace,
+    uri,
+    dataset: () => {
+      // This dataset can change depending on the filter settings, so we pass a
+      // function in here instead of a static dataset. This function is called
+      // every render cycle by the track to see if the dataset has changed.
+      const excludeList = store.state.excludeList;
+      return new SourceDataset({
+        src: `
+          SELECT *
+          FROM ftrace_event
+          WHERE
+            name NOT IN (${excludeList.map((x) => `'${x}'`).join(', ')})
+        `,
+        schema: {
+          id: NUM,
+          ts: LONG,
+          name: STR,
+          cpu: NUM,
+        },
+        filter: {
+          col: 'ucpu',
+          eq: cpu.ucpu,
+        },
       });
-    }
-    return {
-      start,
-      end,
-      resolution,
-      length: rowCount,
-      events,
-    };
-  }
-
-  render({ctx, size, timescale}: TrackRenderContext): void {
-    const data = this.fetcher.data;
-
-    if (data === undefined) return; // Can't possibly draw anything.
-
-    const dataStartPx = timescale.timeToPx(data.start);
-    const dataEndPx = timescale.timeToPx(data.end);
-
-    checkerboardExcept(
-      ctx,
-      this.getHeight(),
-      0,
-      size.width,
-      dataStartPx,
-      dataEndPx,
-    );
-    for (const e of data.events) {
-      ctx.fillStyle = e.color;
-      const xPos = Math.floor(timescale.timeToPx(e.timestamp));
-      ctx.fillRect(xPos - RECT_WIDTH / 2, MARGIN, RECT_WIDTH, RECT_HEIGHT);
-    }
-  }
+    },
+    colorizer: (row) => materialColorScheme(row.name),
+    instantStyle: {
+      width: FTRACE_INSTANT_WIDTH_PX,
+      render: (ctx, r) => ctx.fillRect(r.x, r.y, r.width, r.height),
+    },
+    forceTsRenderOrder: true,
+    tooltip: (row) => row.row.name,
+    detailsPanel: (row) => {
+      return new FtraceEventDetailsPanel(trace, row);
+    },
+  });
 }

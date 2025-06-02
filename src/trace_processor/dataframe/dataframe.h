@@ -36,6 +36,7 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/cursor.h"
+#include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
@@ -80,6 +81,16 @@ class Dataframe {
     // The number of rows this query plan estimates it will return.
     uint32_t estimated_row_count() const {
       return plan_.params.estimated_row_count;
+    }
+
+    // Returns the bytecode instructions of the query plan as a vector of
+    // strings, where each string represents a single bytecode instruction.
+    std::vector<std::string> BytecodeToString() const {
+      std::vector<std::string> result;
+      for (const auto& instr : plan_.bytecode) {
+        result.push_back(impl::bytecode::ToString(instr));
+      }
+      return result;
     }
 
     // An estimate for the cost of executing the query plan.

@@ -68,6 +68,8 @@ To use kubectl to apply the yaml files for deployments and services you must fir
 You can follow these instructions on device or in cloud shell using the following command:
 
 ```bash
+gcloud auth login
+
 gcloud container clusters get-credentials [CLUSTER_NAME] --zone [ZONE]--project [PROJECT_NAME]
 ```
 
@@ -78,10 +80,15 @@ gcloud container clusters get-credentials [CLUSTER_NAME] --zone [ZONE]--project 
 The deployment of Orchestrator requires two main steps: Building and pushing the images to Artifact Registry & deploying to the cluster.
 
 #### Building and uploading the Orchestrator image
+Configure docker to push into the Google Cloud artifact registry
+```bash
+gcloud auth configure-docker [ZONE]-docker.pkg.dev
+```
+
 To build the image and push to Artifact Registry, first navigate to the perfetto directory and then run the following commands:
 
 ```bash
-docker build -t bigtrace_orchestrator src/bigtrace/orchestrator
+docker build -t bigtrace_orchestrator infra/bigtrace/docker/orchestrator
 
 docker tag bigtrace_orchestrator [ZONE]-docker.pkg.dev/[PROJECT_NAME]/[REPO_NAME]/bigtrace_orchestrator
 
@@ -108,8 +115,8 @@ resources:
 Then to deploy the Orchestrator you apply both the orchestrator-deployment.yaml and the orchestrator-ilb.yaml, for the deployment and internal load balancing service respectively.
 
 ```bash
-kubectl apply -f orchestrator-deployment.yaml
-kubectl apply -f orchestrator-ilb.yaml
+kubectl apply -f infra/bigtrace/gke/orchestrator-deployment.yaml
+kubectl apply -f infra/bigtrace/gke/orchestrator-ilb.yaml
 ```
 
 This deploys the Orchestrator as a single replica in a pod and exposes it as a service for access within the VPC by the client.
@@ -118,7 +125,7 @@ This deploys the Orchestrator as a single replica in a pod and exposes it as a s
 Similar to the Orchestrator first build and push the images to Artifact Registry.
 
 ```bash
-docker build -t bigtrace_worker src/bigtrace/worker
+docker build -t bigtrace_worker infra/bigtrace/docker/worker
 
 docker tag bigtrace_worker [ZONE]-docker.pkg.dev/[PROJECT_NAME]/[REPO_NAME]/bigtrace_worker
 
@@ -143,8 +150,8 @@ resources:
 Then deploy the deployment and service as follows:
 
 ```bash
-kubectl apply -f worker-deployment.yaml
-kubectl apply -f worker-service.yaml
+kubectl apply -f infra/bigtrace/gke/worker-deployment.yaml
+kubectl apply -f infra/bigtrace/gke/worker-service.yaml
 ```
 
 ### Deploying Clickhouse
@@ -153,7 +160,7 @@ kubectl apply -f worker-service.yaml
 This image builds on top of the base Clickhouse image and provides the necessary Python libraries for gRPC to communicate with the Orchestrator.
 
 ```bash
-docker build -t clickhouse src/bigtrace_clickhouse
+docker build -t clickhouse infra/bigtrace/bigtrace_clickhouse
 
 docker tag clickhouse [ZONE]-docker.pkg.dev/[PROJECT_NAME]/[REPO_NAME]/clickhouse
 
@@ -163,15 +170,15 @@ docker push [ZONE]-docker.pkg.dev/[PROJECT_NAME]/[REPO_NAME]/clickhouse
 To deploy this on a pod in a cluster, the provided yaml files must be applied using kubectl e.g.
 
 ```
-kubectl apply -f src/bigtrace_clickhouse/config.yaml
+kubectl apply -f infra/bigtrace/clickhouse/clickhouse-config.yaml
 
-kubectl apply -f src/bigtrace_clickhouse/pvc.yaml
+kubectl apply -f infra/bigtrace/clickhouse/pvc.yaml
 
-kubectl apply -f src/bigtrace_clickhouse/pv.yaml
+kubectl apply -f infra/bigtrace/clickhouse/pv.yaml
 
-kubectl apply -f src/bigtrace_clickhouse/clickhouse-deployment.yaml
+kubectl apply -f infra/bigtrace/clickhouse/clickhouse-deployment.yaml
 
-kubectl apply -f src/bigtrace_clickhouse/clickhouse-ilb.yaml
+kubectl apply -f infra/bigtrace/clickhouse/clickhouse-ilb.yaml
 ```
 With the clickhouse-deployment.yaml you must replace the image variable with the URI to the image built in the previous step - which contains the Clickhouse image with the necessary Python files for gRPC installed on top.
 
@@ -185,6 +192,20 @@ The env variable BIGTRACE_ORCHESTRATOR_ADDRESS must also be changed to the addre
         - name: BIGTRACE_ORCHESTRATOR_ADDRESS
           value: # Address of Orchestrator service
 ```
+
+If you want to verify whether the deployments were succesful you can run:
+```
+kubectl get deployments
+```
+Which should generate an output similar to this:
+```
+NAME           READY   UP-TO-DATE   AVAILABLE   AGE
+clickhouse     0/1     1            0           106s
+orchestrator   0/1     1            0           48m
+worker         0/5     5            0           27m
+```
+This means the orchestrator, workers and clickhouse have been deployed successfully.
+
 ### File summary
 
 #### Deployment

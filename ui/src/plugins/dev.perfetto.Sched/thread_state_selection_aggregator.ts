@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ColumnDef, Sorting, ThreadStateExtra} from '../../public/aggregation';
+import {ColumnDef, Sorting, BarChartData} from '../../public/aggregation';
 import {AreaSelection} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
 import {
@@ -24,7 +24,7 @@ import {
 } from '../../trace_processor/query_result';
 import {AreaSelectionAggregator} from '../../public/selection';
 import {Dataset} from '../../trace_processor/dataset';
-import {translateState} from '../../components/sql_utils/thread_state';
+import {colorForThreadState} from './common';
 
 export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'thread_state_aggregation';
@@ -38,7 +38,7 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
 
   async createAggregateView(
     engine: Engine,
-    area: AreaSelection,
+    _area: AreaSelection,
     dataset?: Dataset,
   ) {
     if (dataset === undefined) return false;
@@ -57,58 +57,45 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
       from (${dataset.query()}) tstate
       join thread using (utid)
       left join process using (upid)
-      where
-        ts + dur > ${area.start}
-        and ts < ${area.end}
       group by utid, concat_state
     `);
 
     return true;
   }
 
-  async getExtra(
+  async getBarChartData(
     engine: Engine,
-    area: AreaSelection,
+    _area: AreaSelection,
     dataset?: Dataset,
-  ): Promise<ThreadStateExtra | void> {
-    if (dataset === undefined) return;
+  ): Promise<BarChartData[] | undefined> {
+    if (dataset === undefined) return undefined;
 
     const query = `
       select
-        state,
-        io_wait as ioWait,
+        sched_state_io_to_human_readable_string(state, io_wait) AS name,
         sum(dur) as totalDur
       from (${dataset.query()}) tstate
       join thread using (utid)
-      where tstate.ts + tstate.dur > ${area.start}
-        and tstate.ts < ${area.end}
-      group by state, io_wait
+      group by tstate.name
     `;
     const result = await engine.query(query);
 
     const it = result.iter({
-      state: STR_NULL,
-      ioWait: NUM_NULL,
+      name: STR_NULL,
       totalDur: NUM,
     });
 
-    let totalMs = 0;
-    const values = new Float64Array(result.numRows());
-    const states = [];
+    const states: BarChartData[] = [];
     for (let i = 0; it.valid(); ++i, it.next()) {
-      const state = it.state == null ? undefined : it.state;
-      const ioWait = it.ioWait === null ? undefined : it.ioWait > 0;
-      states.push(translateState(state, ioWait));
+      const name = it.name ?? 'Unknown';
       const ms = it.totalDur / 1000000;
-      values[i] = ms;
-      totalMs += ms;
+      states.push({
+        name,
+        timeInStateMs: ms,
+        color: colorForThreadState(name),
+      });
     }
-    return {
-      kind: 'THREAD_STATE',
-      states,
-      values,
-      totalMs,
-    };
+    return states;
   }
 
   getColumnDefinitions(): ColumnDef[] {

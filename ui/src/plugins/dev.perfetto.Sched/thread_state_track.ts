@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {colorForState} from '../../components/colorizer';
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
+import {colorForThreadState} from './common';
 import {ThreadStateDetailsPanel} from './thread_state_details_panel';
 
 export function createThreadStateTrack(
@@ -32,11 +32,13 @@ export function createThreadStateTrack(
         id: NUM,
         ts: LONG,
         dur: LONG,
+        layer: NUM,
         cpu: NUM_NULL,
         state: STR,
         io_wait: NUM_NULL,
         utid: NUM,
         name: STR,
+        depth: NUM,
       },
       src: `
         SELECT
@@ -47,7 +49,13 @@ export function createThreadStateTrack(
           state,
           io_wait,
           utid,
-          sched_state_io_to_human_readable_string(state, io_wait) AS name
+          sched_state_io_to_human_readable_string(state, io_wait) AS name,
+          -- Move sleeping and idle slices to the back layer, others on top
+          CASE
+            WHEN state IN ('S', 'I') THEN 0
+            ELSE 1
+          END AS layer,
+          0 AS depth
         FROM thread_state
       `,
       filter: {
@@ -60,32 +68,7 @@ export function createThreadStateTrack(
       sliceHeight: 12,
       titleSizePx: 10,
     },
-    queryGenerator: (dataset) => {
-      // We actually abuse the depth provider here just a little. Instead of
-      // providing just a depth value, we also filter out non-sleeping/idle
-      // slices. In effect, we're using this function as a little escape hatch
-      // to override the query that's used for track rendering.
-      //
-      // The reason we don't just filter out sleeping/idle slices in the main
-      // dataset is because we don't want to filter the dataset exposed via
-      // getDataset(), we only want to filter them out at the rendering stage.
-      //
-      // The reason we don't want to render these slices is slightly nuanced.
-      // Essentially, if we render all slices and zoom out, the vast majority of
-      // the track is covered by sleeping slices, and the important
-      // runnable/running/etc slices are no longer rendered (effectively
-      // sleeping slices always 'win' on every bucket) so we lost the important
-      // detail. We could get around this if we had some way to tell the
-      // algorithm to prioritize some slices over others.
-      return `
-        select
-          0 as depth,
-          *
-        from (${dataset.query()})
-        where state not in ('S', 'I')
-      `;
-    },
-    colorizer: (row) => colorForState(row.name),
+    colorizer: (row) => colorForThreadState(row.name),
     detailsPanel: (row) => new ThreadStateDetailsPanel(trace, row.id),
     rootTableName: 'thread_state',
   });

@@ -138,8 +138,6 @@ export class WattsonProcessSelectionAggregator
     ];
   }
 
-  async getExtra() {}
-
   getTabName() {
     return 'Wattson by process';
   }

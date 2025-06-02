@@ -30,7 +30,7 @@ export class SliceSelectionAggregator implements AreaSelectionAggregator {
 
   async createAggregateView(
     engine: Engine,
-    area: AreaSelection,
+    _area: AreaSelection,
     dataset?: Dataset,
   ) {
     if (!dataset) return false;
@@ -42,10 +42,7 @@ export class SliceSelectionAggregator implements AreaSelectionAggregator {
         sum(dur) AS total_dur,
         sum(dur)/count() as avg_dur,
         count() as occurrences
-        from (${dataset.query()})
-      where
-        ts + dur > ${area.start}
-        and ts < ${area.end}
+      from (${dataset.query()})
       group by name
     `);
 
@@ -55,8 +52,6 @@ export class SliceSelectionAggregator implements AreaSelectionAggregator {
   getTabName() {
     return 'Slices';
   }
-
-  async getExtra() {}
 
   getDefaultSorting(): Sorting {
     return {column: 'total_dur', direction: 'DESC'};

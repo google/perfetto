@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
@@ -33,6 +34,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 
 #include "protos/perfetto/trace/gpu/vulkan_memory_event.pbzero.h"
+#include "src/trace_processor/tables/counter_tables_py.h"
 
 namespace perfetto {
 
@@ -108,7 +110,11 @@ class GpuEventParser {
   const StringId tid_id_;
 
   // For GpuCounterEvent
-  std::unordered_map<uint32_t, TrackId> gpu_counter_track_ids_;
+  struct GpuCounterState {
+    TrackId track_id;
+    std::optional<tables::CounterTable::Id> last_id;
+  };
+  base::FlatHashMap<uint32_t, GpuCounterState> gpu_counter_state_;
 
   // For GpuRenderStageEvent
   const StringId description_id_;

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ColorScheme} from '../base/color_scheme';
+
 export type Column = (
   | StringColumn
   | TimestampColumn
@@ -61,18 +63,17 @@ export interface AggregateData {
   // For string interning.
   readonly strings: string[];
   // Some aggregations will have extra info to display;
-  readonly extra?: ThreadStateExtra;
+  readonly barChart?: ReadonlyArray<BarChartData>;
 }
 
 export function isEmptyData(data: AggregateData) {
   return data.columns.length === 0 || data.columns[0].data.length === 0;
 }
 
-export interface ThreadStateExtra {
-  readonly kind: 'THREAD_STATE';
-  readonly states: string[];
-  readonly values: Float64Array;
-  readonly totalMs: number;
+export interface BarChartData {
+  readonly name: string;
+  readonly timeInStateMs: number;
+  readonly color: ColorScheme;
 }
 
 export interface Sorting {
