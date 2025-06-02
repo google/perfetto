@@ -444,6 +444,8 @@ export abstract class EngineBase implements Engine, Disposable {
     const computationSpec = new protos.TraceSummaryArgs.ComputationSpec();
     if (metricIds) {
       computationSpec.metricIds = metricIds;
+    } else {
+      computationSpec.runAllMetrics = true;
     }
     if (metadataId) {
       computationSpec.metadataQueryId = metadataId;

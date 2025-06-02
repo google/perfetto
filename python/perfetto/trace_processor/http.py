@@ -51,12 +51,10 @@ class TraceProcessorHttp:
                     metadata_query_id: Optional[str] = None):
     args = self.protos.TraceSummaryArgs()
     args.textproto_specs.extend(specs)
-
-    if (metric_ids is not None):
-      if (len(metric_ids) == 0):
-        args.computation_spec.dont_execute_metrics = True
-      else:
-        args.computation_spec.metric_ids.extend(metric_ids)
+    if (metric_ids is None):
+      args.computation_spec.run_all_metrics = True
+    elif (len(metric_ids) > 0):
+      args.computation_spec.metric_ids.extend(metric_ids)
 
     if (metadata_query_id is not None):
       args.computation_spec.metadata_query_id = metadata_query_id

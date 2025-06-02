@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -631,10 +632,10 @@ void Rpc::ComputeTraceSummaryInternal(
 
   TraceSummaryComputationSpec computation_spec;
 
-  if (comp_spec_decoder.has_dont_execute_metrics() &&
-      comp_spec_decoder.dont_execute_metrics() == true) {
-    computation_spec.v2_metric_ids = std::vector<std::string>();
-  } else if (comp_spec_decoder.metric_ids()) {
+  if (comp_spec_decoder.has_run_all_metrics() &&
+      comp_spec_decoder.run_all_metrics() == true) {
+    computation_spec.v2_metric_ids = std::nullopt;
+  } else {
     computation_spec.v2_metric_ids = std::vector<std::string>();
     for (auto it = comp_spec_decoder.metric_ids(); it; ++it) {
       computation_spec.v2_metric_ids->push_back(it->as_std_string());
