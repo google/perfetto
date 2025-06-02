@@ -248,11 +248,11 @@ void OnPerfettoSqlCreateTable(PerfettoSqlParserState* state,
                               PerfettoSqlToken* body_end) {
   std::unique_ptr<PerfettoSqlArgumentList> args_deleter(args);
   PerfettoSqlParser::CreateTable::Implementation implementation;
-  if (base::CaseInsensitiveEqual(std::string(table_impl->ptr, table_impl->n),
+  if (table_impl->n == 0 ||
+      base::CaseInsensitiveEqual(std::string(table_impl->ptr, table_impl->n),
                                  "runtime_table")) {
     implementation = PerfettoSqlParser::CreateTable::kRuntimeTable;
-  } else if (table_impl->n == 0 ||
-             base::CaseInsensitiveEqual(
+  } else if (base::CaseInsensitiveEqual(
                  std::string(table_impl->ptr, table_impl->n), "dataframe")) {
     implementation = PerfettoSqlParser::CreateTable::kDataframe;
   } else {
