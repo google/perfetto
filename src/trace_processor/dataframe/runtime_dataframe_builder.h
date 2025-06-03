@@ -227,7 +227,11 @@ class RuntimeDataframeBuilder {
           int64_t min = data.empty() ? 0 : data[0];
           int64_t max = data.empty() ? 0 : data[0];
           bool has_duplicates = false;
-          std::unordered_set<int64_t> seen_values;
+          if (!data.empty()) {
+            seen_ints_.clear();
+            seen_ints_.reserve(data.size());
+            seen_ints_.insert(data[0]);
+          }
           for (uint32_t j = 1; j < data.size(); ++j) {
             is_id_sorted = is_id_sorted && (data[j] == j);
             is_setid_sorted =
@@ -236,7 +240,7 @@ class RuntimeDataframeBuilder {
             min = std::min(min, data[j]);
             max = std::max(max, data[j]);
             has_duplicates =
-                has_duplicates || !seen_values.insert(data[j]).second;
+                has_duplicates || !seen_ints_.insert(data[j]).second;
           }
           bool is_nullable = state.null_overlay.has_value();
           columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
@@ -254,11 +258,15 @@ class RuntimeDataframeBuilder {
           bool is_nullable = state.null_overlay.has_value();
           bool is_sorted = true;
           bool has_duplicates = false;
-          std::unordered_set<double> seen_values;
+          if (!data.empty()) {
+            seen_doubles_.clear();
+            seen_doubles_.reserve(data.size());
+            seen_doubles_.insert(data[0]);
+          }
           for (uint32_t j = 1; j < data.size(); ++j) {
             is_sorted = is_sorted && data[j - 1] <= data[j];
             has_duplicates =
-                has_duplicates || !seen_values.insert(data[j]).second;
+                has_duplicates || !seen_doubles_.insert(data[j]).second;
           }
           columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
               impl::Storage{std::move(data)},
@@ -276,14 +284,16 @@ class RuntimeDataframeBuilder {
           bool is_nullable = state.null_overlay.has_value();
           bool is_sorted = true;
           bool has_duplicates = false;
-          std::unordered_set<StringPool::Id> seen_values;
           if (!data.empty()) {
+            seen_strings_.clear();
+            seen_strings_.reserve(data.size());
+            seen_strings_.insert(data[0]);
             NullTermStringView prev = string_pool_->Get(data[0]);
             for (uint32_t j = 1; j < data.size(); ++j) {
               NullTermStringView curr = string_pool_->Get(data[j]);
               is_sorted = is_sorted && prev <= curr;
               has_duplicates =
-                  has_duplicates || !seen_values.insert(data[j]).second;
+                  has_duplicates || !seen_strings_.insert(data[j]).second;
               prev = curr;
             }
           }
@@ -466,6 +476,11 @@ class RuntimeDataframeBuilder {
   std::vector<std::string> column_names_;
   std::vector<ColumnState> column_states_;
   base::Status current_status_ = base::OkStatus();
+
+  // Class variables to avoid repeated allocations for sets across columns.
+  std::unordered_set<int64_t> seen_ints_;
+  std::unordered_set<double> seen_doubles_;
+  std::unordered_set<StringPool::Id> seen_strings_;
 };
 
 }  // namespace perfetto::trace_processor::dataframe

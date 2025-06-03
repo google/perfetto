@@ -181,8 +181,9 @@ DataframeSpec Dataframe::CreateSpec() const {
   DataframeSpec spec{column_names_, {}};
   spec.column_specs.reserve(columns_.size());
   for (const auto& c : columns_) {
-    spec.column_specs.push_back(
-        {c->storage.type(), c->null_storage.nullability(), c->sort_state});
+    spec.column_specs.push_back({c->storage.type(),
+                                 c->null_storage.nullability(), c->sort_state,
+                                 c->duplicate_state});
   }
   return spec;
 }
