@@ -35,6 +35,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
@@ -57,6 +58,7 @@ using testing::AllOf;
 using testing::ElementsAre;
 using testing::ElementsAreArray;
 using testing::IsEmpty;
+using testing::Pointee;
 using testing::SizeIs;
 using testing::UnorderedElementsAre;
 
@@ -64,11 +66,13 @@ using FilterValue = std::variant<int64_t, double, const char*, std::nullptr_t>;
 
 struct Fetcher : ValueFetcher {
   using Type = size_t;
-  static constexpr Type kInt64 = base::variant_index<FilterValue, int64_t>();
-  static constexpr Type kDouble = base::variant_index<FilterValue, double>();
-  static constexpr Type kString =
+  [[maybe_unused]] static constexpr Type kInt64 =
+      base::variant_index<FilterValue, int64_t>();
+  [[maybe_unused]] static constexpr Type kDouble =
+      base::variant_index<FilterValue, double>();
+  [[maybe_unused]] static constexpr Type kString =
       base::variant_index<FilterValue, const char*>();
-  static constexpr Type kNull =
+  [[maybe_unused]] static constexpr Type kNull =
       base::variant_index<FilterValue, std::nullptr_t>();
 
   // Fetches an int64_t value at the given index.
@@ -192,12 +196,12 @@ Bytecode ParseBytecode(const std::string& bytecode_str) {
       PERFETTO_DATAFRAME_BYTECODE_LIST(PERFETTO_DATAFRAME_BYTECODE_AS_STRING)};
 
 #define PERFETTO_DATAFRAME_BYTECODE_OFFSETS(...) __VA_ARGS__::kOffsets,
-  static constexpr std::array<std::array<uint32_t, 8>, kNumBytecodeCount>
+  static constexpr std::array<std::array<uint32_t, 9>, kNumBytecodeCount>
       offsets{PERFETTO_DATAFRAME_BYTECODE_LIST(
           PERFETTO_DATAFRAME_BYTECODE_OFFSETS)};
 
 #define PERFETTO_DATAFRAME_BYTECODE_NAMES(...) __VA_ARGS__::kNames,
-  static constexpr std::array<std::array<const char*, 7>, kNumBytecodeCount>
+  static constexpr std::array<std::array<const char*, 8>, kNumBytecodeCount>
       names{
           PERFETTO_DATAFRAME_BYTECODE_LIST(PERFETTO_DATAFRAME_BYTECODE_NAMES)};
 
@@ -1512,328 +1516,17 @@ TEST_F(BytecodeInterpreterTest, Uint32SetIdSortedEq) {
   }
 }
 
-TEST_F(BytecodeInterpreterTest, ExecuteSortUint32Asc) {
-  AddColumn(CreateNonNullUnsortedColumn<uint32_t>({50u, 10u, 30u, 20u, 40u}));
-
-  std::vector<uint32_t> initial_indices = {0, 1, 2, 3, 4};
-  SetRegistersAndExecute(
-      "StableSortIndices<Uint32>: [col=0, direction=SortDirection(0), "
-      "update_register=Register(0)]",
-      GetSpan(initial_indices));
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1, 3, 2, 4, 0));
-}
-
-TEST_F(BytecodeInterpreterTest, ExecuteSortDoubleDesc) {
-  AddColumn(CreateNonNullUnsortedColumn<double>({1.1, 5.5, 2.2, 4.4, 3.3}));
-
-  std::vector<uint32_t> initial_indices = {0, 1, 2, 3, 4};
-  SetRegistersAndExecute(
-      "StableSortIndices<Double>: [col=0, direction=SortDirection(1), "
-      "update_register=Register(0)]",
-      GetSpan(initial_indices));
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1, 3, 4, 2, 0));
-}
-
-TEST_F(BytecodeInterpreterTest, ExecuteSortStringAsc) {
-  columns_vec_.clear();
-  AddColumn(CreateNonNullUnsortedColumn<StringPool::Id>(
-      {"banana", "apple", "cherry", "date"}, &spool_));
-
-  std::vector<uint32_t> initial_indices = {0, 1, 2, 3};
-  SetRegistersAndExecute(
-      "StableSortIndices<String>: [col=0, direction=SortDirection(0), "
-      "update_register=Register(0)]",
-      GetSpan(initial_indices));
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1, 0, 2, 3));
-}
-
-TEST_F(BytecodeInterpreterTest, ExecuteSortIdAsc) {
-  AddColumn(impl::Column{impl::Storage{impl::Storage::Id{5}},
-                         impl::NullStorage::NonNull{}, IdSorted{}});
-
-  std::vector<uint32_t> initial_indices = {3, 0, 4, 1, 2};
-  SetRegistersAndExecute(
-      "StableSortIndices<Id>: [col=0, direction=SortDirection(0), "
-      "update_register=Register(0)]",
-      GetSpan(initial_indices));
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0, 1, 2, 3, 4));
-}
-
-TEST_F(BytecodeInterpreterTest, ExecuteStableSort) {
-  AddColumn(CreateNonNullUnsortedColumn<int64_t>({10, 20, 10, 20, 10}));
-  AddColumn(CreateNonNullUnsortedColumn<StringPool::Id>(
-      {"c", "e", "a", "d", "b"}, &spool_));
-
-  BytecodeVector bytecode;
-  bytecode.emplace_back(ParseBytecode(
-      "StableSortIndices<String>: [col=1, direction=SortDirection(1), "
-      "update_register=Register(0)]"));
-  bytecode.emplace_back(ParseBytecode(
-      "StableSortIndices<Int64>: [col=0, direction=SortDirection(0), "
-      "update_register=Register(0)]"));
-
-  SetupInterpreterWithBytecode(bytecode);
-
-  std::vector<uint32_t> initial_indices = {0, 1, 2, 3, 4};
-  interpreter_->SetRegisterValueForTesting(reg::WriteHandle<Span<uint32_t>>(0),
-                                           GetSpan(initial_indices));
-
-  interpreter_->Execute(fetcher_);
-
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0, 4, 2, 1, 3));
-}
-
-TEST_F(BytecodeInterpreterTest, ExecuteNullPartitionNullsAtStart) {
-  auto data_vec = CreateFlexVectorForTesting<uint32_t>({100, 300, 400, 600});
-  auto bv = BitVector::CreateWithSize(7);
-  bv.set(1);
-  bv.set(3);
-  bv.set(4);
-  bv.set(6);
-  AddColumn(impl::Column{
-      impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
-      Unsorted{}});
-
-  std::vector<uint32_t> initial_indices = {0, 1, 2, 3, 4, 5, 6};
-  SetRegistersAndExecute(
-      "NullIndicesStablePartition: [col=0, nulls_location=NullsLocation(0), "
-      "partition_register=Register(0), dest_non_null_register=Register(1)]",
-      GetSpan(initial_indices), impl::Span<uint32_t>{nullptr, nullptr});
-
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0, 2, 5, 1, 3, 4, 6));
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(1), ElementsAre(1, 3, 4, 6));
-}
-
-TEST_F(BytecodeInterpreterTest, ExecuteNullPartitionNullsAtEnd) {
-  auto data_vec = CreateFlexVectorForTesting<uint32_t>({100, 300, 400, 600});
-  auto bv = BitVector::CreateWithSize(7);
-  bv.set(1);
-  bv.set(3);
-  bv.set(4);
-  bv.set(6);
-  AddColumn(impl::Column{
-      impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
-      Unsorted{}});
-
-  std::vector<uint32_t> initial_indices = {0, 1, 2, 3, 4, 5, 6};
-  SetRegistersAndExecute(
-      "NullIndicesStablePartition: [col=0, nulls_location=NullsLocation(1), "
-      "partition_register=Register(0), dest_non_null_register=Register(1)]",
-      GetSpan(initial_indices), impl::Span<uint32_t>{nullptr, nullptr});
-
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1, 3, 4, 6, 0, 2, 5));
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(1), ElementsAre(1, 3, 4, 6));
-}
-
-TEST_F(BytecodeInterpreterTest, ExecuteNullPartitionAllNulls) {
-  auto data_vec = CreateFlexVectorForTesting<uint32_t>({});
-  auto bv = BitVector::CreateWithSize(3);
-  AddColumn(impl::Column{
-      impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
-      Unsorted{}});
-
-  std::vector<uint32_t> initial_indices = {0, 1, 2};
-  SetRegistersAndExecute(
-      "NullIndicesStablePartition: [col=0, nulls_location=NullsLocation(0), "
-      "partition_register=Register(0), dest_non_null_register=Register(1)]",
-      GetSpan(initial_indices), impl::Span<uint32_t>{nullptr, nullptr});
-
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0, 1, 2));
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(1), ElementsAre());
-}
-
-TEST_F(BytecodeInterpreterTest, ExecuteNullPartitionEmptyInput) {
-  auto data_vec = CreateFlexVectorForTesting<uint32_t>({});
-  auto bv = BitVector::CreateWithSize(0);
-  AddColumn(impl::Column{
-      impl::Storage{std::move(data_vec)},
-      impl::NullStorage{impl::NullStorage::SparseNull{std::move(bv), {}}},
-      Unsorted{}});
-
-  std::vector<uint32_t> initial_indices = {};
-  SetRegistersAndExecute(
-      "NullIndicesStablePartition: [col=0, nulls_location=NullsLocation(0), "
-      "partition_register=Register(0), dest_non_null_register=Register(1)]",
-      GetSpan(initial_indices), impl::Span<uint32_t>{nullptr, nullptr});
-
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre());
-  EXPECT_THAT(GetRegister<Span<uint32_t>>(1), ElementsAre());
-}
-
-TEST_F(BytecodeInterpreterTest, CopyToRowLayoutNonNull_Int32) {
-  // Column: {100, 200, 300}
-  AddColumn(CreateNonNullUnsortedColumn<int32_t>({100, 200, 300}));
-
-  uint16_t copy_size = sizeof(int32_t);
-  uint16_t stride = 8;
-  uint16_t offset = 2;
-  uint32_t num_rows = 3;
-  uint32_t buffer_size = num_rows * stride;
-
-  std::string bytecode_sequence = base::StackString<2048>(
-                                      R"(
-                                        AllocateRowLayoutBuffer: [buffer_size=%u, dest_buffer_register=Register(1)]
-                                        CopyToRowLayoutNonNull: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(1), pad=0, row_layout_offset=%u, row_layout_stride=%u, copy_size=%u]
-                                      )",
-                                      buffer_size, offset, stride, copy_size)
-                                      .ToStdString();
-
-  std::vector<uint32_t> indices = {0, 1, 2};
-  SetRegistersAndExecute(bytecode_sequence, GetSpan(indices));
-
-  const auto& buffer = GetRegister<Slab<uint8_t>>(1);
-  ASSERT_EQ(buffer.size(), buffer_size);
-
-  int32_t expected_values[] = {100, 200, 300};
-  for (size_t i = 0; i < num_rows; ++i) {
-    int32_t actual_value;
-    memcpy(&actual_value, buffer.data() + (i * stride) + offset,
-           sizeof(int32_t));
-    EXPECT_EQ(actual_value, expected_values[i])
-        << "Mismatch at row index " << i;
-  }
-}
-
-TEST_F(BytecodeInterpreterTest, CopyToRowLayoutDenseNull_String) {
-  uint32_t num_rows = 5;
-  AddColumn(CreateDenseNullableStringColumn(
-      {"foo", std::nullopt, "bar", std::nullopt, "baz"}, &spool_));
-
-  StringPool::Id foo_id = spool_.GetId("foo").value();
-  StringPool::Id bar_id = spool_.GetId("bar").value();
-  StringPool::Id baz_id = spool_.GetId("baz").value();
-
-  uint16_t copy_size = sizeof(StringPool::Id);
-  uint16_t stride = 1 + copy_size;
-  uint16_t offset = 0;
-  uint32_t buffer_size = num_rows * stride;
-
-  std::string bytecode_sequence = base::StackString<2048>(
-                                      R"(
-                                        AllocateRowLayoutBuffer: [buffer_size=%u, dest_buffer_register=Register(1)]
-                                        CopyToRowLayoutDenseNull: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(1), pad=0, row_layout_offset=%u, row_layout_stride=%u, copy_size=%u]
-                                      )",
-                                      buffer_size, offset, stride, copy_size)
-                                      .ToStdString();
-
-  std::vector<uint32_t> indices = {0, 1, 2, 3, 4};
-  SetRegistersAndExecute(bytecode_sequence, GetSpan(indices));
-
-  // Verification
-  const auto& buffer = GetRegister<Slab<uint8_t>>(1);
-  ASSERT_EQ(buffer.size(), buffer_size);
-
-  struct ExpectedRow {
-    bool non_null;
-    StringPool::Id id;
-  };
-  ExpectedRow expected_data[] = {
-      {true, foo_id}, {false, {}}, {true, bar_id}, {false, {}}, {true, baz_id}};
-
-  for (size_t i = 0; i < num_rows; ++i) {
-    const uint8_t* row_start = buffer.data() + (i * stride);
-    // Check null flag (at offset 0)
-    uint8_t null_flag = row_start[offset];
-    EXPECT_EQ(null_flag, static_cast<uint8_t>(expected_data[i].non_null))
-        << "Null flag mismatch at row " << i;
-
-    // Check data (at offset 0 + 1)
-    StringPool::Id actual_id;
-    memcpy(&actual_id, row_start + offset + 1, sizeof(StringPool::Id));
-    if (expected_data[i].non_null) {
-      EXPECT_EQ(actual_id, expected_data[i].id) << "Data mismatch at row " << i;
-    } else {
-      // Check if memory is zeroed for nulls
-      std::vector<uint8_t> zeros(sizeof(StringPool::Id), 0);
-      EXPECT_EQ(
-          memcmp(row_start + offset + 1, zeros.data(), sizeof(StringPool::Id)),
-          0)
-          << "Null data not zeroed at row " << i;
-    }
-  }
-}
-
-TEST_F(BytecodeInterpreterTest, CopyToRowLayoutSparseNull_Int32) {
-  // Column: {10, null, 30, null, 50} -> Non-null data {10, 30, 50}
-  uint32_t num_rows = 5;
-  AddColumn(CreateSparseNullableColumn<int32_t>(
-      {10, std::nullopt, 30, std::nullopt, 50}));
-
-  uint16_t copy_size = sizeof(int32_t);
-  uint16_t stride = 1 + copy_size;  // Tight stride
-  uint16_t offset = 0;              // Offset points to null flag
-  uint32_t buffer_size = num_rows * stride;
-
-  std::string bytecode_sequence = base::StackString<2048>(
-                                      R"(
-                                        AllocateRowLayoutBuffer: [buffer_size=%u, dest_buffer_register=Register(1)]
-                                        PrefixPopcount: [col=0, dest_register=Register(2)]
-                                        CopyToRowLayoutSparseNull: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(1), popcount_register=Register(2), row_layout_offset=%u, row_layout_stride=%u, copy_size=%u]
-                                      )",
-                                      buffer_size, offset, stride, copy_size)
-                                      .ToStdString();
-
-  std::vector<uint32_t> indices = {0, 1, 2, 3, 4};
-  SetRegistersAndExecute(bytecode_sequence, GetSpan(indices));
-
-  // Verification
-  const auto& buffer = GetRegister<Slab<uint8_t>>(1);
-  ASSERT_EQ(buffer.size(), buffer_size);
-
-  struct ExpectedRow {
-    bool non_null;
-    int32_t value_if_non_null;
-  };
-  ExpectedRow expected_data[] = {
-      {true, 10}, {false, 0}, {true, 30}, {false, 0}, {true, 50}};
-
-  for (size_t i = 0; i < num_rows; ++i) {
-    const uint8_t* row_start = buffer.data() + (i * stride);
-    uint8_t null_flag = row_start[offset];
-    EXPECT_EQ(null_flag, static_cast<uint8_t>(expected_data[i].non_null))
-        << "Null flag mismatch at row " << i;
-
-    int32_t actual_value;
-    memcpy(&actual_value, row_start + offset + 1, sizeof(int32_t));
-    if (expected_data[i].non_null) {
-      EXPECT_EQ(actual_value, expected_data[i].value_if_non_null)
-          << "Data mismatch at row " << i;
-    } else {
-      std::vector<uint8_t> zeros(sizeof(int32_t), 0);
-      EXPECT_EQ(memcmp(row_start + offset + 1, zeros.data(), sizeof(int32_t)),
-                0)
-          << "Null data not zeroed at row " << i;
-    }
-  }
-}
-
 TEST_F(BytecodeInterpreterTest, Distinct_TwoNonNullCols_SimpleDuplicates) {
   AddColumn(CreateNonNullUnsortedColumn<int32_t>({10, 20, 10, 30, 20}));
   AddColumn(CreateNonNullUnsortedColumn<StringPool::Id>(
       {"A", "B", "A", "C", "B"}, &spool_));
 
-  uint16_t int_size = sizeof(int32_t);
-  uint16_t str_id_size = sizeof(StringPool::Id);
-  uint16_t stride = int_size + str_id_size;
-  uint32_t num_rows = 5;
-  uint32_t buffer_size = num_rows * stride;
-  uint16_t col0_offset = 0;
-  uint16_t col1_offset = int_size;
-
-  std::string bytecode_sequence =
-      base::StackString<2048>(
-          R"(
-            AllocateRowLayoutBuffer: [buffer_size=%u, dest_buffer_register=Register(2)]
-            CopyToRowLayoutNonNull: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=%u, row_layout_stride=%u, copy_size=%u]
-            CopyToRowLayoutNonNull: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=%u, row_layout_stride=%u, copy_size=%u]
-            Distinct: [buffer_register=Register(2), total_row_stride=%u, indices_register=Register(0)]
-          )",
-          buffer_size, col0_offset, stride, int_size, col1_offset, stride,
-          str_id_size, static_cast<uint32_t>(stride))
-          .ToStdString();
+  std::string bytecode_sequence = R"(
+    AllocateRowLayoutBuffer: [buffer_size=40, dest_buffer_register=Register(2)]
+    CopyToRowLayout<Int32, NonNull>: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<String, NonNull>: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=4, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    Distinct: [buffer_register=Register(2), total_row_stride=8, indices_register=Register(0)]
+  )";
 
   std::vector<uint32_t> indices = {0, 1, 2, 3, 4};
   SetRegistersAndExecute(bytecode_sequence, GetSpan(indices));
@@ -1849,24 +1542,12 @@ TEST_F(BytecodeInterpreterTest,
       {std::nullopt, "B", "A", std::nullopt, std::nullopt, "B", std::nullopt},
       &spool_));
 
-  uint16_t int_size = sizeof(int32_t);
-  uint16_t str_id_size = sizeof(StringPool::Id);
-  uint16_t stride = (1 + int_size) + (1 + str_id_size);
-  uint32_t buffer_size = num_rows * stride;
-  uint16_t col0_offset = 0;
-  uint16_t col1_offset = 1 + int_size;
-
-  std::string bytecode_sequence =
-      base::StackString<2048>(
-          R"(
-            AllocateRowLayoutBuffer: [buffer_size=%u, dest_buffer_register=Register(2)]
-            CopyToRowLayoutDenseNull: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=%u, row_layout_stride=%u, copy_size=%u]
-            CopyToRowLayoutDenseNull: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=%u, row_layout_stride=%u, copy_size=%u]
-            Distinct: [buffer_register=Register(2), total_row_stride=%u, indices_register=Register(0)]
-          )",
-          buffer_size, col0_offset, stride, int_size, col1_offset, stride,
-          str_id_size, static_cast<uint32_t>(stride))
-          .ToStdString();
+  std::string bytecode_sequence = R"(
+    AllocateRowLayoutBuffer: [buffer_size=70, dest_buffer_register=Register(2)]
+    CopyToRowLayout<Int32, DenseNull>: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=0, row_layout_stride=10, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<String, DenseNull>: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=5, row_layout_stride=10, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    Distinct: [buffer_register=Register(2), total_row_stride=10, indices_register=Register(0)]
+  )";
 
   std::vector<uint32_t> indices(num_rows);
   std::iota(indices.begin(), indices.end(), 0);
@@ -1885,26 +1566,14 @@ TEST_F(BytecodeInterpreterTest,
       {std::nullopt, "B", "A", std::nullopt, std::nullopt, "B", std::nullopt},
       &spool_));
 
-  uint16_t int_size = sizeof(int32_t);
-  uint16_t str_id_size = sizeof(StringPool::Id);
-  uint16_t stride = (1 + int_size) + (1 + str_id_size);
-  uint32_t buffer_size = num_rows * stride;
-  uint16_t col0_offset = 0;
-  uint16_t col1_offset = 1 + int_size;
-
-  std::string bytecode_sequence =
-      base::StackString<2048>(
-          R"(
-            AllocateRowLayoutBuffer: [buffer_size=%u, dest_buffer_register=Register(2)]
-            PrefixPopcount: [col=0, dest_register=Register(3)]
-            CopyToRowLayoutSparseNull: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(2), popcount_register=Register(3), row_layout_offset=%u, row_layout_stride=%u, copy_size=%u]
-            PrefixPopcount: [col=1, dest_register=Register(4)]
-            CopyToRowLayoutSparseNull: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(2), popcount_register=Register(4), row_layout_offset=%u, row_layout_stride=%u, copy_size=%u]
-            Distinct: [buffer_register=Register(2), total_row_stride=%u, indices_register=Register(0)]
-        )",
-          buffer_size, col0_offset, stride, int_size, col1_offset, stride,
-          str_id_size, static_cast<uint32_t>(stride))
-          .ToStdString();
+  std::string bytecode_sequence = R"(
+    AllocateRowLayoutBuffer: [buffer_size=70, dest_buffer_register=Register(2)]
+    PrefixPopcount: [col=0, dest_register=Register(3)]
+    PrefixPopcount: [col=1, dest_register=Register(4)]
+    CopyToRowLayout<Int32, SparseNull>: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=0, row_layout_stride=10, invert_copied_bits=0, popcount_register=Register(3), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<String, SparseNull>: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=5, row_layout_stride=10, invert_copied_bits=0, popcount_register=Register(4), rank_map_register=Register(4294967295)]
+    Distinct: [buffer_register=Register(2), total_row_stride=10, indices_register=Register(0)]
+  )";
 
   std::vector<uint32_t> indices(num_rows);
   std::iota(indices.begin(), indices.end(), 0);
@@ -1919,25 +1588,12 @@ TEST_F(BytecodeInterpreterTest, Distinct_TwoNonNullCols_InputAlreadyDistinct) {
   AddColumn(
       CreateNonNullUnsortedColumn<StringPool::Id>({"A", "B", "C"}, &spool_));
 
-  uint16_t int_size = sizeof(int32_t);
-  uint16_t str_id_size = sizeof(StringPool::Id);
-  uint16_t stride = int_size + str_id_size;
-  uint32_t num_rows = 3;
-  uint32_t buffer_size = num_rows * stride;
-  uint16_t col0_offset = 0;
-  uint16_t col1_offset = int_size;
-
-  std::string bytecode_sequence =
-      base::StackString<2048>(
-          R"(
-            AllocateRowLayoutBuffer: [buffer_size=%u, dest_buffer_register=Register(2)]
-            CopyToRowLayoutNonNull: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=%u, row_layout_stride=%u, copy_size=%u]
-            CopyToRowLayoutNonNull: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=%u, row_layout_stride=%u, copy_size=%u]
-            Distinct: [buffer_register=Register(2), total_row_stride=%u, indices_register=Register(0)]
-          )",
-          buffer_size, col0_offset, stride, int_size, col1_offset, stride,
-          str_id_size, static_cast<uint32_t>(stride))
-          .ToStdString();
+  std::string bytecode_sequence = R"(
+    AllocateRowLayoutBuffer: [buffer_size=24, dest_buffer_register=Register(2)]
+    CopyToRowLayout<Int32, NonNull>: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<String, NonNull>: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=4, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    Distinct: [buffer_register=Register(2), total_row_stride=8, indices_register=Register(0)]
+  )";
 
   std::vector<uint32_t> indices = {0, 1, 2};
   SetRegistersAndExecute(bytecode_sequence, GetSpan(indices));
@@ -1949,25 +1605,12 @@ TEST_F(BytecodeInterpreterTest, Distinct_EmptyInput) {
   AddColumn(
       CreateNonNullUnsortedColumn<StringPool::Id, const char*>({}, &spool_));
 
-  uint16_t int_size = sizeof(int32_t);
-  uint16_t str_id_size = sizeof(StringPool::Id);
-  uint16_t stride = int_size + str_id_size;
-  uint32_t num_rows = 0;
-  uint32_t buffer_size = num_rows * stride;
-  uint16_t col0_offset = 0;
-  uint16_t col1_offset = int_size;
-
-  std::string bytecode_sequence =
-      base::StackString<2048>(
-          R"(
-            AllocateRowLayoutBuffer: [buffer_size=%u, dest_buffer_register=Register(2)]
-            CopyToRowLayoutNonNull: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=%u, row_layout_stride=%u, copy_size=%u]
-            CopyToRowLayoutNonNull: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=%u, row_layout_stride=%u, copy_size=%u]
-            Distinct: [buffer_register=Register(2), total_row_stride=%u, indices_register=Register(0)]
-          )",
-          buffer_size, col0_offset, stride, int_size, col1_offset, stride,
-          str_id_size, static_cast<uint32_t>(stride))
-          .ToStdString();
+  std::string bytecode_sequence = R"(
+    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(2)]
+    CopyToRowLayout<Int32, NonNull>: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<String, NonNull>: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=4, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    Distinct: [buffer_register=Register(2), total_row_stride=8, indices_register=Register(0)]
+  )";
 
   std::vector<uint32_t> indices = {};
   SetRegistersAndExecute(bytecode_sequence, GetSpan(indices));
@@ -1977,21 +1620,11 @@ TEST_F(BytecodeInterpreterTest, Distinct_EmptyInput) {
 TEST_F(BytecodeInterpreterTest, Distinct_OneNonNullCol_SimpleDuplicates) {
   AddColumn(CreateNonNullUnsortedColumn<int32_t>({10, 20, 10, 30, 20}));
 
-  uint16_t int_size = sizeof(int32_t);
-  uint16_t stride = int_size;
-  uint32_t num_rows = 5;
-  uint32_t buffer_size = num_rows * stride;
-  uint16_t col0_offset = 0;
-
-  std::string bytecode_sequence = base::StackString<2048>(
-                                      R"(
-                                        AllocateRowLayoutBuffer: [buffer_size=%u, dest_buffer_register=Register(2)]
-                                        CopyToRowLayoutNonNull: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=%u, row_layout_stride=%u, copy_size=%u]
-                                        Distinct: [buffer_register=Register(2), total_row_stride=%u, indices_register=Register(0)]
-                                      )",
-                                      buffer_size, col0_offset, stride,
-                                      int_size, static_cast<uint32_t>(stride))
-                                      .ToStdString();
+  std::string bytecode_sequence = R"(
+    AllocateRowLayoutBuffer: [buffer_size=20, dest_buffer_register=Register(2)]
+    CopyToRowLayout<Int32, NonNull>: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(2), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    Distinct: [buffer_register=Register(2), total_row_stride=4, indices_register=Register(0)]
+  )";
 
   std::vector<uint32_t> indices = {0, 1, 2, 3, 4};
   SetRegistersAndExecute(bytecode_sequence, GetSpan(indices));
@@ -2197,6 +1830,157 @@ TEST_F(BytecodeInterpreterTest, CopySpanIntersectingRange_NoOverlap) {
   SetRegistersAndExecute(bytecode_str, GetSpan(source_span_data),
                          Range{100, 200}, GetSpan(update_buffer));
   EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+}
+
+TEST_F(BytecodeInterpreterTest, CollectIdIntoRankMap) {
+  AddColumn(CreateSparseNullableStringColumn(
+      {std::make_optional("apple"), std::nullopt, std::make_optional("banana")},
+      &spool_));
+
+  std::vector<uint32_t> data = {0, 1};
+
+  std::string bytecode_str = R"(
+    InitRankMap: [dest_register=Register(1)]
+    CollectIdIntoRankMap: [col=0, source_register=Register(0), rank_map_register=Register(1)]
+  )";
+  SetRegistersAndExecute(
+      bytecode_str, Span<uint32_t>(data.data(), data.data() + data.size()));
+
+  const auto& rank_map = *GetRegister<reg::StringIdToRankMap>(1);
+  EXPECT_EQ(rank_map.size(), 2u);
+  EXPECT_THAT(rank_map.Find(*spool_.GetId("apple")), Pointee(0u));
+  EXPECT_THAT(rank_map.Find(*spool_.GetId("banana")), Pointee(0u));
+}
+
+TEST_F(BytecodeInterpreterTest, FinalizeRanksInMap_Simple) {
+  StringPool::Id apple_id = spool_.InternString("apple");
+  StringPool::Id banana_id = spool_.InternString("banana");
+  StringPool::Id cherry_id = spool_.InternString("cherry");
+
+  auto map = std::make_unique<base::FlatHashMap<StringPool::Id, uint32_t>>();
+  map->Insert(banana_id, 0);
+  map->Insert(cherry_id, 0);
+  map->Insert(apple_id, 0);
+
+  std::string bytecode_str =
+      "FinalizeRanksInMap: [update_register=Register(0)]";
+  SetRegistersAndExecute(bytecode_str, std::move(map));
+
+  const auto& rank_map = *GetRegister<reg::StringIdToRankMap>(0);
+  EXPECT_EQ(rank_map.size(), 3u);
+  EXPECT_THAT(rank_map.Find(apple_id), Pointee(0u));
+  EXPECT_THAT(rank_map.Find(banana_id), Pointee(1u));
+  EXPECT_THAT(rank_map.Find(cherry_id), Pointee(2u));
+}
+
+TEST_F(BytecodeInterpreterTest, Sort_SingleUint32Column_Ascending) {
+  // Data: {30, 10, 40, 20}
+  // Expected sorted indices: {1 (10), 3 (20), 0 (30), 2 (40)}
+  uint32_t num_rows = 4;
+  AddColumn(
+      CreateNonNullUnsortedColumn<uint32_t>({30u, 10u, 40u, 20u}));  // col 0
+
+  // Bytecode sequence:
+  // 1. AllocateRowLayoutBuffer (stride = sizeof(uint32_t) = 4, size = 4*4 = 16)
+  // 2. CopyToRowLayout<Uint32, NonNull> (invert_copied_bits = 0 for asc)
+  // 3. SortRowLayout
+  std::string bytecode_sequence = R"(
+    AllocateRowLayoutBuffer: [buffer_size=16, dest_buffer_register=Register(1)]
+    CopyToRowLayout<Uint32, NonNull>: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(1), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    SortRowLayout: [buffer_register=Register(1), total_row_stride=4, indices_register=Register(0)]
+  )";
+
+  std::vector<uint32_t> indices(num_rows);
+  std::iota(indices.begin(), indices.end(), 0);  // {0, 1, 2, 3}
+
+  SetRegistersAndExecute(bytecode_sequence, GetSpan(indices));
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1, 3, 0, 2));
+}
+
+TEST_F(BytecodeInterpreterTest,
+       Sort_SingleStringColumn_Descending_WithRankMap) {
+  // Data: {"cherry", "apple", "banana"}
+  // Ranks (asc): apple (0), banana (1), cherry (2)
+  // Expected sorted indices (desc): {0 (cherry), 2 (banana), 1 (apple)}
+  uint32_t num_rows = 3;
+  AddColumn(CreateNonNullUnsortedColumn<StringPool::Id>(  // col 0
+      {"cherry", "apple", "banana"}, &spool_));
+
+  // Bytecode sequence:
+  // 1. InitRankMap
+  // 2. CollectIdIntoRankMap
+  // 3. FinalizeRanksInMap
+  // 4. AllocateRowLayoutBuffer (stride = sizeof(uint32_t) for rank = 4, size =
+  // 3*4 = 12)
+  // 5. CopyToRowLayout<String, NonNull> (invert_copied_bits = 1 for desc)
+  // 6. SortRowLayout
+  std::string bytecode_sequence = R"(
+    InitRankMap: [dest_register=Register(2)]
+    CollectIdIntoRankMap: [col=0, source_register=Register(0), rank_map_register=Register(2)]
+    FinalizeRanksInMap: [update_register=Register(2)]
+    AllocateRowLayoutBuffer: [buffer_size=12, dest_buffer_register=Register(1)]
+    CopyToRowLayout<String, NonNull>: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(1), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=1, popcount_register=Register(4294967295), rank_map_register=Register(2)]
+    SortRowLayout: [buffer_register=Register(1), total_row_stride=4, indices_register=Register(0)]
+  )";
+
+  std::vector<uint32_t> indices(num_rows);
+  std::iota(indices.begin(), indices.end(), 0);  // {0, 1, 2}
+
+  SetRegistersAndExecute(bytecode_sequence, GetSpan(indices));
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(0, 2, 1));
+}
+
+TEST_F(BytecodeInterpreterTest,
+       Sort_MultiColumn_Int64Desc_StringAsc_NullableInt32Asc) {
+  // Data:
+  // Row | Col 0 (Int64) | Col 1 (String) | Col 2 (Int32, SparseNull)
+  // --- | ------------- | -------------- | -------------------------
+  // 0   | 100           | "B"            | null
+  // 1   | 200           | "A"            | 5
+  // 2   | 100           | "A"            | 15
+  // 3   | 200           | "C"            | null
+  //
+  // Sort Order:
+  // 1. Col 0 (Int64) DESC
+  // 2. Col 1 (String) ASC
+  // 3. Col 2 (Int32, SparseNull) ASC (nulls first for ASC sort on nullable)
+  //
+  // Expected sorted indices:
+  // Original: (200,A,5), (200,C,null), (100,A,15), (100,B,null)
+  // Indices:  {1, 3, 2, 0}
+
+  uint32_t num_rows = 4;
+  AddColumn(
+      CreateNonNullUnsortedColumn<int64_t>({100, 200, 100, 200}));  // col 0
+  AddColumn(CreateNonNullUnsortedColumn<StringPool::Id>(            // col 1
+      {"B", "A", "A", "C"}, &spool_));
+  AddColumn(CreateSparseNullableColumn<int32_t>(  // col 2
+      {std::nullopt, 5, 15, std::nullopt}));
+
+  // Strides:
+  // Col 0 (Int64): sizeof(int64_t) = 8
+  // Col 1 (String rank): sizeof(uint32_t) = 4
+  // Col 2 (Int32 SparseNull): 1 (null flag) + sizeof(int32_t) (4) = 5
+  // Total row stride = 8 + 4 + 5 = 17
+  // Buffer size = num_rows * total_row_stride = 4 * 17 = 68
+
+  std::string bytecode_sequence = R"(
+    PrefixPopcount: [col=2, dest_register=Register(3)]
+    InitRankMap: [dest_register=Register(2)]
+    CollectIdIntoRankMap: [col=1, source_register=Register(0), rank_map_register=Register(2)]
+    FinalizeRanksInMap: [update_register=Register(2)]
+    AllocateRowLayoutBuffer: [buffer_size=68, dest_buffer_register=Register(1)]
+    CopyToRowLayout<Int64, NonNull>: [col=0, source_indices_register=Register(0), dest_buffer_register=Register(1), row_layout_offset=0, row_layout_stride=17, invert_copied_bits=1, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<String, NonNull>: [col=1, source_indices_register=Register(0), dest_buffer_register=Register(1), row_layout_offset=8, row_layout_stride=17, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(2)]
+    CopyToRowLayout<Int32, SparseNull>: [col=2, source_indices_register=Register(0), dest_buffer_register=Register(1), row_layout_offset=12, row_layout_stride=17, invert_copied_bits=0, popcount_register=Register(3), rank_map_register=Register(4294967295)]
+    SortRowLayout: [buffer_register=Register(1), total_row_stride=17, indices_register=Register(0)]
+  )";
+
+  std::vector<uint32_t> indices(num_rows);
+  std::iota(indices.begin(), indices.end(), 0);  // {0, 1, 2, 3}
+
+  SetRegistersAndExecute(bytecode_sequence, GetSpan(indices));
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1, 3, 2, 0));
 }
 
 }  // namespace
