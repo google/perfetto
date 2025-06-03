@@ -19,6 +19,9 @@ perfetto_sql_source_set("export") {
 
   # Chrmouim builds set DSQLITE_OMIT_JSON so SQL json functions will not exist.
   if (!build_with_chromium) {
-    sources += [ "to_firefox_profile.sql" ]
+    sources += [
+      "to_firefox_profile.sql",
+      "to_svg.sql",
+    ]
   }
 }
