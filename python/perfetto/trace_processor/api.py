@@ -175,7 +175,8 @@ class TraceProcessor:
     an error.
 
     Args:
-      specs: A list of textproto/bytes specs to be used for the summary
+      specs: A list of textproto (as str) or binary proto (as bytes) specs to be
+        used for the summary
       metric_ids: Optional list of metric IDs as defined in TraceMetrics. 
         If `None` all metrics will be executed.
       metadata_query_id: Optional query ID for metadata
