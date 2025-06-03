@@ -17,7 +17,7 @@ import io
 import os
 import tempfile
 import unittest
-from typing import Optional
+from typing import Optional, List
 
 import pandas as pd
 
@@ -34,6 +34,29 @@ from perfetto.trace_processor.api import TraceProcessorConfig
 from perfetto.trace_processor.api import TraceReference
 from perfetto.trace_uri_resolver.resolver import TraceUriResolver
 from perfetto.trace_uri_resolver.path import PathUriResolver
+
+
+class SingleMetadataResolver(TraceUriResolver):
+    PREFIX = 'singlemeta'
+
+    def __init__(self, path: str, some_meta_key: str):
+        self.path = path
+        self.meta_key = some_meta_key
+
+    def resolve(self) -> List[TraceUriResolver.Result]:
+        # In a real resolver, self.path would be used to get the trace
+        # For this test, we can use example_android_trace_path() directly
+        # if self.path is not critical for the metadata part.
+        # Or, ensure the test passes a valid path for self.path.
+        def gen():
+            with open(example_android_trace_path(), 'rb') as f:
+                yield f.read()
+        return [
+            TraceUriResolver.Result(
+                trace=gen(),
+                metadata={'source': 'singlemeta_resolver', 'custom_key': self.meta_key}
+            )
+        ]
 
 
 class SimpleResolver(TraceUriResolver):
@@ -359,6 +382,39 @@ class TestApi(unittest.TestCase):
     self.assertIn(trace_summary.metric[0].spec.id, ['metric_one', 'metric_two'])
     self.assertIn(trace_summary.metric[1].spec.id, ['metric_one', 'metric_two'])
     tp.close()
+
+  def test_trace_processor_metadata(self):
+      # Test case 1: TraceProcessor with a URI resolver that provides metadata
+      registry = PLATFORM_DELEGATE().default_resolver_registry()
+      registry.register(SingleMetadataResolver)
+
+      # The path given to SingleMetadataResolver here is illustrative;
+      # it might need to be a real path if the resolver uses it.
+      # For this test, we are more interested in 'custom_meta_value'.
+      resolver_uri = "singlemeta:path=some/dummy/path.pftrace;some_meta_key=custom_meta_value"
+
+      config_with_resolver = TraceProcessorConfig(
+          bin_path=os.environ["SHELL_PATH"],
+          resolver_registry=registry
+      )
+
+      expected_metadata = {'source': 'singlemeta_resolver', 'custom_key': 'custom_meta_value'}
+
+      with TraceProcessor(trace=resolver_uri, config=config_with_resolver) as tp_with_meta:
+          # Perform a simple query to ensure trace is loaded
+          list(tp_with_meta.query("SELECT COUNT(1) FROM slice"))
+
+          retrieved_metadata = tp_with_meta.get_metadata()
+          self.assertIsNotNone(retrieved_metadata)
+          self.assertEqual(retrieved_metadata, expected_metadata)
+
+      # Test case 2: TraceProcessor with a direct file path (no metadata expected from resolver)
+      with create_tp(trace=example_android_trace_path()) as tp_no_meta:
+          # Perform a simple query to ensure trace is loaded
+          list(tp_no_meta.query("SELECT COUNT(1) FROM slice"))
+
+          retrieved_metadata_direct = tp_no_meta.get_metadata()
+          self.assertIsNone(retrieved_metadata_direct) # Or self.assertEqual({}, retrieved_metadata_direct) depending on implementation choice for no metadata
 
   def test_trace_summary_success_with_metadata_query(self):
     metric_spec = """metric_spec: {

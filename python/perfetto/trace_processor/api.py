@@ -120,6 +120,7 @@ class TraceProcessor:
     self.resolver_registry = config.resolver_registry or \
       self.platform_delegate.default_resolver_registry()
     self.http = self._create_tp_http(addr)
+    self.metadata = None
 
     if trace or file_path:
       try:
@@ -235,12 +236,16 @@ class TraceProcessor:
           'BatchTraceProcessor to operate on multiple traces.')
 
     resolved = resolved_lst[0]
+    self.metadata = resolved.metadata
     for chunk in resolved.generator:
       result = self.http.parse(chunk)
       if result.error:
         raise TraceProcessorException(
             f'Failed while parsing trace. Error message: {result.error}')
     self.http.notify_eof()
+
+  def get_metadata(self) -> Optional[dict]:
+    return self.metadata
 
   def __enter__(self):
     return self
