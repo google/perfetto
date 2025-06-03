@@ -167,8 +167,7 @@ TEST_F(DataframeBuilderTest,
               testing::HasSubstr("Unable to represent"));
   EXPECT_THAT(builder.status().message(),
               testing::HasSubstr("in column 'col_a'"));
-  EXPECT_THAT(builder.status().message(),
-              testing::HasSubstr("as a double"));
+  EXPECT_THAT(builder.status().message(), testing::HasSubstr("as a double"));
 
   base::StatusOr<Dataframe> df_status = std::move(builder).Build();
   ASSERT_FALSE(df_status.ok());
