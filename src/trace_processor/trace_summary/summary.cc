@@ -27,6 +27,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -346,8 +347,44 @@ base::Status Summarize(TraceProcessor* processor,
   }
 
   base::FlatHashMap<std::string, Metric> queries_per_metric;
-  if (!computation.v2_metric_ids.empty()) {
-    for (const auto& id : computation.v2_metric_ids) {
+  if (!computation.v2_metric_ids.has_value()) {
+    // If nullopt, compute all metrics.
+    for (const auto& spec : spec_decoders) {
+      for (auto it = spec.metric_spec(); it; ++it) {
+        protos::pbzero::TraceMetricV2Spec::Decoder m(*it);
+        std::string id = m.id().ToStdString();
+        if (id.empty()) {
+          return base::ErrStatus(
+              "Metric with empty id field: this is not allowed");
+        }
+        if (base::CaseInsensitiveEqual(id, "all")) {
+          return base::ErrStatus(
+              "Metric with `id` field value `all` is not allowed. Please "
+              "change the value of the `id` field of the metric spec.");
+        }
+        if (queries_per_metric.Find(id)) {
+          return base::ErrStatus(
+              "Duplicate definitions for metric %s received: this is not "
+              "allowed",
+              id.c_str());
+        }
+        Metric metric;
+        base::StatusOr<std::string> query_or =
+            generator.Generate(m.query().data, m.query().size);
+        if (!query_or.ok()) {
+          return base::ErrStatus("Unable to build query for metric %s: %s",
+                                 id.c_str(), query_or.status().c_message());
+        }
+        metric.query = *query_or;
+        metric.spec = protozero::ConstBytes{
+            m.begin(),
+            static_cast<size_t>(m.end() - m.begin()),
+        };
+        queries_per_metric.Insert(id, std::move(metric));
+      }
+    }
+  } else if (!computation.v2_metric_ids->empty()) {
+    for (const auto& id : *computation.v2_metric_ids) {
       queries_per_metric.Insert(id, Metric{});
     }
     for (const auto& spec : spec_decoders) {
@@ -385,6 +422,7 @@ base::Status Summarize(TraceProcessor* processor,
       }
     }
   }
+  // If `v2_metric_ids` is an empty vector, we will not compute any metrics.
 
   std::optional<std::string> metadata_sql;
   if (computation.metadata_query_id) {

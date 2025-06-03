@@ -35,11 +35,14 @@ const TRANSLUCENT_GRAY = {
   textVariant: new HSLColor([0, 0, 0], 0),
   textDisabled: new HSLColor([0, 0, 0], 0),
 };
+const LIGHT_GRAY = makeColorScheme(new HSLColor([0, 0, 70]));
 const ORANGE = makeColorScheme(new HSLColor([36, 100, 50]));
 const INDIGO = makeColorScheme(new HSLColor([231, 48, 48]));
 
 export function colorForThreadState(state: string): ColorScheme {
-  if (state === 'Running') {
+  if (state === 'Created') {
+    return LIGHT_GRAY;
+  } else if (state === 'Running') {
     return DARK_GREEN;
   } else if (state.startsWith('Runnable')) {
     return LIME_GREEN;
