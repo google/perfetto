@@ -151,6 +151,17 @@ clean:
 .PHONY: all clean
 ```
 
+Your directory structure should look like this:
+
+```
+.
+├── Makefile
+├── ticker.c
+└── trace
+    └── events
+        └── ticker.h
+```
+
 Make sure your kernel headers are installed and run `make` to build the kernel
 module.
 
