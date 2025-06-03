@@ -167,8 +167,8 @@ class TraceProcessor:
     return metrics
 
   def trace_summary(self,
-                    metric_ids: List[str],
                     specs: List[str],
+                    metric_ids: Optional[List[str]] = None,
                     metadata_query_id: Optional[str] = None):
     """Returns the trace summary data corresponding to the passed in metric
     IDs and specs. Raises TraceProcessorException if the response returns with
@@ -182,7 +182,7 @@ class TraceProcessor:
     Returns:
       The trace summary data as a proto message
     """
-    response = self.http.trace_summary(metric_ids, specs, metadata_query_id)
+    response = self.http.trace_summary(specs, metric_ids, metadata_query_id)
     if response.error:
       raise TraceProcessorException(response.error)
 
