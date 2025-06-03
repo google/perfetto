@@ -233,8 +233,11 @@ std::vector<std::shared_ptr<impl::Column>> Dataframe::CreateColumnVector(
   columns.reserve(column_count);
   for (uint32_t i = 0; i < column_count; ++i) {
     columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
-        make_storage(column_specs[i]), make_null_storage(column_specs[i]),
-        column_specs[i].sort_state, HasDuplicates{}}));
+        make_storage(column_specs[i]),
+        make_null_storage(column_specs[i]),
+        column_specs[i].sort_state,
+        column_specs[i].duplicate_state,
+    }));
   }
   return columns;
 }
