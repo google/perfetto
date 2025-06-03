@@ -743,8 +743,53 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
     bc.arg<B::update_register>() = reg;
     return true;
   }
-  const auto& [bound, erlbub] = GetSortedFilterArgs(*range_op);
 
+  if (ct.Is<Uint32>() && std::holds_alternative<Eytzinger>(col.special_index) &&
+      op.Is<Eq>()) {
+    using B = bytecode::EytzingerUint32Eq;
+    auto& bc = AddOpcode<B>(
+        RowCountModifier{EqualityFilterRowCount{col.duplicate_state}});
+    bc.arg<B::col>() = fs.col;
+    bc.arg<B::val_register>() = value_reg;
+    bc.arg<B::update_register>() = reg;
+    return true;
+  }
+
+  if (ct.Is<Uint32>() &&
+      std::holds_alternative<OffsetBitvector>(col.special_index) &&
+      op.Is<Eq>()) {
+    using B = bytecode::OffsetBitvectorUint32Eq;
+    auto& bc = AddOpcode<B>(
+        RowCountModifier{EqualityFilterRowCount{col.duplicate_state}});
+    bc.arg<B::col>() = fs.col;
+    bc.arg<B::val_register>() = value_reg;
+    bc.arg<B::update_register>() = reg;
+    return true;
+  }
+
+  if (ct.Is<Uint32>() &&
+      std::holds_alternative<ReverseLookup>(col.special_index) && op.Is<Eq>()) {
+    using B = bytecode::ReverseLookupUint32Eq;
+    auto& bc = AddOpcode<B>(
+        RowCountModifier{EqualityFilterRowCount{col.duplicate_state}});
+    bc.arg<B::col>() = fs.col;
+    bc.arg<B::val_register>() = value_reg;
+    bc.arg<B::update_register>() = reg;
+    return true;
+  }
+
+  if (ct.Is<Uint32>() && std::holds_alternative<MapLookup>(col.special_index) &&
+      op.Is<Eq>()) {
+    using B = bytecode::FlathashMapUint32Eq;
+    auto& bc = AddOpcode<B>(
+        RowCountModifier{EqualityFilterRowCount{col.duplicate_state}});
+    bc.arg<B::col>() = fs.col;
+    bc.arg<B::val_register>() = value_reg;
+    bc.arg<B::update_register>() = reg;
+    return true;
+  }
+
+  const auto& [bound, erlbub] = GetSortedFilterArgs(*range_op);
   RowCountModifier modifier;
   if (op.Is<Eq>()) {
     modifier = EqualityFilterRowCount{col.duplicate_state};

@@ -356,8 +356,16 @@ class Interpreter {
       } else {
         cmp_value = val;
       }
-      const DataType* eq_start =
-          std::lower_bound(begin, end, val, GetLbComprarator<DataType>());
+      const DataType* eq_start = begin;
+      uint32_t nelems = static_cast<uint32_t>(end - begin);
+      while (nelems > 1) {
+        auto half = nelems / 2;
+        nelems -= half;
+        eq_start +=
+            (GetLbComprarator<DataType>()(eq_start[half - 1], val)) * half;
+      }
+      // const DataType* eq_start =
+      //     std::lower_bound(begin, end, val, GetLbComprarator<DataType>());
       const DataType* eq_end = eq_start;
       for (; eq_end != end; ++eq_end) {
         if (std::not_equal_to<>()(*eq_end, cmp_value)) {
@@ -425,6 +433,111 @@ class Interpreter {
       }
     }
     update.e = static_cast<uint32_t>(it - storage);
+  }
+
+  PERFETTO_ALWAYS_INLINE void EytzingerUint32Eq(
+      const bytecode::EytzingerUint32Eq& bytecode) {
+    using B = bytecode::EytzingerUint32Eq;
+
+    const CastFilterValueResult& cast_result =
+        ReadFromRegister(bytecode.arg<B::val_register>());
+    auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
+    if (!HandleInvalidCastFilterValueResult(cast_result, update)) {
+      return;
+    }
+    using ValueType =
+        StorageType::VariantTypeAtIndex<Uint32, CastFilterValueResult::Value>;
+    auto val = base::unchecked_get<ValueType>(cast_result.value);
+    const auto& col = GetColumn(bytecode.arg<B::col>());
+    const auto& storage =
+        base::unchecked_get<Eytzinger>(col.special_index).eytzinger_indices;
+
+    const uint32_t* t = storage.data();
+    auto n = static_cast<uint32_t>(storage.size() - 1);
+    uint32_t k = 1;
+    while (k <= n) {
+      __builtin_prefetch(t + (k * 16));
+      k = 2 * k + (t[k] < val);
+    }
+    k >>= __builtin_ffsll(static_cast<int64_t>(~k));
+
+    bool in_bounds = update.b <= k && k < update.e;
+    update.b = in_bounds ? k : update.e;
+    update.e = in_bounds ? k + 1 : update.b;
+  }
+
+  PERFETTO_ALWAYS_INLINE void OffsetBitvectorUint32Eq(
+      const bytecode::OffsetBitvectorUint32Eq& bytecode) {
+    using B = bytecode::OffsetBitvectorUint32Eq;
+
+    const CastFilterValueResult& cast_result =
+        ReadFromRegister(bytecode.arg<B::val_register>());
+    auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
+    if (!HandleInvalidCastFilterValueResult(cast_result, update)) {
+      return;
+    }
+    using ValueType =
+        StorageType::VariantTypeAtIndex<Uint32, CastFilterValueResult::Value>;
+    auto val = base::unchecked_get<ValueType>(cast_result.value);
+    const auto& col = GetColumn(bytecode.arg<B::col>());
+    const auto& storage =
+        base::unchecked_get<OffsetBitvector>(col.special_index);
+
+    uint32_t k =
+        val < storage.bit_vector.size() && storage.bit_vector.is_set(val)
+            ? static_cast<uint32_t>(
+                  storage.prefix_popcount[val / 64] +
+                  storage.bit_vector.count_set_bits_until_in_word(val))
+            : update.e;
+    bool in_bounds = update.b <= k && k < update.e;
+    update.b = in_bounds ? k : update.e;
+    update.e = in_bounds ? k + 1 : update.b;
+  }
+
+  PERFETTO_ALWAYS_INLINE void ReverseLookupUint32Eq(
+      const bytecode::ReverseLookupUint32Eq& bytecode) {
+    using B = bytecode::ReverseLookupUint32Eq;
+
+    const CastFilterValueResult& cast_result =
+        ReadFromRegister(bytecode.arg<B::val_register>());
+    auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
+    if (!HandleInvalidCastFilterValueResult(cast_result, update)) {
+      return;
+    }
+    using ValueType =
+        StorageType::VariantTypeAtIndex<Uint32, CastFilterValueResult::Value>;
+    auto val = base::unchecked_get<ValueType>(cast_result.value);
+    const auto& col = GetColumn(bytecode.arg<B::col>());
+    const Slab<uint32_t>& storage =
+        base::unchecked_get<ReverseLookup>(col.special_index).reverse_lookup;
+
+    bool in_bounds = val < storage.size() && update.b <= storage[val] &&
+                     storage[val] < update.e;
+    update.b = in_bounds ? storage[val] : update.e;
+    update.e = in_bounds ? storage[val] + 1 : update.b;
+  }
+
+  PERFETTO_ALWAYS_INLINE void FlathashMapUint32Eq(
+      const bytecode::FlathashMapUint32Eq& bytecode) {
+    using B = bytecode::FlathashMapUint32Eq;
+
+    const CastFilterValueResult& cast_result =
+        ReadFromRegister(bytecode.arg<B::val_register>());
+    auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
+    if (!HandleInvalidCastFilterValueResult(cast_result, update)) {
+      return;
+    }
+    using ValueType =
+        StorageType::VariantTypeAtIndex<Uint32, CastFilterValueResult::Value>;
+    auto val = base::unchecked_get<ValueType>(cast_result.value);
+    const auto& col = GetColumn(bytecode.arg<B::col>());
+    const base::FlatHashMap<uint32_t, uint32_t>& storage =
+        base::unchecked_get<MapLookup>(col.special_index).map;
+
+    const uint32_t* lookup = storage.Find(val);
+    bool in_bounds = lookup && update.b <= *lookup && *lookup < update.e;
+    update.b = in_bounds ? *lookup : update.e;
+    update.e = in_bounds ? *lookup + 1 : update.b;
   }
 
   template <typename T, typename Op>

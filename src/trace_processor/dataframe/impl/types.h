@@ -22,12 +22,15 @@
 #include <type_traits>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
+#include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/type_set.h"
 
@@ -347,12 +350,33 @@ class NullStorage {
   Variant data_;
 };
 
+struct Eytzinger {
+  Slab<uint32_t> eytzinger_indices;
+};
+
+struct OffsetBitvector {
+  BitVector bit_vector;
+  Slab<uint32_t> prefix_popcount;
+};
+
+struct ReverseLookup {
+  Slab<uint32_t> reverse_lookup;
+};
+
+struct MapLookup {
+  base::FlatHashMap<uint32_t, uint32_t> map;
+};
+
+using SpecialIndex = std::
+    variant<std::monostate, Eytzinger, OffsetBitvector, ReverseLookup, MapLookup>;
+
 // Represents a complete column in the dataframe.
 struct Column {
   Storage storage;
   NullStorage null_storage;
   SortState sort_state;
   DuplicateState duplicate_state;
+  SpecialIndex special_index = std::monostate{};
 };
 
 // Handle for referring to a filter value during query execution.

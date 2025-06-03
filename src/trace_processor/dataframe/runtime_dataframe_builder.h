@@ -21,6 +21,7 @@
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -34,6 +35,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
@@ -41,6 +43,7 @@
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
+#include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
@@ -242,14 +245,30 @@ class RuntimeDataframeBuilder {
             has_duplicates =
                 has_duplicates || !seen_ints_.insert(data[j]).second;
           }
+          auto integer =
+              CreateIntegerStorage(std::move(data), is_id_sorted, min, max);
+          impl::SpecialIndex special_index;
+          if (integer.type().Is<Uint32>() && !has_duplicates && is_sorted &&
+              !is_id_sorted && !is_setid_sorted) {
+            // special_index = impl::Eytzinger{
+            //     BuildEytzinger(integer.unchecked_get<Uint32>())};
+            // special_index = impl::OffsetBitvector{
+            //     BuildOffsetBitvector(integer.unchecked_get<Uint32>())};
+            // special_index = impl::ReverseLookup{
+            //     BuildReverseLookup(integer.unchecked_get<Uint32>())};
+            // special_index = impl::MapLookup{
+            //     BuildReverseLookupMap(integer.unchecked_get<Uint32>())};
+          }
           bool is_nullable = state.null_overlay.has_value();
           columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
-              CreateIntegerStorage(std::move(data), is_id_sorted, min, max),
+              std::move(integer),
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
               GetIntegerSortStateFromProperties(is_nullable, is_id_sorted,
                                                 is_setid_sorted, is_sorted),
               is_nullable || has_duplicates ? DuplicateState{HasDuplicates{}}
-                                            : DuplicateState{NoDuplicates{}}}));
+                                            : DuplicateState{NoDuplicates{}},
+              std::move(special_index),
+          }));
           break;
         }
         case base::variant_index<DataVariant, impl::FlexVector<double>>(): {
@@ -469,6 +488,64 @@ class RuntimeDataframeBuilder {
       return SortState{Sorted{}};
     }
     return SortState{Unsorted{}};
+  }
+
+  static impl::Slab<uint32_t> BuildReverseLookup(
+      const impl::FlexVector<uint32_t>& data) {
+    uint32_t max_value = 0;
+    for (const auto& value : data) {
+      max_value = std::max(max_value, value);
+    }
+    auto reverse_lookup = impl::Slab<uint32_t>::Alloc(max_value + 1);
+    memset(reverse_lookup.data(), 0xFF,
+           reverse_lookup.size() * sizeof(uint32_t));
+    for (uint32_t i = 0; i < data.size(); ++i) {
+      reverse_lookup[data[i]] = i;
+    }
+    return reverse_lookup;
+  }
+
+  static base::FlatHashMap<uint32_t, uint32_t> BuildReverseLookupMap(
+      const impl::FlexVector<uint32_t>& data) {
+    base::FlatHashMap<uint32_t, uint32_t> reverse_lookup;
+    for (uint32_t i = 0; i < data.size(); ++i) {
+      reverse_lookup.Insert(data[i], i);
+    }
+    return reverse_lookup;
+  }
+
+  static impl::OffsetBitvector BuildOffsetBitvector(
+      const impl::FlexVector<uint32_t>& data) {
+    impl::OffsetBitvector offset_bv{
+        impl::BitVector::CreateWithSize(data.empty() ? 0 : data.back() + 1,
+                                        false),
+        {},
+    };
+    for (uint32_t i : data) {
+      offset_bv.bit_vector.set(i);
+    }
+    offset_bv.prefix_popcount = offset_bv.bit_vector.PrefixPopcount();
+    return offset_bv;
+  }
+
+  static impl::Slab<uint32_t> BuildEytzinger(
+      const impl::FlexVector<uint32_t>& data) {
+    auto eytzinger_tree = impl::Slab<uint32_t>::Alloc(data.size() + 1);
+    size_t i = 0;
+    BuildEytzingerImpl(data.data(), eytzinger_tree.data(), data.size(), 1, i);
+    return eytzinger_tree;
+  }
+
+  static void BuildEytzingerImpl(const uint32_t* in,
+                                 uint32_t* eytzinger,
+                                 size_t n,
+                                 size_t k,
+                                 size_t& i) {
+    if (k <= n) {
+      BuildEytzingerImpl(in, eytzinger, n, 2 * k, i);
+      eytzinger[k] = in[i++];
+      BuildEytzingerImpl(in, eytzinger, n, (2 * k) + 1, i);
+    }
   }
 
   StringPool* string_pool_;
