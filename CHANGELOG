@@ -13,6 +13,9 @@ Unreleased:
       glitches and an error stat is emitted to make the user aware.
     * Improved performance of parsing JSON by 7x. JSON traces should now load
       much faster in the Perfetto UI and the trace processor.
+    * Added `trace_summary()` function to the Python API to execute metrics v2.
+    * Executing `--summary-metrics-v2 all` will run all available metrics when
+      summarizing the trace.
   UI:
     * Improved JSON loading performance. See `Trace Processor` section above.
     * Improved duration based slice aggregators - slices are now trimmed to the

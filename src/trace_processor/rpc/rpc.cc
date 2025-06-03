@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -628,13 +629,17 @@ void Rpc::ComputeTraceSummaryInternal(
   auto comp_spec = args.computation_spec();
   protos::pbzero::TraceSummaryArgs::ComputationSpec::Decoder comp_spec_decoder(
       comp_spec.data, comp_spec.size);
-  if (!comp_spec_decoder.has_metric_ids()) {
-    result->set_error("TraceSummary computation spec missing v2_metric_ids");
-    return;
-  }
+
   TraceSummaryComputationSpec computation_spec;
-  for (auto it = comp_spec_decoder.metric_ids(); it; ++it) {
-    computation_spec.v2_metric_ids.push_back(it->as_std_string());
+
+  if (comp_spec_decoder.has_run_all_metrics() &&
+      comp_spec_decoder.run_all_metrics() == true) {
+    computation_spec.v2_metric_ids = std::nullopt;
+  } else {
+    computation_spec.v2_metric_ids = std::vector<std::string>();
+    for (auto it = comp_spec_decoder.metric_ids(); it; ++it) {
+      computation_spec.v2_metric_ids->push_back(it->as_std_string());
+    }
   }
 
   if (comp_spec_decoder.has_metadata_query_id()) {
