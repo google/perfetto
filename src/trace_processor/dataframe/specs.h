@@ -225,7 +225,7 @@ struct ColumnSpec {
   StorageType type;
   Nullability nullability;
   SortState sort_state;
-  DuplicateState duplicate_state = HasDuplicates{};
+  DuplicateState duplicate_state;
 };
 
 // Defines the properties of the dataframe.
