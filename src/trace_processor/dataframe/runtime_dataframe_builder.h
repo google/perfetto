@@ -352,8 +352,8 @@ class RuntimeDataframeBuilder {
               if (!IsPerfectlyRepresentableAsDouble(v)) {
                 current_status_ =
                     base::ErrStatus("Unable to represent %" PRId64
-                                    " in column %s at row %u as a double.",
-                                    v, column_names_[i].c_str(), i);
+                                    " in column '%s' at row %u as a double.",
+                                    v, column_names_[col].c_str(), i);
                 return false;
               }
               res[i] = static_cast<double>(v);

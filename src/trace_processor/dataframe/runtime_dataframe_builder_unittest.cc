@@ -256,7 +256,7 @@ TEST_F(DataframeBuilderTest, AddRowPromoteIntColumnToDouble) {
   auto spec = df->CreateSpec();
   ASSERT_THAT(spec.column_names, ElementsAre("col_a", "_auto_id"));
   ASSERT_THAT(spec.column_specs,
-              ElementsAre(ColumnSpec{Double{}, NonNull{}, Unsorted{}},
+              ElementsAre(ColumnSpec{Double{}, NonNull{}, Sorted{}},
                           ColumnSpec{Id{}, NonNull{}, IdSorted{}}));
   VerifyData(*df, 1, Rows(Row(100.0), Row(200.5)));
 }
@@ -283,7 +283,7 @@ TEST_F(DataframeBuilderTest, AddRowConvertNewIntToDoubleInDoubleColumn) {
   auto spec = df->CreateSpec();
   ASSERT_THAT(spec.column_names, ElementsAre("col_a", "_auto_id"));
   ASSERT_THAT(spec.column_specs,
-              ElementsAre(ColumnSpec{Double{}, NonNull{}, Unsorted{}},
+              ElementsAre(ColumnSpec{Double{}, NonNull{}, Sorted{}},
                           ColumnSpec{Id{}, NonNull{}, IdSorted{}}));
   VerifyData(*df, 1, Rows(Row(100.5), Row(200.0)));
 }
