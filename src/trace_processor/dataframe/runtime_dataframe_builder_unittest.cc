@@ -144,7 +144,69 @@ TEST_F(DataframeBuilderTest, AddRowsWithNulls) {
                   Row(uint32_t{2}, nullptr, 4.4)));
 }
 
-TEST_F(DataframeBuilderTest, AddRowTypeMismatch) {
+TEST_F(DataframeBuilderTest,
+       AddRowErrorWhenExistingIntNotRepresentableAsDouble) {
+  RuntimeDataframeBuilder builder({"col_a"}, &pool_);
+  TestRowFetcher fetcher;
+
+  // Add first row - an int64 that cannot be perfectly represented as double.
+  constexpr int64_t kNonRepresentableInt = (1LL << 53) + 1;
+  std::vector<TestRowFetcher::Value> row1 = {{{kNonRepresentableInt}}};
+  fetcher.SetRow(row1);
+  ASSERT_TRUE(builder.AddRow(&fetcher));
+  ASSERT_TRUE(builder.status().ok());
+
+  // Add second row - attempt to add a double. This should fail because the
+  // existing int64 in the column cannot be converted to double without loss.
+  std::vector<TestRowFetcher::Value> row2 = {{{200.5}}};
+  fetcher.SetRow(row2);
+  ASSERT_FALSE(builder.AddRow(&fetcher));
+  ASSERT_FALSE(builder.status().ok());
+
+  EXPECT_THAT(builder.status().message(),
+              testing::HasSubstr("Unable to represent"));
+  EXPECT_THAT(builder.status().message(),
+              testing::HasSubstr("in column 'col_a'"));
+  EXPECT_THAT(builder.status().message(),
+              testing::HasSubstr("as a double"));
+
+  base::StatusOr<Dataframe> df_status = std::move(builder).Build();
+  ASSERT_FALSE(df_status.ok());
+  EXPECT_THAT(df_status.status().message(),
+              testing::HasSubstr("Unable to represent"));
+}
+
+TEST_F(DataframeBuilderTest, AddRowErrorWhenAddingTooLargeIntToDoubleColumn) {
+  RuntimeDataframeBuilder builder({"col_a"}, &pool_);
+  TestRowFetcher fetcher;
+
+  // Add first row - a double.
+  std::vector<TestRowFetcher::Value> row1 = {{{100.5}}};
+  fetcher.SetRow(row1);
+  ASSERT_TRUE(builder.AddRow(&fetcher));
+  ASSERT_TRUE(builder.status().ok());
+
+  // Add second row - an int64 that cannot be perfectly represented as double.
+  constexpr int64_t kNonRepresentableInt = (1LL << 53) + 1;
+  std::vector<TestRowFetcher::Value> row2 = {{{kNonRepresentableInt}}};
+  fetcher.SetRow(row2);
+  ASSERT_FALSE(builder.AddRow(&fetcher));
+  ASSERT_FALSE(builder.status().ok());
+
+  EXPECT_THAT(builder.status().message(),
+              testing::HasSubstr("Inserting a too-large integer"));
+  EXPECT_THAT(builder.status().message(),
+              testing::HasSubstr("in column 'col_a'"));
+  EXPECT_THAT(builder.status().message(),
+              testing::HasSubstr("Column currently holds doubles"));
+
+  base::StatusOr<Dataframe> df_status = std::move(builder).Build();
+  ASSERT_FALSE(df_status.ok());
+  EXPECT_THAT(df_status.status().message(),
+              testing::HasSubstr("Inserting a too-large integer"));
+}
+
+TEST_F(DataframeBuilderTest, AddRowErrorStringToInt) {
   RuntimeDataframeBuilder builder({"col_a"}, &pool_);
   TestRowFetcher fetcher;
 
@@ -154,23 +216,75 @@ TEST_F(DataframeBuilderTest, AddRowTypeMismatch) {
   ASSERT_TRUE(builder.AddRow(&fetcher));
   ASSERT_TRUE(builder.status().ok());
 
-  // Add second row - attempt to add a double to the int64 column
-  std::vector<TestRowFetcher::Value> row2 = {{{200.5}}};
+  // Add second row - attempt to add a string to the int64 column
+  std::vector<TestRowFetcher::Value> row2 = {{{"string_val"}}};
   fetcher.SetRow(row2);
   ASSERT_FALSE(builder.AddRow(&fetcher));
   ASSERT_FALSE(builder.status().ok());
 
-  // Optional: Check error message content
   EXPECT_THAT(builder.status().message(),
               testing::HasSubstr("Type mismatch in column 'col_a'"));
   EXPECT_THAT(builder.status().message(),
               testing::HasSubstr("Existing type != fetched type"));
 
-  // Attempting to build after an error should also fail
   base::StatusOr<Dataframe> df_status = std::move(builder).Build();
   ASSERT_FALSE(df_status.ok());
   EXPECT_THAT(df_status.status().message(),
               testing::HasSubstr("Type mismatch in column 'col_a'"));
+}
+
+TEST_F(DataframeBuilderTest, AddRowPromoteIntColumnToDouble) {
+  RuntimeDataframeBuilder builder({"col_a"}, &pool_);
+  TestRowFetcher fetcher;
+
+  // Add first row - an int64 that IS representable as double.
+  std::vector<TestRowFetcher::Value> row1 = {{{int64_t{100}}}};
+  fetcher.SetRow(row1);
+  ASSERT_TRUE(builder.AddRow(&fetcher));
+  ASSERT_TRUE(builder.status().ok());
+
+  // Add second row - a double.
+  std::vector<TestRowFetcher::Value> row2 = {{{200.5}}};
+  fetcher.SetRow(row2);
+  ASSERT_TRUE(builder.AddRow(&fetcher));
+  ASSERT_TRUE(builder.status().ok());
+
+  base::StatusOr<Dataframe> df = std::move(builder).Build();
+  ASSERT_OK(df.status());
+
+  auto spec = df->CreateSpec();
+  ASSERT_THAT(spec.column_names, ElementsAre("col_a", "_auto_id"));
+  ASSERT_THAT(spec.column_specs,
+              ElementsAre(ColumnSpec{Double{}, NonNull{}, Unsorted{}},
+                          ColumnSpec{Id{}, NonNull{}, IdSorted{}}));
+  VerifyData(*df, 1, Rows(Row(100.0), Row(200.5)));
+}
+
+TEST_F(DataframeBuilderTest, AddRowConvertNewIntToDoubleInDoubleColumn) {
+  RuntimeDataframeBuilder builder({"col_a"}, &pool_);
+  TestRowFetcher fetcher;
+
+  // Add first row - a double.
+  std::vector<TestRowFetcher::Value> row1 = {{{100.5}}};
+  fetcher.SetRow(row1);
+  ASSERT_TRUE(builder.AddRow(&fetcher));
+  ASSERT_TRUE(builder.status().ok());
+
+  // Add second row - an int64 that IS representable as double.
+  std::vector<TestRowFetcher::Value> row2 = {{{int64_t{200}}}};
+  fetcher.SetRow(row2);
+  ASSERT_TRUE(builder.AddRow(&fetcher));
+  ASSERT_TRUE(builder.status().ok());
+
+  base::StatusOr<Dataframe> df = std::move(builder).Build();
+  ASSERT_OK(df.status());
+
+  auto spec = df->CreateSpec();
+  ASSERT_THAT(spec.column_names, ElementsAre("col_a", "_auto_id"));
+  ASSERT_THAT(spec.column_specs,
+              ElementsAre(ColumnSpec{Double{}, NonNull{}, Unsorted{}},
+                          ColumnSpec{Id{}, NonNull{}, IdSorted{}}));
+  VerifyData(*df, 1, Rows(Row(100.5), Row(200.0)));
 }
 
 TEST_F(DataframeBuilderTest, BuildIntegerDowncasting) {
