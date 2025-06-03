@@ -416,6 +416,7 @@ class Interpreter {
     const auto* storage = col.storage.template unchecked_data<Uint32>();
     const auto* start =
         std::clamp(storage + val, storage + update.b, storage + update.e);
+
     update.b = static_cast<uint32_t>(start - storage);
     const auto* it = start;
     for (; it != storage + update.e; ++it) {
