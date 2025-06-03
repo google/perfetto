@@ -14856,6 +14856,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/counters/global_tracks.sql",
         "src/trace_processor/perfetto_sql/stdlib/counters/intervals.sql",
         "src/trace_processor/perfetto_sql/stdlib/export/to_firefox_profile.sql",
+        "src/trace_processor/perfetto_sql/stdlib/export/to_svg.sql",
         "src/trace_processor/perfetto_sql/stdlib/graphs/critical_path.sql",
         "src/trace_processor/perfetto_sql/stdlib/graphs/dominator_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/graphs/hierarchy.sql",
