@@ -1044,4 +1044,34 @@ TEST(DataframeTest, TypedCursorSetMultipleTimes) {
   }
 }
 
+TEST(DataframeTest,
+     QueryPlanEqualityFilterOnNoDuplicatesColumnEstimatesOneRow) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"unique_int_col", "other_col"},
+      CreateTypedColumnSpec(Int64(), NonNull(), Unsorted(),
+                            NoDuplicates{}),  // Target column with NoDuplicates
+      CreateTypedColumnSpec(Int64(), NonNull(), Unsorted(),
+                            HasDuplicates{})  // Other column
+  );
+
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+
+  // Insert unique, non-null data into the first column
+  df.InsertUnchecked(kSpec, int64_t{10}, int64_t{100});
+  df.InsertUnchecked(kSpec, int64_t{20}, int64_t{200});
+  df.InsertUnchecked(kSpec, int64_t{30}, int64_t{300});
+  df.MarkFinalized();
+
+  // Plan a query with an equality filter on the "unique_int_col".
+  std::vector<FilterSpec> filters = {{0, 0, Eq{}, int64_t{20}}};
+  LimitSpec limit_spec;
+
+  ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
+                       df.PlanQuery(filters, {}, {}, limit_spec, 1u));
+
+  // Assert that the estimated_row_count and max_row_count are 1.
+  EXPECT_EQ(plan.GetImplForTesting().params.estimated_row_count, 1u);
+  EXPECT_EQ(plan.GetImplForTesting().params.max_row_count, 1u);
+}
 }  // namespace perfetto::trace_processor::dataframe

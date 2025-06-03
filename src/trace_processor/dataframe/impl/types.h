@@ -351,8 +351,8 @@ class NullStorage {
 struct Column {
   Storage storage;
   NullStorage null_storage;
-  SortState sort_state;
-  DuplicateState duplicate_state;
+  SortState sort_state = dataframe::Unsorted{};
+  DuplicateState duplicate_state = dataframe::NoDuplicates{};
 };
 
 // Handle for referring to a filter value during query execution.

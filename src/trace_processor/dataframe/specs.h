@@ -225,6 +225,7 @@ struct ColumnSpec {
   StorageType type;
   Nullability nullability;
   SortState sort_state;
+  DuplicateState duplicate_state = HasDuplicates{};
 };
 
 // Defines the properties of the dataframe.
@@ -234,12 +235,13 @@ struct DataframeSpec {
 };
 
 // Same as ColumnSpec but for cases where the spec is known at compile time.
-template <typename T, typename N, typename S>
+template <typename T, typename N, typename S, typename D>
 struct TypedColumnSpec {
  public:
   using type = T;
   using null_storage_type = N;
   using sort_state = S;
+  using duplicate_state = D;
   ColumnSpec spec;
 
   // Inferred properties from the above.
@@ -280,9 +282,12 @@ static constexpr TypedDataframeSpec<C...> CreateTypedDataframeSpec(
   return TypedDataframeSpec<C...>{_column_names, {_columns.spec...}};
 }
 
-template <typename T, typename N, typename S>
-static constexpr TypedColumnSpec<T, N, S> CreateTypedColumnSpec(T, N, S) {
-  return TypedColumnSpec<T, N, S>{ColumnSpec{T{}, N{}, S{}}};
+template <typename T, typename N, typename S, typename D = HasDuplicates>
+static constexpr TypedColumnSpec<T, N, S, D> CreateTypedColumnSpec(T,
+                                                                   N,
+                                                                   S,
+                                                                   D = D{}) {
+  return TypedColumnSpec<T, N, S, D>{ColumnSpec{T{}, N{}, S{}, D{}}};
 }
 
 }  // namespace perfetto::trace_processor::dataframe

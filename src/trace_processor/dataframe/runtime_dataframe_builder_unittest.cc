@@ -41,13 +41,15 @@ inline void PrintTo(const ColumnSpec& spec, std::ostream* os) {
   *os << "\n  ColumnSpec{\n"
       << "    type: " << spec.type.ToString() << ",\n"
       << "    nullability: " << spec.nullability.ToString() << ",\n"
-      << "    sort_state: " << spec.sort_state.ToString() << "\n"
+      << "    sort_state: " << spec.sort_state.ToString() << ",\n"
+      << "    duplicate_state: " << spec.duplicate_state.ToString() << "\n"
       << "  }";
 }
 
 inline bool operator==(const ColumnSpec& lhs, const ColumnSpec& rhs) {
   return lhs.type == rhs.type && lhs.nullability == rhs.nullability &&
-         lhs.sort_state == rhs.sort_state;
+         lhs.sort_state == rhs.sort_state &&
+         lhs.duplicate_state == rhs.duplicate_state;
 }
 
 namespace {
@@ -420,6 +422,158 @@ TEST_F(DataframeBuilderTest, BuildEmptyColumn) {
               ElementsAre(ColumnSpec{Uint32{}, NonNull{}, Sorted{}},
                           ColumnSpec{Uint32{}, SparseNull{}, Unsorted{}},
                           ColumnSpec{Id{}, NonNull{}, IdSorted{}}));
+}
+
+TEST_F(DataframeBuilderTest, DuplicateState_Int_NoDuplicates_NonNull) {
+  base::StatusOr<Dataframe> df_status =
+      BuildDf({"col_int"}, {{int64_t{10}}, {int64_t{20}}, {int64_t{30}}});
+  ASSERT_OK(df_status.status());
+  Dataframe df = std::move(df_status.value());
+  auto spec = df.CreateSpec();
+  ASSERT_THAT(
+      spec.column_specs,
+      ElementsAre(ColumnSpec{Uint32{}, NonNull{}, Sorted{}, NoDuplicates{}},
+                  ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
+}
+
+TEST_F(DataframeBuilderTest, DuplicateState_Int_HasDuplicates_NonNull) {
+  base::StatusOr<Dataframe> df_status =
+      BuildDf({"col_int"}, {{int64_t{10}}, {int64_t{20}}, {int64_t{10}}});
+  ASSERT_OK(df_status.status());
+  Dataframe df = std::move(df_status.value());
+  auto spec = df.CreateSpec();
+  ASSERT_THAT(
+      spec.column_specs,
+      ElementsAre(ColumnSpec{Uint32{}, NonNull{}, Unsorted{}, HasDuplicates{}},
+                  ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
+}
+
+TEST_F(DataframeBuilderTest, DuplicateState_Int_NullableBecomesHasDuplicates) {
+  base::StatusOr<Dataframe> df_status =
+      BuildDf({"col_int"}, {{int64_t{10}}, {std::nullopt}, {int64_t{30}}});
+  ASSERT_OK(df_status.status());
+  Dataframe df = std::move(df_status.value());
+  auto spec = df.CreateSpec();
+  ASSERT_THAT(
+      spec.column_specs,
+      ElementsAre(
+          ColumnSpec{Uint32{}, SparseNull{}, Unsorted{}, HasDuplicates{}},
+          ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
+}
+
+TEST_F(DataframeBuilderTest, DuplicateState_Int_HasDuplicates_Nullable) {
+  base::StatusOr<Dataframe> df_status =
+      BuildDf({"col_int"}, {{int64_t{10}}, {std::nullopt}, {int64_t{10}}});
+  ASSERT_OK(df_status.status());
+  Dataframe df = std::move(df_status.value());
+  auto spec = df.CreateSpec();
+  ASSERT_THAT(
+      spec.column_specs,
+      ElementsAre(
+          ColumnSpec{Uint32{}, SparseNull{}, Unsorted{}, HasDuplicates{}},
+          ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
+}
+
+TEST_F(DataframeBuilderTest, DuplicateState_Double_NoDuplicates_NonNull) {
+  base::StatusOr<Dataframe> df_status =
+      BuildDf({"col_double"}, {{10.0}, {20.0}, {30.0}});
+  ASSERT_OK(df_status.status());
+  Dataframe df = std::move(df_status.value());
+  auto spec = df.CreateSpec();
+  ASSERT_THAT(
+      spec.column_specs,
+      ElementsAre(ColumnSpec{Double{}, NonNull{}, Sorted{}, NoDuplicates{}},
+                  ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
+}
+
+TEST_F(DataframeBuilderTest, DuplicateState_Double_HasDuplicates_NonNull) {
+  base::StatusOr<Dataframe> df_status =
+      BuildDf({"col_double"}, {{10.0}, {20.0}, {10.0}});
+  ASSERT_OK(df_status.status());
+  Dataframe df = std::move(df_status.value());
+  auto spec = df.CreateSpec();
+  ASSERT_THAT(
+      spec.column_specs,
+      ElementsAre(ColumnSpec{Double{}, NonNull{}, Unsorted{}, HasDuplicates{}},
+                  ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
+}
+
+TEST_F(DataframeBuilderTest,
+       DuplicateState_Double_NullableBecomesHasDuplicates) {
+  base::StatusOr<Dataframe> df_status =
+      BuildDf({"col_double"}, {{10.0}, {std::nullopt}, {30.0}});
+  ASSERT_OK(df_status.status());
+  Dataframe df = std::move(df_status.value());
+  auto spec = df.CreateSpec();
+  ASSERT_THAT(
+      spec.column_specs,
+      ElementsAre(
+          ColumnSpec{Double{}, SparseNull{}, Unsorted{}, HasDuplicates{}},
+          ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
+}
+
+TEST_F(DataframeBuilderTest, DuplicateState_Double_HasDuplicates_Nullable) {
+  base::StatusOr<Dataframe> df_status =
+      BuildDf({"col_double"}, {{10.0}, {std::nullopt}, {10.0}});
+  ASSERT_OK(df_status.status());
+  Dataframe df = std::move(df_status.value());
+  auto spec = df.CreateSpec();
+  ASSERT_THAT(
+      spec.column_specs,
+      ElementsAre(
+          ColumnSpec{Double{}, SparseNull{}, Unsorted{}, HasDuplicates{}},
+          ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
+}
+
+TEST_F(DataframeBuilderTest, DuplicateState_String_NoDuplicates_NonNull) {
+  base::StatusOr<Dataframe> df_status =
+      BuildDf({"col_str"}, {{"apple"}, {"banana"}, {"cherry"}});
+  ASSERT_OK(df_status.status());
+  Dataframe df = std::move(df_status.value());
+  auto spec = df.CreateSpec();
+  ASSERT_THAT(
+      spec.column_specs,
+      ElementsAre(ColumnSpec{String{}, NonNull{}, Sorted{}, NoDuplicates{}},
+                  ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
+}
+
+TEST_F(DataframeBuilderTest, DuplicateState_String_HasDuplicates_NonNull) {
+  base::StatusOr<Dataframe> df_status =
+      BuildDf({"col_str"}, {{"apple"}, {"banana"}, {"apple"}});
+  ASSERT_OK(df_status.status());
+  Dataframe df = std::move(df_status.value());
+  auto spec = df.CreateSpec();
+  ASSERT_THAT(
+      spec.column_specs,
+      ElementsAre(ColumnSpec{String{}, NonNull{}, Unsorted{}, HasDuplicates{}},
+                  ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
+}
+
+TEST_F(DataframeBuilderTest,
+       DuplicateState_String_NullableBecomesHasDuplicates) {
+  base::StatusOr<Dataframe> df_status =
+      BuildDf({"col_str"}, {{"apple"}, {std::nullopt}, {"cherry"}});
+  ASSERT_OK(df_status.status());
+  Dataframe df = std::move(df_status.value());
+  auto spec = df.CreateSpec();
+  ASSERT_THAT(
+      spec.column_specs,
+      ElementsAre(
+          ColumnSpec{String{}, SparseNull{}, Unsorted{}, HasDuplicates{}},
+          ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
+}
+
+TEST_F(DataframeBuilderTest, DuplicateState_String_HasDuplicates_Nullable) {
+  base::StatusOr<Dataframe> df_status =
+      BuildDf({"col_str"}, {{"apple"}, {std::nullopt}, {"apple"}});
+  ASSERT_OK(df_status.status());
+  Dataframe df = std::move(df_status.value());
+  auto spec = df.CreateSpec();
+  ASSERT_THAT(
+      spec.column_specs,
+      ElementsAre(
+          ColumnSpec{String{}, SparseNull{}, Unsorted{}, HasDuplicates{}},
+          ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
 }
 
 }  // namespace
