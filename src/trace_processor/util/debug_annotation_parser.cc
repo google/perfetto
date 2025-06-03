@@ -132,7 +132,7 @@ DebugAnnotationParser::ParseDebugAnnotationValue(
   } else if (annotation.has_legacy_json_value()) {
     bool added_entry =
         delegate.AddJson(context_name, annotation.legacy_json_value());
-    return {base::OkStatus(), added_entry};
+    return {base::ErrStatus("Failed to parse JSON"), added_entry};
   } else if (annotation.has_nested_value()) {
     return ParseNestedValueArgs(annotation.nested_value(), context_name,
                                 delegate);
