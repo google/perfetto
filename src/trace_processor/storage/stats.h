@@ -96,6 +96,8 @@ namespace perfetto::trace_processor::stats {
   F(fuchsia_invalid_event_arg_name,       kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_unknown_event_arg,            kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_invalid_string_ref,           kSingle,  kError,    kAnalysis, ""), \
+  F(generic_task_state_invalid_order,     kSingle,  kError,    kAnalysis,      \
+       "Invalid order of generic task state events. Should never happen."),    \
   F(gpu_counters_invalid_spec,            kSingle,  kError,    kAnalysis, ""), \
   F(gpu_counters_missing_spec,            kSingle,  kError,    kAnalysis, ""), \
   F(gpu_render_stage_parser_errors,       kSingle,  kError,    kAnalysis, ""), \
@@ -558,7 +560,11 @@ namespace perfetto::trace_processor::stats {
       "slice. This can happen e.g. in JSON traces using X events or in other " \
       "cases where a duration is part of the trace. To solve this problem "    \
       "make sure that your X events do not overlap on the same track (e.g. "   \
-      "thread/process) ")
+      "thread/process)"),                                                      \
+  F(perf_text_importer_sample_no_frames,        kSingle,  kError,  kTrace,     \
+      "A perf sample was encountered that has no frames. This can happen "     \
+      "if the kernel is unable to unwind the stack while sampling. Check "     \
+      "Linux kernel documentation for causes of this and potential fixes.")
 // clang-format on
 
 enum Type {
