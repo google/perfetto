@@ -352,6 +352,7 @@ struct Column {
   Storage storage;
   NullStorage null_storage;
   SortState sort_state;
+  DuplicateState duplicate_state;
 };
 
 // Handle for referring to a filter value during query execution.

@@ -199,12 +199,14 @@ class QueryPlanBuilder {
   // of rows.
   struct UnchangedRowCount {};
 
-  // Indicates that the bytecode reduces the estimated number of rows by 2.
-  struct Div2RowCount {};
+  // Indicates that the bytecode is a non-equality filter.
+  struct NonEqualityFilterRowCount {};
 
-  // Indicates that the bytecode reduces the estimated number of rows by 2 *
-  // log(row_count).
-  struct DoubleLog2RowCount {};
+  // Indicates that the bytecode is a equality filter with given duplicate
+  // state.
+  struct EqualityFilterRowCount {
+    DuplicateState duplicate_state;
+  };
 
   // Indicates that the bytecode produces *exactly* one row and the estimated
   // and maximum should be set to 1.
@@ -220,8 +222,8 @@ class QueryPlanBuilder {
     uint32_t offset;
   };
   using RowCountModifier = std::variant<UnchangedRowCount,
-                                        Div2RowCount,
-                                        DoubleLog2RowCount,
+                                        NonEqualityFilterRowCount,
+                                        EqualityFilterRowCount,
                                         OneRowCount,
                                         ZeroRowCount,
                                         LimitOffsetRowCount>;
