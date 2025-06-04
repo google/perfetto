@@ -242,14 +242,15 @@ Bytecode ParseBytecode(const std::string& bytecode_str) {
     auto arg_idx = static_cast<uint32_t>(it - n.data());
     uint32_t size = cur_offset[arg_idx + 1] - cur_offset[arg_idx];
     if (size == 2) {
-      auto val = base::StringToInt32(arg_val);
+      auto val = base::StringToInt64(arg_val);
       PERFETTO_CHECK(val.has_value());
       auto cast = static_cast<uint16_t>(*val);
       memcpy(&bc.args_buffer[cur_offset[arg_idx]], &cast, 2);
     } else if (size == 4) {
-      auto val = base::StringToInt32(arg_val);
+      auto val = base::StringToInt64(arg_val);
       PERFETTO_CHECK(val.has_value());
-      memcpy(&bc.args_buffer[cur_offset[arg_idx]], &val, 4);
+      auto cast = static_cast<uint32_t>(*val);
+      memcpy(&bc.args_buffer[cur_offset[arg_idx]], &cast, 4);
     } else if (size == 8) {
       auto val = base::StringToInt64(arg_val);
       PERFETTO_CHECK(val.has_value());
