@@ -144,6 +144,22 @@ struct Uint32SetIdSortedEq : Bytecode {
                                      update_register);
 };
 
+// Equality filter for columns with a specialized storage containing
+// SmallValueEq.
+struct SpecializedStorageSmallValueEq : Bytecode {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = FixedCost{10};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(uint32_t,
+                                     col,
+                                     reg::ReadHandle<CastFilterValueResult>,
+                                     val_register,
+                                     reg::RwHandle<Range>,
+                                     update_register);
+};
+
 // Filter operations on non-string columns.
 struct NonStringFilterBase : TemplatedBytecode2<NonStringType, NonStringOp> {
   // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
@@ -557,6 +573,7 @@ struct SortRowLayout : Bytecode {
   X(SortedFilter<String, LowerBound>)        \
   X(SortedFilter<String, UpperBound>)        \
   X(Uint32SetIdSortedEq)                     \
+  X(SpecializedStorageSmallValueEq)          \
   X(NonStringFilter<Id, Eq>)                 \
   X(NonStringFilter<Id, Ne>)                 \
   X(NonStringFilter<Id, Lt>)                 \
