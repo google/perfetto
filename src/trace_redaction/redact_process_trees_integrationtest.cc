@@ -15,7 +15,6 @@
  */
 
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include "src/base/test/status_matchers.h"
@@ -32,13 +31,6 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 
 namespace perfetto::trace_redaction {
-
-namespace {
-
-constexpr std::string_view kProcessName =
-    "com.Unity.com.unity.multiplayer.samples.coop";
-
-}  // namespace
 
 class RedactProcessTreesIntegrationTest
     : public testing::Test,
@@ -59,7 +51,7 @@ class RedactProcessTreesIntegrationTest
     process_tree->emplace_filter<ConnectedToPackage>();
 
     // In this case, the process and package have the same name.
-    context_.package_name = kProcessName;
+    context_.package_name = kSomePackageName;
   }
 
   std::unordered_set<int32_t> GetPids(const std::string& bytes) const {
