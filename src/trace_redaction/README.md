@@ -16,7 +16,7 @@ after time T.
 
 The timeline uses an event-based pattern using two events:
 
-- __Open Event:__ Marks the begining of a pid's new lifespan.
+- __Open Event:__ Marks the beginning of a pid's new lifespan.
 - __Close Event:__ Marks the end of a pids's lifespan.
 
 An event-based structure (compared to a span-based structure) is used as it is
