@@ -397,11 +397,10 @@ class BytecodeInterpreterTest : public testing::Test {
       }
     }
     SetupInterpreterWithBytecode(bytecode_vector);
-
-    uint32_t i = 0;
-    (interpreter_->SetRegisterValueForTesting(reg::WriteHandle<Ts>(i++),
-                                              std::move(value)),
-     ...);
+    SetRegisterValuesForTesting(
+        interpreter_.get(),
+        std::make_integer_sequence<uint32_t, sizeof...(Ts)>(),
+        std::move(value)...);
     interpreter_->Execute(fetcher_);
   }
 
@@ -423,6 +422,15 @@ class BytecodeInterpreterTest : public testing::Test {
   void AddColumn(Column column) {
     columns_vec_.emplace_back(std::make_unique<Column>(std::move(column)));
     column_ptrs_.emplace_back(columns_vec_.back().get());
+  }
+
+  template <typename... Ts, uint32_t... Is>
+  void SetRegisterValuesForTesting(Interpreter<Fetcher>* interpreter,
+                                   std::integer_sequence<uint32_t, Is...>,
+                                   Ts... values) {
+    (interpreter->SetRegisterValueForTesting(reg::WriteHandle<Ts>(Is),
+                                             std::move(values)),
+     ...);
   }
 
   Fetcher fetcher_;
