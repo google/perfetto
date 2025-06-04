@@ -52,7 +52,7 @@ class ExportTests(TestSuite):
                 utid);
         """,
         out=Csv("""
-                "group_key","svg"
+                "utid","svg"
                 954,"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2090 146" style="background: #fefdfb; font-family: system-ui;"><defs>
                 <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
                 <feDropShadow dx="0" dy="0.5" stdDeviation="0.5" flood-opacity="0.08"/>
