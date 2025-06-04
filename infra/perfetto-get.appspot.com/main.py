@@ -25,6 +25,8 @@ RESOURCES = {
     'tracebox': 'tools/tracebox',
     'traceconv': 'tools/traceconv',
     'trace_processor': 'tools/trace_processor',
+    'bigtrace_orchestrator': 'tools/orchestrator_main',
+    'bigtrace_worker': 'tools/worker_main',
 }
 
 CACHE_TTL = 3600  # 1 h

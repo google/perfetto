@@ -64,6 +64,14 @@ MANIFESTS_TO_UPDATE = [
         'tool': 'tracebox',
         'archs': UNIX_ARCHS
     },
+    {
+        'tool': 'orchestrator_main',
+        'archs': 'linux-amd64'
+    },
+    {
+        'tool': 'worker_main',
+        'archs': 'linux-amd64'
+    },
 ]
 
 # Maps a 'os-arch' string (were arch follows LUCI conventions) into

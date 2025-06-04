@@ -59,6 +59,14 @@ ARTIFACTS = [
         'name': 'traced_probes',
         'exclude_platforms': ['windows-amd64']
     },
+    {
+        'name': 'orchestrator_main',
+        'exclude_platforms': ['linux-arm', 'linux-arm64']
+    },
+    {
+        'name': 'worker_main',
+        'exclude_platforms': ['linux-arm', 'linux-arm64']
+    },
 ]
 
 
@@ -76,6 +84,8 @@ def GnArgs(platform):
   if os not in ('android', 'linux', 'mac'):
     return base_args  # No cross-compiling on Windows.
   cpu = 'x64' if cpu == 'amd64' else cpu  # GN calls it "x64".
+  if os == 'linux' and cpu == 'x64':
+    base_args += ' enable_perfetto_grpc=true'
   return base_args + ' target_os="{}" target_cpu="{}"'.format(os, cpu)
 
 
@@ -195,6 +205,7 @@ def RunSteps(api, repository):
     elif api.platform.is_linux:
       # Pull the cross-toolchains for building for linux-arm{,64}.
       extra_args += ['--linux-arm']
+      extra_args += ['--grpc']
     elif api.platform.is_win:
       extra_args += ['--no-dev-tools']
     api.step('build-deps', ['python3', 'tools/install-build-deps'] + extra_args)
