@@ -360,7 +360,6 @@ perfetto_cc_library(
         ":src_trace_processor_importers_gecko_gecko_event",
         ":src_trace_processor_importers_generic_kernel_full",
         ":src_trace_processor_importers_i2c_full",
-        ":src_trace_processor_importers_instruments_instruments",
         ":src_trace_processor_importers_instruments_row",
         ":src_trace_processor_importers_json_json",
         ":src_trace_processor_importers_json_minimal",
@@ -430,17 +429,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_util",
         ":src_trace_processor_util_winscope_proto_mapping",
         ":src_trace_processor_util_zip_reader",
-    ] + select({
-        "@platforms//os:windows": [],
-        "//conditions:default": [
-            ":src_trace_processor_importers_elf_binary_info",
-            ":src_trace_processor_importers_etm_etm_impl",
-            ":src_trace_processor_importers_etm_file_tracker",
-            ":src_trace_processor_importers_etm_public_hdr",
-            ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_hdr",
-            ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_impl",
-        ],
-    }),
+    ],
     hdrs = [
         ":include_perfetto_base_base",
         ":include_perfetto_ext_base_base",
@@ -452,11 +441,8 @@ perfetto_cc_library(
         ":include_perfetto_ext_traced_sys_stats_counters",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_public_abi_base",
-        ":include_perfetto_public_abi_public",
         ":include_perfetto_public_base",
-        ":include_perfetto_public_protos_protos",
         ":include_perfetto_public_protozero",
-        ":include_perfetto_public_public",
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
@@ -522,9 +508,7 @@ perfetto_cc_library(
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
                ":src_trace_processor_perfetto_sql_stdlib_stdlib",
                ":src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
-           ] + PERFETTO_CONFIG.deps.expat +
-           PERFETTO_CONFIG.deps.jsoncpp +
-           PERFETTO_CONFIG.deps.open_csd +
+           ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib +
@@ -1963,71 +1947,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/importers/elf:binary_info
-perfetto_filegroup(
-    name = "src_trace_processor_importers_elf_binary_info",
-    srcs = [
-        "src/trace_processor/importers/elf/binary_info.cc",
-        "src/trace_processor/importers/elf/binary_info.h",
-        "src/trace_processor/importers/elf/elf.h",
-    ],
-)
-
-# GN target: //src/trace_processor/importers/etm:etm_impl
-perfetto_filegroup(
-    name = "src_trace_processor_importers_etm_etm_impl",
-    srcs = [
-        "src/trace_processor/importers/etm/element_cursor.cc",
-        "src/trace_processor/importers/etm/element_cursor.h",
-        "src/trace_processor/importers/etm/error_logger.cc",
-        "src/trace_processor/importers/etm/error_logger.h",
-        "src/trace_processor/importers/etm/etm_tracker.cc",
-        "src/trace_processor/importers/etm/etm_v4_decoder.cc",
-        "src/trace_processor/importers/etm/etm_v4_decoder.h",
-        "src/trace_processor/importers/etm/etm_v4_stream.cc",
-        "src/trace_processor/importers/etm/etm_v4_stream.h",
-        "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.cc",
-        "src/trace_processor/importers/etm/frame_decoder.cc",
-        "src/trace_processor/importers/etm/frame_decoder.h",
-        "src/trace_processor/importers/etm/mapping_version.cc",
-        "src/trace_processor/importers/etm/mapping_version.h",
-        "src/trace_processor/importers/etm/opencsd.h",
-        "src/trace_processor/importers/etm/sql_values.h",
-        "src/trace_processor/importers/etm/storage_handle.cc",
-        "src/trace_processor/importers/etm/storage_handle.h",
-        "src/trace_processor/importers/etm/target_memory.cc",
-        "src/trace_processor/importers/etm/target_memory.h",
-        "src/trace_processor/importers/etm/target_memory_reader.cc",
-        "src/trace_processor/importers/etm/target_memory_reader.h",
-        "src/trace_processor/importers/etm/types.cc",
-        "src/trace_processor/importers/etm/types.h",
-        "src/trace_processor/importers/etm/util.cc",
-        "src/trace_processor/importers/etm/util.h",
-        "src/trace_processor/importers/etm/virtual_address_space.cc",
-        "src/trace_processor/importers/etm/virtual_address_space.h",
-    ],
-)
-
-# GN target: //src/trace_processor/importers/etm:file_tracker
-perfetto_filegroup(
-    name = "src_trace_processor_importers_etm_file_tracker",
-    srcs = [
-        "src/trace_processor/importers/etm/elf_tracker.cc",
-        "src/trace_processor/importers/etm/elf_tracker.h",
-        "src/trace_processor/importers/etm/file_tracker.cc",
-        "src/trace_processor/importers/etm/file_tracker.h",
-    ],
-)
-
-# GN target: //src/trace_processor/importers/etm:public_hdr
-perfetto_filegroup(
-    name = "src_trace_processor_importers_etm_public_hdr",
-    srcs = [
-        "src/trace_processor/importers/etm/etm_tracker.h",
-        "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h",
-    ],
-)
-
 # GN target: //src/trace_processor/importers/etw:full
 perfetto_filegroup(
     name = "src_trace_processor_importers_etw_full",
@@ -2172,19 +2091,6 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/i2c/i2c_tracker.cc",
         "src/trace_processor/importers/i2c/i2c_tracker.h",
-    ],
-)
-
-# GN target: //src/trace_processor/importers/instruments:instruments
-perfetto_filegroup(
-    name = "src_trace_processor_importers_instruments_instruments",
-    srcs = [
-        "src/trace_processor/importers/instruments/instruments_xml_tokenizer.cc",
-        "src/trace_processor/importers/instruments/instruments_xml_tokenizer.h",
-        "src/trace_processor/importers/instruments/row_data_tracker.cc",
-        "src/trace_processor/importers/instruments/row_data_tracker.h",
-        "src/trace_processor/importers/instruments/row_parser.cc",
-        "src/trace_processor/importers/instruments/row_parser.h",
     ],
 )
 
@@ -2961,24 +2867,6 @@ perfetto_cc_tp_tables(
     ],
     outs = [
         "src/trace_processor/perfetto_sql/intrinsics/functions/tables_py.h",
-    ],
-)
-
-# GN target: //src/trace_processor/perfetto_sql/intrinsics/operators:etm_hdr
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_intrinsics_operators_etm_hdr",
-    srcs = [
-        "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h",
-        "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.h",
-    ],
-)
-
-# GN target: //src/trace_processor/perfetto_sql/intrinsics/operators:etm_impl
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_intrinsics_operators_etm_impl",
-    srcs = [
-        "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.cc",
-        "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.cc",
     ],
 )
 
@@ -7431,7 +7319,6 @@ perfetto_cc_library(
         ":src_trace_processor_importers_gecko_gecko_event",
         ":src_trace_processor_importers_generic_kernel_full",
         ":src_trace_processor_importers_i2c_full",
-        ":src_trace_processor_importers_instruments_instruments",
         ":src_trace_processor_importers_instruments_row",
         ":src_trace_processor_importers_json_json",
         ":src_trace_processor_importers_json_minimal",
@@ -7500,17 +7387,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_util",
         ":src_trace_processor_util_winscope_proto_mapping",
         ":src_trace_processor_util_zip_reader",
-    ] + select({
-        "@platforms//os:windows": [],
-        "//conditions:default": [
-            ":src_trace_processor_importers_elf_binary_info",
-            ":src_trace_processor_importers_etm_etm_impl",
-            ":src_trace_processor_importers_etm_file_tracker",
-            ":src_trace_processor_importers_etm_public_hdr",
-            ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_hdr",
-            ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_impl",
-        ],
-    }),
+    ],
     hdrs = [
         ":include_perfetto_base_base",
         ":include_perfetto_ext_base_base",
@@ -7520,11 +7397,8 @@ perfetto_cc_library(
         ":include_perfetto_ext_traced_sys_stats_counters",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_public_abi_base",
-        ":include_perfetto_public_abi_public",
         ":include_perfetto_public_base",
-        ":include_perfetto_public_protos_protos",
         ":include_perfetto_public_protozero",
-        ":include_perfetto_public_public",
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
@@ -7592,9 +7466,7 @@ perfetto_cc_library(
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
                ":src_trace_processor_perfetto_sql_stdlib_stdlib",
                ":src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
-           ] + PERFETTO_CONFIG.deps.expat +
-           PERFETTO_CONFIG.deps.jsoncpp +
-           PERFETTO_CONFIG.deps.open_csd +
+           ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib +
@@ -7616,11 +7488,8 @@ perfetto_cc_binary(
         ":include_perfetto_ext_traced_sys_stats_counters",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_public_abi_base",
-        ":include_perfetto_public_abi_public",
         ":include_perfetto_public_base",
-        ":include_perfetto_public_protos_protos",
         ":include_perfetto_public_protozero",
-        ":include_perfetto_public_public",
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
@@ -7661,7 +7530,6 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_gecko_gecko_event",
         ":src_trace_processor_importers_generic_kernel_full",
         ":src_trace_processor_importers_i2c_full",
-        ":src_trace_processor_importers_instruments_instruments",
         ":src_trace_processor_importers_instruments_row",
         ":src_trace_processor_importers_json_json",
         ":src_trace_processor_importers_json_minimal",
@@ -7734,17 +7602,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_winscope_proto_mapping",
         ":src_trace_processor_util_zip_reader",
         "src/trace_processor/trace_processor_shell.cc",
-    ] + select({
-        "@platforms//os:windows": [],
-        "//conditions:default": [
-            ":src_trace_processor_importers_elf_binary_info",
-            ":src_trace_processor_importers_etm_etm_impl",
-            ":src_trace_processor_importers_etm_file_tracker",
-            ":src_trace_processor_importers_etm_public_hdr",
-            ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_hdr",
-            ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_impl",
-        ],
-    }),
+    ],
     visibility = [
         "//visibility:public",
     ],
@@ -7810,10 +7668,8 @@ perfetto_cc_binary(
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
                ":src_trace_processor_perfetto_sql_stdlib_stdlib",
                ":src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
-           ] + PERFETTO_CONFIG.deps.expat +
-           PERFETTO_CONFIG.deps.jsoncpp +
+           ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.linenoise +
-           PERFETTO_CONFIG.deps.open_csd +
            PERFETTO_CONFIG.deps.protobuf_full +
            PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
@@ -7835,11 +7691,8 @@ perfetto_cc_binary(
         ":include_perfetto_profiling_pprof_builder",
         ":include_perfetto_protozero_protozero",
         ":include_perfetto_public_abi_base",
-        ":include_perfetto_public_abi_public",
         ":include_perfetto_public_base",
-        ":include_perfetto_public_protos_protos",
         ":include_perfetto_public_protozero",
-        ":include_perfetto_public_public",
         ":include_perfetto_trace_processor_basic_types",
         ":include_perfetto_trace_processor_storage",
         ":include_perfetto_trace_processor_trace_processor",
@@ -7880,7 +7733,6 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_gecko_gecko_event",
         ":src_trace_processor_importers_generic_kernel_full",
         ":src_trace_processor_importers_i2c_full",
-        ":src_trace_processor_importers_instruments_instruments",
         ":src_trace_processor_importers_instruments_row",
         ":src_trace_processor_importers_json_json",
         ":src_trace_processor_importers_json_minimal",
@@ -7953,17 +7805,7 @@ perfetto_cc_binary(
         ":src_traceconv_main",
         ":src_traceconv_pprofbuilder",
         ":src_traceconv_utils",
-    ] + select({
-        "@platforms//os:windows": [],
-        "//conditions:default": [
-            ":src_trace_processor_importers_elf_binary_info",
-            ":src_trace_processor_importers_etm_etm_impl",
-            ":src_trace_processor_importers_etm_file_tracker",
-            ":src_trace_processor_importers_etm_public_hdr",
-            ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_hdr",
-            ":src_trace_processor_perfetto_sql_intrinsics_operators_etm_impl",
-        ],
-    }),
+    ],
     visibility = [
         "//visibility:public",
     ],
@@ -8030,9 +7872,7 @@ perfetto_cc_binary(
                ":src_trace_processor_trace_summary_gen_cc_trace_summary_descriptor",
                ":src_traceconv_gen_cc_trace_descriptor",
                ":src_traceconv_gen_cc_winscope_descriptor",
-           ] + PERFETTO_CONFIG.deps.expat +
-           PERFETTO_CONFIG.deps.jsoncpp +
-           PERFETTO_CONFIG.deps.open_csd +
+           ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
            PERFETTO_CONFIG.deps.zlib +
