@@ -33,7 +33,7 @@ export class CpuSliceByProcessSelectionAggregator
 
   async createAggregateView(
     engine: Engine,
-    area: AreaSelection,
+    _area: AreaSelection,
     dataset?: Dataset,
   ) {
     if (!dataset) return false;
@@ -49,9 +49,6 @@ export class CpuSliceByProcessSelectionAggregator
       from (${dataset.query()})
       join thread USING (utid)
       join process USING (upid)
-      where
-        ts + dur > ${area.start}
-        and ts < ${area.end}
       group by upid
     `);
     return true;

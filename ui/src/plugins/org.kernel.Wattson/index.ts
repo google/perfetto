@@ -37,38 +37,18 @@ export default class implements PerfettoPlugin {
   static readonly id = `org.kernel.Wattson`;
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    const markersSupported = await hasWattsonMarkersSupport(ctx.engine);
     const cpuSupported = await hasWattsonCpuSupport(ctx.engine);
     const gpuSupported = await hasWattsonGpuSupport(ctx.engine);
+
     // Short circuit if Wattson is not supported for this Perfetto trace
-    if (!(cpuSupported || gpuSupported)) return;
+    if (!(markersSupported || cpuSupported || gpuSupported)) return;
 
     const group = new TrackNode({title: 'Wattson', isSummary: true});
     ctx.workspace.addChildInOrder(group);
 
-    // Add Wattson markers window track if markers are present
-    const checkValue = await ctx.engine.query(`
-        INCLUDE PERFETTO MODULE wattson.utils;
-        SELECT COUNT(*) as numRows from _wattson_markers_window
-    `);
-    if (checkValue.firstRow({numRows: NUM}).numRows > 0) {
-      const uri = `/wattson/markers_window`;
-      const title = `Wattson markers window`;
-      const track = await createQuerySliceTrack({
-        trace: ctx,
-        uri,
-        data: {
-          sqlSource: `SELECT ts, dur, name FROM _wattson_markers_window`,
-        },
-      });
-      ctx.tracks.registerTrack({
-        uri,
-        title,
-        tags: {
-          kind: SLICE_TRACK_KIND,
-        },
-        track,
-      });
-      group.addChildInOrder(new TrackNode({uri, title}));
+    if (markersSupported) {
+      await addWattsonMarkersElements(ctx, group);
     }
     if (cpuSupported) {
       await addWattsonCpuElements(ctx, group);
@@ -79,12 +59,14 @@ export default class implements PerfettoPlugin {
   }
 }
 
-class CpuSubsystemEstimateTrack extends BaseCounterTrack {
+class WattsonSubsystemEstimateTrack extends BaseCounterTrack {
   readonly queryKey: string;
+  readonly yRangeKey: string;
 
-  constructor(trace: Trace, uri: string, queryKey: string) {
+  constructor(trace: Trace, uri: string, queryKey: string, yRangeKey: string) {
     super(trace, uri);
     this.queryKey = queryKey;
+    this.yRangeKey = yRangeKey;
   }
 
   async onInit() {
@@ -93,7 +75,7 @@ class CpuSubsystemEstimateTrack extends BaseCounterTrack {
 
   protected getDefaultCounterOptions(): CounterOptions {
     const options = super.getDefaultCounterOptions();
-    options.yRangeSharingKey = `CpuSubsystem`;
+    options.yRangeSharingKey = this.yRangeKey;
     options.unit = `mW`;
     return options;
   }
@@ -103,28 +85,12 @@ class CpuSubsystemEstimateTrack extends BaseCounterTrack {
   }
 }
 
-class GpuSubsystemEstimateTrack extends BaseCounterTrack {
-  readonly queryKey: string;
-
-  constructor(trace: Trace, uri: string, queryKey: string) {
-    super(trace, uri);
-    this.queryKey = queryKey;
-  }
-
-  async onInit() {
-    await this.engine.query(`INCLUDE PERFETTO MODULE wattson.gpu.estimates;`);
-  }
-
-  protected getDefaultCounterOptions(): CounterOptions {
-    const options = super.getDefaultCounterOptions();
-    options.yRangeSharingKey = `GpuSubsystem`;
-    options.unit = `mW`;
-    return options;
-  }
-
-  getSqlSource() {
-    return `select ts, ${this.queryKey} as value from _gpu_estimates`;
-  }
+async function hasWattsonMarkersSupport(engine: Engine): Promise<boolean> {
+  const checkValue = await engine.query(`
+      INCLUDE PERFETTO MODULE wattson.utils;
+      SELECT COUNT(*) as numRows from _wattson_markers_window
+  `);
+  return checkValue.firstRow({numRows: NUM}).numRows > 0;
 }
 
 async function hasWattsonCpuSupport(engine: Engine): Promise<boolean> {
@@ -173,6 +139,27 @@ async function hasWattsonGpuSupport(engine: Engine): Promise<boolean> {
   return true;
 }
 
+async function addWattsonMarkersElements(ctx: Trace, group: TrackNode) {
+  const uri = `/wattson/markers_window`;
+  const title = `Wattson markers window`;
+  const track = await createQuerySliceTrack({
+    trace: ctx,
+    uri,
+    data: {
+      sqlSource: `SELECT ts, dur, name FROM _wattson_markers_window`,
+    },
+  });
+  ctx.tracks.registerTrack({
+    uri,
+    title,
+    tags: {
+      kind: SLICE_TRACK_KIND,
+    },
+    track,
+  });
+  group.addChildInOrder(new TrackNode({uri, title}));
+}
+
 async function addWattsonCpuElements(ctx: Trace, group: TrackNode) {
   // ctx.traceInfo.cpus contains all cpus seen from all events. Filter the set
   // if it's seen in sched slices.
@@ -197,7 +184,12 @@ async function addWattsonCpuElements(ctx: Trace, group: TrackNode) {
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: new CpuSubsystemEstimateTrack(ctx, uri, queryKey),
+      track: new WattsonSubsystemEstimateTrack(
+        ctx,
+        uri,
+        queryKey,
+        `CpuSubsystem`,
+      ),
       tags: {
         kind: CPUSS_ESTIMATE_TRACK_KIND,
         wattson: `CPU${cpu.ucpu}`,
@@ -212,7 +204,12 @@ async function addWattsonCpuElements(ctx: Trace, group: TrackNode) {
   ctx.tracks.registerTrack({
     uri,
     title,
-    track: new CpuSubsystemEstimateTrack(ctx, uri, `dsu_scu_mw`),
+    track: new WattsonSubsystemEstimateTrack(
+      ctx,
+      uri,
+      `dsu_scu_mw`,
+      `CpuSubsystem`,
+    ),
     tags: {
       kind: CPUSS_ESTIMATE_TRACK_KIND,
       wattson: 'Dsu_Scu',
@@ -256,7 +253,12 @@ async function addWattsonGpuElements(ctx: Trace, group: TrackNode) {
   ctx.tracks.registerTrack({
     uri,
     title,
-    track: new GpuSubsystemEstimateTrack(ctx, uri, `gpu_mw`),
+    track: new WattsonSubsystemEstimateTrack(
+      ctx,
+      uri,
+      `gpu_mw`,
+      `GpuSubsystem`,
+    ),
     tags: {
       kind: GPUSS_ESTIMATE_TRACK_KIND,
       wattson: 'Gpu',

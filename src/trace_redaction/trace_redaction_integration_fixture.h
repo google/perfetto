@@ -40,6 +40,12 @@ class TraceRedactionIntegrationFixure {
 
   base::StatusOr<std::string> LoadRedacted() const;
 
+  // Set the package name to "just some package name". If a specific package
+  // name is needed, the test it should overwrite this value.
+  static constexpr auto kSomePackageName =
+      "com.Unity.com.unity.multiplayer.samples.coop";
+  static constexpr auto kSomePackageUid = 10252u;
+
  private:
   base::StatusOr<std::string> ReadRawTrace(const std::string& path) const;
 

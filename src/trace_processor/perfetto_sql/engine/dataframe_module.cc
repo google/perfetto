@@ -28,12 +28,14 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/tp_metatrace.h"
 
 namespace perfetto::trace_processor {
 
@@ -72,7 +74,7 @@ std::string ToSqliteCreateTableType(dataframe::StorageType type) {
     case dataframe::StorageType::GetTypeIndex<dataframe::Int64>():
       return "INTEGER";
     case dataframe::StorageType::GetTypeIndex<dataframe::Double>():
-      return "REAL";
+      return "DOUBLE";
     case dataframe::StorageType::GetTypeIndex<dataframe::String>():
       return "TEXT";
     default:
@@ -84,9 +86,13 @@ std::string CreateTableStmt(const dataframe::DataframeSpec& spec) {
   std::string create_stmt = "CREATE TABLE x(";
   for (uint32_t i = 0; i < spec.column_specs.size(); ++i) {
     create_stmt += spec.column_names[i] + " " +
-                   ToSqliteCreateTableType(spec.column_specs[i].type) + ", ";
+                   ToSqliteCreateTableType(spec.column_specs[i].type);
+    if (spec.column_names[i] == "_auto_id") {
+      create_stmt += " HIDDEN";
+    }
+    create_stmt += ", ";
   }
-  create_stmt += "PRIMARY KEY(id)) WITHOUT ROWID";
+  create_stmt += "PRIMARY KEY(_auto_id)) WITHOUT ROWID";
   return create_stmt;
 }
 
@@ -112,6 +118,7 @@ int DataframeModule::Create(sqlite3* db,
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
   res->dataframe = &*create_state->handle;
   res->state = ctx->OnCreate(argc, argv, std::move(create_state));
+  res->name = argv[2];
   *vtab = res.release();
   return SQLITE_OK;
 }
@@ -140,6 +147,7 @@ int DataframeModule::Connect(sqlite3* db,
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
   res->dataframe = &*df_state->handle;
   res->state = vtab_state;
+  res->name = argv[2];
   *vtab = res.release();
   return SQLITE_OK;
 }
@@ -155,6 +163,7 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
   std::vector<dataframe::FilterSpec> filter_specs;
   dataframe::LimitSpec limit_spec;
   filter_specs.reserve(static_cast<size_t>(info->nConstraint));
+  bool has_unknown_constraint = false;
   for (int i = 0; i < info->nConstraint; ++i) {
     if (!info->aConstraint[i].usable) {
       continue;
@@ -183,6 +192,7 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
     }
     auto df_op = SqliteOpToDataframeOp(op);
     if (!df_op) {
+      has_unknown_constraint = true;
       continue;
     }
     filter_specs.emplace_back(dataframe::FilterSpec{
@@ -191,6 +201,12 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
         *df_op,
         std::nullopt,
     });
+  }
+
+  // If we have a constraint we don't understand, we should ignore the limit
+  // and offset constraints.
+  if (has_unknown_constraint) {
+    limit_spec = dataframe::LimitSpec{};
   }
 
   bool should_sort_using_order_by = true;
@@ -242,13 +258,35 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
       info->aConstraintUsage[c.source_index].omit = true;
     }
   }
-  info->idxStr = sqlite3_mprintf("%s", std::move(plan).Serialize().data());
   info->needToFreeIdxStr = true;
   info->estimatedCost = plan.estimated_cost();
   info->estimatedRows = plan.estimated_row_count();
   if (plan.max_row_count() <= 1) {
     info->idxFlags |= SQLITE_INDEX_SCAN_UNIQUE;
   }
+  info->idxNum = v->best_idx_num++;
+  PERFETTO_TP_TRACE(
+      metatrace::Category::QUERY_TIMELINE, "DATAFRAME_BEST_INDEX",
+      [info, v, &plan](metatrace::Record* record) {
+        base::StackString<32> unique("%d",
+                                     info->idxFlags & SQLITE_INDEX_SCAN_UNIQUE);
+        record->AddArg("name", v->name);
+        record->AddArg("unique", unique.string_view());
+        record->AddArg("idxNum",
+                       base::StackString<32>("%d", info->idxNum).string_view());
+        record->AddArg(
+            "estimatedCost",
+            base::StackString<32>("%f", info->estimatedCost).string_view());
+        record->AddArg(
+            "estimatedRows",
+            base::StackString<32>("%lld", info->estimatedRows).string_view());
+        auto str = plan.BytecodeToString();
+        for (uint32_t i = 0; i < str.size(); ++i) {
+          base::StackString<32> c("bytecode[%u]", i);
+          record->AddArg(c.string_view(), str[i]);
+        }
+      });
+  info->idxStr = sqlite3_mprintf("%s", std::move(plan).Serialize().data());
   return SQLITE_OK;
 }
 
