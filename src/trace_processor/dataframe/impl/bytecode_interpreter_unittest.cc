@@ -397,18 +397,19 @@ class BytecodeInterpreterTest : public testing::Test {
       }
     }
     SetupInterpreterWithBytecode(bytecode_vector);
-
-    uint32_t i = 0;
-    (interpreter_->SetRegisterValueForTesting(reg::WriteHandle<Ts>(i++),
-                                              std::move(value)),
-     ...);
+    SetRegisterValuesForTesting(
+        interpreter_.get(),
+        std::make_integer_sequence<uint32_t, sizeof...(Ts)>(),
+        std::move(value)...);
     interpreter_->Execute(fetcher_);
   }
 
   void SetupInterpreterWithBytecode(const BytecodeVector& bytecode) {
+    // Hardcode the register count to 128 for testing.
+    static constexpr uint32_t kNumRegisters = 128;
     interpreter_ = std::make_unique<Interpreter<Fetcher>>();
-    interpreter_->Initialize(bytecode, column_ptrs_.data(), indexes_.data(),
-                             &spool_);
+    interpreter_->Initialize(bytecode, kNumRegisters, column_ptrs_.data(),
+                             indexes_.data(), &spool_);
   }
 
   template <typename T>
@@ -421,6 +422,15 @@ class BytecodeInterpreterTest : public testing::Test {
   void AddColumn(Column column) {
     columns_vec_.emplace_back(std::make_unique<Column>(std::move(column)));
     column_ptrs_.emplace_back(columns_vec_.back().get());
+  }
+
+  template <typename... Ts, uint32_t... Is>
+  void SetRegisterValuesForTesting(Interpreter<Fetcher>* interpreter,
+                                   std::integer_sequence<uint32_t, Is...>,
+                                   Ts... values) {
+    (interpreter->SetRegisterValueForTesting(reg::WriteHandle<Ts>(Is),
+                                             std::move(values)),
+     ...);
   }
 
   Fetcher fetcher_;

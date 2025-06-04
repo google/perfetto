@@ -39,6 +39,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/endian.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
@@ -158,10 +159,15 @@ class Interpreter {
   Interpreter() = default;
 
   void Initialize(const BytecodeVector& bytecode,
+                  uint32_t num_registers,
                   const Column* const* columns,
                   const dataframe::Index* indexes,
                   const StringPool* string_pool) {
     bytecode_ = bytecode;
+    registers_.clear();
+    for (uint32_t i = 0; i < num_registers; ++i) {
+      registers_.emplace_back();
+    }
     columns_ = columns;
     indexes_ = indexes;
     string_pool_ = string_pool;
@@ -1457,7 +1463,7 @@ class Interpreter {
   // The sequence of bytecode instructions to execute
   BytecodeVector bytecode_;
   // Register file holding intermediate values
-  std::array<reg::Value, reg::kMaxRegisters> registers_;
+  base::SmallVector<reg::Value, 16> registers_;
 
   // Pointer to the source for filter values.
   FilterValueFetcherImpl* filter_value_fetcher_;
