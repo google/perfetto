@@ -17,7 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_QUERY_PLAN_H_
 #define SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_QUERY_PLAN_H_
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
