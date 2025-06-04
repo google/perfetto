@@ -2,174 +2,247 @@ wattson_atrace_apps_rails {
   metric_version: 4
   power_model_version: 1
   period_info {
-    period_id: 3
+    period_id: 1
     period_name: "NOTIFICATION_SHADE_EXPAND_COLLAPSE::Expand"
-    period_dur: 1033882989
+    period_dur: 772195598
     cpu_subsystem {
-      estimated_mw: 588.551453
-      estimated_mws: 608.493347
+      estimated_mw: 1242.973877
+      estimated_mws: 959.818970
       policy0 {
-        estimated_mw: 206.885727
-        estimated_mws: 213.895630
+        estimated_mw: 259.535858
+        estimated_mws: 200.412445
         cpu0 {
-          estimated_mw: 48.200874
-          estimated_mws: 49.834064
+          estimated_mw: 73.341011
+          estimated_mws: 56.633602
         }
         cpu1 {
-          estimated_mw: 52.758167
-          estimated_mws: 54.545773
+          estimated_mw: 59.076569
+          estimated_mws: 45.618668
         }
         cpu2 {
-          estimated_mw: 54.796875
-          estimated_mws: 56.653557
+          estimated_mw: 67.992493
+          estimated_mws: 52.503502
         }
         cpu3 {
-          estimated_mw: 51.129807
-          estimated_mws: 52.862240
+          estimated_mw: 59.125793
+          estimated_mws: 45.656677
         }
       }
       policy4 {
-        estimated_mw: 238.698257
-        estimated_mws: 246.786057
+        estimated_mw: 280.262299
+        estimated_mws: 216.417297
         cpu4 {
-          estimated_mw: 136.624969
-          estimated_mws: 141.254242
+          estimated_mw: 155.180649
+          estimated_mws: 119.829811
         }
         cpu5 {
-          estimated_mw: 102.073280
-          estimated_mws: 105.531822
+          estimated_mw: 125.081642
+          estimated_mws: 96.587494
         }
       }
       policy6 {
-        estimated_mw: 124.599953
-        estimated_mws: 128.821777
+        estimated_mw: 676.220337
+        estimated_mws: 522.174377
         cpu6 {
-          estimated_mw: 59.473373
-          estimated_mws: 61.488510
+          estimated_mw: 329.806854
+          estimated_mws: 254.675400
         }
         cpu7 {
-          estimated_mw: 65.126579
-          estimated_mws: 67.333260
+          estimated_mw: 346.413483
+          estimated_mws: 267.498962
         }
       }
       dsu_scu {
-        estimated_mw: 18.367506
-        estimated_mws: 18.989853
+        estimated_mw: 26.955410
+        estimated_mws: 20.814848
       }
+    }
+    gpu_subsystem {
+      estimated_mw: 40.519291
+      estimated_mws: 31.288820
+    }
+  }
+  period_info {
+    period_id: 2
+    period_name: "NOTIFICATION_SHADE_QS_EXPAND_COLLAPSE"
+    period_dur: 1151760987
+    cpu_subsystem {
+      estimated_mw: 701.630066
+      estimated_mws: 808.110168
+      policy0 {
+        estimated_mw: 170.537430
+        estimated_mws: 196.418350
+        cpu0 {
+          estimated_mw: 50.016689
+          estimated_mws: 57.607273
+        }
+        cpu1 {
+          estimated_mw: 32.432495
+          estimated_mws: 37.354485
+        }
+        cpu2 {
+          estimated_mw: 39.245739
+          estimated_mws: 45.201714
+        }
+        cpu3 {
+          estimated_mw: 48.842503
+          estimated_mws: 56.254887
+        }
+      }
+      policy4 {
+        estimated_mw: 92.173676
+        estimated_mws: 106.162048
+        cpu4 {
+          estimated_mw: 48.958031
+          estimated_mws: 56.387951
+        }
+        cpu5 {
+          estimated_mw: 43.215649
+          estimated_mws: 49.774097
+        }
+      }
+      policy6 {
+        estimated_mw: 419.226593
+        estimated_mws: 482.848846
+        cpu6 {
+          estimated_mw: 201.942230
+          estimated_mws: 232.589188
+        }
+        cpu7 {
+          estimated_mw: 217.284378
+          estimated_mws: 250.259674
+        }
+      }
+      dsu_scu {
+        estimated_mw: 19.692360
+        estimated_mws: 22.680893
+      }
+    }
+    gpu_subsystem {
+      estimated_mw: 27.293800
+      estimated_mws: 31.435936
+    }
+  }
+  period_info {
+    period_id: 3
+    period_name: "NOTIFICATION_SHADE_EXPAND_COLLAPSE::Collapse"
+    period_dur: 1154167847
+    cpu_subsystem {
+      estimated_mw: 699.944946
+      estimated_mws: 807.853943
+      policy0 {
+        estimated_mw: 170.209427
+        estimated_mws: 196.450256
+        cpu0 {
+          estimated_mw: 49.950108
+          estimated_mws: 57.650806
+        }
+        cpu1 {
+          estimated_mw: 32.373444
+          estimated_mws: 37.364384
+        }
+        cpu2 {
+          estimated_mw: 39.170773
+          estimated_mws: 45.209648
+        }
+        cpu3 {
+          estimated_mw: 48.715111
+          estimated_mws: 56.225414
+        }
+      }
+      policy4 {
+        estimated_mw: 91.779922
+        estimated_mws: 105.929436
+        cpu4 {
+          estimated_mw: 48.801167
+          estimated_mws: 56.324738
+        }
+        cpu5 {
+          estimated_mw: 42.978756
+          estimated_mws: 49.604698
+        }
+      }
+      policy6 {
+        estimated_mw: 418.298065
+        estimated_mws: 482.786194
+        cpu6 {
+          estimated_mw: 201.521103
+          estimated_mws: 232.589188
+        }
+        cpu7 {
+          estimated_mw: 216.776962
+          estimated_mws: 250.197006
+        }
+      }
+      dsu_scu {
+        estimated_mw: 19.657528
+        estimated_mws: 22.688087
+      }
+    }
+    gpu_subsystem {
+      estimated_mw: 27.236883
+      estimated_mws: 31.435936
     }
   }
   period_info {
     period_id: 4
     period_name: "NOTIFICATION_SHADE_QS_EXPAND_COLLAPSE"
-    period_dur: 1102956461
+    period_dur: 846661499
     cpu_subsystem {
-      estimated_mw: 495.969849
-      estimated_mws: 547.033142
+      estimated_mw: 879.796143
+      estimated_mws: 744.889526
       policy0 {
-        estimated_mw: 176.800064
-        estimated_mws: 195.002777
+        estimated_mw: 199.964462
+        estimated_mws: 169.302200
         cpu0 {
-          estimated_mw: 46.978123
-          estimated_mws: 51.814823
+          estimated_mw: 74.298584
+          estimated_mws: 62.905750
         }
         cpu1 {
-          estimated_mw: 38.306576
-          estimated_mws: 42.250484
+          estimated_mw: 47.023132
+          estimated_mws: 39.812675
         }
         cpu2 {
-          estimated_mw: 42.787342
-          estimated_mws: 47.192577
+          estimated_mw: 35.806499
+          estimated_mws: 30.315983
         }
         cpu3 {
-          estimated_mw: 48.728027
-          estimated_mws: 53.744892
+          estimated_mw: 42.836243
+          estimated_mws: 36.267796
         }
       }
       policy4 {
-        estimated_mw: 196.383987
-        estimated_mws: 216.602982
+        estimated_mw: 75.011116
+        estimated_mws: 63.509026
         cpu4 {
-          estimated_mw: 97.974754
-          estimated_mws: 108.061882
+          estimated_mw: 35.900501
+          estimated_mws: 30.395571
         }
         cpu5 {
-          estimated_mw: 98.409233
-          estimated_mws: 108.541100
+          estimated_mw: 39.110619
+          estimated_mws: 33.113453
         }
       }
       policy6 {
-        estimated_mw: 104.246399
-        estimated_mws: 114.979240
+        estimated_mw: 576.711548
+        estimated_mws: 488.279480
         cpu6 {
-          estimated_mw: 45.691574
-          estimated_mws: 50.395817
+          estimated_mw: 298.166168
+          estimated_mws: 252.445816
         }
         cpu7 {
-          estimated_mw: 58.554829
-          estimated_mws: 64.583427
+          estimated_mw: 278.545410
+          estimated_mws: 235.833664
         }
       }
       dsu_scu {
-        estimated_mw: 18.539404
-        estimated_mws: 20.448156
+        estimated_mw: 28.109003
+        estimated_mws: 23.798811
       }
     }
-  }
-  period_info {
-    period_id: 5
-    period_name: "NOTIFICATION_SHADE_EXPAND_COLLAPSE::Collapse"
-    period_dur: 1102797607
-    cpu_subsystem {
-      estimated_mw: 495.587769
-      estimated_mws: 546.533020
-      policy0 {
-        estimated_mw: 176.701065
-        estimated_mws: 194.865509
-        cpu0 {
-          estimated_mw: 46.844067
-          estimated_mws: 51.659523
-        }
-        cpu1 {
-          estimated_mw: 38.327526
-          estimated_mws: 42.267502
-        }
-        cpu2 {
-          estimated_mw: 42.806507
-          estimated_mws: 47.206913
-        }
-        cpu3 {
-          estimated_mw: 48.722961
-          estimated_mws: 53.731564
-        }
-      }
-      policy4 {
-        estimated_mw: 196.306625
-        estimated_mws: 216.486481
-        cpu4 {
-          estimated_mw: 98.009254
-          estimated_mws: 108.084373
-        }
-        cpu5 {
-          estimated_mw: 98.297379
-          estimated_mws: 108.402115
-        }
-      }
-      policy6 {
-        estimated_mw: 104.057350
-        estimated_mws: 114.754196
-        cpu6 {
-          estimated_mw: 45.671753
-          estimated_mws: 50.366699
-        }
-        cpu7 {
-          estimated_mw: 58.385597
-          estimated_mws: 64.387497
-        }
-      }
-      dsu_scu {
-        estimated_mw: 18.522726
-        estimated_mws: 20.426819
-      }
+    gpu_subsystem {
+      estimated_mw: 39.311623
+      estimated_mws: 33.283638
     }
   }
 }

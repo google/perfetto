@@ -235,46 +235,6 @@ int ReadIdxStrAndUpdateCursor(DbSqliteModule::Cursor* cursor,
   return SQLITE_OK;
 }
 
-PERFETTO_ALWAYS_INLINE void TryCacheCreateSortedTable(
-    DbSqliteModule::Cursor* cursor,
-    const Table::Schema& schema,
-    bool is_same_idx) {
-  if (!is_same_idx) {
-    cursor->repeated_cache_count = 0;
-    return;
-  }
-
-  // Only try and create the cached table on exactly the third time we see
-  // this constraint set.
-  constexpr uint32_t kRepeatedThreshold = 3;
-  if (cursor->sorted_cache_table ||
-      cursor->repeated_cache_count++ != kRepeatedThreshold) {
-    return;
-  }
-
-  // If we have more than one constraint, we can't cache the table using
-  // this method.
-  if (cursor->query.constraints.size() != 1) {
-    return;
-  }
-
-  // If the constraing is not an equality constraint, there's little
-  // benefit to caching
-  const auto& c = cursor->query.constraints.front();
-  if (c.op != FilterOp::kEq) {
-    return;
-  }
-
-  // If the column is already sorted, we don't need to cache at all.
-  if (schema.columns[c.col_idx].is_sorted) {
-    return;
-  }
-
-  // Try again to get the result or start caching it.
-  cursor->sorted_cache_table =
-      cursor->upstream_table->Sort({Order{c.col_idx, false}});
-}
-
 void FilterAndSortMetatrace(const std::string& table_name,
                             const Table::Schema& schema,
                             DbSqliteModule::Cursor* cursor,
@@ -752,9 +712,6 @@ int DbSqliteModule::Filter(sqlite3_vtab_cursor* cursor,
   switch (s->computation) {
     case TableComputation::kStatic:
     case TableComputation::kRuntime:
-      // Tries to create a sorted cached table which can be used to speed up
-      // filters below.
-      TryCacheCreateSortedTable(c, s->schema, is_same_idx);
       break;
     case TableComputation::kTableFunction: {
       PERFETTO_TP_TRACE(
@@ -783,9 +740,7 @@ int DbSqliteModule::Filter(sqlite3_vtab_cursor* cursor,
                       FilterAndSortMetatrace(t->table_name, s->schema, c, r);
                     });
 
-  const auto* source_table =
-      c->sorted_cache_table ? &*c->sorted_cache_table : c->upstream_table;
-  RowMap filter_map = source_table->QueryToRowMap(c->query);
+  RowMap filter_map = c->upstream_table->QueryToRowMap(c->query);
   if (filter_map.IsRange() && filter_map.size() <= 1) {
     // Currently, our criteria where we have a special fast path is if it's
     // a single ranged row. We have this fast path for joins on id columns
@@ -803,7 +758,7 @@ int DbSqliteModule::Filter(sqlite3_vtab_cursor* cursor,
     c->eof = !c->single_row.has_value();
   } else {
     c->mode = Cursor::Mode::kTable;
-    c->iterator = source_table->ApplyAndIterateRows(std::move(filter_map));
+    c->iterator = c->upstream_table->ApplyAndIterateRows(std::move(filter_map));
     c->eof = !*c->iterator;
   }
   return SQLITE_OK;
@@ -828,10 +783,8 @@ int DbSqliteModule::Column(sqlite3_vtab_cursor* cursor,
                            int N) {
   Cursor* c = GetCursor(cursor);
   auto idx = static_cast<uint32_t>(N);
-  const auto* source_table =
-      c->sorted_cache_table ? &*c->sorted_cache_table : c->upstream_table;
   SqlValue value = c->mode == Cursor::Mode::kSingleRow
-                       ? source_table->columns()[idx].Get(*c->single_row)
+                       ? c->upstream_table->columns()[idx].Get(*c->single_row)
                        : c->iterator->Get(idx);
 
   // We can say kSqliteStatic for strings because all strings are expected
@@ -864,7 +817,7 @@ DbSqliteModule::QueryCost DbSqliteModule::EstimateCost(
 
   // We estimate the fixed cost of set-up and tear-down of a query in terms of
   // the number of rows scanned.
-  constexpr double kFixedQueryCost = 1000.0;
+  constexpr double kFixedQueryCost = 100.0;
 
   // Setup the variables for estimating the number of rows we will have at the
   // end of filtering. Note that |current_row_count| should always be at least
@@ -900,16 +853,11 @@ DbSqliteModule::QueryCost DbSqliteModule::EstimateCost(
       filter_cost += 10;
       current_row_count = 1;
     } else if (sqlite::utils::IsOpEq(c.op)) {
-      // If there is only a single equality constraint, we have special logic
-      // to sort by that column and then binary search if we see the
-      // constraint set often. Model this by dividing by the log of the number
-      // of rows as a good approximation. Otherwise, we'll need to do a full
-      // table scan. Alternatively, if the column is sorted, we can use the
-      // same binary search logic so we have the same low cost (even
-      // better because we don't // have to sort at all).
-      filter_cost += cs_idxes.size() == 1 || col_schema.is_sorted
-                         ? log2(current_row_count)
-                         : current_row_count;
+      // if the column is sorted, then binary search. Model this by adding by
+      // the log of the number of rows as a good approximation. Otherwise, we'll
+      // need to do a full table scan.
+      filter_cost +=
+          col_schema.is_sorted ? log2(current_row_count) : current_row_count;
 
       // As an extremely rough heuristic, assume that an equalty constraint
       // will cut down the number of rows by approximately double log of the
