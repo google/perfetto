@@ -139,7 +139,8 @@
     "cmd": [
       "python3",
       "tools/install-build-deps",
-      "--linux-arm"
+      "--linux-arm",
+      "--grpc"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -167,7 +168,7 @@
       "tools/gn",
       "gen",
       "[CACHE]/builder/perfetto/out/linux-amd64",
-      "--args=is_debug=false monolithic_binaries=true target_os=\"linux\" target_cpu=\"x64\""
+      "--args=is_debug=false monolithic_binaries=true enable_perfetto_grpc=true target_os=\"linux\" target_cpu=\"x64\""
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "luci_context": {
@@ -223,7 +224,9 @@
       "tracebox",
       "perfetto",
       "traced",
-      "traced_probes"
+      "traced_probes",
+      "orchestrator_main",
+      "worker_main"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "luci_context": {
