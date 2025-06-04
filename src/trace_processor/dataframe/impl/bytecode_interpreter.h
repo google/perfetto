@@ -427,6 +427,35 @@ class Interpreter {
     update.e = static_cast<uint32_t>(it - storage);
   }
 
+  PERFETTO_ALWAYS_INLINE void SpecializedStorageSmallValueEq(
+      const bytecode::SpecializedStorageSmallValueEq& bytecode) {
+    using B = bytecode::SpecializedStorageSmallValueEq;
+
+    const CastFilterValueResult& cast_result =
+        ReadFromRegister(bytecode.arg<B::val_register>());
+    auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
+    if (!HandleInvalidCastFilterValueResult(cast_result, update)) {
+      return;
+    }
+    using ValueType =
+        StorageType::VariantTypeAtIndex<Uint32, CastFilterValueResult::Value>;
+    auto val = base::unchecked_get<ValueType>(cast_result.value);
+    const auto& col = GetColumn(bytecode.arg<B::col>());
+    const auto& storage =
+        col.specialized_storage
+            .template unchecked_get<SpecializedStorage::SmallValueEq>();
+
+    uint32_t k =
+        val < storage.bit_vector.size() && storage.bit_vector.is_set(val)
+            ? static_cast<uint32_t>(
+                  storage.prefix_popcount[val / 64] +
+                  storage.bit_vector.count_set_bits_until_in_word(val))
+            : update.e;
+    bool in_bounds = update.b <= k && k < update.e;
+    update.b = in_bounds ? k : update.e;
+    update.e = in_bounds ? k + 1 : update.b;
+  }
+
   template <typename T, typename Op>
   PERFETTO_ALWAYS_INLINE void NonStringFilter(
       const bytecode::NonStringFilterBase& nf) {

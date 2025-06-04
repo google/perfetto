@@ -743,8 +743,19 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
     bc.arg<B::update_register>() = reg;
     return true;
   }
-  const auto& [bound, erlbub] = GetSortedFilterArgs(*range_op);
 
+  if (col.specialized_storage.Is<SpecializedStorage::SmallValueEq>() &&
+      op.Is<Eq>()) {
+    using B = bytecode::SpecializedStorageSmallValueEq;
+    auto& bc = AddOpcode<B>(
+        RowCountModifier{EqualityFilterRowCount{col.duplicate_state}});
+    bc.arg<B::col>() = fs.col;
+    bc.arg<B::val_register>() = value_reg;
+    bc.arg<B::update_register>() = reg;
+    return true;
+  }
+
+  const auto& [bound, erlbub] = GetSortedFilterArgs(*range_op);
   RowCountModifier modifier;
   if (op.Is<Eq>()) {
     modifier = EqualityFilterRowCount{col.duplicate_state};
