@@ -744,8 +744,7 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
     return true;
   }
 
-  if (ct.Is<Uint32>() &&
-      col.specialized_storage.Is<SpecializedStorage::SmallValueEq>() &&
+  if (col.specialized_storage.Is<SpecializedStorage::SmallValueEq>() &&
       op.Is<Eq>()) {
     using B = bytecode::SpecializedStorageSmallValueEq;
     auto& bc = AddOpcode<B>(
