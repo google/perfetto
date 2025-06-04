@@ -53,27 +53,26 @@ namespace perfetto::trace_processor::dataframe::impl {
 struct QueryPlan {
   // Contains various parameters required for execution of this query plan.
   struct ExecutionParams {
+    // An estimate for the cost of executing the query plan.
+    double estimated_cost = 0;
+
+    // Register holding the final filtered indices.
+    bytecode::reg::ReadHandle<Span<uint32_t>> output_register;
+
     // The maximum number of rows it's possible for this query plan to return.
     uint32_t max_row_count = 0;
 
     // The number of rows this query plan estimates it will return.
     uint32_t estimated_row_count = 0;
 
-    // An estimate for the cost of executing the query plan.
-    double estimated_cost = 0;
+    // The number of registers used by this query plan.
+    uint32_t register_count = 0;
 
     // Number of filter values used by this query.
     uint32_t filter_value_count = 0;
 
-    // Register holding the final filtered indices.
-    bytecode::reg::ReadHandle<Span<uint32_t>> output_register;
-
     // Number of output indices per row.
     uint32_t output_per_row = 0;
-
-    // Explicit padding to ensure msan does not complain about uninitialized
-    // memory.
-    uint8_t padding[4]{};
   };
   static_assert(std::is_trivially_copyable_v<ExecutionParams>);
   static_assert(std::is_trivially_destructible_v<ExecutionParams>);
@@ -388,9 +387,6 @@ class QueryPlanBuilder {
 
   // State information for each column during planning.
   std::vector<ColumnState> column_states_;
-
-  // Number of registers allocated so far.
-  uint32_t register_count_ = 0;
 
   // Current register holding the set of matching indices.
   IndicesReg indices_reg_;
