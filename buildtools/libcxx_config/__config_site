@@ -92,7 +92,7 @@
 // TODO(thakis): Remove this after LLVM 19's libc++ is rolled in.
 #define _LIBCPP_CHAR_TRAITS_REMOVE_BASE_SPECIALIZATION
 
-#define _LIBCPP_HARDENING_MODE_DEFAULT _LIBCPP_HARDENING_MODE_NONE
+#define _LIBCPP_HARDENING_MODE_DEFAULT _LIBCPP_HARDENING_MODE_EXTENSIVE
 
 // Enable libcxx part of compile-time thread safety analysis.
 #if defined(__clang__)

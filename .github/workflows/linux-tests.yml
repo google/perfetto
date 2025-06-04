@@ -43,8 +43,8 @@ jobs:
           - name: clang-x86_64-asan_lsan
             PERFETTO_TEST_GN_ARGS: 'is_debug=false is_asan=true is_lsan=true cc_wrapper=\"ccache\"'
             PERFETTO_INSTALL_BUILD_DEPS_ARGS: ''
-          - name: clang-x86-release
-            PERFETTO_TEST_GN_ARGS: 'is_debug=false target_cpu=\"x86\" cc_wrapper=\"ccache\"'
+          - name: clang-x86-debug-custom-libcxx
+            PERFETTO_TEST_GN_ARGS: 'is_debug=true use_custom_libcxx=true target_cpu=\"x86\" cc_wrapper=\"ccache\"'
             PERFETTO_INSTALL_BUILD_DEPS_ARGS: ''
           - name: gcc8-x86_64-release
             PERFETTO_TEST_GN_ARGS: 'is_debug=false is_clang=false enable_perfetto_grpc=true cc=\"gcc-8\" cxx=\"g++-8\" cc_wrapper=\"ccache\"'
