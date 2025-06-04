@@ -112,7 +112,7 @@ class TrackEventSessionObserverRegistry {
   std::vector<RegisteredObserver> observers_;
 };
 
-enum class MatchType { kExact, kPattern };
+enum class MatchType { kExact, kPattern, kWildcard };
 
 bool NameMatchesPattern(const std::string& pattern,
                         const std::string& name,
@@ -122,6 +122,9 @@ bool NameMatchesPattern(const std::string& pattern,
   size_t i = pattern.find('*');
   if (i != std::string::npos) {
     PERFETTO_DCHECK(i == pattern.size() - 1);
+    if (i == 0) {
+      return match_type == MatchType::kWildcard;
+    }
     if (match_type != MatchType::kPattern)
       return false;
     return name.substr(0, i) == pattern.substr(0, i);
@@ -311,9 +314,10 @@ bool TrackEventInternal::IsCategoryEnabled(
     return false;
   };
 
-  // First try exact matches, then pattern matches.
-  const std::array<MatchType, 2> match_types = {
-      {MatchType::kExact, MatchType::kPattern}};
+  // First try exact matches, then pattern matches. Last, try the global
+  // wildcard.
+  const std::array<MatchType, 3> match_types = {
+      {MatchType::kExact, MatchType::kPattern, MatchType::kWildcard}};
   for (auto match_type : match_types) {
     // 1. Enabled categories.
     if (NameMatchesPatternList(config.enabled_categories(), category.name,
@@ -321,11 +325,10 @@ bool TrackEventInternal::IsCategoryEnabled(
       return true;
     }
 
-    // 2. Enabled tags.
-    if (has_matching_tag([&](const char* tag) {
-          return NameMatchesPatternList(config.enabled_tags(), tag, match_type);
-        })) {
-      return true;
+    // 2. Disabled categories.
+    if (NameMatchesPatternList(config.disabled_categories(), category.name,
+                               match_type)) {
+      return false;
     }
 
     // 2.5. A special case for Chrome's legacy disabled-by-default categories.
@@ -343,24 +346,26 @@ bool TrackEventInternal::IsCategoryEnabled(
       }
     }
 
-    // 3. Disabled categories.
-    if (NameMatchesPatternList(config.disabled_categories(), category.name,
-                               match_type)) {
-      return false;
-    }
-
-    // 4. Disabled tags.
+    // 3. Disabled tags.
     if (has_matching_tag([&](const char* tag) {
           if (config.disabled_tags_size()) {
             return NameMatchesPatternList(config.disabled_tags(), tag,
                                           match_type);
-          } else {
+          } else if (config.enabled_tags_size() == 0) {
             // The "slow" and "debug" tags are disabled by default.
             return NameMatchesPattern(kSlowTag, tag, match_type) ||
                    NameMatchesPattern(kDebugTag, tag, match_type);
           }
+          return false;
         })) {
       return false;
+    }
+
+    // 4. Enabled tags.
+    if (has_matching_tag([&](const char* tag) {
+          return NameMatchesPatternList(config.enabled_tags(), tag, match_type);
+        })) {
+      return true;
     }
   }
 

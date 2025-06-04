@@ -29,11 +29,12 @@ import {Anchor} from '../../../../widgets/anchor';
 import {renderError} from '../../../../widgets/error';
 import {SqlRef} from '../../../../widgets/sql_ref';
 import {Tree, TreeNode} from '../../../../widgets/tree';
-import {hasArgs, renderArguments} from '../../../details/slice_args';
+import {hasArgs} from '../../../details/args';
 import {DurationWidget} from '../../../widgets/duration';
 import {Timestamp as TimestampWidget} from '../../../widgets/timestamp';
 import {sqlIdRegistry} from './sql_ref_renderer_registry';
 import {Trace} from '../../../../public/trace';
+import {renderSliceArguments} from '../../../details/slice_args';
 
 // This file contains the helper to render the details tree (based on Tree
 // widget) for an object represented by a SQL row in some table. The user passes
@@ -811,7 +812,7 @@ function renderValue(
           {
             left: key,
           },
-          renderArguments(trace, args),
+          renderSliceArguments(trace, args),
         )
       );
     case 'array': {

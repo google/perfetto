@@ -38,9 +38,6 @@
 namespace perfetto::trace_redaction {
 namespace {
 
-constexpr std::string_view kPackageName =
-    "com.Unity.com.unity.multiplayer.samples.coop";
-
 class RedactSchedWakingIntegrationTest
     : public testing::Test,
       protected TraceRedactionIntegrationFixure {
@@ -54,7 +51,7 @@ class RedactSchedWakingIntegrationTest
     redact_sched_events->emplace_modifier<ClearComms>();
     redact_sched_events->emplace_waking_filter<ConnectedToPackage>();
 
-    context_.package_name = kPackageName;
+    context_.package_name = kSomePackageName;
   }
 
   Context context_;

@@ -38,7 +38,7 @@ class ProcessThreadTimelineIntegrationTest
       protected TraceRedactionIntegrationFixure {
  protected:
   void SetUp() override {
-    context_.package_name = "com.Unity.com.unity.multiplayer.samples.coop";
+    context_.package_name = kSomePackageName;
 
     trace_redactor_.emplace_collect<FindPackageUid>();
     trace_redactor_.emplace_collect<CollectTimelineEvents>();

@@ -21,6 +21,7 @@
 #include <cerrno>
 #include <chrono>
 #include <cinttypes>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -795,7 +796,8 @@ Trace summarization:
                                       should be computed and returned as part of
                                       the trace summary. The spec for every metric
                                       must exist in one of the files passed to
-                                      --summary-spec.
+                                      --summary-spec. Specify `all` to execute all
+                                      available v2 metrics.
   --summary-metadata-query ID         Specifies that the given query id should be
                                       used to populate the `metadata` field of the
                                       trace summary. The spec for the query must
@@ -1915,8 +1917,16 @@ base::Status TraceProcessorMain(int argc, char** argv) {
     }
 
     TraceSummaryComputationSpec computation_config;
-    computation_config.v2_metric_ids =
-        base::SplitString(options.summary_metrics_v2, ",");
+
+    if (options.summary_metrics_v2.empty()) {
+      computation_config.v2_metric_ids = std::vector<std::string>();
+    } else if (base::CaseInsensitiveEqual(options.summary_metrics_v2, "all")) {
+      computation_config.v2_metric_ids = std::nullopt;
+    } else {
+      computation_config.v2_metric_ids =
+          base::SplitString(options.summary_metrics_v2, ",");
+    }
+
     computation_config.metadata_query_id =
         options.summary_metadata_query.empty()
             ? std::nullopt

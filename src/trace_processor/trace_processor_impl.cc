@@ -111,6 +111,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/window_operator.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/ancestor.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/connected_flow.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/dataframe_query_plan_decoder.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/descendant.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/dfs_weight_bounded.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_annotated_stack.h"
@@ -452,11 +453,12 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     context_.reader_registry->RegisterTraceReader<ZipTraceReader>(kZipFile);
   }
 
-  context_.reader_registry->RegisterTraceReader<JsonTraceTokenizer>(
-      kJsonTraceType);
-  context_.json_trace_parser = std::make_unique<JsonTraceParserImpl>(&context_);
-
   if constexpr (json::IsJsonSupported()) {
+    context_.reader_registry->RegisterTraceReader<JsonTraceTokenizer>(
+        kJsonTraceType);
+    context_.json_trace_parser =
+        std::make_unique<JsonTraceParserImpl>(&context_);
+
     context_.reader_registry
         ->RegisterTraceReader<gecko_importer::GeckoTraceTokenizer>(
             kGeckoTraceType);
@@ -1260,6 +1262,11 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   engine_->RegisterStaticTableFunction(
       std::make_unique<WinscopeProtoToArgsWithDefaults>(
           context_.storage->mutable_string_pool(), engine_.get(), &context_));
+  if (config_.enable_dev_features) {
+    engine_->RegisterStaticTableFunction(
+        std::make_unique<DataframeQueryPlanDecoder>(
+            context_.storage->mutable_string_pool()));
+  }
 
   // Value table aggregate functions.
   engine_->RegisterSqliteAggregateFunction<DominatorTree>(
