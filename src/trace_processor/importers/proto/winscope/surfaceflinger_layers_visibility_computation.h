@@ -27,16 +27,16 @@
 
 namespace perfetto::trace_processor::winscope::surfaceflinger_layers {
 
+struct VisibilityProperties {
+  bool is_visible;
+  std::vector<StringPool::Id> visibility_reasons;
+  std::vector<int> occluding_layers;
+  std::vector<int> partially_occluding_layers;
+  std::vector<int> covering_layers;
+};
+
 class VisibilityComputation {
  public:
-  struct VisibilityProperties {
-    bool is_visible;
-    std::vector<StringPool::Id> visibility_reasons;
-    std::vector<int> occluding_layers;
-    std::vector<int> partially_occluding_layers;
-    std::vector<int> covering_layers;
-  };
-
   VisibilityComputation() = default;
 
   VisibilityComputation& SetSnapshot(

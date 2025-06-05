@@ -55,7 +55,7 @@ geometry::Rect MakeFrameRect(
 }
 
 }  // namespace
-const std::unordered_map<int32_t, RectComputation::SurfaceFlingerRects>
+const std::unordered_map<int32_t, SurfaceFlingerRects>
 RectComputation::Compute() {
   std::unordered_map<int32_t, int> current_z_by_layer_stack_bounds;
   for (const auto& it : *displays_by_layer_stack_) {

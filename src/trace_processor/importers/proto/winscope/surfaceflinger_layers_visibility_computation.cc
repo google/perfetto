@@ -24,7 +24,6 @@ namespace perfetto::trace_processor::winscope::surfaceflinger_layers {
 namespace {
 using LayerDecoder = protos::pbzero::LayerProto::Decoder;
 using ColorDecoder = protos::pbzero::ColorProto::Decoder;
-using VisibilityProperties = VisibilityComputation::VisibilityProperties;
 
 inline bool IsHiddenByParent(
     const LayerDecoder& layer,

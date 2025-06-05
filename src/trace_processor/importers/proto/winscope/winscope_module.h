@@ -29,6 +29,8 @@
 #include "src/trace_processor/importers/proto/winscope/viewcapture_parser.h"
 #include "src/trace_processor/importers/proto/winscope/winscope_context.h"
 
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+
 namespace perfetto {
 namespace trace_processor {
 

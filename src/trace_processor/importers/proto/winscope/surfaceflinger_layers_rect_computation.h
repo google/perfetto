@@ -30,15 +30,13 @@
 
 namespace perfetto::trace_processor::winscope::surfaceflinger_layers {
 
-using VisibilityProperties = VisibilityComputation::VisibilityProperties;
+struct SurfaceFlingerRects {
+  std::optional<tables::WinscopeTraceRectTable::Id> layer_rect = std::nullopt;
+  std::optional<tables::WinscopeTraceRectTable::Id> input_rect = std::nullopt;
+};
 
 class RectComputation {
  public:
-  struct SurfaceFlingerRects {
-    std::optional<tables::WinscopeTraceRectTable::Id> layer_rect = std::nullopt;
-    std::optional<tables::WinscopeTraceRectTable::Id> input_rect = std::nullopt;
-  };
-
   RectComputation& SetSnapshot(
       const protos::pbzero::LayersSnapshotProto::Decoder& snapshot_decoder) {
     snapshot_decoder_ = &snapshot_decoder;
