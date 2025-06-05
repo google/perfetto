@@ -21,46 +21,48 @@
 namespace perfetto::base::internal {
 
 void ListOps::PushFront(IntrusiveListNode* node) {
-  node->prev = nullptr;
-  node->next = front_;
+  PERFETTO_DCHECK(node->prev == nullptr && node->next == nullptr);
+  node->prev = &head_;
+  node->next = head_.next;
+  head_.next = node;
+  node->next->prev = node;
+  ++size_;
+}
 
-  if (front_) {
-    front_->prev = node;
-  }
-
-  front_ = node;
+void ListOps::PushBack(IntrusiveListNode* node) {
+  PERFETTO_DCHECK(node->prev == nullptr && node->next == nullptr);
+  node->next = &head_;
+  node->prev = head_.prev;
+  head_.prev = node;
+  node->prev->next = node;
   ++size_;
 }
 
 void ListOps::PopFront() {
-  PERFETTO_DCHECK(front_);
-  front_ = front_->next;
-
-  if (front_) {
-    front_->prev = nullptr;
-  }
-
   PERFETTO_DCHECK(size_ > 0);
+  IntrusiveListNode* front = head_.next;
+  head_.next = front->next;
+  head_.next->prev = &head_;
+  front->next = front->prev = nullptr;
+  --size_;
+}
+
+void ListOps::PopBack() {
+  PERFETTO_DCHECK(size_ > 0);
+  IntrusiveListNode* back = head_.prev;
+  head_.prev = back->prev;
+  head_.prev->next = &head_;
+  back->next = back->prev = nullptr;
   --size_;
 }
 
 void ListOps::Erase(IntrusiveListNode* node) {
+  PERFETTO_DCHECK(size_ > 0);
   auto* prev = node->prev;
   auto* next = node->next;
-
-  if (node == front_) {
-    front_ = next;
-  }
-
-  if (prev) {
-    prev->next = next;
-  }
-
-  if (next) {
-    next->prev = prev;
-  }
-
-  PERFETTO_DCHECK(size_ > 0);
+  prev->next = next;
+  next->prev = prev;
+  node->prev = node->next = nullptr;
   --size_;
 }
 

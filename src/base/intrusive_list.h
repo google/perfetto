@@ -58,10 +58,12 @@ struct ListNode {
 class ListOps {
  public:
   void PushFront(ListNode* node);
+  void PushBack(ListNode* node);
   void PopFront();
+  void PopBack();
   void Erase(ListNode* node);
 
-  ListNode* front_{nullptr};
+  ListNode head_{&head_, &head_};
   size_t size_{0};
 };
 
@@ -78,8 +80,10 @@ class IntrusiveList : private internal::ListOps {
  public:
   class Iterator {
    public:
-    Iterator() = default;
-    explicit Iterator(IntrusiveListNode* node) : node_(node) {}
+    using ListType = IntrusiveList<T, ListTraits>;
+
+    Iterator(ListType* list, IntrusiveListNode* node)
+        : list_(list), node_(node) {}
     ~Iterator() = default;
     Iterator(const Iterator&) = default;
     Iterator& operator=(const Iterator&) = default;
@@ -95,28 +99,42 @@ class IntrusiveList : private internal::ListOps {
       PERFETTO_DCHECK(node_);
       return *operator->();
     }
-    explicit operator bool() const { return node_ != nullptr; }
+    explicit operator bool() const { return node_ != &list_->head_; }
 
     Iterator& operator++() {
-      PERFETTO_DCHECK(node_);
       node_ = node_->next;
+      PERFETTO_DCHECK(node_);
+      return *this;
+    }
+
+    Iterator& operator--() {
+      node_ = node_->prev;
+      PERFETTO_DCHECK(node_);
       return *this;
     }
 
    private:
-    IntrusiveListNode* node_{nullptr};
+    ListType* list_;
+    IntrusiveListNode* node_;
   };
 
   using value_type = T;
   using const_pointer = const T*;
 
   void PushFront(T& entry) { internal::ListOps::PushFront(nodeof(&entry)); }
+  void PushBack(T& entry) { internal::ListOps::PushBack(nodeof(&entry)); }
 
   void PopFront() { internal::ListOps::PopFront(); }
+  void PopBack() { internal::ListOps::PopBack(); }
 
   T& front() {
-    PERFETTO_DCHECK(front_);
-    return const_cast<T&>(*entryof(front_));
+    PERFETTO_DCHECK(head_.next != &head_);
+    return const_cast<T&>(*entryof(head_.next));
+  }
+
+  T& back() {
+    PERFETTO_DCHECK(head_.prev != &head_);
+    return const_cast<T&>(*entryof(head_.prev));
   }
 
   void Erase(T& entry) { internal::ListOps::Erase(nodeof(&entry)); }
@@ -125,9 +143,11 @@ class IntrusiveList : private internal::ListOps {
 
   size_t size() const { return size_; }
 
-  Iterator begin() { return Iterator{front_}; }
+  Iterator begin() { return Iterator(this, head_.next); }
+  Iterator end() { return Iterator(this, &head_); }
 
-  Iterator end() { return Iterator{nullptr}; }
+  Iterator rbegin() { return Iterator(this, head_.prev); }
+  Iterator rend() { return Iterator(this, &head_); }
 
  private:
   static constexpr size_t kNodeOffset = ListTraits::node_offset();
