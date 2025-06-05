@@ -34,6 +34,14 @@ MACHINE_TABLE = Table(
     sql_name='machine',
     columns=[
         C('raw_id', CppUint32()),
+        C('sysname', CppOptional(CppString())),
+        C('release', CppOptional(CppString())),
+        C('version', CppOptional(CppString())),
+        C('arch', CppOptional(CppString())),
+        C('num_cpus', CppOptional(CppUint32())),
+        C('android_build_fingerprint', CppOptional(CppString())),
+        C('android_device_manufacturer', CppOptional(CppString())),
+        C('android_sdk_version', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
         doc='''
