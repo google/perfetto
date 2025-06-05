@@ -16,9 +16,10 @@ import m from 'mithril';
 
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {QueryNode} from '../query_node';
-import {QueryNodeExplorer} from './query_node_explorer';
+import {Query, QueryNodeExplorer} from './query_node_explorer';
 import {QueryCanvas} from './query_canvas';
 import {Trace} from 'src/public/trace';
+import {NodeDataViewer} from './node_data_viewer';
 
 export interface QueryBuilderAttrs {
   readonly trace: Trace;
@@ -34,6 +35,10 @@ export interface QueryBuilderAttrs {
 }
 
 export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
+  private query?: Query;
+  private queryExecuted: boolean = false;
+  private tablePosition: 'left' | 'right' | 'bottom' = 'right';
+
   view({attrs}: m.CVnode<QueryBuilderAttrs>) {
     const {
       trace,
@@ -44,11 +49,37 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       addSourcePopupMenu,
     } = attrs;
 
-    const renderDataSourceViewer = () => {
-      return attrs.selectedNode
-        ? m(QueryNodeExplorer, {trace, node: attrs.selectedNode})
-        : undefined;
+    console.log('Table position:', this.tablePosition);
+
+    const canvasStyle: m.Attributes['style'] = {
+      gridColumn: 1,
+      gridRow: 1,
+      overflow: 'auto',
     };
+    const explorerStyle: m.Attributes['style'] = {
+      gridColumn: 2,
+      gridRow: 1,
+      overflow: 'auto',
+    };
+    const viewerStyle: m.Attributes['style'] = {
+      gridColumn: 2,
+      gridRow: 2,
+      overflow: 'auto',
+    };
+
+    switch (this.tablePosition) {
+      case 'left':
+        viewerStyle.gridColumn = 1;
+        explorerStyle.gridRow = '1/span 2';
+        break;
+      case 'right':
+        viewerStyle.gridColumn = 2;
+        canvasStyle.gridRow = '1/ span 2';
+        break;
+      case 'bottom':
+        viewerStyle.gridColumn = '1/span 2';
+        break;
+    }
 
     return m(
       '.query-builder-layout',
@@ -56,14 +87,14 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
         style: {
           display: 'grid',
           gridTemplateColumns: '50% 50%',
-          gridTemplateRows: '1fr auto',
+          gridTemplateRows: '50% 50%',
           gap: '10px',
           height: '100%',
         },
       },
       m(
         '',
-        {style: {gridColumn: 1, gridRow: 1}},
+        {style: canvasStyle},
         m(QueryCanvas, {
           rootNodes,
           selectedNode,
@@ -72,7 +103,35 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
           addSourcePopupMenu,
         }),
       ),
-      m('', {style: {gridColumn: 2, gridRow: 1}}, renderDataSourceViewer()),
+      attrs.selectedNode &&
+        m(
+          '',
+          {style: explorerStyle},
+          m(QueryNodeExplorer, {
+            trace,
+            node: attrs.selectedNode,
+            onQueryAnalyzed: (query: Query) => {
+              this.query = query;
+              this.queryExecuted = false;
+            },
+          }),
+        ),
+      attrs.selectedNode &&
+        m(
+          '',
+          {style: viewerStyle},
+          m(NodeDataViewer, {
+            trace,
+            query: this.query,
+            executeQuery: !this.queryExecuted,
+            onQueryExecuted: () => {
+              this.queryExecuted = true;
+            },
+            onPositionChange: (pos: 'left' | 'right' | 'bottom') => {
+              this.tablePosition = pos;
+            },
+          }),
+        ),
     );
   }
 }

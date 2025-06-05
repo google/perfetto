@@ -200,7 +200,7 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_dsu_pmu.pb'),
         query=("""
-            INCLUDE PERFETTO MODULE wattson.curves.estimates;
+            INCLUDE PERFETTO MODULE wattson.estimates;
               select
               ts,dur,l3_hit_count,l3_miss_count,freq_0,idle_0,freq_1,idle_1,freq_2,idle_2,freq_3,idle_3,freq_4,idle_4,freq_5,idle_5,freq_6,idle_6,freq_7,idle_7,policy_4,policy_5,policy_6,policy_7,no_static,cpu0_curve,cpu1_curve,cpu2_curve,cpu3_curve,cpu4_curve,cpu5_curve,cpu6_curve,cpu7_curve,static_4,static_5,static_6,static_7
               from _w_independent_cpus_calc
@@ -227,7 +227,7 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_dsu_pmu.pb'),
         query=("""
-            INCLUDE PERFETTO MODULE wattson.curves.estimates;
+            INCLUDE PERFETTO MODULE wattson.estimates;
               select * from _system_state_curves
               ORDER by ts ASC
               LIMIT 5
@@ -246,7 +246,7 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_dsu_pmu.pb'),
         query=("""
-            INCLUDE PERFETTO MODULE wattson.curves.estimates;
+            INCLUDE PERFETTO MODULE wattson.estimates;
               select * from _system_state_curves
               WHERE ts > 359661672577
               ORDER by ts ASC
@@ -266,8 +266,11 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_dsu_pmu.pb'),
         query=("""
-            INCLUDE PERFETTO MODULE wattson.curves.estimates;
-              select * from _system_state_mw
+            INCLUDE PERFETTO MODULE wattson.estimates;
+              SELECT
+                ts, dur, cpu0_mw, cpu1_mw, cpu2_mw, cpu3_mw, cpu4_mw, cpu5_mw,
+                cpu6_mw, cpu7_mw, dsu_scu_mw
+              FROM _system_state_mw
               WHERE ts > 359661672577
               ORDER by ts ASC
               LIMIT 10
@@ -291,7 +294,7 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_eos_suspend.pb'),
         query=("""
-            INCLUDE PERFETTO MODULE wattson.curves.estimates;
+            INCLUDE PERFETTO MODULE wattson.estimates;
               select * from _system_state_curves
               WHERE ts > 24790009884888
               ORDER by ts ASC
@@ -311,7 +314,7 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_eos_suspend.pb'),
         query=("""
-            INCLUDE PERFETTO MODULE wattson.curves.idle_attribution;
+            INCLUDE PERFETTO MODULE wattson.cpu.idle_attribution;
             SELECT
               SUM(estimated_mw * dur) / 1000000000 as idle_transition_cost_mws,
               utid,
@@ -350,7 +353,7 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_tk4_pcmark.pb'),
         query=("""
-            INCLUDE PERFETTO MODULE wattson.curves.w_dsu_dependence;
+            INCLUDE PERFETTO MODULE wattson.cpu.w_dsu_dependence;
             SELECT
             ts,dur,freq_0,idle_0,freq_1,idle_1,freq_2,idle_2,freq_3,idle_3,cpu4_curve,cpu5_curve,cpu6_curve,cpu7_curve,l3_hit_count,l3_miss_count,no_static,all_cpu_deep_idle
             FROM _cpu_curves
@@ -386,8 +389,11 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_tk4_pcmark.pb'),
         query=("""
-            INCLUDE PERFETTO MODULE wattson.curves.estimates;
-            SELECT * FROM _system_state_mw
+            INCLUDE PERFETTO MODULE wattson.estimates;
+            SELECT
+               ts, dur, cpu0_mw, cpu1_mw, cpu2_mw, cpu3_mw, cpu4_mw, cpu5_mw,
+               cpu6_mw, cpu7_mw, dsu_scu_mw
+            FROM _system_state_mw
             WHERE ts > 4108586775197
             LIMIT 20
             """),
@@ -419,7 +425,7 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_dsu_pmu.pb'),
         query="""
-        INCLUDE PERFETTO MODULE wattson.curves.estimates;
+        INCLUDE PERFETTO MODULE wattson.estimates;
 
         SELECT
           cpu0_mw,
@@ -444,7 +450,7 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_syscore_suspend.pb'),
         query=("""
-            INCLUDE PERFETTO MODULE wattson.curves.estimates;
+            INCLUDE PERFETTO MODULE wattson.estimates;
             SELECT ts, dur, cpu0_id, cpu1_id, cpu2_id, cpu3_id, suspended
             FROM _stats_cpu0123_suspend
             WHERE suspended
@@ -462,7 +468,7 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_tk4_vm.pb'),
         query=("""
-            INCLUDE PERFETTO MODULE wattson.curves.estimates;
+            INCLUDE PERFETTO MODULE wattson.estimates;
                SELECT
                  ts, dur, cpu0_mw, cpu1_mw, cpu2_mw, cpu3_mw, cpu4_mw, cpu5_mw,
                  cpu6_mw
@@ -489,7 +495,7 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_cpuhp_devfreq_suspend.pb'),
         query=("""
-            INCLUDE PERFETTO MODULE wattson.curves.estimates;
+            INCLUDE PERFETTO MODULE wattson.estimates;
                SELECT
                  ts, dur, cpu0_mw, cpu1_mw, cpu2_mw, cpu3_mw, cpu4_mw, cpu5_mw,
                  cpu6_mw, cpu7_mw, dsu_scu_mw
@@ -512,7 +518,7 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_idle_map.pb'),
         query=("""
-               INCLUDE PERFETTO MODULE wattson.curves.estimates;
+               INCLUDE PERFETTO MODULE wattson.estimates;
                SELECT ts, dur, cpu, idle
                FROM _adjusted_deep_idle
                WHERE ts > 1450338950433 AND cpu = 3
@@ -537,7 +543,7 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_cpuhp_devfreq_suspend.pb'),
         query=("""
-            INCLUDE PERFETTO MODULE wattson.cpu_hotplug;
+            INCLUDE PERFETTO MODULE wattson.cpu.hotplug;
             SELECT cpu, ts, dur
             FROM _gapless_hotplug_slices
             WHERE cpu < 2

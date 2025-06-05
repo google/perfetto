@@ -21,6 +21,7 @@ package perfetto.protos;
 import "protos/perfetto/common/descriptor.proto";
 import "protos/perfetto/trace_processor/metatrace_categories.proto";
 import "protos/perfetto/perfetto_sql/structured_query.proto";
+import "protos/perfetto/trace_summary/file.proto";
 
 // This file defines the schema for {,un}marshalling arguments and return values
 // when interfacing to the trace processor binary interface.
@@ -108,6 +109,7 @@ message TraceProcessorRpc {
     TPM_RESET_TRACE_PROCESSOR = 11;
     TPM_REGISTER_SQL_PACKAGE = 13;
     TPM_ANALYZE_STRUCTURED_QUERY = 14;
+    TPM_SUMMARIZE_TRACE = 15;
   }
 
   oneof type {
@@ -143,6 +145,8 @@ message TraceProcessorRpc {
     RegisterSqlPackageArgs register_sql_package_args = 108;
     // For TPM_ANALYZE_STRUCTURED_QUERY.
     AnalyzeStructuredQueryArgs analyze_structured_query_args = 109;
+    // For TPM_SUMMARIZE_TRACE.
+    TraceSummaryArgs trace_summary_args = 110;
 
     // TraceProcessorMethod response args.
     // For TPM_APPEND_TRACE_DATA.
@@ -163,6 +167,8 @@ message TraceProcessorRpc {
     FinalizeDataResult finalize_data_result = 212;
     // For TPM_ANALYZE_STRUCTURED_QUERY.
     AnalyzeStructuredQueryResult analyze_structured_query_result = 213;
+    // For TPM_SUMMARIZE_TRACE.
+    TraceSummaryResult trace_summary_result = 214;
   }
 
   // Previously: RawQueryArgs for TPM_QUERY_RAW_DEPRECATED
@@ -383,4 +389,28 @@ message AnalyzeStructuredQueryResult {
   }
   optional string error = 1;
   repeated StructuredQueryResult results = 2;
+}
+
+message TraceSummaryArgs {
+  message ComputationSpec {
+    repeated string metric_ids = 1;
+    optional bool run_all_metrics = 3;
+    optional string metadata_query_id = 2;
+  }
+  enum Format {
+    BINARY_PROTOBUF = 0;
+    TEXTPROTO = 1;
+  }
+  repeated TraceSummarySpec proto_specs = 1;
+  repeated string textproto_specs = 2;
+  optional ComputationSpec computation_spec = 3;
+  optional Format output_format = 4;
+}
+
+message TraceSummaryResult {
+  oneof summary {
+    bytes proto_summary = 1;
+    string textproto_summary = 2;
+  }
+  optional string error = 3;
 }

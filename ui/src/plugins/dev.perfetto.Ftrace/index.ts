@@ -21,7 +21,7 @@ import {TrackNode} from '../../public/workspace';
 import {NUM} from '../../trace_processor/query_result';
 import {FtraceFilter, FtracePluginState} from './common';
 import {FtraceExplorer, FtraceExplorerCache} from './ftrace_explorer';
-import {FtraceRawTrack} from './ftrace_track';
+import {createFtraceTrack} from './ftrace_track';
 
 const VERSION = 1;
 
@@ -73,7 +73,7 @@ export default class implements PerfettoPlugin {
           cpu: cpu.cpu,
           groupName: 'Ftrace Events',
         },
-        track: new FtraceRawTrack(ctx.engine, cpu.ucpu, filterStore),
+        renderer: createFtraceTrack(ctx, uri, cpu, filterStore),
       });
 
       const track = new TrackNode({uri, title});
@@ -117,9 +117,12 @@ export default class implements PerfettoPlugin {
   private async lookupCpuCores(ctx: Trace): Promise<Cpu[]> {
     // ctx.traceInfo.cpus contains all cpus seen from all events. Filter the set
     // if it's seen in ftrace_event.
-    const queryRes = await ctx.engine.query(
-      `select distinct ucpu from ftrace_event order by ucpu;`,
-    );
+    const queryRes = await ctx.engine.query(`
+      SELECT DISTINCT
+        ucpu
+      FROM ftrace_event
+      ORDER BY ucpu
+    `);
     const ucpus = new Set<number>();
     for (const it = queryRes.iter({ucpu: NUM}); it.valid(); it.next()) {
       ucpus.add(it.ucpu);

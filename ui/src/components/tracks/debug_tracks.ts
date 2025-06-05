@@ -171,7 +171,7 @@ async function addPivotedSliceTracks(
     trace.tracks.registerTrack({
       uri,
       title,
-      track: new DatasetSliceTrack({
+      renderer: new DatasetSliceTrack({
         trace,
         uri,
         dataset: new SourceDataset({
@@ -207,7 +207,7 @@ function addSingleSliceTrack(
   trace.tracks.registerTrack({
     uri,
     title,
-    track: new DatasetSliceTrack({
+    renderer: new DatasetSliceTrack({
       trace,
       uri,
       dataset: new SourceDataset({
@@ -339,7 +339,7 @@ async function addPivotedCounterTracks(
     trace.tracks.registerTrack({
       uri,
       title,
-      track: new SqlTableCounterTrack(
+      renderer: new SqlTableCounterTrack(
         trace,
         uri,
         `
@@ -364,7 +364,7 @@ function addSingleCounterTrack(
   trace.tracks.registerTrack({
     uri,
     title,
-    track: new SqlTableCounterTrack(trace, uri, tableName),
+    renderer: new SqlTableCounterTrack(trace, uri, tableName),
   });
 
   const trackNode = new TrackNode({uri, title, removable: true});

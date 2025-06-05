@@ -52,6 +52,7 @@
 #include "src/trace_processor/importers/archive/gzip_trace_parser.h"
 #include "src/trace_processor/importers/archive/tar_trace_reader.h"
 #include "src/trace_processor/importers/archive/zip_trace_reader.h"
+#include "src/trace_processor/importers/art_hprof/art_hprof_parser.h"
 #include "src/trace_processor/importers/art_method/art_method_parser_impl.h"
 #include "src/trace_processor/importers/art_method/art_method_tokenizer.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
@@ -110,6 +111,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/window_operator.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/ancestor.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/connected_flow.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/dataframe_query_plan_decoder.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/descendant.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/dfs_weight_bounded.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_annotated_stack.h"
@@ -468,6 +470,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       kArtMethodTraceType);
   context_.art_method_parser =
       std::make_unique<art_method::ArtMethodParserImpl>(&context_);
+
+  context_.reader_registry->RegisterTraceReader<art_hprof::ArtHprofParser>(
+      kArtHprofTraceType);
 
   context_.reader_registry
       ->RegisterTraceReader<perf_text_importer::PerfTextTraceTokenizer>(
@@ -1202,6 +1207,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(
       storage->mutable_window_manager_shell_transition_handlers_table());
   RegisterStaticTable(
+      storage->mutable_window_manager_shell_transition_participants_table());
+  RegisterStaticTable(
       storage->mutable_window_manager_shell_transition_protos_table());
 
   RegisterStaticTable(storage->mutable_protolog_table());
@@ -1255,6 +1262,11 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   engine_->RegisterStaticTableFunction(
       std::make_unique<WinscopeProtoToArgsWithDefaults>(
           context_.storage->mutable_string_pool(), engine_.get(), &context_));
+  if (config_.enable_dev_features) {
+    engine_->RegisterStaticTableFunction(
+        std::make_unique<DataframeQueryPlanDecoder>(
+            context_.storage->mutable_string_pool()));
+  }
 
   // Value table aggregate functions.
   engine_->RegisterSqliteAggregateFunction<DominatorTree>(

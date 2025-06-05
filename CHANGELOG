@@ -4,11 +4,27 @@ Unreleased:
   SQL Standard library:
     *
   Trace Processor:
-    *
+    * Improved handling of traces containing overlapping "complete" events
+      (i.e. events with a duration, AKA 'X' events in the JSON format).
+      While overlapping events are prohibited by the JSON spec, they do
+      appear in many synthetically generated JSON traces. Previously, such
+      events would break the data model of trace processor and cause signifcant
+      glitches in the UI. These events are now dropped, fixing all the visual
+      glitches and an error stat is emitted to make the user aware.
+    * Improved performance of parsing JSON by 7x. JSON traces should now load
+      much faster in the Perfetto UI and the trace processor.
+    * Added `trace_summary()` function to the Python API to execute metrics v2.
+    * Executing `--summary-metrics-v2 all` will run all available metrics when
+      summarizing the trace.
   UI:
-    *
+    * Improved JSON loading performance. See `Trace Processor` section above.
+    * Improved duration based slice aggregators - slices are now trimmed to the
+      width of the area selection.
   SDK:
-    *
+    * TrackEvent priority of enabled/disabled category and tags were reorded.
+      The new logic ranks (in this order)
+      specific > pattern > single char "*" wildcard,
+      categories (enabled > disabled) > tags (disabled > enabled).
 
 
 v50.1 - 2025-04-17:

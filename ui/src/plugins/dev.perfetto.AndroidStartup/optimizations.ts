@@ -126,7 +126,7 @@ export async function optimizationsTrack(
   trace.tracks.registerTrack({
     uri,
     title,
-    track,
+    renderer: track,
   });
   const trackNode = new TrackNode({title, uri});
   for await (const classLoadingTrack of classLoadingTracks) {
@@ -157,7 +157,7 @@ async function classLoadingTrack(
   trace.tracks.registerTrack({
     uri,
     title,
-    track,
+    renderer: track,
   });
   return new TrackNode({title, uri});
 }

@@ -35,7 +35,7 @@ export default class implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         title,
-        track: createScreenshotsTrack(ctx, uri),
+        renderer: createScreenshotsTrack(ctx, uri),
       });
       const trackNode = new TrackNode({uri, title, sortOrder: -60});
       ctx.workspace.addChildInOrder(trackNode);

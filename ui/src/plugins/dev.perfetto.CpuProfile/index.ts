@@ -68,7 +68,7 @@ export default class implements PerfettoPlugin {
           utid,
           ...(exists(upid) && {upid}),
         },
-        track: createCpuProfileTrack(ctx, uri, utid),
+        renderer: createCpuProfileTrack(ctx, uri, utid),
       });
       const group = ctx.plugins
         .getPlugin(ProcessThreadGroupsPlugin)

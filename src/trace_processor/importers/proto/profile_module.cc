@@ -16,17 +16,14 @@
 
 #include "src/trace_processor/importers/proto/profile_module.h"
 #include <optional>
-#include <string>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
-#include "src/trace_processor/importers/common/deobfuscation_mapping_table.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
@@ -40,11 +37,8 @@
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/build_id.h"
-#include "src/trace_processor/util/profiler_util.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
-#include "protos/perfetto/common/perf_events.pbzero.h"
-#include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "protos/perfetto/trace/profiling/smaps.pbzero.h"
@@ -61,8 +55,6 @@ ProfileModule::ProfileModule(TraceProcessorContext* context)
   RegisterForField(TracePacket::kPerfSampleFieldNumber, context);
   RegisterForField(TracePacket::kProfilePacketFieldNumber, context);
   RegisterForField(TracePacket::kModuleSymbolsFieldNumber, context);
-  // note: deobfuscation mappings also handled by HeapGraphModule.
-  RegisterForField(TracePacket::kDeobfuscationMappingFieldNumber, context);
   RegisterForField(TracePacket::kSmapsPacketFieldNumber, context);
 }
 
@@ -101,11 +93,6 @@ void ProfileModule::ParseTracePacketData(
       return;
     case TracePacket::kModuleSymbolsFieldNumber:
       ParseModuleSymbols(decoder.module_symbols());
-      return;
-    case TracePacket::kDeobfuscationMappingFieldNumber:
-      ParseDeobfuscationMapping(ts, data.sequence_state.get(),
-                                decoder.trusted_packet_sequence_id(),
-                                decoder.deobfuscation_mapping());
       return;
     case TracePacket::kSmapsPacketFieldNumber:
       ParseSmapsPacket(ts, decoder.smaps_packet());
@@ -489,76 +476,6 @@ void ProfileModule::ParseModuleSymbols(ConstBytes blob) {
       continue;
     }
   }
-}
-
-void ProfileModule::ParseDeobfuscationMapping(int64_t,
-                                              PacketSequenceStateGeneration*,
-                                              uint32_t /* seq_id */,
-                                              ConstBytes blob) {
-  DeobfuscationMappingTable deobfuscation_mapping_table;
-  protos::pbzero::DeobfuscationMapping::Decoder deobfuscation_mapping(
-      blob.data, blob.size);
-  if (deobfuscation_mapping.package_name().size == 0)
-    return;
-
-  auto opt_package_name_id = context_->storage->string_pool().GetId(
-      deobfuscation_mapping.package_name());
-  auto opt_memfd_id = context_->storage->string_pool().GetId("memfd");
-  if (!opt_package_name_id && !opt_memfd_id)
-    return;
-
-  for (auto class_it = deobfuscation_mapping.obfuscated_classes(); class_it;
-       ++class_it) {
-    protos::pbzero::ObfuscatedClass::Decoder cls(*class_it);
-    base::FlatHashMap<StringId, StringId> obfuscated_to_deobfuscated_members;
-    for (auto member_it = cls.obfuscated_methods(); member_it; ++member_it) {
-      protos::pbzero::ObfuscatedMember::Decoder member(*member_it);
-      std::string merged_obfuscated = cls.obfuscated_name().ToStdString() +
-                                      "." +
-                                      member.obfuscated_name().ToStdString();
-      auto merged_obfuscated_id = context_->storage->string_pool().GetId(
-          base::StringView(merged_obfuscated));
-      if (!merged_obfuscated_id)
-        continue;
-      std::string merged_deobfuscated =
-          FullyQualifiedDeobfuscatedName(cls, member);
-
-      std::vector<tables::StackProfileFrameTable::Id> frames;
-      if (opt_package_name_id) {
-        const std::vector<tables::StackProfileFrameTable::Id> pkg_frames =
-            context_->stack_profile_tracker->JavaFramesForName(
-                {*merged_obfuscated_id, *opt_package_name_id});
-        frames.insert(frames.end(), pkg_frames.begin(), pkg_frames.end());
-      }
-      if (opt_memfd_id) {
-        const std::vector<tables::StackProfileFrameTable::Id> memfd_frames =
-            context_->stack_profile_tracker->JavaFramesForName(
-                {*merged_obfuscated_id, *opt_memfd_id});
-        frames.insert(frames.end(), memfd_frames.begin(), memfd_frames.end());
-      }
-
-      for (tables::StackProfileFrameTable::Id frame_id : frames) {
-        auto* frames_tbl =
-            context_->storage->mutable_stack_profile_frame_table();
-        auto rr = *frames_tbl->FindById(frame_id);
-        rr.set_deobfuscated_name(context_->storage->InternString(
-            base::StringView(merged_deobfuscated)));
-      }
-      obfuscated_to_deobfuscated_members[context_->storage->InternString(
-          member.obfuscated_name())] =
-          context_->storage->InternString(member.deobfuscated_name());
-    }
-    // Members can contain a class name (e.g "ClassA.FunctionF")
-    deobfuscation_mapping_table.AddClassTranslation(
-        DeobfuscationMappingTable::PackageId{
-            deobfuscation_mapping.package_name().ToStdString(),
-            deobfuscation_mapping.version_code()},
-        context_->storage->InternString(cls.obfuscated_name()),
-        context_->storage->InternString(cls.deobfuscated_name()),
-        std::move(obfuscated_to_deobfuscated_members));
-  }
-  context_->args_translation_table->AddDeobfuscationMappingTable(
-      std::move(deobfuscation_mapping_table));
 }
 
 void ProfileModule::ParseSmapsPacket(int64_t ts, ConstBytes blob) {

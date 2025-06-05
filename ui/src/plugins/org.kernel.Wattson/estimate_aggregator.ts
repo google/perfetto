@@ -20,7 +20,10 @@ import {
 import {Engine} from '../../trace_processor/engine';
 import {exists} from '../../base/utils';
 import {ColumnDef, Sorting} from '../../public/aggregation';
-import {CPUSS_ESTIMATE_TRACK_KIND} from '../../public/track_kinds';
+import {
+  CPUSS_ESTIMATE_TRACK_KIND,
+  GPUSS_ESTIMATE_TRACK_KIND,
+} from './track_kinds';
 
 export class WattsonEstimateSelectionAggregator
   implements AreaSelectionAggregator
@@ -33,7 +36,8 @@ export class WattsonEstimateSelectionAggregator
     const estimateTracks: string[] = [];
     for (const trackInfo of area.tracks) {
       if (
-        trackInfo?.tags?.kind === CPUSS_ESTIMATE_TRACK_KIND &&
+        (trackInfo?.tags?.kind === CPUSS_ESTIMATE_TRACK_KIND ||
+          trackInfo?.tags?.kind === GPUSS_ESTIMATE_TRACK_KIND) &&
         exists(trackInfo.tags?.wattson)
       ) {
         estimateTracks.push(`${trackInfo.tags.wattson}`);
@@ -53,15 +57,15 @@ export class WattsonEstimateSelectionAggregator
   ): string {
     const duration = area.end - area.start;
     let query = `
-      INCLUDE PERFETTO MODULE wattson.curves.estimates;
+      INCLUDE PERFETTO MODULE wattson.estimates;
 
       CREATE OR REPLACE PERFETTO TABLE wattson_plugin_ui_selection_window AS
       SELECT
         ${area.start} as ts,
         ${duration} as dur;
 
-      DROP TABLE IF EXISTS wattson_plugin_windowed_cpuss_estimate;
-      CREATE VIRTUAL TABLE wattson_plugin_windowed_cpuss_estimate
+      DROP TABLE IF EXISTS wattson_plugin_windowed_subsystems_estimate;
+      CREATE VIRTUAL TABLE wattson_plugin_windowed_subsystems_estimate
       USING
         SPAN_JOIN(wattson_plugin_ui_selection_window, _system_state_mw);
 
@@ -79,7 +83,7 @@ export class WattsonEstimateSelectionAggregator
         '${estimateTrack}' as name,
         ROUND(SUM(${estimateTrack}_mw * dur) / ${duration}, 3) as power,
         ROUND(SUM(${estimateTrack}_mw * dur) / 1000000000, 3) as energy
-        FROM wattson_plugin_windowed_cpuss_estimate
+        FROM wattson_plugin_windowed_subsystems_estimate
       `;
     });
     query += `;`;
@@ -111,8 +115,6 @@ export class WattsonEstimateSelectionAggregator
       },
     ];
   }
-
-  async getExtra() {}
 
   getTabName() {
     return 'Wattson estimates';

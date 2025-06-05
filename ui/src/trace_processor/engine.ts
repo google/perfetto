@@ -14,7 +14,7 @@
 
 import protos from '../protos';
 import {defer, Deferred} from '../base/deferred';
-import {assertExists, assertTrue} from '../base/logging';
+import {assertExists, assertTrue, assertUnreachable} from '../base/logging';
 import {ProtoRingBuffer} from './proto_ring_buffer';
 import {
   createQueryResult,
@@ -100,6 +100,13 @@ export interface Engine {
     format: 'json' | 'prototext' | 'proto',
   ): Promise<string | Uint8Array>;
 
+  summarizeTrace(
+    summarySpecs: protos.TraceSummarySpec[] | string[],
+    metricIds: string[] | undefined,
+    metadataId: string | undefined,
+    format: 'prototext' | 'proto',
+  ): Promise<protos.TraceSummaryResult>;
+
   enableMetatrace(categories?: protos.MetatraceCategories): void;
   stopAndGetMetatrace(): Promise<protos.DisableAndReadMetatraceResult>;
 
@@ -138,6 +145,7 @@ export abstract class EngineBase implements Engine, Disposable {
   private pendingReadMetatrace?: Deferred<protos.DisableAndReadMetatraceResult>;
   private pendingRegisterSqlPackage?: Deferred<void>;
   private pendingAnalyzeStructuredQueries?: Deferred<protos.AnalyzeStructuredQueryResult>;
+  private pendingTraceSummary?: Deferred<protos.TraceSummaryResult>;
   private _isMetatracingEnabled = false;
   private _numRequestsPending = 0;
   private _failed: string | undefined = undefined;
@@ -299,6 +307,13 @@ export abstract class EngineBase implements Engine, Disposable {
           res.resolve();
         }
         break;
+      case TPM.TPM_SUMMARIZE_TRACE:
+        const summaryRes = assertExists(
+          rpc.traceSummaryResult,
+        ) as protos.TraceSummaryResult;
+        assertExists(this.pendingTraceSummary).resolve(summaryRes);
+        this.pendingTraceSummary = undefined;
+        break;
       case TPM.TPM_ANALYZE_STRUCTURED_QUERY:
         const analyzeRes = assertExists(
           rpc.analyzeStructuredQueryResult,
@@ -408,6 +423,54 @@ export abstract class EngineBase implements Engine, Disposable {
     }
     this.rpcSendRequest(rpc);
     return asyncRes;
+  }
+
+  summarizeTrace(
+    summarySpecs: protos.TraceSummarySpec[] | string[],
+    metricIds: string[] | undefined,
+    metadataId: string | undefined,
+    format: 'prototext' | 'proto',
+  ): Promise<protos.TraceSummaryResult> {
+    if (this.pendingTraceSummary) {
+      return Promise.reject(new Error('Already summarizing trace'));
+    }
+    if (summarySpecs.length === 0) {
+      return Promise.reject(new Error('No summary specs provided'));
+    }
+    const result = defer<protos.TraceSummaryResult>();
+    const rpc = protos.TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_SUMMARIZE_TRACE;
+    const args = (rpc.traceSummaryArgs = new protos.TraceSummaryArgs());
+    const computationSpec = new protos.TraceSummaryArgs.ComputationSpec();
+    if (metricIds) {
+      computationSpec.metricIds = metricIds;
+    } else {
+      computationSpec.runAllMetrics = true;
+    }
+    if (metadataId) {
+      computationSpec.metadataQueryId = metadataId;
+    }
+    args.computationSpec = computationSpec;
+
+    if (typeof summarySpecs[0] === 'string') {
+      args.textprotoSpecs = summarySpecs as string[];
+    } else {
+      args.protoSpecs = summarySpecs as protos.TraceSummarySpec[];
+    }
+
+    switch (format) {
+      case 'prototext':
+        args.outputFormat = protos.TraceSummaryArgs.Format.TEXTPROTO;
+        break;
+      case 'proto':
+        args.outputFormat = protos.TraceSummaryArgs.Format.BINARY_PROTOBUF;
+        break;
+      default:
+        assertUnreachable(format);
+    }
+    this.pendingTraceSummary = result;
+    this.rpcSendRequest(rpc);
+    return result;
   }
 
   // Issues a streaming query and retrieve results in batches.
@@ -648,6 +711,20 @@ export class EngineProxy implements Engine, Disposable {
       return defer<string>(); // Return a promise that will hang forever.
     }
     return this.engine.computeMetric(metrics, format);
+  }
+
+  summarizeTrace(
+    summarySpecs: protos.TraceSummarySpec[] | string[],
+    metricIds: string[] | undefined,
+    metadataId: string | undefined,
+    format: 'prototext' | 'proto',
+  ): Promise<protos.TraceSummaryResult> {
+    return this.engine.summarizeTrace(
+      summarySpecs,
+      metricIds,
+      metadataId,
+      format,
+    );
   }
 
   enableMetatrace(categories?: protos.MetatraceCategories): void {

@@ -147,7 +147,7 @@ export function renderFlows(
       const trackRect = trackPanel.verticalBounds;
       const sliceRectRaw = trace.tracks
         .getTrack(trackUri)
-        ?.track.getSliceVerticalBounds?.(depth);
+        ?.renderer.getSliceVerticalBounds?.(depth);
       if (sliceRectRaw) {
         const sliceRect = {
           top: sliceRectRaw.top + trackRect.top,

@@ -79,7 +79,7 @@ export default class implements PerfettoPlugin {
         title,
         description: 'Android log messages',
         tags: {kind: ANDROID_LOGS_TRACK_KIND},
-        track: createAndroidLogTrack(ctx, uri),
+        renderer: createAndroidLogTrack(ctx, uri),
       });
       const track = new TrackNode({title, uri});
       ctx.workspace.addChildInOrder(track);

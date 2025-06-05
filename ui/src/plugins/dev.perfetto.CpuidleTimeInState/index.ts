@@ -45,7 +45,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title: name,
-      track,
+      renderer: track,
     });
     const node = new TrackNode({uri, title: name});
     group.addChildInOrder(node);

@@ -72,7 +72,7 @@ async function addBasicSliceTrack(trace: Trace): Promise<void> {
   trace.tracks.registerTrack({
     uri,
     title,
-    track: new DatasetSliceTrack({
+    renderer: new DatasetSliceTrack({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -99,7 +99,7 @@ async function addFilteredSliceTrack(trace: Trace): Promise<void> {
   trace.tracks.registerTrack({
     uri,
     title,
-    track: new DatasetSliceTrack({
+    renderer: new DatasetSliceTrack({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -134,7 +134,7 @@ async function addSliceTrackWithCustomColorizer(trace: Trace): Promise<void> {
   trace.tracks.registerTrack({
     uri,
     title,
-    track: new DatasetSliceTrack({
+    renderer: new DatasetSliceTrack({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -166,7 +166,7 @@ async function addInstantTrack(trace: Trace): Promise<void> {
   trace.tracks.registerTrack({
     uri,
     title,
-    track: new DatasetSliceTrack({
+    renderer: new DatasetSliceTrack({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -193,7 +193,7 @@ async function addFlatSliceTrack(trace: Trace): Promise<void> {
   trace.tracks.registerTrack({
     uri,
     title,
-    track: new DatasetSliceTrack({
+    renderer: new DatasetSliceTrack({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -222,7 +222,7 @@ async function addFixedColorSliceTrack(trace: Trace): Promise<void> {
   trace.tracks.registerTrack({
     uri,
     title,
-    track: new DatasetSliceTrack({
+    renderer: new DatasetSliceTrack({
       trace: trace,
       uri,
       dataset: new SourceDataset({

@@ -16,7 +16,7 @@ import m from 'mithril';
 import {duration, time, TimeSpan} from '../base/time';
 import {Dataset, DatasetSchema} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
-import {ColumnDef, Sorting, ThreadStateExtra} from './aggregation';
+import {ColumnDef, Sorting, BarChartData} from './aggregation';
 import {Track} from './track';
 import {arrayEquals} from '../base/array_utils';
 
@@ -155,18 +155,19 @@ export interface AreaSelectionAggregator {
    * @param engine - The query engine used to execute queries.
    * @param area - The currently selected area to aggregate.
    * @param dataset - The dataset representing a union of the data in the
-   * selected tracks.
+   * selected tracks sliced by the intersection of the area assuming datasets
+   * have a `dur` column. If no tracks have a dataset, this will be undefined.
    */
   createAggregateView(
     engine: Engine,
     area: AreaSelection,
     dataset?: Dataset,
   ): Promise<boolean>;
-  getExtra(
+  getBarChartData?(
     engine: Engine,
     area: AreaSelection,
     dataset?: Dataset,
-  ): Promise<ThreadStateExtra | void>;
+  ): Promise<BarChartData[] | undefined>;
   getTabName(): string;
   getDefaultSorting(): Sorting;
   getColumnDefinitions(): ColumnDef[];

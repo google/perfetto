@@ -33,13 +33,13 @@ export interface ArgNode<T> {
 //
 // If you want to convert args to a POJO, try convertArgsToObject().
 //
-// Key should be a path seperated by periods (.) or indexes specified using a
+// Key should be a path separated by periods (.) or indexes specified using a
 // number inside square brackets.
 // e.g. foo.bar[0].x
 //
 // See unit tests for examples.
 export function convertArgsToTree<T extends {key: string}>(
-  input: T[],
+  input: ReadonlyArray<T>,
 ): ArgNode<T>[] {
   const result: ArgNode<T>[] = [];
   for (const arg of input) {
@@ -95,7 +95,7 @@ type ObjectType<T> = T | ObjectType<T>[] | {[key: string]: ObjectType<T>};
 // both number and string types) as nodes cannot be both an object and an array,
 // and will throw when this situation arises.
 //
-// Key should be a path seperated by periods (.) or indexes specified using a
+// Key should be a path separated by periods (.) or indexes specified using a
 // number inside square brackets.
 // e.g. foo.bar[0].x
 //

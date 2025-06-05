@@ -14,12 +14,13 @@
 
 import {AsyncLimiter} from '../base/async_limiter';
 import {isString} from '../base/object_utils';
+import {Time} from '../base/time';
 import {AggregateData, Column, ColumnDef, Sorting} from '../public/aggregation';
 import {AreaSelection, AreaSelectionAggregator} from '../public/selection';
 import {Track} from '../public/track';
-import {Dataset, UnionDataset} from '../trace_processor/dataset';
+import {Dataset, SourceDataset, UnionDataset} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
-import {NUM} from '../trace_processor/query_result';
+import {LONG, NUM} from '../trace_processor/query_result';
 
 export class SelectionAggregationManager {
   private readonly limiter = new AsyncLimiter();
@@ -90,7 +91,34 @@ export class SelectionAggregationManager {
     area: AreaSelection,
   ): Promise<AggregateData | undefined> {
     const aggr = this.aggregator;
-    const dataset = this.createDatasetForAggregator(aggr, area.tracks);
+    let dataset = this.createDatasetForAggregator(aggr, area.tracks);
+
+    await this.engine.query('INCLUDE PERFETTO MODULE viz.aggregation');
+
+    const duration = Time.durationBetween(area.start, area.end);
+
+    // The dataset must contain ts, dur, and id columns for interval
+    // intersection.
+    if (
+      duration > 0n &&
+      dataset &&
+      dataset.implements({id: NUM, ts: LONG, dur: LONG})
+    ) {
+      dataset = new SourceDataset({
+        src: `
+          SELECT
+            ii_dur as dur,
+            *
+          FROM _intersect_slices!(
+            ${area.start},
+            ${duration},
+            (${dataset.query()})
+          )
+        `,
+        schema: dataset.schema,
+      });
+    }
+
     const viewExists = await aggr.createAggregateView(
       this.engine,
       area,
@@ -118,14 +146,14 @@ export class SelectionAggregationManager {
     const columnSums = await Promise.all(
       defs.map((def) => this.getSum(aggr.id, def)),
     );
-    const extraData = await aggr.getExtra(this.engine, area);
+    const extraData = await aggr.getBarChartData?.(this.engine, area, dataset);
     const extra = extraData ? extraData : undefined;
     const data: AggregateData = {
       tabName: aggr.getTabName(),
       columns,
       columnSums,
       strings: [],
-      extra,
+      barChart: extra,
     };
 
     const stringIndexes = new Map<string, number>();
@@ -174,7 +202,7 @@ export class SelectionAggregationManager {
         (td) =>
           aggr.trackKind === undefined || aggr.trackKind === td.tags?.kind,
       )
-      .map((td) => td.track.getDataset?.())
+      .map((td) => td.renderer.getDataset?.())
       .filter((dataset) => dataset !== undefined)
       .filter(
         (dataset) =>

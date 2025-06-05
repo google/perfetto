@@ -16,74 +16,15 @@
 
 #include "src/trace_processor/importers/json/json_trace_tokenizer.h"
 
-#include <json/value.h>
+#include <cstring>
+#include <string>
 
-#include "src/trace_processor/importers/json/json_utils.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
+#include <json/value.h>
+
+namespace perfetto::trace_processor {
 namespace {
-
-TEST(JsonTraceTokenizerTest, ReadDictSuccess) {
-  const char* start = R"({ "foo": "bar" })";
-  const char* end = start + strlen(start);
-  const char* next = nullptr;
-  base::StringView value;
-  ReadDictRes result = ReadOneJsonDict(start, end, &value, &next);
-
-  ASSERT_EQ(result, ReadDictRes::kFoundDict);
-  ASSERT_EQ(next, end);
-
-  Json::Value parsed = *json::ParseJsonString(value);
-  ASSERT_EQ(parsed["foo"].asString(), "bar");
-}
-
-TEST(JsonTraceTokenizerTest, ReadDictQuotedBraces) {
-  const char* start = R"({ "foo": "}\"bar{\\" })";
-  const char* end = start + strlen(start);
-  const char* next = nullptr;
-  base::StringView value;
-  ReadDictRes result = ReadOneJsonDict(start, end, &value, &next);
-
-  ASSERT_EQ(result, ReadDictRes::kFoundDict);
-  ASSERT_EQ(next, end);
-
-  Json::Value parsed = *json::ParseJsonString(value);
-  ASSERT_EQ(parsed["foo"].asString(), "}\"bar{\\");
-}
-
-TEST(JsonTraceTokenizerTest, ReadDictTwoDicts) {
-  const char* start = R"({"foo": 1}, {"bar": 2})";
-  const char* middle = start + strlen(R"({"foo": 1})");
-  const char* end = start + strlen(start);
-  const char* next = nullptr;
-  base::StringView value;
-
-  ASSERT_EQ(ReadOneJsonDict(start, end, &value, &next),
-            ReadDictRes::kFoundDict);
-  ASSERT_EQ(next, middle);
-
-  Json::Value parsed = *json::ParseJsonString(value);
-  ASSERT_EQ(parsed["foo"].asInt(), 1);
-
-  ASSERT_EQ(ReadOneJsonDict(next, end, &value, &next), ReadDictRes::kFoundDict);
-  ASSERT_EQ(next, end);
-
-  parsed = *json::ParseJsonString(value);
-  ASSERT_EQ(parsed["bar"].asInt(), 2);
-}
-
-TEST(JsonTraceTokenizerTest, ReadDictNeedMoreData) {
-  const char* start = R"({"foo": 1)";
-  const char* end = start + strlen(start);
-  const char* next = nullptr;
-  base::StringView value;
-
-  ASSERT_EQ(ReadOneJsonDict(start, end, &value, &next),
-            ReadDictRes::kNeedsMoreData);
-  ASSERT_EQ(next, nullptr);
-}
 
 TEST(JsonTraceTokenizerTest, ReadKeyIntValue) {
   const char* start = R"("Test": 01234, )";
@@ -225,53 +166,5 @@ TEST(JsonTraceTokenizerTest, ReadSystraceEndOfData) {
   ASSERT_EQ(next, end);
 }
 
-TEST(JsonTraceTokenizerTest, ExtractValueForJsonKey) {
-  std::optional<std::string> line;
-
-  ASSERT_TRUE(ExtractValueForJsonKey(R"({"ts": 149029})", "ts", &line).ok());
-  ASSERT_EQ(*line, "149029");
-
-  ASSERT_TRUE(ExtractValueForJsonKey(R"(
-    {
-      "lots_of": "whitespace"
-    }
-  )",
-                                     "lots_of", &line)
-                  .ok());
-  ASSERT_EQ(*line, "whitespace");
-
-  ASSERT_TRUE(ExtractValueForJsonKey(R"(
-    {
-      "lots_of": "whitespace"   ,     
-      "other": "value"
-    }
-  )",
-                                     "other", &line)
-                  .ok());
-  ASSERT_EQ(*line, "value");
-
-  ASSERT_TRUE(ExtractValueForJsonKey(R"({
-    "ts": 149029, "foo": "bar"
-  })",
-                                     "ts", &line)
-                  .ok());
-  ASSERT_EQ(*line, "149029");
-
-  ASSERT_TRUE(ExtractValueForJsonKey(R"({
-    "ts": 149029, "foo": "bar"
-  })",
-                                     "foo", &line)
-                  .ok());
-  ASSERT_EQ(*line, "bar");
-
-  ASSERT_TRUE(ExtractValueForJsonKey(R"({
-    "nested": {"ts": 149029, "foo": "bar"}
-  })",
-                                     "nested", &line)
-                  .ok());
-  ASSERT_EQ(*line, R"({"ts": 149029, "foo": "bar"})");
-}
-
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

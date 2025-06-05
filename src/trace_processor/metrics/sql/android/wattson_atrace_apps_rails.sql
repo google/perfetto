@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.curves.estimates;
+INCLUDE PERFETTO MODULE wattson.estimates;
 
 -- Create the base table (`android_jank_cuj`) containing all completed CUJs
 -- found in the trace.
@@ -43,10 +43,11 @@ SELECT AndroidWattsonTimePeriodMetric(
         'period_id', period_id,
         'period_name', cuj_name,
         'period_dur', period_dur,
-        'cpu_subsystem', proto
+        'cpu_subsystem', cpu_proto,
+        'gpu_subsystem', gpu_proto
       )
     )
-    FROM _estimate_cpu_subsystem_sum AS est
+    FROM _estimate_subsystems_sum AS est
     JOIN android_jank_cuj AS cuj ON cuj.cuj_id = est.period_id
   )
 );

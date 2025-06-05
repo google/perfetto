@@ -32,6 +32,14 @@ jobs:
       CI: 1
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # Fetch the upstream branch as well, so we can diff and see the list of
+      # changed files (unless this is a post-submit test).
+      - name: Fetch upstream branch
+        if: ${{ github.base_ref != '' }}
+        run: git fetch origin ${{ github.base_ref }} --depth=1
 
       - name: Setup ccache
         run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
@@ -40,16 +48,20 @@ jobs:
         with:
           install-flags: --ui
 
-      - name: Check merged protos
+      - name: Run tools/run_presubmit
+        # base_ref is "" in post-submit, skip the presubmit check in postsubmit
+        # as there is nothing do diff against.
+        if: ${{ github.base_ref != '' }}
+        run: |
+          tools/run_presubmit \
+            --skip-formatters "eslint,prettier" \
+            --merge-base origin/${{ github.base_ref }}
+
+      - name: Check merged protos (tools/gen_all)
         run: |
           tools/gn gen out/tmp.protoc --args="is_debug=false cc_wrapper=\"ccache\""
           tools/gen_all --check-only out/tmp.protoc
           rm -rf out/tmp.protoc
-
-      - name: Check SQL modules and metrics
-        run: |
-          tools/check_sql_modules.py
-          tools/check_sql_metrics.py
 
       - name: Check amalgamated SDK
         run: python3 tools/test_gen_amalgamated.py

@@ -20,7 +20,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -94,11 +93,13 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   struct Vtab : sqlite::Module<DataframeModule>::Vtab {
     const dataframe::Dataframe* dataframe;
     sqlite::ModuleStateManager<DataframeModule>::PerVtabState* state;
+    std::string name;
+    int best_idx_num = 0;
   };
   using DfCursor = dataframe::Cursor<SqliteValueFetcher>;
   struct Cursor : sqlite::Module<DataframeModule>::Cursor {
     const dataframe::Dataframe* dataframe;
-    std::optional<DfCursor> df_cursor;
+    DfCursor df_cursor;
     const char* last_idx_str = nullptr;
   };
 

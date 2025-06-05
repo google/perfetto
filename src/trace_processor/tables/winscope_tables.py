@@ -185,7 +185,7 @@ SURFACE_FLINGER_TRANSACTION_FLAG_TABLE = Table(
         C('flag', CppOptional(CppString())),
     ],
     tabledoc=TableDoc(
-        doc='SurfaceFlinger transaction',
+        doc='SurfaceFlinger transaction flags',
         group='Winscope',
         columns={
             'flags_id':
@@ -258,14 +258,38 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
         C('ts', CppInt64()),
         C('transition_id', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppOptional(CppUint32())),
+        C('transition_type', CppOptional(CppUint32())),
+        C('send_time_ns', CppOptional(CppInt64())),
+        C('dispatch_time_ns', CppOptional(CppInt64())),
+        C('duration_ns', CppOptional(CppInt64())),
+        C('handler', CppOptional(CppInt64())),
+        C('status', CppOptional(CppString())),
+        C('flags', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
         doc='Window Manager Shell Transitions',
         group='Winscope',
         columns={
-            'ts': 'The timestamp the transition started playing',
-            'transition_id': 'The id of the transition',
-            'arg_set_id': 'Extra args parsed from the proto message',
+            'ts':
+                'The timestamp the transition started playing - either dispatch time or send time',
+            'transition_id':
+                'The id of the transition',
+            'arg_set_id':
+                'Extra args parsed from the proto message',
+            'transition_type':
+                'The type of the transition',
+            'send_time_ns':
+                'Transition send time',
+            'dispatch_time_ns':
+                'Transition dispatch time',
+            'duration_ns':
+                'Transition duration',
+            'handler':
+                'Handler id',
+            'status':
+                'Transition status',
+            'flags':
+                'Transition flags',
         }))
 
 WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE = Table(
@@ -284,6 +308,24 @@ WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE = Table(
             'handler_id': 'The id of the handler',
             'handler_name': 'The name of the handler',
             'base64_proto_id': 'String id for raw proto message',
+        }))
+
+WINDOW_MANAGER_SHELL_TRANSITION_PARTICIPANTS_TABLE = Table(
+    python_module=__file__,
+    class_name='WindowManagerShellTransitionParticipantsTable',
+    sql_name='__intrinsic_window_manager_shell_transition_participants',
+    columns=[
+        C('transition_id', CppInt64()),
+        C('layer_id', CppOptional(CppUint32())),
+        C('window_id', CppOptional(CppUint32())),
+    ],
+    tabledoc=TableDoc(
+        doc='Window Manager Shell Transition Participants',
+        group='Winscope',
+        columns={
+            'transition_id': 'Transition id',
+            'layer_id': 'Id of layer participant',
+            'window_id': 'Id of window participant',
         }))
 
 WINDOW_MANAGER_SHELL_TRANSITION_PROTOS_TABLE = Table(
@@ -367,6 +409,7 @@ ALL_TABLES = [
     VIEWCAPTURE_INTERNED_DATA_TABLE,
     WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE,
     WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE,
+    WINDOW_MANAGER_SHELL_TRANSITION_PARTICIPANTS_TABLE,
     WINDOW_MANAGER_SHELL_TRANSITION_PROTOS_TABLE,
     WINDOW_MANAGER_TABLE,
 ]
