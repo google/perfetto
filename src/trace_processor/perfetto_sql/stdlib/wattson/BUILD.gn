@@ -33,6 +33,7 @@ perfetto_sql_source_set("wattson") {
     "estimates.sql",
     "gpu/estimates.sql",
     "gpu/freq_idle.sql",
+    "tasks/attribution.sql",
     "tasks/threads_w_processes.sql",
     "ui/continuous_estimates.sql",
     "utils.sql",
