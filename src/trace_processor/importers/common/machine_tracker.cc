@@ -57,7 +57,7 @@ void MachineTracker::SetAndroidDeviceManufacturer(
   getRow()->set_android_device_manufacturer(device_manufacturer);
 }
 
-void MachineTracker::SetAndroidSdkVersion(uint32_t sdk_version) {
+void MachineTracker::SetAndroidSdkVersion(int64_t sdk_version) {
   getRow()->set_android_sdk_version(sdk_version);
 }
 

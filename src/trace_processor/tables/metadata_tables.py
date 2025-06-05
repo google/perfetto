@@ -41,7 +41,7 @@ MACHINE_TABLE = Table(
         C('num_cpus', CppOptional(CppUint32())),
         C('android_build_fingerprint', CppOptional(CppString())),
         C('android_device_manufacturer', CppOptional(CppString())),
-        C('android_sdk_version', CppOptional(CppUint32())),
+        C('android_sdk_version', CppOptional(CppInt64())),
     ],
     tabledoc=TableDoc(
         doc='''
