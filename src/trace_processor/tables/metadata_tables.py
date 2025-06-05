@@ -34,6 +34,14 @@ MACHINE_TABLE = Table(
     sql_name='machine',
     columns=[
         C('raw_id', CppUint32()),
+        C('sysname', CppOptional(CppString())),
+        C('release', CppOptional(CppString())),
+        C('version', CppOptional(CppString())),
+        C('arch', CppOptional(CppString())),
+        C('num_cpus', CppOptional(CppUint32())),
+        C('android_build_fingerprint', CppOptional(CppString())),
+        C('android_device_manufacturer', CppOptional(CppString())),
+        C('android_sdk_version', CppOptional(CppInt64())),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -45,7 +53,40 @@ MACHINE_TABLE = Table(
                 '''
                   Raw machine identifier in the trace packet, non-zero for
                   remote machines.
+                ''',
+            'sysname':
                 '''
+                  The name of the operating system (e.g. "Linux").
+                ''',
+            'release':
+                '''
+                  The current release of the operating system.
+                ''',
+            'version':
+                '''
+                  The current version of the operating system.
+                ''',
+            'arch':
+                '''
+                  Hardware architecture of the machine (e.g. x86_64).
+                ''',
+            'num_cpus':
+                '''
+                  Number of cpus available to the machine.
+                ''',
+            'android_build_fingerprint':
+                '''
+                  A unique string that identifies a specific build of
+                  the Android operating system.
+                ''',
+            'android_device_manufacturer':
+                '''
+                  The Android's device manufacturer.
+                ''',
+            'android_sdk_version':
+                '''
+                  The Android SDK version used in the machine.
+                ''',
         }))
 
 PROCESS_TABLE = Table(
