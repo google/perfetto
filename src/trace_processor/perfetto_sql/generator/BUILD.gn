@@ -26,6 +26,7 @@ source_set("generator") {
     "../../../base",
     "../../../protozero",
     "../../util",
+    "../tokenizer",
   ]
 }
 
@@ -46,5 +47,6 @@ perfetto_unittest_source_set("unittests") {
     "../../../base",
     "../../../base:test_support",
     "../../../protozero/text_to_proto",
+    "../tokenizer",
   ]
 }
