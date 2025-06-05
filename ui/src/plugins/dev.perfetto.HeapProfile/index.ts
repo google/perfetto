@@ -91,7 +91,7 @@ export default class implements PerfettoPlugin {
           kind: HEAP_PROFILE_TRACK_KIND,
           upid,
         },
-        track: createHeapProfileTrack(
+        renderer: createHeapProfileTrack(
           trace,
           uri,
           EVENT_TABLE_NAME,

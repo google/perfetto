@@ -28,7 +28,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri: runnableThreadCountUri,
       title: 'Runnable thread count',
-      track: new RunnableThreadCountTrack(ctx, runnableThreadCountUri),
+      renderer: new RunnableThreadCountTrack(ctx, runnableThreadCountUri),
     });
     ctx.commands.registerCommand({
       id: 'dev.perfetto.Sched.AddRunnableThreadCountTrackCommand',
@@ -41,7 +41,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri: uninterruptibleSleepThreadCountUri,
       title: 'Uninterruptible Sleep thread count',
-      track: new UninterruptibleSleepThreadCountTrack(
+      renderer: new UninterruptibleSleepThreadCountTrack(
         ctx,
         uninterruptibleSleepThreadCountUri,
       ),
@@ -62,7 +62,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title: title,
-      track: new ActiveCPUCountTrack({trackUri: uri}, ctx),
+      renderer: new ActiveCPUCountTrack({trackUri: uri}, ctx),
     });
     ctx.commands.registerCommand({
       id: 'dev.perfetto.Sched.AddActiveCPUCountTrackCommand',
@@ -76,7 +76,7 @@ export default class implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         title: title,
-        track: new ActiveCPUCountTrack({trackUri: uri}, ctx, cpuType),
+        renderer: new ActiveCPUCountTrack({trackUri: uri}, ctx, cpuType),
       });
 
       ctx.commands.registerCommand({

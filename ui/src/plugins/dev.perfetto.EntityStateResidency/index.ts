@@ -102,7 +102,7 @@ export default class implements PerfettoPlugin {
           trackIds: [it.trackId],
           type: 'entity_state',
         },
-        track,
+        renderer: track,
       });
       currentGroup.addChildInOrder(new TrackNode({uri, title: name}));
     }

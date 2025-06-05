@@ -58,7 +58,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri: TRACK_URI,
       title: TRACK_NAME,
-      track,
+      renderer: track,
     });
   }
 

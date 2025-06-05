@@ -95,7 +95,7 @@ export default class implements PerfettoPlugin {
             kind: CPU_FREQ_TRACK_KIND,
             cpu: cpu.ucpu,
           },
-          track: new CpuFreqTrack(config, ctx),
+          renderer: new CpuFreqTrack(config, ctx),
         });
         const trackNode = new TrackNode({uri, title, sortOrder: -40});
         ctx.workspace.addChildInOrder(trackNode);

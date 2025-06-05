@@ -84,7 +84,7 @@ export default class implements PerfettoPlugin {
           kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
           upid,
         },
-        track: createProcessPerfSamplesProfileTrack(trace, uri, upid),
+        renderer: createProcessPerfSamplesProfileTrack(trace, uri, upid),
       });
       const group = trace.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
@@ -143,7 +143,7 @@ export default class implements PerfettoPlugin {
           utid,
           upid: upid ?? undefined,
         },
-        track: createThreadPerfSamplesProfileTrack(trace, uri, utid),
+        renderer: createThreadPerfSamplesProfileTrack(trace, uri, utid),
       });
       const group = trace.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
@@ -190,7 +190,7 @@ export default class implements PerfettoPlugin {
           trackIds: [trackId],
           cpu,
         },
-        track: new TraceProcessorCounterTrack(
+        renderer: new TraceProcessorCounterTrack(
           trace,
           uri,
           {

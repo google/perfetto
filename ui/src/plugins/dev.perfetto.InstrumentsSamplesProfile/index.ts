@@ -62,7 +62,7 @@ export default class implements PerfettoPlugin {
           kind: INSTRUMENTS_SAMPLES_PROFILE_TRACK_KIND,
           upid,
         },
-        track: createProcessInstrumentsSamplesProfileTrack(ctx, uri, upid),
+        renderer: createProcessInstrumentsSamplesProfileTrack(ctx, uri, upid),
       });
       const group = ctx.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
@@ -104,7 +104,7 @@ export default class implements PerfettoPlugin {
           utid,
           upid: upid ?? undefined,
         },
-        track: createThreadInstrumentsSamplesProfileTrack(ctx, uri, utid),
+        renderer: createThreadInstrumentsSamplesProfileTrack(ctx, uri, utid),
       });
       const group = ctx.plugins
         .getPlugin(ProcessThreadGroupsPlugin)

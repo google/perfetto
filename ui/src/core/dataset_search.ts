@@ -81,7 +81,7 @@ function buildTrackGroups(
 ): Map<string, TrackGroup> {
   const trackGroups = new Map<string, TrackGroup>();
   for (const track of tracks) {
-    const dataset = track.track.getDataset?.();
+    const dataset = track.renderer.getDataset?.();
     if (dataset) {
       const src = dataset.src;
       const trackGroup = getOrCreate(trackGroups, src, () => ({

@@ -70,7 +70,7 @@ export default class implements PerfettoPlugin {
         trackIds,
         kind: SLICE_TRACK_KIND,
       },
-      track: await createTraceProcessorSliceTrack({
+      renderer: await createTraceProcessorSliceTrack({
         trace: ctx,
         uri,
         maxDepth,

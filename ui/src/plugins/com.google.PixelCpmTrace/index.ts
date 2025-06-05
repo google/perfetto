@@ -62,7 +62,7 @@ export default class implements PerfettoPlugin {
           kind: COUNTER_TRACK_KIND,
           trackIds: [trackId],
         },
-        track,
+        renderer: track,
       });
       group.addChildInOrder(new TrackNode({uri, title: trackName}));
       if (!groupAdded) {

@@ -93,7 +93,7 @@ export default class implements PerfettoPlugin {
           kind: CPU_SLICE_TRACK_KIND,
           cpu: cpu.ucpu,
         },
-        track: new CpuSliceTrack(ctx, uri, cpu, threads),
+        renderer: new CpuSliceTrack(ctx, uri, cpu, threads),
       });
       const trackNode = new TrackNode({uri, title: name, sortOrder: -50});
       ctx.workspace.addChildInOrder(trackNode);
@@ -196,7 +196,7 @@ export default class implements PerfettoPlugin {
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',
         ]),
-        track: createThreadStateTrack(ctx, uri, utid),
+        renderer: createThreadStateTrack(ctx, uri, utid),
       });
 
       const group = ctx.plugins

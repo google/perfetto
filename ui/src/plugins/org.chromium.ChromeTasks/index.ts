@@ -86,7 +86,7 @@ export default class implements PerfettoPlugin {
       const title = `${it.threadName} ${it.tid}`;
       ctx.tracks.registerTrack({
         uri,
-        track: createChromeTasksThreadTrack(ctx, uri, asUtid(utid)),
+        renderer: createChromeTasksThreadTrack(ctx, uri, asUtid(utid)),
         title,
       });
       const track = new TrackNode({uri, title});
