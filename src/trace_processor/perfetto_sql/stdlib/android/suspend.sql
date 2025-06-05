@@ -38,7 +38,26 @@ WITH
     WHERE
       t.name = 'Suspend/Resume Minimal'
   ),
-  suspend_slice AS (
+  suspend_slice_latency AS (
+    SELECT
+      ts,
+      dur,
+      lead(ts) OVER (ORDER BY ts) - ts - dur AS duration_gap
+    FROM slice
+    JOIN track
+      ON slice.track_id = track.id
+    WHERE
+      track.name = 'Suspend/Resume Latency'
+      AND (
+        slice.name = 'syscore_resume(0)' OR slice.name = 'timekeeping_freeze(0)')
+      AND dur != -1
+      AND NOT EXISTS(
+        SELECT
+          *
+        FROM suspend_slice_from_minimal
+      )
+  ),
+  suspend_slice_pre_filter AS (
     SELECT
       ts,
       dur
@@ -47,20 +66,16 @@ WITH
     SELECT
       ts,
       dur
-    FROM slice
-    JOIN track
-      ON slice.track_id = track.id
-    WHERE
-      track.name = 'Suspend/Resume Latency'
-      AND (
-        slice.name = 'syscore_resume(0)' OR slice.name = 'timekeeping_freeze(0)'
-      )
-      AND dur != -1
-      AND NOT EXISTS(
-        SELECT
-          *
-        FROM suspend_slice_from_minimal
-      )
+    FROM suspend_slice_latency
+  ),
+  suspend_slice AS (
+    -- Filter out all the slices that overlapped with the following slices. 
+    -- This happens with data loss where we lose start and end slices for suspends.
+    SELECT
+      ts,
+      dur
+    FROM suspend_slice_pre_filter
+    WHERE dur > 0
   ),
   awake_slice AS (
     -- If we don't have any rows, use the trace bounds if bounds are defined.
