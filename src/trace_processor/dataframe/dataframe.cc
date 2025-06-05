@@ -150,14 +150,14 @@ void Dataframe::MarkFinalized() {
       case Nullability::GetTypeIndex<SparseNull>():
         c->null_storage.unchecked_get<SparseNull>().bit_vector.shrink_to_fit();
         break;
-      case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>(): {
+      case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>(): {
         auto& null = c->null_storage.unchecked_get<SparseNull>();
         null.bit_vector.shrink_to_fit();
         null.prefix_popcount_for_cell_get.shrink_to_fit();
         break;
       }
       case Nullability::GetTypeIndex<
-          SparseNullSupportingCellGetUntilFinalization>(): {
+          SparseNullWithPopcountUntilFinalization>(): {
         auto& null = c->null_storage.unchecked_get<SparseNull>();
         null.bit_vector.shrink_to_fit();
         null.prefix_popcount_for_cell_get.clear();
@@ -215,14 +215,12 @@ std::vector<std::shared_ptr<impl::Column>> Dataframe::CreateColumnVector(
         return impl::NullStorage(impl::NullStorage::NonNull{});
       case Nullability::GetTypeIndex<SparseNull>():
         return impl::NullStorage(impl::NullStorage::SparseNull{}, SparseNull{});
-      case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
+      case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>():
         return impl::NullStorage(impl::NullStorage::SparseNull{},
-                                 SparseNullSupportingCellGetAlways{});
-      case Nullability::GetTypeIndex<
-          SparseNullSupportingCellGetUntilFinalization>():
-        return impl::NullStorage(
-            impl::NullStorage::SparseNull{},
-            SparseNullSupportingCellGetUntilFinalization{});
+                                 SparseNullWithPopcountAlways{});
+      case Nullability::GetTypeIndex<SparseNullWithPopcountUntilFinalization>():
+        return impl::NullStorage(impl::NullStorage::SparseNull{},
+                                 SparseNullWithPopcountUntilFinalization{});
       case Nullability::GetTypeIndex<DenseNull>():
         return impl::NullStorage(impl::NullStorage::DenseNull{});
       default:

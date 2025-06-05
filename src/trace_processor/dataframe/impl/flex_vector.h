@@ -58,6 +58,8 @@ namespace perfetto::trace_processor::dataframe::impl {
 template <typename T, uint64_t kAlignment = std::max<uint64_t>(alignof(T), 64)>
 class FlexVector {
  public:
+  static_assert(std::is_trivially_destructible_v<T>,
+                "FlexVector elements must be trivially destructible");
   static_assert(std::is_trivially_copyable_v<T>,
                 "FlexVector elements must be trivially copyable");
   static_assert(alignof(T) <= kAlignment,
@@ -94,6 +96,13 @@ class FlexVector {
       IncreaseCapacity();
     }
     slab_[size_++] = value;
+  }
+
+  // Removes the last element from the vector. Should not be called on an
+  // empty vector.
+  PERFETTO_ALWAYS_INLINE void pop_back() {
+    PERFETTO_DCHECK(size_ > 0);
+    --size_;
   }
 
   // Provides indexed access to elements with bounds checking in debug mode.
