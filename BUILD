@@ -2268,6 +2268,10 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/winscope/winscope_geometry.h",
         "src/trace_processor/importers/proto/winscope/winscope_module.cc",
         "src/trace_processor/importers/proto/winscope/winscope_module.h",
+        "src/trace_processor/importers/proto/winscope/winscope_rect_tracker.cc",
+        "src/trace_processor/importers/proto/winscope/winscope_rect_tracker.h",
+        "src/trace_processor/importers/proto/winscope/winscope_transform_tracker.cc",
+        "src/trace_processor/importers/proto/winscope/winscope_transform_tracker.h",
     ],
 )
 

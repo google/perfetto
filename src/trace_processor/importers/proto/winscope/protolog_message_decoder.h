@@ -27,7 +27,7 @@
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto::trace_processor {
+namespace perfetto::trace_processor::winscope {
 
 enum ProtoLogLevel : int32_t {
   DEBUG = 1,
@@ -81,6 +81,6 @@ class ProtoLogMessageDecoder {
   base::FlatHashMap<uint64_t, TrackedMessage> tracked_messages_;
 };
 
-}  // namespace perfetto::trace_processor
+}  // namespace perfetto::trace_processor::winscope
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_PROTOLOG_MESSAGE_DECODER_H_
