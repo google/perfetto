@@ -30,6 +30,8 @@ source_set("full") {
     "shell_transitions_tracker.h",
     "surfaceflinger_layers_parser.cc",
     "surfaceflinger_layers_parser.h",
+    "surfaceflinger_layers_rect_computation.cc",
+    "surfaceflinger_layers_rect_computation.h",
     "surfaceflinger_layers_utils.h",
     "surfaceflinger_layers_visibility_computation.cc",
     "surfaceflinger_layers_visibility_computation.h",
