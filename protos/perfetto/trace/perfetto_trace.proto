@@ -12464,7 +12464,7 @@ enum FtraceClock {
 // parity as possible with established tracing frameworks such as
 // Linux's ftrace.
 message GenericKernelTaskStateEvent {
-  // CPU in which the event occured.
+  // CPU in which the event occurred.
   // This field is only relevant with the TASK_STATE_RUNNING state. There is
   // no specific meaning to the cpu field in a non-running state event.
   optional int32 cpu = 1;

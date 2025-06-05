@@ -50,7 +50,7 @@ class RenameEventsTraceRedactorIntegrationTest
     redact->emplace_filter<ConnectedToPackage>();
     redact->emplace_modifier<DoNothing>();
 
-    context_.package_name = "com.Unity.com.unity.multiplayer.samples.coop";
+    context_.package_name = kSomePackageName;
   }
 
   void GetRenamedPids(

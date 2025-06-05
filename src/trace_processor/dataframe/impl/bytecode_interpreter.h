@@ -39,6 +39,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/endian.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
@@ -158,10 +159,15 @@ class Interpreter {
   Interpreter() = default;
 
   void Initialize(const BytecodeVector& bytecode,
+                  uint32_t num_registers,
                   const Column* const* columns,
                   const dataframe::Index* indexes,
                   const StringPool* string_pool) {
     bytecode_ = bytecode;
+    registers_.clear();
+    for (uint32_t i = 0; i < num_registers; ++i) {
+      registers_.emplace_back();
+    }
     columns_ = columns;
     indexes_ = indexes;
     string_pool_ = string_pool;
@@ -425,6 +431,35 @@ class Interpreter {
       }
     }
     update.e = static_cast<uint32_t>(it - storage);
+  }
+
+  PERFETTO_ALWAYS_INLINE void SpecializedStorageSmallValueEq(
+      const bytecode::SpecializedStorageSmallValueEq& bytecode) {
+    using B = bytecode::SpecializedStorageSmallValueEq;
+
+    const CastFilterValueResult& cast_result =
+        ReadFromRegister(bytecode.arg<B::val_register>());
+    auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
+    if (!HandleInvalidCastFilterValueResult(cast_result, update)) {
+      return;
+    }
+    using ValueType =
+        StorageType::VariantTypeAtIndex<Uint32, CastFilterValueResult::Value>;
+    auto val = base::unchecked_get<ValueType>(cast_result.value);
+    const auto& col = GetColumn(bytecode.arg<B::col>());
+    const auto& storage =
+        col.specialized_storage
+            .template unchecked_get<SpecializedStorage::SmallValueEq>();
+
+    uint32_t k =
+        val < storage.bit_vector.size() && storage.bit_vector.is_set(val)
+            ? static_cast<uint32_t>(
+                  storage.prefix_popcount[val / 64] +
+                  storage.bit_vector.count_set_bits_until_in_word(val))
+            : update.e;
+    bool in_bounds = update.b <= k && k < update.e;
+    update.b = in_bounds ? k : update.e;
+    update.e = in_bounds ? k + 1 : update.b;
   }
 
   template <typename T, typename Op>
@@ -1457,7 +1492,7 @@ class Interpreter {
   // The sequence of bytecode instructions to execute
   BytecodeVector bytecode_;
   // Register file holding intermediate values
-  std::array<reg::Value, reg::kMaxRegisters> registers_;
+  base::SmallVector<reg::Value, 16> registers_;
 
   // Pointer to the source for filter values.
   FilterValueFetcherImpl* filter_value_fetcher_;
