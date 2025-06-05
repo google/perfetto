@@ -45,16 +45,15 @@ enum TransformFlag {
   ROT_INVALID_VAL = 0x8000,
 };
 
-inline bool IsFlagSet(int type, int flag) {
+bool IsFlagSet(int type, int flag) {
   return (type & flag) == flag;
 }
 
-inline bool IsFlagClear(int type, int flag) {
+bool IsFlagClear(int type, int flag) {
   return (type & flag) == 0;
 }
 
-inline geometry::TransformMatrix ApplyPositionToIdentityMatrix(double x,
-                                                               double y) {
+geometry::TransformMatrix ApplyPositionToIdentityMatrix(double x, double y) {
   geometry::TransformMatrix matrix;
   matrix.tx = x;
   matrix.ty = y;
