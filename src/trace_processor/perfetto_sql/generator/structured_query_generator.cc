@@ -35,6 +35,7 @@
 #include "perfetto/protozero/proto_decoder.h"
 #include "protos/perfetto/perfetto_sql/structured_query.pbzero.h"
 #include "src/trace_processor/perfetto_sql/tokenizer/sqlite_tokenizer.h"
+#include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::perfetto_sql::generator {
@@ -49,73 +50,62 @@ enum QueryType : uint8_t {
   kNested,
 };
 
-std::pair<std::string, std::string> GetPreambleAndSql(const std::string& sql) {
-  std::string preamble;
-  std::string current_statement_str;
+std::pair<SqlSource, SqlSource> GetPreambleAndSql(const std::string& sql) {
+  PERFETTO_ELOG("Parse SQL: %s", sql.c_str());
+  std::pair<SqlSource, SqlSource> result{
+      SqlSource(SqlSource::FromTraceProcessorImplementation("")),
+      SqlSource(SqlSource::FromTraceProcessorImplementation(""))};
 
   if (sql.empty()) {
-    return {preamble, current_statement_str};
+    return result;
   }
 
-  auto tokenizer =
-      SqliteTokenizer(SqlSource::FromTraceProcessorImplementation(sql));
+  SqliteTokenizer tokenizer(SqlSource::FromTraceProcessorImplementation(sql));
 
   SqliteTokenizer::Token statement_begin_tok = tokenizer.NextNonWhitespace();
-  if (statement_begin_tok.IsTerminal()) {
-    return {preamble, current_statement_str};
+  while (statement_begin_tok.token_type == TK_SEMI) {
+    statement_begin_tok = tokenizer.NextNonWhitespace();
   }
+  SqliteTokenizer::Token first_tok = statement_begin_tok;
 
+  // Loop over statements
   while (true) {
-    SqliteTokenizer::Token current_tok = statement_begin_tok;
-    SqliteTokenizer::Token prev_tok = statement_begin_tok;
-    while (current_tok.token_type != TK_SEMI && !current_tok.IsTerminal()) {
-      prev_tok = current_tok;
-      current_tok = tokenizer.Next();
+    // Ignore all next semicolons.
+    if (statement_begin_tok.token_type == TK_SEMI) {
+      statement_begin_tok = tokenizer.NextNonWhitespace();
+      continue;
     }
 
-    // Extract the current statement.
-    // If current_tok is TK_SEMI, we want to exclude it from the statement.
-    // If current_tok is terminal (end of input), we want to include the last
-    // token.
-    SqlSource current_statement_sql_source = tokenizer.Substr(
-        statement_begin_tok, prev_tok, SqliteTokenizer::EndToken::kInclusive);
-    std::string next_statement_candidate = current_statement_sql_source.sql();
-
-    if (!current_statement_str.empty()) {
-      if (!preamble.empty()) {
-        preamble += "; ";
-      }
-      preamble += current_statement_str;
-    }
-    current_statement_str = next_statement_candidate;
-
-    // Check how the inner loop (that finds a single statement) terminated.
-    // current_tok is the token that caused the inner loop to exit.
-    if (current_tok.token_type == TK_SEMI) {
-      // The current statement ended with a semicolon.
-      // We need to check if there are more statements after this semicolon.
-      statement_begin_tok =
-          tokenizer.NextNonWhitespace();  // Advance past the semicolon and any
-                                          // subsequent whitespace.
-      if (statement_begin_tok.IsTerminal()) {
-        // There are no more non-whitespace tokens after this semicolon.
-        break;  // End of all statements
-      }
-      // Found the start of a new statement, continue the outer loop.
-    } else if (current_tok.IsTerminal()) {
-      // The inner loop terminated because it reached the end of the input
-      // string (e.g., TK_EOF) and not because it found a semicolon. This means
-      // the last statement did not end with a semicolon, or it was the very
-      // last token.
+    // Exit if the next token is the end of the SQL.
+    if (statement_begin_tok.IsTerminal()) {
       break;
-    } else {
-      // This case should ideally not be reached if the inner while loop's
-      // condition (current_tok.token_type != TK_SEMI &&
-      // !current_tok.IsTerminal()) is exhaustive for exiting.
-      break;  // Safety break.
     }
+
+    // Ignore back-to-back semicolons.
+    if (statement_begin_tok.token_type == TK_SEMI) {
+      statement_begin_tok = tokenizer.NextNonWhitespace();
+      continue;
+    }
+
+    // If we are here, we have a non-empty statement.
+
+    // Loop over the statement contents
+    SqliteTokenizer::Token current_tok = statement_begin_tok;
+    while (current_tok.token_type != TK_SEMI && !current_tok.IsTerminal()) {
+      current_tok = tokenizer.NextNonWhitespace();
+    }
+    // `current_tok` is now the end of the current statement.
+
+    SqlSource preamble = tokenizer.Substr(
+        first_tok, statement_begin_tok, SqliteTokenizer::EndToken::kExclusive);
+    SqlSource last_statement =
+        tokenizer.Substr(statement_begin_tok, current_tok,
+                         SqliteTokenizer::EndToken::kExclusive);
+    result = {preamble, last_statement};
+    statement_begin_tok = tokenizer.NextNonWhitespace();
   }
-  return {preamble, current_statement_str};
+
+  return result;
 }
 
 struct QueryState {
@@ -305,24 +295,21 @@ base::StatusOr<std::string> GeneratorImpl::SqlSource(
 
   std::string source_sql_str = sql.sql().ToStdString();
   std::string final_sql_statement;
-  std::string current_preamble_for_logging;
   if (sql.has_preamble()) {
     // If preambles are specified, we assume that the SQL is a single statement.
-    current_preamble_for_logging = sql.preamble().ToStdString();
-    preambles_.push_back(current_preamble_for_logging);
+    preambles_.push_back(sql.preamble().ToStdString());
     final_sql_statement = source_sql_str;
   } else {
     auto [parsed_preamble, main_sql] = GetPreambleAndSql(source_sql_str);
-    if (!parsed_preamble.empty()) {
-      current_preamble_for_logging = parsed_preamble;
-      preambles_.push_back(parsed_preamble);
+    if (!parsed_preamble.sql().empty()) {
+      preambles_.push_back(parsed_preamble.sql());
     } else if (sql.has_preamble()) {
       return base::ErrStatus(
           "Sql source specifies both `preamble` and has multiple statements in "
           "the `sql` field. This is not supported - plase don't use `preamble` "
           "and pass all the SQL you want to execute in the `sql` field.");
     }
-    final_sql_statement = main_sql;
+    final_sql_statement = main_sql.sql();
   }
 
   if (final_sql_statement.empty()) {

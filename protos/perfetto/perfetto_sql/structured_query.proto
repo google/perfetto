@@ -90,8 +90,13 @@ message PerfettoSqlStructuredQuery {
   message Sql {
     // The SQL string. Required.
     //
-    // Note: We expect the last statement to be the only one to produce a
-    // result.
+    // `sql` can contain multiple, semi-colon separated statements but must
+    // adhere to the following principles:
+    // 1) Only the final statement can return results (i.e. be a `SELECT`
+    // statement): every other statement must be a statement returning no output
+    // (e.g. INCLUDE PERFETTO MODULE, CREATE PERFETTO TABLE etc.).
+    // 2) The final statement *must* be a valid `SELECT` statement returning
+    // results with at least one column.
     optional string sql = 1;
 
     // The name of columns which will be returned by the SQL. Required.
