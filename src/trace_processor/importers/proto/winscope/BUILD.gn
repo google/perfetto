@@ -31,6 +31,8 @@ source_set("full") {
     "surfaceflinger_layers_parser.h",
     "surfaceflinger_transactions_parser.cc",
     "surfaceflinger_transactions_parser.h",
+    "surfaceflinger_visibility_computation.cc",
+    "surfaceflinger_visibility_computation.h",
     "viewcapture_args_parser.cc",
     "viewcapture_args_parser.h",
     "viewcapture_parser.cc",
