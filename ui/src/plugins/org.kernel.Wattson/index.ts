@@ -70,7 +70,9 @@ class WattsonSubsystemEstimateTrack extends BaseCounterTrack {
   }
 
   async onInit() {
-    await this.engine.query(`INCLUDE PERFETTO MODULE wattson.estimates;`);
+    await this.engine.query(
+      `INCLUDE PERFETTO MODULE wattson.ui.continuous_estimates;`,
+    );
   }
 
   protected getDefaultCounterOptions(): CounterOptions {
@@ -81,7 +83,10 @@ class WattsonSubsystemEstimateTrack extends BaseCounterTrack {
   }
 
   getSqlSource() {
-    return `select ts, ${this.queryKey} as value from _system_state_mw`;
+    return `
+      SELECT ts, ${this.queryKey} AS value
+      FROM _system_state_${this.queryKey}
+    `;
   }
 }
 

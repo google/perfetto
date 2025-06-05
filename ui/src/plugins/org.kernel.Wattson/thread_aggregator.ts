@@ -38,8 +38,8 @@ export class WattsonThreadSelectionAggregator
     const cpusCsv = `(` + selectedCpus.join() + `)`;
     engine.query(`
       INCLUDE PERFETTO MODULE wattson.cpu.idle_attribution;
-      INCLUDE PERFETTO MODULE wattson.estimates;
       INCLUDE PERFETTO MODULE wattson.tasks.threads_w_processes;
+      INCLUDE PERFETTO MODULE wattson.ui.continuous_estimates;
 
       CREATE OR REPLACE PERFETTO TABLE wattson_plugin_ui_selection_window AS
       SELECT
@@ -91,23 +91,18 @@ export class WattsonThreadSelectionAggregator
         SELECT *
         FROM wattson_plugin_windowed_summary WHERE cpu = ${cpu};
 
-        -- CPU specific track with slices for curves
-        CREATE OR REPLACE PERFETTO VIEW wattson_plugin_per_cpu${cpu}_curve AS
-        SELECT ts, dur, cpu${cpu}_curve
-        FROM _system_state_curves;
-
         -- Filter out track when threads are available
         DROP TABLE IF EXISTS wattson_plugin_windowed_thread_curve${cpu};
         CREATE VIRTUAL TABLE wattson_plugin_windowed_thread_curve${cpu}
         USING SPAN_JOIN(
-          wattson_plugin_per_cpu${cpu}_curve,
+          _system_state_cpu${cpu}_mw,
           wattson_plugin_windowed_summary_per_cpu${cpu}
         );
 
         -- Total estimate per UTID per CPU
         CREATE OR REPLACE PERFETTO VIEW wattson_plugin_total_per_cpu${cpu} AS
         SELECT
-          SUM(cpu${cpu}_curve * dur) as total_pws,
+          SUM(cpu${cpu}_mw * dur) as total_pws,
           SUM(dur) as dur,
           tid,
           pid,
