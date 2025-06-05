@@ -29,6 +29,8 @@ source_set("full") {
     "surfaceflinger_layer_utils.h",
     "surfaceflinger_layers_parser.cc",
     "surfaceflinger_layers_parser.h",
+    "surfaceflinger_rect_computation.cc",
+    "surfaceflinger_rect_computation.h",
     "surfaceflinger_transactions_parser.cc",
     "surfaceflinger_transactions_parser.h",
     "surfaceflinger_visibility_computation.cc",
