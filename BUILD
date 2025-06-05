@@ -2263,6 +2263,10 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/winscope/viewcapture_parser.h",
         "src/trace_processor/importers/proto/winscope/winscope_module.cc",
         "src/trace_processor/importers/proto/winscope/winscope_module.h",
+        "src/trace_processor/importers/proto/winscope/winscope_rect.cc",
+        "src/trace_processor/importers/proto/winscope/winscope_rect.h",
+        "src/trace_processor/importers/proto/winscope/winscope_transform.cc",
+        "src/trace_processor/importers/proto/winscope/winscope_transform.h",
     ],
 )
 
