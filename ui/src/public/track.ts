@@ -115,7 +115,7 @@ export interface Track {
   readonly uri: string;
 
   // Describes how to render the track.
-  readonly track: TrackRenderer;
+  readonly renderer: TrackRenderer;
 
   // Human readable title. Always displayed.
   readonly title: string;

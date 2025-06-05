@@ -74,7 +74,7 @@ export default class implements PerfettoPlugin {
           trackIds: [trackId],
           kind: SLICE_TRACK_KIND,
         },
-        track,
+        renderer: track,
       });
       let workPeriod = workPeriodByGpu.get(gpuId);
       if (workPeriod === undefined) {

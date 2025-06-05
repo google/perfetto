@@ -133,7 +133,7 @@ export default class implements PerfettoPlugin {
     trace.tracks.registerTrack({
       uri,
       title,
-      track,
+      renderer: track,
     });
     const trackNode = new TrackNode({uri, title});
     const group = trace.plugins

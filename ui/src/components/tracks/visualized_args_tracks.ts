@@ -69,7 +69,7 @@ export async function addVisualizedArgTracks(trace: Trace, argName: string) {
       uri,
       title: argName,
       chips: ['arg'],
-      track: await createVisualizedArgsTrack({
+      renderer: await createVisualizedArgsTrack({
         trace,
         uri,
         trackId,

@@ -149,7 +149,7 @@ async function selectAdjacentTrackEvent(
   if (selection.kind !== 'track_event') return;
 
   const td = ctx.tracks.getTrack(selection.trackUri);
-  const dataset = td?.track.getDataset?.();
+  const dataset = td?.renderer.getDataset?.();
   if (!dataset || !dataset.implements({id: NUM, ts: LONG})) return;
 
   const windowFunc = direction === 'next' ? 'LEAD' : 'LAG';

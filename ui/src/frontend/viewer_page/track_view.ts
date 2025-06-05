@@ -619,7 +619,7 @@ function copyToWorkspace(trace: Trace, node: TrackNode, ws?: Workspace) {
 
 function renderTrackDetailsMenu(node: TrackNode, descriptor?: Track) {
   const fullPath = node.fullPath.join(' \u2023 ');
-  const query = descriptor?.track.getDataset?.()?.query();
+  const query = descriptor?.renderer.getDataset?.()?.query();
 
   return m(
     '.pf-track__track-details-popup',

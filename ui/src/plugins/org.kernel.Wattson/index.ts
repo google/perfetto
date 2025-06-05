@@ -155,7 +155,7 @@ async function addWattsonMarkersElements(ctx: Trace, group: TrackNode) {
     tags: {
       kind: SLICE_TRACK_KIND,
     },
-    track,
+    renderer: track,
   });
   group.addChildInOrder(new TrackNode({uri, title}));
 }
@@ -184,7 +184,7 @@ async function addWattsonCpuElements(ctx: Trace, group: TrackNode) {
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: new WattsonSubsystemEstimateTrack(
+      renderer: new WattsonSubsystemEstimateTrack(
         ctx,
         uri,
         queryKey,
@@ -204,7 +204,7 @@ async function addWattsonCpuElements(ctx: Trace, group: TrackNode) {
   ctx.tracks.registerTrack({
     uri,
     title,
-    track: new WattsonSubsystemEstimateTrack(
+    renderer: new WattsonSubsystemEstimateTrack(
       ctx,
       uri,
       `dsu_scu_mw`,
@@ -253,7 +253,7 @@ async function addWattsonGpuElements(ctx: Trace, group: TrackNode) {
   ctx.tracks.registerTrack({
     uri,
     title,
-    track: new WattsonSubsystemEstimateTrack(
+    renderer: new WattsonSubsystemEstimateTrack(
       ctx,
       uri,
       `gpu_mw`,

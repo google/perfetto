@@ -456,12 +456,12 @@ export class BreakdownTracks {
       filters.length > 0 ? `\nWHERE ${buildFilterSqlClause(filters)}` : '';
     const uri = `${this.uri}_${uuidv4()}`;
 
-    const track = await createTrack(uri, filtersClause);
+    const renderer = await createTrack(uri, filtersClause);
 
     this.props.trace.tracks.registerTrack({
       uri,
       title,
-      track,
+      renderer,
     });
 
     const sortOrder = await getSortOrder?.(filtersClause);

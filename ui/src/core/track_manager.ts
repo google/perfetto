@@ -236,7 +236,7 @@ class TrackFSMImpl implements TrackWithFSM {
   }
 
   get track(): TrackRenderer {
-    return this.desc.track;
+    return this.desc.renderer;
   }
 }
 

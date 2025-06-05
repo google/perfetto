@@ -40,7 +40,7 @@ async function registerAllocsTrack(
   ctx.tracks.registerTrack({
     uri,
     title: `dmabuf allocs`,
-    track: track,
+    renderer: track,
   });
 }
 
@@ -122,7 +122,7 @@ async function addGlobalCounter(ctx: Trace, parent: () => TrackNode) {
       kind: COUNTER_TRACK_KIND,
       trackIds: [id],
     },
-    track: new TraceProcessorCounterTrack(ctx, uri, {}, id, title),
+    renderer: new TraceProcessorCounterTrack(ctx, uri, {}, id, title),
   });
   const node = new TrackNode({
     uri,
@@ -153,7 +153,7 @@ async function addGlobalAllocs(ctx: Trace, parent: () => TrackNode) {
       kind: SLICE_TRACK_KIND,
       trackIds: ids,
     },
-    track: await createTraceProcessorSliceTrack({
+    renderer: await createTraceProcessorSliceTrack({
       trace: ctx,
       uri,
       trackIds: ids,

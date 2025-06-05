@@ -50,7 +50,7 @@ export default class implements PerfettoPlugin {
           device: device['id'],
           groupName: 'Queued IO requests',
         },
-        track,
+        renderer: track,
       });
       const node = new TrackNode({uri, title});
       group.addChildInOrder(node);

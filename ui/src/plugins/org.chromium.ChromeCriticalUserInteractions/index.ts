@@ -40,7 +40,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title: 'Chrome Interactions',
-      track: createCriticalUserInteractionTrack(ctx, uri),
+      renderer: createCriticalUserInteractionTrack(ctx, uri),
     });
   }
 }
