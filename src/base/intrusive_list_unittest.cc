@@ -35,7 +35,7 @@ class Person {
   bool operator==(const Person& p) const { return name == p.name; }
 
   std::string name;
-  IntrusiveListNode node{};
+  IntrusiveListNode<Person, Person::Traits> node{};
 };
 
 class IntrusiveListTest : public ::testing::Test {
@@ -237,16 +237,28 @@ TEST_F(IntrusiveListTest, RangeBasedForLoop) {
   list_.PushFront(p2_);
   list_.PushFront(p1_);
 
-  auto looped_persons = std::vector<const Person*>{};
+  std::vector<const Person*> looped_persons;
 
   for (const auto& p : list_) {
     looped_persons.push_back(&p);
   }
 
-  ASSERT_EQ(looped_persons.size(), static_cast<size_t>(3));
-  ASSERT_EQ(*looped_persons[0], p1_);
-  ASSERT_EQ(*looped_persons[1], p2_);
-  ASSERT_EQ(*looped_persons[2], p3_);
+  ASSERT_THAT(looped_persons, ::testing::ElementsAre(&p1_, &p2_, &p3_));
+}
+
+TEST_F(IntrusiveListTest, TypedNextPrev) {
+  list_.PushFront(p3_);
+  list_.PushFront(p2_);
+  list_.PushFront(p1_);
+
+  ASSERT_EQ(p1_.node.prev(), nullptr);
+  ASSERT_EQ(p1_.node.next(), &p2_);
+
+  ASSERT_EQ(p2_.node.prev(), &p1_);
+  ASSERT_EQ(p2_.node.next(), &p3_);
+
+  ASSERT_EQ(p3_.node.prev(), &p2_);
+  ASSERT_EQ(p3_.node.next(), nullptr);
 }
 
 }  // namespace

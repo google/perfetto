@@ -20,49 +20,47 @@
 
 namespace perfetto::base::internal {
 
-void ListOps::PushFront(IntrusiveListNode* node) {
-  PERFETTO_DCHECK(node->prev == nullptr && node->next == nullptr);
-  node->prev = &head_;
-  node->next = head_.next;
-  head_.next = node;
-  node->next->prev = node;
+void ListOps::PushFront(internal::ListNode* node) {
+  PERFETTO_DCHECK(node->prev_ == 0 && node->next_ == 0);
+  node->prev_ = sentinel();
+  node->next_ = head_and_tail_.next_;
+  head_and_tail_.next_ = reinterpret_cast<uintptr_t>(node);
+  MaybeHeadAndTail(node->next_)->prev_ = reinterpret_cast<uintptr_t>(node);
   ++size_;
 }
 
-void ListOps::PushBack(IntrusiveListNode* node) {
-  PERFETTO_DCHECK(node->prev == nullptr && node->next == nullptr);
-  node->next = &head_;
-  node->prev = head_.prev;
-  head_.prev = node;
-  node->prev->next = node;
+void ListOps::PushBack(internal::ListNode* node) {
+  PERFETTO_DCHECK(node->prev_ == 0 && node->next_ == 0);
+  node->next_ = sentinel();
+  node->prev_ = head_and_tail_.prev_;
+  head_and_tail_.prev_ = reinterpret_cast<uintptr_t>(node);
+  MaybeHeadAndTail(node->prev_)->next_ = reinterpret_cast<uintptr_t>(node);
   ++size_;
 }
 
 void ListOps::PopFront() {
-  PERFETTO_DCHECK(size_ > 0);
-  IntrusiveListNode* front = head_.next;
-  head_.next = front->next;
-  head_.next->prev = &head_;
-  front->next = front->prev = nullptr;
+  PERFETTO_DCHECK(!empty());
+  internal::ListNode* front = reinterpret_cast<ListNode*>(head_and_tail_.next_);
+  head_and_tail_.next_ = front->next_;
+  MaybeHeadAndTail(head_and_tail_.next_)->prev_ = sentinel();
+  front->next_ = front->prev_ = 0;
   --size_;
 }
 
 void ListOps::PopBack() {
-  PERFETTO_DCHECK(size_ > 0);
-  IntrusiveListNode* back = head_.prev;
-  head_.prev = back->prev;
-  head_.prev->next = &head_;
-  back->next = back->prev = nullptr;
+  PERFETTO_DCHECK(!empty());
+  internal::ListNode* back = reinterpret_cast<ListNode*>(head_and_tail_.prev_);
+  head_and_tail_.prev_ = back->prev_;
+  MaybeHeadAndTail(head_and_tail_.prev_)->next_ = sentinel();
+  back->next_ = back->prev_ = 0;
   --size_;
 }
 
-void ListOps::Erase(IntrusiveListNode* node) {
-  PERFETTO_DCHECK(size_ > 0);
-  auto* prev = node->prev;
-  auto* next = node->next;
-  prev->next = next;
-  next->prev = prev;
-  node->prev = node->next = nullptr;
+void ListOps::Erase(internal::ListNode* node) {
+  PERFETTO_DCHECK(node->prev_ && node->next_);
+  MaybeHeadAndTail(node->prev_)->next_ = node->next_;
+  MaybeHeadAndTail(node->next_)->prev_ = node->prev_;
+  node->prev_ = node->next_ = 0;
   --size_;
 }
 
