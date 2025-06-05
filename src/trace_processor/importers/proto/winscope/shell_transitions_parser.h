@@ -29,12 +29,12 @@ class TraceProcessorContext;
 
 class ShellTransitionsParser {
  public:
-  explicit ShellTransitionsParser(WinscopeContext*);
+  explicit ShellTransitionsParser(winscope::WinscopeContext*);
   void ParseTransition(protozero::ConstBytes);
   void ParseHandlerMappings(protozero::ConstBytes);
 
  private:
-  WinscopeContext* context_;
+  winscope::WinscopeContext* context_;
   util::ProtoToArgsParser args_parser_;
 };
 }  // namespace trace_processor

@@ -18,8 +18,7 @@
 #include <cstdint>
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor::winscope {
 
 ShellTransitionsTracker::ShellTransitionsTracker(TraceProcessorContext* context)
     : context_(context) {}
@@ -153,5 +152,4 @@ ShellTransitionsTracker::GetRowReference(int32_t transition_id) {
   return window_manager_shell_transitions_table->FindById(pos->second.row_id);
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::winscope

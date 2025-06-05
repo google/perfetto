@@ -31,7 +31,8 @@
 namespace perfetto {
 namespace trace_processor {
 
-ShellTransitionsParser::ShellTransitionsParser(WinscopeContext* context)
+ShellTransitionsParser::ShellTransitionsParser(
+    winscope::WinscopeContext* context)
     : context_(context),
       args_parser_{*context->trace_processor_context_->descriptor_pool_} {}
 
@@ -51,7 +52,7 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   storage->mutable_window_manager_shell_transition_protos_table()->Insert(row);
 
   // Track transition args as the come in through different packets
-  ShellTransitionsTracker& transition_tracker =
+  winscope::ShellTransitionsTracker& transition_tracker =
       context_->shell_transitions_tracker_;
   auto inserter = transition_tracker.AddArgsTo(transition.id());
   ArgsParser writer(/*timestamp=*/0, inserter, *storage.get());
