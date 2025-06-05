@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/proto/winscope/winscope_module.h"
 
 #include <cstdint>
+#include <optional>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
@@ -84,10 +85,14 @@ void WinscopeModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
                                           int64_t timestamp,
                                           const TracePacketData& data,
                                           uint32_t field_id) {
+  std::optional<uint32_t> sequence_id;
+  if (decoder.has_trusted_packet_sequence_id()) {
+    sequence_id = decoder.trusted_packet_sequence_id();
+  }
   switch (field_id) {
     case TracePacket::kSurfaceflingerLayersSnapshotFieldNumber:
       surfaceflinger_layers_parser_.Parse(
-          timestamp, decoder.surfaceflinger_layers_snapshot());
+          timestamp, decoder.surfaceflinger_layers_snapshot(), sequence_id);
       return;
     case TracePacket::kSurfaceflingerTransactionsFieldNumber:
       surfaceflinger_transactions_parser_.Parse(
