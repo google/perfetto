@@ -32,9 +32,6 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 
 namespace perfetto::trace_processor {
-namespace tables {
-StructuralTreePartitionTable::~StructuralTreePartitionTable() = default;
-}  // namespace tables
 
 namespace {
 

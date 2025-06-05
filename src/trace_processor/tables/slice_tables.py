@@ -16,13 +16,14 @@
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import ColumnFlag
-from python.generators.trace_processor_table.public import CppInt32
+from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppSelfTableId
 from python.generators.trace_processor_table.public import CppString
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import SqlAccess
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import WrappingSqlView
@@ -38,11 +39,21 @@ SLICE_TABLE = Table(
         C('dur', CppInt64()),
         C('track_id', CppTableId(TRACK_TABLE)),
         C('category', CppOptional(CppString())),
-        C('name', CppOptional(CppString())),
+        C(
+            'name',
+            CppOptional(CppString()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
         C('depth', CppUint32()),
         C('stack_id', CppInt64()),
         C('parent_stack_id', CppInt64()),
-        C('parent_id', CppOptional(CppSelfTableId())),
+        C(
+            'parent_id',
+            CppOptional(CppSelfTableId()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
         C('arg_set_id', CppOptional(CppUint32())),
         C('thread_ts', CppOptional(CppInt64())),
         C('thread_dur', CppOptional(CppInt64())),

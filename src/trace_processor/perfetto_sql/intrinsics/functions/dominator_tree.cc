@@ -31,9 +31,6 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 
 namespace perfetto::trace_processor {
-namespace tables {
-DominatorTreeTable::~DominatorTreeTable() = default;
-}  // namespace tables
 
 namespace {
 

@@ -17,15 +17,15 @@ from typing import Optional
 
 from python.generators.trace_processor_table.public import Alias
 from python.generators.trace_processor_table.public import ColumnFlag
+from python.generators.trace_processor_table.public import CppAccess
+from python.generators.trace_processor_table.public import CppAccessDuration
+from python.generators.trace_processor_table.public import SqlAccess
 from python.generators.trace_processor_table.util import ParsedTable
 from python.generators.trace_processor_table.util import ParsedColumn
-from python.generators.trace_processor_table.util import data_layer_type
 from python.generators.trace_processor_table.util import parse_type
-from python.generators.trace_processor_table.util import typed_column_type
 
 
 class ColumnSerializer:
-  """Functions for serializing a single Column in a table into C++."""
 
   def __init__(self, table: ParsedTable, column: ParsedColumn, col_index: int):
     self.col_index = col_index
@@ -36,680 +36,462 @@ class ColumnSerializer:
 
     parsed_type = parse_type(table.table, self.col.type)
 
-    self.typed_column_type = typed_column_type(table.table, self.parsed_col)
-    self.cpp_type = parsed_type.cpp_type_with_optionality()
-    self.data_layer_type = data_layer_type(table.table, self.parsed_col)
+    self.cpp_type_non_optional = parsed_type.cpp_type()
+    self.cpp_type_with_optionality = parsed_type.cpp_type_with_optionality()
+    self.is_optional = parsed_type.is_optional
+    self.is_string = self.cpp_type_non_optional == 'StringPool::Id'
+    self.is_id_type = parsed_type.id_table
+    self.is_no_transform_id = parsed_type.is_no_transform_id()
 
     self.is_implicit_id = self.parsed_col.is_implicit_id
-    self.is_ancestor = self.parsed_col.is_ancestor
-    self.is_string = parsed_type.cpp_type == 'StringPool::Id'
-    self.is_optional = parsed_type.is_optional
-
-  def colindex(self) -> str:
-    return f'    static constexpr uint32_t {self.name} = {self.col_index};'
-
-  def coltype_enum(self) -> str:
-    return f'    using {self.name} = {self.typed_column_type};'
 
   def row_field(self) -> Optional[str]:
     if self.is_implicit_id:
       return None
-    if self.is_ancestor:
-      return None
-    return f'    {self.cpp_type} {self.name};'
+    return f'    {self.cpp_type_with_optionality} {self.name};'
 
-  def row_param(self) -> Optional[str]:
+  def row_insert_arg_value(self) -> Optional[str]:
+    """Generates the C++ code to access this column's value from a Row object,
+    for use in the Dataframe::InsertUnchecked call."""
     if self.is_implicit_id:
-      return None
-    return f'{self.cpp_type} in_{self.name} = {{}}'
+      return f'std::monostate()'
+    if self.is_optional and self.is_id_type and not self.is_no_transform_id:
+      return f'row.{self.name} ? std::make_optional(row.{self.name}->value) : std::nullopt'
+    if self.is_optional and self.is_string:
+      return f'row.{self.name} ? std::make_optional(*row.{self.name}) : std::nullopt'
+    if self.is_id_type and not self.is_no_transform_id:
+      return f'row.{self.name}.value'
+    return f'row.{self.name}'
 
-  def parent_row_initializer(self) -> Optional[str]:
-    if self.is_implicit_id:
-      return None
-    if not self.is_ancestor:
-      return None
-    return f'in_{self.name}'
-
-  def row_initializer(self) -> Optional[str]:
-    if self.is_implicit_id:
-      return None
-    if self.is_ancestor:
-      return None
-    return f'{self.name}(in_{self.name})'
-
-  def const_row_ref_getter(self) -> Optional[str]:
-    return f'''ColumnType::{self.name}::type {self.name}() const {{
-      return table()->{self.name}()[row_number_];
+  def cursor_getter(self) -> Optional[str]:
+    if self.col.cpp_access == CppAccess.NONE:
+      return ''
+    if self.is_optional and (self.is_id_type or self.is_string):
+      return f'''
+      {self.cpp_type_with_optionality} {self.name}() const {{
+        auto res = cursor_.GetCellUnchecked<ColumnIndex::{self.name}>();
+        return res ? std::make_optional({self.cpp_type_non_optional}{{*res}}) : std::nullopt;
+      }}'''
+    if self.is_id_type:
+      return f'''
+      {self.cpp_type_with_optionality} {self.name}() const {{
+        return {self.cpp_type_non_optional}{{cursor_.GetCellUnchecked<ColumnIndex::{self.name}>()}};
+      }}'''
+    return f'''
+    {self.cpp_type_with_optionality} {self.name}() const {{
+      return cursor_.GetCellUnchecked<ColumnIndex::{self.name}>();
     }}'''
 
-  def row_ref_getter(self) -> Optional[str]:
-    if self.is_implicit_id:
-      return None
-    return f'''void set_{self.name}(
-        ColumnType::{self.name}::non_optional_type v) {{
-      return mutable_table()->mutable_{self.name}()->Set(row_number_, v);
+  def cursor_setter(self) -> Optional[str]:
+    if self.col.cpp_access == CppAccess.NONE or self.col.cpp_access == CppAccess.READ:
+      return ''
+    if self.is_optional and self.is_id_type and not self.is_no_transform_id:
+      return f'''
+      void set_{self.name}({self.cpp_type_with_optionality} res) {{
+        auto res_value = res ? std::make_optional(res->value) : std::nullopt;
+        cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(res_value);
+      }}'''
+    if self.is_optional and self.is_string:
+      return f'''
+      void set_{self.name}({self.cpp_type_with_optionality} res) {{
+        auto res_value = res ? std::make_optional(*res) : std::nullopt;
+        cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(res_value);
+    }}'''
+    if self.is_id_type and not self.is_no_transform_id:
+      return f'''
+      void set_{self.name}({self.cpp_type_with_optionality} res) {{
+        cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(res.value);
+      }}'''
+    return f'''
+    void set_{self.name}({self.cpp_type_with_optionality} res) {{
+      cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(res);
     }}'''
 
-  def flag(self) -> Optional[str]:
-    if self.is_implicit_id:
-      return None
-    if self.is_ancestor:
-      return None
-    default = f'ColumnType::{self.name}::default_flags()'
-    if self.flags == ColumnFlag.NONE:
-      flags = default
-    else:
-      flags = f'static_cast<uint32_t>({to_cpp_flags(self.flags)}) | {default}'
+  def row_reference_getter(self) -> str:
+    if self.col.cpp_access == CppAccess.NONE:
+      return ''
+    if self.is_optional and (self.is_id_type or self.is_string):
+      return f'''
+      {self.cpp_type_with_optionality} {self.name}() const {{ 
+        auto res = table_->dataframe_.template GetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_);
+        return res ? std::make_optional({self.cpp_type_non_optional}{{*res}}) : std::nullopt;
+      }}'''
+    if self.is_id_type:
+      return f'''
+      {self.cpp_type_with_optionality} {self.name}() const {{
+        return {self.cpp_type_non_optional}{{table_->dataframe_.template GetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_)}}; 
+      }}'''
     return f'''
-    static constexpr uint32_t {self.name} = {flags};
-    '''
+    {self.cpp_type_with_optionality} {self.name}() const {{
+      return table_->dataframe_.template GetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_);
+    }}'''
 
-  def storage_init(self) -> Optional[str]:
-    if self.is_implicit_id:
-      return None
-    if self.is_ancestor:
-      return None
-
-    storage = f'ColumnStorage<ColumnType::{self.name}::stored_type>'
-    dense = str(ColumnFlag.DENSE in self.flags).lower()
-    return f'''{self.name}_({storage}::Create<{dense}>())'''
-
-  def column_init(self) -> Optional[str]:
-    if self.is_implicit_id:
-      return None
-    if self.is_ancestor:
-      return None
+  def row_reference_setter(self) -> Optional[str]:
+    if self.col.cpp_access == CppAccess.NONE or self.col.cpp_access == CppAccess.READ:
+      return ''
+    if self.is_optional and self.is_id_type and not self.is_no_transform_id:
+      return f'''
+      void set_{self.name}({self.cpp_type_with_optionality} res) {{
+        auto res_value = res ? std::make_optional(res->value) : std::nullopt;
+        table_->dataframe_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_, res_value);
+      }}'''
+    if self.is_optional and self.is_string:
+      return f'''
+      void set_{self.name}({self.cpp_type_with_optionality} res) {{
+        auto res_value = res ? std::make_optional(*res) : std::nullopt;
+        table_->dataframe_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_, res_value);
+    }}'''
+    if self.is_id_type and not self.is_no_transform_id:
+      return f'''
+      void set_{self.name}({self.cpp_type_with_optionality} res) {{
+        table_->dataframe_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_, res.value);
+      }}'''
     return f'''
-    AddColumnToVector(columns, "{self.name}", &self->{self.name}_, ColumnFlag::{self.name},
-                      static_cast<uint32_t>(columns.size()), olay_idx);
-    '''
+    void set_{self.name}({self.cpp_type_with_optionality} res) {{
+      table_->dataframe_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, row_, res);
+    }}'''
 
-  def shrink_to_fit(self) -> Optional[str]:
+  def colindex_member(self) -> str:
+    return f'static constexpr uint32_t {self.name} = {self.col_index}'
+
+  def typespec_column_name_literal(self) -> str:
+    return f'"{self.name}"'
+
+  def _get_storage_type_tag(self) -> str:
     if self.is_implicit_id:
-      return None
-    if self.is_ancestor:
-      return None
-    return f'    {self.name}_.ShrinkToFit();'
-
-  def append(self) -> Optional[str]:
-    if self.is_implicit_id:
-      return None
-    if self.is_ancestor:
-      return None
-    return f'    mutable_{self.name}()->Append(row.{self.name});'
-
-  def accessor(self) -> Optional[str]:
-    inner = f'columns()[ColumnIndex::{self.name}]'
-    return f'''
-  const {self.typed_column_type}& {self.name}() const {{
-    return static_cast<const ColumnType::{self.name}&>({inner});
-  }}
-  '''
-
-  def mutable_accessor(self) -> Optional[str]:
-    if self.is_implicit_id:
-      return None
-    return f'''
-  {self.typed_column_type}* mutable_{self.name}() {{
-    return static_cast<ColumnType::{self.name}*>(
-        GetColumn(ColumnIndex::{self.name}));
-  }}
-  '''
-
-  def storage(self) -> Optional[str]:
-    if self.is_implicit_id:
-      return None
-    if self.is_ancestor:
-      return None
-    name = self.name
-    return f'  ColumnStorage<ColumnType::{name}::stored_type> {name}_;'
-
-  def iterator_getter(self) -> Optional[str]:
-    name = self.name
-    return f'''
-    ColumnType::{self.name}::type {name}() const {{
-      const auto& col = table()->{name}();
-      return col.GetAtIdx(
-        iterator_.StorageIndexForColumn(col.index_in_table()));
-    }}
-    '''
-
-  def static_schema(self) -> Optional[str]:
-    if self.is_implicit_id:
-      return None
-    return f'''
-    schema.columns.emplace_back(Table::Schema::Column{{
-        "{self.name}", ColumnType::{self.name}::SqlValueType(), false,
-        {str(ColumnFlag.SORTED in self.flags).lower()},
-        {str(ColumnFlag.HIDDEN in self.flags).lower()},
-        {str(ColumnFlag.SET_ID in self.flags).lower()}}});
-    '''
-
-  def row_eq(self) -> Optional[str]:
-    if self.is_implicit_id:
-      return None
-    return f'ColumnType::{self.name}::Equals({self.name}, other.{self.name})'
-
-  def extend_parent_param(self) -> Optional[str]:
-    if self.is_implicit_id:
-      return None
-    if self.is_ancestor:
-      return None
-    return f'ColumnStorage<ColumnType::{self.name}::stored_type> {self.name}'
-
-  def extend_parent_param_arg(self) -> Optional[str]:
-    if self.is_implicit_id:
-      return None
-    if self.is_ancestor:
-      return None
-    return f'std::move({self.name})'
-
-  def static_assert_flags(self) -> Optional[str]:
-    if self.is_implicit_id:
-      return None
-    if self.is_ancestor:
-      return None
-    return f'''
-      static_assert(
-        ColumnLegacy::IsFlagsAndTypeValid<ColumnType::{self.name}::stored_type>(
-          ColumnFlag::{self.name}),
-        "Column type and flag combination is not valid");
-    '''
-
-  def extend_nullable_vector(self) -> Optional[str]:
-    if self.is_implicit_id:
-      return None
-    if self.is_ancestor:
-      return None
-    return f'''
-    PERFETTO_DCHECK({self.name}.size() == parent_overlay.size());
-    {self.name}_ = std::move({self.name});
-    '''
-
-  def storage_layer(self) -> Optional[str]:
-    if self.is_ancestor:
-      return None
-    return f'''
-  RefPtr<column::StorageLayer> {self.name}_storage_layer_;
-  '''
-
-  def null_layer(self) -> Optional[str]:
-    if self.is_ancestor:
-      return None
-    if not self.is_optional or self.is_string:
-      return f''
-    return f'''
-  RefPtr<column::OverlayLayer> {self.name}_null_layer_;
-  '''
-
-  def storage_layer_create(self) -> str:
-    if self.is_ancestor:
-      return f'''const_parent_->storage_layers()[ColumnIndex::{self.name}]'''
-    return f'''{self.name}_storage_layer_'''
-
-  def null_layer_create(self) -> str:
-    if not self.is_optional or self.is_string:
-      return f'{{}}'
-    if self.is_ancestor:
-      return f'''const_parent_->null_layers()[ColumnIndex::{self.name}]'''
-    return f'''{self.name}_null_layer_'''
-
-  def storage_layer_init(self) -> str:
-    if self.is_ancestor:
-      return f''
-    if self.is_implicit_id:
-      return f'{self.name}_storage_layer_(new column::IdStorage())'
+      return 'dataframe::Id'
     if self.is_string:
-      return f'''{self.name}_storage_layer_(
-          new column::StringStorage(string_pool(), &{self.name}_.vector()))'''
-    if ColumnFlag.SET_ID in self.flags:
-      return f'''{self.name}_storage_layer_(
-          new column::SetIdStorage(&{self.name}_.vector()))'''
-    if self.is_optional:
-      return f'''{self.name}_storage_layer_(
-          new column::NumericStorage<ColumnType::{self.name}::non_optional_stored_type>(
-            &{self.name}_.non_null_vector(),
-            ColumnTypeHelper<ColumnType::{self.name}::stored_type>::ToColumnType(),
-            {str(ColumnFlag.SORTED in self.flags).lower()}))'''
-    return f'''{self.name}_storage_layer_(
-        new column::NumericStorage<ColumnType::{self.name}::non_optional_stored_type>(
-          &{self.name}_.vector(),
-          ColumnTypeHelper<ColumnType::{self.name}::stored_type>::ToColumnType(),
-          {str(ColumnFlag.SORTED in self.flags).lower()}))'''
+      return 'dataframe::String'
+    if self.cpp_type_non_optional == 'uint32_t' or self.is_id_type:
+      return 'dataframe::Uint32'
+    if self.cpp_type_non_optional == 'int32_t':
+      return 'dataframe::Int32'
+    if self.cpp_type_non_optional == 'int64_t':
+      return 'dataframe::Int64'
+    if self.cpp_type_non_optional == 'double':
+      return 'dataframe::Double'
+    raise ValueError(
+        f"Unknown cpp_type_non_optional '{self.cpp_type_non_optional}' for Dataframe StorageType for column '{self.name}'"
+    )
 
-  def null_layer_init(self) -> str:
-    if self.is_ancestor:
-      return f''
-    if not self.is_optional or self.is_string:
-      return f''
-    if ColumnFlag.DENSE in self.flags:
-      return f'''{self.name}_null_layer_(new column::DenseNullOverlay({self.name}_.bv()))'''
-    return f'''{self.name}_null_layer_(new column::NullOverlay({self.name}_.bv()))'''
+  def _get_nullability_tag(self) -> str:
+    if self.is_optional:
+      if self.col.sql_access == SqlAccess.HIGH_PERF:
+        return 'dataframe::DenseNull'
+      if self.col.cpp_access == CppAccess.NONE:
+        return 'dataframe::SparseNull'
+      if self.col.cpp_access == CppAccess.READ_AND_HIGH_PERF_WRITE:
+        return 'dataframe::DenseNull'
+      assert self.col.cpp_access in (
+          CppAccess.READ,
+          CppAccess.READ_AND_LOW_PERF_WRITE,
+      )
+      if self.col.cpp_access_duration == CppAccessDuration.PRE_FINALIZATION_ONLY:
+        return 'dataframe::SparseNullWithPopcountUntilFinalization'
+      assert self.col.cpp_access_duration == CppAccessDuration.POST_FINALIZATION
+      return 'dataframe::SparseNullWithPopcountAlways'
+    return 'dataframe::NonNull'
+
+  def _get_sort_state_tag(self) -> str:
+    if ColumnFlag.SORTED in self.flags:
+      if self.is_implicit_id:
+        return 'dataframe::IdSorted'
+      if ColumnFlag.SET_ID in self.flags:
+        return 'dataframe::SetIdSorted'
+      return 'dataframe::Sorted'
+    return 'dataframe::Unsorted'
+
+  def _get_duplicate_state_tag(self) -> str:
+    if self.is_implicit_id:
+      return 'dataframe::NoDuplicates'
+    return 'dataframe::HasDuplicates'
+
+  def typespec_typed_column_spec_expr(self) -> str:
+    storage_tag = self._get_storage_type_tag()
+    null_tag = self._get_nullability_tag()
+    sort_tag = self._get_sort_state_tag()
+    dupe_tag = self._get_duplicate_state_tag()
+    return (
+        f"dataframe::CreateTypedColumnSpec("
+        f"{storage_tag}{{}}, {null_tag}{{}}, {sort_tag}{{}}, {dupe_tag}{{}})")
 
 
 class TableSerializer(object):
-  """Functions for seralizing a single Table into C++."""
 
   def __init__(self, parsed: ParsedTable):
     self.table = parsed.table
     self.table_name = parsed.table.class_name
-    self.column_serializers = []
+    self.column_serializers: List[ColumnSerializer] = []
 
-    if parsed.table.parent:
-      self.parent_class_name = parsed.table.parent.class_name
-    else:
-      self.parent_class_name = 'macros_internal::RootParentTable'
-
-    self.column_serializers = []
-    for c in parsed.columns:
-      # Aliases should be ignored as they are handled in SQL currently.
-      if isinstance(c.column.type, Alias):
+    # Filter out aliases first, then assign col_index
+    temp_serializers = []
+    for c_parsed in parsed.columns:
+      if isinstance(c_parsed.column.type, Alias):
         continue
-      self.column_serializers.append(
-          ColumnSerializer(parsed, c, len(self.column_serializers)))
+      # col_index will be assigned when rebuilding self.column_serializers
+      temp_serializers.append(ColumnSerializer(parsed, c_parsed, 0))
+
+    self.column_serializers = [
+        ColumnSerializer(parsed, cs.parsed_col, i)
+        for i, cs in enumerate(temp_serializers)
+    ]
 
   def foreach_col(self, serialize_fn, delimiter='\n') -> str:
     lines = []
-    for c in self.column_serializers:
-      serialized = serialize_fn(c)
+    for c_ser in self.column_serializers:
+      serialized = serialize_fn(c_ser)
       if serialized:
         lines.append(serialized.lstrip('\n').rstrip())
     return delimiter.join(lines).strip()
 
-  def id_defn(self) -> str:
-    if self.table.parent:
-      return f'''
-  using Id = {self.table.parent.class_name}::Id;
-    '''
-    return '''
-  struct Id : public BaseId {
-    Id() = default;
-    explicit constexpr Id(uint32_t v) : BaseId(v) {}
-  };
-  static_assert(std::is_trivially_destructible_v<Id>,
-                "Inheritance used without trivial destruction");
-    '''
-
   def row_struct(self) -> str:
-    param = self.foreach_col(
-        ColumnSerializer.row_param, delimiter=',\n        ')
-    parent_row_init = self.foreach_col(
-        ColumnSerializer.parent_row_initializer, delimiter=', ')
-    row_init = self.foreach_col(
-        ColumnSerializer.row_initializer, delimiter=',\n          ')
-    parent_separator = ',' if row_init else ''
-    row_eq = self.foreach_col(ColumnSerializer.row_eq, delimiter=' &&\n       ')
+    fields = []
+    constructor_params_list = []
+    constructor_inits_list = []
+
+    for c_ser in self.column_serializers:
+      if not c_ser.is_implicit_id:
+        fields.append(c_ser.row_field())
+        constructor_params_list.append(
+            f'{c_ser.cpp_type_with_optionality} _{c_ser.name} = {{}}')
+        constructor_inits_list.append(f'{c_ser.name}(std::move(_{c_ser.name}))')
+
+    fields_str = "\n".join(filter(None, fields))
+    params_str = ', '.join(constructor_params_list)
+    inits_str = (
+        ': ' +
+        ', '.join(constructor_inits_list)) if constructor_inits_list else ''
+
     return f'''
-  struct Row : public {self.parent_class_name}::Row {{
-    Row({param},
-        std::nullptr_t = nullptr)
-        : {self.parent_class_name}::Row({parent_row_init}){parent_separator}
-          {row_init} {{}}
-    {self.foreach_col(ColumnSerializer.row_field)}
+  struct Row {{
+    Row({params_str}) {inits_str} {{}}
 
-    bool operator==(const {self.table_name}::Row& other) const {{
-      return {row_eq};
-    }}
-  }};
-    '''
-
-  def const_row_reference_struct(self) -> str:
-    row_ref_getters = self.foreach_col(
-        ColumnSerializer.const_row_ref_getter, delimiter='\n    ')
-    return f'''
-  class ConstRowReference : public macros_internal::AbstractConstRowReference<
-    {self.table_name}, RowNumber> {{
-   public:
-    ConstRowReference(const {self.table_name}* table, uint32_t row_number)
-        : AbstractConstRowReference(table, row_number) {{}}
-
-    {row_ref_getters}
-  }};
-  static_assert(std::is_trivially_destructible_v<ConstRowReference>,
-                "Inheritance used without trivial destruction");
-    '''
-
-  def row_reference_struct(self) -> str:
-    row_ref_getters = self.foreach_col(
-        ColumnSerializer.row_ref_getter, delimiter='\n    ')
-    return f'''
-  class RowReference : public ConstRowReference {{
-   public:
-    RowReference(const {self.table_name}* table, uint32_t row_number)
-        : ConstRowReference(table, row_number) {{}}
-
-    {row_ref_getters}
-
-   private:
-    {self.table_name}* mutable_table() const {{
-      return const_cast<{self.table_name}*>(table());
-    }}
-  }};
-  static_assert(std::is_trivially_destructible_v<RowReference>,
-                "Inheritance used without trivial destruction");
-    '''
-
-  def constructor(self) -> str:
-    storage_init = self.foreach_col(
-        ColumnSerializer.storage_init, delimiter=',\n        ')
-    storage_layer_init = self.foreach_col(
-        ColumnSerializer.storage_layer_init, delimiter=',\n        ')
-    storage_layer_sep = '\n,' if storage_layer_init else ''
-    null_layer_init = self.foreach_col(
-        ColumnSerializer.null_layer_init, delimiter=',\n        ')
-    null_layer_sep = '\n,' if null_layer_init else ''
-    if self.table.parent:
-      parent_param = f', {self.parent_class_name}* parent'
-      parent_arg = 'parent'
-      parent_init = 'parent_(parent), const_parent_(parent)' + (
-          ', ' if storage_init else '')
-    else:
-      parent_param = ''
-      parent_arg = 'nullptr'
-      parent_init = ''
-    col_init = self.foreach_col(ColumnSerializer.column_init)
-    if col_init:
-      olay = 'uint32_t olay_idx = OverlayCount(parent);'
-    else:
-      olay = ''
-    storage_layer_create = self.foreach_col(
-        ColumnSerializer.storage_layer_create, delimiter=',')
-    null_layer_create = self.foreach_col(
-        ColumnSerializer.null_layer_create, delimiter=',')
-    return f'''
-  static std::vector<ColumnLegacy> GetColumns(
-      {self.table_name}* self,
-      const macros_internal::MacroTable* parent) {{
-    std::vector<ColumnLegacy> columns =
-        CopyColumnsFromParentOrAddRootColumns(parent);
-    {olay}
-    {col_init}
-    base::ignore_result(self);
-    return columns;
-  }}
-
-  PERFETTO_NO_INLINE explicit {self.table_name}(StringPool* pool{parent_param})
-      : macros_internal::MacroTable(
-          pool,
-          GetColumns(this, {parent_arg}),
-          {parent_arg}),
-        {parent_init}{storage_init}{storage_layer_sep}
-        {storage_layer_init}{null_layer_sep}
-        {null_layer_init} {{
-    {self.foreach_col(ColumnSerializer.static_assert_flags)}
-    OnConstructionCompletedRegularConstructor(
-      {{{storage_layer_create}}},
-      {{{null_layer_create}}});
-  }}
-    '''
-
-  def parent_field(self) -> str:
-    if self.table.parent:
-      return f'''
-  {self.parent_class_name}* parent_ = nullptr;
-  const {self.parent_class_name}* const_parent_ = nullptr;
-      '''
-    return ''
-
-  def insert_common(self) -> str:
-    if self.table.parent:
-      return '''
-    Id id = Id{parent_->Insert(row).id};
-    UpdateOverlaysAfterParentInsert();
-      '''
-    return '''
-    Id id = Id{row_number};
-      '''
-
-  def const_iterator(self) -> str:
-    iterator_getters = self.foreach_col(
-        ColumnSerializer.iterator_getter, delimiter='\n')
-    return f'''
-  class ConstIterator;
-  class ConstIterator : public macros_internal::AbstractConstIterator<
-    ConstIterator, {self.table_name}, RowNumber, ConstRowReference> {{
-   public:
-    {iterator_getters}
-
-   protected:
-    explicit ConstIterator(const {self.table_name}* table,
-                           Table::Iterator iterator)
-        : AbstractConstIterator(table, std::move(iterator)) {{}}
-
-    uint32_t CurrentRowNumber() const {{
-      return iterator_.StorageIndexForLastOverlay();
+    bool operator==(const Row& other) const {{
+      return std::tie({', '.join([f'{c_ser.name}' for c_ser in self.column_serializers if not c_ser.is_implicit_id])}) ==
+             std::tie({', '.join([f'other.{c_ser.name}' for c_ser in self.column_serializers if not c_ser.is_implicit_id])});
     }}
 
-   private:
-    friend class {self.table_name};
-    friend class macros_internal::AbstractConstIterator<
-      ConstIterator, {self.table_name}, RowNumber, ConstRowReference>;
-  }};
-      '''
-
-  def iterator(self) -> str:
-    return f'''
-  class Iterator : public ConstIterator {{
-    public:
-     RowReference row_reference() const {{
-       return {{const_cast<{self.table_name}*>(table()), CurrentRowNumber()}};
-     }}
-
-    private:
-     friend class {self.table_name};
-
-     explicit Iterator({self.table_name}* table, Table::Iterator iterator)
-        : ConstIterator(table, std::move(iterator)) {{}}
-  }};
-      '''
-
-  def extend(self) -> str:
-    if not self.table.parent:
-      return ''
-    params = self.foreach_col(
-        ColumnSerializer.extend_parent_param, delimiter='\n, ')
-    args = self.foreach_col(
-        ColumnSerializer.extend_parent_param_arg, delimiter=', ')
-    delim = ',' if params else ''
-    return f'''
-  static std::unique_ptr<{self.table_name}> ExtendParent(
-      const {self.parent_class_name}& parent{delim}
-      {params}) {{
-    return std::unique_ptr<{self.table_name}>(new {self.table_name}(
-        parent.string_pool(), parent, RowMap(0, parent.row_count()){delim}
-        {args}));
-  }}
-
-  static std::unique_ptr<{self.table_name}> SelectAndExtendParent(
-      const {self.parent_class_name}& parent,
-      std::vector<{self.parent_class_name}::RowNumber> parent_overlay{delim}
-      {params}) {{
-    std::vector<uint32_t> prs_untyped(parent_overlay.size());
-    for (uint32_t i = 0; i < parent_overlay.size(); ++i) {{
-      prs_untyped[i] = parent_overlay[i].row_number();
-    }}
-    return std::unique_ptr<{self.table_name}>(new {self.table_name}(
-        parent.string_pool(), parent, RowMap(std::move(prs_untyped)){delim}
-        {args}));
-  }}
-    '''
-
-  def extend_constructor(self) -> str:
-    if not self.table.parent:
-      return ''
-    storage_layer_init = self.foreach_col(
-        ColumnSerializer.storage_layer_init, delimiter=',\n        ')
-    storage_layer_sep = '\n,' if storage_layer_init else ''
-    null_layer_init = self.foreach_col(
-        ColumnSerializer.null_layer_init, delimiter=',\n        ')
-    null_layer_sep = '\n,' if null_layer_init else ''
-    params = self.foreach_col(
-        ColumnSerializer.extend_parent_param, delimiter='\n, ')
-    storage_layer_create = self.foreach_col(
-        ColumnSerializer.storage_layer_create, delimiter=',')
-    null_layer_create = self.foreach_col(
-        ColumnSerializer.null_layer_create, delimiter=',')
-    return f'''
-  {self.table_name}(StringPool* pool,
-            const {self.parent_class_name}& parent,
-            const RowMap& parent_overlay{',' if params else ''}
-            {params})
-      : macros_internal::MacroTable(
-          pool,
-          GetColumns(this, &parent),
-          parent,
-          parent_overlay),
-          const_parent_(&parent){storage_layer_sep}
-        {storage_layer_init}{null_layer_sep}
-        {null_layer_init} {{
-    {self.foreach_col(ColumnSerializer.static_assert_flags)}
-    {self.foreach_col(ColumnSerializer.extend_nullable_vector)}
-
-    std::vector<RefPtr<column::OverlayLayer>> overlay_layers(OverlayCount(&parent) + 1);
-    for (uint32_t i = 0; i < overlay_layers.size(); ++i) {{
-      if (overlays()[i].row_map().IsIndexVector()) {{
-        overlay_layers[i].reset(new column::ArrangementOverlay(
-            overlays()[i].row_map().GetIfIndexVector(),
-            column::DataLayerChain::Indices::State::kNonmonotonic));
-      }} else if (overlays()[i].row_map().IsBitVector()) {{
-        overlay_layers[i].reset(new column::SelectorOverlay(
-            overlays()[i].row_map().GetIfBitVector()));
-      }} else if (overlays()[i].row_map().IsRange()) {{
-        overlay_layers[i].reset(new column::RangeOverlay(
-            overlays()[i].row_map().GetIfIRange()));
-      }}
-    }}
-
-    OnConstructionCompleted(
-      {{{storage_layer_create}}}, {{{null_layer_create}}}, std::move(overlay_layers));
-  }}
-    '''
-
-  def column_count(self) -> str:
-    return str(len(self.column_serializers))
+    {fields_str}
+  }};'''
 
   def serialize(self) -> str:
-    return f'''
-class {self.table_name} : public macros_internal::MacroTable {{
+    return f'''\
+class {self.table_name} {{
  public:
-  static constexpr uint32_t kColumnCount = {self.column_count().strip()};
+  static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
+    {{{self.foreach_col(ColumnSerializer.typespec_column_name_literal, delimiter=',')}}},
+    {self.foreach_col(ColumnSerializer.typespec_typed_column_spec_expr, delimiter=',\n    ')});
 
-  {self.id_defn().lstrip()}
-  struct ColumnIndex {{
-    {self.foreach_col(ColumnSerializer.colindex)}
-  }};
-  struct ColumnType {{
-    {self.foreach_col(ColumnSerializer.coltype_enum)}
-  }};
-  {self.row_struct().strip()}
-  struct ColumnFlag {{
-    {self.foreach_col(ColumnSerializer.flag)}
-  }};
+  struct Id : BaseId {{
+    Id() = default;
+    explicit constexpr Id(uint32_t _value) : BaseId(_value) {{}}
 
-  class RowNumber;
-  class ConstRowReference;
-  class RowReference;
-
-  class RowNumber : public macros_internal::AbstractRowNumber<
-      {self.table_name}, ConstRowReference, RowReference> {{
+    bool operator==(const Id& other) const {{
+      return value == other.value;
+    }}
+  }};
+  struct RowReference;
+  struct ConstRowReference;
+  struct RowNumber {{
    public:
-    explicit RowNumber(uint32_t row_number)
-        : AbstractRowNumber(row_number) {{}}
+    explicit constexpr RowNumber(uint32_t value) : value_(value) {{}}
+    uint32_t row_number() const {{ return value_; }}
+
+    RowReference ToRowReference({self.table_name}* table) const {{
+      return RowReference(table, value_);
+    }}
+    ConstRowReference ToRowReference(const {self.table_name}& table) const {{
+      return ConstRowReference(&table, value_);
+    }}
+
+    bool operator==(const RowNumber& other) const {{
+      return value_ == other.value_;
+    }}
+    bool operator<(const RowNumber& other) const {{
+      return value_ < other.value_;
+    }}
+   private:
+    uint32_t value_;
   }};
-  static_assert(std::is_trivially_destructible_v<RowNumber>,
-                "Inheritance used without trivial destruction");
+  struct ColumnIndex {{
+    {self.foreach_col(ColumnSerializer.colindex_member, delimiter=';\n    ')};
+  }};
+  struct RowReference {{
+   public:
+    explicit RowReference({self.table_name}* table, uint32_t row)
+        : table_(table), row_(row) {{}}
+    {self.foreach_col(ColumnSerializer.row_reference_getter, delimiter='\n    ')}
+    {self.foreach_col(ColumnSerializer.row_reference_setter, delimiter='\n    ')}
+    RowNumber ToRowNumber() const {{
+      return RowNumber{{row_}};
+    }}
 
-  {self.const_row_reference_struct().strip()}
-  {self.row_reference_struct().strip()}
+   private:
+    friend struct ConstRowReference;
+    {self.table_name}* table_;
+    uint32_t row_;
+  }};
+  struct ConstRowReference {{
+   public:
+    explicit ConstRowReference(const {self.table_name}* table, uint32_t row)
+        : table_(table), row_(row) {{}}
+    ConstRowReference(const RowReference& other)
+        : table_(other.table_), row_(other.row_) {{}}
+    {self.foreach_col(ColumnSerializer.row_reference_getter, delimiter='\n    ')}
+    RowNumber ToRowNumber() const {{
+      return RowNumber{{row_}};
+    }}
+   private:
+    const {self.table_name}* table_;
+    uint32_t row_;
+  }};
+  class ConstCursor {{
+   public:
+    explicit ConstCursor(const dataframe::Dataframe& df,
+                           std::vector<dataframe::FilterSpec> filters,
+                           std::vector<dataframe::SortSpec> sorts)
+      : cursor_(df.CreateTypedCursorUnchecked(kSpec, std::move(filters), std::move(sorts))) {{}}
 
-  {self.const_iterator().strip()}
-  {self.iterator().strip()}
+    PERFETTO_ALWAYS_INLINE void Execute() {{ cursor_.ExecuteUnchecked(); }}
+    PERFETTO_ALWAYS_INLINE bool Eof() const {{ return cursor_.Eof(); }}
+    PERFETTO_ALWAYS_INLINE void Next() {{ cursor_.Next(); }}
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {{
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }}
+    RowNumber ToRowNumber() const {{
+      return RowNumber{{cursor_.RowIndex()}};
+    }}
+    {self.foreach_col(ColumnSerializer.cursor_getter, delimiter='\n')}
 
+   private:
+    dataframe::Dataframe::TypedCursor<std::remove_cv_t<std::remove_reference_t<decltype(kSpec)>>> cursor_;
+  }};
+  class Cursor {{
+   public:
+    explicit Cursor(const dataframe::Dataframe& df,
+                    std::vector<dataframe::FilterSpec> filters,
+                    std::vector<dataframe::SortSpec> sorts)
+      : cursor_(df.CreateTypedCursorUnchecked(kSpec, std::move(filters), std::move(sorts))) {{}}
+
+    PERFETTO_ALWAYS_INLINE void Execute() {{ cursor_.ExecuteUnchecked(); }}
+    PERFETTO_ALWAYS_INLINE bool Eof() const {{ return cursor_.Eof(); }}
+    PERFETTO_ALWAYS_INLINE void Next() {{ cursor_.Next(); }}
+    template <typename C>
+    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {{
+      cursor_.SetFilterValueUnchecked(index, std::move(value));
+    }}
+    RowNumber ToRowNumber() const {{
+      return RowNumber{{cursor_.RowIndex()}};
+    }}
+    {self.foreach_col(ColumnSerializer.cursor_getter, delimiter='\n')}
+    {self.foreach_col(ColumnSerializer.cursor_setter, delimiter='\n')}
+
+   private:
+    dataframe::Dataframe::TypedCursor<std::remove_cv_t<std::remove_reference_t<decltype(kSpec)>>> cursor_;
+  }};
+  class Iterator {{
+    public:
+      explicit Iterator({self.table_name}* table) : table_(table) {{}}
+      explicit operator bool() const {{ return row_ < table_->row_count(); }}
+      Iterator& operator++() {{
+        ++row_;
+        return *this;
+      }}
+      RowNumber row_number() const {{
+        return RowNumber{{row_}};
+      }}
+      {self.foreach_col(ColumnSerializer.row_reference_getter, delimiter='\n    ')}
+      {self.foreach_col(ColumnSerializer.row_reference_setter, delimiter='\n    ')}
+
+    private:
+      {self.table_name}* table_;
+      uint32_t row_ = 0;
+  }};
+  class ConstIterator {{
+    public:
+      explicit ConstIterator(const {self.table_name}* table) : table_(table) {{}}
+      explicit operator bool() const {{ return row_ < table_->row_count(); }}
+      ConstIterator& operator++() {{
+        ++row_;
+        return *this;
+      }}
+      RowNumber row_number() const {{
+        return RowNumber{{row_}};
+      }}
+      {self.foreach_col(ColumnSerializer.row_reference_getter, delimiter='\n    ')}
+
+    private:
+      const {self.table_name}* table_;
+      uint32_t row_ = 0;
+  }};
   struct IdAndRow {{
     Id id;
+    RowNumber row_number;
     uint32_t row;
     RowReference row_reference;
-    RowNumber row_number;
   }};
+  {self.row_struct()}
 
-  {self.constructor().strip()}
-  ~{self.table_name}() override;
-
-  static const char* Name() {{ return "{self.table.sql_name}"; }}
-
-  static Table::Schema ComputeStaticSchema() {{
-    Table::Schema schema;
-    schema.columns.emplace_back(Table::Schema::Column{{
-        "id", SqlValue::Type::kLong, true, true, false, false}});
-    {self.foreach_col(ColumnSerializer.static_schema)}
-    return schema;
-  }}
-
-  ConstIterator IterateRows() const {{
-    return ConstIterator(this, Table::IterateRows());
-  }}
-
-  Iterator IterateRows() {{ return Iterator(this, Table::IterateRows()); }}
-
-  ConstIterator FilterToIterator(const Query& q) const {{
-    return ConstIterator(this, QueryToIterator(q));
-  }}
-
-  Iterator FilterToIterator(const Query& q) {{
-    return Iterator(this, QueryToIterator(q));
-  }}
-
-  void ShrinkToFit() {{
-    {self.foreach_col(ColumnSerializer.shrink_to_fit)}
-  }}
-
-  ConstRowReference operator[](uint32_t r) const {{
-    return ConstRowReference(this, r);
-  }}
-  RowReference operator[](uint32_t r) {{ return RowReference(this, r); }}
-  ConstRowReference operator[](RowNumber r) const {{
-    return ConstRowReference(this, r.row_number());
-  }}
-  RowReference operator[](RowNumber r) {{
-    return RowReference(this, r.row_number());
-  }}
-
-  std::optional<ConstRowReference> FindById(Id find_id) const {{
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(ConstRowReference(this, *row))
-               : std::nullopt;
-  }}
-
-  std::optional<RowReference> FindById(Id find_id) {{
-    std::optional<uint32_t> row = id().IndexOf(find_id);
-    return row ? std::make_optional(RowReference(this, *row)) : std::nullopt;
-  }}
+  explicit {self.table_name}(StringPool* pool)
+      : dataframe_(dataframe::Dataframe::CreateFromTypedSpec(kSpec, pool)) {{}}
 
   IdAndRow Insert(const Row& row) {{
-    uint32_t row_number = row_count();
-    {self.insert_common().strip()}
-    {self.foreach_col(ColumnSerializer.append)}
-    UpdateSelfOverlayAfterInsert();
-    return IdAndRow{{id, row_number, RowReference(this, row_number),
-                     RowNumber(row_number)}};
+    uint32_t row_count = dataframe_.row_count();
+    dataframe_.InsertUnchecked(kSpec, 
+      {self.foreach_col(ColumnSerializer.row_insert_arg_value, delimiter=', ')});
+    return IdAndRow{{Id{{row_count}}, RowNumber{{row_count}}, row_count, RowReference(this, row_count)}};
   }}
 
-  {self.extend().strip()}
+  uint32_t row_count() const {{
+    return dataframe_.row_count();
+  }}
 
-  {self.foreach_col(ColumnSerializer.accessor)}
+  std::optional<ConstRowReference> FindById(Id id) const {{
+    return ConstRowReference(this, id.value);
+  }}
+  ConstRowReference operator[](uint32_t row) const {{
+    return ConstRowReference(this, row);
+  }}
 
-  {self.foreach_col(ColumnSerializer.mutable_accessor)}
+  std::optional<RowReference> FindById(Id id) {{
+    return RowReference(this, id.value);
+  }}
+  RowReference operator[](uint32_t row) {{
+    return RowReference(this, row);
+  }}
+
+  ConstCursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {{}},
+      std::vector<dataframe::SortSpec> sorts = {{}}) const {{
+    return ConstCursor(dataframe_, std::move(filters), std::move(sorts));
+  }}
+  Cursor CreateCursor(
+      std::vector<dataframe::FilterSpec> filters = {{}},
+      std::vector<dataframe::SortSpec> sorts = {{}}) {{
+    return Cursor(dataframe_, std::move(filters), std::move(sorts));
+  }}
+
+  Iterator IterateRows() {{ return Iterator(this); }}
+  ConstIterator IterateRows() const {{ return ConstIterator(this); }}
+
+  void ShrinkToFit() {{}}
+
+  static const char* Name() {{
+    return "{self.table.sql_name}";
+  }}
+  
+  dataframe::Dataframe& dataframe() {{
+    return dataframe_;
+  }}
+  const dataframe::Dataframe& dataframe() const {{
+    return dataframe_;
+  }}
 
  private:
-  {self.extend_constructor().strip()}
-  {self.parent_field().strip()}
-  {self.foreach_col(ColumnSerializer.storage)}
-
-  {self.foreach_col(ColumnSerializer.storage_layer)}
-
-  {self.foreach_col(ColumnSerializer.null_layer)}
+  dataframe::Dataframe dataframe_;
 }};
-  '''.strip('\n')
+'''
 
 
 def serialize_header(ifdef_guard: str, tables: List[ParsedTable],
@@ -720,69 +502,32 @@ def serialize_header(ifdef_guard: str, tables: List[ParsedTable],
   include_paths_str = '\n'.join([f'#include "{i}"' for i in include_paths
                                 ]).replace("\\", "/")
   tables_str = '\n\n'.join([TableSerializer(t).serialize() for t in tables])
-  return f'''
+
+  return f'''\
 #ifndef {ifdef_guard}
 #define {ifdef_guard}
 
-#include <array>
-#include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <optional>
+#include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
-#include "perfetto/base/logging.h"
-#include "perfetto/trace_processor/basic_types.h"
-#include "perfetto/trace_processor/ref_counted.h"
-#include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/column/arrangement_overlay.h"
-#include "src/trace_processor/db/column/data_layer.h"
-#include "src/trace_processor/db/column/dense_null_overlay.h"
-#include "src/trace_processor/db/column/numeric_storage.h"
-#include "src/trace_processor/db/column/id_storage.h"
-#include "src/trace_processor/db/column/null_overlay.h"
-#include "src/trace_processor/db/column/range_overlay.h"
-#include "src/trace_processor/db/column/selector_overlay.h"
-#include "src/trace_processor/db/column/set_id_storage.h"
-#include "src/trace_processor/db/column/string_storage.h"
-#include "src/trace_processor/db/column/types.h"
-#include "src/trace_processor/db/column_storage.h"
-#include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/table.h"
-#include "src/trace_processor/db/typed_column.h"
-#include "src/trace_processor/db/typed_column_internal.h"
-#include "src/trace_processor/tables/macros_internal.h"
+#include "src/trace_processor/db/base_id.h"
+#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/dataframe/specs.h"
 
 {include_paths_str}
 
 namespace perfetto::trace_processor::tables {{
 
-{tables_str.strip()}
+{tables_str}
 
-}}  // namespace perfetto
+}}  // namespace perfetto::trace_processor::tables
 
 #endif  // {ifdef_guard}
-  '''.strip()
-
-
-def to_cpp_flags(raw_flag: ColumnFlag) -> str:
-  """Converts a ColumnFlag to the C++ flags which it represents
-
-  It is not valid to call this function with ColumnFlag.NONE as in this case
-  defaults for that column should be implicitly used."""
-
-  assert raw_flag != ColumnFlag.NONE
-  flags = []
-  if ColumnFlag.SORTED in raw_flag:
-    flags.append('ColumnLegacy::Flag::kSorted')
-  if ColumnFlag.HIDDEN in raw_flag:
-    flags.append('ColumnLegacy::Flag::kHidden')
-  if ColumnFlag.DENSE in raw_flag:
-    flags.append('ColumnLegacy::Flag::kDense')
-  if ColumnFlag.SET_ID in raw_flag:
-    flags.append('ColumnLegacy::Flag::kSetId')
-  return ' | '.join(flags)
+'''

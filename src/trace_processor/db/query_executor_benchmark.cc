@@ -28,11 +28,9 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/trace_processor/basic_types.h"
 #include "src/base/test/utils.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/column/types.h"
-#include "src/trace_processor/db/table.h"
+#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
@@ -182,11 +180,12 @@ struct HeapGraphObjectTableForBenchmark {
   HeapGraphObjectTable table_{&pool_};
 };
 
+template <typename... Ts>
 void BenchmarkSliceTableFilter(benchmark::State& state,
                                SliceTableForBenchmark& table,
-                               std::initializer_list<Constraint> c) {
-  Query q;
-  q.constraints = c;
+                               std::initializer_list<dataframe::FilterSpec> c,
+                               Ts... args) {
+  auto it = table.table_.CreateCursor(c);
   for (auto _ : state) {
     benchmark::DoNotOptimize(table.table_.FilterToIterator(q));
   }

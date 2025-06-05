@@ -40,12 +40,6 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
-namespace tables {
-
-ExperimentalAnnotatedCallstackTable::~ExperimentalAnnotatedCallstackTable() =
-    default;
-
-}  // namespace tables
 
 namespace {
 

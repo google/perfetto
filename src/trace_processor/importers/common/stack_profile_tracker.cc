@@ -18,15 +18,18 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <string>
+#include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/profiler_util.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 std::vector<FrameId> StackProfileTracker::JavaFramesForName(
     NameInPackage name) const {
@@ -56,7 +59,7 @@ void StackProfileTracker::OnFrameCreated(FrameId frame_id) {
   auto frame =
       *context_->storage->stack_profile_frame_table().FindById(frame_id);
   const MappingId mapping_id = frame.mapping();
-  const StringId name_id = frame.name();
+  const std::optional<StringId> name_id = frame.name();
   const auto function_name = context_->storage->GetString(name_id);
 
   if (function_name.find('.') != base::StringView::npos) {
@@ -97,5 +100,4 @@ bool StackProfileTracker::FrameHasUnknownPackage(FrameId frame_id) const {
   return java_frames_with_unknown_packages_.count(frame_id) != 0;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

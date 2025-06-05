@@ -39,9 +39,6 @@
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor {
-namespace tables {
-TreeTable::~TreeTable() = default;
-}  // namespace tables
 
 namespace {
 

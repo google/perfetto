@@ -17,12 +17,17 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_THREAD_STATE_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_THREAD_STATE_TRACKER_H_
 
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <vector>
+
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/sched_tables_py.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Responsible for filling the Thread State table by analysing sched switches,
 // waking events and blocking reasons.
@@ -34,7 +39,8 @@ class ThreadStateTracker : public Destructible {
   ~ThreadStateTracker() override;
   static ThreadStateTracker* GetOrCreate(TraceProcessorContext* context) {
     if (!context->thread_state_tracker) {
-      context->thread_state_tracker.reset(new ThreadStateTracker(context));
+      context->thread_state_tracker =
+          std::make_unique<ThreadStateTracker>(context);
     }
     return static_cast<ThreadStateTracker*>(
         context->thread_state_tracker.get());
@@ -110,8 +116,6 @@ class ThreadStateTracker : public Destructible {
                     std::optional<uint16_t> common_flags = std::nullopt);
   void ClosePendingState(int64_t end_ts, UniqueTid utid, bool data_loss);
 
-  uint32_t CommonFlagsToIrqContext(uint32_t common_flags);
-
   bool IsRunning(StringId state);
   bool IsBlocked(StringId state);
   bool IsRunnable(StringId state);
@@ -140,7 +144,6 @@ class ThreadStateTracker : public Destructible {
 
   std::vector<std::optional<RelatedRows>> prev_row_numbers_for_thread_;
 };
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_THREAD_STATE_TRACKER_H_

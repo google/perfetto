@@ -18,6 +18,7 @@ for any serious business just yet""
 """
 
 from python.generators.trace_processor_table.public import Alias
+from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
@@ -35,8 +36,12 @@ JIT_CODE_TABLE = Table(
     class_name='JitCodeTable',
     sql_name='__intrinsic_jit_code',
     columns=[
-        C('create_ts', CppInt64(), ColumnFlag.SORTED),
-        C('estimated_delete_ts', CppOptional(CppInt64())),
+        C('create_ts', CppInt64(), flags=ColumnFlag.SORTED),
+        C(
+            'estimated_delete_ts',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
         C('utid', CppUint32()),
         C('start_address', CppInt64()),
         C('size', CppInt64()),

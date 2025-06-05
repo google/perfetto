@@ -15,15 +15,17 @@
 
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import ColumnFlag
+from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppInt32
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppSelfTableId
 from python.generators.trace_processor_table.public import CppString
-from python.generators.trace_processor_table.public import Table
-from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import SqlAccess
+from python.generators.trace_processor_table.public import Table
+from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import WrappingSqlView
 
 from src.trace_processor.tables.track_tables import TRACK_TABLE
@@ -163,7 +165,12 @@ STACK_PROFILE_FRAME_TABLE = Table(
         C('name', CppString()),
         C('mapping', CppTableId(STACK_PROFILE_MAPPING_TABLE)),
         C('rel_pc', CppInt64()),
-        C('symbol_set_id', CppOptional(CppUint32()), flags=ColumnFlag.DENSE),
+        C(
+            'symbol_set_id',
+            CppOptional(CppUint32()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
         C('deobfuscated_name', CppOptional(CppString())),
     ],
     tabledoc=TableDoc(
@@ -502,7 +509,12 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
         C('graph_sample_ts', CppInt64()),
         C('self_size', CppInt64()),
         C('native_size', CppInt64()),
-        C('reference_set_id', CppOptional(CppUint32()), flags=ColumnFlag.DENSE),
+        C(
+            'reference_set_id',
+            CppOptional(CppUint32()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
         C('reachable', CppInt32()),
         C('heap_type', CppOptional(CppString())),
         C('type_id', CppTableId(HEAP_GRAPH_CLASS_TABLE)),

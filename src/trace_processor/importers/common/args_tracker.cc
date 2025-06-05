@@ -19,13 +19,11 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <optional>
 #include <tuple>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/small_vector.h"
-#include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/typed_column.h"
+#include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -39,7 +37,8 @@ ArgsTracker::~ArgsTracker() {
   Flush();
 }
 
-void ArgsTracker::AddArg(ColumnLegacy* arg_set_id,
+void ArgsTracker::AddArg(dataframe::Dataframe* dataframe,
+                         uint32_t column,
                          uint32_t row,
                          StringId flat_key,
                          StringId key,
@@ -48,7 +47,8 @@ void ArgsTracker::AddArg(ColumnLegacy* arg_set_id,
   args_.emplace_back();
 
   auto* rid_arg = &args_.back();
-  rid_arg->column = arg_set_id;
+  rid_arg->dataframe = dataframe;
+  rid_arg->column = column;
   rid_arg->row = row;
   rid_arg->flat_key = flat_key;
   rid_arg->key = key;
@@ -126,7 +126,7 @@ void ArgsTracker::Flush() {
   // Insert args.
   for (uint32_t i = 0; i < args_.size();) {
     const GlobalArgsTracker::Arg& arg = sorted_args[i];
-    auto* col = arg.column;
+    uint32_t col = arg.column;
     uint32_t row = arg.row;
 
     uint32_t next_rid_idx = i + 1;
@@ -138,23 +138,26 @@ void ArgsTracker::Flush() {
 
     ArgSetId set_id = context_->global_args_tracker->AddArgSet(
         sorted_args.data(), i, next_rid_idx);
-    if (col->IsNullable()) {
-      TypedColumn<std::optional<uint32_t>>::FromColumn(col)->Set(row, set_id);
+    if (arg.dataframe->IsDenseNullLegacy(arg.column)) {
+      arg.dataframe->SetCellDenseNullableUint32UncheckedLegacy(arg.column, row,
+                                                               set_id);
     } else {
-      TypedColumn<uint32_t>::FromColumn(col)->Set(row, set_id);
+      arg.dataframe->SetCellNonNullUint32UncheckedLegacy(arg.column, row,
+                                                         set_id);
     }
-
     i = next_rid_idx;
   }
   args_.clear();
 }
 
 ArgsTracker::CompactArgSet ArgsTracker::ToCompactArgSet(
-    const ColumnLegacy& column,
+    const dataframe::Dataframe& dataframe,
+    uint32_t column,
     uint32_t row_number) && {
   CompactArgSet compact_args;
   for (const auto& arg : args_) {
-    PERFETTO_DCHECK(arg.column == &column);
+    PERFETTO_DCHECK(arg.dataframe == &dataframe);
+    PERFETTO_DCHECK(arg.column == column);
     PERFETTO_DCHECK(arg.row == row_number);
     compact_args.emplace_back(arg.ToCompactArg());
   }
@@ -170,10 +173,12 @@ bool ArgsTracker::NeedsTranslation(const ArgsTranslationTable& table) const {
 }
 
 ArgsTracker::BoundInserter::BoundInserter(ArgsTracker* args_tracker,
-                                          ColumnLegacy* arg_set_id_column,
+                                          dataframe::Dataframe* dataframe,
+                                          uint32_t column,
                                           uint32_t row)
     : args_tracker_(args_tracker),
-      arg_set_id_column_(arg_set_id_column),
+      dataframe_(dataframe),
+      column_(column),
       row_(row) {}
 
 ArgsTracker::BoundInserter::~BoundInserter() = default;

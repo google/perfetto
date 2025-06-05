@@ -33,11 +33,6 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 
 namespace perfetto::trace_processor {
-namespace tables {
-
-DataframeQueryPlanDecoderTable::~DataframeQueryPlanDecoderTable() = default;
-
-}  // namespace tables
 
 DataframeQueryPlanDecoder::DataframeQueryPlanDecoder(StringPool* pool)
     : string_pool_(pool) {}

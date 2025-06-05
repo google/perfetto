@@ -16,27 +16,8 @@ import("../../../gn/perfetto_tp_tables.gni")
 import("../../../gn/test.gni")
 
 source_set("tables") {
-  sources = [ "table_destructors.cc" ]
-  deps = [
-    ":macros_internal",
-    "../../../gn:default_deps",
-  ]
+  deps = [ "../../../gn:default_deps" ]
   public_deps = [ ":tables_python" ]
-}
-
-source_set("macros_internal") {
-  sources = [
-    "macros_internal.cc",
-    "macros_internal.h",
-  ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../../include/perfetto/ext/base",
-    "../../../include/perfetto/trace_processor",
-    "../containers",
-    "../db:minimal",
-    "../db/column",
-  ]
 }
 
 perfetto_tp_tables("tables_python") {
@@ -76,23 +57,4 @@ source_set("unittests") {
     "../db",
     "../db/column",
   ]
-}
-
-if (enable_perfetto_benchmarks) {
-  source_set("benchmarks") {
-    testonly = true
-    deps = [
-      ":py_tables_benchmark",
-      "../../../gn:benchmark",
-      "../../../gn:default_deps",
-      "../../../include/perfetto/trace_processor",
-      "../containers",
-      "../db",
-      "../db/column",
-    ]
-    sources = [ "py_tables_benchmark.cc" ]
-  }
-  perfetto_tp_tables("py_tables_benchmark") {
-    sources = [ "py_tables_benchmark.py" ]
-  }
 }

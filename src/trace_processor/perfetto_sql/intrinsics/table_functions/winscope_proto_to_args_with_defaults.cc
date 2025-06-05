@@ -47,9 +47,6 @@
 #include "src/trace_processor/util/winscope_proto_mapping.h"
 
 namespace perfetto::trace_processor {
-namespace tables {
-WinscopeArgsWithDefaultsTable::~WinscopeArgsWithDefaultsTable() = default;
-}  // namespace tables
 
 namespace {
 constexpr char kDeinternError[] = "STRING DE-INTERNING ERROR";

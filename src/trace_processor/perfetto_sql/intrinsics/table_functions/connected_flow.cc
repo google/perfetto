@@ -33,21 +33,14 @@
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column_storage.h"
 #include "src/trace_processor/db/table.h"
-#include "src/trace_processor/db/typed_column.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/ancestor.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/descendant.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/flow_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
-namespace tables {
-
-ConnectedFlowTable::~ConnectedFlowTable() = default;
-
-}  // namespace tables
 
 ConnectedFlow::ConnectedFlow(Mode mode, const TraceStorage* storage)
     : mode_(mode), storage_(storage) {}

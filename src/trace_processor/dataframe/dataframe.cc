@@ -16,8 +16,10 @@
 
 #include "src/trace_processor/dataframe/dataframe.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -245,6 +247,11 @@ void Dataframe::TypedCursorBase::PrepareCursorInternal() {
   PERFETTO_CHECK(plan.ok());
   dataframe_->PrepareCursor(*plan, cursor_);
   last_execution_mutation_count_ = dataframe_->mutations_;
+  for (const auto& spec : filter_specs_) {
+    filter_value_mapping_[spec.source_index] =
+        spec.value_index.value_or(std::numeric_limits<uint32_t>::max());
+  }
+  std::fill(filter_values_.begin(), filter_values_.end(), nullptr);
 }
 
 }  // namespace perfetto::trace_processor::dataframe

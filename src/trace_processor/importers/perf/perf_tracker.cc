@@ -20,16 +20,25 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <string>
+#include <utility>
 
+#include "perfetto/base/build_config.h"
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
+#include "src/trace_processor/importers/common/create_mapping_params.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/perf/aux_data_tokenizer.h"
+#include "src/trace_processor/importers/perf/auxtrace_info_record.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/spe_tokenizer.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/perf_tables_py.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
 #include "src/trace_processor/importers/etm/elf_tracker.h"
@@ -71,12 +80,11 @@ PerfTracker::~PerfTracker() = default;
 
 base::StatusOr<std::unique_ptr<AuxDataTokenizer>>
 PerfTracker::CreateAuxDataTokenizer(AuxtraceInfoRecord info) {
-  auto it = factories_.Find(info.type);
+  auto* it = factories_.Find(info.type);
   if (!it) {
     return std::unique_ptr<AuxDataTokenizer>(
         new DummyAuxDataTokenizer(context_));
   }
-
   return (*it)(context_, std::move(info));
 }
 
@@ -119,14 +127,14 @@ void PerfTracker::SymbolizeFrames() {
       continue;
     }
 
-    if (!TrySymbolizeFrame(frame.row_reference())) {
-      SymbolizeKernelFrame(frame.row_reference());
+    if (!TrySymbolizeFrame(frame)) {
+      SymbolizeKernelFrame(frame);
     }
   }
 }
 
 void PerfTracker::SymbolizeKernelFrame(
-    tables::StackProfileFrameTable::RowReference frame) {
+    tables::StackProfileFrameTable::Iterator& frame) {
   const auto mapping = *mapping_table_.FindById(frame.mapping());
   uint64_t address = static_cast<uint64_t>(frame.rel_pc()) +
                      static_cast<uint64_t>(mapping.start());
@@ -139,7 +147,7 @@ void PerfTracker::SymbolizeKernelFrame(
 }
 
 bool PerfTracker::TrySymbolizeFrame(
-    tables::StackProfileFrameTable::RowReference frame) {
+    tables::StackProfileFrameTable::Iterator& frame) {
   const auto mapping = *mapping_table_.FindById(frame.mapping());
   auto* file = files_.Find(mapping.name());
   if (!file) {

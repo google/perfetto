@@ -32,7 +32,6 @@
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column_storage.h"
 #include "src/trace_processor/db/table.h"
-#include "src/trace_processor/db/typed_column.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
@@ -40,12 +39,6 @@
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor {
-namespace tables {
-
-DescendantSliceTable::~DescendantSliceTable() = default;
-DescendantSliceByStackTable::~DescendantSliceByStackTable() = default;
-
-}  // namespace tables
 
 namespace {
 

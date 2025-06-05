@@ -38,14 +38,6 @@
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor {
-namespace tables {
-
-AncestorSliceTable::~AncestorSliceTable() = default;
-AncestorStackProfileCallsiteTable::~AncestorStackProfileCallsiteTable() =
-    default;
-AncestorSliceByStackTable::~AncestorSliceByStackTable() = default;
-
-}  // namespace tables
 
 namespace {
 
