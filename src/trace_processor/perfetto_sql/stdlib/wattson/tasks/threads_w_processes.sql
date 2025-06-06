@@ -15,53 +15,25 @@
 
 INCLUDE PERFETTO MODULE android.process_metadata;
 
--- Establish relationships between thread and process
-CREATE PERFETTO TABLE _thread_process_summary AS
-SELECT
-  thread.utid,
-  thread.upid,
-  thread.tid,
-  process.pid,
-  thread.name AS thread_name,
-  process.name AS process_name
-FROM thread
-LEFT JOIN process
-  USING (upid);
-
--- Add thread_state info to thread/process/package
-CREATE PERFETTO TABLE _state_w_thread_process_summary AS
-SELECT
-  thread_state.ts,
-  thread_state.dur,
-  thread_state.cpu,
-  thread_state.state,
-  m.utid,
-  m.upid,
-  m.tid,
-  m.pid,
-  m.thread_name,
-  m.process_name
-FROM _thread_process_summary AS m
-JOIN thread_state
-  USING (utid);
-
--- Add scheduling slices info to thread/process/package
+-- Establish relationships between thread/process/package
 CREATE PERFETTO TABLE _sched_w_thread_process_package_summary AS
 SELECT
   sched.ts,
   sched.dur,
   sched.cpu,
-  m.utid,
-  m.upid,
-  m.tid,
-  m.pid,
+  thread.utid,
+  thread.upid,
+  thread.tid,
+  process.pid,
   package.uid,
-  m.thread_name,
-  m.process_name,
+  thread.name AS thread_name,
+  process.name AS process_name,
   package.package_name
-FROM _thread_process_summary AS m
+FROM thread
 JOIN sched
   USING (utid)
+LEFT JOIN process
+  USING (upid)
 LEFT JOIN android_process_metadata AS package
   USING (upid)
 WHERE
