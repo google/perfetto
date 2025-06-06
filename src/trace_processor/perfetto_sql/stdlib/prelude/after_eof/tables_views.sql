@@ -1148,3 +1148,81 @@ SELECT
   field_type_name,
   deobfuscated_field_name
 FROM __intrinsic_heap_graph_reference;
+
+-- Table with memory snpashots.
+CREATE PERFETTO VIEW memory_snapshot (
+  -- Unique identifier for this memory_snapshot.
+  id ID,
+  -- Timestamp for the point of time this memory_snapshot was taken.
+  ts TIMESTAMP,
+  -- Track ID for this memory_snapshot.
+  track_id JOINID(track.id),
+  -- Detail level for this memory snapshot.
+  detail_level STRING
+) AS
+SELECT
+  id,
+  timestamp AS ts,
+  track_id,
+  detail_level
+FROM __intrinsic_memory_snapshot;
+
+-- Table with process memory snapshots
+CREATE PERFETTO VIEW process_memory_snapshot (
+  -- Unique identifier for this process_memory_snapshot
+  id ID,
+  -- Snapshot ID for this process_memory_snapshot.
+  snapshot_id JOINID(memory_snapshot.id),
+  -- Unique identifier for this process in this Perfetto trace.
+  upid JOINID(process.id)
+) AS
+SELECT
+  id,
+  snapshot_id,
+  upid
+FROM __intrinsic_process_memory_snapshot;
+
+-- Table with memory snapchot nodes
+CREATE PERFETTO VIEW memory_snapshot_node (
+  -- Unique identifier for this memory_snapshot_node.
+  id ID,
+  -- Process snaphshot id coressponding to this memory snapshot node.
+  process_snapshot_id JOINID(process_memory_snapshot.id),
+  -- Parent node for this memory snapshot node, optional.
+  parent_node_id JOINID(memory_snapshot_node.id),
+  -- Path for this memory snapshot node.
+  path STRING,
+  -- Size of the memory allocated to this memory snapshot node.
+  size LONG,
+  -- Effective size used by this memory snapshot node.
+  effective_size LONG,
+  -- Details of the input event parsed from the proto message.
+  arg_set_id ARGSETID
+) AS
+SELECT
+  id,
+  process_snapshot_id,
+  parent_node_id,
+  path,
+  size,
+  effective_size,
+  arg_set_id
+FROM __intrinsic_memory_snapshot_node;
+
+-- Table with memory snaphsot edge
+CREATE PERFETTO VIEW memory_snapshot_edge (
+  -- Unique identifier for this memory snapshot edge.
+  id ID,
+  -- Source node for this memory snapshot edge. Starting point for the edge.
+  source_node_id JOINID(memory_snapshot_node.id),
+  -- Target node for this memory snapshot edge. End point for the edge
+  target_node_id JOINID(memory_snapshot_node.id),
+  -- Importance for this memory snapshot edge.
+  importance STRING
+) AS
+SELECT
+  id,
+  source_node_id,
+  target_node_id,
+  importance
+FROM __intrinsic_memory_snapshot_edge;

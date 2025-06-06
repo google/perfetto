@@ -139,6 +139,7 @@ from diff_tests.stdlib.linux.tests import LinuxTests
 from diff_tests.stdlib.pixel.tests import PixelStdlib
 from diff_tests.stdlib.pkvm.tests import Pkvm
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
+from diff_tests.stdlib.prelude.memory_tables_tests import PreludeMemoryTables
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
 from diff_tests.stdlib.prelude.slices_tests import PreludeSlices
 from diff_tests.stdlib.prelude.window_functions_tests import PreludeWindowFunctions
@@ -282,6 +283,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       DynamicTables,
       Memory,
       PreludeMathFunctions,
+      PreludeMemoryTables,
       HeapGraph,
       PreludePprofFunctions,
       PreludeWindowFunctions,
