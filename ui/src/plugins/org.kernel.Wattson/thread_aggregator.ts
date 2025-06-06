@@ -55,13 +55,21 @@ export class WattsonThreadSelectionAggregator
       );
 
       -- Only get idle attribution in user defined window and filter by selected
-      -- CPUs and GROUP BY thread
+      -- CPUs
+      CREATE OR REPLACE PERFETTO TABLE wattson_plugin_idle_attribution AS
+      SELECT
+        idle_cost_mws,
+        utid,
+        upid
+      FROM _filter_idle_attribution(${area.start}, ${duration})
+      WHERE cpu in ${cpusCsv};
+
+      -- Group idle attribution by thread
       CREATE OR REPLACE PERFETTO TABLE wattson_plugin_per_thread_idle_cost AS
       SELECT
         SUM(idle_cost_mws) as idle_cost_mws,
         utid
-      FROM _filter_idle_attribution(${area.start}, ${duration})
-      WHERE cpu in ${cpusCsv}
+      FROM wattson_plugin_idle_attribution
       GROUP BY utid;
 
       CREATE OR REPLACE PERFETTO TABLE wattson_plugin_unioned_per_cpu_total AS
