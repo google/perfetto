@@ -147,7 +147,11 @@ export default class implements PerfettoPlugin {
     const {engine} = ctx;
 
     ctx.selection.registerAreaSelectionTab(
-      createAggregationToTabAdaptor(ctx, new ThreadStateSelectionAggregator()),
+      createAggregationToTabAdaptor(
+        ctx,
+        new ThreadStateSelectionAggregator(),
+        10,
+      ),
     );
 
     const result = await engine.query(`
