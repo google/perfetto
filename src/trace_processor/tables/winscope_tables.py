@@ -13,14 +13,15 @@
 # limitations under the License.
 
 from python.generators.trace_processor_table.public import Column as C
-from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import ColumnFlag
-from python.generators.trace_processor_table.public import Table
-from python.generators.trace_processor_table.public import CppTableId
+from python.generators.trace_processor_table.public import CppAccess
+from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
-from python.generators.trace_processor_table.public import TableDoc
-from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import CppString
+from python.generators.trace_processor_table.public import CppTableId
+from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import Table
+from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import WrappingSqlView
 
 INPUTMETHOD_CLIENTS_TABLE = Table(
@@ -235,10 +236,10 @@ VIEWCAPTURE_INTERNED_DATA_TABLE = Table(
     class_name='ViewCaptureInternedDataTable',
     sql_name='__intrinsic_viewcapture_interned_data',
     columns=[
-        C('base64_proto_id', CppUint32()),
-        C('flat_key', CppString()),
-        C('iid', CppInt64()),
-        C('deinterned_value', CppString()),
+        C('base64_proto_id', CppUint32(), cpp_access=CppAccess.READ),
+        C('flat_key', CppString(), cpp_access=CppAccess.READ),
+        C('iid', CppInt64(), cpp_access=CppAccess.READ),
+        C('deinterned_value', CppString(), cpp_access=CppAccess.READ),
     ],
     tabledoc=TableDoc(
         doc='ViewCapture interned data',
@@ -255,16 +256,44 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
     class_name='WindowManagerShellTransitionsTable',
     sql_name='window_manager_shell_transitions',
     columns=[
-        C('ts', CppInt64()),
+        C('ts', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
         C('transition_id', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppOptional(CppUint32())),
-        C('transition_type', CppOptional(CppUint32())),
-        C('send_time_ns', CppOptional(CppInt64())),
-        C('dispatch_time_ns', CppOptional(CppInt64())),
-        C('duration_ns', CppOptional(CppInt64())),
-        C('handler', CppOptional(CppInt64())),
-        C('status', CppOptional(CppString())),
-        C('flags', CppOptional(CppUint32())),
+        C(
+            'transition_type',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'send_time_ns',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'dispatch_time_ns',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'duration_ns',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'handler',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'status',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'flags',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
     ],
     tabledoc=TableDoc(
         doc='Window Manager Shell Transitions',
@@ -368,12 +397,37 @@ PROTOLOG_TABLE = Table(
     class_name='ProtoLogTable',
     sql_name='protolog',
     columns=[
-        C('ts', CppInt64(), ColumnFlag.SORTED),
-        C('level', CppString()),
-        C('tag', CppString()),
-        C('message', CppString()),
-        C('stacktrace', CppString()),
-        C('location', CppString()),
+        C(
+            'ts',
+            CppInt64(),
+            ColumnFlag.SORTED,
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'level',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'tag',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'message',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'stacktrace',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'location',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
     ],
     tabledoc=TableDoc(
         doc='Protolog',

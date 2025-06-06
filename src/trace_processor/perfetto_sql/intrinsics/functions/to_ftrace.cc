@@ -110,7 +110,7 @@ class ArgsSerializer {
   }
   void WriteArgAtRow(uint32_t arg_row, const ValueWriter& writer) {
     const auto& args = storage_->arg_table();
-    const auto& key = storage_->GetString(args.key()[arg_row]);
+    const auto& key = storage_->GetString(args[arg_row].key());
     WriteArg(key, storage_->GetArgValue(arg_row), writer);
   }
   void WriteArg(base::StringView key,
@@ -626,7 +626,8 @@ SystraceSerializer::ScopedCString SystraceSerializer::SerializeToString(
   char line[4096];
   base::StringWriter writer(line, sizeof(line));
 
-  StringId event_name_id = raw.name()[raw_row];
+  auto row = raw[raw_row];
+  StringId event_name_id = row.name();
   NullTermStringView event_name = storage_->GetString(event_name_id);
   if (event_name.StartsWith("chrome_event.") ||
       event_name.StartsWith("track_event.")) {
@@ -644,7 +645,7 @@ SystraceSerializer::ScopedCString SystraceSerializer::SerializeToString(
   }
   writer.AppendChar(':');
 
-  ArgsSerializer serializer(context_, raw.arg_set_id()[raw_row], event_name,
+  ArgsSerializer serializer(context_, row.arg_set_id(), event_name,
                             &proto_id_to_arg_index_by_event_[event_name_id],
                             &writer);
   serializer.SerializeArgs();
@@ -657,20 +658,20 @@ void SystraceSerializer::SerializePrefix(uint32_t raw_row,
   const auto& raw = storage_->ftrace_event_table();
   const auto& cpu_table = storage_->cpu_table();
 
-  int64_t ts = raw.ts()[raw_row];
-  auto ucpu = raw.ucpu()[raw_row];
-  auto cpu = cpu_table.cpu()[ucpu.value];
+  auto row = raw[raw_row];
+  int64_t ts = row.ts();
+  auto ucpu = row.ucpu();
+  auto cpu = cpu_table[ucpu.value].cpu();
 
-  UniqueTid utid = raw.utid()[raw_row];
-  uint32_t tid = storage_->thread_table().tid()[utid];
+  auto thread_row = storage_->thread_table()[row.utid()];
+  uint32_t tid = thread_row.tid();
 
   uint32_t tgid = 0;
-  auto opt_upid = storage_->thread_table().upid()[utid];
+  auto opt_upid = thread_row.upid();
   if (opt_upid.has_value()) {
-    tgid = storage_->process_table().pid()[*opt_upid];
+    tgid = storage_->process_table()[*opt_upid].pid();
   }
-  auto name = storage_->thread_table().name().GetString(utid);
-
+  auto name = context_->storage->GetString(thread_row.name());
   FtraceTime ftrace_time(ts);
   if (tid == 0) {
     name = "<idle>";

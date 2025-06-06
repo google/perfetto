@@ -383,14 +383,7 @@ BuildNativeCallStackSamplingFlamegraph(
   // 3. Get all row indices in perf_sample that have callstacks (some samples
   // can have only counter values), are in timestamp bounds and correspond to
   // the requested utids.
-  std::vector<dataframe::FilterSpec> cs = {
-      dataframe::FilterSpec{
-          tables::PerfSampleTable::ColumnIndex::callsite_id,
-          {},
-          dataframe::IsNotNull{},
-          {},
-      },
-  };
+  std::vector<dataframe::FilterSpec> cs;
   for (const auto& tc : time_constraints) {
     if (!tc.op.Is<dataframe::Gt>() && !tc.op.Is<dataframe::Lt>() &&
         !tc.op.Is<dataframe::Ge>() && tc.op.Is<dataframe::Le>()) {
@@ -404,12 +397,15 @@ BuildNativeCallStackSamplingFlamegraph(
         {},
     });
   }
+  cs.push_back(dataframe::FilterSpec{
+      tables::PerfSampleTable::ColumnIndex::callsite_id,
+      {},
+      dataframe::IsNotNull{},
+      {},
+  });
   auto cursor = storage->perf_sample_table().CreateCursor(std::move(cs));
-  for (const auto& spec : cursor.filter_specs()) {
-    if (spec.value_index) {
-      cursor.SetFilterValueUnchecked(*spec.value_index,
-                                     time_constraints[spec.source_index].value);
-    }
+  for (uint32_t i = 0; i < time_constraints.size(); ++i) {
+    cursor.SetFilterValueUnchecked(i, time_constraints[i].value);
   }
   cursor.Execute();
 

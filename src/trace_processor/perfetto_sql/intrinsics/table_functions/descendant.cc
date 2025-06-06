@@ -29,9 +29,6 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/db/column/types.h"
-#include "src/trace_processor/db/column_storage.h"
-#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
@@ -61,8 +58,7 @@ base::Status GetDescendants(
   auto start_ref = slices.FindById(starting_id);
   // The query gave an invalid ID that doesn't exist in the slice table.
   if (!start_ref) {
-    return base::ErrStatus("no row with id %" PRIu32 "",
-                           static_cast<uint32_t>(starting_id.value));
+    return base::ErrStatus("no row with id %" PRIu32 "", starting_id.value);
   }
 
   // As an optimization, for any finished slices, we only need to consider
@@ -125,7 +121,7 @@ base::StatusOr<std::unique_ptr<Table>> Descendant::ComputeTable(
   switch (type_) {
     case Type::kSlice: {
       // Build up all the children row ids.
-      uint32_t start_id_uint = static_cast<uint32_t>(start_id);
+      auto start_id_uint = static_cast<uint32_t>(start_id);
       RETURN_IF_ERROR(GetDescendants(
           slices, tables::SliceTable::Id(start_id_uint), descendants));
       return ExtendWithStartId<tables::DescendantSliceTable>(
@@ -174,8 +170,9 @@ Descendant::GetDescendantSlices(const tables::SliceTable& slices,
                                 SliceId slice_id) {
   std::vector<tables::SliceTable::RowNumber> ret;
   auto status = GetDescendants(slices, slice_id, ret);
-  if (!status.ok())
+  if (!status.ok()) {
     return std::nullopt;
+  }
   return std::move(ret);
 }
 

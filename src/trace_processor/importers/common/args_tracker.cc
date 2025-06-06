@@ -19,11 +19,13 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <tuple>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -138,12 +140,26 @@ void ArgsTracker::Flush() {
 
     ArgSetId set_id = context_->global_args_tracker->AddArgSet(
         sorted_args.data(), i, next_rid_idx);
-    if (arg.dataframe->IsDenseNullLegacy(arg.column)) {
-      arg.dataframe->SetCellDenseNullableUint32UncheckedLegacy(arg.column, row,
-                                                               set_id);
+    const auto& df = arg.dataframe;
+    auto nullability = df->GetNullabilityLegacy(arg.column);
+    if (nullability.Is<dataframe::NonNull>()) {
+      df->SetCellUncheckedLegacy<dataframe::Uint32, dataframe::NonNull>(
+          arg.column, row, set_id);
+    } else if (nullability.Is<dataframe::DenseNull>()) {
+      df->SetCellUncheckedLegacy<dataframe::Uint32, dataframe::DenseNull>(
+          arg.column, row, std::make_optional(set_id));
+    } else if (nullability.Is<dataframe::SparseNullWithPopcountAlways>()) {
+      df->SetCellUncheckedLegacy<dataframe::Uint32,
+                                 dataframe::SparseNullWithPopcountAlways>(
+          arg.column, row, std::make_optional(set_id));
+    } else if (nullability
+                   .Is<dataframe::SparseNullWithPopcountUntilFinalization>()) {
+      df->SetCellUncheckedLegacy<
+          dataframe::Uint32,
+          dataframe::SparseNullWithPopcountUntilFinalization>(
+          arg.column, row, std::make_optional(set_id));
     } else {
-      arg.dataframe->SetCellNonNullUint32UncheckedLegacy(arg.column, row,
-                                                         set_id);
+      PERFETTO_FATAL("Unsupported nullability type for args.");
     }
     i = next_rid_idx;
   }

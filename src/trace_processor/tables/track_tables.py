@@ -32,7 +32,7 @@ TRACK_TABLE = Table(
     class_name="TrackTable",
     sql_name="__intrinsic_track",
     columns=[
-        C("name", CppString()),
+        C("name", CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
         C(
             "parent_id",
             CppOptional(CppSelfTableId()),
@@ -46,12 +46,20 @@ TRACK_TABLE = Table(
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
         ),
         C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
-        C("type", CppString()),
+        C("type", CppString(), cpp_access=CppAccess.READ),
         C("dimension_arg_set_id", CppOptional(CppUint32())),
         C("event_type", CppString()),
         C("counter_unit", CppOptional(CppString())),
-        C("utid", CppOptional(CppTableId(THREAD_TABLE))),
-        C("upid", CppOptional(CppTableId(PROCESS_TABLE))),
+        C(
+            "utid",
+            CppOptional(CppTableId(THREAD_TABLE)),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            "upid",
+            CppOptional(CppTableId(PROCESS_TABLE)),
+            cpp_access=CppAccess.READ,
+        ),
     ])
 
 # Keep this list sorted.

@@ -28,8 +28,8 @@ from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
-from python.generators.trace_processor_table.public import WrappingSqlView
-from .profiler_tables import STACK_PROFILE_FRAME_TABLE
+
+from src.trace_processor.tables.profiler_tables import STACK_PROFILE_FRAME_TABLE
 
 JIT_CODE_TABLE = Table(
     python_module=__file__,
@@ -45,7 +45,7 @@ JIT_CODE_TABLE = Table(
         C('utid', CppUint32()),
         C('start_address', CppInt64()),
         C('size', CppInt64()),
-        C('function_name', CppString()),
+        C('function_name', CppString(), cpp_access=CppAccess.READ),
         C('native_code_base64', CppOptional(CppString())),
         C('jit_code_id', Alias('id')),
     ],
@@ -76,7 +76,7 @@ JIT_FRAME_TABLE = Table(
     class_name='JitFrameTable',
     sql_name='__intrinsic_jit_frame',
     columns=[
-        C('jit_code_id', CppTableId(JIT_CODE_TABLE)),
+        C('jit_code_id', CppTableId(JIT_CODE_TABLE), cpp_access=CppAccess.READ),
         C('frame_id', CppTableId(STACK_PROFILE_FRAME_TABLE)),
     ],
     tabledoc=TableDoc(

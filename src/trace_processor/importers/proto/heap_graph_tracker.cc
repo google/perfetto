@@ -182,7 +182,7 @@ size_t NumberOfArrays(base::StringView type) {
 
   size_t arrays = 0;
   while (type.size() >= 2 * (arrays + 1) &&
-         memcmp(type.end() - 2 * (arrays + 1), "[]", 2) == 0) {
+         memcmp(type.end() - (2 * (arrays + 1)), "[]", 2) == 0) {
     arrays++;
   }
   return arrays;
@@ -194,7 +194,7 @@ NormalizedType GetNormalizedType(base::StringView type) {
     type = static_class_type_name.value();
   }
   size_t number_of_arrays = NumberOfArrays(type);
-  return {base::StringView(type.data(), type.size() - number_of_arrays * 2),
+  return {base::StringView(type.data(), type.size() - (number_of_arrays * 2)),
           static_class_type_name.has_value(), number_of_arrays};
 }
 
@@ -643,10 +643,10 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
     if (interned_type.classloader_id) {
       auto classloader_object_ref =
           GetOrInsertObject(&sequence_state, interned_type.classloader_id);
-      type_row_ref.set_classloader_id(classloader_object_ref.id());
+      type_row_ref.set_classloader_id(classloader_object_ref.id().value);
     }
     if (location_name) {
-      type_row_ref.set_location(*location_name);
+      type_row_ref.set_location(location_name);
     }
     type_row_ref.set_kind(InternTypeKindString(interned_type.kind));
 
@@ -656,7 +656,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
     std::optional<StringId> class_package;
     if (location_name) {
       std::optional<std::string> package_name =
-          PackageFromLocation(storage_, storage_->GetString(*location_name));
+          PackageFromLocation(storage_, storage_->GetString(location_name));
       if (package_name) {
         class_package = storage_->InternString(base::StringView(*package_name));
       }
@@ -688,7 +688,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
 
   for (const SourceRoot& root : sequence_state.current_roots) {
     for (uint64_t obj_id : root.object_ids) {
-      auto ptr = sequence_state.object_id_to_db_row.Find(obj_id);
+      auto* ptr = sequence_state.object_id_to_db_row.Find(obj_id);
       // This can only happen for an invalid type string id, which is already
       // reported as an error. Silently continue here.
       if (!ptr)
@@ -994,7 +994,7 @@ void HeapGraphTracker::FindPathFromRoot(ObjectTable::RowReference row_ref,
     if (root_type) {
       class_name_id = storage_->InternString(base::StringView(
           storage_->GetString(class_name_id).ToStdString() + " [" +
-          storage_->GetString(*root_type).ToStdString() + "]"));
+          storage_->GetString(root_type).ToStdString() + "]"));
     }
     auto it = path->nodes[parent_id].children.find(class_name_id);
     if (it == path->nodes[parent_id].children.end()) {

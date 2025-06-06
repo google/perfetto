@@ -29,8 +29,6 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/db/column_storage.h"
-#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
