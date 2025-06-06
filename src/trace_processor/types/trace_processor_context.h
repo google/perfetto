@@ -160,6 +160,8 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> perf_data_tracker;                      // PerfDataTracker
   std::unique_ptr<Destructible> content_analyzer;                       // ProtoContentAnalyzer
   std::unique_ptr<Destructible> shell_transitions_tracker;              // ShellTransitionsTracker
+  std::unique_ptr<Destructible> winscope_rect_tracker;                  // WinscopeRectTracker
+  std::unique_ptr<Destructible> winscope_transform_tracker;             // WinscopeTransformTracker
   std::unique_ptr<Destructible> protolog_messages_tracker;              // ProtoLogMessagesTracker
   std::unique_ptr<Destructible> ftrace_sched_tracker;                   // FtraceSchedEventTracker
   std::unique_ptr<Destructible> v8_tracker;                             // V8Tracker

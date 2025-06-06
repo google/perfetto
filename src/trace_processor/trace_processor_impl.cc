@@ -1192,6 +1192,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->mutable_inputmethod_service_table());
 
   RegisterStaticTable(storage->mutable_surfaceflinger_layers_snapshot_table());
+  RegisterStaticTable(storage->mutable_surfaceflinger_display_table());
   RegisterStaticTable(storage->mutable_surfaceflinger_layer_table());
   RegisterStaticTable(storage->mutable_surfaceflinger_transactions_table());
   RegisterStaticTable(storage->mutable_surfaceflinger_transaction_table());
@@ -1212,6 +1213,11 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
       storage->mutable_window_manager_shell_transition_protos_table());
 
   RegisterStaticTable(storage->mutable_protolog_table());
+
+  RegisterStaticTable(storage->mutable_winscope_trace_rect_table());
+  RegisterStaticTable(storage->mutable_winscope_rect_table());
+  RegisterStaticTable(storage->mutable_winscope_fill_region_table());
+  RegisterStaticTable(storage->mutable_winscope_transform_table());
 
   RegisterStaticTable(storage->mutable_metadata_table());
   RegisterStaticTable(storage->mutable_cpu_table());
