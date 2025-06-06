@@ -375,8 +375,6 @@ Column CreateDenseNullableStringColumn(
     if (data_with_nulls[i].has_value()) {
       data_vec[i] = pool->InternString(*data_with_nulls[i]);
       bv.set(i);
-    } else {
-      data_vec[i] = StringPool::Id::Null();
     }
   }
   return impl::Column{

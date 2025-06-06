@@ -44,10 +44,6 @@
 #include "src/trace_processor/tables/slice_tables_py.h"
 
 namespace perfetto::trace_processor {
-namespace tables {
-
-ExperimentalSliceLayoutTable::~ExperimentalSliceLayoutTable() = default;
-}
 
 namespace {
 

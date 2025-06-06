@@ -15,7 +15,6 @@
 import dataclasses
 from dataclasses import dataclass
 import importlib
-import sys
 from typing import Dict
 from typing import List
 from typing import Set
@@ -26,6 +25,8 @@ from python.generators.trace_processor_table.public import Alias
 from python.generators.trace_processor_table.public import Column
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import ColumnFlag
+from python.generators.trace_processor_table.public import CppAccess
+from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import CppColumnType
 from python.generators.trace_processor_table.public import CppDouble
 from python.generators.trace_processor_table.public import CppInt32
@@ -35,36 +36,41 @@ from python.generators.trace_processor_table.public import CppSelfTableId
 from python.generators.trace_processor_table.public import CppString
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import SqlAccess
 from python.generators.trace_processor_table.public import Table
 
 
 @dataclass
 class ParsedType:
   """Result of parsing a CppColumnType into its parts."""
-  cpp_type: str
+  raw_cpp_type: str
   is_optional: bool = False
   is_alias: bool = False
   alias_underlying_name: Optional[str] = None
   is_self_id: bool = False
   id_table: Optional[Table] = None
 
-  def cpp_type_with_optionality(self) -> str:
-    """Returns the C++ type wrapping with base::Optional if necessary."""
-
+  def is_no_transform_id(self) -> bool:
+    """Returns true if this is a no-transform id."""
     # ThreadTable and ProcessTable are special for legacy reasons as they were
     # around even before the advent of C++ macro tables. Because of this a lot
     # of code was written assuming that upid and utid were uint32 (e.g. indexing
     # directly into vectors using them) and it was decided this behaviour was
     # too expensive in engineering cost to fix given the trivial benefit. For
     # this reason, continue to maintain this illusion.
-    if self.id_table and self.id_table.class_name in ('ThreadTable',
-                                                      'ProcessTable'):
-      cpp_type = 'uint32_t'
-    else:
-      cpp_type = self.cpp_type
+    return self.id_table is not None and self.id_table.class_name in (
+        'ThreadTable', 'ProcessTable')
+
+  def cpp_type(self) -> str:
+    if self.id_table and self.is_no_transform_id():
+      return 'uint32_t'
+    return self.raw_cpp_type
+
+  def cpp_type_with_optionality(self) -> str:
+    """Returns the C++ type wrapping with base::Optional if necessary."""
     if self.is_optional:
-      return f'std::optional<{cpp_type}>'
-    return cpp_type
+      return f'std::optional<{self.cpp_type()}>'
+    return self.cpp_type()
 
 
 @dataclass(frozen=True)
@@ -109,7 +115,7 @@ def parse_type_with_cols(table: Table, cols: List[Column],
   if isinstance(col_type, Alias):
     col = next(c for c in cols if c.name == col_type.underlying_column)
     return ParsedType(
-        parse_type(table, col.type).cpp_type,
+        parse_type(table, col.type).raw_cpp_type,
         is_alias=True,
         alias_underlying_name=col.name)
 
@@ -132,15 +138,6 @@ def parse_type_with_cols(table: Table, cols: List[Column],
 def parse_type(table: Table, col_type: CppColumnType) -> ParsedType:
   """Parses a CppColumnType into its constiuent parts."""
   return parse_type_with_cols(table, table.columns, col_type)
-
-
-def typed_column_type(table: Table, col: ParsedColumn) -> str:
-  """Returns the TypedColumn/IdColumn C++ type for a given column."""
-
-  parsed = parse_type(table, col.column.type)
-  if col.is_implicit_id:
-    return f'IdColumn<{parsed.cpp_type}>'
-  return f'TypedColumn<{parsed.cpp_type_with_optionality()}>'
 
 
 def data_layer_type(table: Table, col: ParsedColumn) -> str:
@@ -189,10 +186,16 @@ def _create_implicit_columns_for_root(table: Table) -> List[ParsedColumn]:
 
   sql_name = public_sql_name(table)
   id_doc = table.tabledoc.columns.get('id') if table.tabledoc else None
-  type_doc = table.tabledoc.columns.get('type') if table.tabledoc else None
   return [
       ParsedColumn(
-          Column('id', CppSelfTableId(), ColumnFlag.SORTED),
+          Column(
+              'id',
+              CppSelfTableId(),
+              ColumnFlag.SORTED,
+              sql_access=SqlAccess.HIGH_PERF,
+              cpp_access=CppAccess.READ,
+              cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+          ),
           _to_column_doc(id_doc) if id_doc else ColumnDoc(
               doc=f'Unique identifier for this {sql_name}.'),
           is_implicit_id=True),

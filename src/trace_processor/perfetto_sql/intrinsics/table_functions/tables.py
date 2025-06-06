@@ -15,6 +15,7 @@
 
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import ColumnFlag
+from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppDouble
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
@@ -23,12 +24,9 @@ from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import Table
 
-from src.trace_processor.tables.counter_tables import COUNTER_TABLE
 from src.trace_processor.tables.flow_tables import FLOW_TABLE
-from src.trace_processor.tables.metadata_tables import PROCESS_TABLE
 from src.trace_processor.tables.profiler_tables import STACK_PROFILE_CALLSITE_TABLE
 from src.trace_processor.tables.slice_tables import SLICE_TABLE
-from src.trace_processor.tables.sched_tables import SCHED_SLICE_TABLE
 
 TABLE_INFO_TABLE = Table(
     python_module=__file__,
@@ -86,13 +84,41 @@ ARGS_WITH_DEFAULTS_TABLE = Table(
     sql_name='__intrinsic_winscope_proto_to_args_with_defaults',
     columns=[
         C("table_name", CppString(), flags=ColumnFlag.HIDDEN),
-        C('base64_proto_id', CppUint32()),
-        C('flat_key', CppString()),
-        C('key', CppString()),
-        C('int_value', CppOptional(CppInt64())),
-        C('string_value', CppOptional(CppString())),
-        C('real_value', CppOptional(CppDouble())),
-        C('value_type', CppString()),
+        C(
+            'base64_proto_id',
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'flat_key',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'key',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'int_value',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'string_value',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'real_value',
+            CppOptional(CppDouble()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'value_type',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
     ])
 
 DESCENDANT_SLICE_TABLE = Table(

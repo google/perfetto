@@ -35,7 +35,7 @@
 
 namespace perfetto::trace_processor::etm {
 void VirtualAddressSpace::Builder::AddMapping(
-    tables::MmapRecordTable::ConstRowReference mmap) {
+    const tables::MmapRecordTable::ConstIterator& mmap) {
   const auto mapping =
       *context_->storage->stack_profile_mapping_table().FindById(
           mmap.mapping_id());

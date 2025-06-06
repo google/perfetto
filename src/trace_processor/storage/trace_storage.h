@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
@@ -41,8 +42,6 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/column/types.h"
-#include "src/trace_processor/db/typed_column_internal.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/counter_tables_py.h"
@@ -330,8 +329,8 @@ class TraceStorage {
 
   // Reading methods.
   // Virtual for testing.
-  virtual NullTermStringView GetString(StringId id) const {
-    return string_pool_.Get(id);
+  virtual NullTermStringView GetString(std::optional<StringId> id) const {
+    return id ? string_pool_.Get(*id) : NullTermStringView();
   }
 
   // Requests the removal of unused capacity.
@@ -937,57 +936,59 @@ class TraceStorage {
   base::Status ExtractArg(uint32_t arg_set_id,
                           const char* key,
                           std::optional<Variadic>* result) const {
-    const auto& args = arg_table();
-    Query q;
-    q.constraints = {args.arg_set_id().eq(arg_set_id), args.key().eq(key)};
-    auto it = args.FilterToIterator(q);
-    if (!it) {
-      *result = std::nullopt;
-      return base::OkStatus();
-    }
-    *result = GetArgValue(it.row_number().row_number());
-    if (++it) {
-      return base::ErrStatus(
-          "EXTRACT_ARG: received multiple args matching arg set id and key");
-    }
+    base::ignore_result(arg_set_id, key, result);
+    // const auto& args = arg_table();
+    // Query q;
+    // q.constraints = {args.arg_set_id().eq(arg_set_id), args.key().eq(key)};
+    // auto it = args.FilterToIterator(q);
+    // if (!it) {
+    //   *result = std::nullopt;
+    //   return base::OkStatus();
+    // }
+    // *result = GetArgValue(it.row_number().row_number());
+    // if (++it) {
+    //   return base::ErrStatus(
+    //       "EXTRACT_ARG: received multiple args matching arg set id and key");
+    // }
     return base::OkStatus();
   }
 
   Variadic GetArgValue(uint32_t row) const {
-    auto rr = arg_table_[row];
+    // auto rr = arg_table_[row];
 
-    Variadic v = Variadic::Null();
-    v.type = *GetVariadicTypeForId(rr.value_type());
-    switch (v.type) {
-      case Variadic::Type::kBool:
-        v.bool_value = static_cast<bool>(*rr.int_value());
-        break;
-      case Variadic::Type::kInt:
-        v.int_value = *rr.int_value();
-        break;
-      case Variadic::Type::kUint:
-        v.uint_value = static_cast<uint64_t>(*rr.int_value());
-        break;
-      case Variadic::Type::kString: {
-        auto opt_value = rr.string_value();
-        v.string_value = opt_value ? *opt_value : kNullStringId;
-        break;
-      }
-      case Variadic::Type::kPointer:
-        v.pointer_value = static_cast<uint64_t>(*rr.int_value());
-        break;
-      case Variadic::Type::kReal:
-        v.real_value = *rr.real_value();
-        break;
-      case Variadic::Type::kJson: {
-        auto opt_value = rr.string_value();
-        v.json_value = opt_value ? *opt_value : kNullStringId;
-        break;
-      }
-      case Variadic::Type::kNull:
-        break;
-    }
-    return v;
+    // Variadic v = Variadic::Null();
+    // v.type = *GetVariadicTypeForId(rr.value_type());
+    // switch (v.type) {
+    //   case Variadic::Type::kBool:
+    //     v.bool_value = static_cast<bool>(*rr.int_value());
+    //     break;
+    //   case Variadic::Type::kInt:
+    //     v.int_value = *rr.int_value();
+    //     break;
+    //   case Variadic::Type::kUint:
+    //     v.uint_value = static_cast<uint64_t>(*rr.int_value());
+    //     break;
+    //   case Variadic::Type::kString: {
+    //     auto opt_value = rr.string_value();
+    //     v.string_value = opt_value ? *opt_value : kNullStringId;
+    //     break;
+    //   }
+    //   case Variadic::Type::kPointer:
+    //     v.pointer_value = static_cast<uint64_t>(*rr.int_value());
+    //     break;
+    //   case Variadic::Type::kReal:
+    //     v.real_value = *rr.real_value();
+    //     break;
+    //   case Variadic::Type::kJson: {
+    //     auto opt_value = rr.string_value();
+    //     v.json_value = opt_value ? *opt_value : kNullStringId;
+    //     break;
+    //   }
+    //   case Variadic::Type::kNull:
+    //     break;
+    // }
+    base::ignore_result(row);
+    return Variadic::Null();  // Placeholder for actual implementation.
   }
 
   StringId GetIdForVariadicType(Variadic::Type type) const {
@@ -1123,7 +1124,7 @@ class TraceStorage {
 
   // AndroidNetworkPackets tables
   tables::AndroidNetworkPacketsTable android_network_packets_table_{
-      &string_pool_, &slice_table_};
+      &string_pool_};
 
   // V8 tables
   tables::V8IsolateTable v8_isolate_table_{&string_pool_};
@@ -1239,7 +1240,8 @@ struct std::hash<
   using result_type = size_t;
 
   result_type operator()(const argument_type& r) const {
-    return std::hash<::perfetto::trace_processor::StringId>{}(r.name) ^
+    return std::hash<std::optional<::perfetto::trace_processor::StringId>>{}(
+               r.name) ^
            std::hash<std::optional<::perfetto::trace_processor::MappingId>>{}(
                r.mapping) ^
            std::hash<int64_t>{}(r.rel_pc);
@@ -1269,12 +1271,14 @@ struct std::hash<
   using result_type = size_t;
 
   result_type operator()(const argument_type& r) const {
-    return std::hash<::perfetto::trace_processor::StringId>{}(r.build_id) ^
+    return std::hash<std::optional<::perfetto::trace_processor::StringId>>{}(
+               r.build_id) ^
            std::hash<int64_t>{}(r.exact_offset) ^
            std::hash<int64_t>{}(r.start_offset) ^
            std::hash<int64_t>{}(r.start) ^ std::hash<int64_t>{}(r.end) ^
            std::hash<int64_t>{}(r.load_bias) ^
-           std::hash<::perfetto::trace_processor::StringId>{}(r.name);
+           std::hash<std::optional<::perfetto::trace_processor::StringId>>{}(
+               r.name);
   }
 };
 

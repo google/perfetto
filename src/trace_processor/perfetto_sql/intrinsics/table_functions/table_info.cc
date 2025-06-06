@@ -35,11 +35,6 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 
 namespace perfetto::trace_processor {
-namespace tables {
-
-PerfettoTableInfoTable::~PerfettoTableInfoTable() = default;
-
-}  // namespace tables
 
 namespace {
 
