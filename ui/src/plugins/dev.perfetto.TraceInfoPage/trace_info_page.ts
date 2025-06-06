@@ -267,30 +267,13 @@ class MachineListSection implements m.ClassComponent<EngineAttrs> {
     }
 
     const machineTables = data.map((row) => {
-      const tableRows = [
-        m('tr', m('td.name', 'id'), m('td', `${row.id}`)),
-        m('tr', m('td.name', 'rawId'), m('td', `${row.rawId}`)),
-        m('tr', m('td.name', 'sysname'), m('td', `${row.sysname}`)),
-        m('tr', m('td.name', 'release'), m('td', `${row.release}`)),
-        m('tr', m('td.name', 'version'), m('td', `${row.version}`)),
-        m('tr', m('td.name', 'arch'), m('td', `${row.arch}`)),
-        m('tr', m('td.name', 'num_cpus'), m('td', `${row.numCpus}`)),
-        m(
-          'tr',
-          m('td.name', 'android_build_fingerprint'),
-          m('td', `${row.androidBuildFingerprint}`),
-        ),
-        m(
-          'tr',
-          m('td.name', 'android_device_manufacturer'),
-          m('td', `${row.androidDeviceManufacturer}`),
-        ),
-        m(
-          'tr',
-          m('td.name', 'android_sdk_version'),
-          m('td', `${row.androidSdkVersion}`),
-        ),
-      ];
+      const tableRows = [];
+      for (const key of Object.keys(machineRowSpec)) {
+        const value = row[key as keyof MachineRow];
+        if (value !== undefined && value !== null) {
+          tableRows.push(m('tr', m('td.name', key), m('td', `${value}`)));
+        }
+      }
 
       return m(
         '',
