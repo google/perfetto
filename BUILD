@@ -3494,7 +3494,6 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/viz/summary/processes.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/summary/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/summary/threads.sql",
-        "src/trace_processor/perfetto_sql/stdlib/viz/summary/threads_w_processes.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/summary/trace.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/summary/track_event.sql",
     ],
@@ -3532,6 +3531,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/wattson/estimates.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/gpu/estimates.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/gpu/freq_idle.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/threads_w_processes.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/utils.sql",
     ],
 )

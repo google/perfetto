@@ -287,9 +287,28 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_syscore_suspend.pb'),
         query=("""
+            INCLUDE PERFETTO MODULE intervals.intersect;
             INCLUDE PERFETTO MODULE wattson.estimates;
-            SELECT ts, dur, cpu0_id, cpu1_id, cpu2_id, cpu3_id, suspended
-            FROM _stats_cpu0123_suspend
+
+            SELECT
+              ii.ts,
+              ii.dur,
+              stats.cpu0_id,
+              stats.cpu1_id,
+              stats.cpu2_id,
+              stats.cpu3_id,
+              ss.power_state = 'suspended' AS suspended
+            FROM _interval_intersect!(
+              (
+                _ii_subquery!(_stats_cpu0123),
+                _ii_subquery!(android_suspend_state)
+              ),
+              ()
+            ) AS ii
+            JOIN _stats_cpu0123 AS stats
+              ON stats._auto_id = id_0
+            JOIN android_suspend_state AS ss
+              ON ss._auto_id = id_1
             WHERE suspended
             """),
         out=Csv("""

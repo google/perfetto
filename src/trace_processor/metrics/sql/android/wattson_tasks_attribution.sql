@@ -15,8 +15,8 @@
 
 INCLUDE PERFETTO MODULE wattson.cpu.idle_attribution;
 INCLUDE PERFETTO MODULE wattson.estimates;
+INCLUDE PERFETTO MODULE wattson.tasks.threads_w_processes;
 INCLUDE PERFETTO MODULE wattson.utils;
-INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
 
 -- Take only the Wattson estimations that are in the window of interest
 DROP VIEW IF EXISTS _windowed_wattson;

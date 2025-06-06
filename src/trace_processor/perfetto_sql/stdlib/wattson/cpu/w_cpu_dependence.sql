@@ -54,7 +54,6 @@ SELECT
   cpu7_curve,
   l3_hit_count,
   l3_miss_count,
-  suspended,
   no_static,
   all_cpu_deep_idle,
   CASE max_static_vote
