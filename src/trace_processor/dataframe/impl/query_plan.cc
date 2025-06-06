@@ -138,9 +138,8 @@ SparseNullCollapsedNullability NullabilityToSparseNullCollapsedNullability(
     case Nullability::GetTypeIndex<DenseNull>():
       return DenseNull{};
     case Nullability::GetTypeIndex<SparseNull>():
-    case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
-    case Nullability::GetTypeIndex<
-        SparseNullSupportingCellGetUntilFinalization>():
+    case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>():
+    case Nullability::GetTypeIndex<SparseNullWithPopcountUntilFinalization>():
       return SparseNull{};
     default:
       PERFETTO_FATAL("Invalid nullability type");
@@ -462,9 +461,8 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
     const auto& col = GetColumn(i);
     switch (col.null_storage.nullability().index()) {
       case Nullability::GetTypeIndex<SparseNull>():
-      case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
-      case Nullability::GetTypeIndex<
-          SparseNullSupportingCellGetUntilFinalization>():
+      case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>():
+      case Nullability::GetTypeIndex<SparseNullWithPopcountUntilFinalization>():
       case Nullability::GetTypeIndex<DenseNull>(): {
         uint32_t offset = plan_.params.output_per_row++;
         null_cols.emplace_back(ColAndOffset{i, offset});
@@ -516,9 +514,9 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
       const auto& c = GetColumn(col);
       switch (c.null_storage.nullability().index()) {
         case Nullability::GetTypeIndex<SparseNull>():
-        case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
+        case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>():
         case Nullability::GetTypeIndex<
-            SparseNullSupportingCellGetUntilFinalization>(): {
+            SparseNullWithPopcountUntilFinalization>(): {
           using B = bytecode::StrideTranslateAndCopySparseNullIndices;
           auto reg = PrefixPopcountRegisterFor(col);
           auto& bc = AddOpcode<B>(UnchangedRowCount{});
@@ -618,9 +616,8 @@ void QueryPlanBuilder::NullConstraint(const NullOp& op, FilterSpec& c) {
   uint32_t nullability_type_index = col.null_storage.nullability().index();
   switch (nullability_type_index) {
     case Nullability::GetTypeIndex<SparseNull>():
-    case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
-    case Nullability::GetTypeIndex<
-        SparseNullSupportingCellGetUntilFinalization>():
+    case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>():
+    case Nullability::GetTypeIndex<SparseNullWithPopcountUntilFinalization>():
     case Nullability::GetTypeIndex<DenseNull>(): {
       auto indices = EnsureIndicesAreInSlab();
       {
@@ -784,9 +781,8 @@ void QueryPlanBuilder::PruneNullIndices(
     bytecode::reg::RwHandle<Span<uint32_t>> indices) {
   switch (GetColumn(col).null_storage.nullability().index()) {
     case Nullability::GetTypeIndex<SparseNull>():
-    case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
-    case Nullability::GetTypeIndex<
-        SparseNullSupportingCellGetUntilFinalization>():
+    case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>():
+    case Nullability::GetTypeIndex<SparseNullWithPopcountUntilFinalization>():
     case Nullability::GetTypeIndex<DenseNull>(): {
       using B = bytecode::NullFilter<IsNotNull>;
       bytecode::NullFilterBase& bc = AddOpcode<B>(NonEqualityFilterRowCount{});
@@ -808,9 +804,8 @@ QueryPlanBuilder::TranslateNonNullIndices(
     bool in_place) {
   switch (GetColumn(col).null_storage.nullability().index()) {
     case Nullability::GetTypeIndex<SparseNull>():
-    case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
-    case Nullability::GetTypeIndex<
-        SparseNullSupportingCellGetUntilFinalization>(): {
+    case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>():
+    case Nullability::GetTypeIndex<SparseNullWithPopcountUntilFinalization>(): {
       auto update =
           in_place ? table_indices_register
                    : GetOrCreateScratchSpanRegister(plan_.params.max_row_count);
