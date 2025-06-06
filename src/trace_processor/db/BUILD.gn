@@ -86,22 +86,3 @@ perfetto_unittest_source_set("unittests") {
     "column:fake_storage",
   ]
 }
-
-if (enable_perfetto_benchmarks) {
-  source_set("benchmarks") {
-    testonly = true
-    deps = [
-      ":db",
-      "../../../gn:benchmark",
-      "../../../gn:default_deps",
-      "../../../include/perfetto/base",
-      "../../../include/perfetto/ext/base",
-      "../../../include/perfetto/trace_processor:basic_types",
-      "../../base:test_support",
-      "../containers",
-      "../tables:tables_python",
-      "column",
-    ]
-    sources = [ "query_executor_benchmark.cc" ]
-  }
-}
