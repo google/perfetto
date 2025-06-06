@@ -51,7 +51,6 @@ enum QueryType : uint8_t {
 };
 
 std::pair<SqlSource, SqlSource> GetPreambleAndSql(const std::string& sql) {
-  PERFETTO_ELOG("Parse SQL: %s", sql.c_str());
   std::pair<SqlSource, SqlSource> result{
       SqlSource(SqlSource::FromTraceProcessorImplementation("")),
       SqlSource(SqlSource::FromTraceProcessorImplementation(""))};
@@ -62,47 +61,38 @@ std::pair<SqlSource, SqlSource> GetPreambleAndSql(const std::string& sql) {
 
   SqliteTokenizer tokenizer(SqlSource::FromTraceProcessorImplementation(sql));
 
-  SqliteTokenizer::Token statement_begin_tok = tokenizer.NextNonWhitespace();
-  while (statement_begin_tok.token_type == TK_SEMI) {
-    statement_begin_tok = tokenizer.NextNonWhitespace();
+  SqliteTokenizer::Token stmt_begin_tok = tokenizer.NextNonWhitespace();
+  while (stmt_begin_tok.token_type == TK_SEMI) {
+    stmt_begin_tok = tokenizer.NextNonWhitespace();
   }
-  SqliteTokenizer::Token first_tok = statement_begin_tok;
+  SqliteTokenizer::Token first_tok = stmt_begin_tok;
 
   // Loop over statements
   while (true) {
     // Ignore all next semicolons.
-    if (statement_begin_tok.token_type == TK_SEMI) {
-      statement_begin_tok = tokenizer.NextNonWhitespace();
+    if (stmt_begin_tok.token_type == TK_SEMI) {
+      stmt_begin_tok = tokenizer.NextNonWhitespace();
       continue;
     }
 
     // Exit if the next token is the end of the SQL.
-    if (statement_begin_tok.IsTerminal()) {
+    if (stmt_begin_tok.IsTerminal()) {
       break;
-    }
-
-    // Ignore back-to-back semicolons.
-    if (statement_begin_tok.token_type == TK_SEMI) {
-      statement_begin_tok = tokenizer.NextNonWhitespace();
-      continue;
     }
 
     // If we are here, we have a non-empty statement.
 
     // Loop over the statement contents
-    SqliteTokenizer::Token current_tok = statement_begin_tok;
-    while (current_tok.token_type != TK_SEMI && !current_tok.IsTerminal()) {
+    SqliteTokenizer::Token current_tok = stmt_begin_tok;
+    while (!current_tok.IsTerminal()) {
       current_tok = tokenizer.NextNonWhitespace();
     }
     // `current_tok` is now the end of the current statement.
 
-    SqlSource preamble = tokenizer.Substr(
-        first_tok, statement_begin_tok, SqliteTokenizer::EndToken::kExclusive);
-    SqlSource last_statement =
-        tokenizer.Substr(statement_begin_tok, current_tok,
-                         SqliteTokenizer::EndToken::kExclusive);
+    SqlSource preamble = tokenizer.Substr(first_tok, stmt_begin_tok);
+    SqlSource last_statement = tokenizer.Substr(stmt_begin_tok, current_tok);
     result = {preamble, last_statement};
-    statement_begin_tok = tokenizer.NextNonWhitespace();
+    stmt_begin_tok = tokenizer.NextNonWhitespace();
   }
 
   return result;
