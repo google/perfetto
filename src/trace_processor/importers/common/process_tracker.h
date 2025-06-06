@@ -101,11 +101,11 @@ class ProcessTracker {
   virtual UniqueTid UpdateThread(int64_t tid, int64_t pid);
 
   // Associates trusted_pid with track UUID.
-  void UpdateTrustedPid(uint32_t trusted_pid, uint64_t uuid);
+  void UpdateTrustedPid(int64_t trusted_pid, uint64_t uuid);
 
   // Returns the trusted_pid associated with the track UUID, or std::nullopt if
   // not found.
-  std::optional<uint32_t> GetTrustedPid(uint64_t uuid);
+  std::optional<int64_t> GetTrustedPid(uint64_t uuid);
 
   // Performs namespace-local to root-level resolution of thread or process id,
   // given tid (can be root-level or namespace-local, but we don't know
@@ -113,8 +113,8 @@ class ProcessTracker {
   // Returns the root-level thread id for tid on successful resolution;
   // otherwise, returns std::nullopt on resolution failure, or the thread of
   // tid isn't running in a pid namespace.
-  std::optional<uint32_t> ResolveNamespacedTid(uint32_t root_level_pid,
-                                               uint32_t tid);
+  std::optional<int64_t> ResolveNamespacedTid(int64_t root_level_pid,
+                                              int64_t tid);
 
   // Called when a task_newtask without the CLONE_THREAD flag is observed.
   // This force the tracker to start both a new UTID and a new UPID.
@@ -187,13 +187,13 @@ class ProcessTracker {
   void NotifyEndOfFile();
 
   // Tracks the namespace-local pids for a process running in a pid namespace.
-  void UpdateNamespacedProcess(uint32_t pid, std::vector<uint32_t> nspid);
+  void UpdateNamespacedProcess(int64_t pid, std::vector<int64_t> nspid);
 
   // Tracks the namespace-local thread ids for a thread running in a pid
   // namespace.
-  void UpdateNamespacedThread(uint32_t pid,
-                              uint32_t tid,
-                              std::vector<uint32_t> nstid);
+  void UpdateNamespacedThread(int64_t pid,
+                              int64_t tid,
+                              std::vector<int64_t> nstid);
 
   // The UniqueTid of the swapper thread, is 0 for the default machine and is
   // > 0 for remote machines.
@@ -245,23 +245,23 @@ class ProcessTracker {
   std::vector<ThreadNamePriority> thread_name_priorities_;
 
   // A mapping from track UUIDs to trusted pids.
-  std::unordered_map<uint64_t, uint32_t> trusted_pids_;
+  std::unordered_map<uint64_t, int64_t> trusted_pids_;
 
   struct NamespacedThread {
-    uint32_t pid;                 // Root-level pid.
-    uint32_t tid;                 // Root-level tid.
-    std::vector<uint32_t> nstid;  // Namespace-local tids.
+    int64_t pid;                 // Root-level pid.
+    int64_t tid;                 // Root-level tid.
+    std::vector<int64_t> nstid;  // Namespace-local tids.
   };
   // Keeps track of pid-namespaced threads, keyed by root-level thread ids.
-  std::unordered_map<uint32_t /* tid */, NamespacedThread> namespaced_threads_;
+  std::unordered_map<int64_t /* tid */, NamespacedThread> namespaced_threads_;
 
   struct NamespacedProcess {
-    uint32_t pid;                          // Root-level pid.
-    std::vector<uint32_t> nspid;           // Namespace-local pids.
-    std::unordered_set<uint32_t> threads;  // Root-level thread IDs.
+    int64_t pid;                          // Root-level pid.
+    std::vector<int64_t> nspid;           // Namespace-local pids.
+    std::unordered_set<int64_t> threads;  // Root-level thread IDs.
   };
   // Keeps track pid-namespaced processes, keyed by root-level pids.
-  std::unordered_map<uint32_t /* pid (aka tgid) */, NamespacedProcess>
+  std::unordered_map<int64_t /* pid (aka tgid) */, NamespacedProcess>
       namespaced_processes_;
 
   UniquePid swapper_upid_ = 0;

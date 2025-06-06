@@ -271,19 +271,19 @@ UniqueTid ProcessTracker::UpdateThread(int64_t tid, int64_t pid) {
   return utid;
 }
 
-void ProcessTracker::UpdateTrustedPid(uint32_t trusted_pid, uint64_t uuid) {
+void ProcessTracker::UpdateTrustedPid(int64_t trusted_pid, uint64_t uuid) {
   trusted_pids_[uuid] = trusted_pid;
 }
 
-std::optional<uint32_t> ProcessTracker::GetTrustedPid(uint64_t uuid) {
+std::optional<int64_t> ProcessTracker::GetTrustedPid(uint64_t uuid) {
   if (trusted_pids_.find(uuid) == trusted_pids_.end())
     return std::nullopt;
   return trusted_pids_[uuid];
 }
 
-std::optional<uint32_t> ProcessTracker::ResolveNamespacedTid(
-    uint32_t root_level_pid,
-    uint32_t tid) {
+std::optional<int64_t> ProcessTracker::ResolveNamespacedTid(
+    int64_t root_level_pid,
+    int64_t tid) {
   if (root_level_pid <= 0)  // Not a valid pid.
     return std::nullopt;
 
@@ -604,14 +604,14 @@ void ProcessTracker::NotifyEndOfFile() {
   namespaced_processes_.clear();
 }
 
-void ProcessTracker::UpdateNamespacedProcess(uint32_t pid,
-                                             std::vector<uint32_t> nspid) {
+void ProcessTracker::UpdateNamespacedProcess(int64_t pid,
+                                             std::vector<int64_t> nspid) {
   namespaced_processes_[pid] = {pid, std::move(nspid), {}};
 }
 
-void ProcessTracker::UpdateNamespacedThread(uint32_t pid,
-                                            uint32_t tid,
-                                            std::vector<uint32_t> nstid) {
+void ProcessTracker::UpdateNamespacedThread(int64_t pid,
+                                            int64_t tid,
+                                            std::vector<int64_t> nstid) {
   PERFETTO_DCHECK(namespaced_processes_.find(pid) !=
                   namespaced_processes_.end());
   auto& process = namespaced_processes_[pid];
