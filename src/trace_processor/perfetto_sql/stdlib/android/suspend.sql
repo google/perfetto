@@ -49,7 +49,8 @@ WITH
     WHERE
       track.name = 'Suspend/Resume Latency'
       AND (
-        slice.name = 'syscore_resume(0)' OR slice.name = 'timekeeping_freeze(0)')
+        slice.name = 'syscore_resume(0)' OR slice.name = 'timekeeping_freeze(0)'
+      )
       AND dur != -1
       AND NOT EXISTS(
         SELECT
@@ -69,13 +70,14 @@ WITH
     FROM suspend_slice_latency
   ),
   suspend_slice AS (
-    -- Filter out all the slices that overlapped with the following slices. 
+    -- Filter out all the slices that overlapped with the following slices.
     -- This happens with data loss where we lose start and end slices for suspends.
     SELECT
       ts,
       dur
     FROM suspend_slice_pre_filter
-    WHERE dur > 0
+    WHERE
+      dur > 0
   ),
   awake_slice AS (
     -- If we don't have any rows, use the trace bounds if bounds are defined.
