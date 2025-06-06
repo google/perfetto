@@ -44,7 +44,7 @@ export default class implements PerfettoPlugin {
     // Short circuit if Wattson is not supported for this Perfetto trace
     if (!(markersSupported || cpuSupported || gpuSupported)) return;
 
-    const group = new TrackNode({title: 'Wattson', isSummary: true});
+    const group = new TrackNode({name: 'Wattson', isSummary: true});
     ctx.workspace.addChildInOrder(group);
 
     if (markersSupported) {
@@ -141,7 +141,6 @@ async function hasWattsonGpuSupport(engine: Engine): Promise<boolean> {
 
 async function addWattsonMarkersElements(ctx: Trace, group: TrackNode) {
   const uri = `/wattson/markers_window`;
-  const title = `Wattson markers window`;
   const track = await createQuerySliceTrack({
     trace: ctx,
     uri,
@@ -151,13 +150,12 @@ async function addWattsonMarkersElements(ctx: Trace, group: TrackNode) {
   });
   ctx.tracks.registerTrack({
     uri,
-    title,
     tags: {
       kind: SLICE_TRACK_KIND,
     },
     renderer: track,
   });
-  group.addChildInOrder(new TrackNode({uri, title}));
+  group.addChildInOrder(new TrackNode({uri, name: 'Wattson markers window'}));
 }
 
 async function addWattsonCpuElements(ctx: Trace, group: TrackNode) {
@@ -180,10 +178,8 @@ async function addWattsonCpuElements(ctx: Trace, group: TrackNode) {
   for (const cpu of cpus) {
     const queryKey = `cpu${cpu.ucpu}_mw`;
     const uri = `/wattson/cpu_subsystem_estimate_cpu${cpu.ucpu}`;
-    const title = `Cpu${cpu.toString()} Estimate`;
     ctx.tracks.registerTrack({
       uri,
-      title,
       renderer: new WattsonSubsystemEstimateTrack(
         ctx,
         uri,
@@ -196,14 +192,18 @@ async function addWattsonCpuElements(ctx: Trace, group: TrackNode) {
         groupName: `Wattson`,
       },
     });
-    group.addChildInOrder(new TrackNode({uri, title}));
+    group.addChildInOrder(
+      new TrackNode({
+        uri,
+        name: `Cpu${cpu.toString()} Estimate`,
+      }),
+    );
   }
 
   const uri = `/wattson/cpu_subsystem_estimate_dsu_scu`;
   const title = `DSU/SCU Estimate`;
   ctx.tracks.registerTrack({
     uri,
-    title,
     renderer: new WattsonSubsystemEstimateTrack(
       ctx,
       uri,
@@ -216,7 +216,7 @@ async function addWattsonCpuElements(ctx: Trace, group: TrackNode) {
       groupName: `Wattson`,
     },
   });
-  group.addChildInOrder(new TrackNode({uri, title}));
+  group.addChildInOrder(new TrackNode({uri, name: title}));
 
   // Register selection aggregators.
   // NOTE: the registration order matters because the laste two aggregators
@@ -248,14 +248,12 @@ async function addWattsonCpuElements(ctx: Trace, group: TrackNode) {
 }
 
 async function addWattsonGpuElements(ctx: Trace, group: TrackNode) {
-  const uri = `/wattson/gpu_subsystem_estimate`;
-  const title = `GPU Estimate`;
+  const id = `/wattson/gpu_subsystem_estimate`;
   ctx.tracks.registerTrack({
-    uri,
-    title,
+    uri: id,
     renderer: new WattsonSubsystemEstimateTrack(
       ctx,
-      uri,
+      id,
       `gpu_mw`,
       `GpuSubsystem`,
     ),
@@ -265,5 +263,5 @@ async function addWattsonGpuElements(ctx: Trace, group: TrackNode) {
       groupName: `Wattson`,
     },
   });
-  group.addChildInOrder(new TrackNode({uri, title}));
+  group.addChildInOrder(new TrackNode({uri: id, name: `GPU Estimate`}));
 }

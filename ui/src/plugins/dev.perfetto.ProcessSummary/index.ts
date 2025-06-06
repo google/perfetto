@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {maybeMachineLabel} from '../../base/multi_machine_trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {getThreadOrProcUri} from '../../public/utils';
@@ -161,8 +160,6 @@ export default class implements PerfettoPlugin {
       // for additional details.
       isBootImageProfiling && chips.push('boot image profiling');
 
-      const machineLabel = maybeMachineLabel(machine);
-
       if (hasSched) {
         const config: ProcessSchedulingTrackConfig = {
           pidForColor,
@@ -173,7 +170,6 @@ export default class implements PerfettoPlugin {
         const cpuCount = cpuCountByMachine[machine] ?? 0;
         ctx.tracks.registerTrack({
           uri,
-          title: `${upid === null ? tid : pid}${machineLabel} schedule`,
           tags: {
             kind: PROCESS_SCHEDULING_TRACK_KIND,
           },
@@ -190,7 +186,6 @@ export default class implements PerfettoPlugin {
 
         ctx.tracks.registerTrack({
           uri,
-          title: `${upid === null ? tid : pid}${machineLabel} summary`,
           tags: {
             kind: PROCESS_SUMMARY_TRACK,
           },
@@ -249,7 +244,6 @@ export default class implements PerfettoPlugin {
 
     ctx.tracks.registerTrack({
       uri: '/kernel',
-      title: `Kernel thread summary`,
       tags: {
         kind: PROCESS_SUMMARY_TRACK,
       },

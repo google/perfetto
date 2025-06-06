@@ -59,14 +59,14 @@ export default class implements PerfettoPlugin {
         const powerGroup = ctx.plugins
           .getPlugin(StandardGroupsPlugin)
           .getOrCreateStandardGroup(ctx.workspace, 'POWER');
-        entityResidencyGroup = new TrackNode({title: 'Entity Residency'});
+        entityResidencyGroup = new TrackNode({name: 'Entity Residency'});
         powerGroup.addChildInOrder(entityResidencyGroup);
       }
 
       // Create a track group for the current entity if it does not already
       // exist.
-      if (currentGroup?.title !== it.entity) {
-        currentGroup = new TrackNode({title: it.entity, isSummary: true});
+      if (currentGroup?.name !== it.entity) {
+        currentGroup = new TrackNode({name: it.entity, isSummary: true});
         entityResidencyGroup.addChildInOrder(currentGroup);
       }
 
@@ -96,7 +96,6 @@ export default class implements PerfettoPlugin {
 
       ctx.tracks.registerTrack({
         uri,
-        title: name,
         tags: {
           kind: COUNTER_TRACK_KIND,
           trackIds: [it.trackId],
@@ -104,7 +103,7 @@ export default class implements PerfettoPlugin {
         },
         renderer: track,
       });
-      currentGroup.addChildInOrder(new TrackNode({uri, title: name}));
+      currentGroup.addChildInOrder(new TrackNode({uri, name}));
     }
   }
 }
