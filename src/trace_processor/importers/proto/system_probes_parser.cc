@@ -598,9 +598,9 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
     auto ppid = static_cast<uint32_t>(proc.ppid());
 
     if (proc.has_nspid()) {
-      std::vector<uint32_t> nspid;
+      std::vector<int64_t> nspid;
       for (auto nspid_it = proc.nspid(); nspid_it; nspid_it++) {
-        nspid.emplace_back(static_cast<uint32_t>(*nspid_it));
+        nspid.emplace_back(static_cast<int64_t>(*nspid_it));
       }
       context_->process_tracker->UpdateNamespacedProcess(pid, std::move(nspid));
     }
@@ -695,9 +695,9 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
     }
 
     if (thd.has_nstid()) {
-      std::vector<uint32_t> nstid;
+      std::vector<int64_t> nstid;
       for (auto nstid_it = thd.nstid(); nstid_it; nstid_it++) {
-        nstid.emplace_back(static_cast<uint32_t>(*nstid_it));
+        nstid.emplace_back(static_cast<int64_t>(*nstid_it));
       }
       context_->process_tracker->UpdateNamespacedThread(tgid, tid,
                                                         std::move(nstid));

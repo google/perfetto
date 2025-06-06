@@ -12471,7 +12471,7 @@ message GenericKernelTaskStateEvent {
   // Command name for the thread.
   optional string comm = 2;
   // Thread id.
-  optional int32 tid = 3;
+  optional int64 tid = 3;
 
   // TaskStateEnum represents the valid states of a thread.
   // These states are a generic representation of the actual thread state and
