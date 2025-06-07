@@ -58,6 +58,7 @@ if (enable_perfetto_etm_importer) {
     sources = [
       "etm_decode_trace_vtable.h",
       "etm_iterate_range_vtable.h",
+      "symbolize_vtable.h",
     ]
     deps = [
       "../../../../../gn:default_deps",
@@ -74,12 +75,15 @@ if (enable_perfetto_etm_importer) {
     sources = [
       "etm_decode_trace_vtable.cc",
       "etm_iterate_range_vtable.cc",
+      "symbolize_vtable.cc",
     ]
     deps = [
       ":etm_hdr",
       "../../../../../gn:default_deps",
       "../../../../../gn:sqlite",
+      "../../../../../include/perfetto/trace_processor:basic_types",
       "../../../../base",
+      "../../../../profiling/symbolizer:symbolizer",
       "../../../importers/etm:etm_impl",
       "../../../sqlite",
       "../../../storage",

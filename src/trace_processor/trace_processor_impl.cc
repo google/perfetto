@@ -158,6 +158,7 @@
 #include "src/trace_processor/importers/etm/file_tracker.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/operators/symbolize_vtable.h"
 #endif
 
 namespace perfetto::trace_processor {
@@ -1074,11 +1075,16 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   engine_->RegisterVirtualTableModule<SliceMipmapOperator>(
       "__intrinsic_slice_mipmap",
       std::make_unique<SliceMipmapOperator::Context>(engine_.get()));
+
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
   engine_->RegisterVirtualTableModule<etm::EtmDecodeTraceVtable>(
       "__intrinsic_etm_decode_trace", storage);
   engine_->RegisterVirtualTableModule<etm::EtmIterateRangeVtable>(
       "__intrinsic_etm_iterate_instruction_range", storage);
+  if (config_.dev_flags.count("llmv-symbolizer")) {
+    engine_->RegisterVirtualTableModule<etm::SymbolizeVtable>(
+        "__intrinsic_etm_symbolize", storage);
+  }
 #endif
 
   // Register stdlib packages.
