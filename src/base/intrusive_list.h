@@ -48,26 +48,68 @@ namespace perfetto::base {
 
 namespace internal {
 
+// ListNode is used both in:
+// 1. actual list nodes.
+// 2. as the list head_and_tail, point to the first and last element in the
+//   list (or to itself, if the list is empty).
+// When prev_/next_ point to an actual node, they contain the plain address
+// (so it can just be reinterpret_cast-ed)
+// When prev_/next_ point to the list head_and_tail, the address has the LSB set
+// to 1 (which would othewise always be 0 due to pointer alignment).
+// Doing so serves different purporses:
+// - Identify the list head to stop the iterator.
+// - Prevent bugs which try to dereference the list head casting it into a T.
+//   (it causes a SIGBUS due to address misalignment on ARM)
+// - Being able to detect when we reach the end of the list while iterating on
+//   the node.next(), without having to have knowledge of the list object.
 struct ListNode {
-  ListNode* prev;
-  ListNode* next;
+  uintptr_t prev_ = 0;
+  uintptr_t next_ = 0;
 };
+
+// This function masks away the LSB returning a pointer to a ListNode. This can
+// be used when we want to dereference a prev_/next_ pointer and we acknowledge
+// that we might be operating on the head/tail (sentinel()) rather than a node.
+// This is the symmetric of sentinel() (below).
+inline ListNode* MaybeHeadAndTail(uintptr_t p) {
+  return reinterpret_cast<ListNode*>(p & ~uintptr_t(1));
+}
 
 // IntrusiveList's Base class to factor out type-independent code (avoid binary
 // bloat)
 class ListOps {
  public:
   void PushFront(ListNode* node);
+  void PushBack(ListNode* node);
   void PopFront();
+  void PopBack();
   void Erase(ListNode* node);
+  bool empty() const { return head_and_tail_.next_ == sentinel(); }
 
-  ListNode* front_{nullptr};
-  size_t size_{0};
+  // Returns a pointer to the head_and_tail_ node, with the LSB set to 1.
+  // See comments on ListNode about the sentinel.
+  uintptr_t sentinel() const {
+    return reinterpret_cast<uintptr_t>(&head_and_tail_) | 1;
+  }
+  ListNode head_and_tail_{sentinel(), sentinel()};
+  size_t size_ = 0;
 };
 
 }  // namespace internal
 
-using IntrusiveListNode = internal::ListNode;
+template <typename T, typename Traits = typename T::Traits>
+struct IntrusiveListNode : private internal::ListNode {
+  T* prev() {
+    if (prev_ == 0 || (prev_ & 1))
+      return nullptr;
+    return reinterpret_cast<T*>(prev_ - Traits::node_offset());
+  }
+  T* next() {
+    if (next_ == 0 || (next_ & 1))
+      return nullptr;
+    return reinterpret_cast<T*>(next_ - Traits::node_offset());
+  }
+};
 
 // T is the class that has one or more IntrusiveListNode as fields.
 // Traits defines getter and offset between node and T.
@@ -78,66 +120,87 @@ class IntrusiveList : private internal::ListOps {
  public:
   class Iterator {
    public:
-    Iterator() = default;
-    explicit Iterator(IntrusiveListNode* node) : node_(node) {}
+    explicit Iterator(uintptr_t node) : node_(node) {}
     ~Iterator() = default;
     Iterator(const Iterator&) = default;
     Iterator& operator=(const Iterator&) = default;
     Iterator(Iterator&&) noexcept = default;
     Iterator& operator=(Iterator&&) noexcept = default;
 
+    explicit operator bool() const { return (node_ & 1) == 0; }
+
     bool operator==(const Iterator& other) const {
       return node_ == other.node_;
     }
     bool operator!=(const Iterator& other) const { return !(*this == other); }
-    T* operator->() { return const_cast<T*>(entryof(node_)); }
+
+    T* operator->() {
+      PERFETTO_DCHECK(operator bool());
+      return const_cast<T*>(
+          entryof(reinterpret_cast<internal::ListNode*>(node_)));
+    }
     T& operator*() {
       PERFETTO_DCHECK(node_);
       return *operator->();
     }
-    explicit operator bool() const { return node_ != nullptr; }
 
     Iterator& operator++() {
+      node_ = static_cast<uintptr_t>(internal::MaybeHeadAndTail(node_)->next_);
       PERFETTO_DCHECK(node_);
-      node_ = node_->next;
+      return *this;
+    }
+
+    Iterator& operator--() {
+      node_ = static_cast<uintptr_t>(internal::MaybeHeadAndTail(node_)->prev_);
+      PERFETTO_DCHECK(node_);
       return *this;
     }
 
    private:
-    IntrusiveListNode* node_{nullptr};
+    uintptr_t node_;
   };
 
   using value_type = T;
   using const_pointer = const T*;
 
   void PushFront(T& entry) { internal::ListOps::PushFront(nodeof(&entry)); }
+  void PushBack(T& entry) { internal::ListOps::PushBack(nodeof(&entry)); }
 
   void PopFront() { internal::ListOps::PopFront(); }
+  void PopBack() { internal::ListOps::PopBack(); }
 
   T& front() {
-    PERFETTO_DCHECK(front_);
-    return const_cast<T&>(*entryof(front_));
+    PERFETTO_DCHECK((head_and_tail_.next_ & 1) == 0);
+    return const_cast<T&>(
+        *entryof(reinterpret_cast<internal::ListNode*>(head_and_tail_.next_)));
+  }
+
+  T& back() {
+    PERFETTO_DCHECK((head_and_tail_.prev_ & 1) == 0);
+    return const_cast<T&>(
+        *entryof(reinterpret_cast<internal::ListNode*>(head_and_tail_.prev_)));
   }
 
   void Erase(T& entry) { internal::ListOps::Erase(nodeof(&entry)); }
 
-  bool empty() const { return size_ == 0; }
-
+  bool empty() const { return internal::ListOps::empty(); }
   size_t size() const { return size_; }
 
-  Iterator begin() { return Iterator{front_}; }
+  Iterator begin() { return Iterator(head_and_tail_.next_); }
+  Iterator end() { return Iterator(sentinel()); }
 
-  Iterator end() { return Iterator{nullptr}; }
+  Iterator rbegin() { return Iterator(head_and_tail_.prev_); }
+  Iterator rend() { return Iterator(sentinel()); }
 
  private:
   static constexpr size_t kNodeOffset = ListTraits::node_offset();
 
-  static constexpr IntrusiveListNode* nodeof(T* entry) {
-    return reinterpret_cast<IntrusiveListNode*>(
+  static constexpr internal::ListNode* nodeof(T* entry) {
+    return reinterpret_cast<internal::ListNode*>(
         reinterpret_cast<uintptr_t>(entry) + kNodeOffset);
   }
 
-  static constexpr const T* entryof(IntrusiveListNode* node) {
+  static constexpr const T* entryof(internal::ListNode* node) {
     return reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(node) -
                                 kNodeOffset);
   }

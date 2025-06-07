@@ -35,7 +35,7 @@ class Person {
   bool operator==(const Person& p) const { return name == p.name; }
 
   std::string name;
-  IntrusiveListNode node{};
+  IntrusiveListNode<Person, Person::Traits> node{};
 };
 
 class IntrusiveListTest : public ::testing::Test {
@@ -63,26 +63,71 @@ class IntrusiveListTest : public ::testing::Test {
 
 TEST_F(IntrusiveListTest, PushFront) {
   AssertListValues({});
+  ASSERT_EQ(list_.begin(), list_.end());
 
   list_.PushFront(p3_);
   AssertListValues({p3_});
+  ASSERT_EQ(&*list_.begin(), &p3_);
+  ASSERT_EQ(&list_.front(), &p3_);
+  ASSERT_EQ(&list_.back(), &p3_);
 
   list_.PushFront(p2_);
+  AssertListValues({p2_, p3_});
+  ASSERT_EQ(&*list_.begin(), &p2_);
+  ASSERT_EQ(&list_.front(), &p2_);
+  ASSERT_EQ(&list_.back(), &p3_);
+
+  list_.PushFront(p1_);
+  AssertListValues({p1_, p2_, p3_});
+  ASSERT_EQ(&*list_.begin(), &p1_);
+  ASSERT_EQ(&list_.front(), &p1_);
+  ASSERT_EQ(&list_.back(), &p3_);
+}
+
+TEST_F(IntrusiveListTest, PushBack) {
+  AssertListValues({});
+
+  list_.PushBack(p1_);
+  AssertListValues({p1_});
+
+  list_.PushBack(p2_);
+  AssertListValues({p1_, p2_});
+
+  list_.PushBack(p3_);
+  AssertListValues({p1_, p2_, p3_});
+}
+
+TEST_F(IntrusiveListTest, PushFrontAndBack) {
+  AssertListValues({});
+
+  list_.PushFront(p2_);
+  AssertListValues({p2_});
+
+  list_.PushBack(p3_);
   AssertListValues({p2_, p3_});
 
   list_.PushFront(p1_);
   AssertListValues({p1_, p2_, p3_});
 }
 
-TEST_F(IntrusiveListTest, Front) {
-  list_.PushFront(p2_);
-  ASSERT_EQ(list_.front(), p2_);
+TEST_F(IntrusiveListTest, PopFrontAndBack) {
+  list_.PushBack(p1_);
+  list_.PushBack(p2_);
+  list_.PushBack(p3_);
+  AssertListValues({p1_, p2_, p3_});
 
-  list_.PushFront(p1_);
   ASSERT_EQ(list_.front(), p1_);
+  list_.PopBack();
+  ASSERT_EQ(list_.front(), p1_);
+  ASSERT_EQ(list_.back(), p2_);
 
   list_.PopFront();
   ASSERT_EQ(list_.front(), p2_);
+  ASSERT_EQ(list_.back(), p2_);
+
+  list_.PopBack();
+  ASSERT_TRUE(list_.empty());
+  ASSERT_EQ(list_.begin(), list_.end());
 }
 
 TEST_F(IntrusiveListTest, Erase) {
@@ -104,6 +149,11 @@ TEST_F(IntrusiveListTest, Erase) {
 
   list_.Erase(p3_);
   AssertListValues({});
+
+  // Now insert again.
+  list_.PushFront(p4_);
+  list_.PushFront(p2_);
+  AssertListValues({p2_, p4_});
 }
 
 TEST_F(IntrusiveListTest, Empty) {
@@ -134,8 +184,16 @@ TEST_F(IntrusiveListTest, Size) {
   list_.PopFront();
   ASSERT_EQ(list_.size(), static_cast<size_t>(1));
 
-  list_.PopFront();
+  list_.Erase(p2_);
   ASSERT_EQ(list_.size(), static_cast<size_t>(0));
+
+  list_.PushFront(p2_);
+  list_.PushBack(p3_);
+  AssertListValues({p2_, p3_});
+
+  list_.PushFront(p1_);
+  list_.PushBack(p4_);
+  AssertListValues({p1_, p2_, p3_, p4_});
 }
 
 TEST_F(IntrusiveListTest, Iteration) {
@@ -156,21 +214,51 @@ TEST_F(IntrusiveListTest, Iteration) {
   ASSERT_EQ(it, list_.end());
 }
 
+TEST_F(IntrusiveListTest, IterationBackwards) {
+  list_.PushFront(p3_);
+  list_.PushFront(p2_);
+  list_.PushFront(p1_);
+
+  auto it = list_.rbegin();
+  ASSERT_EQ(*it, p3_);
+
+  --it;
+  ASSERT_EQ(*it, p2_);
+
+  --it;
+  ASSERT_EQ(*it, p1_);
+
+  --it;
+  ASSERT_EQ(it, list_.rend());
+}
+
 TEST_F(IntrusiveListTest, RangeBasedForLoop) {
   list_.PushFront(p3_);
   list_.PushFront(p2_);
   list_.PushFront(p1_);
 
-  auto looped_persons = std::vector<const Person*>{};
+  std::vector<const Person*> looped_persons;
 
   for (const auto& p : list_) {
     looped_persons.push_back(&p);
   }
 
-  ASSERT_EQ(looped_persons.size(), static_cast<size_t>(3));
-  ASSERT_EQ(*looped_persons[0], p1_);
-  ASSERT_EQ(*looped_persons[1], p2_);
-  ASSERT_EQ(*looped_persons[2], p3_);
+  ASSERT_THAT(looped_persons, ::testing::ElementsAre(&p1_, &p2_, &p3_));
+}
+
+TEST_F(IntrusiveListTest, TypedNextPrev) {
+  list_.PushFront(p3_);
+  list_.PushFront(p2_);
+  list_.PushFront(p1_);
+
+  ASSERT_EQ(p1_.node.prev(), nullptr);
+  ASSERT_EQ(p1_.node.next(), &p2_);
+
+  ASSERT_EQ(p2_.node.prev(), &p1_);
+  ASSERT_EQ(p2_.node.next(), &p3_);
+
+  ASSERT_EQ(p3_.node.prev(), &p2_);
+  ASSERT_EQ(p3_.node.next(), nullptr);
 }
 
 }  // namespace
