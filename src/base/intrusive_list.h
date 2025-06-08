@@ -81,6 +81,7 @@ class ListOps {
  public:
   void PushFront(ListNode* node);
   void PushBack(ListNode* node);
+  void InsertBefore(uintptr_t other_addr, ListNode* node);
   void PopFront();
   void PopBack();
   void Erase(ListNode* node);
@@ -97,7 +98,7 @@ class ListOps {
 
 }  // namespace internal
 
-template <typename T, typename Traits = typename T::Traits>
+template <typename T, typename Traits = typename T::ListTraits>
 struct IntrusiveListNode : private internal::ListNode {
   T* prev() {
     if (prev_ == 0 || (prev_ & 1))
@@ -109,13 +110,18 @@ struct IntrusiveListNode : private internal::ListNode {
       return nullptr;
     return reinterpret_cast<T*>(next_ - Traits::node_offset());
   }
+  // Returns true if the element is NOT part of a list (never added or removed).
+  bool detached() const {
+    PERFETTO_DCHECK((next_ == 0 && prev_ == 0) || (next_ != 0 && prev_ != 0));
+    return next_ == 0;
+  }
 };
 
 // T is the class that has one or more IntrusiveListNode as fields.
 // Traits defines getter and offset between node and T.
 // Traits is separate to allow the same T to be part of different lists (which
 // necessitate a different Traits, at very least for the offset).
-template <typename T, typename ListTraits>
+template <typename T, typename ListTraits = typename T::ListTraits>
 class IntrusiveList : private internal::ListOps {
  public:
   class Iterator {
@@ -157,6 +163,7 @@ class IntrusiveList : private internal::ListOps {
     }
 
    private:
+    friend class IntrusiveList;
     uintptr_t node_;
   };
 
@@ -165,6 +172,9 @@ class IntrusiveList : private internal::ListOps {
 
   void PushFront(T& entry) { internal::ListOps::PushFront(nodeof(&entry)); }
   void PushBack(T& entry) { internal::ListOps::PushBack(nodeof(&entry)); }
+  void InsertBefore(Iterator it, T& entry) {
+    internal::ListOps::InsertBefore(it.node_, nodeof(&entry));
+  }
 
   void PopFront() { internal::ListOps::PopFront(); }
   void PopBack() { internal::ListOps::PopBack(); }

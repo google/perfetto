@@ -38,6 +38,19 @@ void ListOps::PushBack(internal::ListNode* node) {
   ++size_;
 }
 
+void ListOps::InsertBefore(uintptr_t other_addr, internal::ListNode* node) {
+  PERFETTO_DCHECK(node->prev_ == 0 && node->next_ == 0);
+  internal::ListNode* other = MaybeHeadAndTail(other_addr);
+  PERFETTO_DCHECK(other->prev_ != 0 && other->next_ != 0);
+  uintptr_t prev_addr = other->prev_;
+  internal::ListNode* prev = MaybeHeadAndTail(prev_addr);
+  prev->next_ = reinterpret_cast<uintptr_t>(node);
+  node->prev_ = prev_addr;
+  node->next_ = other_addr;
+  other->prev_ = reinterpret_cast<uintptr_t>(node);
+  ++size_;
+}
+
 void ListOps::PopFront() {
   PERFETTO_DCHECK(!empty());
   internal::ListNode* front = reinterpret_cast<ListNode*>(head_and_tail_.next_);

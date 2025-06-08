@@ -130,6 +130,36 @@ TEST_F(IntrusiveListTest, PopFrontAndBack) {
   ASSERT_EQ(list_.begin(), list_.end());
 }
 
+TEST_F(IntrusiveListTest, InsertBefore) {
+  // InsertBefore(end()) on empty list.
+  list_.InsertBefore(list_.begin(), p1_);
+  AssertListValues({p1_});
+  list_.Erase(p1_);
+
+  // InsertBefore(end()) on empty list.
+  list_.InsertBefore(list_.end(), p1_);
+  AssertListValues({p1_});
+  list_.Erase(p1_);
+
+  // InsertBefore(rend()) on empty list.
+  list_.InsertBefore(list_.rbegin(), p1_);
+  AssertListValues({p1_});
+  list_.Erase(p1_);
+
+  // InsertBefore(rend()) on empty list.
+  list_.InsertBefore(list_.rend(), p1_);
+  AssertListValues({p1_});
+  list_.Erase(p1_);
+
+  // InserBefore a valid element.
+  list_.PushBack(p2_);
+  list_.PushBack(p4_);
+  list_.InsertBefore(--list_.rend(), p3_);
+  AssertListValues({p2_, p3_, p4_});
+  list_.InsertBefore(list_.begin(), p1_);
+  AssertListValues({p1_, p2_, p3_, p4_});
+}
+
 TEST_F(IntrusiveListTest, Erase) {
   list_.PushFront(p4_);
   list_.PushFront(p3_);
