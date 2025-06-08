@@ -155,7 +155,7 @@ export default class implements PerfettoPlugin {
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',
         ]),
-        track: new TraceProcessorCounterTrack(
+        renderer: new TraceProcessorCounterTrack(
           ctx,
           uri,
           {
@@ -281,7 +281,7 @@ export default class implements PerfettoPlugin {
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',
         ]),
-        track: await createTraceProcessorSliceTrack({
+        renderer: await createTraceProcessorSliceTrack({
           trace: ctx,
           uri,
           maxDepth,

@@ -178,7 +178,7 @@ export default class implements PerfettoPlugin {
             kind: PROCESS_SCHEDULING_TRACK_KIND,
           },
           chips,
-          track: new ProcessSchedulingTrack(ctx, config, cpuCount, threads),
+          renderer: new ProcessSchedulingTrack(ctx, config, cpuCount, threads),
           subtitle,
         });
       } else {
@@ -195,7 +195,7 @@ export default class implements PerfettoPlugin {
             kind: PROCESS_SUMMARY_TRACK,
           },
           chips,
-          track: new ProcessSummaryTrack(ctx.engine, config),
+          renderer: new ProcessSummaryTrack(ctx.engine, config),
           subtitle,
         });
       }
@@ -253,7 +253,7 @@ export default class implements PerfettoPlugin {
       tags: {
         kind: PROCESS_SUMMARY_TRACK,
       },
-      track: new ProcessSummaryTrack(ctx.engine, config),
+      renderer: new ProcessSummaryTrack(ctx.engine, config),
     });
   }
 }
