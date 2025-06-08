@@ -79,7 +79,7 @@ export default class implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         title,
-        track: createExpectedFramesTrack(ctx, uri, maxDepth, trackIds),
+        renderer: createExpectedFramesTrack(ctx, uri, maxDepth, trackIds),
         tags: {
           trackIds,
           upid,
@@ -129,7 +129,7 @@ export default class implements PerfettoPlugin {
       ctx.tracks.registerTrack({
         uri,
         title,
-        track: createActualFramesTrack(ctx, uri, maxDepth, trackIds),
+        renderer: createActualFramesTrack(ctx, uri, maxDepth, trackIds),
         tags: {
           upid,
           trackIds,

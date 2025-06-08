@@ -60,6 +60,46 @@ class GenericKernelParser(TestSuite):
         360831239274,1000000000,0,1,"X",100,0
         """))
 
+  def test_sched_switch_huge_tid(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 360831239274
+          generic_kernel_task_state_event {
+            cpu: 0
+            comm: "task1"
+            tid: 9023372036854775807
+            state: 3
+            prio: 100
+          }
+        }
+        packet {
+          timestamp: 361831239274
+          generic_kernel_task_state_event {
+            cpu: 0
+            comm: "task1"
+            tid: 9023372036854775807
+            state: 8
+            prio: 100
+          }
+        }
+        """),
+        query="""
+        select
+          ts,
+          dur,
+          cpu,
+          utid,
+          end_state,
+          priority,
+          ucpu
+        from sched_slice
+        """,
+        out=Csv("""
+        "ts","dur","cpu","utid","end_state","priority","ucpu"
+        360831239274,1000000000,0,1,"X",100,0
+        """))
+
   def test_sched_switch_thread_state_simple(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
@@ -507,6 +547,66 @@ class GenericKernelParser(TestSuite):
         0,0,"swapper","[NULL]","[NULL]"
         1,101,"task1",360831239274,362831239274
         2,102,"task2",361831239274,363831239274
+        """))
+
+  def test_thread_created_and_dead_huge_tid(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 360831239274
+          generic_kernel_task_state_event {
+            cpu: 0
+            comm: "task1"
+            tid: 9023372036854775807
+            state: TASK_STATE_CREATED
+            prio: 100
+          }
+        }
+        packet {
+          timestamp: 361831239274
+          generic_kernel_task_state_event {
+            cpu: 0
+            comm: "task2"
+            tid: 8923372036854775807
+            state: TASK_STATE_CREATED
+            prio: 100
+          }
+        }
+        packet {
+          timestamp: 362831239274
+          generic_kernel_task_state_event {
+            cpu: 0
+            comm: "task1"
+            tid: 9023372036854775807
+            state: TASK_STATE_DEAD
+            prio: 100
+          }
+        }
+        packet {
+          timestamp: 363831239274
+          generic_kernel_task_state_event {
+            cpu: 0
+            comm: "task2"
+            tid: 8923372036854775807
+            state: TASK_STATE_DEAD
+            prio: 100
+          }
+        }
+        """),
+        query="""
+        select
+          utid,
+          tid,
+          name,
+          start_ts,
+          end_ts
+        from thread
+        """,
+        out=Csv("""
+        "utid","tid","name","start_ts","end_ts"
+        0,0,"swapper","[NULL]","[NULL]"
+        1,9023372036854775807,"task1",360831239274,362831239274
+        2,8923372036854775807,"task2",361831239274,363831239274
         """))
 
   def test_thread_state_created_and_destroyed(self):

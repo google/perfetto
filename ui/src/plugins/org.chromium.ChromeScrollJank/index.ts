@@ -71,7 +71,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: createTopLevelScrollTrack(ctx, uri),
+      renderer: createTopLevelScrollTrack(ctx, uri),
     });
 
     const track = new TrackNode({uri, title});
@@ -180,7 +180,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: createEventLatencyTrack(ctx, uri, baseTable),
+      renderer: createEventLatencyTrack(ctx, uri, baseTable),
     });
 
     const track = new TrackNode({uri, title});
@@ -201,7 +201,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: createScrollJankV3Track(ctx, uri),
+      renderer: createScrollJankV3Track(ctx, uri),
     });
 
     const track = new TrackNode({uri, title});
@@ -222,7 +222,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title,
-      track: createScrollTimelineTrack(ctx, model),
+      renderer: createScrollTimelineTrack(ctx, model),
     });
 
     const track = new TrackNode({uri, title});
@@ -254,7 +254,7 @@ export default class implements PerfettoPlugin {
         uri,
       });
       const title = 'Chrome VSync';
-      ctx.tracks.registerTrack({uri, title, track});
+      ctx.tracks.registerTrack({uri, title, renderer: track});
       group.addChildInOrder(new TrackNode({uri, title}));
     }
 
@@ -267,7 +267,7 @@ export default class implements PerfettoPlugin {
         `(SELECT id, ts, LEAD(ts) OVER (ORDER BY ts) - ts as dur FROM ${vsyncTable})`,
       );
       const title = 'Chrome VSync delta';
-      ctx.tracks.registerTrack({uri, title, track});
+      ctx.tracks.registerTrack({uri, title, renderer: track});
       group.addChildInOrder(new TrackNode({uri, title}));
     }
 
@@ -285,7 +285,7 @@ export default class implements PerfettoPlugin {
         WHERE generation_ts IS NOT NULL)`,
       );
       const title = 'Chrome input delta';
-      ctx.tracks.registerTrack({uri, title, track});
+      ctx.tracks.registerTrack({uri, title, renderer: track});
       group.addChildInOrder(new TrackNode({uri, title}));
     }
 
@@ -342,7 +342,7 @@ export default class implements PerfettoPlugin {
           }),
           detailsPanel: () => new ThreadSliceDetailsPanel(ctx),
         });
-        ctx.tracks.registerTrack({uri, title: step.name, track});
+        ctx.tracks.registerTrack({uri, title: step.name, renderer: track});
         group.addChildInOrder(new TrackNode({uri, title: step.name}));
       }
     }

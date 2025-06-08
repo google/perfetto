@@ -42,7 +42,7 @@ export default class implements PerfettoPlugin {
           kind: COUNTER_TRACK_KIND,
           trackIds: [it.id],
         },
-        track: new TraceProcessorCounterTrack(ctx, uri, {}, it.id, name),
+        renderer: new TraceProcessorCounterTrack(ctx, uri, {}, it.id, name),
       });
       const track = new TrackNode({uri, title: name, sortOrder: -20});
       ctx.workspace.addChildInOrder(track);

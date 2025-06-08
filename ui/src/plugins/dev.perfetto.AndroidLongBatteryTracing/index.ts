@@ -882,7 +882,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title: name,
-      track,
+      renderer: track,
     });
     const trackNode = new TrackNode({uri, title: name});
     this.addTrack(ctx, trackNode, groupName, groupCollapsed);
@@ -909,7 +909,7 @@ export default class implements PerfettoPlugin {
     ctx.tracks.registerTrack({
       uri,
       title: name,
-      track,
+      renderer: track,
     });
     const trackNode = new TrackNode({uri, title: name});
     this.addTrack(ctx, trackNode, groupName, groupCollapsed);
