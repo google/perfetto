@@ -188,6 +188,7 @@ class SlabAllocator {
     if (slabs_non_full_.empty()) {
       auto* slab = new SlabType();
       slabs_non_full_.PushFront(*slab);
+      ++slabs_non_full_size_;
       InsertHashMapEntries(*slab);
     }
 
@@ -199,6 +200,7 @@ class SlabAllocator {
     // Move to "full slabs" list if needed
     if (slab.IsFull()) {
       slabs_non_full_.Erase(slab);
+      --slabs_non_full_size_;
       slabs_full_.PushFront(slab);
     }
 
@@ -212,6 +214,7 @@ class SlabAllocator {
     if (slab.IsFull()) {
       slabs_full_.Erase(slab);
       slabs_non_full_.PushFront(slab);
+      ++slabs_non_full_size_;
     }
 
     slab.Free(p);
@@ -225,9 +228,10 @@ class SlabAllocator {
     // 2. Free element x -> slab becomes empty and is deallocated.
     // 3. Allocate element y -> a new slab is allocated again.
     // 4. And so on...
-    if (slab.IsEmpty() && slabs_non_full_.size() > 1) {
+    if (slab.IsEmpty() && slabs_non_full_size_ > 1) {
       EraseHashMapEntries(slab);
       slabs_non_full_.Erase(slab);
+      --slabs_non_full_size_;
       delete &slab;
     }
   }
@@ -273,8 +277,9 @@ class SlabAllocator {
   }
 
   base::FlatHashMap<uintptr_t, SlabType*> block_4KB_aligned_to_slab_;
-  SlabList slabs_non_full_;
   SlabList slabs_full_;
+  SlabList slabs_non_full_;
+  size_t slabs_non_full_size_{0};
 };
 
 }  // namespace protovm

@@ -57,10 +57,9 @@ export default class implements PerfettoPlugin {
 
     ctx.tracks.registerTrack({
       uri,
-      title,
-      track,
+      renderer: track,
     });
 
-    return new TrackNode({title, uri, sortOrder: -7});
+    return new TrackNode({name: title, uri, sortOrder: -7});
   }
 }

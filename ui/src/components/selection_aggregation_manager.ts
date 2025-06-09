@@ -202,7 +202,7 @@ export class SelectionAggregationManager {
         (td) =>
           aggr.trackKind === undefined || aggr.trackKind === td.tags?.kind,
       )
-      .map((td) => td.track.getDataset?.())
+      .map((td) => td.renderer.getDataset?.())
       .filter((dataset) => dataset !== undefined)
       .filter(
         (dataset) =>

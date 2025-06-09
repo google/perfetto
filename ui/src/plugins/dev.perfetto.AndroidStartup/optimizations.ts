@@ -113,10 +113,9 @@ export async function optimizationsTrack(
     .join('UNION ALL '); // The trailing space is important.
 
   const uri = '/android_startups_optimization_status';
-  const title = 'Optimization Status';
   const track = await createQuerySliceTrack({
     trace: trace,
-    uri: uri,
+    uri,
     data: {
       sqlSource: sqlSource,
       columns: ['ts', 'dur', 'name', 'details'],
@@ -125,10 +124,9 @@ export async function optimizationsTrack(
   });
   trace.tracks.registerTrack({
     uri,
-    title,
-    track,
+    renderer: track,
   });
-  const trackNode = new TrackNode({title, uri});
+  const trackNode = new TrackNode({name: 'Optimization Status', uri});
   for await (const classLoadingTrack of classLoadingTracks) {
     trackNode.addChildLast(classLoadingTrack);
   }
@@ -145,10 +143,9 @@ async function classLoadingTrack(
       WHERE startup_id = ${startup.id}
   `;
   const uri = `/android_startups/${startup.id}/classloading`;
-  const title = `Unoptimized Class Loading in (${startup.package})`;
   const track = await createQuerySliceTrack({
     trace: trace,
-    uri: uri,
+    uri,
     data: {
       sqlSource: sqlSource,
       columns: ['ts', 'dur', 'name'],
@@ -156,10 +153,12 @@ async function classLoadingTrack(
   });
   trace.tracks.registerTrack({
     uri,
-    title,
-    track,
+    renderer: track,
   });
-  return new TrackNode({title, uri});
+  return new TrackNode({
+    name: `Unoptimized Class Loading in (${startup.package})`,
+    uri,
+  });
 }
 
 function buildName(startup: Startup): string {

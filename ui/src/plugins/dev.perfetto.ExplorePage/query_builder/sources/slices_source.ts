@@ -109,7 +109,7 @@ export class SlicesSourceNode implements QueryNode {
     return sq;
   }
 
-  getDetails(): m.Child {
+  coreModify(): m.Child {
     return m(
       '',
       m(

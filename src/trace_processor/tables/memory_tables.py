@@ -28,7 +28,7 @@ from src.trace_processor.tables.track_tables import TRACK_TABLE
 MEMORY_SNAPSHOT_TABLE = Table(
     python_module=__file__,
     class_name='MemorySnapshotTable',
-    sql_name='memory_snapshot',
+    sql_name='__intrinsic_memory_snapshot',
     columns=[
         C('timestamp', CppInt64()),
         C('track_id', CppTableId(TRACK_TABLE)),
@@ -46,7 +46,7 @@ MEMORY_SNAPSHOT_TABLE = Table(
 PROCESS_MEMORY_SNAPSHOT_TABLE = Table(
     python_module=__file__,
     class_name='ProcessMemorySnapshotTable',
-    sql_name='process_memory_snapshot',
+    sql_name='__intrinsic_process_memory_snapshot',
     columns=[
         C('snapshot_id', CppTableId(MEMORY_SNAPSHOT_TABLE)),
         C('upid', CppUint32()),
@@ -62,7 +62,7 @@ PROCESS_MEMORY_SNAPSHOT_TABLE = Table(
 MEMORY_SNAPSHOT_NODE_TABLE = Table(
     python_module=__file__,
     class_name='MemorySnapshotNodeTable',
-    sql_name='memory_snapshot_node',
+    sql_name='__intrinsic_memory_snapshot_node',
     columns=[
         C('process_snapshot_id', CppTableId(PROCESS_MEMORY_SNAPSHOT_TABLE)),
         C('parent_node_id', CppOptional(CppSelfTableId())),
@@ -86,7 +86,7 @@ MEMORY_SNAPSHOT_NODE_TABLE = Table(
 MEMORY_SNAPSHOT_EDGE_TABLE = Table(
     python_module=__file__,
     class_name='MemorySnapshotEdgeTable',
-    sql_name='memory_snapshot_edge',
+    sql_name='__intrinsic_memory_snapshot_edge',
     columns=[
         C('source_node_id', CppTableId(MEMORY_SNAPSHOT_NODE_TABLE)),
         C('target_node_id', CppTableId(MEMORY_SNAPSHOT_NODE_TABLE)),

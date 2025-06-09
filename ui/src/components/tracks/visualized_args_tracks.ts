@@ -67,9 +67,8 @@ export async function addVisualizedArgTracks(trace: Trace, argName: string) {
     const uri = `${VISUALIZED_ARGS_SLICE_TRACK_URI_PREFIX}#${uuidv4()}`;
     trace.tracks.registerTrack({
       uri,
-      title: argName,
       chips: ['arg'],
-      track: await createVisualizedArgsTrack({
+      renderer: await createVisualizedArgsTrack({
         trace,
         uri,
         trackId,
@@ -96,7 +95,7 @@ export async function addVisualizedArgTracks(trace: Trace, argName: string) {
 
     const parentGroup = threadSliceTrack?.parent;
     if (parentGroup) {
-      const newTrack = new TrackNode({uri, title: argName});
+      const newTrack = new TrackNode({uri, name: argName});
       parentGroup.addChildBefore(newTrack, threadSliceTrack);
       addedTracks.push(newTrack);
     }

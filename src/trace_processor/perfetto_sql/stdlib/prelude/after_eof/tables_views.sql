@@ -1148,3 +1148,81 @@ SELECT
   field_type_name,
   deobfuscated_field_name
 FROM __intrinsic_heap_graph_reference;
+
+-- Table with memory snapshots.
+CREATE PERFETTO VIEW memory_snapshot (
+  -- Unique identifier for this snapshot.
+  id ID,
+  -- Time of the snapshot.
+  timestamp TIMESTAMP,
+  -- Track of this snapshot.
+  track_id JOINID(track.id),
+  -- Detail level of this snapshot.
+  detail_level STRING
+) AS
+SELECT
+  id,
+  timestamp,
+  track_id,
+  detail_level
+FROM __intrinsic_memory_snapshot;
+
+-- Table with process memory snapshots.
+CREATE PERFETTO VIEW process_memory_snapshot (
+  -- Unique identifier for this snapshot.
+  id ID,
+  -- Snapshot ID for this snapshot.
+  snapshot_id JOINID(memory_snapshot.id),
+  -- Process for this snapshot.
+  upid JOINID(process.id)
+) AS
+SELECT
+  id,
+  snapshot_id,
+  upid
+FROM __intrinsic_process_memory_snapshot;
+
+-- Table with memory snapshot nodes.
+CREATE PERFETTO VIEW memory_snapshot_node (
+  -- Unique identifier for this node.
+  id ID,
+  -- Process snapshot ID for to this node.
+  process_snapshot_id JOINID(process_memory_snapshot.id),
+  -- Parent node for this node, optional.
+  parent_node_id JOINID(memory_snapshot_node.id),
+  -- Path for this node.
+  path STRING,
+  -- Size of the memory allocated to this node.
+  size LONG,
+  -- Effective size used by this node.
+  effective_size LONG,
+  -- Additional args of the node.
+  arg_set_id ARGSETID
+) AS
+SELECT
+  id,
+  process_snapshot_id,
+  parent_node_id,
+  path,
+  size,
+  effective_size,
+  arg_set_id
+FROM __intrinsic_memory_snapshot_node;
+
+-- Table with memory snapshot edge
+CREATE PERFETTO VIEW memory_snapshot_edge (
+  -- Unique identifier for this edge.
+  id ID,
+  -- Source node for this edge.
+  source_node_id JOINID(memory_snapshot_node.id),
+  -- Target node for this edge.
+  target_node_id JOINID(memory_snapshot_node.id),
+  -- Importance for this edge.
+  importance LONG
+) AS
+SELECT
+  id,
+  source_node_id,
+  target_node_id,
+  importance
+FROM __intrinsic_memory_snapshot_edge;

@@ -166,12 +166,11 @@ async function addPivotedSliceTracks(
   for (const iter = result.iter({}); iter.valid(); iter.next()) {
     const uri = `${uriBase}_${trackCount++}`;
     const pivotValue = iter.get('pivot');
-    const title = `${titleBase}: ${pivotColName} = ${sqlValueToReadableString(pivotValue)}`;
+    const name = `${titleBase}: ${pivotColName} = ${sqlValueToReadableString(pivotValue)}`;
 
     trace.tracks.registerTrack({
       uri,
-      title,
-      track: new DatasetSliceTrack({
+      renderer: new DatasetSliceTrack({
         trace,
         uri,
         dataset: new SourceDataset({
@@ -193,7 +192,7 @@ async function addPivotedSliceTracks(
       }),
     });
 
-    const trackNode = new TrackNode({uri, title, removable: true});
+    const trackNode = new TrackNode({uri, name, removable: true});
     trace.workspace.pinnedTracksNode.addChildLast(trackNode);
   }
 }
@@ -201,13 +200,12 @@ async function addPivotedSliceTracks(
 function addSingleSliceTrack(
   trace: Trace,
   tableName: string,
-  title: string,
+  name: string,
   uri: string,
 ) {
   trace.tracks.registerTrack({
     uri,
-    title,
-    track: new DatasetSliceTrack({
+    renderer: new DatasetSliceTrack({
       trace,
       uri,
       dataset: new SourceDataset({
@@ -225,7 +223,7 @@ function addSingleSliceTrack(
     }),
   });
 
-  const trackNode = new TrackNode({uri, title, removable: true});
+  const trackNode = new TrackNode({uri, name, removable: true});
   trace.workspace.pinnedTracksNode.addChildLast(trackNode);
 }
 
@@ -334,12 +332,11 @@ async function addPivotedCounterTracks(
   for (const iter = result.iter({}); iter.valid(); iter.next()) {
     const uri = `${uriBase}_${trackCount++}`;
     const pivotValue = iter.get('pivot');
-    const title = `${titleBase}: ${pivotColName} = ${sqlValueToReadableString(pivotValue)}`;
+    const name = `${titleBase}: ${pivotColName} = ${sqlValueToReadableString(pivotValue)}`;
 
     trace.tracks.registerTrack({
       uri,
-      title,
-      track: new SqlTableCounterTrack(
+      renderer: new SqlTableCounterTrack(
         trace,
         uri,
         `
@@ -350,7 +347,7 @@ async function addPivotedCounterTracks(
       ),
     });
 
-    const trackNode = new TrackNode({uri, title, removable: true});
+    const trackNode = new TrackNode({uri, name, removable: true});
     trace.workspace.pinnedTracksNode.addChildLast(trackNode);
   }
 }
@@ -358,15 +355,14 @@ async function addPivotedCounterTracks(
 function addSingleCounterTrack(
   trace: Trace,
   tableName: string,
-  title: string,
+  name: string,
   uri: string,
 ) {
   trace.tracks.registerTrack({
     uri,
-    title,
-    track: new SqlTableCounterTrack(trace, uri, tableName),
+    renderer: new SqlTableCounterTrack(trace, uri, tableName),
   });
 
-  const trackNode = new TrackNode({uri, title, removable: true});
+  const trackNode = new TrackNode({uri, name, removable: true});
   trace.workspace.pinnedTracksNode.addChildLast(trackNode);
 }

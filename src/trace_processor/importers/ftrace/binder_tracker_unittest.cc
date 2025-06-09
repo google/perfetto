@@ -58,7 +58,7 @@ class BinderTrackerTest : public ::testing::Test {
     const auto& track = context.storage->track_table();
     const auto& slice = context.storage->slice_table();
     auto rr = track.FindById(slice[row].track_id());
-    return thread[*rr->utid()].tid();
+    return static_cast<uint32_t>(thread[*rr->utid()].tid());
   }
 
  protected:

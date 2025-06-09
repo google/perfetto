@@ -16,6 +16,7 @@
 .idea
 .project
 .recipe_deps/
+.roo*
 .settings/
 .venv
 .vscode

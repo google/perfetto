@@ -30,7 +30,7 @@ export default class implements PerfettoPlugin {
       callback: () => {
         const track = new TrackNode({
           uri,
-          title: 'Chrome Interactions',
+          name: 'Chrome Interactions',
         });
         ctx.workspace.addChildInOrder(track);
         track.pin();
@@ -39,8 +39,7 @@ export default class implements PerfettoPlugin {
 
     ctx.tracks.registerTrack({
       uri,
-      title: 'Chrome Interactions',
-      track: createCriticalUserInteractionTrack(ctx, uri),
+      renderer: createCriticalUserInteractionTrack(ctx, uri),
     });
   }
 }

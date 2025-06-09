@@ -44,10 +44,9 @@ export default class implements PerfettoPlugin {
     });
     ctx.tracks.registerTrack({
       uri,
-      title: name,
-      track,
+      renderer: track,
     });
-    const node = new TrackNode({uri, title: name});
+    const node = new TrackNode({uri, name});
     group.addChildInOrder(node);
   }
 
@@ -94,7 +93,7 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     const group = new TrackNode({
-      title: 'CPU Idle Time In State',
+      name: 'CPU Idle Time In State',
       isSummary: true,
     });
 
@@ -116,7 +115,7 @@ export default class implements PerfettoPlugin {
     }
 
     const perCpuGroup = new TrackNode({
-      title: 'CPU Idle Per Cpu Time In State',
+      name: 'CPU Idle Per Cpu Time In State',
       isSummary: true,
     });
 

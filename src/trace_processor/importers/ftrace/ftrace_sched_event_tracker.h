@@ -53,22 +53,22 @@ class FtraceSchedEventTracker : public Destructible {
   // Virtual for testing.
   virtual void PushSchedSwitch(uint32_t cpu,
                                int64_t timestamp,
-                               uint32_t prev_pid,
+                               int64_t prev_pid,
                                base::StringView prev_comm,
                                int32_t prev_prio,
                                int64_t prev_state,
-                               uint32_t next_pid,
+                               int64_t next_pid,
                                base::StringView next_comm,
                                int32_t next_prio);
 
   void AddRawSchedSwitchEvent(uint32_t cpu,
                               int64_t ts,
                               UniqueTid prev_utid,
-                              uint32_t prev_pid,
+                              int64_t prev_pid,
                               StringId prev_comm_id,
                               int32_t prev_prio,
                               int64_t prev_state,
-                              uint32_t next_pid,
+                              int64_t next_pid,
                               StringId next_comm_id,
                               int32_t next_prio);
 
@@ -77,7 +77,7 @@ class FtraceSchedEventTracker : public Destructible {
   void PushSchedSwitchCompact(uint32_t cpu,
                               int64_t ts,
                               int64_t prev_state,
-                              uint32_t next_pid,
+                              int64_t next_pid,
                               int32_t next_prio,
                               StringId next_comm_id,
                               bool parse_only_into_raw);
@@ -87,7 +87,7 @@ class FtraceSchedEventTracker : public Destructible {
   // |EventTracker::PushInstant|.
   void PushSchedWakingCompact(uint32_t cpu,
                               int64_t ts,
-                              uint32_t wakee_pid,
+                              int64_t wakee_pid,
                               uint16_t target_cpu,
                               uint16_t prio,
                               StringId comm_id,

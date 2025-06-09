@@ -19,6 +19,7 @@
 
 #include <cstdint>
 
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
@@ -29,9 +30,20 @@ class MachineTracker {
   MachineTracker(TraceProcessorContext* context, uint32_t raw_machine_id);
   ~MachineTracker();
 
+  void SetMachineInfo(StringId sysname,
+                      StringId release,
+                      StringId version,
+                      StringId arch);
+  void SetNumCpus(uint32_t cpus);
+  void SetAndroidBuildFingerprint(StringId build_fingerprint);
+  void SetAndroidDeviceManufacturer(StringId device_manufacturer);
+  void SetAndroidSdkVersion(int64_t sdk_version);
+
   std::optional<MachineId> machine_id() const { return machine_id_; }
 
  private:
+  std::optional<tables::MachineTable::RowReference> getRow();
+
   std::optional<MachineId> machine_id_;
   TraceProcessorContext* const context_;
 };

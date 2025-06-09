@@ -123,7 +123,7 @@ export default class implements PerfettoPlugin {
     // but creating a dedicated track type is out of scope at the time of
     // writing.
     const kernelThreadsGroup = new TrackNode({
-      title: 'Kernel threads',
+      name: 'Kernel threads',
       uri: '/kernel',
       sortOrder: 50,
       isSummary: true,
@@ -136,7 +136,7 @@ export default class implements PerfettoPlugin {
 
       const threadGroup = new TrackNode({
         uri: `thread${utid}`,
-        title: `Thread ${utid}`,
+        name: `Thread ${utid}`,
         isSummary: true,
         headless: true,
       });
@@ -265,7 +265,7 @@ export default class implements PerfettoPlugin {
         const displayName = getProcessDisplayName(name ?? undefined, id);
         const group = new TrackNode({
           uri: `/process_${uid}`,
-          title: displayName,
+          name: displayName,
           isSummary: true,
           sortOrder: 50,
         });
@@ -282,7 +282,7 @@ export default class implements PerfettoPlugin {
         const displayName = getThreadDisplayName(name ?? undefined, id);
         const group = new TrackNode({
           uri: `/thread_${uid}`,
-          title: displayName,
+          name: displayName,
           isSummary: true,
           sortOrder: 50,
         });
@@ -351,7 +351,7 @@ export default class implements PerfettoPlugin {
 
       const group = new TrackNode({
         uri: `/thread_${utid}`,
-        title: getThreadDisplayName(threadName ?? undefined, tid),
+        name: getThreadDisplayName(threadName ?? undefined, tid),
         isSummary: true,
         headless: true,
       });

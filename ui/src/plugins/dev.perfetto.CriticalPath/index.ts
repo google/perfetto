@@ -139,7 +139,7 @@ async function getUtid(trace: Trace): Promise<Utid | undefined> {
     return asUtid(track.tags.utid);
   }
 
-  const dataset = track.track.getDataset?.();
+  const dataset = track.renderer.getDataset?.();
   if (dataset === undefined) return undefined;
   if (!dataset.implements({utid: NUM})) return undefined;
 

@@ -24,16 +24,16 @@ export default class implements PerfettoPlugin {
       callback: () => {
         ctx.workspace.flatTracks.forEach((track) => {
           if (
-            !!track.title.includes('UnfoldTransition') ||
-            track.title.includes('Screen on blocked') ||
-            track.title.includes('hingeAngle') ||
-            track.title.includes('UnfoldLightRevealOverlayAnimation') ||
-            track.title.startsWith('waitForAllWindowsDrawn') ||
-            track.title.endsWith('UNFOLD_ANIM>') ||
-            track.title.endsWith('UNFOLD>') ||
-            track.title == 'Waiting for KeyguardDrawnCallback#onDrawn' ||
-            track.title == 'FoldedState' ||
-            track.title == 'FoldUpdate'
+            !!track.name.includes('UnfoldTransition') ||
+            track.name.includes('Screen on blocked') ||
+            track.name.includes('hingeAngle') ||
+            track.name.includes('UnfoldLightRevealOverlayAnimation') ||
+            track.name.startsWith('waitForAllWindowsDrawn') ||
+            track.name.endsWith('UNFOLD_ANIM>') ||
+            track.name.endsWith('UNFOLD>') ||
+            track.name == 'Waiting for KeyguardDrawnCallback#onDrawn' ||
+            track.name == 'FoldedState' ||
+            track.name == 'FoldUpdate'
           ) {
             track.pin();
           }

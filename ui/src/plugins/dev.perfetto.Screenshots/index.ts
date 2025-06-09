@@ -30,14 +30,16 @@ export default class implements PerfettoPlugin {
     const {count} = res.firstRow({count: NUM});
 
     if (count > 0) {
-      const title = 'Screenshots';
       const uri = '/screenshots';
       ctx.tracks.registerTrack({
         uri,
-        title,
-        track: createScreenshotsTrack(ctx, uri),
+        renderer: createScreenshotsTrack(ctx, uri),
       });
-      const trackNode = new TrackNode({uri, title, sortOrder: -60});
+      const trackNode = new TrackNode({
+        uri,
+        name: 'Screenshots',
+        sortOrder: -60,
+      });
       ctx.workspace.addChildInOrder(trackNode);
     }
   }

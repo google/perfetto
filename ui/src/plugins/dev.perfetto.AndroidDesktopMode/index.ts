@@ -57,13 +57,12 @@ export default class implements PerfettoPlugin {
     });
     ctx.tracks.registerTrack({
       uri: TRACK_URI,
-      title: TRACK_NAME,
-      track,
+      renderer: track,
     });
   }
 
   private addSimpleTrack(ctx: Trace) {
-    const trackNode = new TrackNode({uri: TRACK_URI, title: TRACK_NAME});
+    const trackNode = new TrackNode({uri: TRACK_URI, name: TRACK_NAME});
     ctx.workspace.addChildInOrder(trackNode);
     trackNode.pin();
   }

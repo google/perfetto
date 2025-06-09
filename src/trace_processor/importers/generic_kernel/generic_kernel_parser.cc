@@ -81,7 +81,7 @@ void GenericKernelParser::ParseGenericTaskStateEvent(
 
   StringId comm_id = context_->storage->InternString(task_event.comm());
   const uint32_t cpu = static_cast<uint32_t>(task_event.cpu());
-  const uint32_t tid = static_cast<uint32_t>(task_event.tid());
+  const int64_t tid = task_event.tid();
   const int32_t prio = task_event.prio();
   const size_t state = static_cast<size_t>(task_event.state());
 
@@ -134,7 +134,7 @@ void GenericKernelParser::ParseGenericTaskStateEvent(
 }
 
 std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
-                                                              uint32_t tid,
+                                                              int64_t tid,
                                                               StringId comm_id,
                                                               size_t state) {
   switch (state) {
@@ -202,7 +202,7 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
 GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
     int64_t ts,
     uint32_t cpu,
-    uint32_t tid,
+    int64_t tid,
     UniqueTid utid,
     StringId state_string_id,
     int32_t prio) {

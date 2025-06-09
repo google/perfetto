@@ -43,7 +43,6 @@ SELECT
   cpu7_curve,
   l3_hit_count,
   l3_miss_count,
-  suspended,
   no_static,
   min(
     no_static,
@@ -109,7 +108,6 @@ SELECT
   c.cpu7_curve,
   c.l3_hit_count,
   c.l3_miss_count,
-  c.suspended,
   c.no_static,
   c.all_cpu_deep_idle,
   d.dsu_freq AS dependent_freq,

@@ -74,11 +74,11 @@ FtraceSchedEventTracker::~FtraceSchedEventTracker() = default;
 
 void FtraceSchedEventTracker::PushSchedSwitch(uint32_t cpu,
                                               int64_t ts,
-                                              uint32_t prev_pid,
+                                              int64_t prev_pid,
                                               base::StringView prev_comm,
                                               int32_t prev_prio,
                                               int64_t prev_state,
-                                              uint32_t next_pid,
+                                              int64_t next_pid,
                                               base::StringView next_comm,
                                               int32_t next_prio) {
   StringId next_comm_id = context_->storage->InternString(next_comm);
@@ -131,7 +131,7 @@ void FtraceSchedEventTracker::PushSchedSwitch(uint32_t cpu,
 void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
                                                      int64_t ts,
                                                      int64_t prev_state,
-                                                     uint32_t next_pid,
+                                                     int64_t next_pid,
                                                      int32_t next_prio,
                                                      StringId next_comm_id,
                                                      bool parse_only_into_raw) {
@@ -170,7 +170,7 @@ void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
   // There are edge cases, but this assumption should still produce sensible
   // results in the absence of data loss.
   UniqueTid prev_utid = pending_sched->last_utid;
-  uint32_t prev_pid = pending_sched->last_pid;
+  int64_t prev_pid = pending_sched->last_pid;
   int32_t prev_prio = pending_sched->last_prio;
 
   // Do a fresh task name lookup in case it was updated by a task_rename while
@@ -208,7 +208,7 @@ void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
 // adding to the raw and instants tables.
 void FtraceSchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
                                                      int64_t ts,
-                                                     uint32_t wakee_pid,
+                                                     int64_t wakee_pid,
                                                      uint16_t target_cpu,
                                                      uint16_t prio,
                                                      StringId comm_id,
@@ -262,11 +262,11 @@ void FtraceSchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
 void FtraceSchedEventTracker::AddRawSchedSwitchEvent(uint32_t cpu,
                                                      int64_t ts,
                                                      UniqueTid prev_utid,
-                                                     uint32_t prev_pid,
+                                                     int64_t prev_pid,
                                                      StringId prev_comm_id,
                                                      int32_t prev_prio,
                                                      int64_t prev_state,
-                                                     uint32_t next_pid,
+                                                     int64_t next_pid,
                                                      StringId next_comm_id,
                                                      int32_t next_prio) {
   if (PERFETTO_LIKELY(context_->config.ingest_ftrace_in_raw_table)) {

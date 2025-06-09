@@ -263,7 +263,7 @@ export class SearchManagerImpl {
     for (const track of workspace.flatTracksOrdered) {
       // We don't support searching for tracks that don't have a URI.
       if (!track.uri) continue;
-      if (track.title.toLowerCase().indexOf(lowerSearch) === -1) {
+      if (track.name.toLowerCase().indexOf(lowerSearch) === -1) {
         continue;
       }
       searchResults.totalResults++;

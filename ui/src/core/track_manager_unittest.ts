@@ -58,8 +58,7 @@ beforeEach(() => {
   mockTrack = makeMockTrack();
   td = {
     uri: 'test',
-    title: 'foo',
-    track: mockTrack,
+    renderer: mockTrack,
   };
   trackManager = new TrackManagerImpl();
   trackManager.registerTrack(td);

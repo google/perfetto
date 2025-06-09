@@ -19,6 +19,8 @@
 
 namespace perfetto::trace_processor {
 
+using tables::MachineTable;
+
 MachineTracker::MachineTracker(TraceProcessorContext* context,
                                uint32_t raw_machine_id)
     : context_(context) {
@@ -29,5 +31,42 @@ MachineTracker::MachineTracker(TraceProcessorContext* context,
     machine_id_ = id;
 }
 MachineTracker::~MachineTracker() = default;
+
+void MachineTracker::SetMachineInfo(StringId sysname,
+                                    StringId release,
+                                    StringId version,
+                                    StringId arch) {
+  auto row = getRow();
+
+  row->set_sysname(sysname);
+  row->set_release(release);
+  row->set_version(version);
+  row->set_arch(arch);
+}
+
+void MachineTracker::SetNumCpus(uint32_t cpus) {
+  getRow()->set_num_cpus(cpus);
+}
+
+void MachineTracker::SetAndroidBuildFingerprint(StringId build_fingerprint) {
+  getRow()->set_android_build_fingerprint(build_fingerprint);
+}
+
+void MachineTracker::SetAndroidDeviceManufacturer(
+    StringId device_manufacturer) {
+  getRow()->set_android_device_manufacturer(device_manufacturer);
+}
+
+void MachineTracker::SetAndroidSdkVersion(int64_t sdk_version) {
+  getRow()->set_android_sdk_version(sdk_version);
+}
+
+PERFETTO_ALWAYS_INLINE
+std::optional<MachineTable::RowReference> MachineTracker::getRow() {
+  auto& machines = *context_->storage->mutable_machine_table();
+  // Host machine has ID 0
+  auto machine_id = machine_id_ ? *machine_id_ : MachineTable::Id(0);
+  return machines.FindById(machine_id);
+}
 
 }  // namespace perfetto::trace_processor

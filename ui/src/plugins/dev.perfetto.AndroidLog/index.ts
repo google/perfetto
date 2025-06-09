@@ -72,16 +72,17 @@ export default class implements PerfettoPlugin {
     );
     const logCount = result.firstRow({cnt: NUM}).cnt;
     const uri = 'perfetto.AndroidLog';
-    const title = 'Android logs';
     if (logCount > 0) {
       ctx.tracks.registerTrack({
         uri,
-        title,
         description: 'Android log messages',
         tags: {kind: ANDROID_LOGS_TRACK_KIND},
-        track: createAndroidLogTrack(ctx, uri),
+        renderer: createAndroidLogTrack(ctx, uri),
       });
-      const track = new TrackNode({title, uri});
+      const track = new TrackNode({
+        name: 'Android logs',
+        uri,
+      });
       ctx.workspace.addChildInOrder(track);
     }
 

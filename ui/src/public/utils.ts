@@ -123,7 +123,7 @@ export function getThreadUriPrefix(upid: number | null, utid: number): string {
 export async function getTimeSpanOfSelectionOrVisibleWindow(
   trace: Trace,
 ): Promise<TimeSpan> {
-  const range = await trace.selection.findTimeRangeOfSelection();
+  const range = await trace.selection.getTimeSpanOfSelection();
   if (exists(range)) {
     return new TimeSpan(range.start, range.end);
   } else {

@@ -46,4 +46,6 @@ message InputMethodManagerServiceProto {
   optional int32 ime_window_visibility = 22;
   optional bool show_ime_with_hard_keyboard = 23;
   optional bool accessibility_requesting_no_soft_keyboard = 24;
+  optional bool concurrent_multi_user_mode_enabled = 25;
+  optional bool prevent_ime_startup_unless_text_editor = 26;
 }

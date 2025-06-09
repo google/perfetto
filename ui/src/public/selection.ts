@@ -72,8 +72,10 @@ export interface SelectionManager {
    */
   readonly areaSelectionTabs: ReadonlyArray<AreaSelectionTab>;
 
-  findTimeRangeOfSelection(): TimeSpan | undefined;
-  clear(): void;
+  /**
+   * Clears the current selection, selects nothing.
+   */
+  clearSelection(): void;
 
   /**
    * Select a track event.
@@ -113,7 +115,19 @@ export interface SelectionManager {
    */
   selectArea(args: Area, opts?: SelectionOpts): void;
 
-  scrollToCurrentSelection(): void;
+  /**
+   * Scroll the timeline horizontally and vertically to reveal the currently
+   * selected entity.
+   */
+  scrollToSelection(): void;
+
+  /**
+   * Returns the smallest time span that contains the currently selected entity.
+   *
+   * @returns The time span, if a timeline entity is selected, otherwise
+   * undefined.
+   */
+  getTimeSpanOfSelection(): TimeSpan | undefined;
 
   /**
    * Register a new tab under the area selection details panel.

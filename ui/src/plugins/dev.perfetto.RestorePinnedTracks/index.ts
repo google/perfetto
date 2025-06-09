@@ -315,7 +315,7 @@ export default class implements PerfettoPlugin {
 
     return {
       groupName: groupName(trackNode),
-      trackName: trackNode.title,
+      trackName: trackNode.name,
       pluginId: track?.pluginId,
       kind: track?.tags?.kind,
       isMainThread: track?.chips?.includes('main thread') || false,
@@ -358,7 +358,7 @@ function addOrReplaceNamedPinnedTracks({name, tracks}: SavedNamedPinnedTracks) {
 // Return the displayname of the containing group
 // If the track is a child of a workspace, return undefined...
 function groupName(track: TrackNode): string | undefined {
-  return track.parent?.title;
+  return track.parent?.name;
 }
 
 const SAVED_PINNED_TRACK_SCHEMA = z

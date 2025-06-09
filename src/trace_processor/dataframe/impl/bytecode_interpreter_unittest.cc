@@ -242,14 +242,15 @@ Bytecode ParseBytecode(const std::string& bytecode_str) {
     auto arg_idx = static_cast<uint32_t>(it - n.data());
     uint32_t size = cur_offset[arg_idx + 1] - cur_offset[arg_idx];
     if (size == 2) {
-      auto val = base::StringToInt32(arg_val);
+      auto val = base::StringToInt64(arg_val);
       PERFETTO_CHECK(val.has_value());
       auto cast = static_cast<uint16_t>(*val);
       memcpy(&bc.args_buffer[cur_offset[arg_idx]], &cast, 2);
     } else if (size == 4) {
-      auto val = base::StringToInt32(arg_val);
+      auto val = base::StringToInt64(arg_val);
       PERFETTO_CHECK(val.has_value());
-      memcpy(&bc.args_buffer[cur_offset[arg_idx]], &val, 4);
+      auto cast = static_cast<uint32_t>(*val);
+      memcpy(&bc.args_buffer[cur_offset[arg_idx]], &cast, 4);
     } else if (size == 8) {
       auto val = base::StringToInt64(arg_val);
       PERFETTO_CHECK(val.has_value());
@@ -397,18 +398,19 @@ class BytecodeInterpreterTest : public testing::Test {
       }
     }
     SetupInterpreterWithBytecode(bytecode_vector);
-
-    uint32_t i = 0;
-    (interpreter_->SetRegisterValueForTesting(reg::WriteHandle<Ts>(i++),
-                                              std::move(value)),
-     ...);
+    SetRegisterValuesForTesting(
+        interpreter_.get(),
+        std::make_integer_sequence<uint32_t, sizeof...(Ts)>(),
+        std::move(value)...);
     interpreter_->Execute(fetcher_);
   }
 
   void SetupInterpreterWithBytecode(const BytecodeVector& bytecode) {
+    // Hardcode the register count to 128 for testing.
+    static constexpr uint32_t kNumRegisters = 128;
     interpreter_ = std::make_unique<Interpreter<Fetcher>>();
-    interpreter_->Initialize(bytecode, column_ptrs_.data(), indexes_.data(),
-                             &spool_);
+    interpreter_->Initialize(bytecode, kNumRegisters, column_ptrs_.data(),
+                             indexes_.data(), &spool_);
   }
 
   template <typename T>
@@ -421,6 +423,15 @@ class BytecodeInterpreterTest : public testing::Test {
   void AddColumn(Column column) {
     columns_vec_.emplace_back(std::make_unique<Column>(std::move(column)));
     column_ptrs_.emplace_back(columns_vec_.back().get());
+  }
+
+  template <typename... Ts, uint32_t... Is>
+  void SetRegisterValuesForTesting(Interpreter<Fetcher>* interpreter,
+                                   std::integer_sequence<uint32_t, Is...>,
+                                   Ts... values) {
+    (interpreter->SetRegisterValueForTesting(reg::WriteHandle<Ts>(Is),
+                                             std::move(values)),
+     ...);
   }
 
   Fetcher fetcher_;

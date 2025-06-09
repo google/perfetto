@@ -62,7 +62,8 @@ class Cursor {
                   const impl::Column* const* column_ptrs,
                   const Index* indexes,
                   const StringPool* pool) {
-    interpreter_.Initialize(plan.bytecode, column_ptrs, indexes, pool);
+    interpreter_.Initialize(plan.bytecode, plan.params.register_count,
+                            column_ptrs, indexes, pool);
     params_ = plan.params;
     col_to_output_offset_ = plan.col_to_output_offset;
     pool_ = pool;
