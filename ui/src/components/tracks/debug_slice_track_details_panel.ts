@@ -16,7 +16,7 @@ import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
 import {hasArgs, renderArguments} from '../details/args';
 import {getSlice, SliceDetails} from '../sql_utils/slice';
-import {asArgId, asSliceSqlId, Utid} from '../sql_utils/core_types';
+import {asArgSetId, asSliceSqlId, Utid} from '../sql_utils/core_types';
 import {getThreadState, ThreadState} from '../sql_utils/thread_state';
 import {DurationWidget} from '../widgets/duration';
 import {Timestamp} from '../widgets/timestamp';
@@ -27,9 +27,6 @@ import {
   STR,
   timeFromSql,
   NUM_NULL,
-  NUM,
-  LONG_NULL,
-  STR_NULL,
 } from '../../trace_processor/query_result';
 import {sqlValueToReadableString} from '../../trace_processor/sql_utils';
 import {DetailsShell} from '../../widgets/details_shell';
@@ -44,8 +41,7 @@ import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
 import {SqlRef} from '../../widgets/sql_ref';
 import {renderSliceArguments} from '../details/slice_args';
-import {Arg, ArgValue, ArgValueType} from '../sql_utils/args';
-import {assertUnreachable} from '../../base/logging';
+import {Arg, getArgs} from '../sql_utils/args';
 
 export const RAW_PREFIX = 'raw_';
 
@@ -221,7 +217,7 @@ export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
     };
 
     if (row.arg_set_id != null) {
-      this.args = await this.loadArgs(row.arg_set_id);
+      this.args = await getArgs(this.trace.engine, asArgSetId(row.arg_set_id));
     }
 
     for (const key of Object.keys(row)) {
@@ -297,72 +293,5 @@ export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
 
   isLoading() {
     return this.data === undefined;
-  }
-
-  private async loadArgs(argSetId: number) {
-    const queryRes = await this.trace.engine.query(`
-      SELECT
-        args.id AS id,
-        flat_key AS flatKey,
-        key,
-        int_value AS intValue,
-        string_value AS stringValue,
-        real_value AS realValue,
-        value_type AS valueType,
-        display_value AS displayValue
-      FROM args
-      WHERE arg_set_id = ${argSetId}
-    `);
-
-    const it = queryRes.iter({
-      id: NUM,
-      flatKey: STR,
-      key: STR,
-      intValue: LONG_NULL,
-      stringValue: STR_NULL,
-      realValue: NUM_NULL,
-      valueType: STR,
-      displayValue: STR_NULL,
-    });
-
-    const args: Arg[] = [];
-    for (; it.valid(); it.next()) {
-      const value = parseArgValue(it);
-      args.push({
-        id: asArgId(it.id),
-        flatKey: it.flatKey,
-        key: it.key,
-        value,
-        displayValue: it.displayValue ?? 'NULL',
-      });
-    }
-
-    return args;
-  }
-}
-
-function parseArgValue(it: {
-  valueType: string;
-  intValue: bigint | null;
-  stringValue: string | null;
-  realValue: number | null;
-}): ArgValue {
-  const valueType = it.valueType as ArgValueType;
-  switch (valueType) {
-    case 'int':
-    case 'uint':
-      return it.intValue;
-    case 'pointer':
-      return it.intValue === null ? null : `0x${it.intValue.toString(16)}`;
-    case 'string':
-      return it.stringValue;
-    case 'bool':
-      return Boolean(it.intValue);
-    case 'real':
-      return it.realValue;
-    case 'null':
-      return null;
-    default:
-      assertUnreachable(valueType);
   }
 }
