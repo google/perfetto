@@ -205,14 +205,14 @@ export class UiMainPerTrace implements m.ClassComponent {
       {
         id: 'perfetto.FocusSelection',
         name: 'Focus current selection',
-        callback: () => trace.selection.scrollToCurrentSelection(),
+        callback: () => trace.selection.scrollToSelection(),
         defaultHotkey: 'F',
       },
       {
         id: 'perfetto.Deselect',
         name: 'Deselect',
         callback: () => {
-          trace.selection.clear();
+          trace.selection.clearSelection();
         },
         defaultHotkey: 'Escape',
       },
@@ -312,7 +312,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         name: 'Convert selection to area selection',
         callback: () => {
           const selection = trace.selection.selection;
-          const range = trace.selection.findTimeRangeOfSelection();
+          const range = trace.selection.getTimeSpanOfSelection();
           if (selection.kind === 'track_event' && range) {
             trace.selection.selectArea({
               start: range.start,
