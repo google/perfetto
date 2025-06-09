@@ -1154,7 +1154,7 @@ CREATE PERFETTO VIEW memory_snapshot (
   -- Unique identifier for this snapshot.
   id ID,
   -- Time of the snapshot.
-  ts TIMESTAMP,
+  timestamp TIMESTAMP,
   -- Track of this snapshot.
   track_id JOINID(track.id),
   -- Detail level.
@@ -1162,7 +1162,7 @@ CREATE PERFETTO VIEW memory_snapshot (
 ) AS
 SELECT
   id,
-  timestamp AS ts,
+  timestamp,
   track_id,
   detail_level
 FROM __intrinsic_memory_snapshot;
