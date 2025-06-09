@@ -1172,6 +1172,17 @@ cc_library_static {
 
 // GN: //src/android_sdk/jni:libperfetto_jni
 cc_library_shared {
+    name: "libperfetto_framework_jni",
+    defaults: [
+        "libperfetto_jni_defaults",
+    ],
+    cflags: [
+        "-DJNI_JARJAR_PREFIX=com/android/internal/",
+    ],
+}
+
+// GN: //src/android_sdk/jni:libperfetto_jni
+cc_library_shared {
     name: "libperfetto_jni",
     defaults: [
         "libperfetto_jni_defaults",
@@ -16688,6 +16699,15 @@ android_library {
         "perfetto_trace_lib_java",
     ],
     sdk_version: "35",
+}
+
+// GN: //src/android_sdk/java/main:perfetto_trace_lib
+java_library {
+    name: "perfetto_trace_lib_framework_java",
+    defaults: [
+        "perfetto_trace_lib_java_defaults",
+    ],
+    jarjar_rules: "src/android_sdk/java/main/perfetto-sdk-framework-jarjar-rules.txt",
 }
 
 // GN: //src/android_sdk/java/main:perfetto_trace_lib

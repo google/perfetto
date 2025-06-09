@@ -23,7 +23,6 @@ template("perfetto_android_jni_library") {
     "deps",
     "binary_name",
     "bazel_linkopts",
-    "android_bp_extract_defaults",
     "testonly",
     "visibility",
   ]
@@ -33,9 +32,6 @@ template("perfetto_android_jni_library") {
       perfetto_custom_target_type = [ "perfetto_android_jni_library" ]
       perfetto_argument_binary_name = [ binary_name ]
       perfetto_bazel_argument_linkopts = [ bazel_linkopts ]
-      if (defined(android_bp_extract_defaults)) {
-        perfetto_android_bp_extract_defaults = [ android_bp_extract_defaults ]
-      }
     }
   }
 }
@@ -46,7 +42,6 @@ template("perfetto_android_library") {
     "deps",
     "manifest",
     "android_bp_generate_java_target",
-    "android_bp_extract_defaults",
     "testonly",
     "visibility",
   ]
@@ -70,9 +65,6 @@ template("perfetto_android_library") {
       if (defined(android_bp_generate_java_target)) {
         perfetto_android_library_android_bp_generate_java_target =
             [ android_bp_generate_java_target ]
-      }
-      if (defined(android_bp_extract_defaults)) {
-        perfetto_android_bp_extract_defaults = [ android_bp_extract_defaults ]
       }
     }
   }

@@ -351,7 +351,6 @@ class GnParser(object):
       self.resource_files: Optional[str] = None
       # Used only when custom_action_type == 'perfetto_android_app'
       self.instruments: Optional[str] = None
-      self.android_bp_extract_defaults = False
       # Used only when custom_action_type == 'perfetto_android_library'
       self.android_bp_generate_java_target = False
       # Used only when
@@ -530,11 +529,6 @@ class GnParser(object):
           'perfetto_android_a_i_t_android_bp_test_config')
       target.a_i_t_android_bp_test_config = a_i_t_android_bp_test_config[
           0] if a_i_t_android_bp_test_config else None
-
-    extract_defaults = target.metadata.get(
-        'perfetto_android_bp_extract_defaults')
-    if extract_defaults:
-      target.android_bp_extract_defaults = bool(extract_defaults[0])
 
     # Default for 'public' is //* - all headers in 'sources' are public.
     # TODO(primiano): if a 'public' section is specified (even if empty), then
