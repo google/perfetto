@@ -1157,7 +1157,7 @@ CREATE PERFETTO VIEW memory_snapshot (
   timestamp TIMESTAMP,
   -- Track of this snapshot.
   track_id JOINID(track.id),
-  -- Detail level.
+  -- Detail level of this snapshot.
   detail_level STRING
 ) AS
 SELECT
@@ -1173,7 +1173,7 @@ CREATE PERFETTO VIEW process_memory_snapshot (
   id ID,
   -- Snapshot ID for this snapshot.
   snapshot_id JOINID(memory_snapshot.id),
-  -- Unique identifier for this process in this Perfetto trace.
+  -- Process for this snapshot.
   upid JOINID(process.id)
 ) AS
 SELECT
@@ -1186,7 +1186,7 @@ FROM __intrinsic_process_memory_snapshot;
 CREATE PERFETTO VIEW memory_snapshot_node (
   -- Unique identifier for this node.
   id ID,
-  -- Process snapshot id corresponding to this node.
+  -- Process snapshot ID for to this node.
   process_snapshot_id JOINID(process_memory_snapshot.id),
   -- Parent node for this node, optional.
   parent_node_id JOINID(memory_snapshot_node.id),
@@ -1196,7 +1196,7 @@ CREATE PERFETTO VIEW memory_snapshot_node (
   size LONG,
   -- Effective size used by this node.
   effective_size LONG,
-  -- Additional arguments of the proto message.
+  -- Additional args of the node.
   arg_set_id ARGSETID
 ) AS
 SELECT
@@ -1213,9 +1213,9 @@ FROM __intrinsic_memory_snapshot_node;
 CREATE PERFETTO VIEW memory_snapshot_edge (
   -- Unique identifier for this edge.
   id ID,
-  -- Source node for this edge - starting point for this edge.
+  -- Source node for this edge.
   source_node_id JOINID(memory_snapshot_node.id),
-  -- Target node for this edge - end point for this edge
+  -- Target node for this edge.
   target_node_id JOINID(memory_snapshot_node.id),
   -- Importance for this edge.
   importance LONG
