@@ -35,7 +35,7 @@ class Person {
   bool operator==(const Person& p) const { return name == p.name; }
 
   std::string name;
-  IntrusiveListNode<Person, Person::Traits> node{};
+  IntrusiveListNode node{};
 };
 
 class IntrusiveListTest : public ::testing::Test {
@@ -58,7 +58,8 @@ class IntrusiveListTest : public ::testing::Test {
   Person p3_{"c"};
   Person p4_{"d"};
 
-  IntrusiveList<Person, Person::Traits> list_;
+  using PersonList = IntrusiveList<Person, Person::Traits>;
+  PersonList list_;
 };
 
 TEST_F(IntrusiveListTest, PushFront) {
@@ -202,30 +203,6 @@ TEST_F(IntrusiveListTest, Empty) {
   ASSERT_TRUE(list_.empty());
 }
 
-TEST_F(IntrusiveListTest, Size) {
-  ASSERT_EQ(list_.size(), static_cast<size_t>(0));
-
-  list_.PushFront(p2_);
-  ASSERT_EQ(list_.size(), static_cast<size_t>(1));
-
-  list_.PushFront(p1_);
-  ASSERT_EQ(list_.size(), static_cast<size_t>(2));
-
-  list_.PopFront();
-  ASSERT_EQ(list_.size(), static_cast<size_t>(1));
-
-  list_.Erase(p2_);
-  ASSERT_EQ(list_.size(), static_cast<size_t>(0));
-
-  list_.PushFront(p2_);
-  list_.PushBack(p3_);
-  AssertListValues({p2_, p3_});
-
-  list_.PushFront(p1_);
-  list_.PushBack(p4_);
-  AssertListValues({p1_, p2_, p3_, p4_});
-}
-
 TEST_F(IntrusiveListTest, Iteration) {
   list_.PushFront(p3_);
   list_.PushFront(p2_);
@@ -276,21 +253,58 @@ TEST_F(IntrusiveListTest, RangeBasedForLoop) {
   ASSERT_THAT(looped_persons, ::testing::ElementsAre(&p1_, &p2_, &p3_));
 }
 
-TEST_F(IntrusiveListTest, TypedNextPrev) {
+TEST_F(IntrusiveListTest, IteratorOps) {
   list_.PushFront(p3_);
   list_.PushFront(p2_);
   list_.PushFront(p1_);
 
-  ASSERT_EQ(p1_.node.prev(), nullptr);
-  ASSERT_EQ(p1_.node.next(), &p2_);
+  ASSERT_EQ(PersonList::Iterator(&p1_)->name, "a");
+  ASSERT_EQ(PersonList::Iterator(&p2_)->name, "b");
+  ASSERT_EQ(PersonList::Iterator(&p3_)->name, "c");
 
-  ASSERT_EQ(p2_.node.prev(), &p1_);
-  ASSERT_EQ(p2_.node.next(), &p3_);
+  ASSERT_FALSE((--PersonList::Iterator(&p1_)));
 
-  ASSERT_EQ(p3_.node.prev(), &p2_);
-  ASSERT_EQ(p3_.node.next(), nullptr);
+  ASSERT_EQ((--PersonList::Iterator(&p2_))->name, "a");
+  ASSERT_EQ((++PersonList::Iterator(&p2_))->name, "c");
+
+  ASSERT_FALSE((++PersonList::Iterator(&p3_)));
 }
 
+TEST_F(IntrusiveListTest, IteratorErase) {
+  list_.PushFront(p3_);
+  list_.PushFront(p2_);
+  list_.PushFront(p1_);
+
+  auto it = PersonList::Iterator(&p1_);
+  ASSERT_TRUE(it->node.is_attached());
+  ASSERT_EQ(it->name, "a");
+  it.Erase();  // `it` now points at p2.
+  AssertListValues({p2_, p3_});
+  ASSERT_EQ(&*it, &p2_);
+  ASSERT_EQ(--it, list_.end());
+  ASSERT_EQ(&*(++it), &p2_);
+  ASSERT_EQ(&*(++it), &p3_);
+}
+
+TEST_F(IntrusiveListTest, ListFromIterator) {
+  PersonList list1, list2;
+
+  list1.PushBack(p1_);
+  list1.PushBack(p2_);
+
+  list2.PushBack(p3_);
+  list2.PushBack(p4_);
+
+  ASSERT_EQ(PersonList::FromIterator(PersonList::Iterator(&p1_)), &list1);
+  ASSERT_EQ(PersonList::FromIterator(PersonList::Iterator(&p2_)), &list1);
+  ASSERT_EQ(PersonList::FromIterator(list1.begin()), &list1);
+  ASSERT_EQ(PersonList::FromIterator(list1.end()), &list1);
+
+  ASSERT_EQ(PersonList::FromIterator(PersonList::Iterator(&p3_)), &list2);
+  ASSERT_EQ(PersonList::FromIterator(PersonList::Iterator(&p4_)), &list2);
+  ASSERT_EQ(PersonList::FromIterator(list2.begin()), &list2);
+  ASSERT_EQ(PersonList::FromIterator(list2.end()), &list2);
+}
 }  // namespace
 }  // namespace base
 }  // namespace perfetto

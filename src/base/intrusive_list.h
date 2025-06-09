@@ -84,7 +84,7 @@ class ListOps {
   void InsertBefore(uintptr_t other_addr, ListNode* node);
   void PopFront();
   void PopBack();
-  void Erase(ListNode* node);
+  static void Erase(ListNode* node);
   bool empty() const { return head_and_tail_.next_ == sentinel(); }
 
   // Returns a pointer to the head_and_tail_ node, with the LSB set to 1.
@@ -93,27 +93,17 @@ class ListOps {
     return reinterpret_cast<uintptr_t>(&head_and_tail_) | 1;
   }
   ListNode head_and_tail_{sentinel(), sentinel()};
-  size_t size_ = 0;
 };
 
 }  // namespace internal
 
-template <typename T, typename Traits = typename T::ListTraits>
+// This is the public-facing type that clients get to see when they access
+// MyObject.list_node. It essentially hides the next_ and prev_ raw pointers.
 struct IntrusiveListNode : private internal::ListNode {
-  T* prev() {
-    if (prev_ == 0 || (prev_ & 1))
-      return nullptr;
-    return reinterpret_cast<T*>(prev_ - Traits::node_offset());
-  }
-  T* next() {
-    if (next_ == 0 || (next_ & 1))
-      return nullptr;
-    return reinterpret_cast<T*>(next_ - Traits::node_offset());
-  }
   // Returns true if the element is NOT part of a list (never added or removed).
-  bool detached() const {
+  bool is_attached() const {
     PERFETTO_DCHECK((next_ == 0 && prev_ == 0) || (next_ != 0 && prev_ != 0));
-    return next_ == 0;
+    return next_ != 0;
   }
 };
 
@@ -126,7 +116,13 @@ class IntrusiveList : private internal::ListOps {
  public:
   class Iterator {
    public:
-    explicit Iterator(uintptr_t node) : node_(node) {}
+    explicit Iterator(uintptr_t node) : node_(node) {
+      PERFETTO_DCHECK(node != 0);
+    }
+
+    explicit Iterator(T* entry)
+        : Iterator(reinterpret_cast<uintptr_t>(nodeof(entry))) {}
+
     ~Iterator() = default;
     Iterator(const Iterator&) = default;
     Iterator& operator=(const Iterator&) = default;
@@ -145,10 +141,7 @@ class IntrusiveList : private internal::ListOps {
       return const_cast<T*>(
           entryof(reinterpret_cast<internal::ListNode*>(node_)));
     }
-    T& operator*() {
-      PERFETTO_DCHECK(node_);
-      return *operator->();
-    }
+    T& operator*() { return *operator->(); }
 
     Iterator& operator++() {
       node_ = static_cast<uintptr_t>(internal::MaybeHeadAndTail(node_)->next_);
@@ -159,6 +152,15 @@ class IntrusiveList : private internal::ListOps {
     Iterator& operator--() {
       node_ = static_cast<uintptr_t>(internal::MaybeHeadAndTail(node_)->prev_);
       PERFETTO_DCHECK(node_);
+      return *this;
+    }
+
+    // Erases the current node and moves to the next one (or to end()).
+    Iterator& Erase() {
+      PERFETTO_DCHECK(*this);
+      auto* cur = reinterpret_cast<internal::ListNode*>(node_);
+      ++(*this);  // Move the iterator before erasing so it stays valid.
+      internal::ListOps::Erase(cur);
       return *this;
     }
 
@@ -194,13 +196,25 @@ class IntrusiveList : private internal::ListOps {
   void Erase(T& entry) { internal::ListOps::Erase(nodeof(&entry)); }
 
   bool empty() const { return internal::ListOps::empty(); }
-  size_t size() const { return size_; }
 
   Iterator begin() { return Iterator(head_and_tail_.next_); }
   Iterator end() { return Iterator(sentinel()); }
 
   Iterator rbegin() { return Iterator(head_and_tail_.prev_); }
   Iterator rend() { return Iterator(sentinel()); }
+
+  // Obtains back a List from an iterator. It is okay to pass a falsy iterator
+  // (i.e. end() / an iterator that was incremented past the last valid entry).
+  static IntrusiveList<T, ListTraits>* FromIterator(Iterator it) {
+    // Rewind the iterator until we reach the head_and_tail.
+    for (; it; --it) {
+    }
+    uintptr_t ht_ptr =
+        reinterpret_cast<uintptr_t>(internal::MaybeHeadAndTail(it.node_));
+    using ListType = IntrusiveList<T, ListTraits>;
+    return reinterpret_cast<ListType*>(ht_ptr -
+                                       offsetof(ListType, head_and_tail_));
+  }
 
  private:
   static constexpr size_t kNodeOffset = ListTraits::node_offset();

@@ -171,7 +171,7 @@ class Slab {
 
   Slot* next_free_slot_{nullptr};
   size_t size_{0};
-  base::IntrusiveListNode<Slab, IntrusiveListTraits> intrusive_list_node_;
+  base::IntrusiveListNode intrusive_list_node_;
   base::PagedMemory paged_memory_;
 };
 

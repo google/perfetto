@@ -26,7 +26,6 @@ void ListOps::PushFront(internal::ListNode* node) {
   node->next_ = head_and_tail_.next_;
   head_and_tail_.next_ = reinterpret_cast<uintptr_t>(node);
   MaybeHeadAndTail(node->next_)->prev_ = reinterpret_cast<uintptr_t>(node);
-  ++size_;
 }
 
 void ListOps::PushBack(internal::ListNode* node) {
@@ -35,7 +34,6 @@ void ListOps::PushBack(internal::ListNode* node) {
   node->prev_ = head_and_tail_.prev_;
   head_and_tail_.prev_ = reinterpret_cast<uintptr_t>(node);
   MaybeHeadAndTail(node->prev_)->next_ = reinterpret_cast<uintptr_t>(node);
-  ++size_;
 }
 
 void ListOps::InsertBefore(uintptr_t other_addr, internal::ListNode* node) {
@@ -48,7 +46,6 @@ void ListOps::InsertBefore(uintptr_t other_addr, internal::ListNode* node) {
   node->prev_ = prev_addr;
   node->next_ = other_addr;
   other->prev_ = reinterpret_cast<uintptr_t>(node);
-  ++size_;
 }
 
 void ListOps::PopFront() {
@@ -57,7 +54,6 @@ void ListOps::PopFront() {
   head_and_tail_.next_ = front->next_;
   MaybeHeadAndTail(head_and_tail_.next_)->prev_ = sentinel();
   front->next_ = front->prev_ = 0;
-  --size_;
 }
 
 void ListOps::PopBack() {
@@ -66,15 +62,16 @@ void ListOps::PopBack() {
   head_and_tail_.prev_ = back->prev_;
   MaybeHeadAndTail(head_and_tail_.prev_)->next_ = sentinel();
   back->next_ = back->prev_ = 0;
-  --size_;
 }
 
+// static
 void ListOps::Erase(internal::ListNode* node) {
   PERFETTO_DCHECK(node->prev_ && node->next_);
-  MaybeHeadAndTail(node->prev_)->next_ = node->next_;
-  MaybeHeadAndTail(node->next_)->prev_ = node->prev_;
+  auto* prev = MaybeHeadAndTail(node->prev_);
+  auto* next = MaybeHeadAndTail(node->next_);
+  prev->next_ = node->next_;
+  next->prev_ = node->prev_;
   node->prev_ = node->next_ = 0;
-  --size_;
 }
 
 }  // namespace perfetto::base::internal
