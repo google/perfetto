@@ -228,6 +228,8 @@ perfetto_cc_library(
         ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_config_system_info_cpp",
         ":protos_perfetto_config_system_info_zero",
+        ":protos_perfetto_config_thermal_cpp",
+        ":protos_perfetto_config_thermal_zero",
         ":protos_perfetto_config_track_event_cpp",
         ":protos_perfetto_config_track_event_zero",
         ":protos_perfetto_config_zero",
@@ -294,6 +296,7 @@ perfetto_cc_binary(
         ":protos_perfetto_config_statsd_cpp",
         ":protos_perfetto_config_sys_stats_cpp",
         ":protos_perfetto_config_system_info_cpp",
+        ":protos_perfetto_config_thermal_cpp",
         ":protos_perfetto_config_track_event_cpp",
         ":protozero",
         ":src_base_base",
@@ -461,6 +464,7 @@ perfetto_cc_library(
                ":protos_perfetto_config_statsd_zero",
                ":protos_perfetto_config_sys_stats_zero",
                ":protos_perfetto_config_system_info_zero",
+               ":protos_perfetto_config_thermal_zero",
                ":protos_perfetto_config_track_event_zero",
                ":protos_perfetto_config_zero",
                ":protos_perfetto_perfetto_sql_zero",
@@ -553,6 +557,7 @@ perfetto_cc_library(
         ":protos_perfetto_config_statsd_zero",
         ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_config_system_info_zero",
+        ":protos_perfetto_config_thermal_zero",
         ":protos_perfetto_config_track_event_zero",
         ":protos_perfetto_config_zero",
         ":protos_perfetto_trace_android_winscope_common_zero",
@@ -623,6 +628,8 @@ perfetto_cc_binary(
         ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_config_system_info_cpp",
         ":protos_perfetto_config_system_info_zero",
+        ":protos_perfetto_config_thermal_cpp",
+        ":protos_perfetto_config_thermal_zero",
         ":protos_perfetto_config_track_event_cpp",
         ":protos_perfetto_config_track_event_zero",
         ":protos_perfetto_config_zero",
@@ -701,6 +708,7 @@ perfetto_cc_library(
             ":src_traced_probes_sys_stats_sys_stats",
             ":src_traced_probes_system_info_cpu_info_features_allowlist",
             ":src_traced_probes_system_info_system_info",
+            ":src_traced_probes_thermal_thermal",
             ":src_tracing_ipc_producer_producer",
         ],
     }),
@@ -748,6 +756,8 @@ perfetto_cc_library(
         ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_config_system_info_cpp",
         ":protos_perfetto_config_system_info_zero",
+        ":protos_perfetto_config_thermal_cpp",
+        ":protos_perfetto_config_thermal_zero",
         ":protos_perfetto_config_track_event_cpp",
         ":protos_perfetto_config_track_event_zero",
         ":protos_perfetto_config_zero",
@@ -4217,6 +4227,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/traced/probes/thermal:thermal
+perfetto_filegroup(
+    name = "src_traced_probes_thermal_thermal",
+    srcs = [
+        "src/traced/probes/thermal/android_thermal_data_source.cc",
+        "src/traced/probes/thermal/android_thermal_data_source.h",
+    ],
+)
+
 # GN target: //src/traced/probes:data_source
 perfetto_filegroup(
     name = "src_traced_probes_data_source",
@@ -4669,6 +4688,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_statsd_protos",
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
+        ":protos_perfetto_config_thermal_protos",
         ":protos_perfetto_config_track_event_protos",
     ],
 )
@@ -4735,6 +4755,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_statsd_protos",
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
+        ":protos_perfetto_config_thermal_protos",
         ":protos_perfetto_config_track_event_protos",
         ":protos_perfetto_trace_android_protos",
         ":protos_perfetto_trace_android_winscope_common_protos",
@@ -5103,6 +5124,7 @@ perfetto_cc_library(
         ":protos_perfetto_config_statsd_zero_h",
         ":protos_perfetto_config_sys_stats_zero_h",
         ":protos_perfetto_config_system_info_zero_h",
+        ":protos_perfetto_config_thermal_zero_h",
         ":protos_perfetto_config_track_event_zero_h",
         ":protos_perfetto_config_zero_h",
         ":protos_perfetto_trace_android_winscope_common_zero_h",
@@ -5141,6 +5163,7 @@ perfetto_cc_library(
         ":protos_perfetto_config_statsd_zero",
         ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_config_system_info_zero",
+        ":protos_perfetto_config_thermal_zero",
         ":protos_perfetto_config_track_event_zero",
         ":protos_perfetto_config_zero",
         ":protos_perfetto_trace_android_winscope_common_zero",
@@ -5275,6 +5298,7 @@ perfetto_cc_protocpp_library(
         ":protos_perfetto_config_statsd_cpp",
         ":protos_perfetto_config_sys_stats_cpp",
         ":protos_perfetto_config_system_info_cpp",
+        ":protos_perfetto_config_thermal_cpp",
         ":protos_perfetto_config_track_event_cpp",
     ],
 )
@@ -5526,6 +5550,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_statsd_protos",
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
+        ":protos_perfetto_config_thermal_protos",
         ":protos_perfetto_config_track_event_protos",
     ],
 )
@@ -5617,6 +5642,33 @@ perfetto_cc_protozero_library(
     ],
 )
 
+# GN target: //protos/perfetto/config/thermal:cpp
+perfetto_cc_protocpp_library(
+    name = "protos_perfetto_config_thermal_cpp",
+    deps = [
+        ":protos_perfetto_config_thermal_protos",
+    ],
+)
+
+# GN target: //protos/perfetto/config/thermal:source_set
+perfetto_proto_library(
+    name = "protos_perfetto_config_thermal_protos",
+    srcs = [
+        "protos/perfetto/config/thermal/android_thermal_config.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+)
+
+# GN target: //protos/perfetto/config/thermal:zero
+perfetto_cc_protozero_library(
+    name = "protos_perfetto_config_thermal_zero",
+    deps = [
+        ":protos_perfetto_config_thermal_protos",
+    ],
+)
+
 # GN target: //protos/perfetto/config/track_event:cpp
 perfetto_cc_protocpp_library(
     name = "protos_perfetto_config_track_event_cpp",
@@ -5661,6 +5713,7 @@ perfetto_cc_protozero_library(
         ":protos_perfetto_config_statsd_zero",
         ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_config_system_info_zero",
+        ":protos_perfetto_config_thermal_zero",
         ":protos_perfetto_config_track_event_zero",
     ],
 )
@@ -5682,6 +5735,7 @@ perfetto_cc_protocpp_library(
         ":protos_perfetto_config_statsd_cpp",
         ":protos_perfetto_config_sys_stats_cpp",
         ":protos_perfetto_config_system_info_cpp",
+        ":protos_perfetto_config_thermal_cpp",
         ":protos_perfetto_config_track_event_cpp",
         ":protos_perfetto_ipc_protos",
     ],
@@ -5704,6 +5758,7 @@ perfetto_cc_ipc_library(
         ":protos_perfetto_config_statsd_cpp",
         ":protos_perfetto_config_sys_stats_cpp",
         ":protos_perfetto_config_system_info_cpp",
+        ":protos_perfetto_config_thermal_cpp",
         ":protos_perfetto_config_track_event_cpp",
         ":protos_perfetto_ipc_cpp",
         ":protos_perfetto_ipc_protos",
@@ -5735,6 +5790,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_statsd_protos",
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
+        ":protos_perfetto_config_thermal_protos",
         ":protos_perfetto_config_track_event_protos",
     ],
 )
@@ -6468,6 +6524,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_statsd_protos",
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
+        ":protos_perfetto_config_thermal_protos",
         ":protos_perfetto_config_track_event_protos",
     ],
 )
@@ -6488,6 +6545,7 @@ perfetto_cc_protozero_library(
         ":protos_perfetto_config_statsd_zero",
         ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_config_system_info_zero",
+        ":protos_perfetto_config_thermal_zero",
         ":protos_perfetto_config_track_event_zero",
         ":protos_perfetto_config_zero",
         ":protos_perfetto_trace_minimal_protos",
@@ -6525,6 +6583,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_statsd_protos",
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
+        ":protos_perfetto_config_thermal_protos",
         ":protos_perfetto_config_track_event_protos",
         ":protos_perfetto_trace_android_protos",
         ":protos_perfetto_trace_android_winscope_common_protos",
@@ -6568,6 +6627,7 @@ perfetto_cc_protozero_library(
         ":protos_perfetto_config_statsd_zero",
         ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_config_system_info_zero",
+        ":protos_perfetto_config_thermal_zero",
         ":protos_perfetto_config_track_event_zero",
         ":protos_perfetto_config_zero",
         ":protos_perfetto_trace_android_winscope_common_zero",
@@ -6736,6 +6796,7 @@ perfetto_proto_library(
         ":protos_perfetto_config_statsd_protos",
         ":protos_perfetto_config_sys_stats_protos",
         ":protos_perfetto_config_system_info_protos",
+        ":protos_perfetto_config_thermal_protos",
         ":protos_perfetto_config_track_event_protos",
         ":protos_perfetto_trace_android_protos",
         ":protos_perfetto_trace_android_winscope_common_protos",
@@ -7149,6 +7210,8 @@ perfetto_cc_library(
         ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_config_system_info_cpp",
         ":protos_perfetto_config_system_info_zero",
+        ":protos_perfetto_config_thermal_cpp",
+        ":protos_perfetto_config_thermal_zero",
         ":protos_perfetto_config_track_event_cpp",
         ":protos_perfetto_config_track_event_zero",
         ":protos_perfetto_config_zero",
@@ -7246,6 +7309,8 @@ perfetto_cc_binary(
         ":protos_perfetto_config_sys_stats_zero",
         ":protos_perfetto_config_system_info_cpp",
         ":protos_perfetto_config_system_info_zero",
+        ":protos_perfetto_config_thermal_cpp",
+        ":protos_perfetto_config_thermal_zero",
         ":protos_perfetto_config_track_event_cpp",
         ":protos_perfetto_config_track_event_zero",
         ":protos_perfetto_config_zero",
@@ -7419,6 +7484,7 @@ perfetto_cc_library(
                ":protos_perfetto_config_statsd_zero",
                ":protos_perfetto_config_sys_stats_zero",
                ":protos_perfetto_config_system_info_zero",
+               ":protos_perfetto_config_thermal_zero",
                ":protos_perfetto_config_track_event_zero",
                ":protos_perfetto_config_zero",
                ":protos_perfetto_perfetto_sql_zero",
@@ -7619,6 +7685,7 @@ perfetto_cc_binary(
                ":protos_perfetto_config_statsd_zero",
                ":protos_perfetto_config_sys_stats_zero",
                ":protos_perfetto_config_system_info_zero",
+               ":protos_perfetto_config_thermal_zero",
                ":protos_perfetto_config_track_event_zero",
                ":protos_perfetto_config_zero",
                ":protos_perfetto_perfetto_sql_zero",
@@ -7822,6 +7889,7 @@ perfetto_cc_binary(
                ":protos_perfetto_config_statsd_zero",
                ":protos_perfetto_config_sys_stats_zero",
                ":protos_perfetto_config_system_info_zero",
+               ":protos_perfetto_config_thermal_zero",
                ":protos_perfetto_config_track_event_zero",
                ":protos_perfetto_config_zero",
                ":protos_perfetto_perfetto_sql_zero",

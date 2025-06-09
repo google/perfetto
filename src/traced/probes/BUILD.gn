@@ -73,6 +73,7 @@ source_set("probes_src") {
     "statsd_client",
     "sys_stats",
     "system_info",
+    "thermal",
   ]
   sources = [
     "probes_producer.cc",

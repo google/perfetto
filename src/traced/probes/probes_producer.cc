@@ -48,6 +48,7 @@
 #include "src/traced/probes/statsd_client/statsd_binder_data_source.h"
 #include "src/traced/probes/sys_stats/sys_stats_data_source.h"
 #include "src/traced/probes/system_info/system_info_data_source.h"
+#include "src/traced/probes/thermal/android_thermal_data_source.h"
 
 namespace perfetto {
 namespace {
@@ -189,6 +190,17 @@ ProbesProducer::CreateDSInstance<AndroidPowerDataSource>(
   return std::make_unique<AndroidPowerDataSource>(
       config, task_runner_, session_id,
       endpoint_->CreateTraceWriter(buffer_id, BufferExhaustedPolicy::kStall));
+}
+
+template <>
+std::unique_ptr<ProbesDataSource>
+ProbesProducer::CreateDSInstance<AndroidThermalDataSource>(
+    TracingSessionID session_id,
+    const DataSourceConfig& config) {
+  auto buffer_id = static_cast<BufferID>(config.target_buffer());
+  return std::make_unique<AndroidThermalDataSource>(
+      config, task_runner_, session_id,
+      endpoint_->CreateTraceWriter(buffer_id));
 }
 
 template <>
@@ -337,6 +349,7 @@ constexpr const DataSourceTraits kAllDataSources[] = {
     Ds<AndroidKernelWakelocksDataSource>(),
     Ds<AndroidLogDataSource>(),
     Ds<AndroidPowerDataSource>(),
+    Ds<AndroidThermalDataSource>(),
     Ds<AndroidSystemPropertyDataSource>(),
     Ds<FrozenFtraceDataSource>(),
     Ds<FtraceDataSource>(),

@@ -3706,6 +3706,16 @@ message TestConfig {
 
 // End of protos/perfetto/config/test_config.proto
 
+// Begin of protos/perfetto/config/thermal/android_thermal_config.proto
+
+message AndroidThermalConfig {
+  optional uint32 poll_ms = 1;
+  repeated string sensors = 2;
+  repeated string sensors_sysfs = 3;
+}
+
+// End of protos/perfetto/config/thermal/android_thermal_config.proto
+
 // Begin of protos/perfetto/config/track_event/track_event_config.proto
 
 message TrackEventConfig {
@@ -3893,6 +3903,8 @@ message DataSourceConfig {
   optional JavaHprofConfig java_hprof_config = 110 [lazy = true];
   // Data source name: android.power
   optional AndroidPowerConfig android_power_config = 106 [lazy = true];
+  // Data source name: android.thermal
+  optional AndroidThermalConfig android_thermal_config = 136 [lazy = true];
   // Data source name: android.log
   optional AndroidLogConfig android_log_config = 107 [lazy = true];
   // Data source name: gpu.counters
