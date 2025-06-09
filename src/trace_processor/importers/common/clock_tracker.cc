@@ -16,23 +16,28 @@
 
 #include "src/trace_processor/importers/common/clock_tracker.h"
 
-#include <time.h>
-
 #include <algorithm>
-#include <atomic>
 #include <cinttypes>
+#include <cstdint>
+#include <ctime>
+#include <iterator>
+#include <limits>
+#include <optional>
 #include <queue>
+#include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/hash.h"
-#include "src/trace_processor/storage/trace_storage.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/public/compiler.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 using Clock = protos::pbzero::ClockSnapshot::Clock;
 
@@ -86,6 +91,15 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
           clock_id, clock_ts.clock.unit_multiplier_ns,
           clock_ts.clock.is_incremental, domain.unit_multiplier_ns,
           domain.is_incremental);
+    }
+    if (PERFETTO_UNLIKELY(clock_id == trace_time_clock_id_ &&
+                          domain.unit_multiplier_ns != 1)) {
+      // The trace time clock must always be in nanoseconds.
+      context_->storage->IncrementStats(stats::invalid_clock_snapshots);
+      return base::ErrStatus(
+          "Clock sync error: the trace clock (id=%" PRId64
+          ") must always use nanoseconds as unit multiplier.",
+          clock_id);
     }
     const int64_t timestamp_ns = clock_ts.timestamp * domain.unit_multiplier_ns;
     domain.last_timestamp_ns = timestamp_ns;
@@ -332,5 +346,4 @@ base::StatusOr<int64_t> ClockTracker::ConvertSlowpath(ClockId src_clock_id,
   return ns;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
