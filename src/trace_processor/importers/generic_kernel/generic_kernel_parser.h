@@ -54,13 +54,13 @@ class GenericKernelParser {
   };
 
   std::optional<UniqueTid> GetUtidForState(int64_t ts,
-                                           uint32_t tid,
+                                           int64_t tid,
                                            StringId comm_id,
                                            size_t state);
 
   SchedSwitchType PushSchedSwitch(int64_t ts,
                                   uint32_t cpu,
-                                  uint32_t tid,
+                                  int64_t tid,
                                   UniqueTid utid,
                                   StringId state_string_id,
                                   int32_t prio);
