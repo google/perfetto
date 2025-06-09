@@ -153,7 +153,7 @@ export class TrackView {
       TrackShell,
       {
         id: node.id,
-        title: node.title,
+        title: node.name,
         subtitle: renderer?.desc.subtitle,
         ref: node.fullPath.join('/'),
         heightPx: height,
@@ -637,7 +637,7 @@ function renderTrackDetailsMenu(node: TrackNode, descriptor?: Track) {
         right: node.sortOrder ?? '0 (undefined)',
       }),
       m(TreeNode, {left: 'Path', right: fullPath}),
-      m(TreeNode, {left: 'Title', right: node.title}),
+      m(TreeNode, {left: 'Name', right: node.name}),
       descriptor &&
         m(TreeNode, {left: 'Description', right: descriptor?.description}),
       m(TreeNode, {

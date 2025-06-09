@@ -105,7 +105,7 @@ export default class implements PerfettoPlugin {
 
       const kind = isCounter ? COUNTER_TRACK_KIND : SLICE_TRACK_KIND;
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
-      const title = getTrackName({
+      const trackName = getTrackName({
         name,
         utid,
         upid,
@@ -126,7 +126,6 @@ export default class implements PerfettoPlugin {
         const trackId = trackIds[0];
         ctx.tracks.registerTrack({
           uri,
-          title,
           tags: {
             kind,
             trackIds: [trackIds[0]],
@@ -140,13 +139,12 @@ export default class implements PerfettoPlugin {
               unit: unit ?? undefined,
             },
             trackId,
-            title,
+            trackName,
           ),
         });
       } else if (hasData) {
         ctx.tracks.registerTrack({
           uri,
-          title,
           tags: {
             kind,
             trackIds: trackIds,
@@ -170,10 +168,10 @@ export default class implements PerfettoPlugin {
         hasChildren,
       );
       const node = new TrackNode({
-        title,
+        name: trackName,
         sortOrder: orderId,
         isSummary: hasData === 0,
-        uri: uri,
+        uri,
       });
       parent.addChildInOrder(node);
       trackIdToTrackNode.set(trackIds[0], node);
@@ -205,7 +203,7 @@ export default class implements PerfettoPlugin {
     let node = this.parentTrackNodes.get(id);
     if (node === undefined) {
       node = new TrackNode({
-        title: 'Global Track Events',
+        name: 'Global Track Events',
         isSummary: true,
       });
       ctx.workspace.addChildInOrder(node);

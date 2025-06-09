@@ -39,7 +39,6 @@ async function registerAllocsTrack(
   });
   ctx.tracks.registerTrack({
     uri,
-    title: `dmabuf allocs`,
     renderer: track,
   });
 }
@@ -77,7 +76,7 @@ export default class implements PerfettoPlugin {
         ctx.plugins
           .getPlugin(ProcessThreadGroupsPlugin)
           .getGroupForProcess(it.upid)
-          ?.addChildInOrder(new TrackNode({uri, title: 'dmabuf allocs'}));
+          ?.addChildInOrder(new TrackNode({uri, name: 'dmabuf allocs'}));
       } else if (it.utid != null) {
         const uri = `/android_process_dmabuf_utid_${it.utid}`;
         const config: SqlDataSource = {
@@ -88,7 +87,7 @@ export default class implements PerfettoPlugin {
         ctx.plugins
           .getPlugin(ProcessThreadGroupsPlugin)
           .getGroupForThread(it.utid)
-          ?.addChildInOrder(new TrackNode({uri, title: 'dmabuf allocs'}));
+          ?.addChildInOrder(new TrackNode({uri, name: 'dmabuf allocs'}));
       }
     }
     const memoryGroupFn = () => {
@@ -117,7 +116,6 @@ async function addGlobalCounter(ctx: Trace, parent: () => TrackNode) {
   const uri = `/android_dmabuf_counter`;
   ctx.tracks.registerTrack({
     uri,
-    title,
     tags: {
       kind: COUNTER_TRACK_KIND,
       trackIds: [id],
@@ -126,7 +124,7 @@ async function addGlobalCounter(ctx: Trace, parent: () => TrackNode) {
   });
   const node = new TrackNode({
     uri,
-    title,
+    name: title,
   });
   parent().addChildInOrder(node);
   return node;
@@ -148,7 +146,6 @@ async function addGlobalAllocs(ctx: Trace, parent: () => TrackNode) {
   const ids = trackIds.split(',').map((x) => Number(x));
   ctx.tracks.registerTrack({
     uri,
-    title,
     tags: {
       kind: SLICE_TRACK_KIND,
       trackIds: ids,
@@ -161,7 +158,7 @@ async function addGlobalAllocs(ctx: Trace, parent: () => TrackNode) {
   });
   const node = new TrackNode({
     uri,
-    title,
+    name: title,
   });
   parent().addChildInOrder(node);
 }

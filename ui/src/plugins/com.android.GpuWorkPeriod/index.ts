@@ -69,7 +69,6 @@ export default class implements PerfettoPlugin {
       });
       ctx.tracks.registerTrack({
         uri,
-        title: packageName,
         tags: {
           trackIds: [trackId],
           kind: SLICE_TRACK_KIND,
@@ -79,13 +78,13 @@ export default class implements PerfettoPlugin {
       let workPeriod = workPeriodByGpu.get(gpuId);
       if (workPeriod === undefined) {
         workPeriod = new TrackNode({
-          title: `GPU Work Period (GPU ${gpuId})`,
+          name: `GPU Work Period (GPU ${gpuId})`,
           isSummary: true,
         });
         workPeriodByGpu.set(gpuId, workPeriod);
         ctx.workspace.addChildInOrder(workPeriod);
       }
-      workPeriod.addChildInOrder(new TrackNode({title: packageName, uri}));
+      workPeriod.addChildInOrder(new TrackNode({name: packageName, uri: uri}));
     }
   }
 }

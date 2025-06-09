@@ -53,7 +53,7 @@ export default class implements PerfettoPlugin {
   private pinTracks(ctx: Trace, trackNames: ReadonlyArray<string>) {
     ctx.workspace.flatTracks.forEach((track) => {
       trackNames.forEach((trackName) => {
-        if (track.title.match(trackName)) {
+        if (track.name.match(trackName)) {
           track.pin();
         }
       });

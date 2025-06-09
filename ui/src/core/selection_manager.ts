@@ -80,8 +80,8 @@ export class SelectionManagerImpl implements SelectionManager {
     this.selectTrackEventInternal(trackUri, eventId, opts);
   }
 
-  selectTrack(trackUri: string, opts?: SelectionOpts) {
-    this.setSelection({kind: 'track', trackUri}, opts);
+  selectTrack(uri: string, opts?: SelectionOpts) {
+    this.setSelection({kind: 'track', trackUri: uri}, opts);
   }
 
   selectNote(args: {id: string}, opts?: SelectionOpts) {
@@ -384,7 +384,7 @@ export class SelectionManagerImpl implements SelectionManager {
     const range = this.findTimeRangeOfSelection();
     this.scrollHelper.scrollTo({
       time: range ? {...range} : undefined,
-      track: uri ? {uri: uri, expandGroup: true} : undefined,
+      track: uri ? {uri, expandGroup: true} : undefined,
     });
   }
 
