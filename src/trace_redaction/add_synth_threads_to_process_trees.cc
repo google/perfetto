@@ -30,35 +30,29 @@
 namespace perfetto::trace_redaction {
 namespace {
 
-void AddProcessToProcessTree(const Context& context,
+void AddProcessToProcessTree(const SyntheticProcess& synthetic_process,
                              protos::pbzero::ProcessTree* process_tree) {
-  PERFETTO_DCHECK(context.synthetic_process);
-  PERFETTO_DCHECK(context.synthetic_process->tids().size() >= 2);
-
   auto* process = process_tree->add_processes();
-  process->set_uid(context.synthetic_process->uid());
-  process->set_ppid(context.synthetic_process->ppid());
-  process->set_pid(context.synthetic_process->tids().front());
+  process->set_uid(synthetic_process.uid());
+  process->set_ppid(synthetic_process.ppid());
+  process->set_pid(synthetic_process.tgid());
   process->add_cmdline("Other-Processes");
 }
 
-void AddThreadsToProcessTree(const Context& context,
+void AddThreadsToProcessTree(const SyntheticProcess& synthetic_process,
                              protos::pbzero::ProcessTree* process_tree) {
-  PERFETTO_DCHECK(context.synthetic_process);
+  auto tgid = synthetic_process.tgid();
+  const auto& tids = synthetic_process.tids();
 
-  auto& tids = context.synthetic_process->tids();
-  PERFETTO_DCHECK(tids.size() >= 2);
+  PERFETTO_DCHECK(!tids.empty());
 
-  auto it = tids.begin();
-  ++it;
-
-  for (; it != tids.end(); ++it) {
-    auto name = std::to_string(*it);
+  for (auto tid : tids) {
+    auto name = std::to_string(tid);
     name.insert(0, "cpu-");
 
     auto* thread = process_tree->add_threads();
-    thread->set_tgid(context.synthetic_process->tgid());
-    thread->set_tid(*it);
+    thread->set_tgid(tgid);
+    thread->set_tid(tid);
     thread->set_name(name);
   }
 }
@@ -72,6 +66,9 @@ void CopyProcessTreeEntries(protozero::Field src,
 
   protozero::ProtoDecoder decoder(src.as_bytes());
 
+  // We need to copy field-by-field. If we copy the source process tree at
+  // one time will prevent other functions from adding their own processes
+  // and threads.
   for (auto it = decoder.ReadField(); it.valid(); it = decoder.ReadField()) {
     proto_util::AppendField(it, dest);
   }
@@ -89,7 +86,9 @@ base::Status AddSythThreadsToProcessTrees::Transform(
         "AddSythThreadsToProcessTrees: missing synthentic threads.");
   }
 
-  if (context.synthetic_process->tids().size() <= 2) {
+  const auto& synthetic_process = *context.synthetic_process;
+
+  if (synthetic_process.tids().empty()) {
     return base::ErrStatus(
         "AddSythThreadsToProcessTrees: no synthentic threads in synthentic "
         "process.");
@@ -102,10 +101,10 @@ base::Status AddSythThreadsToProcessTrees::Transform(
     if (it.id() == protos::pbzero::TracePacket::kProcessTreeFieldNumber) {
       auto* process_tree = message->set_process_tree();
 
-      CopyProcessTreeEntries(it, process_tree);
+      AddProcessToProcessTree(synthetic_process, process_tree);
+      AddThreadsToProcessTree(synthetic_process, process_tree);
 
-      AddProcessToProcessTree(context, process_tree);
-      AddThreadsToProcessTree(context, process_tree);
+      CopyProcessTreeEntries(it, process_tree);
     } else {
       proto_util::AppendField(it, message.get());
     }
