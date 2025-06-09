@@ -25,13 +25,13 @@ export default class implements PerfettoPlugin {
     await ctx.engine.query(`INCLUDE PERFETTO MODULE linux.block_io`);
     const devices = await this.lookupDevices(ctx.engine);
     const group = new TrackNode({
-      title: 'Queued IO requests',
+      name: 'Queued IO requests',
       sortOrder: -5,
       isSummary: true,
     });
     for (const device of devices) {
       const uri = `/queued_io_request_count/device_${device['id']}`;
-      const title = `dev major:${device['major']} minor:${device['minor']}`;
+      const name = `dev major:${device['major']} minor:${device['minor']}`;
       const track = await createQueryCounterTrack({
         trace: ctx,
         uri,
@@ -45,14 +45,13 @@ export default class implements PerfettoPlugin {
       });
       ctx.tracks.registerTrack({
         uri,
-        title,
         tags: {
           device: device['id'],
           groupName: 'Queued IO requests',
         },
-        track,
+        renderer: track,
       });
-      const node = new TrackNode({uri, title});
+      const node = new TrackNode({uri, name});
       group.addChildInOrder(node);
     }
     if (group.children.length) {

@@ -13250,9 +13250,9 @@ class ReadyThreadEtwEvent(_message.Message):
     adjust_reason: ReadyThreadEtwEvent.AdjustReason
     adjust_reason_int: int
     flag: ReadyThreadEtwEvent.TraceFlag
-    flag_int: ReadyThreadEtwEvent.TraceFlag
+    flag_int: int
     t_thread_id: int
-    def __init__(self, t_thread_id: _Optional[int] = ..., adjust_reason: _Optional[_Union[ReadyThreadEtwEvent.AdjustReason, str]] = ..., adjust_reason_int: _Optional[int] = ..., adjust_increment: _Optional[int] = ..., flag: _Optional[_Union[ReadyThreadEtwEvent.TraceFlag, str]] = ..., flag_int: _Optional[_Union[ReadyThreadEtwEvent.TraceFlag, str]] = ...) -> None: ...
+    def __init__(self, t_thread_id: _Optional[int] = ..., adjust_reason: _Optional[_Union[ReadyThreadEtwEvent.AdjustReason, str]] = ..., adjust_reason_int: _Optional[int] = ..., adjust_increment: _Optional[int] = ..., flag: _Optional[_Union[ReadyThreadEtwEvent.TraceFlag, str]] = ..., flag_int: _Optional[int] = ...) -> None: ...
 
 class RectProto(_message.Message):
     __slots__ = ["bottom", "left", "right", "top"]

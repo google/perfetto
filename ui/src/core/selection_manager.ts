@@ -80,8 +80,8 @@ export class SelectionManagerImpl implements SelectionManager {
     this.selectTrackEventInternal(trackUri, eventId, opts);
   }
 
-  selectTrack(trackUri: string, opts?: SelectionOpts) {
-    this.setSelection({kind: 'track', trackUri}, opts);
+  selectTrack(uri: string, opts?: SelectionOpts) {
+    this.setSelection({kind: 'track', trackUri: uri}, opts);
   }
 
   selectNote(args: {id: string}, opts?: SelectionOpts) {
@@ -240,9 +240,9 @@ export class SelectionManagerImpl implements SelectionManager {
 
     this.trackManager
       .getAllTracks()
-      .filter((track) => track.track.rootTableName === sqlTableName)
+      .filter((track) => track.renderer.rootTableName === sqlTableName)
       .map((track) => {
-        const dataset = track.track.getDataset?.();
+        const dataset = track.renderer.getDataset?.();
         if (!dataset) return undefined;
         return [dataset, track] as const;
       })
@@ -384,7 +384,7 @@ export class SelectionManagerImpl implements SelectionManager {
     const range = this.findTimeRangeOfSelection();
     this.scrollHelper.scrollTo({
       time: range ? {...range} : undefined,
-      track: uri ? {uri: uri, expandGroup: true} : undefined,
+      track: uri ? {uri, expandGroup: true} : undefined,
     });
   }
 
@@ -401,7 +401,7 @@ export class SelectionManagerImpl implements SelectionManager {
       );
     }
 
-    const trackRenderer = track.track;
+    const trackRenderer = track.renderer;
     if (!trackRenderer.getSelectionDetails) {
       throw new Error(
         `Unable to resolve selection details: Track ${trackUri} does not support selection details`,
@@ -433,7 +433,7 @@ export class SelectionManagerImpl implements SelectionManager {
     if (!td) {
       return;
     }
-    const panel = td.track.detailsPanel?.(selection);
+    const panel = td.renderer.detailsPanel?.(selection);
     if (!panel) {
       return;
     }
