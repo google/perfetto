@@ -1149,15 +1149,15 @@ SELECT
   deobfuscated_field_name
 FROM __intrinsic_heap_graph_reference;
 
--- Table with memory snpashots.
+-- Table with memory snapshots.
 CREATE PERFETTO VIEW memory_snapshot (
-  -- Unique identifier for this memory_snapshot.
+  -- Unique identifier for this snapshot.
   id ID,
-  -- Timestamp for the point of time this memory_snapshot was taken.
+  -- Time of the snapshot.
   ts TIMESTAMP,
-  -- Track ID for this memory_snapshot.
+  -- Track of this snapshot.
   track_id JOINID(track.id),
-  -- Detail level for this memory snapshot.
+  -- Detail level.
   detail_level STRING
 ) AS
 SELECT
@@ -1167,11 +1167,11 @@ SELECT
   detail_level
 FROM __intrinsic_memory_snapshot;
 
--- Table with process memory snapshots
+-- Table with process memory snapshots.
 CREATE PERFETTO VIEW process_memory_snapshot (
-  -- Unique identifier for this process_memory_snapshot
+  -- Unique identifier for this snapshot.
   id ID,
-  -- Snapshot ID for this process_memory_snapshot.
+  -- Snapshot ID for this snapshot.
   snapshot_id JOINID(memory_snapshot.id),
   -- Unique identifier for this process in this Perfetto trace.
   upid JOINID(process.id)
@@ -1182,21 +1182,21 @@ SELECT
   upid
 FROM __intrinsic_process_memory_snapshot;
 
--- Table with memory snapchot nodes
+-- Table with memory snapshot nodes.
 CREATE PERFETTO VIEW memory_snapshot_node (
-  -- Unique identifier for this memory_snapshot_node.
+  -- Unique identifier for this node.
   id ID,
-  -- Process snaphshot id coressponding to this memory snapshot node.
+  -- Process snapshot id corresponding to this node.
   process_snapshot_id JOINID(process_memory_snapshot.id),
-  -- Parent node for this memory snapshot node, optional.
+  -- Parent node for this node, optional.
   parent_node_id JOINID(memory_snapshot_node.id),
-  -- Path for this memory snapshot node.
+  -- Path for this node.
   path STRING,
-  -- Size of the memory allocated to this memory snapshot node.
+  -- Size of the memory allocated to this node.
   size LONG,
-  -- Effective size used by this memory snapshot node.
+  -- Effective size used by this node.
   effective_size LONG,
-  -- Details of the input event parsed from the proto message.
+  -- Additional arguments of the proto message.
   arg_set_id ARGSETID
 ) AS
 SELECT
@@ -1209,16 +1209,16 @@ SELECT
   arg_set_id
 FROM __intrinsic_memory_snapshot_node;
 
--- Table with memory snaphsot edge
+-- Table with memory snapshot edge
 CREATE PERFETTO VIEW memory_snapshot_edge (
-  -- Unique identifier for this memory snapshot edge.
+  -- Unique identifier for this edge.
   id ID,
-  -- Source node for this memory snapshot edge. Starting point for the edge.
+  -- Source node for this edge - starting point for this edge.
   source_node_id JOINID(memory_snapshot_node.id),
-  -- Target node for this memory snapshot edge. End point for the edge
+  -- Target node for this edge - end point for this edge
   target_node_id JOINID(memory_snapshot_node.id),
-  -- Importance for this memory snapshot edge.
-  importance STRING
+  -- Importance for this edge.
+  importance LONG
 ) AS
 SELECT
   id,
