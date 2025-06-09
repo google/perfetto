@@ -121,8 +121,8 @@ using SparseNullCollapsedNullability = TypeSet<NonNull, SparseNull, DenseNull>;
 
 // TypeSet of all possible sparse nullability states.
 using SparseNullTypes = TypeSet<SparseNull,
-                                SparseNullSupportingCellGetAlways,
-                                SparseNullSupportingCellGetUntilFinalization>;
+                                SparseNullWithPopcountAlways,
+                                SparseNullWithPopcountUntilFinalization>;
 
 // Storage implementation for column data. Provides physical storage
 // for different types of column content.
@@ -260,12 +260,11 @@ class NullStorage {
   NullStorage(NonNull n) : nullability_(dataframe::NonNull{}), data_(n) {}
   NullStorage(SparseNull s, dataframe::SparseNull = dataframe::SparseNull{})
       : nullability_(dataframe::SparseNull{}), data_(std::move(s)) {}
-  NullStorage(SparseNull s, dataframe::SparseNullSupportingCellGetAlways)
-      : nullability_(dataframe::SparseNullSupportingCellGetAlways{}),
+  NullStorage(SparseNull s, dataframe::SparseNullWithPopcountAlways)
+      : nullability_(dataframe::SparseNullWithPopcountAlways{}),
         data_(std::move(s)) {}
-  NullStorage(SparseNull s,
-              dataframe::SparseNullSupportingCellGetUntilFinalization)
-      : nullability_(dataframe::SparseNullSupportingCellGetUntilFinalization{}),
+  NullStorage(SparseNull s, dataframe::SparseNullWithPopcountUntilFinalization)
+      : nullability_(dataframe::SparseNullWithPopcountUntilFinalization{}),
         data_(std::move(s)) {}
   NullStorage(DenseNull d)
       : nullability_(dataframe::DenseNull{}), data_(std::move(d)) {}
@@ -277,9 +276,8 @@ class NullStorage {
       return base::unchecked_get<NonNull>(data_);
     } else if constexpr (
         std::is_same_v<T, dataframe::SparseNull> ||
-        std::is_same_v<T, dataframe::SparseNullSupportingCellGetAlways> ||
-        std::is_same_v<
-            T, dataframe::SparseNullSupportingCellGetUntilFinalization>) {
+        std::is_same_v<T, dataframe::SparseNullWithPopcountAlways> ||
+        std::is_same_v<T, dataframe::SparseNullWithPopcountUntilFinalization>) {
       return base::unchecked_get<SparseNull>(data_);
     } else if constexpr (std::is_same_v<T, dataframe::DenseNull>) {
       return base::unchecked_get<DenseNull>(data_);
@@ -294,9 +292,8 @@ class NullStorage {
       return base::unchecked_get<NonNull>(data_);
     } else if constexpr (
         std::is_same_v<T, dataframe::SparseNull> ||
-        std::is_same_v<T, dataframe::SparseNullSupportingCellGetAlways> ||
-        std::is_same_v<
-            T, dataframe::SparseNullSupportingCellGetUntilFinalization>) {
+        std::is_same_v<T, dataframe::SparseNullWithPopcountAlways> ||
+        std::is_same_v<T, dataframe::SparseNullWithPopcountUntilFinalization>) {
       return base::unchecked_get<SparseNull>(data_);
     } else if constexpr (std::is_same_v<T, dataframe::DenseNull>) {
       return base::unchecked_get<DenseNull>(data_);
