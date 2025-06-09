@@ -111,7 +111,7 @@ export default class TrackUtilsPlugin implements PerfettoPlugin {
         ) as ReadonlyArray<RequiredField<TrackNode, 'uri'>>;
         const track = await ctx.omnibox.prompt('Choose a track...', {
           values: tracksWithUris,
-          getName: (track) => track.title,
+          getName: (track) => track.name,
         });
         track && track.pin();
       },

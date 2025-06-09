@@ -88,14 +88,13 @@ export default class implements PerfettoPlugin {
 
       ctx.tracks.registerTrack({
         uri,
-        title: name,
         tags: {
           kind: CPU_SLICE_TRACK_KIND,
           cpu: cpu.ucpu,
         },
         renderer: new CpuSliceTrack(ctx, uri, cpu, threads),
       });
-      const trackNode = new TrackNode({uri, title: name, sortOrder: -50});
+      const trackNode = new TrackNode({uri, name, sortOrder: -50});
       ctx.workspace.addChildInOrder(trackNode);
     }
 
@@ -186,7 +185,6 @@ export default class implements PerfettoPlugin {
       const uri = uriForThreadStateTrack(upid, utid);
       ctx.tracks.registerTrack({
         uri,
-        title,
         tags: {
           kind: THREAD_STATE_TRACK_KIND,
           utid,
@@ -202,7 +200,7 @@ export default class implements PerfettoPlugin {
       const group = ctx.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
         .getGroupForThread(utid);
-      const track = new TrackNode({uri, title, sortOrder: 10});
+      const track = new TrackNode({uri, name: title, sortOrder: 10});
       group?.addChildInOrder(track);
     }
   }
