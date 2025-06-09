@@ -56,24 +56,6 @@ void AddThreadsToProcessTree(const SyntheticProcess& synthetic_process,
     thread->set_name(name);
   }
 }
-
-// Copy fields from one process tree to another process tree.
-void CopyProcessTreeEntries(protozero::Field src,
-                            protos::pbzero::ProcessTree* dest) {
-  PERFETTO_DCHECK(src.valid());
-  PERFETTO_DCHECK(src.id() ==
-                  protos::pbzero::TracePacket::kProcessTreeFieldNumber);
-
-  protozero::ProtoDecoder decoder(src.as_bytes());
-
-  // We need to copy field-by-field. If we copy the source process tree at
-  // one time will prevent other functions from adding their own processes
-  // and threads.
-  for (auto it = decoder.ReadField(); it.valid(); it = decoder.ReadField()) {
-    proto_util::AppendField(it, dest);
-  }
-}
-
 }  // namespace
 
 base::Status AddSythThreadsToProcessTrees::Transform(
@@ -101,10 +83,11 @@ base::Status AddSythThreadsToProcessTrees::Transform(
     if (it.id() == protos::pbzero::TracePacket::kProcessTreeFieldNumber) {
       auto* process_tree = message->set_process_tree();
 
+      // Copy fields from one process tree to another process tree.
+      proto_util::AppendFields(it, process_tree);
+
       AddProcessToProcessTree(synthetic_process, process_tree);
       AddThreadsToProcessTree(synthetic_process, process_tree);
-
-      CopyProcessTreeEntries(it, process_tree);
     } else {
       proto_util::AppendField(it, message.get());
     }
