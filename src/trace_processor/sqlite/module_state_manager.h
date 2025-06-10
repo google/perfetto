@@ -193,7 +193,7 @@ class ModuleStateManager : public ModuleStateManagerBase {
   // the module implementation: use `GetState` inside the sqlite::Module
   // implementation.
   std::vector<std::pair<std::string, typename Module::State*>> GetAllStates() {
-    std::vector<typename Module::State*> states;
+    std::vector<std::pair<std::string, typename Module::State*>> states;
     states.reserve(state_by_name_.size());
     for (auto it = state_by_name_.GetIterator(); it; ++it) {
       if (auto* state = GetState(it.value().get()); state) {
