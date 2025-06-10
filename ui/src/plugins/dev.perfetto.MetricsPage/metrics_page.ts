@@ -63,17 +63,17 @@ async function getMetricV2(
     undefined,
     format === 'proto' ? 'proto' : 'prototext',
   );
-  if (result.error || result.error.length > 0) {
+  if (Boolean(result.error) || result.error.length > 0) {
     throw new Error(result.error);
   }
   switch (format) {
     case 'json':
-      if (!result.protoSummary) {
+      if (!Boolean(result.protoSummary)) {
         throw new Error('Error fetching Textproto trace summary');
       }
       return JSON.stringify(result.protoSummary, null, 2);
     case 'prototext':
-      if (!result.textprotoSummary) {
+      if (!Boolean(result.textprotoSummary)) {
         throw new Error('Error fetching Textproto trace summary');
       }
       return result.textprotoSummary;

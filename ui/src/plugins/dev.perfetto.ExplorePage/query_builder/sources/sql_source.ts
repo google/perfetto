@@ -94,7 +94,7 @@ export class SqlSourceNode implements QueryNode {
       this.state.groupByColumns,
       this.state.aggregations,
     );
-    if (groupByProto) sq.groupBy = groupByProto;
+    if (Boolean(groupByProto)) sq.groupBy = groupByProto;
 
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) sq.selectColumns = selectedColumns;
