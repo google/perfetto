@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {AsyncLimiter} from '../../../base/async_limiter';
-import {QueryNode} from '../query_node';
+import {NodeType, QueryNode} from '../query_node';
 import {Engine} from '../../../trace_processor/engine';
 import protos from '../../../protos';
 import {copyToClipboard} from '../../../base/clipboard';
@@ -25,6 +25,7 @@ import {Icons} from '../../../base/semantic_icons';
 import {Operator} from './operations/operation_component';
 import {Trace} from '../../../public/trace';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
+import {TextInput} from '../../../widgets/text_input';
 
 export interface QueryNodeExplorerAttrs {
   readonly node: QueryNode;
@@ -81,6 +82,25 @@ export class QueryNodeExplorer
       );
     };
 
+    const operators = (): m.Child => {
+      switch (attrs.node.type) {
+        case NodeType.kSimpleSlices:
+        case NodeType.kStdlibTable:
+          return m(Operator, {
+            filter: {
+              sourceCols: attrs.node.state.sourceCols,
+              filters: attrs.node.state.filters,
+            },
+            groupby: {
+              groupByColumns: attrs.node.state.groupByColumns,
+              aggregations: attrs.node.state.aggregations,
+            },
+          });
+        case NodeType.kSqlSource:
+          return;
+      }
+    };
+
     const getAndRunQuery = (): void => {
       const sq = attrs.node.getStructuredQuery();
       if (sq === undefined) return;
@@ -118,13 +138,27 @@ export class QueryNodeExplorer
               filled: true,
               title: 'Invalid node',
             }),
-          m('.title', attrs.node.getTitle()),
+          m(
+            '.title',
+            m(TextInput, {
+              placeholder: attrs.node.getTitle(),
+              oninput: (e: KeyboardEvent) => {
+                if (!e.target) return;
+                attrs.node.state.customTitle = (
+                  e.target as HTMLInputElement
+                ).value.trim();
+                if (attrs.node.state.customTitle === '') {
+                  attrs.node.state.customTitle = undefined;
+                }
+              },
+            }),
+          ),
           m('span.spacer'), // Added spacer to push menu to the right
           renderModeMenu(),
         ),
         m(
           'article',
-          attrs.node.getDetails(),
+          attrs.node.coreModify(),
           this.selectedView === SelectedView.kSql &&
             m(
               '.code-snippet',
@@ -135,17 +169,7 @@ export class QueryNodeExplorer
               }),
               m('code', sql),
             ),
-          this.selectedView === SelectedView.kModify &&
-            m(Operator, {
-              filter: {
-                sourceCols: attrs.node.state.sourceCols,
-                filters: attrs.node.state.filters,
-              },
-              groupby: {
-                groupByColumns: attrs.node.state.groupByColumns,
-                aggregations: attrs.node.state.aggregations,
-              },
-            }),
+          this.selectedView === SelectedView.kModify && operators(),
           this.selectedView === SelectedView.kProto &&
             m(
               '.code-snippet',

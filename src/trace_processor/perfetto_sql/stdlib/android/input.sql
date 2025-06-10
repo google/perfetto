@@ -192,7 +192,7 @@ CREATE PERFETTO TABLE android_input_events (
   dispatch_latency_dur DURATION,
   -- Duration from input received to input ACK sent.
   handling_latency_dur DURATION,
-  -- Duration from input ACK sent to input ACK recieved.
+  -- Duration from input ACK sent to input ACK received.
   ack_latency_dur DURATION,
   -- Duration from input dispatch to input event ACK received.
   total_latency_dur DURATION,

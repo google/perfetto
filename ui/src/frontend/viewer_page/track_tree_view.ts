@@ -290,7 +290,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     const track = trackNode.uri
       ? this.trace.tracks.getTrack(trackNode.uri)
       : undefined;
-    const tooltipNodes = track?.track.renderTooltip?.();
+    const tooltipNodes = track?.renderer.renderTooltip?.();
     if (!Boolean(tooltipNodes)) {
       return;
     }
@@ -542,7 +542,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         onClick: () => {
           // If a track hasn't intercepted the click, treat this as a
           // deselection event.
-          trace.selection.clear();
+          trace.selection.clearSelection();
         },
         drag: {
           minDistance: 1,

@@ -32,7 +32,7 @@ export class FrameSelectionAggregator implements AreaSelectionAggregator {
 
   async createAggregateView(
     engine: Engine,
-    area: AreaSelection,
+    _area: AreaSelection,
     dataset?: Dataset,
   ) {
     if (!dataset) return false;
@@ -46,8 +46,6 @@ export class FrameSelectionAggregator implements AreaSelectionAggregator {
         avg(dur) as meanDur,
         max(dur) as maxDur
       from (${dataset.query()})
-      where ts + dur > ${area.start}
-        AND ts < ${area.end}
       group by jank_type
     `);
     return true;
@@ -71,20 +69,20 @@ export class FrameSelectionAggregator implements AreaSelectionAggregator {
       },
       {
         title: 'Min duration',
-        kind: 'NUMBER',
-        columnConstructor: Uint16Array,
+        kind: 'TIMESTAMP_NS',
+        columnConstructor: Float64Array,
         columnId: 'minDur',
       },
       {
         title: 'Max duration',
-        kind: 'NUMBER',
-        columnConstructor: Uint16Array,
+        kind: 'TIMESTAMP_NS',
+        columnConstructor: Float64Array,
         columnId: 'maxDur',
       },
       {
         title: 'Mean duration',
-        kind: 'NUMBER',
-        columnConstructor: Uint16Array,
+        kind: 'TIMESTAMP_NS',
+        columnConstructor: Float64Array,
         columnId: 'meanDur',
       },
       {

@@ -102,7 +102,7 @@ export interface Engine {
 
   summarizeTrace(
     summarySpecs: protos.TraceSummarySpec[] | string[],
-    metricIds: string[],
+    metricIds: string[] | undefined,
     metadataId: string | undefined,
     format: 'prototext' | 'proto',
   ): Promise<protos.TraceSummaryResult>;
@@ -427,7 +427,7 @@ export abstract class EngineBase implements Engine, Disposable {
 
   summarizeTrace(
     summarySpecs: protos.TraceSummarySpec[] | string[],
-    metricIds: string[],
+    metricIds: string[] | undefined,
     metadataId: string | undefined,
     format: 'prototext' | 'proto',
   ): Promise<protos.TraceSummaryResult> {
@@ -442,7 +442,11 @@ export abstract class EngineBase implements Engine, Disposable {
     rpc.request = TPM.TPM_SUMMARIZE_TRACE;
     const args = (rpc.traceSummaryArgs = new protos.TraceSummaryArgs());
     const computationSpec = new protos.TraceSummaryArgs.ComputationSpec();
-    computationSpec.metricIds = metricIds;
+    if (metricIds) {
+      computationSpec.metricIds = metricIds;
+    } else {
+      computationSpec.runAllMetrics = true;
+    }
     if (metadataId) {
       computationSpec.metadataQueryId = metadataId;
     }
@@ -711,7 +715,7 @@ export class EngineProxy implements Engine, Disposable {
 
   summarizeTrace(
     summarySpecs: protos.TraceSummarySpec[] | string[],
-    metricIds: string[],
+    metricIds: string[] | undefined,
     metadataId: string | undefined,
     format: 'prototext' | 'proto',
   ): Promise<protos.TraceSummaryResult> {

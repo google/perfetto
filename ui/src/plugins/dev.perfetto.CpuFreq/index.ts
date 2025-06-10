@@ -87,17 +87,19 @@ export default class implements PerfettoPlugin {
         };
 
         const uri = `/cpu_freq_cpu${cpu.ucpu}`;
-        const title = `Cpu ${cpu.toString()} Frequency`;
         ctx.tracks.registerTrack({
           uri,
-          title,
           tags: {
             kind: CPU_FREQ_TRACK_KIND,
             cpu: cpu.ucpu,
           },
-          track: new CpuFreqTrack(config, ctx),
+          renderer: new CpuFreqTrack(config, ctx),
         });
-        const trackNode = new TrackNode({uri, title, sortOrder: -40});
+        const trackNode = new TrackNode({
+          uri,
+          name: `Cpu ${cpu.toString()} Frequency`,
+          sortOrder: -40,
+        });
         ctx.workspace.addChildInOrder(trackNode);
       }
     }

@@ -27,14 +27,14 @@ package perfetto.protos;
 // parity as possible with established tracing frameworks such as
 // Linux's ftrace.
 message GenericKernelTaskStateEvent {
-  // CPU in which the event occured.
+  // CPU in which the event occurred.
   // This field is only relevant with the TASK_STATE_RUNNING state. There is
   // no specific meaning to the cpu field in a non-running state event.
   optional int32 cpu = 1;
   // Command name for the thread.
   optional string comm = 2;
   // Thread id.
-  optional int32 tid = 3;
+  optional int64 tid = 3;
 
   // TaskStateEnum represents the valid states of a thread.
   // These states are a generic representation of the actual thread state and

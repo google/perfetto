@@ -18,13 +18,16 @@
 #define SRC_TRACE_PROCESSOR_DATAFRAME_RUNTIME_DATAFRAME_BUILDER_H_
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <string>
 #include <type_traits>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -32,6 +35,8 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
@@ -39,6 +44,7 @@
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
+#include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
@@ -156,27 +162,22 @@ class RuntimeDataframeBuilder {
       typename ValueFetcherImpl::Type fetched_type = fetcher->GetValueType(i);
       switch (fetched_type) {
         case ValueFetcherImpl::kInt64: {
-          auto* r = EnsureColumnType<int64_t>(i, state.data);
-          if (PERFETTO_UNLIKELY(!r)) {
+          if (!Push(i, state.data, fetcher->GetInt64Value(i))) {
             return false;
           }
-          r->push_back(fetcher->GetInt64Value(i));
           break;
         }
         case ValueFetcherImpl::kDouble: {
-          auto* r = EnsureColumnType<double>(i, state.data);
-          if (PERFETTO_UNLIKELY(!r)) {
+          if (!Push(i, state.data, fetcher->GetDoubleValue(i))) {
             return false;
           }
-          r->push_back(fetcher->GetDoubleValue(i));
           break;
         }
         case ValueFetcherImpl::kString: {
-          auto* r = EnsureColumnType<StringPool::Id>(i, state.data);
-          if (PERFETTO_UNLIKELY(!r)) {
+          if (!Push(i, state.data,
+                    string_pool_->InternString(fetcher->GetStringValue(i)))) {
             return false;
           }
-          r->push_back(string_pool_->InternString(fetcher->GetStringValue(i)));
           break;
         }
         case ValueFetcherImpl::kNull:
@@ -219,57 +220,111 @@ class RuntimeDataframeBuilder {
           columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
               impl::Storage{impl::FlexVector<uint32_t>()},
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
-              Unsorted{}}));
+              Unsorted{}, HasDuplicates{}}));
           break;
         case base::variant_index<DataVariant, impl::FlexVector<int64_t>>(): {
           auto& data =
               base::unchecked_get<impl::FlexVector<int64_t>>(state.data);
-          bool is_id_sorted = data.empty() || data[0] == 0;
-          bool is_setid_sorted = data.empty() || data[0] == 0;
-          bool is_sorted = true;
-          int64_t min = data.empty() ? 0 : data[0];
-          int64_t max = data.empty() ? 0 : data[0];
-          for (uint32_t j = 1; j < data.size(); ++j) {
-            is_id_sorted = is_id_sorted && (data[j] == j);
-            is_setid_sorted =
-                is_setid_sorted && (data[j] == data[j - 1] || data[j] == j);
-            is_sorted = is_sorted && data[j - 1] <= data[j];
-            min = std::min(min, data[j]);
-            max = std::max(max, data[j]);
+
+          IntegerColumnSummary summary;
+          summary.is_id_sorted = data.empty() || data[0] == 0;
+          summary.is_setid_sorted = data.empty() || data[0] == 0;
+          summary.is_sorted = true;
+          summary.min = data.empty() ? 0 : data[0];
+          summary.max = data.empty() ? 0 : data[0];
+          summary.has_duplicates = false;
+          summary.is_nullable = state.null_overlay.has_value();
+          if (!data.empty()) {
+            seen_ints_.clear();
+            seen_ints_.reserve(data.size());
+            seen_ints_.insert(data[0]);
           }
-          bool is_nullable = state.null_overlay.has_value();
+          for (uint32_t j = 1; j < data.size(); ++j) {
+            summary.is_id_sorted = summary.is_id_sorted && (data[j] == j);
+            summary.is_setid_sorted = summary.is_setid_sorted &&
+                                      (data[j] == data[j - 1] || data[j] == j);
+            summary.is_sorted = summary.is_sorted && data[j - 1] <= data[j];
+            summary.min = std::min(summary.min, data[j]);
+            summary.max = std::max(summary.max, data[j]);
+            summary.has_duplicates =
+                summary.has_duplicates || !seen_ints_.insert(data[j]).second;
+          }
+          auto integer = CreateIntegerStorage(std::move(data), summary);
+          impl::SpecializedStorage specialized_storage =
+              GetSpecializedStorage(integer, summary);
           columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
-              CreateIntegerStorage(std::move(data), is_id_sorted, min, max),
+              std::move(integer),
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
-              GetIntegerSortStateFromProperties(is_nullable, is_id_sorted,
-                                                is_setid_sorted, is_sorted)}));
+              GetIntegerSortStateFromProperties(summary),
+              summary.is_nullable || summary.has_duplicates
+                  ? DuplicateState{HasDuplicates{}}
+                  : DuplicateState{NoDuplicates{}},
+              std::move(specialized_storage),
+          }));
           break;
         }
         case base::variant_index<DataVariant, impl::FlexVector<double>>(): {
           auto& data =
               base::unchecked_get<impl::FlexVector<double>>(state.data);
-          SortState sort_state =
-              GetSortStateForDouble(state.null_overlay.has_value(), data);
+          bool is_nullable = state.null_overlay.has_value();
+          bool is_sorted = true;
+          bool has_duplicates = false;
+          if (!data.empty()) {
+            seen_doubles_.clear();
+            seen_doubles_.reserve(data.size());
+            seen_doubles_.insert(data[0]);
+          }
+          for (uint32_t j = 1; j < data.size(); ++j) {
+            is_sorted = is_sorted && data[j - 1] <= data[j];
+            has_duplicates =
+                has_duplicates || !seen_doubles_.insert(data[j]).second;
+          }
           columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
               impl::Storage{std::move(data)},
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
-              sort_state}));
+              is_sorted && !is_nullable ? SortState{Sorted{}}
+                                        : SortState{Unsorted{}},
+              is_nullable || has_duplicates ? DuplicateState{HasDuplicates{}}
+                                            : DuplicateState{NoDuplicates{}}}));
           break;
         }
         case base::variant_index<DataVariant,
                                  impl::FlexVector<StringPool::Id>>(): {
           auto& data =
               base::unchecked_get<impl::FlexVector<StringPool::Id>>(state.data);
-          SortState sort_state = GetStringSortState(
-              state.null_overlay.has_value(), data, string_pool_);
+          bool is_nullable = state.null_overlay.has_value();
+          bool is_sorted = true;
+          bool has_duplicates = false;
+          if (!data.empty()) {
+            seen_strings_.clear();
+            seen_strings_.reserve(data.size());
+            seen_strings_.insert(data[0]);
+            NullTermStringView prev = string_pool_->Get(data[0]);
+            for (uint32_t j = 1; j < data.size(); ++j) {
+              NullTermStringView curr = string_pool_->Get(data[j]);
+              is_sorted = is_sorted && prev <= curr;
+              has_duplicates =
+                  has_duplicates || !seen_strings_.insert(data[j]).second;
+              prev = curr;
+            }
+          }
           columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
               impl::Storage{std::move(data)},
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
-              sort_state}));
+              is_sorted && !is_nullable ? SortState{Sorted{}}
+                                        : SortState{Unsorted{}},
+              is_nullable || has_duplicates ? DuplicateState{HasDuplicates{}}
+                                            : DuplicateState{NoDuplicates{}}}));
           break;
         }
       }
     }
+    // Create an implicit id column for acting as a primary key even if there
+    // are no other id columns.
+    column_names_.emplace_back("_auto_id");
+    columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
+        impl::Storage{impl::Storage::Id{row_count_}},
+        impl::NullStorage::NonNull{}, IdSorted{}, NoDuplicates{}}));
     return Dataframe(true, std::move(column_names_), std::move(columns),
                      row_count_, string_pool_);
   }
@@ -293,39 +348,91 @@ class RuntimeDataframeBuilder {
     DataVariant data = std::nullopt;
     std::optional<impl::BitVector> null_overlay;
   };
+  struct IntegerColumnSummary {
+    bool is_id_sorted = true;
+    bool is_setid_sorted = true;
+    bool is_sorted = true;
+    int64_t min = 0;
+    int64_t max = 0;
+    bool has_duplicates = false;
+    bool is_nullable = false;
+  };
 
   template <typename T>
-  PERFETTO_ALWAYS_INLINE impl::FlexVector<T>* EnsureColumnType(
-      uint32_t i,
-      DataVariant& data) {
+  PERFETTO_ALWAYS_INLINE bool Push(uint32_t col, DataVariant& data, T value) {
     switch (data.index()) {
-      case base::variant_index<DataVariant, std::nullopt_t>():
+      case base::variant_index<DataVariant, std::nullopt_t>(): {
         data = impl::FlexVector<T>();
-        return &base::unchecked_get<impl::FlexVector<T>>(data);
-      case base::variant_index<DataVariant, impl::FlexVector<T>>():
-        return &base::unchecked_get<impl::FlexVector<T>>(data);
-      default:
+        auto& vec = base::unchecked_get<impl::FlexVector<T>>(data);
+        vec.push_back(value);
+        return true;
+      }
+      case base::variant_index<DataVariant, impl::FlexVector<T>>(): {
+        auto& vec = base::unchecked_get<impl::FlexVector<T>>(data);
+        vec.push_back(value);
+        return true;
+      }
+      default: {
+        if constexpr (std::is_same_v<T, double>) {
+          if (std::holds_alternative<impl::FlexVector<int64_t>>(data)) {
+            auto& vec = base::unchecked_get<impl::FlexVector<int64_t>>(data);
+            auto res = impl::FlexVector<double>::CreateWithSize(vec.size());
+            for (uint32_t i = 0; i < vec.size(); ++i) {
+              int64_t v = vec[i];
+              if (!IsPerfectlyRepresentableAsDouble(v)) {
+                current_status_ =
+                    base::ErrStatus("Unable to represent %" PRId64
+                                    " in column '%s' at row %u as a double.",
+                                    v, column_names_[col].c_str(), i);
+                return false;
+              }
+              res[i] = static_cast<double>(v);
+            }
+            res.push_back(value);
+            data = std::move(res);
+            return true;
+          }
+        } else if constexpr (std::is_same_v<T, int64_t>) {
+          if (std::holds_alternative<impl::FlexVector<double>>(data)) {
+            if (IsPerfectlyRepresentableAsDouble(value)) {
+              auto& vec = base::unchecked_get<impl::FlexVector<double>>(data);
+              vec.push_back(static_cast<double>(value));
+              return true;
+            }
+            current_status_ =
+                base::ErrStatus("Inserting a too-large integer (%" PRId64
+                                ") in column '%s' at row "
+                                "%u. Column currently holds doubles.",
+                                value, column_names_[col].c_str(), row_count_);
+            return false;
+          }
+        }
         current_status_ = base::ErrStatus(
             "Type mismatch in column '%s' at row %u. Existing type != "
             "fetched type.",
-            column_names_[i].c_str(), row_count_);
-        return nullptr;
+            column_names_[col].c_str(), row_count_);
+        return false;
+      }
     }
   }
 
-  static impl::Storage CreateIntegerStorage(impl::FlexVector<int64_t> data,
-                                            bool is_id_sorted,
-                                            int64_t min,
-                                            int64_t max) {
-    if (is_id_sorted) {
+  static constexpr bool IsPerfectlyRepresentableAsDouble(int64_t res) {
+    constexpr int64_t kMaxDoubleRepresentible = 1ull << 53;
+    return res >= -kMaxDoubleRepresentible && res <= kMaxDoubleRepresentible;
+  }
+
+  static impl::Storage CreateIntegerStorage(
+      impl::FlexVector<int64_t> data,
+      const IntegerColumnSummary& summary) {
+    if (summary.is_id_sorted) {
       return impl::Storage{
           impl::Storage::Id{static_cast<uint32_t>(data.size())}};
     }
-    if (IsRangeFullyRepresentableByType<uint32_t>(min, max)) {
+    if (IsRangeFullyRepresentableByType<uint32_t>(summary.min, summary.max)) {
       return impl::Storage{
           impl::Storage::Uint32{DowncastFromInt64<uint32_t>(data)}};
     }
-    if (IsRangeFullyRepresentableByType<int32_t>(min, max)) {
+    if (IsRangeFullyRepresentableByType<int32_t>(summary.min, summary.max)) {
       return impl::Storage{
           impl::Storage::Int32{DowncastFromInt64<int32_t>(data)}};
     }
@@ -361,59 +468,62 @@ class RuntimeDataframeBuilder {
     return res;
   }
 
-  static SortState GetSortStateForDouble(bool is_nullable,
-                                         const impl::FlexVector<double>& data) {
-    if (is_nullable) {
+  static SortState GetIntegerSortStateFromProperties(
+      const IntegerColumnSummary& summary) {
+    if (summary.is_nullable) {
       return SortState{Unsorted{}};
     }
-    for (uint32_t i = 1; i < data.size(); ++i) {
-      if (data[i - 1] > data[i]) {
-        return SortState{Unsorted{}};
-      }
-    }
-    return SortState{Sorted{}};
-  }
-
-  static SortState GetStringSortState(
-      bool is_nullable,
-      const impl::FlexVector<StringPool::Id>& data,
-      StringPool* pool) {
-    if (is_nullable) {
-      return SortState{Unsorted{}};
-    }
-    if (!data.empty()) {
-      NullTermStringView prev = pool->Get(data[0]);
-      for (uint32_t i = 1; i < data.size(); ++i) {
-        NullTermStringView curr = pool->Get(data[i]);
-        if (prev > curr) {
-          return SortState{Unsorted{}};
-        }
-        prev = curr;
-      }
-    }
-    return SortState{Sorted{}};
-  }
-
-  static SortState GetIntegerSortStateFromProperties(bool is_nullable,
-                                                     bool is_id_sorted,
-                                                     bool is_setid_sorted,
-                                                     bool is_sorted) {
-    if (is_nullable) {
-      return SortState{Unsorted{}};
-    }
-    if (is_id_sorted) {
-      PERFETTO_DCHECK(is_setid_sorted);
-      PERFETTO_DCHECK(is_sorted);
+    if (summary.is_id_sorted) {
+      PERFETTO_DCHECK(summary.is_setid_sorted);
+      PERFETTO_DCHECK(summary.is_sorted);
       return SortState{IdSorted{}};
     }
-    if (is_setid_sorted) {
-      PERFETTO_DCHECK(is_sorted);
+    if (summary.is_setid_sorted) {
+      PERFETTO_DCHECK(summary.is_sorted);
       return SortState{SetIdSorted{}};
     }
-    if (is_sorted) {
+    if (summary.is_sorted) {
       return SortState{Sorted{}};
     }
     return SortState{Unsorted{}};
+  }
+
+  static impl::SpecializedStorage GetSpecializedStorage(
+      const impl::Storage& storage,
+      const IntegerColumnSummary& summary) {
+    // If we're already sorted or setid_sorted, we don't need specialized
+    // storage.
+    if (summary.is_id_sorted || summary.is_setid_sorted) {
+      return impl::SpecializedStorage{};
+    }
+
+    // Check if we meet the hard conditions for small value eq.
+    if (storage.type().Is<Uint32>() && summary.is_sorted &&
+        !summary.is_nullable && !summary.has_duplicates) {
+      const auto& vec = storage.unchecked_get<Uint32>();
+
+      // For memory reasons, we only use small value eq if the ratio between
+      // the maximum value and the number of values is "small enough".
+      if (static_cast<uint32_t>(summary.max) < 16 * vec.size()) {
+        return BuildSmallValueEq(vec);
+      }
+    }
+    // Otherwise, we cannot use specialized storage.
+    return impl::SpecializedStorage{};
+  }
+
+  static impl::SpecializedStorage::SmallValueEq BuildSmallValueEq(
+      const impl::FlexVector<uint32_t>& data) {
+    impl::SpecializedStorage::SmallValueEq offset_bv{
+        impl::BitVector::CreateWithSize(data.empty() ? 0 : data.back() + 1,
+                                        false),
+        {},
+    };
+    for (uint32_t i : data) {
+      offset_bv.bit_vector.set(i);
+    }
+    offset_bv.prefix_popcount = offset_bv.bit_vector.PrefixPopcount();
+    return offset_bv;
   }
 
   StringPool* string_pool_;
@@ -421,6 +531,11 @@ class RuntimeDataframeBuilder {
   std::vector<std::string> column_names_;
   std::vector<ColumnState> column_states_;
   base::Status current_status_ = base::OkStatus();
+
+  // Class variables to avoid repeated allocations for sets across columns.
+  std::unordered_set<int64_t> seen_ints_;
+  std::unordered_set<double> seen_doubles_;
+  std::unordered_set<StringPool::Id> seen_strings_;
 };
 
 }  // namespace perfetto::trace_processor::dataframe

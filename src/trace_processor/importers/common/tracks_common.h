@@ -26,7 +26,7 @@
 namespace perfetto::trace_processor::tracks {
 
 // This file acts as a shared source track, dimension and unit blueprints which
-// are used from many places throughout the codebase. It's strongly recomended
+// are used from many places throughout the codebase. It's strongly recommended
 // to use the shared blueprints from this file where possible.
 
 // Begin dimension blueprints.

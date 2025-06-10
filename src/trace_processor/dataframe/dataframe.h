@@ -36,6 +36,8 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/cursor.h"
+#include "src/trace_processor/dataframe/impl/bit_vector.h"
+#include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
@@ -80,6 +82,16 @@ class Dataframe {
     // The number of rows this query plan estimates it will return.
     uint32_t estimated_row_count() const {
       return plan_.params.estimated_row_count;
+    }
+
+    // Returns the bytecode instructions of the query plan as a vector of
+    // strings, where each string represents a single bytecode instruction.
+    std::vector<std::string> BytecodeToString() const {
+      std::vector<std::string> result;
+      for (const auto& instr : plan_.bytecode) {
+        result.push_back(impl::bytecode::ToString(instr));
+      }
+      return result;
     }
 
     // An estimate for the cost of executing the query plan.
@@ -375,6 +387,9 @@ class Dataframe {
   // Returns the column names of the dataframe.
   const std::vector<std::string>& column_names() const { return column_names_; }
 
+  // Returns the number of rows in the dataframe.
+  uint32_t row_count() const { return row_count_; }
+
  private:
   friend class RuntimeDataframeBuilder;
 
@@ -440,17 +455,21 @@ class Dataframe {
       }
     }
 
-    static constexpr bool kIsSparseNullWithCellGet =
-        std::is_same_v<null_storage_type, SparseNullSupportingCellGetAlways> ||
+    static constexpr bool kIsSparseNullWithPopcount =
+        std::is_same_v<null_storage_type, SparseNullWithPopcountAlways> ||
         std::is_same_v<null_storage_type,
-                       SparseNullSupportingCellGetUntilFinalization>;
-    if constexpr (kIsSparseNullWithCellGet) {
+                       SparseNullWithPopcountUntilFinalization>;
+    if constexpr (kIsSparseNullWithPopcount) {
       if (nulls.bit_vector.size() % 64 == 0) {
-        auto prefix_popcount =
-            static_cast<uint32_t>(nulls.bit_vector.size() == 0
-                                      ? 0
-                                      : nulls.bit_vector.count_set_bits_in_word(
-                                            nulls.bit_vector.size() - 1));
+        uint32_t prefix_popcount;
+        if (nulls.bit_vector.size() == 0) {
+          prefix_popcount = 0;
+        } else {
+          prefix_popcount =
+              static_cast<uint32_t>(nulls.prefix_popcount_for_cell_get.back() +
+                                    nulls.bit_vector.count_set_bits_in_word(
+                                        nulls.bit_vector.size() - 1));
+        }
         nulls.prefix_popcount_for_cell_get.push_back(prefix_popcount);
       }
     }
@@ -463,10 +482,10 @@ class Dataframe {
     using type = typename ColumnSpec::type;
     using null_storage_type = typename ColumnSpec::null_storage_type;
     static constexpr bool is_sparse_null_supporting_get_always =
-        std::is_same_v<null_storage_type, SparseNullSupportingCellGetAlways>;
+        std::is_same_v<null_storage_type, SparseNullWithPopcountAlways>;
     static constexpr bool is_sparse_null_supporting_get_until_finalization =
         std::is_same_v<null_storage_type,
-                       SparseNullSupportingCellGetUntilFinalization>;
+                       SparseNullWithPopcountUntilFinalization>;
     const auto& col = *column_ptrs_[column];
     const auto& storage = col.storage.unchecked_get<type>();
     const auto& nulls = col.null_storage.unchecked_get<null_storage_type>();
@@ -488,9 +507,9 @@ class Dataframe {
     } else if constexpr (std::is_same_v<null_storage_type, SparseNull>) {
       static_assert(
           !std::is_same_v<null_storage_type, null_storage_type>,
-          "Trying to access a column with sparse nulls but without an approach "
-          "that supports it. Please use SparseNullSupportingCellGetAlways or "
-          "SparseNullSupportingCellGetUntilFinalization as appropriate.");
+          "Trying to access a column with sparse nulls but without an "
+          "approach that supports it. Please use SparseNullWithPopcountAlways "
+          "or SparseNullWithPopcountUntilFinalization as appropriate.");
     } else {
       static_assert(std::is_same_v<null_storage_type, NonNull>,
                     "Unsupported null storage type");
@@ -499,7 +518,7 @@ class Dataframe {
 
   template <size_t column, typename D>
   PERFETTO_ALWAYS_INLINE auto SetCellUncheckedInternal(
-      uint64_t row,
+      uint32_t row,
       const typename D::template column_spec<column>::mutate_type& value) {
     PERFETTO_DCHECK(!finalized_);
 
@@ -526,15 +545,44 @@ class Dataframe {
       } else {
         nulls.bit_vector.clear(row);
       }
-    } else if constexpr (std::is_same_v<null_storage_type, SparseNull> ||
-                         std::is_same_v<null_storage_type,
-                                        SparseNullSupportingCellGetAlways> ||
+    } else if constexpr (std::is_same_v<null_storage_type,
+                                        SparseNullWithPopcountAlways> ||
                          std::is_same_v<
                              null_storage_type,
-                             SparseNullSupportingCellGetUntilFinalization>) {
+                             SparseNullWithPopcountUntilFinalization>) {
+      const auto& popcount = nulls.prefix_popcount_for_cell_get;
+      uint32_t word = row / 64;
+      auto storage_idx = static_cast<uint32_t>(
+          popcount[word] + nulls.bit_vector.count_set_bits_until_in_word(row));
+      const impl::BitVector& bit_vector = nulls.bit_vector;
+      if (value.has_value()) {
+        if (!bit_vector.is_set(row)) {
+          storage.push_back({});
+          memmove(storage.data() + storage_idx + 1,
+                  storage.data() + storage_idx,
+                  (storage.size() - storage_idx - 1) * sizeof(*storage.data()));
+          for (uint32_t i = word + 1; i < popcount.size(); ++i) {
+            nulls.prefix_popcount_for_cell_get[i]++;
+          }
+        }
+        storage[storage_idx] = *value;
+        nulls.bit_vector.set(row);
+      } else {
+        if (bit_vector.is_set(row)) {
+          memmove(storage.data() + storage_idx,
+                  storage.data() + storage_idx + 1,
+                  (storage.size() - storage_idx - 1) * sizeof(*storage.data()));
+          storage.pop_back();
+          for (uint32_t i = word + 1; i < popcount.size(); ++i) {
+            nulls.prefix_popcount_for_cell_get[i]--;
+          }
+        }
+        nulls.bit_vector.clear(row);
+      }
+    } else if constexpr (std::is_same_v<null_storage_type, SparseNull>) {
       static_assert(!std::is_same_v<null_storage_type, null_storage_type>,
                     "Trying to set a column with sparse nulls. This is not "
-                    "supported, please use dense nulls.");
+                    "supported, please use use another storage type.");
     } else {
       static_assert(std::is_same_v<null_storage_type, NonNull>,
                     "Unsupported null storage type");

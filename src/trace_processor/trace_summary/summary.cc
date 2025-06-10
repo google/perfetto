@@ -27,6 +27,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -113,7 +114,7 @@ base::Status CreateQueriesAndComputeMetrics(
   for (auto m = queries_per_metric.GetIterator(); m; ++m) {
     const std::string& metric_name = m.key();
     if (m.value().query.empty()) {
-      return base::ErrStatus("Metric %s was not found in any summary spec",
+      return base::ErrStatus("Metric '%s' was not found in any summary spec",
                              metric_name.c_str());
     }
     auto* metric = summary->add_metric();
@@ -134,14 +135,14 @@ base::Status CreateQueriesAndComputeMetrics(
     }
     if (!metric_value_index) {
       return base::ErrStatus(
-          "Column %s not found in the query result for metric %s",
+          "Column '%s' not found in the query result for metric '%s'",
           metric_value_column_name.c_str(), metric_name.c_str());
     }
 
     if (spec_decoder.has_dimensions_specs() && spec_decoder.has_dimensions()) {
       return base::ErrStatus(
-          "Both dimensions and dimension_specs defined for metric %s. Only one "
-          "is allowed",
+          "Both dimensions and dimension_specs defined for metric '%s'. Only "
+          "one is allowed",
           metric_name.c_str());
     }
     std::vector<uint32_t> dimension_column_indices;
@@ -159,7 +160,7 @@ base::Status CreateQueriesAndComputeMetrics(
         if (dimension_type ==
             protos::pbzero::TraceMetricV2Spec::DIMENSION_TYPE_UNSPECIFIED) {
           return base::ErrStatus(
-              "Dimension %s in metric %s has unspecified type",
+              "Dimension '%s' in metric '%s' has unspecified type",
               dim_name.c_str(), metric_name.c_str());
         }
         std::optional<uint32_t> dim_index;
@@ -171,7 +172,8 @@ base::Status CreateQueriesAndComputeMetrics(
         }
         if (!dim_index) {
           return base::ErrStatus(
-              "Column %s not found in the query result for metric %s",
+              "Dimensions column '%s' not found in the query result for metric "
+              "'%s'",
               dim_name.c_str(), metric_name.c_str());
         }
         dimension_column_indices.push_back(*dim_index);
@@ -190,7 +192,8 @@ base::Status CreateQueriesAndComputeMetrics(
         }
         if (!dim_index) {
           return base::ErrStatus(
-              "Column %s not found in the query result for metric %s",
+              "Dimensions column '%s' not found in the query result for metric "
+              "'%s'",
               dim_name.c_str(), metric_name.c_str());
         }
         dimension_column_indices.push_back(*dim_index);
@@ -220,12 +223,12 @@ base::Status CreateQueriesAndComputeMetrics(
           PERFETTO_FATAL("Null value should have been skipped");
         case SqlValue::kString:
           return base::ErrStatus(
-              "Received string for value column in metric %s: this is not "
+              "Received string for value column in metric '%s': this is not "
               "supported",
               metric_name.c_str());
         case SqlValue::kBytes:
           return base::ErrStatus(
-              "Received bytes for metric value in metric %s: this is not "
+              "Received bytes for metric value in metric '%s': this is not "
               "supported",
               metric_name.c_str());
       }
@@ -249,24 +252,24 @@ base::Status CreateQueriesAndComputeMetrics(
           case protos::pbzero::TraceMetricV2Spec::STRING:
             if (dimension_value.type != SqlValue::kString) {
               return base::ErrStatus(
-                  "Expected string for dimension %zu in metric %s, got %d", i,
-                  metric_name.c_str(), dimension_value.type);
+                  "Expected string for dimension '%zu' in metric '%s', got %d",
+                  i, metric_name.c_str(), dimension_value.type);
             }
             dimension->set_string_value(dimension_value.AsString());
             break;
           case protos::pbzero::TraceMetricV2Spec::INT64:
             if (dimension_value.type != SqlValue::kLong) {
               return base::ErrStatus(
-                  "Expected int64 for dimension %zu in metric %s, got %d", i,
-                  metric_name.c_str(), dimension_value.type);
+                  "Expected int64 for dimension '%zu' in metric '%s', got %d",
+                  i, metric_name.c_str(), dimension_value.type);
             }
             dimension->set_int64_value(dimension_value.AsLong());
             break;
           case protos::pbzero::TraceMetricV2Spec::DOUBLE:
             if (dimension_value.type != SqlValue::kDouble) {
               return base::ErrStatus(
-                  "Expected double for dimension %zu in metric %s, got %d", i,
-                  metric_name.c_str(), dimension_value.type);
+                  "Expected double for dimension '%zu' in metric '%s', got %d",
+                  i, metric_name.c_str(), dimension_value.type);
             }
             dimension->set_double_value(dimension_value.AsDouble());
             break;
@@ -281,7 +284,7 @@ base::Status CreateQueriesAndComputeMetrics(
               dimension->set_string_value(dimension_value.AsString());
             } else if (dimension_value.type == SqlValue::kBytes) {
               return base::ErrStatus(
-                  "Received bytes for dimension in metric %s: this is not "
+                  "Received bytes for dimension in metric '%s': this is not "
                   "supported",
                   metric_name.c_str());
             }
@@ -346,8 +349,44 @@ base::Status Summarize(TraceProcessor* processor,
   }
 
   base::FlatHashMap<std::string, Metric> queries_per_metric;
-  if (!computation.v2_metric_ids.empty()) {
-    for (const auto& id : computation.v2_metric_ids) {
+  if (!computation.v2_metric_ids.has_value()) {
+    // If nullopt, compute all metrics.
+    for (const auto& spec : spec_decoders) {
+      for (auto it = spec.metric_spec(); it; ++it) {
+        protos::pbzero::TraceMetricV2Spec::Decoder m(*it);
+        std::string id = m.id().ToStdString();
+        if (id.empty()) {
+          return base::ErrStatus(
+              "Metric with empty id field: this is not allowed");
+        }
+        if (base::CaseInsensitiveEqual(id, "all")) {
+          return base::ErrStatus(
+              "Metric with `id` field value `all` is not allowed. Please "
+              "change the value of the `id` field of the metric spec.");
+        }
+        if (queries_per_metric.Find(id)) {
+          return base::ErrStatus(
+              "Duplicate definitions for metric '%s' received: this is not "
+              "allowed",
+              id.c_str());
+        }
+        Metric metric;
+        base::StatusOr<std::string> query_or =
+            generator.Generate(m.query().data, m.query().size);
+        if (!query_or.ok()) {
+          return base::ErrStatus("Unable to build query for metric '%s': %s",
+                                 id.c_str(), query_or.status().c_message());
+        }
+        metric.query = *query_or;
+        metric.spec = protozero::ConstBytes{
+            m.begin(),
+            static_cast<size_t>(m.end() - m.begin()),
+        };
+        queries_per_metric.Insert(id, std::move(metric));
+      }
+    }
+  } else if (!computation.v2_metric_ids->empty()) {
+    for (const auto& id : *computation.v2_metric_ids) {
       queries_per_metric.Insert(id, Metric{});
     }
     for (const auto& spec : spec_decoders) {
@@ -367,14 +406,14 @@ base::Status Summarize(TraceProcessor* processor,
         }
         if (!metric->query.empty()) {
           return base::ErrStatus(
-              "Duplicate definitions for metric %s received: this is not "
+              "Duplicate definitions for metric '%s' received: this is not "
               "allowed",
               id.c_str());
         }
         base::StatusOr<std::string> query_or =
             generator.Generate(m.query().data, m.query().size);
         if (!query_or.ok()) {
-          return base::ErrStatus("Unable to build query for metric %s: %s",
+          return base::ErrStatus("Unable to build query for metric '%s': %s",
                                  id.c_str(), query_or.status().c_message());
         }
         metric->query = *query_or;
@@ -385,11 +424,23 @@ base::Status Summarize(TraceProcessor* processor,
       }
     }
   }
+  // If `v2_metric_ids` is an empty vector, we will not compute any metrics.
 
   std::optional<std::string> metadata_sql;
   if (computation.metadata_query_id) {
     ASSIGN_OR_RETURN(metadata_sql,
                      generator.GenerateById(*computation.metadata_query_id));
+  }
+
+  for (const auto& preamble : generator.ComputePreambles()) {
+    auto it = processor->ExecuteQuery(preamble);
+    if (it.Next()) {
+      return base::ErrStatus(
+          "Preamble query returned results. Preambles must not return. Only "
+          "the last statement of the `sql` field can return results.");
+    }
+    PERFETTO_CHECK(!it.Next());
+    RETURN_IF_ERROR(it.Status());
   }
 
   for (const auto& module : generator.ComputeReferencedModules()) {

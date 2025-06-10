@@ -24,7 +24,7 @@ import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {Section} from '../../widgets/section';
 import {Tree} from '../../widgets/tree';
 import {Flow, FlowPoint} from '../../core/flow_types';
-import {hasArgs, renderArguments} from './slice_args';
+import {hasArgs} from './args';
 import {renderDetails} from './slice_details';
 import {getSlice, SliceDetails} from '../sql_utils/slice';
 import {
@@ -42,6 +42,7 @@ import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
 import {extensions} from '../extensions';
 import {TraceImpl} from '../../core/trace_impl';
+import {renderSliceArguments} from './slice_args';
 
 interface ContextMenuItem {
   name: string;
@@ -261,7 +262,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
       m(
         Section,
         {title: 'Arguments'},
-        m(Tree, renderArguments(trace, slice.args)),
+        m(Tree, renderSliceArguments(trace, slice.args)),
       );
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (precFlows ?? followingFlows ?? args) {

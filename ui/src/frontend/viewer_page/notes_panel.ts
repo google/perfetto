@@ -329,7 +329,7 @@ export class NotesPanel {
       onclick: async () => {
         const result = await this.trace.omnibox.prompt('Group name...');
         if (result) {
-          const group = new TrackNode({title: result, isSummary: true});
+          const group = new TrackNode({name: result, isSummary: true});
           this.trace.workspace.addChildLast(group);
         }
       },

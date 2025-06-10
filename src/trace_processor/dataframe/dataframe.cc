@@ -150,14 +150,14 @@ void Dataframe::MarkFinalized() {
       case Nullability::GetTypeIndex<SparseNull>():
         c->null_storage.unchecked_get<SparseNull>().bit_vector.shrink_to_fit();
         break;
-      case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>(): {
+      case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>(): {
         auto& null = c->null_storage.unchecked_get<SparseNull>();
         null.bit_vector.shrink_to_fit();
         null.prefix_popcount_for_cell_get.shrink_to_fit();
         break;
       }
       case Nullability::GetTypeIndex<
-          SparseNullSupportingCellGetUntilFinalization>(): {
+          SparseNullWithPopcountUntilFinalization>(): {
         auto& null = c->null_storage.unchecked_get<SparseNull>();
         null.bit_vector.shrink_to_fit();
         null.prefix_popcount_for_cell_get.clear();
@@ -181,8 +181,9 @@ DataframeSpec Dataframe::CreateSpec() const {
   DataframeSpec spec{column_names_, {}};
   spec.column_specs.reserve(columns_.size());
   for (const auto& c : columns_) {
-    spec.column_specs.push_back(
-        {c->storage.type(), c->null_storage.nullability(), c->sort_state});
+    spec.column_specs.push_back({c->storage.type(),
+                                 c->null_storage.nullability(), c->sort_state,
+                                 c->duplicate_state});
   }
   return spec;
 }
@@ -214,14 +215,12 @@ std::vector<std::shared_ptr<impl::Column>> Dataframe::CreateColumnVector(
         return impl::NullStorage(impl::NullStorage::NonNull{});
       case Nullability::GetTypeIndex<SparseNull>():
         return impl::NullStorage(impl::NullStorage::SparseNull{}, SparseNull{});
-      case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
+      case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>():
         return impl::NullStorage(impl::NullStorage::SparseNull{},
-                                 SparseNullSupportingCellGetAlways{});
-      case Nullability::GetTypeIndex<
-          SparseNullSupportingCellGetUntilFinalization>():
-        return impl::NullStorage(
-            impl::NullStorage::SparseNull{},
-            SparseNullSupportingCellGetUntilFinalization{});
+                                 SparseNullWithPopcountAlways{});
+      case Nullability::GetTypeIndex<SparseNullWithPopcountUntilFinalization>():
+        return impl::NullStorage(impl::NullStorage::SparseNull{},
+                                 SparseNullWithPopcountUntilFinalization{});
       case Nullability::GetTypeIndex<DenseNull>():
         return impl::NullStorage(impl::NullStorage::DenseNull{});
       default:
@@ -232,8 +231,11 @@ std::vector<std::shared_ptr<impl::Column>> Dataframe::CreateColumnVector(
   columns.reserve(column_count);
   for (uint32_t i = 0; i < column_count; ++i) {
     columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
-        make_storage(column_specs[i]), make_null_storage(column_specs[i]),
-        column_specs[i].sort_state}));
+        make_storage(column_specs[i]),
+        make_null_storage(column_specs[i]),
+        column_specs[i].sort_state,
+        column_specs[i].duplicate_state,
+    }));
   }
   return columns;
 }

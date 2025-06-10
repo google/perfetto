@@ -28,6 +28,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
+#include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/type_set.h"
 
@@ -120,8 +121,8 @@ using SparseNullCollapsedNullability = TypeSet<NonNull, SparseNull, DenseNull>;
 
 // TypeSet of all possible sparse nullability states.
 using SparseNullTypes = TypeSet<SparseNull,
-                                SparseNullSupportingCellGetAlways,
-                                SparseNullSupportingCellGetUntilFinalization>;
+                                SparseNullWithPopcountAlways,
+                                SparseNullWithPopcountUntilFinalization>;
 
 // Storage implementation for column data. Provides physical storage
 // for different types of column content.
@@ -162,12 +163,14 @@ class Storage {
   template <typename T>
   auto& unchecked_get() {
     using U = StorageType::VariantTypeAtIndex<T, Variant>;
+    PERFETTO_DCHECK(std::holds_alternative<U>(data_));
     return base::unchecked_get<U>(data_);
   }
 
   template <typename T>
   const auto& unchecked_get() const {
     using U = StorageType::VariantTypeAtIndex<T, Variant>;
+    PERFETTO_DCHECK(std::holds_alternative<U>(data_));
     return base::unchecked_get<U>(data_);
   }
 
@@ -198,32 +201,6 @@ class Storage {
         return base::unchecked_get<Storage::Double>(data_).data();
       case StorageType::GetTypeIndex<dataframe::String>():
         return base::unchecked_get<Storage::String>(data_).data();
-      default:
-        PERFETTO_FATAL("Should not reach here");
-    }
-  }
-
-  // Returns a raw byte pointer to the underlying data.
-  // Returns nullptr if the storage type is Id (which has no buffer).
-  const uint8_t* byte_data() const {
-    switch (type_.index()) {
-      case StorageType::GetTypeIndex<dataframe::Id>():
-        return nullptr;
-      case StorageType::GetTypeIndex<dataframe::Uint32>():
-        return reinterpret_cast<const uint8_t*>(
-            base::unchecked_get<Storage::Uint32>(data_).data());
-      case StorageType::GetTypeIndex<dataframe::Int32>():
-        return reinterpret_cast<const uint8_t*>(
-            base::unchecked_get<Storage::Int32>(data_).data());
-      case StorageType::GetTypeIndex<dataframe::Int64>():
-        return reinterpret_cast<const uint8_t*>(
-            base::unchecked_get<Storage::Int64>(data_).data());
-      case StorageType::GetTypeIndex<dataframe::Double>():
-        return reinterpret_cast<const uint8_t*>(
-            base::unchecked_get<Storage::Double>(data_).data());
-      case StorageType::GetTypeIndex<dataframe::String>():
-        return reinterpret_cast<const uint8_t*>(
-            base::unchecked_get<Storage::String>(data_).data());
       default:
         PERFETTO_FATAL("Should not reach here");
     }
@@ -283,12 +260,11 @@ class NullStorage {
   NullStorage(NonNull n) : nullability_(dataframe::NonNull{}), data_(n) {}
   NullStorage(SparseNull s, dataframe::SparseNull = dataframe::SparseNull{})
       : nullability_(dataframe::SparseNull{}), data_(std::move(s)) {}
-  NullStorage(SparseNull s, dataframe::SparseNullSupportingCellGetAlways)
-      : nullability_(dataframe::SparseNullSupportingCellGetAlways{}),
+  NullStorage(SparseNull s, dataframe::SparseNullWithPopcountAlways)
+      : nullability_(dataframe::SparseNullWithPopcountAlways{}),
         data_(std::move(s)) {}
-  NullStorage(SparseNull s,
-              dataframe::SparseNullSupportingCellGetUntilFinalization)
-      : nullability_(dataframe::SparseNullSupportingCellGetUntilFinalization{}),
+  NullStorage(SparseNull s, dataframe::SparseNullWithPopcountUntilFinalization)
+      : nullability_(dataframe::SparseNullWithPopcountUntilFinalization{}),
         data_(std::move(s)) {}
   NullStorage(DenseNull d)
       : nullability_(dataframe::DenseNull{}), data_(std::move(d)) {}
@@ -300,9 +276,8 @@ class NullStorage {
       return base::unchecked_get<NonNull>(data_);
     } else if constexpr (
         std::is_same_v<T, dataframe::SparseNull> ||
-        std::is_same_v<T, dataframe::SparseNullSupportingCellGetAlways> ||
-        std::is_same_v<
-            T, dataframe::SparseNullSupportingCellGetUntilFinalization>) {
+        std::is_same_v<T, dataframe::SparseNullWithPopcountAlways> ||
+        std::is_same_v<T, dataframe::SparseNullWithPopcountUntilFinalization>) {
       return base::unchecked_get<SparseNull>(data_);
     } else if constexpr (std::is_same_v<T, dataframe::DenseNull>) {
       return base::unchecked_get<DenseNull>(data_);
@@ -317,9 +292,8 @@ class NullStorage {
       return base::unchecked_get<NonNull>(data_);
     } else if constexpr (
         std::is_same_v<T, dataframe::SparseNull> ||
-        std::is_same_v<T, dataframe::SparseNullSupportingCellGetAlways> ||
-        std::is_same_v<
-            T, dataframe::SparseNullSupportingCellGetUntilFinalization>) {
+        std::is_same_v<T, dataframe::SparseNullWithPopcountAlways> ||
+        std::is_same_v<T, dataframe::SparseNullWithPopcountUntilFinalization>) {
       return base::unchecked_get<SparseNull>(data_);
     } else if constexpr (std::is_same_v<T, dataframe::DenseNull>) {
       return base::unchecked_get<DenseNull>(data_);
@@ -349,6 +323,19 @@ class NullStorage {
     }
   }
 
+  const BitVector* MaybeGetNullBitVector() const {
+    switch (data_.index()) {
+      case TypeIndex<SparseNull>():
+        return &unchecked_get<dataframe::SparseNull>().bit_vector;
+      case TypeIndex<DenseNull>():
+        return &unchecked_get<dataframe::DenseNull>().bit_vector;
+      case TypeIndex<NonNull>():
+        return nullptr;
+      default:
+        PERFETTO_FATAL("Unsupported overlay type");
+    }
+  }
+
   Nullability nullability() const { return nullability_; }
 
  private:
@@ -358,11 +345,63 @@ class NullStorage {
   Variant data_;
 };
 
+// Holds a specialized alternative representation of the storage of a column.
+//
+// Should be used to speed up very common operations on columns that have
+// specific properties.
+struct SpecializedStorage {
+ public:
+  // Special data structure capable of giving very fast results for equality
+  // constraints on sorted, non-duplicate columns with not-too large values.
+  // This is very common when joining two tables together by id.
+  //
+  // Usable in situations where the column has all the following properties:
+  //  1) It's non-null.
+  //  2) It's sorted.
+  //  3) It has no duplicate values.
+  //  4) The max(value) is "reasonably small".
+  //     - as the the memory used will be O(max(value)) *not* O(size(column)).
+  struct SmallValueEq {
+    // BitVector with 1s representing the presence of a value in the
+    // column. The value is the index of the value in the column.
+    //
+    // For example, if the column has values [1, 2, 3], then the bit vector
+    // will have 1s at indices 1, 2, and 3.
+    BitVector bit_vector;
+
+    // Cumulative count of set bits in the bit vector. Key to allowing O(1)
+    // equality queries.
+    //
+    // See BitVector::PrefixPopcount() for details.
+    Slab<uint32_t> prefix_popcount;
+  };
+
+  SpecializedStorage() = default;
+  SpecializedStorage(SmallValueEq data) : data_(std::move(data)) {}
+
+  template <typename T>
+  bool Is() const {
+    return std::holds_alternative<T>(data_);
+  }
+
+  template <typename T>
+  const T& unchecked_get() const {
+    PERFETTO_DCHECK(Is<T>());
+    return base::unchecked_get<T>(data_);
+  }
+
+ private:
+  using Variant = std::variant<std::monostate, SmallValueEq>;
+  Variant data_;
+};
+
 // Represents a complete column in the dataframe.
 struct Column {
   Storage storage;
   NullStorage null_storage;
   SortState sort_state;
+  DuplicateState duplicate_state;
+  SpecializedStorage specialized_storage = SpecializedStorage{};
 };
 
 // Handle for referring to a filter value during query execution.

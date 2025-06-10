@@ -294,7 +294,7 @@ export class BreakdownTracks {
     for (const iter = res.iter({}); iter.valid(); iter.next()) {
       const colRaw = iter.get(currColName);
       const colValue = colRaw === null ? 'NULL' : colRaw.toString();
-      const title = colValue;
+      const name = colValue;
 
       const newFilters = [
         ...filters,
@@ -311,7 +311,7 @@ export class BreakdownTracks {
 
       switch (trackType) {
         case BreakdownTrackType.AGGREGATION:
-          currNode = await this.createCounterTrackNode(title, newFilters);
+          currNode = await this.createCounterTrackNode(name, newFilters);
           if (this.props.slice && colIndex === columns.length - 1) {
             nextTrackType = BreakdownTrackType.SLICE;
             nextColIndex = 0;
@@ -320,7 +320,7 @@ export class BreakdownTracks {
           break;
         case BreakdownTrackType.SLICE:
           currNode = await this.createSliceTrackNode(
-            title,
+            name,
             newFilters,
             colIndex,
             sqlInfo,
@@ -334,7 +334,7 @@ export class BreakdownTracks {
           break;
         default:
           currNode = await this.createSliceTrackNode(
-            title,
+            name,
             newFilters,
             colIndex,
             sqlInfo,
@@ -411,9 +411,9 @@ export class BreakdownTracks {
     return maxValue === null ? 0 : maxValue;
   }
 
-  private async createCounterTrackNode(title: string, newFilters: Filter[]) {
+  private async createCounterTrackNode(name: string, newFilters: Filter[]) {
     return await this.createTrackNode(
-      title,
+      name,
       newFilters,
       (uri: string, filtersClause: string) => {
         return createQueryCounterTrack({
@@ -436,7 +436,7 @@ export class BreakdownTracks {
   }
 
   private async createTrackNode(
-    title: string,
+    name: string,
     filters: Filter[],
     createTrack: (
       uri: string,
@@ -456,18 +456,17 @@ export class BreakdownTracks {
       filters.length > 0 ? `\nWHERE ${buildFilterSqlClause(filters)}` : '';
     const uri = `${this.uri}_${uuidv4()}`;
 
-    const track = await createTrack(uri, filtersClause);
+    const renderer = await createTrack(uri, filtersClause);
 
     this.props.trace.tracks.registerTrack({
       uri,
-      title,
-      track,
+      renderer,
     });
 
     const sortOrder = await getSortOrder?.(filtersClause);
 
     return new TrackNode({
-      title,
+      name,
       uri,
       sortOrder: sortOrder !== undefined ? -sortOrder : undefined,
     });

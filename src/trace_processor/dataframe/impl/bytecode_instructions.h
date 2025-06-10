@@ -144,6 +144,22 @@ struct Uint32SetIdSortedEq : Bytecode {
                                      update_register);
 };
 
+// Equality filter for columns with a specialized storage containing
+// SmallValueEq.
+struct SpecializedStorageSmallValueEq : Bytecode {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = FixedCost{10};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(uint32_t,
+                                     col,
+                                     reg::ReadHandle<CastFilterValueResult>,
+                                     val_register,
+                                     reg::RwHandle<Range>,
+                                     update_register);
+};
+
 // Filter operations on non-string columns.
 struct NonStringFilterBase : TemplatedBytecode2<NonStringType, NonStringOp> {
   // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
@@ -323,53 +339,6 @@ struct StrideCopyDenseNullIndices : Bytecode {
                                      stride);
 };
 
-// Base class for sort operations. Performs a stable sort on the
-// `update_register` based on the data in the specified `col`
-// and the given `direction`. The template parameter T defines the data type
-// of the column being used for comparison.
-struct StableSortIndicesBase : TemplatedBytecode1<StorageType> {
-  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
-  // is plucked from thin air and has no real foundation. Fix this by creating
-  // benchmarks and backing it up with actual data.
-  static constexpr Cost kCost = LogLinearPerRowCost{20};
-
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(uint32_t,
-                                     col,
-                                     SortDirection,
-                                     direction,
-                                     reg::RwHandle<Span<uint32_t>>,
-                                     update_register);
-};
-
-// Specialized sort operation for a specific column data type T.
-template <typename T>
-struct StableSortIndices : StableSortIndicesBase {
-  static_assert(TS1::Contains<T>());
-};
-
-// Partitions the indices in |partition_register| based on the nullability
-// of the corresponding values in column |col|. Nulls are grouped based on
-// |nulls_location| (either start or end, preserving relative order).
-//
-// The resulting sub-span containing only the non-null indices is written
-// to |dest_non_null_register|. The original |partition_register| is modified
-// in-place to reflect the partitioning.
-struct NullIndicesStablePartition : Bytecode {
-  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
-  // is plucked from thin air and has no real foundation. Fix this by creating
-  // benchmarks and backing it up with actual data.
-  static constexpr Cost kCost = LinearPerRowCost{20};
-
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(uint32_t,
-                                     col,
-                                     NullsLocation,
-                                     nulls_location,
-                                     reg::RwHandle<Span<uint32_t>>,
-                                     partition_register,
-                                     reg::WriteHandle<Span<uint32_t>>,
-                                     dest_non_null_register);
-};
-
 // Allocates a buffer for row layout storage.
 struct AllocateRowLayoutBuffer : Bytecode {
   static constexpr Cost kCost = FixedCost{10};
@@ -381,74 +350,34 @@ struct AllocateRowLayoutBuffer : Bytecode {
 };
 
 // Copies data for a non-null column into the row layout buffer.
-struct CopyToRowLayoutNonNull : Bytecode {
+struct CopyToRowLayoutBase
+    : TemplatedBytecode2<StorageType, SparseNullCollapsedNullability> {
   // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
   // is plucked from thin air and has no real foundation. Fix this by creating
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{5};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_7(uint32_t,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_8(uint32_t,
                                      col,
                                      reg::ReadHandle<Span<uint32_t>>,
                                      source_indices_register,
                                      reg::RwHandle<Slab<uint8_t>>,
                                      dest_buffer_register,
-                                     uint32_t,
-                                     pad,
                                      uint16_t,
                                      row_layout_offset,
                                      uint16_t,
                                      row_layout_stride,
-                                     uint16_t,
-                                     copy_size);
-};
-
-// Copies data for a DenseNull column into the row layout buffer,
-// writing the null flag first at copy_params.offset.
-struct CopyToRowLayoutDenseNull : Bytecode {
-  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
-  // is plucked from thin air and has no real foundation. Fix this by creating
-  // benchmarks and backing it up with actual data.
-  static constexpr Cost kCost = LinearPerRowCost{5};
-
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_7(uint32_t,
-                                     col,
-                                     reg::ReadHandle<Span<uint32_t>>,
-                                     source_indices_register,
-                                     reg::RwHandle<Slab<uint8_t>>,
-                                     dest_buffer_register,
                                      uint32_t,
-                                     pad,
-                                     uint16_t,
-                                     row_layout_offset,
-                                     uint16_t,
-                                     row_layout_stride,
-                                     uint16_t,
-                                     copy_size);
-};
-
-// Copies data for a SparseNull column into the row layout buffer,
-// writing the null flag first at copy_params.offset. Requires popcount.
-struct CopyToRowLayoutSparseNull : Bytecode {
-  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
-  // is plucked from thin air and has no real foundation. Fix this by creating
-  // benchmarks and backing it up with actual data.
-  static constexpr Cost kCost = LinearPerRowCost{5};
-
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_7(uint32_t,
-                                     col,
-                                     reg::ReadHandle<Span<uint32_t>>,
-                                     source_indices_register,
-                                     reg::RwHandle<Slab<uint8_t>>,
-                                     dest_buffer_register,
+                                     invert_copied_bits,
                                      reg::ReadHandle<Slab<uint32_t>>,
                                      popcount_register,
-                                     uint16_t,
-                                     row_layout_offset,
-                                     uint16_t,
-                                     row_layout_stride,
-                                     uint16_t,
-                                     copy_size);
+                                     reg::ReadHandle<reg::StringIdToRankMap>,
+                                     rank_map_register);
+};
+template <typename T, typename Nullability>
+struct CopyToRowLayout : CopyToRowLayoutBase {
+  static_assert(TS1::Contains<T>());
+  static_assert(TS2::Contains<Nullability>());
 };
 
 // Performs distinct operation on row layout buffer using opaque byte
@@ -559,6 +488,61 @@ struct CopySpanIntersectingRange : Bytecode {
                                      update_register);
 };
 
+// Initializes a new StringIdToRankMap in a destination register.
+struct InitRankMap : Bytecode {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = FixedCost{10};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_1(reg::WriteHandle<reg::StringIdToRankMap>,
+                                     dest_register);
+};
+
+// Collects unique StringPool::Ids from a string column into a
+// StringIdToRankMap. Ranks are all initialized to 0.
+struct CollectIdIntoRankMap : Bytecode {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = LinearPerRowCost{10};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(uint32_t,
+                                     col,
+                                     reg::ReadHandle<Span<uint32_t>>,
+                                     source_register,
+                                     reg::RwHandle<reg::StringIdToRankMap>,
+                                     rank_map_register);
+};
+
+// Takes a RankMap (populated with unique StringPool::Ids and placeholder
+// ranks), sorts the IDs lexicographically, and updates the map in-place with
+// the final ranks.
+struct FinalizeRanksInMap : Bytecode {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = LogLinearPerRowCost{20};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_1(reg::RwHandle<reg::StringIdToRankMap>,
+                                     update_register);
+};
+
+// Performs a stable sort on indices based on a pre-built row layout buffer.
+struct SortRowLayout : Bytecode {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = LogLinearPerRowCost{10};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(reg::ReadHandle<Slab<uint8_t>>,
+                                     buffer_register,
+                                     uint32_t,
+                                     total_row_stride,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     indices_register);
+};
+
 // List of all bytecode instruction types for variant definition.
 #define PERFETTO_DATAFRAME_BYTECODE_LIST(X)  \
   X(InitRange)                               \
@@ -589,6 +573,7 @@ struct CopySpanIntersectingRange : Bytecode {
   X(SortedFilter<String, LowerBound>)        \
   X(SortedFilter<String, UpperBound>)        \
   X(Uint32SetIdSortedEq)                     \
+  X(SpecializedStorageSmallValueEq)          \
   X(NonStringFilter<Id, Eq>)                 \
   X(NonStringFilter<Id, Ne>)                 \
   X(NonStringFilter<Id, Lt>)                 \
@@ -601,6 +586,12 @@ struct CopySpanIntersectingRange : Bytecode {
   X(NonStringFilter<Uint32, Le>)             \
   X(NonStringFilter<Uint32, Gt>)             \
   X(NonStringFilter<Uint32, Ge>)             \
+  X(NonStringFilter<Int32, Eq>)              \
+  X(NonStringFilter<Int32, Ne>)              \
+  X(NonStringFilter<Int32, Lt>)              \
+  X(NonStringFilter<Int32, Le>)              \
+  X(NonStringFilter<Int32, Gt>)              \
+  X(NonStringFilter<Int32, Ge>)              \
   X(NonStringFilter<Int64, Eq>)              \
   X(NonStringFilter<Int64, Ne>)              \
   X(NonStringFilter<Int64, Lt>)              \
@@ -623,22 +614,30 @@ struct CopySpanIntersectingRange : Bytecode {
   X(StringFilter<Regex>)                     \
   X(NullFilter<IsNotNull>)                   \
   X(NullFilter<IsNull>)                      \
-  X(StableSortIndices<Id>)                   \
-  X(StableSortIndices<Uint32>)               \
-  X(StableSortIndices<Int32>)                \
-  X(StableSortIndices<Int64>)                \
-  X(StableSortIndices<Double>)               \
-  X(StableSortIndices<String>)               \
-  X(NullIndicesStablePartition)              \
   X(StrideCopy)                              \
   X(StrideTranslateAndCopySparseNullIndices) \
   X(StrideCopyDenseNullIndices)              \
   X(PrefixPopcount)                          \
   X(TranslateSparseNullIndices)              \
   X(AllocateRowLayoutBuffer)                 \
-  X(CopyToRowLayoutNonNull)                  \
-  X(CopyToRowLayoutDenseNull)                \
-  X(CopyToRowLayoutSparseNull)               \
+  X(CopyToRowLayout<Id, NonNull>)            \
+  X(CopyToRowLayout<Id, SparseNull>)         \
+  X(CopyToRowLayout<Id, DenseNull>)          \
+  X(CopyToRowLayout<Uint32, NonNull>)        \
+  X(CopyToRowLayout<Uint32, SparseNull>)     \
+  X(CopyToRowLayout<Uint32, DenseNull>)      \
+  X(CopyToRowLayout<Int32, NonNull>)         \
+  X(CopyToRowLayout<Int32, SparseNull>)      \
+  X(CopyToRowLayout<Int32, DenseNull>)       \
+  X(CopyToRowLayout<Int64, NonNull>)         \
+  X(CopyToRowLayout<Int64, SparseNull>)      \
+  X(CopyToRowLayout<Int64, DenseNull>)       \
+  X(CopyToRowLayout<Double, NonNull>)        \
+  X(CopyToRowLayout<Double, SparseNull>)     \
+  X(CopyToRowLayout<Double, DenseNull>)      \
+  X(CopyToRowLayout<String, NonNull>)        \
+  X(CopyToRowLayout<String, SparseNull>)     \
+  X(CopyToRowLayout<String, DenseNull>)      \
   X(Distinct)                                \
   X(LimitOffsetIndices)                      \
   X(FindMinMaxIndex<Id, MinOp>)              \
@@ -669,7 +668,11 @@ struct CopySpanIntersectingRange : Bytecode {
   X(IndexedFilterEq<String, NonNull>)        \
   X(IndexedFilterEq<String, SparseNull>)     \
   X(IndexedFilterEq<String, DenseNull>)      \
-  X(CopySpanIntersectingRange)
+  X(CopySpanIntersectingRange)               \
+  X(InitRankMap)                             \
+  X(CollectIdIntoRankMap)                    \
+  X(FinalizeRanksInMap)                      \
+  X(SortRowLayout)
 
 #define PERFETTO_DATAFRAME_BYTECODE_VARIANT(...) __VA_ARGS__,
 
@@ -690,8 +693,8 @@ PERFETTO_ALWAYS_INLINE constexpr uint32_t Index(const V1& f) {
   using End = T<typename V1::template GetTypeAtIndex<V1::kSize - 1>>;
   uint32_t offset = Start::OpcodeOffset(f);
   if (offset > Index<End>() - Index<Start>()) {
-    PERFETTO_FATAL("Invalid opcode offset %u (start: %u, end: %u)", offset,
-                   Index<Start>(), Index<End>());
+    PERFETTO_FATAL("Invalid opcode offset (t1: %u) %u (start: %u, end: %u)",
+                   f.index(), offset, Index<Start>(), Index<End>());
   }
   return Index<Start>() + offset;
 }
@@ -705,8 +708,9 @@ PERFETTO_ALWAYS_INLINE constexpr uint32_t Index(const V1& f, const V2& s) {
                 typename V2::template GetTypeAtIndex<V2::kSize - 1>>;
   uint32_t offset = Start::OpcodeOffset(f, s);
   if (offset > Index<End>() - Index<Start>()) {
-    PERFETTO_FATAL("Invalid opcode offset %u (start: %u, end: %u)", offset,
-                   Index<Start>(), Index<End>());
+    PERFETTO_FATAL(
+        "Invalid opcode offset (t1: %u t2: %u) %u (start: %u, end: %u)",
+        f.index(), s.index(), offset, Index<Start>(), Index<End>());
   }
   return Index<Start>() + offset;
 }
