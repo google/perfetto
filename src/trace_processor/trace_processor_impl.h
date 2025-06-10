@@ -159,8 +159,11 @@ class TraceProcessorImpl : public TraceProcessor,
       TraceProcessor*,
       bool notify_eof_called);
 
-  static std::vector<PerfettoSqlEngine::StaticTable> GetStaticTables(
-      TraceStorage* storage);
+  static std::vector<PerfettoSqlEngine::LegacyStaticTable>
+  GetLegacyStaticTables(TraceStorage* storage);
+
+  static std::vector<PerfettoSqlEngine::UnfinalizedStaticTable>
+  GetUnfinalizedStaticTables(TraceStorage* storage);
 
   static std::vector<std::unique_ptr<StaticTableFunction>>
   CreateStaticTableFunctions(TraceProcessorContext* context,
