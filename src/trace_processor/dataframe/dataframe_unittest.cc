@@ -1342,7 +1342,7 @@ TEST(DataframeTest, TypedCursor) {
   auto cursor =
       df.CreateTypedCursorUnchecked(kSpec, {FilterSpec{0, 0, Eq{}, {}}}, {});
   {
-    cursor.SetFilterValues(0l);
+    cursor.SetFilterValueUnchecked(0, 0l);
     cursor.ExecuteUnchecked();
     ASSERT_FALSE(cursor.Eof());
     ASSERT_EQ(cursor.GetCellUnchecked<0>(), 0u);
@@ -1353,7 +1353,7 @@ TEST(DataframeTest, TypedCursor) {
     ASSERT_TRUE(cursor.Eof());
   }
   {
-    cursor.SetFilterValues(1l);
+    cursor.SetFilterValueUnchecked(0, 1l);
     cursor.ExecuteUnchecked();
     ASSERT_FALSE(cursor.Eof());
     ASSERT_EQ(cursor.GetCellUnchecked<0>(), 1u);
@@ -1389,7 +1389,7 @@ TEST(DataframeTest, TypedCursorSetMultipleTimes) {
   {
     auto cursor =
         df.CreateTypedCursorUnchecked(kSpec, {FilterSpec{1, 0, Eq{}, {}}}, {});
-    cursor.SetFilterValues(int64_t(20));
+    cursor.SetFilterValueUnchecked(0, int64_t(20));
     cursor.ExecuteUnchecked();
     ASSERT_FALSE(cursor.Eof());
     ASSERT_EQ(cursor.GetCellUnchecked<1>(), 20u);
