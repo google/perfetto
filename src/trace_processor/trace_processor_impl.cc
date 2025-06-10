@@ -227,14 +227,24 @@ void BuildBoundsTable(sqlite3* db, std::pair<int64_t, int64_t> bounds) {
   }
 }
 
-template <typename Table>
+template <typename T>
 void AddLegacyStaticTable(
     std::vector<PerfettoSqlEngine::LegacyStaticTable>& tables,
-    Table* table_instance) {
+    T* table_instance) {
   tables.push_back({
       table_instance,
-      Table::Name(),
-      Table::ComputeStaticSchema(),
+      T::Name(),
+      T::ComputeStaticSchema(),
+  });
+}
+
+template <typename T>
+void AddUnfinalizedStaticTable(
+    std::vector<PerfettoSqlEngine::UnfinalizedStaticTable>& tables,
+    T* table_instance) {
+  tables.push_back({
+      &table_instance->dataframe(),
+      T::Name(),
   });
 }
 
@@ -984,162 +994,140 @@ std::vector<uint8_t> TraceProcessorImpl::GetMetricDescriptors() {
 
 std::vector<PerfettoSqlEngine::LegacyStaticTable>
 TraceProcessorImpl::GetLegacyStaticTables(TraceStorage* storage) {
-  std::vector<PerfettoSqlEngine::LegacyStaticTable> static_tables;
-  AddLegacyStaticTable(static_tables, storage->mutable_machine_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_arg_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_chrome_raw_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_ftrace_event_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_thread_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_process_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_filedescriptor_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_trace_file_table());
+  std::vector<PerfettoSqlEngine::LegacyStaticTable> tables;
+  AddLegacyStaticTable(tables, storage->mutable_arg_table());
+  AddLegacyStaticTable(tables, storage->mutable_chrome_raw_table());
+  AddLegacyStaticTable(tables, storage->mutable_ftrace_event_table());
+  AddLegacyStaticTable(tables, storage->mutable_thread_table());
+  AddLegacyStaticTable(tables, storage->mutable_process_table());
 
-  AddLegacyStaticTable(static_tables, storage->mutable_slice_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_flow_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_sched_slice_table());
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_spurious_sched_wakeup_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_thread_state_table());
+  AddLegacyStaticTable(tables, storage->mutable_slice_table());
+  AddLegacyStaticTable(tables, storage->mutable_flow_table());
+  AddLegacyStaticTable(tables, storage->mutable_sched_slice_table());
+  AddLegacyStaticTable(tables, storage->mutable_thread_state_table());
 
-  AddLegacyStaticTable(static_tables, storage->mutable_track_table());
+  AddLegacyStaticTable(tables, storage->mutable_track_table());
 
-  AddLegacyStaticTable(static_tables, storage->mutable_counter_table());
+  AddLegacyStaticTable(tables, storage->mutable_counter_table());
 
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_gpu_counter_group_table());
+  AddLegacyStaticTable(tables, storage->mutable_heap_graph_object_table());
+  AddLegacyStaticTable(tables, storage->mutable_heap_graph_reference_table());
+  AddLegacyStaticTable(tables, storage->mutable_heap_graph_class_table());
 
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_heap_graph_object_table());
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_heap_graph_reference_table());
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_heap_graph_class_table());
-
-  AddLegacyStaticTable(static_tables, storage->mutable_symbol_table());
-  AddLegacyStaticTable(static_tables,
+  AddLegacyStaticTable(tables, storage->mutable_symbol_table());
+  AddLegacyStaticTable(tables,
                        storage->mutable_heap_profile_allocation_table());
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_cpu_profile_stack_sample_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_perf_session_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_perf_sample_table());
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_instruments_sample_table());
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_stack_profile_callsite_table());
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_stack_profile_mapping_table());
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_stack_profile_frame_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_package_list_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_profiler_smaps_table());
+  AddLegacyStaticTable(tables, storage->mutable_perf_sample_table());
+  AddLegacyStaticTable(tables, storage->mutable_stack_profile_callsite_table());
+  AddLegacyStaticTable(tables, storage->mutable_stack_profile_mapping_table());
+  AddLegacyStaticTable(tables, storage->mutable_stack_profile_frame_table());
 
-  AddLegacyStaticTable(static_tables, storage->mutable_android_log_table());
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_android_dumpstate_table());
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_android_game_intervenion_list_table());
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_android_key_events_table());
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_android_motion_events_table());
-  AddLegacyStaticTable(static_tables,
+  AddLegacyStaticTable(tables, storage->mutable_android_key_events_table());
+  AddLegacyStaticTable(tables, storage->mutable_android_motion_events_table());
+  AddLegacyStaticTable(tables,
                        storage->mutable_android_input_event_dispatch_table());
 
-  AddLegacyStaticTable(static_tables,
+  AddLegacyStaticTable(tables,
                        storage->mutable_vulkan_memory_allocations_table());
 
-  AddLegacyStaticTable(static_tables,
+  AddLegacyStaticTable(tables,
                        storage->mutable_android_network_packets_table());
 
-  AddLegacyStaticTable(static_tables, storage->mutable_v8_isolate_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_v8_js_script_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_v8_wasm_script_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_v8_js_function_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_v8_js_code_table());
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_v8_internal_code_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_v8_wasm_code_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_v8_regexp_code_table());
+  AddLegacyStaticTable(tables, storage->mutable_v8_js_code_table());
+  AddLegacyStaticTable(tables, storage->mutable_v8_internal_code_table());
+  AddLegacyStaticTable(tables, storage->mutable_v8_wasm_code_table());
+  AddLegacyStaticTable(tables, storage->mutable_v8_regexp_code_table());
 
-  AddLegacyStaticTable(static_tables, storage->mutable_jit_code_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_jit_frame_table());
+  AddLegacyStaticTable(tables, storage->mutable_jit_code_table());
+  AddLegacyStaticTable(tables, storage->mutable_jit_frame_table());
 
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_etm_v4_configuration_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_etm_v4_session_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_etm_v4_trace_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_elf_file_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_file_table());
-
-  AddLegacyStaticTable(static_tables, storage->mutable_spe_record_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_mmap_record_table());
-
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_inputmethod_clients_table());
-  AddLegacyStaticTable(static_tables,
+  AddLegacyStaticTable(tables, storage->mutable_inputmethod_clients_table());
+  AddLegacyStaticTable(tables,
                        storage->mutable_inputmethod_manager_service_table());
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_inputmethod_service_table());
+  AddLegacyStaticTable(tables, storage->mutable_inputmethod_service_table());
 
-  AddLegacyStaticTable(static_tables,
+  AddLegacyStaticTable(tables,
                        storage->mutable_surfaceflinger_layers_snapshot_table());
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_surfaceflinger_layer_table());
-  AddLegacyStaticTable(static_tables,
+  AddLegacyStaticTable(tables, storage->mutable_surfaceflinger_layer_table());
+  AddLegacyStaticTable(tables,
                        storage->mutable_surfaceflinger_transactions_table());
-  AddLegacyStaticTable(static_tables,
+  AddLegacyStaticTable(tables,
                        storage->mutable_surfaceflinger_transaction_table());
+
+  AddLegacyStaticTable(tables, storage->mutable_viewcapture_table());
+  AddLegacyStaticTable(tables, storage->mutable_viewcapture_view_table());
+
+  AddLegacyStaticTable(tables, storage->mutable_windowmanager_table());
   AddLegacyStaticTable(
-      static_tables, storage->mutable_surfaceflinger_transaction_flag_table());
-
-  AddLegacyStaticTable(static_tables, storage->mutable_viewcapture_table());
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_viewcapture_view_table());
-
-  AddLegacyStaticTable(static_tables, storage->mutable_windowmanager_table());
+      tables, storage->mutable_window_manager_shell_transition_protos_table());
 
   AddLegacyStaticTable(
-      static_tables, storage->mutable_window_manager_shell_transitions_table());
-  AddLegacyStaticTable(
-      static_tables,
-      storage->mutable_window_manager_shell_transition_handlers_table());
-  AddLegacyStaticTable(
-      static_tables,
-      storage->mutable_window_manager_shell_transition_participants_table());
-  AddLegacyStaticTable(
-      static_tables,
-      storage->mutable_window_manager_shell_transition_protos_table());
+      tables, storage->mutable_window_manager_shell_transitions_table());
 
-  AddLegacyStaticTable(static_tables, storage->mutable_protolog_table());
+  AddLegacyStaticTable(tables, storage->mutable_metadata_table());
+  AddLegacyStaticTable(tables, storage->mutable_cpu_table());
 
-  AddLegacyStaticTable(static_tables, storage->mutable_metadata_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_cpu_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_cpu_freq_table());
-  AddLegacyStaticTable(static_tables, storage->mutable_clock_snapshot_table());
+  AddLegacyStaticTable(tables, storage->mutable_memory_snapshot_node_table());
 
-  AddLegacyStaticTable(static_tables, storage->mutable_memory_snapshot_table());
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_process_memory_snapshot_table());
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_memory_snapshot_node_table());
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_memory_snapshot_edge_table());
-
-  AddLegacyStaticTable(static_tables,
+  AddLegacyStaticTable(tables,
                        storage->mutable_experimental_proto_path_table());
-  AddLegacyStaticTable(static_tables,
-                       storage->mutable_experimental_proto_content_table());
 
-  AddLegacyStaticTable(
-      static_tables,
-      storage->mutable_experimental_missing_chrome_processes_table());
-  return static_tables;
+  return tables;
 }
 
 std::vector<PerfettoSqlEngine::UnfinalizedStaticTable>
-TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage*) {
-  std::vector<PerfettoSqlEngine::UnfinalizedStaticTable> unfinalized_tables;
-  return unfinalized_tables;
+TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
+  std::vector<PerfettoSqlEngine::UnfinalizedStaticTable> tables;
+  AddUnfinalizedStaticTable(tables, storage->mutable_android_dumpstate_table());
+  AddUnfinalizedStaticTable(
+      tables, storage->mutable_android_game_intervenion_list_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_android_log_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_clock_snapshot_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_cpu_freq_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_cpu_profile_stack_sample_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_elf_file_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_etm_v4_configuration_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_etm_v4_session_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_etm_v4_trace_table());
+  AddUnfinalizedStaticTable(
+      tables, storage->mutable_experimental_missing_chrome_processes_table());
+  AddUnfinalizedStaticTable(
+      tables, storage->mutable_experimental_proto_content_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_file_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_filedescriptor_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_gpu_counter_group_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_instruments_sample_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_machine_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_memory_snapshot_edge_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_memory_snapshot_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_mmap_record_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_package_list_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_perf_session_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_process_memory_snapshot_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_profiler_smaps_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_protolog_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_spe_record_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_spurious_sched_wakeup_table());
+  AddUnfinalizedStaticTable(
+      tables, storage->mutable_surfaceflinger_transaction_flag_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_trace_file_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_v8_isolate_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_v8_js_function_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_v8_js_script_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_v8_wasm_script_table());
+  AddUnfinalizedStaticTable(
+      tables,
+      storage->mutable_window_manager_shell_transition_handlers_table());
+  AddUnfinalizedStaticTable(
+      tables,
+      storage->mutable_window_manager_shell_transition_participants_table());
+  return tables;
 }
 
 std::vector<std::unique_ptr<StaticTableFunction>>

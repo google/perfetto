@@ -412,6 +412,7 @@ WINDOW_MANAGER_SHELL_TRANSITION_PROTOS_TABLE = Table(
     python_module=__file__,
     class_name='WindowManagerShellTransitionProtosTable',
     sql_name='__intrinsic_window_manager_shell_transition_protos',
+    use_legacy_table_backend=True,
     columns=[
         C('transition_id', CppInt64()),
         C('base64_proto_id', CppUint32()),

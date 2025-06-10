@@ -16,6 +16,7 @@ Contains tables related to perf data ingestion.
 """
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppAccess
@@ -83,7 +84,12 @@ ETM_V4_SESSION = Table(
             CppTableId(ETM_V4_CONFIGURATION),
             cpp_access=CppAccess.READ,
         ),
-        C('start_ts', CppOptional(CppInt64()), cpp_access=CppAccess.READ),
+        C(
+            'start_ts',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''

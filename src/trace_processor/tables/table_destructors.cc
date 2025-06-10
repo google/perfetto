@@ -112,6 +112,8 @@ ViewCaptureInternedDataTable::~ViewCaptureInternedDataTable() = default;
 WindowManagerTable::~WindowManagerTable() = default;
 WindowManagerShellTransitionsTable::~WindowManagerShellTransitionsTable() =
     default;
+WindowManagerShellTransitionProtosTable::
+    ~WindowManagerShellTransitionProtosTable() = default;
 
 }  // namespace tables
 
