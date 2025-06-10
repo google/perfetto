@@ -1,5 +1,5 @@
 --
--- Copyright 2022 The Android Open Source Project
+-- Copyright 2025 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -28,7 +28,9 @@ CREATE PERFETTO VIEW android_battery_charge (
   -- Current voltage in micro volts.
   voltage_uv DOUBLE,
   -- Current energy counter in microwatt-hours(µWh).
-  energy_counter_uwh DOUBLE
+  energy_counter_uwh DOUBLE,
+  -- Current power in milliwatts.
+  power_mw DOUBLE
 ) AS
 SELECT
   all_ts.ts,
@@ -37,7 +39,8 @@ SELECT
   charge_uah,
   current_ua,
   voltage_uv,
-  energy_counter_uwh
+  energy_counter_uwh,
+  power_mw
 FROM (
   SELECT DISTINCT
     (
@@ -113,6 +116,17 @@ LEFT JOIN (
     ON c.track_id = t.id
   WHERE
     name = 'batt.energy_counter_uwh'
+)
+  USING (ts)
+LEFT JOIN (
+  SELECT
+    ts,
+    value AS power_mw
+  FROM counter AS c
+  JOIN counter_track AS t
+    ON c.track_id = t.id
+  WHERE
+    name = 'batt.power_mw'
 )
   USING (ts)
 ORDER BY

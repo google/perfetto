@@ -95,7 +95,7 @@ PROCESS_TABLE = Table(
     sql_name='__intrinsic_process',
     columns=[
         C('upid', Alias(underlying_column='id')),
-        C('pid', CppUint32()),
+        C('pid', CppInt64()),
         C('name', CppOptional(CppString())),
         C('start_ts', CppOptional(CppInt64())),
         C('end_ts', CppOptional(CppInt64())),
@@ -180,7 +180,7 @@ THREAD_TABLE = Table(
     sql_name='__intrinsic_thread',
     columns=[
         C('utid', Alias(underlying_column='id')),
-        C('tid', CppUint32()),
+        C('tid', CppInt64()),
         C('name', CppOptional(CppString())),
         C('start_ts', CppOptional(CppInt64())),
         C('end_ts', CppOptional(CppInt64())),

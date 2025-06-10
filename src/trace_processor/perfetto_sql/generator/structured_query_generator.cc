@@ -34,6 +34,8 @@
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "protos/perfetto/perfetto_sql/structured_query.pbzero.h"
+#include "src/trace_processor/perfetto_sql/tokenizer/sqlite_tokenizer.h"
+#include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::perfetto_sql::generator {
@@ -47,6 +49,45 @@ enum QueryType : uint8_t {
   kShared,
   kNested,
 };
+
+std::pair<SqlSource, SqlSource> GetPreambleAndSql(const std::string& sql) {
+  std::pair<SqlSource, SqlSource> result{
+      SqlSource(SqlSource::FromTraceProcessorImplementation("")),
+      SqlSource(SqlSource::FromTraceProcessorImplementation(""))};
+
+  if (sql.empty()) {
+    return result;
+  }
+
+  SqliteTokenizer tokenizer(SqlSource::FromTraceProcessorImplementation(sql));
+
+  SqliteTokenizer::Token stmt_begin_tok = tokenizer.NextNonWhitespace();
+  while (stmt_begin_tok.token_type == TK_SEMI) {
+    stmt_begin_tok = tokenizer.NextNonWhitespace();
+  }
+  SqliteTokenizer::Token preamble_start = stmt_begin_tok;
+  SqliteTokenizer::Token preamble_end = stmt_begin_tok;
+
+  // Loop over statements
+  while (true) {
+    // Ignore all next semicolons.
+    if (stmt_begin_tok.token_type == TK_SEMI) {
+      stmt_begin_tok = tokenizer.NextNonWhitespace();
+      continue;
+    }
+
+    // Exit if the next token is the end of the SQL.
+    if (stmt_begin_tok.IsTerminal()) {
+      return {tokenizer.Substr(preamble_start, preamble_end),
+              tokenizer.Substr(preamble_end, stmt_begin_tok)};
+    }
+
+    // Found next valid statement
+
+    preamble_end = stmt_begin_tok;
+    stmt_begin_tok = tokenizer.NextTerminal();
+  }
+}
 
 struct QueryState {
   QueryState(QueryType _type, protozero::ConstBytes _bytes, size_t index)
@@ -232,12 +273,33 @@ base::StatusOr<std::string> GeneratorImpl::SqlSource(
   if (sql.sql().size == 0) {
     return base::ErrStatus("Sql field must be specified");
   }
-  if (sql.column_names()->size() == 0) {
-    return base::ErrStatus("Sql must specify columns");
+
+  std::string source_sql_str = sql.sql().ToStdString();
+  std::string final_sql_statement;
+  if (sql.has_preamble()) {
+    // If preambles are specified, we assume that the SQL is a single statement.
+    preambles_.push_back(sql.preamble().ToStdString());
+    final_sql_statement = source_sql_str;
+  } else {
+    auto [parsed_preamble, main_sql] = GetPreambleAndSql(source_sql_str);
+    if (!parsed_preamble.sql().empty()) {
+      preambles_.push_back(parsed_preamble.sql());
+    } else if (sql.has_preamble()) {
+      return base::ErrStatus(
+          "Sql source specifies both `preamble` and has multiple statements in "
+          "the `sql` field. This is not supported - plase don't use `preamble` "
+          "and pass all the SQL you want to execute in the `sql` field.");
+    }
+    final_sql_statement = main_sql.sql();
   }
 
-  if (sql.has_preamble()) {
-    preambles_.push_back(sql.preamble().ToStdString());
+  if (final_sql_statement.empty()) {
+    return base::ErrStatus(
+        "SQL source cannot be empty after processing preamble");
+  }
+
+  if (sql.column_names()->size() == 0) {
+    return base::ErrStatus("Sql must specify columns");
   }
 
   std::vector<std::string> cols;
@@ -246,7 +308,9 @@ base::StatusOr<std::string> GeneratorImpl::SqlSource(
   }
   std::string join_str = base::Join(cols, ", ");
 
-  return "(SELECT " + join_str + " FROM (" + sql.sql().ToStdString() + "))";
+  std::string generated_sql =
+      "(SELECT " + join_str + " FROM (" + final_sql_statement + "))";
+  return generated_sql;
 }
 
 base::StatusOr<std::string> GeneratorImpl::SimpleSlices(

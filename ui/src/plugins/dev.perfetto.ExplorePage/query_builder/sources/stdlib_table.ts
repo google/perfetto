@@ -78,7 +78,7 @@ export class StdlibTableNode implements QueryNode {
     return newState;
   }
 
-  getDetails(): m.Child {
+  coreModify(): m.Child {
     return m(
       '',
       m(Button, {

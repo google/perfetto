@@ -68,7 +68,7 @@ export class SelectionManagerImpl implements SelectionManager {
     private onSelectionChange: (s: Selection, opts: SelectionOpts) => void,
   ) {}
 
-  clear(): void {
+  clearSelection(): void {
     this.setSelection({kind: 'empty'});
   }
 
@@ -80,8 +80,8 @@ export class SelectionManagerImpl implements SelectionManager {
     this.selectTrackEventInternal(trackUri, eventId, opts);
   }
 
-  selectTrack(trackUri: string, opts?: SelectionOpts) {
-    this.setSelection({kind: 'track', trackUri}, opts);
+  selectTrack(uri: string, opts?: SelectionOpts) {
+    this.setSelection({kind: 'track', trackUri: uri}, opts);
   }
 
   selectNote(args: {id: string}, opts?: SelectionOpts) {
@@ -319,7 +319,7 @@ export class SelectionManagerImpl implements SelectionManager {
     this.onSelectionChange(selection, opts ?? {});
 
     if (opts?.scrollToSelection) {
-      this.scrollToCurrentSelection();
+      this.scrollToSelection();
     }
   }
 
@@ -370,7 +370,7 @@ export class SelectionManagerImpl implements SelectionManager {
     }
   }
 
-  scrollToCurrentSelection() {
+  scrollToSelection() {
     const uri = (() => {
       switch (this.selection.kind) {
         case 'track_event':
@@ -381,10 +381,10 @@ export class SelectionManagerImpl implements SelectionManager {
           return undefined;
       }
     })();
-    const range = this.findTimeRangeOfSelection();
+    const range = this.getTimeSpanOfSelection();
     this.scrollHelper.scrollTo({
       time: range ? {...range} : undefined,
-      track: uri ? {uri: uri, expandGroup: true} : undefined,
+      track: uri ? {uri, expandGroup: true} : undefined,
     });
   }
 
@@ -460,7 +460,7 @@ export class SelectionManagerImpl implements SelectionManager {
     });
   }
 
-  findTimeRangeOfSelection(): TimeSpan | undefined {
+  getTimeSpanOfSelection(): TimeSpan | undefined {
     const sel = this.selection;
     if (sel.kind === 'area') {
       return new TimeSpan(sel.start, sel.end);

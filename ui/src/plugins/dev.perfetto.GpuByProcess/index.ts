@@ -58,10 +58,8 @@ export default class implements PerfettoPlugin {
       }
 
       const uri = `dev.perfetto.GpuByProcess#${upid}`;
-      const title = `GPU ${processName}`;
       ctx.tracks.registerTrack({
         uri,
-        title,
         renderer: new DatasetSliceTrack({
           trace: ctx,
           uri,
@@ -83,7 +81,10 @@ export default class implements PerfettoPlugin {
           detailsPanel: () => new ThreadSliceDetailsPanel(ctx),
         }),
       });
-      const track = new TrackNode({uri, title});
+      const track = new TrackNode({
+        uri,
+        name: `GPU ${processName}`,
+      });
       ctx.workspace.addChildInOrder(track);
     }
   }
