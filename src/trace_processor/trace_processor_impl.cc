@@ -651,7 +651,7 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
 }
 
 base::Status TraceProcessorImpl::RegisterSqlPackage(SqlPackage sql_package) {
-  const std::string& name = sql_package.name;
+  std::string name = sql_package.name;
   if (engine_->FindPackage(name) && !sql_package.allow_override) {
     return base::ErrStatus(
         "Package '%s' is already registered. Choose a different name.\n"
