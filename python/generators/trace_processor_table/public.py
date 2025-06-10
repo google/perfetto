@@ -16,6 +16,7 @@
 from dataclasses import dataclass
 from enum import auto
 from enum import Flag as enum_Flag
+from enum import Enum
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -40,9 +41,60 @@ class ColumnFlag(enum_Flag):
   """
   NONE = 0
   SORTED = auto()
-  HIDDEN = auto()
   DENSE = auto()
+  HIDDEN = auto()
   SET_ID = auto()
+
+
+class SqlAccess(Enum):
+  """
+  Decides whether and how the data in column is accessible.
+
+  Allowing access to columns in C++ code costs performance, so by default
+  we do not allow access; this includes in cursors, row references etc.
+  """
+
+  # Indicates the column is read from SQL code but does not have any
+  # special access requirements.
+  DEFAULT = auto()
+
+  # Indicates the column is read from SQL code and is used in a performance
+  # critical code paths.
+  HIGH_PERF = auto()
+
+
+class CppAccess(Enum):
+  """
+  Decides whether and how the data in column is accessible in C++.
+
+  Allowing access to columns in C++ code costs performance, so by default
+  we do not allow access; this includes in cursors, row references etc.
+  """
+  # Indicates the column is not read from C++ code, and is only
+  # read from SQL.
+  NONE = auto()
+
+  # Indicates the column is read from C++ code, but not written to.
+  READ = auto()
+
+  # Indicates the column is read from C++ code and written to in
+  # non-performance critical code paths.
+  #
+  # This only matters for nullable columns, as non-nullable columns
+  # will have the same overhead as .
+  READ_AND_LOW_PERF_WRITE = auto()
+
+  # Indicates the column is read from C++ code and written to in
+  # performance critical code paths.
+  READ_AND_HIGH_PERF_WRITE = auto()
+
+
+class CppAccessDuration(Enum):
+  """
+  Indicates whether the column is access post finalization in C++ code.
+  """
+  PRE_FINALIZATION_ONLY = False
+  POST_FINALIZATION = True
 
 
 @dataclass(frozen=True)
@@ -58,6 +110,9 @@ class Column:
   name: str
   type: CppColumnType
   flags: ColumnFlag = ColumnFlag.NONE
+  sql_access: SqlAccess = SqlAccess.DEFAULT
+  cpp_access: CppAccess = CppAccess.NONE
+  cpp_access_duration: CppAccessDuration = CppAccessDuration.PRE_FINALIZATION_ONLY
 
 
 @dataclass(frozen=True)
@@ -136,6 +191,7 @@ class Table:
   sql_name: str
   columns: List[Column]
   parent: Optional['Table'] = None
+  add_implicit_column: bool = True
   tabledoc: Optional[TableDoc] = None
   wrapping_sql_view: Optional[WrappingSqlView] = None
 
