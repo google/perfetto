@@ -107,17 +107,17 @@ int DataframeModule::Create(sqlite3* db,
   PERFETTO_CHECK(argc == 3);
 
   auto* ctx = GetContext(raw_ctx);
-  auto create_state = std::move(ctx->temporary_create_state);
-  PERFETTO_CHECK(create_state);
+  auto state = std::move(ctx->temporary_create_state);
+  PERFETTO_CHECK(state);
 
-  std::string create_stmt = CreateTableStmt(create_state->handle->CreateSpec());
+  std::string create_stmt = CreateTableStmt(state->dataframe->CreateSpec());
   if (int r = sqlite3_declare_vtab(db, create_stmt.c_str()); r != SQLITE_OK) {
     *err = sqlite3_mprintf("failed to declare vtab %s", create_stmt.c_str());
     return r;
   }
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->dataframe = &*create_state->handle;
-  res->state = ctx->OnCreate(argc, argv, std::move(create_state));
+  res->dataframe = state->dataframe;
+  res->state = ctx->OnCreate(argc, argv, std::move(state));
   res->name = argv[2];
   *vtab = res.release();
   return SQLITE_OK;
@@ -138,14 +138,14 @@ int DataframeModule::Connect(sqlite3* db,
   PERFETTO_CHECK(argc == 3);
 
   auto* vtab_state = GetContext(raw_ctx)->OnConnect(argc, argv);
-  auto* df_state =
+  auto* state =
       sqlite::ModuleStateManager<DataframeModule>::GetState(vtab_state);
-  std::string create_stmt = CreateTableStmt(df_state->handle->CreateSpec());
+  std::string create_stmt = CreateTableStmt(state->dataframe->CreateSpec());
   if (int r = sqlite3_declare_vtab(db, create_stmt.c_str()); r != SQLITE_OK) {
     return r;
   }
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->dataframe = &*df_state->handle;
+  res->dataframe = state->dataframe;
   res->state = vtab_state;
   res->name = argv[2];
   *vtab = res.release();
