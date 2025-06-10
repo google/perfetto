@@ -24,6 +24,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -45,6 +46,7 @@
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser_impl.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event_parser_impl.h"
@@ -225,14 +227,17 @@ void BuildBoundsTable(sqlite3* db, std::pair<int64_t, int64_t> bounds) {
   }
 }
 
-template <typename Table>
+template <typename T>
 void AddTableInfoHelper(std::vector<PerfettoSqlEngine::StaticTable>& tables,
-                        Table* table_instance) {
-  tables.push_back({
-      table_instance,
-      Table::Name(),
-      Table::ComputeStaticSchema(),
-  });
+                        T* table_instance) {
+  if constexpr (std::is_base_of_v<Table, T>) {
+    tables.push_back({
+        table_instance,
+        T::Name(),
+        T::ComputeStaticSchema(),
+    });
+  } else {
+  }
 }
 
 base::StatusOr<sql_modules::RegisteredPackage> ToRegisteredPackage(
