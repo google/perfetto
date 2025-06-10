@@ -26,6 +26,8 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "src/base/intrusive_list.h"
 
+// TODO do a pass for uint32_t /uint16_t vs size_t etc etc.
+
 #define TRACE_BUFFER_VERBOSE_LOGGING() 0  // Set to 1 when debugging unittests.
 #if TRACE_BUFFER_VERBOSE_LOGGING()
 #define TRACE_BUFFER_DLOG PERFETTO_DLOG
@@ -48,9 +50,9 @@ constexpr uint8_t kChunkNeedsPatching =
 
 // Compares two ChunkID(s) in a wrapping 32-bit ID space.
 // Returns:
-//   -1 if a comes before b in modular (wrapping) order
+//   -1 if a comes before b in modular (wrapping) order.
 //    0 if a == b
-//    1 if a comes after b in modular order
+//   +1 if a comes after b in modular order.
 //
 // The key idea is that the order between two distinct IDs is determined by
 // whether the distance from a to b is less than 2^31 (half the range).
@@ -65,6 +67,13 @@ int ChunkIdCompare(ChunkID a, ChunkID b) {
 
 namespace internal {
 
+SequenceState::SequenceState(ProducerID p, WriterID w, ClientIdentity c)
+    : producer_id(p), writer_id(w), client_identity(c) {}
+SequenceState::~SequenceState() = default;
+SequenceState::SequenceState(const SequenceState&) noexcept = default;
+SequenceState& SequenceState::operator=(const SequenceState&) noexcept =
+    default;
+
 // +---------------------------------------------------------------------------+
 // | BufIterator implementation                                                |
 // +---------------------------------------------------------------------------+
@@ -78,20 +87,22 @@ BufIterator::BufIterator(TraceBufferV2* buf, size_t limit)
 bool BufIterator::SetTargetChunkAndRewind(TBChunk* chunk) {
   target_chunk_ = chunk;
   bool res = false;
-  for (ChunkList::Iterator it(chunk);; --it) {
-    if (!it) {
-      // We have reached the list head_and_tail. At this point we can obtain in
-      // O(1) a pointer to the SequenceState, because the list head is owned by
-      // it.
-      ChunkList* chunk_list = ChunkList::FromIterator(it);
-      seq_ = reinterpret_cast<SequenceState*>(
-          reinterpret_cast<uintptr_t>(chunk_list) -
-          offsetof(SequenceState, chunk_list));
-      res = seq_->read_pass == buf_->read_pass_;
-      seq_->read_pass = buf_->read_pass_;
-      break;
-    }
-    chunk = &*it;
+  SequenceState* seq = buf_->GetSeqForChunk(chunk);
+  seq_ = seq;
+  if (seq) {
+    res = seq_->read_pass == buf_->read_pass_;
+    seq_->read_pass = buf_->read_pass_;
+
+    size_t chunk_off = buf_->OffsetOf(chunk);
+    auto& chunk_list = seq->chunks;
+    // Ensure we have the current chunk in the list.
+    PERFETTO_CHECK(!chunk_list.empty());
+    PERFETTO_DCHECK(chunk_list.Find(chunk_off) != chunk_list.end());
+    chunk = buf_->GetTBChunkAt(*chunk_list.begin());
+  } else {
+    // The only case when GetSeqForChunk() can legitimately return null is when
+    // we are trying to iterate over a cleared padding chunk.
+    PERFETTO_DCHECK(chunk->is_padding());
   }
   SetChunk(chunk);
   return res;
@@ -99,12 +110,12 @@ bool BufIterator::SetTargetChunkAndRewind(TBChunk* chunk) {
 
 // See comments around BufIterator in the .h file for the rationale.
 bool BufIterator::NextChunk() {
-  const bool move_in_linked_list_order = chunk_ != target_chunk_;
-  if (move_in_linked_list_order) {
+  const bool move_in_seq_order = chunk_ != target_chunk_;
+  if (move_in_seq_order) {
     // Move to the next chunk in the linked list.
     // We must always be able to move next in the list because we reached this
-    // state by initially walking the list backwards. If this fails, the list
-    // is corrupted.
+    // state by initially rewining to the beginning of the list.
+    // If this fails, the `SequenceState.chunks` list is corrupted.
     PERFETTO_CHECK(NextChunkInSequence());
     return true;
   }
@@ -114,15 +125,16 @@ bool BufIterator::NextChunk() {
 }
 
 bool BufIterator::NextChunkInSequence() {
-  // Move to the next chunk in the linked list.
-  // We must always be able to move next in the list because we reached this
-  // state by initially walking the list backwards. If this fails, the list
-  // is corrupted.
-  auto it = ChunkList::Iterator(chunk_);
-  if (!++it)
+  if (!seq_)
     return false;
-  TBChunk* next_chunk = &*it;
-  SetChunk(next_chunk);
+  size_t cur_chunk_of = buf_->OffsetOf(chunk_);
+  auto& chunk_list = seq_->chunks;
+  // TODO this could be optimized to remove the find.
+  auto it = chunk_list.Find(cur_chunk_of);
+  PERFETTO_DCHECK(it != chunk_list.end());
+  if (++it == chunk_list.end())
+    return false;
+  SetChunk(buf_->GetTBChunkAt(*it));
   // No need to update `seq_` as we are staying on the same sequence.
   return true;
 }
@@ -146,34 +158,38 @@ bool BufIterator::NextChunkInBuffer() {
 }
 
 std::optional<TraceBufferV2::Frag> BufIterator::NextFragmentInChunk() {
-  PERFETTO_DCHECK(next_frag_ >= chunk_->fragments_begin() &&
-                  next_frag_ <= chunk_->fragments_end());
+  PERFETTO_DCHECK(next_frag_off_ <= chunk_->payload_size);
   uint8_t* chunk_end = chunk_->fragments_end();
-  if (next_frag_ >= chunk_end)
+  uint8_t* hdr_begin = chunk_->fragments_begin() + next_frag_off_;
+  if (hdr_begin >= chunk_end)
     return std::nullopt;
 
   Frag frag{};
+  bool is_first_frag = next_frag_off_ == 0;
+  uint64_t frag_size_u64 = 0;
 
-  bool is_first_frag = next_frag_ == chunk_->fragments_begin();
-  uint64_t frag_size_and_flags = 0;
-  frag.size_hdr = next_frag_;
-  frag.begin = const_cast<uint8_t*>(
-      ParseVarInt(next_frag_, chunk_end, &frag_size_and_flags));
-  frag.size = static_cast<size_t>(frag_size_and_flags >> Frag::kShift);
-  // We should never end up with an out-of-bound fragment in the buffer.
-  // Even if a producer writes a malformed chunk, CopyChunkUntrusted is
-  // supposed to discard that and never write it in the buffer.
-  PERFETTO_CHECK(frag.size <= static_cast<size_t>(chunk_end - next_frag_));
-  uint8_t frag_flags = frag_size_and_flags & Frag::kMask;
-  next_frag_ = frag.begin + frag.size;
-  bool is_last_frag = next_frag_ == chunk_end;
+  uint8_t* frag_begin =
+      const_cast<uint8_t*>(ParseVarInt(hdr_begin, chunk_end, &frag_size_u64));
+  size_t hdr_size =
+      static_cast<size_t>(reinterpret_cast<uintptr_t>(frag_begin) -
+                          reinterpret_cast<uintptr_t>(hdr_begin));
+
+  frag.chunk = chunk_;
+  frag.payload_off = static_cast<uint16_t>(
+      reinterpret_cast<uintptr_t>(frag_begin) -
+      reinterpret_cast<uintptr_t>(chunk_->fragments_begin()));
+  frag.size = static_cast<size_t>(frag_size_u64);
+
+  // TODO soften this check. it can happen if the producer is really malicious
+  // and changes them after we bound check.
+  PERFETTO_CHECK(frag.size <= static_cast<size_t>(chunk_end - frag_begin));
+  next_frag_off_ += hdr_size + frag.size;
+  bool is_last_frag = next_frag_off_ >= chunk_->payload_size;
   bool first_frag_continues =
       chunk_->flags & kFirstPacketContinuesFromPrevChunk;
   bool last_frag_continues = chunk_->flags & kLastPacketContinuesOnNextChunk;
 
-  if (!(frag_flags & Frag::kValid)) {
-    frag.type = Frag::kFragInvalid;
-  } else if (is_last_frag && last_frag_continues) {
+  if (is_last_frag && last_frag_continues) {
     if (is_first_frag && first_frag_continues) {
       frag.type = Frag::kFragContinue;
     } else {
@@ -249,23 +265,18 @@ bool TraceBufferV2::ReadNextTracePacket(
       // We are going to erase the current chunk, so move next first as the
       // erase will invalidate the next/prev pointers.
       TBChunk* cur_chunk = rd_iter_.chunk();
+      SequenceState* seq = rd_iter_.sequence_state();
       bool has_next_chunk = rd_iter_.NextChunk();
-      EraseTBChunk(cur_chunk);
+      EraseTBChunk(cur_chunk, seq);
       if (!has_next_chunk)
         return false;  // There is nothing else to read in the buffer.
       continue;
     }
     Frag& frag = *maybe_frag;
     switch (frag.type) {
-      case Frag::kFragInvalid:
-        // This is either a whole packet that we consumed already, or a fragment
-        // that has been invalidated because we had gaps while reassembling,
-        // perhaps due to a data loss.
-        continue;
-
       case Frag::kFragWholePacket:
-        out_packet->AddSlice(frag.begin, frag.size);
-        frag.MarkInvalid();
+        out_packet->AddSlice(frag.begin(), frag.size);
+        rd_iter_.Consume();
         return true;
 
       case Frag::kFragContinue:
@@ -278,26 +289,18 @@ bool TraceBufferV2::ReadNextTracePacket(
         // [kWholePacket, kFragContinue] or [kWholePacket, kFragEnd].
         // TODO report ABI violation
         // TODO maybe it's an ok error if we have data losses.
-        frag.MarkInvalid();
+        rd_iter_.Consume();
         break;
 
-      case Frag::kFragBegin: {
-        // Try to reassemble the packet. This will require following the linked
-        // list of chunks in the same sequence. 16 below is an educated guess,
-        // if we go over it, SmallVector will expand on the heap.
-        base::SmallVector<Frag, 16> packet_frags;
-        auto reassembly_res = ReassembleFragmentedPacket(&packet_frags, &frag);
+      case Frag::kFragBegin:
+        auto reassembly_res =
+            ReassembleFragmentedPacket(out_packet, &frag, force_erase);
         if (reassembly_res == FragReassemblyResult::kSuccess) {
-          // We found all the fragments for the packet. Add them to out_packet
-          // and invalidate them.
-          for (Frag* f = packet_frags.begin(); f != packet_frags.end(); ++f) {
-            out_packet->AddSlice(f->begin, f->size);
-            f->MarkInvalid();
-          }
-          // On the next ReadNextTracePacket(), NextFragmentInBuffer() will
-          // return nullopt (because, modulo client bugs, this was the last
-          // fragment of the chunk) and that code branch it will erase the
-          // chunk and continue with the next chunk (either in buffer
+          // We found and consumed all the fragments for the packet.
+          // On the next ReadNextTracePacket() call, NextFragmentInChunk() will
+          // return nullopt (because, modulo client bugs, the kFragBegin here
+          // is the alst fragment of the chunk). That code branch above will
+          // erase the chunk and continue with the next chunk (either in buffer
           // or sequence order).
           return true;
         }
@@ -306,9 +309,6 @@ bool TraceBufferV2::ReadNextTracePacket(
           // invalid, so they don't trigger further error stats when we
           // iterate over the next chunks (Eventually we'll stumbled upon them
           // as we move in either buffer or sequence order).
-          // TODO record the data loss somewhere in SeqState?
-          for (Frag& f : packet_frags)
-            f.MarkInvalid();
           // The break will continue with the next fragments leaving the
           // chunk iteration unaltered. Imagine this:
           // - We start the read iteration
@@ -321,72 +321,93 @@ bool TraceBufferV2::ReadNextTracePacket(
           // We should keep going as if the data was invalid.
           break;
         }
-        if (reassembly_res == FragReassemblyResult::kNotEnoughData) {
-          // In this case we need to have two different behaviors:
-          // 1. If we are doing a pure readback, we should move away from this
-          //    sequence non-destructively, as there is a chance that in the
-          //    next read round the remaining fragments will be received.
-          //    Note that by moving to NextChunkInBuffer we might still stumble
-          //    on futher chunks of the current sequence. But the read_pass_
-          //    generation counter will make us skip them.
-          // 2. We are overwriting chunks as part of a write: this was the last
-          //    chance to read back the data (and pass it to protovm). We should
-          //    destroy it and essentially treat it as a kDataLoss.
-          if (!force_erase) {
-            // Case 1; Continue the iteration on the next chunk in buffer order.
-            if (!rd_iter_.NextChunkInBuffer())
-              return false;
-          } else {
-            // Case 2: invalidate the frags and continue.
-            for (Frag& f : packet_frags)
-              f.MarkInvalid();
-          }
-          break;
+        PERFETTO_DCHECK(reassembly_res == FragReassemblyResult::kNotEnoughData);
+        // In this case we need two different behaviors:
+        // 1. If we are doing a pure readback (force_erase = false), we should
+        //    move away from this sequence non-destructively, as there is a
+        //    chance that the missing chunks will appear in future.
+        //    Note that by moving to NextChunkInBuffer we might still stumble
+        //    on futher chunks of the current sequence. But the read_pass_
+        //    generation counter will cause BufIterator to skip over them.
+        // 2. We are overwriting chunks as part of a write: this was the last
+        //    chance to read back the data (and pass it to protovm). We should
+        //    destroy it and essentially treat it as a kDataLoss.
+        if (!force_erase) {
+          // Case 1: Continue the iteration on the next chunk in buffer order.
+          if (!rd_iter_.NextChunkInBuffer())
+            return false;
         }
-        PERFETTO_CHECK(false);  // Unreachable.
-      }  // case kFragBegin
-      break;
+        // In case 2: ReassembleFragmentedPacket has invalidated the fragments,
+        // we should break the switch and continue with whatever is next.
+        break;  // case kFragBegin
     }  // switch(frag.type)
   }  // for (;;)
   return false;
 }
 
 TraceBufferV2::FragReassemblyResult TraceBufferV2::ReassembleFragmentedPacket(
-    FragSmallVector* packet_frags,
-    Frag* initial_frag) {
+    TracePacket* out_packet,
+    Frag* initial_frag,
+    bool force_erase) {
   PERFETTO_DCHECK(initial_frag->type == Frag::kFragBegin);
-  packet_frags->emplace_back(*initial_frag);
+
+  base::SmallVector<Frag, 16> frags;
+  frags.emplace_back(*initial_frag);
   BufIterator it = rd_iter_;  // Copy the iterator to lookahead.
+
+  FragReassemblyResult res;
   // Iterate over chunks using the linked list.
   for (;;) {
     if (!it.NextChunkInSequence()) {
-      return FragReassemblyResult::kNotEnoughData;
+      res = FragReassemblyResult::kNotEnoughData;
+      break;
     }
-    // Iterate over fragments in each chunk.
-    for (;;) {
-      std::optional<Frag> frag = it.NextFragmentInChunk();
-      if (!frag.has_value()) {
-        // This can happen if the chunk needs patching (and is still unpatched).
-        // In that case the BufIterator will bail out with nullopt.
-        return FragReassemblyResult::kNotEnoughData;
-      }
-      // TODO DNS check sequence IDs
-      switch (frag->type) {
-        case Frag::kFragContinue:
-          packet_frags->emplace_back(*frag);
-          break;
-        case Frag::kFragEnd:
-          packet_frags->emplace_back(*frag);
-          return FragReassemblyResult::kSuccess;
-        case Frag::kFragInvalid:
-          break;
-        case Frag::kFragBegin:
-        case Frag::kFragWholePacket:
-          // TODO report possible ABI violations? DNS
-          return FragReassemblyResult::kDataLoss;
-      }
+    // TODO DNS check sequence IDs
+    // TODO explain why we don't iterate over fragments but only read one.
+    std::optional<Frag> frag = it.NextFragmentInChunk();
+    if (!frag.has_value()) {
+      // This can happen if the chunk needs patching (and is still unpatched).
+      // In that case the BufIterator will bail out with nullopt.
+      res = FragReassemblyResult::kNotEnoughData;
+      break;
+    }
+
+    const auto& frag_type = frag->type;
+    if (frag_type == Frag::kFragContinue) {
+      frags.emplace_back(*frag);
+      continue;
+    }
+    if (frag_type == Frag::kFragEnd) {
+      frags.emplace_back(*frag);
+      res = FragReassemblyResult::kSuccess;
+      break;
+    }
+    // else: kFragBegin or kFragWholePacket
+
+    // Even if force_consume is true, we want to leave frags these untouched
+    // as they don't belog to us. The next ReadNextPacket calls will deal with
+    // them. Our job here is to consume (forcefully or not) only fragments for
+    // the packet we are trying to reassemble.
+    // TODO report possible ABI violations? DNS
+    // TODO record the data loss somewhere in SeqState?
+    res = FragReassemblyResult::kDataLoss;
+    break;
+  }  // for (chunk in list)
+
+  for (Frag& f : frags) {
+    if (res == FragReassemblyResult::kSuccess) {
+      out_packet->AddSlice(f.begin(), f.size);
+    }
+    if (force_erase || res == FragReassemblyResult::kSuccess ||
+        res == FragReassemblyResult::kDataLoss) {
+      // This is the equivalent to the Consume() call on the iterator. We cannot
+      // use that as we can tell only at the end (after we have advanced the
+      // iterator) whether we will consume or not.
+      f.chunk->payload_consumed =
+          std::max(f.chunk->payload_consumed, f.end_off());
     }
   }
+  return res;
 }
 
 void TraceBufferV2::CopyChunkUntrusted(
@@ -407,7 +428,7 @@ void TraceBufferV2::CopyChunkUntrusted(
   const uint8_t* const end = src + size;
 
   // If the chunk hasn't been completed, we should only consider the first
-  // |num_fragments - 1| packets complete. For simplicity, we simply disregard
+  // |num_fragments - 1| packets. For simplicity, we simply disregard
   // the last one when we copy the chunk.
   if (PERFETTO_UNLIKELY(!chunk_complete)) {
     if (num_fragments > 0) {
@@ -420,20 +441,8 @@ void TraceBufferV2::CopyChunkUntrusted(
     }
   }
 
-  struct FragInfo {
-    uint32_t off;
-    uint32_t size;
-  };
-
-  // Note: The 256 arg is only for the inline size before growing on heap. It's
-  // an educated guess on how many packets we'll usually find.
-  base::SmallVector<FragInfo, /* inline_size*/ 256> frags;
+  // Compute the SUM(frags.size).
   size_t all_frags_size = 0;
-
-  // Find the bounds of all the fragments and keep them in the `frags` vector.
-  // Copy happens a bit later below. We first need to check for bound validity
-  // and figure out the final size of the TBCHunk, which might be < the SMB
-  // chunk (e.g. when doing a Flush() so that the payload is << chunk size).
   for (uint16_t frag_idx = 0; frag_idx < num_fragments; frag_idx++) {
     const bool is_last_frag = frag_idx == num_fragments - 1;
 
@@ -441,22 +450,24 @@ void TraceBufferV2::CopyChunkUntrusted(
     // The varint shouldn't be larger than 4 bytes, as the max size supported
     // by the SharedMemoryABI is kMaxMessageLength (256 MB).
     uint64_t frag_size_u64 = 0;
-    // TODO update next pointer DNS
-    const uint8_t* size_end =
-        std::min(cur + proto_utils::kMessageLengthFieldSize, end);
-    const uint8_t* payload_begin = ParseVarInt(cur, size_end, &frag_size_u64);
+    const uint8_t* size_begin = cur;
+    const uint8_t* size_limit =
+        std::min(size_begin + proto_utils::kMessageLengthFieldSize, end);
+    const uint8_t* payload_begin =
+        ParseVarInt(size_begin, size_limit, &frag_size_u64);
     const uint8_t* payload_end = payload_begin + frag_size_u64;
+    cur = payload_end;
 
     // Because of the kMessageLengthFieldSize, the frag size must be at most
     // 256MB.
     PERFETTO_DCHECK(frag_size_u64 <= proto_utils::kMaxMessageLength);
-    const uint32_t fragment_size = static_cast<uint32_t>(frag_size_u64);
+    const uint32_t frag_size = static_cast<uint32_t>(frag_size_u64);
 
     // In BufferExhaustedPolicy::kDrop mode, TraceWriter may abort a fragmented
     // packet by writing an invalid size in the last fragment's header. We
     // should handle this case without recording an ABI violation (since Android
     // R).
-    if (PERFETTO_UNLIKELY(fragment_size ==
+    if (PERFETTO_UNLIKELY(frag_size ==
                           SharedMemoryABI::kPacketSizeDropPacket)) {
       // TODO DNS
       stats_.set_trace_writer_packet_loss(stats_.trace_writer_packet_loss() +
@@ -465,6 +476,7 @@ void TraceBufferV2::CopyChunkUntrusted(
       break;
     }
 
+    // TODO improve pointer arith without using ptrs.
     if (PERFETTO_UNLIKELY(payload_end >= end || payload_end <= payload_begin)) {
       // Something is not right. Malicious producer or data corruption.
       // We will still do our best with copying over the previous valid
@@ -475,15 +487,12 @@ void TraceBufferV2::CopyChunkUntrusted(
     }
 
     // We found a valid fragment.
-    uint32_t off = static_cast<uint32_t>(payload_begin - src);
-    frags.emplace_back(FragInfo{off, fragment_size});
-    // Compute the length that will be needed to write the size&flags header.
-    all_frags_size += proto_utils::VarintSize(fragment_size << Frag::kShift);
-    all_frags_size += fragment_size;
+    uint32_t frag_size_incl_hdr =
+        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(payload_end) -
+                              reinterpret_cast<uintptr_t>(size_begin));
+    all_frags_size += frag_size_incl_hdr;
   }  // for (fragments)
-
-  if (frags.empty())
-    return;
+  PERFETTO_CHECK(all_frags_size <= size);
 
   // Make space in the buffer for the chunk we are about to copy.
 
@@ -492,13 +501,12 @@ void TraceBufferV2::CopyChunkUntrusted(
   // We deliberately store the non-rounded-up size in the chunk header.
   // This is so we can tell where the last fragment ends exactly. When moving
   // in the buffer, we use aligned_size() which does the rounding.
-  size_t tbchunk_size = sizeof(TBChunk) + all_frags_size;
-  size_t tbchunk_outer_size = TBChunk::OuterSize(tbchunk_size);
+  size_t tbchunk_outer_size = TBChunk::OuterSize(all_frags_size);
 
   if (PERFETTO_UNLIKELY(tbchunk_outer_size > size_)) {
     // The chunk is bigger than the buffer. Extremely rare, but it can
-    // technically happen if the user has specified a 4KB buffer and the SMB
-    // chunk is 16KB.
+    // technically happen if the user has specified a 16KB buffer and the SMB
+    // chunk is 32KB.
     stats_.set_abi_violations(stats_.abi_violations() + 1);
     PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
     return;
@@ -520,20 +528,15 @@ void TraceBufferV2::CopyChunkUntrusted(
     return DiscardWrite();
 
   TBChunk* tbchunk = GetTBChunkAtUnchecked(wr_);
-  new (tbchunk) TBChunk(tbchunk_size);
+  new (tbchunk) TBChunk(all_frags_size);
   tbchunk->chunk_id = chunk_id;
   tbchunk->flags = chunk_flags;
   auto* payload_begin = reinterpret_cast<uint8_t*>(tbchunk) + sizeof(TBChunk);
   uint8_t* wptr = payload_begin;
 
   // Copy all the (valid) fragments from the SMB chunk to the TBChunk.
-  for (FragInfo* frag = frags.begin(); frag != frags.end(); ++frag) {
-    uint32_t frag_size_and_flags = frag->size << Frag::kShift | Frag::kValid;
-    wptr = proto_utils::WriteVarInt(frag_size_and_flags, wptr);
-    const size_t frag_size = frag->size;
-    memcpy(wptr, &src[frag->off], frag_size);
-    wptr += frag_size;
-  }
+  memcpy(wptr, src, all_frags_size);
+  wptr += all_frags_size;
   PERFETTO_DCHECK(static_cast<size_t>(wptr - payload_begin) == all_frags_size);
 
   auto seq_key = MkProducerAndWriterID(producer_id_trusted, writer_id);
@@ -541,26 +544,23 @@ void TraceBufferV2::CopyChunkUntrusted(
   if (seq_it == sequences_.end()) {
     auto it_and_inserted = sequences_.emplace(
         seq_key,
-        SequenceState{{},
-                      producer_id_trusted,
-                      writer_id,
-                      client_identity_trusted});  // TODO last_chunk_id DNS
+        SequenceState(producer_id_trusted, writer_id, client_identity_trusted));
     seq_it = it_and_inserted.first;
   }
   SequenceState& seq = seq_it->second;
 
   // Insert the chunk in-order in the linked list.
   // TODO handle re-commit of same chunk id.
-  auto insert_pos = seq.chunk_list.rbegin();
-  while (insert_pos != seq.chunk_list.rend() &&
-         ChunkIdCompare(chunk_id, insert_pos->chunk_id) < 0) {
-    --insert_pos;
+  auto& chunk_list = seq.chunks;
+  auto insert_pos = chunk_list.rbegin();
+  while (insert_pos != chunk_list.rend() &&
+         ChunkIdCompare(chunk_id, GetTBChunkAt(*insert_pos)->chunk_id) < 0) {
+    ++insert_pos;
   }
-  seq.chunk_list.InsertBefore(insert_pos, *tbchunk);
+  chunk_list.InsertBefore(insert_pos, OffsetOf(tbchunk));
 
   stats_.set_chunks_written(stats_.chunks_written() + 1);
   stats_.set_bytes_written(stats_.bytes_written() + tbchunk_outer_size);
-  // TODO DNS remember about FlatHashMap tombestones issue.
   // TODO more to do here, look at v1.
 }
 
@@ -579,6 +579,8 @@ bool TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
   // uint64_t chunks_overwritten = stats_.chunks_overwritten();
   // uint64_t bytes_overwritten = stats_.bytes_overwritten();
   // uint64_t padding_bytes_cleared = stats_.padding_bytes_cleared();
+
+  // TODO here what if there is nothing to read?
 
   BeginRead(/*limit=*/bytes_to_clear);
   for (;;) {
@@ -633,25 +635,21 @@ bool TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
 }
 
 // TODO the caller of this must walk back to the chain.
-void TraceBufferV2::EraseTBChunk(TBChunk* tbchunk) {
-  const uint32_t size = tbchunk->size;
+void TraceBufferV2::EraseTBChunk(TBChunk* tbchunk, SequenceState* seq) {
+  const uint32_t size = tbchunk->payload_size;  // TODO check statistics
 
-  // TODO Add a DCHECK to ensure all fragments are invalid.
-  PERFETTO_DCHECK(tbchunk->list_node.is_attached());
-
+  auto& chunk_list = seq->chunks;
   // At the time of writing the only case when we invoke EraseTBChunk is to
   // delete the first chunk of the sequence. Deleting the chunks in any other
-  // order feels suspicious. If you ever need to remove this DCHECK ask yourself
+  // order feels suspicious. If you ever need to remove this CHECK ask yourself
   // if you have been thinking of all the possible implications of it.
-  PERFETTO_DCHECK(!(--ChunkList::Iterator(tbchunk)));
+  PERFETTO_CHECK(*chunk_list.begin() == OffsetOf(tbchunk));
+  chunk_list.pop_front();
 
-  // Remove from the linked list. It does not invalidate the chunk itself as we
-  // are using IntrusiveList, which does NOT manage the memory of the nodes.
-  ChunkList::Iterator(tbchunk).Erase();
-
-  // Erase clears the prev/next ptrs. Doing so makes is_padding() true.
-  PERFETTO_DCHECK(tbchunk->is_padding());
+  tbchunk->pri_wri_id = 0;
   tbchunk->chunk_id = 0;
+  tbchunk->payload_size = 0;
+  tbchunk->payload_consumed = 0;
   tbchunk->flags = 0;
 
   // TODO handle compaction by remembering the last erased chunk. But also

@@ -173,6 +173,56 @@ TEST(CircularQueueTest, Iterators) {
   }
 }
 
+TEST(CircularQueueTest, ReverseIterators) {
+  CircularQueue<int> queue;
+  ASSERT_EQ(queue.rbegin(), queue.rend());
+  queue.emplace_back(1);
+
+  ASSERT_EQ(*queue.rbegin(), 1);
+  ASSERT_EQ(++queue.rbegin(), queue.rend());
+
+  queue.emplace_back(2);
+  queue.emplace_back(3);
+
+  auto it = queue.rbegin();
+  ASSERT_EQ(*(it++), 3);
+  ASSERT_EQ(*(it++), 2);
+  ASSERT_EQ(*(it++), 1);
+  ASSERT_EQ(it, queue.rend());
+}
+
+TEST(CircularQueueTest, InsertBefore) {
+  CircularQueue<int> queue;
+  queue.InsertBefore(queue.end(), 2);
+  ASSERT_THAT(queue, testing::ElementsAre(2));
+
+  queue.InsertBefore(queue.begin(), 1);
+  ASSERT_THAT(queue, testing::ElementsAre(1, 2));
+
+  queue.InsertBefore(queue.end(), 4);
+  ASSERT_THAT(queue, testing::ElementsAre(1, 2, 4));
+
+  queue.InsertBefore(queue.Find(4), 3);
+  ASSERT_THAT(queue, testing::ElementsAre(1, 2, 3, 4));
+
+  queue.InsertBefore(queue.begin(), 0);
+  ASSERT_THAT(queue, testing::ElementsAre(0, 1, 2, 3, 4));
+}
+
+TEST(CircularQueueTest, InsertBeforeReverse) {
+  CircularQueue<int> queue;
+
+  std::array<int, 5> new_entries{4, 1, 5, 2, 3};
+  for (int n : new_entries) {
+    auto it = queue.rbegin();
+    while (it != queue.rend() && n < *it) {
+      ++it;
+    }
+    queue.InsertBefore(it, n);
+  }
+  ASSERT_THAT(queue, testing::ElementsAre(1, 2, 3, 4, 5));
+}
+
 TEST(CircularQueueTest, ObjectLifetime) {
   class Checker {
    public:

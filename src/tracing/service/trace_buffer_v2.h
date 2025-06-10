@@ -24,6 +24,7 @@
 #include <unordered_map>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/small_vector.h"
@@ -33,7 +34,6 @@
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/slice.h"
 #include "perfetto/ext/tracing/core/trace_stats.h"
-#include "src/base/intrusive_list.h"
 #include "src/tracing/service/histogram.h"
 
 namespace perfetto {
@@ -42,30 +42,11 @@ class TracePacket;
 class TraceBufferV2;
 
 namespace internal {
+
 struct TBChunk {
-  struct ListTraits {
-    static constexpr size_t node_offset() {
-      return offsetof(TBChunk, list_node);
-    }
-  };
-
-  explicit TBChunk(size_t sz) : size(static_cast<uint32_t>(sz)) {
-    PERFETTO_DCHECK(sz >= sizeof(TBChunk));
-    PERFETTO_DCHECK(sz <= std::numeric_limits<decltype(size)>::max());
+  explicit TBChunk(size_t plsz) : payload_size(static_cast<uint16_t>(plsz)) {
+    PERFETTO_DCHECK(plsz <= std::numeric_limits<decltype(payload_size)>::max());
   }
-
-  // NOTE: the default-initialization of the fields below matters. It is used
-  // by DeleteNextChunksFor() when writing padding chunks.
-
-  // The only case when list_node.prev/next are == nullptr is the case
-  // of a padding record, which is not associated to any sequence.
-  // TODO replace with two uint32_t offsets.
-  base::IntrusiveListNode list_node{};
-
-  // We store the exact (unaligned) size to tell precisely where the last
-  // fragment ends. However, TBChunk(s) are stored in the buffer with proper
-  // alignment. When we move in the buffer we use aligned_size() not this.
-  uint32_t size = 0;  // Size including sizeof(TBChunk).
 
   // NOTE: In the case of scraping we can have two contiguous TBChunks
   // (in the same sequence) with the same chunk_id. One containing all the
@@ -75,64 +56,79 @@ struct TBChunk {
   // How do we avoid duped packets (i'm thinking of write_into_file)?
   ChunkID chunk_id = 0;
 
+  // The key to find the SequenceState from TraceBuffer.sequences_.
+  ProducerAndWriterID pri_wri_id = 0;
+
+  // Size of the payload, excluding the TBCHunk header itself, and without
+  // accounting for any alignment.
+  uint16_t payload_size = 0;
+
+  // The offset of the next unconsumed fragment. This starts at 0 when we write
+  // the chunk, and grows up to `payload_size` as we read fragments.
+  uint16_t payload_consumed = 0;
+
   // These are == the SharedMemoryABI's chunk flags.
   uint8_t flags = 0;
 
-  static size_t OuterSize(size_t inner) {
-    return base::AlignUp<alignof(TBChunk)>(inner);
+  static size_t OuterSize(size_t payload) {
+    return base::AlignUp<alignof(TBChunk)>(sizeof(TBChunk) + payload);
   }
-  size_t outer_size() { return OuterSize(size); }
+  size_t outer_size() { return OuterSize(payload_size); }
 
-  bool is_padding() const { return !list_node.is_attached(); }
+  bool is_padding() const { return pri_wri_id == 0; }
 
   uint8_t* fragments_begin() {
     return reinterpret_cast<uint8_t*>(this) + sizeof(TBChunk);
   }
 
-  uint8_t* fragments_end() { return fragments_begin() + size; }
+  uint8_t* unread_fragments_begin() {
+    PERFETTO_DCHECK(payload_consumed <= payload_size);
+    return fragments_begin() + payload_consumed;
+  }
 
-  // ProducerAndWriterID pr_wr_id = 0;  // TODO maybe not needed
-  // TODO do we need chunk_id?
+  uint8_t* fragments_end() { return fragments_begin() + payload_size; }
 };
-
-using ChunkList = base::IntrusiveList<TBChunk>;
 
 // Holds the state for each sequence that has TBCHunk(s) in the buffer.
 struct SequenceState {
-  ChunkList chunk_list{};
+  SequenceState(ProducerID, WriterID, ClientIdentity);
+  ~SequenceState();
+  SequenceState(const SequenceState&) noexcept;
+  SequenceState& operator=(const SequenceState&) noexcept;
+
   ProducerID producer_id = 0;
   WriterID writer_id = 0;
   ClientIdentity client_identity{};
-  uint64_t read_pass = 0;
-  // ChunkID last_chunk_id = 0;  // TODO is this actually needed? TBD
+  uint64_t read_pass = 0;  // TODO remember to clear when cloning.
+
+  // An ordered list of chunks (ordered by their chunk_id). Each member
+  // corresponsds to the offset within buf_ for the chunk.
+  // We store buffer offsets rather than pointers to make buffer cloning easier.
+  // In principle this is a queue of TBChunk* (% a call to GetTBChunkAt()).
+  base::CircularQueue<size_t> chunks;  // TODO make initial capacity smaller.
 };
 
 struct Frag {
   enum FragType {
-    kFragInvalid = 0,
     kFragWholePacket,
     kFragBegin,
     kFragContinue,
     kFragEnd,
   };
-  static constexpr size_t kShift = 1;
-  static constexpr uint8_t kMask = (1 << kShift) - 1;
-  static constexpr uint8_t kValid = 1 << 0;
 
-  // Points to the varint with (size << kFragShift) & flags.
-  uint8_t* size_hdr = nullptr;
+  TBChunk* chunk = nullptr;
 
-  // Points to the payload of the fragment (a few bytes after size_hdr).
-  uint8_t* begin = nullptr;
+  // The offset of the payload start within the chunk.
+  uint16_t payload_off = 0;
 
-  // The size of the payload (without any flags). This is NOT rounded up to
-  // alignof(TBChunk) so we can tell when the last fragment ends.
-  // Use outer_size() to determine the boundary of the chunk in the buffer.
-  size_t size = 0;
+  // The size of the fragment payload (without any rounding / aligning).
+  uint16_t size = 0;
 
-  FragType type = kFragInvalid;
+  uint8_t* begin() { return chunk->fragments_begin() + payload_off; }
+  uint8_t* end() { return chunk->fragments_begin() + payload_off + size; }
+  uint16_t end_off() { return payload_off + size; }
 
-  void MarkInvalid() { *size_hdr &= ~kValid; }
+  FragType type = kFragWholePacket;
 };
 
 // BufIterator encapsulates the logic to move around chunks and fragments in
@@ -196,7 +192,7 @@ class BufIterator {
 
   void SetChunk(TBChunk* chunk) {
     chunk_ = chunk;
-    next_frag_ = chunk->fragments_begin();
+    next_frag_off_ = 0;
   }
 
   // Depending on the current iteration state, either:
@@ -212,6 +208,13 @@ class BufIterator {
 
   std::optional<Frag> NextFragmentInChunk();
 
+  // TODO rename this.
+  void Consume() {
+    PERFETTO_DCHECK(chunk_->payload_consumed >= next_frag_off_);
+    PERFETTO_DCHECK(next_frag_off_ <= chunk_->payload_size);
+    chunk_->payload_consumed = next_frag_off_;
+  }
+
   TBChunk* chunk() { return chunk_; }
   SequenceState* sequence_state() { return seq_; }
 
@@ -224,10 +227,8 @@ class BufIterator {
 
   SequenceState* seq_ = nullptr;
 
-  // TODO add here a target_chunk_ to handle the
-  // NextChunk() to tellwhether we did rewind or not.
   // Position of the next fragment within the current `chunk_`.
-  uint8_t* next_frag_ = nullptr;
+  uint16_t next_frag_off_ = 0;
 
   // TODO explain that limit is only for iterating in buffer order (and why).
   // It stops AFTER passing the limit.
@@ -277,7 +278,6 @@ class TraceBufferV2 {
 
  private:
   using BufIterator = internal::BufIterator;
-  using ChunkList = internal::ChunkList;
   using Frag = internal::Frag;
   using SequenceState = internal::SequenceState;
 
@@ -295,12 +295,12 @@ class TraceBufferV2 {
 
   bool Initialize(size_t size);
   bool DeleteNextChunksFor(size_t bytes_to_clear);
-  void EnsureCommitted(size_t);
+  void EnsureCommitted(size_t) {}  // TODO
 
-  using FragSmallVector = base::SmallVector<Frag, 16>;
   enum class FragReassemblyResult { kSuccess = 0, kNotEnoughData, kDataLoss };
-  FragReassemblyResult ReassembleFragmentedPacket(FragSmallVector*,
-                                                  Frag* initial_frag);
+  FragReassemblyResult ReassembleFragmentedPacket(TracePacket* out_packet,
+                                                  Frag* initial_frag,
+                                                  bool force_erase);
 
   void DcheckIsAlignedAndWithinBounds(size_t off) const {
     PERFETTO_DCHECK((off & (alignof(TBChunk) - 1)) == 0);
@@ -316,9 +316,14 @@ class TraceBufferV2 {
 
   TBChunk* GetTBChunkAt(size_t off) {
     TBChunk* tbchunk = GetTBChunkAtUnchecked(off);
-    PERFETTO_CHECK(tbchunk->size >= sizeof(TBChunk) &&
-                   tbchunk->size <= (size_ - off));
+    PERFETTO_CHECK(tbchunk->outer_size() <= (size_ - off));
     return tbchunk;
+  }
+
+  // Can return nullptr for padding chunks (or in case of programming errors).
+  SequenceState* GetSeqForChunk(const TBChunk* chunk) {
+    auto it = sequences_.find(chunk->pri_wri_id);
+    return it == sequences_.end() ? nullptr : &it->second;
   }
 
   size_t OffsetOf(const TBChunk* chunk) {
@@ -328,7 +333,7 @@ class TraceBufferV2 {
     return static_cast<size_t>(addr - start);
   }
 
-  void EraseTBChunk(TBChunk*);
+  void EraseTBChunk(TBChunk*, SequenceState*);
   void DiscardWrite() {}  // TODO DNS
 
   uint8_t* begin() const { return reinterpret_cast<uint8_t*>(data_.Get()); }
@@ -344,6 +349,7 @@ class TraceBufferV2 {
 
   // Note: we need stable pointers for SequenceState, as they get cached in
   // BufIterator.
+  // TODO remember to delete from here if all chunks are gone.
   std::unordered_map<ProducerAndWriterID, SequenceState> sequences_;
 
   // Iterator used to implement ReadNextTracePacket().
