@@ -38,13 +38,6 @@ struct RegisteredPackage {
     std::string sql;
     bool included;
   };
-
-  RegisteredPackage() = default;
-
-  RegisteredPackage(RegisteredPackage&&) = default;
-  RegisteredPackage& operator=(RegisteredPackage&&) = default;
-
-  std::string name;
   base::FlatHashMap<std::string, ModuleFile> modules;
 };
 
