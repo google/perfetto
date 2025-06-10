@@ -418,3 +418,60 @@ class WattsonStdlib(TestSuite):
             1,250118842121,137102890041
             1,387221732162,2321209555
             """))
+
+  # Tests that IRQ stacks are properly flattened and have unique IDs
+  def test_wattson_irq_flattening(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_irq_gpu_markers.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE wattson.tasks.threads_w_processes;
+
+        SELECT
+          SUM(dur) AS total_dur, irq_name, irq_id
+        FROM  _all_irqs_flattened_slices
+        GROUP BY irq_name
+        LIMIT 10
+        """,
+        out=Csv("""
+          "total_dur","irq_name","irq_id"
+          1118451,"BLOCK",5941642767990057
+          1701414,"IRQ (100a0000.BIG)",6193345537499459
+          769330,"IRQ (100a0000.LITTLE)",471162949720827
+          741289,"IRQ (100a0000.MID)",5403751306674388
+          2179935,"IRQ (10840000.pinctrl)",8317289977631590
+          1192993,"IRQ (10970000.hsi2c)",3880618899476005
+          7840694,"IRQ (176a0000.mbox)",394316441932309
+          2110993,"IRQ (1c0b0000.drmdpp)",8097379067780916
+          2132254,"IRQ (1c0b1000.drmdpp)",3338887776767190
+          1187454,"IRQ (1c0b2000.drmdpp)",2834562828360678
+          """))
+
+  # Tests that total calculations are correct
+  def test_wattson_irq_idle_attribution(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_irq_gpu_markers.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.tasks.idle_transitions_attribution;
+            SELECT
+              SUM(estimated_mw * dur) / 1000000000 as idle_transition_cost_mws,
+              utid,
+              upid
+            FROM _idle_transition_cost
+            WHERE utid > 32768
+            GROUP BY utid
+            ORDER BY idle_transition_cost_mws DESC
+            LIMIT 10
+            """),
+        out=Csv("""
+          "idle_transition_cost_mws","utid","upid"
+          25.738524,1538673655470170,1538673655470170
+          15.021928,8423451139484161,8423451139484161
+          1.835764,3716899496803631,3716899496803631
+          0.493123,8671761571854212,8671761571854212
+          0.333356,8317289977631590,8317289977631590
+          0.239962,8097379067780916,8097379067780916
+          0.173996,3338887776767190,3338887776767190
+          0.073991,6193345537499459,6193345537499459
+          0.073581,2960715843124090,2960715843124090
+          0.039143,3880618899476005,3880618899476005
+            """))
