@@ -16,13 +16,15 @@
 
 #include "src/trace_processor/importers/etm/target_memory.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
+#include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/public/compiler.h"
-#include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/etm/mapping_version.h"
 #include "src/trace_processor/importers/etm/virtual_address_space.h"
@@ -49,14 +51,14 @@ TargetMemory::TargetMemory(TraceProcessorContext* context)
        ++mmap) {
     std::optional<UniquePid> upid = mmap.upid();
     if (!upid) {
-      kernel.AddMapping(mmap.row_reference());
+      kernel.AddMapping(mmap.ToRowReference());
       continue;
     }
-    auto it = user.Find(*upid);
+    auto* it = user.Find(*upid);
     if (!it) {
       it = user.Insert(*upid, VirtualAddressSpace::Builder(context)).first;
     }
-    it->AddMapping(mmap.row_reference());
+    it->AddMapping(mmap.ToRowReference());
   }
 
   kernel_memory_ = std::move(kernel).Build();
@@ -67,7 +69,7 @@ TargetMemory::TargetMemory(TraceProcessorContext* context)
 TargetMemory::~TargetMemory() = default;
 
 VirtualAddressSpace* TargetMemory::FindUserSpaceForTid(uint32_t tid) const {
-  auto user_mem = tid_to_space_.Find(tid);
+  auto* user_mem = tid_to_space_.Find(tid);
   if (PERFETTO_UNLIKELY(!user_mem)) {
     std::optional<UniquePid> upid = FindUpidForTid(tid);
     user_mem =

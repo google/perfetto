@@ -194,6 +194,7 @@ class Table:
   add_implicit_column: bool = True
   tabledoc: Optional[TableDoc] = None
   wrapping_sql_view: Optional[WrappingSqlView] = None
+  use_legacy_table_backend: bool = False
 
 
 @dataclass(frozen=True)
