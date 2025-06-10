@@ -350,7 +350,8 @@ class AdhocDataframeBuilder {
       if (row_count != std::numeric_limits<uint64_t>::max() &&
           current_row_count != row_count) {
         return base::ErrStatus(
-            "Row count mismatch in column '%s'. Expected %" PRIu64 ", got %zu.",
+            "Row count mismatch in column '%s'. Expected %" PRIu64
+            ", got %" PRIu64 ".",
             column_names_[i].c_str(), row_count, current_row_count);
       }
       row_count = current_row_count;
