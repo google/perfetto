@@ -138,15 +138,8 @@ open it in the UI; instructions on this are provided in the next section.
 
 TAB: Linux (command line)
 
-TODO Download tracebox. Collect a trace.
-
 Perfetto can capture system traces on Linux. All ftrace-based data sources and
 most other procfs / sysfs-based data sources are supported.
-
-Currently there are no packages or prebuilts for Linux. In order to run Perfetto
-on Linux you need to build it from source.
-
-## Capturing a trace
 
 Due to Perfetto's [service-based architecture](/docs/concepts/service-model.md),
 in order to capture a trace, the `traced` (session daemon) and `traced_probes`
@@ -154,14 +147,28 @@ in order to capture a trace, the `traced` (session daemon) and `traced_probes`
 `tracebox` binary bundles together all the binaries you need in a single
 executable (a bit like `toybox` or `busybox`).
 
-#### Capturing a trace with ftrace and /proc pollers, no SDK
-
-If you are interested in overall system tracing and are not interested in
-testing the SDK, you can use `tracebox` in autostart mode as follows:
-
+You can download the `tracebox` binary from GitHub:
 ```bash
-out/linux/tracebox -o trace_file.perfetto-trace --txt -c test/configs/scheduling.cfg
+curl -LO https://get.perfetto.dev/tracebox
+chmod +x tracebox
 ```
+
+## Capturing a trace
+
+To capture a trace you need to pass the config file to the downloaded `tracebox`
+binary. We have some sample config files in the [/test/configs/](/test/configs/)
+directory.
+Lets say you want to capture a trace with the scheduling information. You can
+do so by downloading the config file
+```bash
+curl -LO https://raw.githubusercontent.com/google/perfetto/refs/heads/main/test/configs/scheduling.cfg
+```
+and running the following command:
+```bash
+./tracebox -o trace_file.perfetto-trace --txt -c scheduling.cfg
+```
+The scheduling information is captured using ftrace, so you may need to start
+the `tracebox` with root privileges.
 
 </tabs?>
 
