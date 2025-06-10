@@ -382,6 +382,18 @@ PerfettoSqlEngine::PrepareSqliteStatement(SqlSource sql_source) {
   return std::move(stmt);
 }
 
+base::Status PerfettoSqlEngine::InitializeStaticTablesAndFunctions(
+    const std::vector<StaticTable>& tables_to_register,
+    std::vector<std::unique_ptr<StaticTableFunction>> functions_to_register) {
+  for (const auto& info : tables_to_register) {
+    RegisterStaticTable(info.table, info.name, info.schema);
+  }
+  for (auto& info : functions_to_register) {
+    RegisterStaticTableFunction(std::move(info));
+  }
+  return base::OkStatus();
+}
+
 void PerfettoSqlEngine::RegisterStaticTable(Table* table,
                                             const std::string& table_name,
                                             Table::Schema schema) {
@@ -402,7 +414,6 @@ void PerfettoSqlEngine::RegisterStaticTable(Table* table,
   if (!status.ok()) {
     PERFETTO_FATAL("%s", status.status().c_message());
   }
-
   PERFETTO_CHECK(!static_table_context_->temporary_create_state);
 }
 
@@ -423,7 +434,6 @@ void PerfettoSqlEngine::RegisterStaticTableFunction(
   if (!status.ok()) {
     PERFETTO_FATAL("%s", status.status().c_message());
   }
-
   PERFETTO_CHECK(!static_table_fn_context_->temporary_create_state);
 }
 
@@ -939,11 +949,17 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
   if (Table* t = GetTableOrNull(create_index.table_name); t) {
     return ExecuteCreateIndexUsingTable(create_index, *t);
   }
-  RETURN_IF_ERROR(DropIndexBeforeCreate(create_index));
-
   DataframeModule::State* state =
       dataframe_context_->GetStateByName(create_index.table_name);
-  const auto& df = *state->handle;
+  if (!state->handle) {
+    return base::ErrStatus(
+        "CREATE PERFETTO INDEX: unable to add index on table '%s' before "
+        "parsing is complete",
+        create_index.table_name.c_str());
+  }
+  RETURN_IF_ERROR(DropIndexBeforeCreate(create_index));
+
+  const auto& df = *state->dataframe;
   std::vector<uint32_t> col_idxs;
   for (const std::string& col_name : create_index.col_names) {
     auto it =
@@ -956,15 +972,15 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
     col_idxs.push_back(
         static_cast<uint32_t>(std::distance(df.column_names().begin(), it)));
   }
-  auto handle = dataframe_shared_storage_->FindIndex(state->handle.key());
+  auto handle = dataframe_shared_storage_->FindIndex(state->handle->key());
   if (!handle) {
     ASSIGN_OR_RETURN(auto index,
-                     state->handle->BuildIndex(
+                     state->dataframe->BuildIndex(
                          col_idxs.data(), col_idxs.data() + col_idxs.size()));
-    handle = dataframe_shared_storage_->InsertIndex(state->handle.key(),
+    handle = dataframe_shared_storage_->InsertIndex(state->handle->key(),
                                                     std::move(index));
   }
-  state->handle->AddIndex(std::move(handle->value()));
+  state->dataframe->AddIndex(std::move(handle->value()));
   state->named_indexes.push_back(DataframeModule::State::NamedIndex{
       create_index.name,
       *std::move(handle),
@@ -982,7 +998,7 @@ base::Status PerfettoSqlEngine::DropIndexBeforeCreate(
               "CREATE PERFETTO INDEX: Index '%s' already exists",
               create_index.name.c_str());
         }
-        state->handle->RemoveIndexAt(i);
+        state->dataframe->RemoveIndexAt(i);
         state->named_indexes.erase(state->named_indexes.begin() +
                                    static_cast<std::ptrdiff_t>(i));
         return base::OkStatus();
@@ -1021,9 +1037,11 @@ base::Status PerfettoSqlEngine::ExecuteDropIndex(
     return ExecuteDropIndexUsingTable(index, *t);
   }
   for (auto* state : dataframe_context_->GetAllStates()) {
+    PERFETTO_CHECK(state->named_indexes.size() == 0 ||
+                   state->dataframe->finalized());
     for (uint32_t i = 0; i < state->named_indexes.size(); ++i) {
       if (state->named_indexes[i].name == index.name) {
-        state->handle->RemoveIndexAt(i);
+        state->dataframe->RemoveIndexAt(i);
         state->named_indexes.erase(state->named_indexes.begin() +
                                    static_cast<std::ptrdiff_t>(i));
         return base::OkStatus();

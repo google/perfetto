@@ -412,14 +412,19 @@ class Dataframe {
   // If the dataframe is already finalized, this function does nothing.
   void Finalize();
 
-  // Makes a copy of the dataframe.
+  // Makes a copy of the dataframe which has been finalized. Unfinalized
+  // dataframes *cannot* be copied, so this function will assert if not
+  // finalized.
   //
   // This is a shallow copy, meaning that the contents of columns and indexes
   // are not duplicated, but the dataframe itself is a new instance.
-  dataframe::Dataframe Copy() const;
+  dataframe::Dataframe CopyFinalized() const;
 
   // Creates a spec object for this dataframe.
   DataframeSpec CreateSpec() const;
+
+  // Returns whether the dataframe has been finalized.
+  bool finalized() const { return finalized_; }
 
   // Returns the column names of the dataframe.
   const std::vector<std::string>& column_names() const { return column_names_; }
