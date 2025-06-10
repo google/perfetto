@@ -38,6 +38,7 @@ struct RegisteredPackage {
     std::string sql;
     bool included;
   };
+  std::string name;
   base::FlatHashMap<std::string, ModuleFile> modules;
 };
 

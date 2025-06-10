@@ -21,7 +21,6 @@
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -68,10 +67,19 @@ class PerfettoSqlEngine {
     SqliteEngine::PreparedStatement stmt;
     ExecutionStats stats;
   };
+  struct StaticTable {
+    Table* table;
+    std::string name;
+    Table::Schema schema;
+  };
 
   PerfettoSqlEngine(StringPool* pool,
                     DataframeSharedStorage* storage,
                     bool enable_extra_checks);
+
+  base::Status InitializeStaticTablesAndFunctions(
+      const std::vector<StaticTable>& tables_to_register,
+      std::vector<std::unique_ptr<StaticTableFunction>> functions_to_register);
 
   // Executes all the statements in |sql| and returns a |ExecutionResult|
   // object. The metadata will reference all the statements executed and the
@@ -233,15 +241,6 @@ class PerfettoSqlEngine {
   // Enables memoization for the given SQL function.
   base::Status EnableSqlFunctionMemoization(const std::string& name);
 
-  // Registers a trace processor C++ table with SQLite with an SQL name of
-  // |name|.
-  void RegisterStaticTable(Table*,
-                           const std::string& name,
-                           Table::Schema schema);
-
-  // Registers a trace processor C++ table function with SQLite.
-  void RegisterStaticTableFunction(std::unique_ptr<StaticTableFunction> fn);
-
   SqliteEngine* sqlite_engine() { return engine_.get(); }
 
   // Makes new SQL package available to include.
@@ -290,6 +289,11 @@ class PerfettoSqlEngine {
   }
 
  private:
+  void RegisterStaticTable(Table* table,
+                           const std::string& name,
+                           Table::Schema schema);
+  void RegisterStaticTableFunction(std::unique_ptr<StaticTableFunction> fn);
+
   base::Status ExecuteCreateFunction(const PerfettoSqlParser::CreateFunction&);
 
   base::Status ExecuteInclude(const PerfettoSqlParser::Include&,
