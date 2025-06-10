@@ -25,6 +25,8 @@ on:
     branches:
       - main  # Only apply to pull requests TO main.
 
+# TEST
+
 permissions:
   pull-requests: write  # Required to edit the PR body
   contents: read  # Required to read commit messages
