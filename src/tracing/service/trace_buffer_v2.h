@@ -61,6 +61,7 @@ struct TBChunk {
 
   // Size of the payload, excluding the TBCHunk header itself, and without
   // accounting for any alignment.
+  // TODO make this uint32_t to deal with padding ?
   uint16_t payload_size = 0;
 
   // The offset of the next unconsumed fragment. This starts at 0 when we write
@@ -81,10 +82,10 @@ struct TBChunk {
     return reinterpret_cast<uint8_t*>(this) + sizeof(TBChunk);
   }
 
-  uint8_t* unread_fragments_begin() {
-    PERFETTO_DCHECK(payload_consumed <= payload_size);
-    return fragments_begin() + payload_consumed;
-  }
+  // uint8_t* unread_fragments_begin() {
+  //   PERFETTO_DCHECK(payload_consumed <= payload_size);
+  //   return fragments_begin() + payload_consumed;
+  // }
 
   uint8_t* fragments_end() { return fragments_begin() + payload_size; }
 };
@@ -178,6 +179,7 @@ struct Frag {
 // - Move to the next chunk in buffer order and repeat.
 class BufIterator {
  public:
+  BufIterator();
   // TODO comment on limit.
   explicit BufIterator(TraceBufferV2*, size_t limit = 0);
   BufIterator(const BufIterator&) = default;  // Deliberately copyable.
@@ -210,7 +212,7 @@ class BufIterator {
 
   // TODO rename this.
   void Consume() {
-    PERFETTO_DCHECK(chunk_->payload_consumed >= next_frag_off_);
+    PERFETTO_DCHECK(chunk_->payload_consumed <= next_frag_off_);
     PERFETTO_DCHECK(next_frag_off_ <= chunk_->payload_size);
     chunk_->payload_consumed = next_frag_off_;
   }
@@ -253,6 +255,19 @@ class TraceBufferV2 {
     pid_t producer_pid_trusted() const { return client_identity_trusted.pid(); }
   };
 
+  // Argument for out-of-band patches applied through TryPatchChunkContents().
+  struct Patch {
+    // From SharedMemoryABI::kPacketHeaderSize.
+    static constexpr size_t kSize = 4;
+
+    size_t offset_untrusted;
+    std::array<uint8_t, kSize> data;
+  };
+
+  // Can return nullptr if the memory allocation fails.
+  static std::unique_ptr<TraceBufferV2> Create(size_t size_in_bytes,
+                                               OverwritePolicy = kOverwrite);
+
   void CopyChunkUntrusted(ProducerID producer_id_trusted,
                           const ClientIdentity& client_identity_trusted,
                           WriterID writer_id,
@@ -276,12 +291,24 @@ class TraceBufferV2 {
                            bool* previous_packet_on_sequence_dropped,
                            bool force_erase = false);
 
+  bool TryPatchChunkContents(ProducerID,
+                             WriterID,
+                             ChunkID,
+                             const Patch* patches,
+                             size_t patches_size,
+                             bool other_patches_pending);
+
+  size_t size() const { return size_; }
+  size_t used_size() const { return used_size_; }
+  OverwritePolicy overwrite_policy() const { return overwrite_policy_; }
+  const TraceStats::BufferStats& stats() const { return stats_; }
+
  private:
   using BufIterator = internal::BufIterator;
   using Frag = internal::Frag;
   using SequenceState = internal::SequenceState;
 
-  friend class TraceBufferTest;
+  friend class TraceBufferV2Test;
   friend class internal::BufIterator;
 
   explicit TraceBufferV2(OverwritePolicy);
@@ -295,7 +322,11 @@ class TraceBufferV2 {
 
   bool Initialize(size_t size);
   bool DeleteNextChunksFor(size_t bytes_to_clear);
-  void EnsureCommitted(size_t) {}  // TODO
+  void EnsureCommitted(size_t size) {
+    PERFETTO_DCHECK(size <= size_);
+    data_.EnsureCommitted(size);
+    used_size_ = std::max(used_size_, size);
+  }
 
   enum class FragReassemblyResult { kSuccess = 0, kNotEnoughData, kDataLoss };
   FragReassemblyResult ReassembleFragmentedPacket(TracePacket* out_packet,
@@ -328,9 +359,10 @@ class TraceBufferV2 {
 
   size_t OffsetOf(const TBChunk* chunk) {
     uintptr_t addr = reinterpret_cast<uintptr_t>(chunk);
-    uintptr_t start = reinterpret_cast<uintptr_t>(begin());
-    PERFETTO_DCHECK(start >= addr && start <= addr + size_);
-    return static_cast<size_t>(addr - start);
+    uintptr_t buf_start = reinterpret_cast<uintptr_t>(begin());
+    // TODO check this
+    PERFETTO_DCHECK(addr >= buf_start  && buf_start <= addr + size_);
+    return static_cast<size_t>(addr - buf_start);
   }
 
   void EraseTBChunk(TBChunk*, SequenceState*);
@@ -344,8 +376,15 @@ class TraceBufferV2 {
   size_t size_ = 0;  // Size in bytes of |data_|.
   size_t wr_ = 0;    // Write cursor (offset since start()).
 
+  // High watermark. The number of bytes (<= |size_|) written into the buffer
+  // before the first wraparound. This increases as data is written into the
+  // buffer and then saturates at |size_|. Used for CloneReadOnly().
+  size_t used_size_ = 0;
+
   // Statistics about buffer usage.
   TraceStats::BufferStats stats_;
+
+  OverwritePolicy overwrite_policy_ = kOverwrite;
 
   // Note: we need stable pointers for SequenceState, as they get cached in
   // BufIterator.

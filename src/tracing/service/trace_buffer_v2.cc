@@ -28,7 +28,7 @@
 
 // TODO do a pass for uint32_t /uint16_t vs size_t etc etc.
 
-#define TRACE_BUFFER_VERBOSE_LOGGING() 0  // Set to 1 when debugging unittests.
+#define TRACE_BUFFER_VERBOSE_LOGGING() 1  // Set to 1 when debugging unittests.
 #if TRACE_BUFFER_VERBOSE_LOGGING()
 #define TRACE_BUFFER_DLOG PERFETTO_DLOG
 #else
@@ -77,6 +77,8 @@ SequenceState& SequenceState::operator=(const SequenceState&) noexcept =
 // +---------------------------------------------------------------------------+
 // | BufIterator implementation                                                |
 // +---------------------------------------------------------------------------+
+
+BufIterator::BufIterator() : buf_(nullptr) {}
 
 BufIterator::BufIterator(TraceBufferV2* buf, size_t limit)
     : buf_(buf), limit_(limit) {
@@ -146,7 +148,7 @@ bool BufIterator::NextChunkInBuffer() {
     off += target_chunk_->outer_size();
     if (limit_ > 0 && off >= limit_)  // TODO > vs >= ?
       return false;
-    off = off >= buf_->size_ ? 0 : off;
+    off = off >= buf_->used_size_ ? 0 : off;  // TODO used_size_ is brittle !!!!!!!!!!!!!!!!!!
     if (off == buf_->wr_)
       return false;  // We wrapped around and hit the write cursor.
     // SetTargetChunkAndRewind will update `seq_`.
@@ -209,6 +211,17 @@ std::optional<TraceBufferV2::Frag> BufIterator::NextFragmentInChunk() {
 // | TraceBuffer implementation                                                |
 // +---------------------------------------------------------------------------+
 
+// static
+std::unique_ptr<TraceBufferV2> TraceBufferV2::Create(size_t size_in_bytes,
+                                                     OverwritePolicy pol) {
+  std::unique_ptr<TraceBufferV2> trace_buffer(new TraceBufferV2(pol));
+  if (!trace_buffer->Initialize(size_in_bytes))
+    return nullptr;
+  return trace_buffer;
+}
+
+TraceBufferV2::TraceBufferV2(OverwritePolicy pol) : overwrite_policy_(pol) {}
+
 bool TraceBufferV2::Initialize(size_t size) {
   size = base::AlignUp(std::max(size, size_t(1)), base::GetSysPageSize());
   // The size must be <= 4GB because we use 32 bit offsets everywhere (e.g. in
@@ -222,8 +235,8 @@ bool TraceBufferV2::Initialize(size_t size) {
   }
   size_ = size;
   wr_ = 0;
-  // used_size_ = 0;
-  // stats_.set_buffer_size(size);
+  used_size_ = 0;
+  stats_.set_buffer_size(size);
   // last_chunk_id_written_.clear();
   // rd_iter_ = BufIterator(this);
   return true;
@@ -403,6 +416,7 @@ TraceBufferV2::FragReassemblyResult TraceBufferV2::ReassembleFragmentedPacket(
       // This is the equivalent to the Consume() call on the iterator. We cannot
       // use that as we can tell only at the end (after we have advanced the
       // iterator) whether we will consume or not.
+      // TODO nobody seems to look at this?
       f.chunk->payload_consumed =
           std::max(f.chunk->payload_consumed, f.end_off());
     }
@@ -477,7 +491,7 @@ void TraceBufferV2::CopyChunkUntrusted(
     }
 
     // TODO improve pointer arith without using ptrs.
-    if (PERFETTO_UNLIKELY(payload_end >= end || payload_end <= payload_begin)) {
+    if (PERFETTO_UNLIKELY(payload_end > end || payload_end <= payload_begin)) {
       // Something is not right. Malicious producer or data corruption.
       // We will still do our best with copying over the previous valid
       // fragments, if any.
@@ -501,6 +515,7 @@ void TraceBufferV2::CopyChunkUntrusted(
   // We deliberately store the non-rounded-up size in the chunk header.
   // This is so we can tell where the last fragment ends exactly. When moving
   // in the buffer, we use aligned_size() which does the rounding.
+  // tbchunk_outer_size := header + all_frags_size + alignment.
   size_t tbchunk_outer_size = TBChunk::OuterSize(all_frags_size);
 
   if (PERFETTO_UNLIKELY(tbchunk_outer_size > size_)) {
@@ -576,6 +591,15 @@ bool TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
   const size_t clear_end = wr_ + bytes_to_clear;
   TRACE_BUFFER_DLOG("Delete [%zu %zu]", wr_, clear_end);
   PERFETTO_DCHECK(clear_end <= size_);
+
+  // TODO DNS TOMORROW: this logic is wrong, too brittle and incomplete on 2nd
+  // pass after we have read already (?).
+  if (PERFETTO_UNLIKELY(wr_ == used_size_)) {
+    // This happens only on the first write, when the buffer is 0-initialized
+    // and we have no chunks at all.
+    EnsureCommitted(clear_end);
+    return true;
+  }
   // uint64_t chunks_overwritten = stats_.chunks_overwritten();
   // uint64_t bytes_overwritten = stats_.bytes_overwritten();
   // uint64_t padding_bytes_cleared = stats_.padding_bytes_cleared();
@@ -589,7 +613,7 @@ bool TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
     bool dropped;  // TODO maybe
     bool res = ReadNextTracePacket(&packet, &seq_props, &dropped,
                                    /*force_erase=*/true);
-    if (res)
+    if (!res)
       break;
   }
 
@@ -622,7 +646,7 @@ bool TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
   TBChunk* last_chunk_cleared = rd_iter_.chunk();
   size_t chunk_start = OffsetOf(last_chunk_cleared);
   size_t chunk_end = chunk_start + last_chunk_cleared->outer_size();
-  PERFETTO_CHECK(clear_end >= chunk_start && clear_end < chunk_end);
+  PERFETTO_CHECK(clear_end >= chunk_start && clear_end <= chunk_end);
 
   // TODO erase last_chunk_cleared? or did the read do that?
 
@@ -636,6 +660,8 @@ bool TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
 
 // TODO the caller of this must walk back to the chain.
 void TraceBufferV2::EraseTBChunk(TBChunk* tbchunk, SequenceState* seq) {
+  if (tbchunk->is_padding())
+    return;
   const uint32_t size = tbchunk->payload_size;  // TODO check statistics
 
   auto& chunk_list = seq->chunks;
@@ -657,6 +683,18 @@ void TraceBufferV2::EraseTBChunk(TBChunk* tbchunk, SequenceState* seq) {
 
   stats_.set_chunks_overwritten(stats_.chunks_overwritten() + 1);
   stats_.set_bytes_overwritten(stats_.bytes_overwritten() + size);
+}
+
+bool TraceBufferV2::TryPatchChunkContents(ProducerID,
+                                          WriterID,
+                                          ChunkID,
+                                          const Patch* patches,
+                                          size_t patches_size,
+                                          bool other_patches_pending) {
+  (void)patches;
+  (void)patches_size;
+  (void)other_patches_pending;
+  return false;
 }
 
 }  // namespace perfetto

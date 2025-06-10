@@ -22,6 +22,7 @@
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/tracing/service/trace_buffer.h"
+#include "src/tracing/service/trace_buffer_v2.h"
 
 using protozero::proto_utils::ParseVarInt;
 using protozero::proto_utils::WriteVarInt;
@@ -106,6 +107,9 @@ std::ostream& operator<<(std::ostream& os, const FakePacketFragment& packet) {
 FakeChunk::FakeChunk(TraceBuffer* t, ProducerID p, WriterID w, ChunkID c)
     : trace_buffer_{t}, producer_id{p}, writer_id{w}, chunk_id{c} {}
 
+FakeChunk::FakeChunk(TraceBufferV2* t, ProducerID p, WriterID w, ChunkID c)
+    : trace_buffer_v2_{t}, producer_id{p}, writer_id{w}, chunk_id{c} {}
+
 FakeChunk& FakeChunk::AddPacket(size_t size, char seed, uint8_t packet_flag) {
   PERFETTO_DCHECK(size <= 4096);
   PERFETTO_CHECK(
@@ -158,10 +162,17 @@ FakeChunk& FakeChunk::PadTo(size_t chunk_size) {
 }
 
 size_t FakeChunk::CopyIntoTraceBuffer(bool chunk_complete) {
-  trace_buffer_->CopyChunkUntrusted(producer_id, ClientIdentity(uid, pid),
-                                    writer_id, chunk_id, num_packets, flags,
-                                    chunk_complete, data.data(), data.size());
-  return data.size() + TraceBuffer::InlineChunkHeaderSize;
+  if (trace_buffer_v2_) {
+    trace_buffer_v2_->CopyChunkUntrusted(
+        producer_id, ClientIdentity(uid, pid), writer_id, chunk_id, num_packets,
+        flags, chunk_complete, data.data(), data.size());
+    return data.size() + sizeof(TraceBufferV2::TBChunk);
+  } else {
+    trace_buffer_->CopyChunkUntrusted(producer_id, ClientIdentity(uid, pid),
+                                      writer_id, chunk_id, num_packets, flags,
+                                      chunk_complete, data.data(), data.size());
+    return data.size() + TraceBuffer::InlineChunkHeaderSize;
+  }
 }
 
 }  // namespace perfetto
