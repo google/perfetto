@@ -13,8 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE android.suspend;
-
 INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE time.conversion;
@@ -111,29 +109,23 @@ SELECT
   *
 FROM _stats_w_policy_subquery!(7, policy_7, cpu7_curve, freq_7, idle_7);
 
-CREATE PERFETTO TABLE _stats_cpu0123_suspend AS
+CREATE PERFETTO TABLE _stats_cpu0123 AS
 SELECT
   ii.ts,
   ii.dur,
   id_0 AS cpu0_id,
   id_1 AS cpu1_id,
   id_2 AS cpu2_id,
-  id_3 AS cpu3_id,
-  ss.power_state = 'suspended' AS suspended
+  id_3 AS cpu3_id
 FROM _interval_intersect!(
   (
     _ii_subquery!(_stats_cpu0),
     _ii_subquery!(_stats_cpu1),
     _ii_subquery!(_stats_cpu2),
-    _ii_subquery!(_stats_cpu3),
-    -- Includes suspend AND awake portions, which will cover entire trace and
-    -- allows us to use _interval_intersect instead of SPAN_OUTER_JOIN()
-    _ii_subquery!(android_suspend_state)
+    _ii_subquery!(_stats_cpu3)
   ),
   ()
-) AS ii
-JOIN android_suspend_state AS ss
-  ON ss._auto_id = id_4;
+) AS ii;
 
 CREATE PERFETTO TABLE _stats_cpu4567 AS
 SELECT
@@ -154,10 +146,10 @@ FROM _interval_intersect!(
 ) AS ii;
 
 -- SPAN OUTER JOIN because sometimes CPU4/5/6/7 are empty tables
-CREATE VIRTUAL TABLE _stats_cpu01234567_suspend USING SPAN_OUTER_JOIN (_stats_cpu0123_suspend, _stats_cpu4567);
+CREATE VIRTUAL TABLE _stats_cpu01234567 USING SPAN_OUTER_JOIN (_stats_cpu0123, _stats_cpu4567);
 
 -- Combine system state so that it has idle, freq, and L3 hit info.
-CREATE VIRTUAL TABLE _idle_freq_l3_hit_slice USING SPAN_OUTER_JOIN (_stats_cpu01234567_suspend, _arm_l3_hit_rate);
+CREATE VIRTUAL TABLE _idle_freq_l3_hit_slice USING SPAN_OUTER_JOIN (_stats_cpu01234567, _arm_l3_hit_rate);
 
 -- Combine system state so that it has idle, freq, L3 hit, and L3 miss info.
 CREATE VIRTUAL TABLE _idle_freq_l3_hit_l3_miss_slice USING SPAN_OUTER_JOIN (_idle_freq_l3_hit_slice, _arm_l3_miss_rate);
@@ -190,12 +182,7 @@ SELECT
   policy_5,
   policy_6,
   policy_7,
-  iif(
-    suspended,
-    1,
-    min(coalesce(idle_0, 1), coalesce(idle_1, 1), coalesce(idle_2, 1), coalesce(idle_3, 1))
-  ) AS no_static,
-  suspended,
+  min(coalesce(idle_0, 1), coalesce(idle_1, 1), coalesce(idle_2, 1), coalesce(idle_3, 1)) AS no_static,
   cpu0_curve,
   cpu1_curve,
   cpu2_curve,
