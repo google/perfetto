@@ -189,7 +189,9 @@ traces manually:
 
 1. Navigate to [ui.perfetto.dev](https://ui.perfetto.dev) in a browser.
 2. Click the **Open trace file** on the left-hand menu, and load the captured
-   tracs.
+   traces or simply drag and drop your trace into the Perfetto UI.
+
+![Perfetto UI open trace](/docs/images/perfetto-ui-open-trace.png)
 
 ![Perfetto UI with a trace loaded](/docs/images/system-tracing-trace-view.png)
 
@@ -202,10 +204,27 @@ traces manually:
 ## Querying your first trace
 
 The trace you captured looks very complex, it could be hard to understand what
-is going on. You can always open the **Query (SQL)** panel and write a Perfetto
-SQL query. Perfetto SQL is a dialect of an SQL, see it
-[syntax](/docs/analysis/perfetto-sql-syntax.md) and the rich
-[standard library](/docs/analysis/stdlib-docs.autogen). 
+is going on. You can always open the **Query (SQL)** panel.
+
+![Perfetto UI Query SQL](/docs/images/perfetto-ui-query-sql.png)
+
+Then you will see a screen where you can input your Perfetto SQL on the top portion and execute it and the results will be shown on the bottom section.
+
+![Perfetto UI SQL Window](/docs/images/perfetto-ui-sql-window.png)
+
+You can write and execute (Ctrl/Cmd + Enter) your PerfettoSQL query in the opened console and the results will be shown in the bottom section.
+
+Perfetto SQL is a dialect of SQL implemented by SQLite, it supports executing any SQLite query and it adds extra functionalities not supported by SQLite.
+
+For more details on how to write SQL queries take a look at
+[PerfettoSQL syntax](/docs/analysis/perfetto-sql-syntax.md).
+
+There are also several Modules that consist of tables/views/functions and macros that have been already created and are made available to you in the [Perfetto Standard Library](/docs/analysis/stdlib-docs.autogen). 
+
+There is also a list of [SQL Recipes](/docs/getting-started/recipes/android-trace-analysis.md) which contains a list of some crafted SQL recipes that have proven to be useful for specific analyses or to help the user learn PerfettoSQL by example.
+
+A simple example of importing a module and executing a query on the Standard library can be seen below:
+
 In the screenshot below we can see the result of the following query:
 ```
 INCLUDE PERFETTO MODULE android.garbage_collection;
