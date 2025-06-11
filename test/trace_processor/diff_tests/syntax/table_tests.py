@@ -98,6 +98,7 @@ class PerfettoTable(TestSuite):
         out=Csv("""
         "id","name","col_type","nullable","sorted"
         0,"c","uint32",0,3
+        1,"_auto_id","id",0,0
         """))
 
   def test_create_perfetto_table_nullable_column(self):
