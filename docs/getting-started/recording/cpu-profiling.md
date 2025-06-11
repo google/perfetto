@@ -1,150 +1,376 @@
-# Recording CPU profiles with Perfetto
+# Recording performance counters and CPU profiling with Perfetto
 
-TODO: intro
+On linux and android, perfetto can record per-cpu [perf
+counters](https://perfwiki.github.io/main/), for example hardware events such
+as executed instructions or cache misses. Additionally, perfetto can be
+configured to sample callstacks of running processes based on these performance
+counters. Both modes are analogous to the `perf record` command from the perf
+tool, and use the same system call (`perf_event_open`).
 
-NOTE: CPU profiling with Perfetto is only supported on **Android** and **Linux**
-as Perfetto relies on the
-[`perf` Linux kernel API](https://perfwiki.github.io/main/) for collecting the
-profiling data; however, this page only currently provides guidance on Android.
+If you're only interested in the profiling (i.e. flamegraphs), skip to
+["Collecting a callstack profile"](#collecting-a-callstack-profile).
 
-## Collecting your first CPU profile
+## Collecting a trace with perf counters
 
-### Prerequisites
+The recording is defined using the usual perfetto config protobuf, and can be
+freely combined with other data sources such as ftrace. This allows for hybrid
+traces with a single timeline showing both the sampled counter values as well
+as other traced data, e.g. process scheduling.
 
-- [ADB](https://developer.android.com/studio/command-line/adb) installed.
-- A device running Android T+.
-- Either a debuggable (`userdebug`/`eng`) Android image, or the apps to be
-  profiled need to be
-  [marked as profileable or debuggable](https://developer.android.com/guide/topics/manifest/profileable-element)
-  in their manifests.
+The data source configuration
+([PerfEventConfig](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/config/profiling/perf_event_config.proto?q=PerfEventConfig))
+defines:
+- What primary event is being counted, known as the "timebase" or the "group
+  leader". This event will be counted separately on each CPU
+  (thread/process-scoped counting is not supported). See
+  [Timebase](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/common/perf_events.proto?q=Timebase)
+  for options.
+- How often that counter is sampled, either as a counting `period` (a sample
+  after every N increments), or a `frequency` (the kernel will continuously
+  adjust the counting period to approximately emit that many samples per
+  second).
+- Any additional counters to record, known as "followers". Whenever the leader
+  is sampled, these counters have their values snapshotted at the same time.
+  See
+  [FollowerEvent](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/common/perf_events.proto?q=FollowerEvent)
+  for options.
 
-### Linux or macOS
+One tracing configuration can define multiple "linux.perf" data sources for
+separate sampling groups. But note that you need to be careful not to exceed
+the PMU capacity of the platform if counting hardware events. Otherwise the
+kernel will multiplex (repeatedly switch in and out) the event groups, leading
+to undercounting (see [this perfwiki
+page](https://perfwiki.github.io/main/tutorial/#multiplexing-and-scaling-events)
+for more info).
 
-Make sure `adb` is installed and in your `PATH`.
+### Example config
 
-```bash
-adb devices -l
+This config defines one group of three counters per CPU. A timer event
+(`SW_CPU_CLOCK`) is used as the leader, providing a steady rate of samples.
+Each sample additionally includes the counts of cpu cycles (`HW_CPU_CYCLES`)
+and executed instructions (`HW_INSTRUCTIONS`) since the beginning of tracing.
+
+```protobuf
+duration_ms: 10000
+
+buffers: {
+  size_kb: 40960
+  fill_policy: DISCARD
+}
+
+# sample per-cpu counts of instructions and cycles
+data_sources {
+  config {
+    name: "linux.perf"
+    perf_event_config {
+      timebase {
+        frequency: 1000
+        counter: SW_CPU_CLOCK
+        timestamp_clock: PERF_CLOCK_MONOTONIC
+      }
+      followers { counter: HW_CPU_CYCLES }
+      followers { counter: HW_INSTRUCTIONS }
+    }
+  }
+}
+
+# include scheduling data via ftrace
+data_sources: {
+  config: {
+    name: "linux.ftrace"
+    ftrace_config: {
+      ftrace_events: "sched/sched_switch"
+      ftrace_events: "sched/sched_waking"
+    }
+  }
+}
+
+# include process names and grouping via procfs
+data_sources: {
+  config: {
+    name: "linux.process_stats"
+    process_stats_config {
+      scan_all_processes_on_start: true
+    }
+  }
+}
 ```
 
-If more than one device or emulator is reported you must select one upfront as
+Which should look similar to the following in the UI, after expanding the
+"Hardware" -> "Perf Counters" track groups. The counter tracks show the values
+as counting rates by default.
+
+![Perf counter trace in the UI](/docs/images/perf-counter-ui.png)
+
+The counter data can be queried as follows:
+```sql
+select ts, cpu, name, value
+from counter c join perf_counter_track pct on (c.track_id = pct.id)
+order by 1, 2 asc
+```
+
+### Recording instructions
+
+<?tabs>
+
+TAB: Android (command line)
+
+Prerequisites:
+- [ADB](https://developer.android.com/studio/command-line/adb) installed on the
+  host machine.
+- A device running Android 15+, connected to the host machine using USB with
+  ADB authorised.
+
+Download the `tools/record_android_trace` python script from the perfetto repo.
+The script automates pushing the config to the device, invoking perfetto,
+pulling the written trace from the device, and opening it in the UI.
+```bash
+curl -LO https://raw.githubusercontent.com/google/perfetto/main/tools/record_android_trace
+```
+
+Assuming the example config above is saved as `/tmp/config.txtpb`, start the
+recording:
+```bash
+python3 record_android_trace -c /tmp/config.txtpb -o /tmp/trace.pb
+```
+
+The recording will stop after 10 seconds (as set by duration\_ms in the config),
+and can be stopped early by pressing ctrl-c. After stopping, the script should
+auto-open the perfetto UI with the trace.
+
+
+TAB: Linux (command line)
+
+Download (or build from sources) the `tracebox` binary, which packages together
+the recording implementation of most perfetto data sources.
+```bash
+curl -LO https://get.perfetto.dev/tracebox
+chmod +x tracebox
+```
+
+Change the Linux permissions for ftrace and perf event recording. The following
+may be sufficient depending on your particular distribution:
+```bash
+sudo chown -R $USER /sys/kernel/tracing
+echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
+```
+
+**Alternatively**, run `tracebox` as root (using sudo) in the subsequent step.
+
+Assuming the example config above is saved as `/tmp/config.txtpb`, start the
+recording.
+```bash
+./tracebox -c /tmp/config.txtpb --txt -o /tmp/trace.pb
+```
+
+Open the `/tmp/trace.pb` file in the [Perfetto UI](https://ui.perfetto.dev).
+
+</tabs?>
+
+
+## Collecting a callstack profile
+
+The counter recording can also be configured to include a callstack (list of
+function frames that called each other) of the process that was interrupted at
+the time of the counter sampling. This is achieved by asking the kernel to
+record additional state (userspace register state, top of the stack memory) in
+each sample, and unwinding + symbolising the callstack in the profiler. The
+unwinding happens outside of the process, without any need for instrumentation
+or injected libraries in the processes being profiled.
+
+To enable callstack profiling, set the
+[`callstack_sampling`](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/config/profiling/perf_event_config.proto?q=%22optional%20CallstackSampling%20callstack_sampling%20%3D%2016;%22)
+field in the data source config. Note that the sampling will still be performed
+per-cpu, but you can set the
+[`scope`](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/config/profiling/perf_event_config.proto?q=%22optional%20Scope%20scope%20%3D%201;%22)
+field to have the profiler unwind callstacks only for matching processes (which
+in turn can help prevent the profiler from being overloaded by unwinding
+runtime costs).
+
+### Example config
+
+The following is an example of a config for periodic sampling based on time
+(i.e. a per-cpu timer leader), unwinding callstacks only if they happen when a
+process with the given name is running.
+
+By changing the `timebase`, you can instead capture callstacks on other events,
+for example you could see the callstacks of when the process wakes other
+threads up by setting "sched/sched\_waking" as a `tracepoint` timebase.
+
+Android note: the example uses "com.android.settings" as an example, but for
+successful callstack sampling the app has to be declared as either [profileable
+or
+debuggable](https://developer.android.com/guide/topics/manifest/profileable-element)
+in the manifest (or you must be on a debuggable build of the android OS).
+
+```protobuf
+duration_ms: 10000
+
+buffers: {
+  size_kb: 40960
+  fill_policy: DISCARD
+}
+
+# periodic sampling per cpu, unwinding callstacks if
+# "com.android.settings" is running.
+data_sources {
+  config {
+    name: "linux.perf"
+    perf_event_config {
+      timebase {
+        counter: SW_CPU_CLOCK
+        frequency: 100
+        timestamp_clock: PERF_CLOCK_MONOTONIC
+      }
+      callstack_sampling {
+        scope {
+          target_cmdline: "com.android.settings"
+        }
+        kernel_frames: true
+      }
+    }
+  }
+}
+
+# include scheduling data via ftrace
+data_sources: {
+  config: {
+    name: "linux.ftrace"
+    ftrace_config: {
+      ftrace_events: "sched/sched_switch"
+      ftrace_events: "sched/sched_waking"
+    }
+  }
+}
+
+# include process names and grouping via procfs
+data_sources: {
+  config: {
+    name: "linux.process_stats"
+    process_stats_config {
+      scan_all_processes_on_start: true
+    }
+  }
+}
+```
+
+### Recording instructions
+
+<?tabs>
+
+TAB: Android (command line)
+
+Prerequisites:
+- [ADB](https://developer.android.com/studio/command-line/adb) installed on the
+  host machine.
+- A device running Android 15+, connected to the host machine using USB with
+  ADB authorised.
+- A _Profileable_ or _Debuggable_ app. If you are running on a "user" build of
+  Android (as opposed to "userdebug" or "eng"), your app needs to be marked
+  as profileable or debuggable in its manifest.
+
+For android, the `tools/cpu_profile` helper python script simplifies
+construction of the trace config, and has additional options for
+post-symbolisation of the profile (in case of libraries without symbol info)
+and conversion to the [pprof](https://github.com/google/pprof) format that is
+better suited for pure flamegraph visualisations. It can be downloaded as
 follows:
-
-```bash
-export ANDROID_SERIAL=SER123456
-```
-
-Download `cpu_profile` (if you don't have a Perfetto checkout):
-
 ```bash
 curl -LO https://raw.githubusercontent.com/google/perfetto/main/tools/cpu_profile
-chmod +x cpu_profile
 ```
 
-Then, start profiling. For example, to profile the processes `com.android.foo`
-and `com.android.bar`, use:
+Start the recording using periodic sampling based on time (i.e. a per-cpu timer
+leader), unwinding callstacks only if they happen when a process with the given
+name is running. Note that non-native callstacks can be expensive to unwind, so
+we recommend keeping the sampling frequency below 200 Hz per cpu.
+```bash
+python3 cpu_profile -n com.android.example -f 100
+```
+
+The recording can be stopped by pressing ctrl-c. The script will then print a
+path under /tmp/ where it placed the outputs, the `raw-trace` file in that
+directory can be opened in the [Perfetto UI](https://ui.perfetto.dev), while
+the `profile.*.pb` are the per-process aggregate profiles in the "pprof" file
+format.
+
+See `cpu_profile --help` for more flags, notably `-c` lets you supply your own
+textproto config, while taking advantage of the scripted recording and
+output conversion.
+
+#### Missing symbols and deobfuscation
+
+If your profiles are missing native libraries' function names, but you have
+access to the debug version of the libraries (with symbol data), you can
+instruct the `cpu_profile` script to symbolise the profile on the host by
+following [these
+instructions](/docs/data-sources/native-heap-profiler#symbolization), while
+substituting the script name.
+
+
+TAB: Linux (command line)
+
+Download (or build from sources) the `tracebox` binary, which packages together
+the recording implementation of most perfetto data sources.
+```bash
+curl -LO https://get.perfetto.dev/tracebox
+chmod +x tracebox
+```
+
+Change the Linux permissions for ftrace and perf event recording. The following
+may or may not be enough depending on your particular distribution (note the
+added kptr\_restrict override if you want to see kernel function names).
+```bash
+sudo chown -R $USER /sys/kernel/tracing
+echo -1 | sudo tee /proc/sys/kernel/perf_event_paranoid
+echo 0  | sudo tee /proc/sys/kernel/kptr_restrict
+```
+
+**Alternatively**, run `tracebox` as root (using sudo) in the subsequent step.
+
+Assuming the example config above is saved as `/tmp/config.txtpb` (with the
+target\_cmdline option changed to a process on your machine), start the
+recording.
+```bash
+./tracebox -c /tmp/config.txtpb --txt -o /tmp/trace.pb
+```
+
+Once the recording stops, open the `/tmp/trace.pb` file in the [Perfetto
+UI](https://ui.perfetto.dev).
+
+To convert the trace into per-process profiles in the "pprof" format, you can
+use the `traceconv` script as follows:
 
 ```bash
-./cpu_profile -n "com.android.foo,com.android.bar"
+python3 traceconv profile --perf /tmp/trace.pb
 ```
 
-By default, profiling runs until manually terminated manually. To set a specific
-duration for recording (e.g. 30 seconds), use:
+#### Missing symbols and deobfuscation
 
-```bash
-./cpu_profile -n "com.android.foo,com.android.bar" -d 30000
-```
+If your profiles are missing native libraries' function names, but you have
+access to the debug version of the libraries (with symbol data), you can
+symbolise the profile after the fact by following [these
+instructions](/docs/data-sources/native-heap-profiler#symbolization), skipping
+the heap profiling script and instead using the `traceconv symbolize` script
+command directly.
 
-To change how frequently stack samples are recorded (e.g. 120 samples per
-second), set the `-f` argument:
+</tabs?>
 
-```bash
-./cpu_profile -n "com.android.foo,com.android.bar" -f 120
-```
+### Visualising the profiles in the Perfetto UI
 
-You can also pass in parts of the names of the processes you want to profile by
-enabling `--partial-matching/-p`. This matches processes that are already
-running when profiling is started. For instance, to profile the processes
-`com.android.foo` and `com.android.bar`, run:
+In the UI, the callstack samples will be shown as instant events on the
+timeline, within the process track group of the sampled process. There is a
+track per sampled thread, as well as a single track combining all samples from
+that process. By selecting time regions with perf samples, the bottom pane will
+show dynamic flamegraph views of the selected callstacks.
 
-```bash
-./cpu_profile -n "foo,bar" -p
-```
+![callstack profile in the UI](/docs/images/perf-callstack-ui.png)
 
-You can also pass in a custom [Perfetto config](/docs/concepts/config.md), which
-overrides all of the options above, using the `-c` argument:
+The sample data can also be queried from the
+[`perf_sample`](/docs/analysis/sql-tables.autogen#perf_sample) table via SQL.
+### Alternatives
 
-```bash
-./cpu_profile -c "path/to/perfetto.config"
-```
+The perfetto profiling implementation is built for continuous (streaming)
+collection, and is therefore less optimised for short, high-frequency
+profiling. If all you need are aggregated flamegraphs, consider `simpleperf` on
+Android and `perf` on Linux.
 
-To change where profiles are output, use the `-o` argument:
-
-```bash
-./cpu_profile -n "com.android.foo,com.android.bar" -o "path/to/output/directory"
-```
-
-### Windows
-
-Make sure that the downloaded `adb.exe` is in the `PATH`.
-
-```bash
-set PATH=%PATH%;%USERPROFILE%\Downloads\platform-tools
-
-adb devices -l
-```
-
-If more than one device or emulator is reported you must select one upfront as
-follows:
-
-```bash
-set ANDROID_SERIAL=SER123456
-```
-
-Download the
-[`cpu_profile`](https://raw.githubusercontent.com/google/perfetto/main/tools/cpu_profile)
-script. Then, start profiling. For example, to profile the processes
-`com.android.foo` and `com.android.bar`, use:
-
-```bash
-python3 /path/to/cpu_profile -n "com.android.foo,com.android.bar"
-```
-
-Please see the [Linux or maxOS section](#linux-or-macos) for more examples.
-
-### Symbolization
-
-You may need to symbolize the collected profiles if they are missing symbols.
-See [this](/docs/data-sources/native-heap-profiler#symbolize-your-profile) for
-more details on how to do this.
-
-For example, to profile and symbolize the profiles for the process
-`com.android.foo`, run:
-
-```bash
-PERFETTO_SYMBOLIZER_MODE=index PERFETTO_BINARY_PATH=path/to/directory/with/symbols/ ./cpu_profile -n "com.android.foo"
-```
-
-## Visualizing your first CPU profile
-
-Upload the `raw-trace` or `symbolized-trace` file from the output directory to
-the [Perfetto UI](https://ui.perfetto.dev) and click and drag over one or more
-of the diamond markers in the UI track named "Perf Samples" for the processes
-that you selected for profiling. Each diamond marker represents a snapshot of
-the call-stack at that point on the timeline.
-
-![Profile Diamond](/docs/images/cpu-profile-diamond.png)
-![Native Flamegraph](/docs/images/cpu-profile-flame.png)
-
-`cpu_profile` will also write separate profiles for each process that it
-profiled in the output directory, and those can be visualized using
-[`pprof`](https://github.com/google/pprof). You can merge them into one by
-passing all of them to pprof, e.g.
-`pprof /tmp/perf_profile-240105114948clvad/*`.
-
-## Analysing your first CPU profile
-
-Video: run queries in UI
-
-## Next steps
-
-Link to cpu profiling docs? Link to simpleperf + formats docs

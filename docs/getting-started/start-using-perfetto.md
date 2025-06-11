@@ -201,7 +201,7 @@ section below.
   functions responsible. Perfetto can capture these profiles or visualize
   profiles collected from `simpleperf`.
   - **Tutorial**:
-    [Recording CPU profiles with Perfetto](/docs/getting-started/recording/cpu-profiling.md)
+    [Recording performance counters and CPU profiling with Perfetto](/docs/getting-started/recording/cpu-profiling.md)
   - **Tutorial**:
     [Visualizing simpleperf files (TODO)](/docs/getting-started/analysis/other-formats.md)
 
@@ -305,8 +305,7 @@ Here's how Perfetto can assist Linux kernel development and debugging:
   consuming excessive CPU cycles. Perfetto can also visualize profiles captured
   with the standalone `perf` tool.
   - **Tutorial**:
-    [Recording CPU profiles with Perfetto](/docs/getting-started/recording/cpu-profiling.md)
-    (Focus on kernel and system-wide profiling)
+    [Recording performance counters and CPU profiling with Perfetto](/docs/getting-started/recording/cpu-profiling.md)
   - **Guide**:
     [Visualizing perf files (TODO)](/docs/getting-started/analysis/other-formats.md)
 
@@ -342,8 +341,7 @@ Here’s how Perfetto can help:
   consuming the most CPU cycles, guiding your optimization efforts.
 
   - **Tutorial**:
-    [Recording CPU profiles with Perfetto](/docs/getting-started/recording/cpu-profiling.md)
-    (Focus on application-level profiling)
+    [Recording performance counters and CPU profiling with Perfetto](/docs/getting-started/recording/cpu-profiling.md)
 
 - **(Linux-specific) How can I investigate native memory usage in my C/C++
   application?** On Linux, Perfetto's native heap profiler can track
