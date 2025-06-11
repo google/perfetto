@@ -314,6 +314,7 @@ source_set("unittests") {
     "../../../base:test_support",
     "../../../protozero",
     "../../containers",
+    "../../dataframe",
     "../../db/column",
     "../../sorter",
     "../../storage",
