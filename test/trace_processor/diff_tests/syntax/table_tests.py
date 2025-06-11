@@ -97,7 +97,7 @@ class PerfettoTable(TestSuite):
         """,
         out=Csv("""
         "id","name","col_type","nullable","sorted"
-        0,"c","int64",0,0
+        0,"c","uint32",0,3
         """))
 
   def test_create_perfetto_table_nullable_column(self):
@@ -128,7 +128,7 @@ class PerfettoTable(TestSuite):
         """,
         out=Csv("""
         "sorted"
-        1
+        2
         """))
 
   def test_create_perfetto_table_id_column(self):
@@ -136,11 +136,11 @@ class PerfettoTable(TestSuite):
         trace=TextProto(''),
         query="""
         CREATE PERFETTO TABLE foo AS
-        SELECT 2 AS c
+        SELECT 0 AS c
         UNION
-        SELECT 4
+        SELECT 1
         UNION
-        SELECT 6;
+        SELECT 2;
 
         SELECT col_type FROM perfetto_table_info('foo')
         WHERE name = 'c';

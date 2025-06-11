@@ -633,6 +633,12 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
   return ExecutionResult{std::move(*res), stats};
 }
 
+const dataframe::Dataframe* PerfettoSqlEngine::GetDataframeOrNull(
+    const std::string& name) const {
+  auto* state = dataframe_context_->GetStateByName(name);
+  return state ? state->dataframe : nullptr;
+}
+
 base::Status PerfettoSqlEngine::RegisterRuntimeFunction(
     bool replace,
     const FunctionPrototype& prototype,

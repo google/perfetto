@@ -490,7 +490,10 @@ class AdhocDataframeBuilder {
   static impl::Storage CreateIntegerStorage(
       impl::FlexVector<int64_t> data,
       const IntegerColumnSummary& summary) {
-    if (summary.is_id_sorted) {
+    // TODO(lalitm): `!summary.is_nullable` is an umnecesarily strong condition
+    // but we impose it as query planning assumes that id columns never have an
+    // index added to them.
+    if (summary.is_id_sorted && !summary.is_nullable) {
       return impl::Storage{
           impl::Storage::Id{static_cast<uint32_t>(data.size())}};
     }
