@@ -189,9 +189,11 @@ def get_presubmit_commit_message() -> str:
     # Check if HEAD is a merge commit by seeing if it has a second parent. We
     # use --verify to ensure the ref exists, and check=False to handle the
     # failure gracefully when HEAD isn't a merge commit.
-    proc = run_command(['git', 'rev-parse', '--verify', 'HEAD^2'],
-                       check=False,
-                       stderr=subprocess.DEVNULL)
+    proc = run_command(
+        ['git', 'rev-parse', '--verify', 'HEAD^2'],
+        check=False,
+        stdout=subprocess.PIPE,  # So we can read the hash below.
+        stderr=subprocess.DEVNULL)
 
     if proc.returncode == 0:
       # It's a merge commit. Get the message from the second parent.
