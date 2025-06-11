@@ -464,8 +464,8 @@ class {self.table_name} {{
       RowReference ToRowReference() const {{
         return RowReference(table_, row_);
       }}
-      {self.foreach_col(ColumnSerializer.row_reference_getter, delimiter='\n    ')}
-      {self.foreach_col(ColumnSerializer.row_reference_setter, delimiter='\n    ')}
+      {row_ref_getter}
+      {row_ref_setter}
 
     private:
       {self.table_name}* table_;
