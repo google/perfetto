@@ -1014,7 +1014,6 @@ TraceProcessorImpl::GetLegacyStaticTables(TraceStorage* storage) {
   AddLegacyStaticTable(tables, storage->mutable_heap_graph_reference_table());
   AddLegacyStaticTable(tables, storage->mutable_heap_graph_class_table());
 
-  AddLegacyStaticTable(tables, storage->mutable_symbol_table());
   AddLegacyStaticTable(tables,
                        storage->mutable_heap_profile_allocation_table());
   AddLegacyStaticTable(tables, storage->mutable_perf_sample_table());
@@ -1033,13 +1032,6 @@ TraceProcessorImpl::GetLegacyStaticTables(TraceStorage* storage) {
   AddLegacyStaticTable(tables,
                        storage->mutable_android_network_packets_table());
 
-  AddLegacyStaticTable(tables, storage->mutable_v8_js_code_table());
-  AddLegacyStaticTable(tables, storage->mutable_v8_internal_code_table());
-  AddLegacyStaticTable(tables, storage->mutable_v8_wasm_code_table());
-  AddLegacyStaticTable(tables, storage->mutable_v8_regexp_code_table());
-
-  AddLegacyStaticTable(tables, storage->mutable_jit_code_table());
-  AddLegacyStaticTable(tables, storage->mutable_jit_frame_table());
 
   AddLegacyStaticTable(tables, storage->mutable_inputmethod_clients_table());
   AddLegacyStaticTable(tables,
@@ -1127,6 +1119,13 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
   AddUnfinalizedStaticTable(
       tables,
       storage->mutable_window_manager_shell_transition_participants_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_v8_js_code_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_v8_internal_code_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_v8_wasm_code_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_v8_regexp_code_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_symbol_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_jit_code_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_jit_frame_table());
   return tables;
 }
 

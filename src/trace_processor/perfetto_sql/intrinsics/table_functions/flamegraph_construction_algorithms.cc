@@ -90,14 +90,16 @@ std::vector<MergedCallsite> GetMergedCallsites(TraceStorage* storage,
   // id == symbol_set_id for the bottommost frame.
   // TODO(lalitm): Encode this optimization in the table and remove this
   // custom optimization.
-  uint32_t symbol_set_idx = *symbols_tbl.id().IndexOf(SymbolId(*symbol_set_id));
+  uint32_t symbol_set_idx = symbols_tbl.FindById(SymbolId(*symbol_set_id))
+                                ->ToRowNumber()
+                                .row_number();
   for (uint32_t i = symbol_set_idx;
        i < symbols_tbl.row_count() &&
-       symbols_tbl.symbol_set_id()[i] == *symbol_set_id;
+       symbols_tbl[i].symbol_set_id() == *symbol_set_id;
        ++i) {
     result.emplace_back(MergedCallsite{
-        symbols_tbl.name()[i], mapping_name, symbols_tbl.source_file()[i],
-        symbols_tbl.line_number()[i], std::nullopt});
+        symbols_tbl[i].name(), mapping_name, symbols_tbl[i].source_file(),
+        symbols_tbl[i].line_number(), std::nullopt});
   }
   std::reverse(result.begin(), result.end());
   return result;
