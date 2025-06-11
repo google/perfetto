@@ -23,7 +23,6 @@
 #include <utility>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
@@ -43,8 +42,7 @@
 #include "src/trace_processor/tables/v8_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 using ::perfetto::protos::pbzero::InternedV8Isolate;
@@ -563,5 +561,4 @@ StringId V8Tracker::InternV8String(const V8String::Decoder& v8_string) {
   return storage.InternString("");
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

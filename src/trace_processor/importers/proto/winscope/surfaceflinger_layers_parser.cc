@@ -15,11 +15,17 @@
  */
 
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.h"
+#include <cstdint>
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/android/surfaceflinger_layers.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/winscope_proto_mapping.h"
 
@@ -46,7 +52,8 @@ void SurfaceFlingerLayersParser::Parse(int64_t timestamp,
 
   auto inserter = context_->args_tracker->AddArgsTo(snapshot_id);
   ArgsParser writer(timestamp, inserter, *context_->storage);
-  const auto table_name = tables::SurfaceFlingerLayersSnapshotTable::Name();
+  const auto* const table_name =
+      tables::SurfaceFlingerLayersSnapshotTable::Name();
   auto allowed_fields =
       util::winscope_proto_mapping::GetAllowedFields(table_name);
   base::Status status = args_parser_.ParseMessage(

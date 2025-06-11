@@ -25,6 +25,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
 

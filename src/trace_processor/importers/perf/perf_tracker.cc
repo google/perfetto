@@ -127,14 +127,14 @@ void PerfTracker::SymbolizeFrames() {
       continue;
     }
 
-    if (!TrySymbolizeFrame(frame.row_reference())) {
-      SymbolizeKernelFrame(frame.row_reference());
+    if (!TrySymbolizeFrame(frame)) {
+      SymbolizeKernelFrame(frame);
     }
   }
 }
 
 void PerfTracker::SymbolizeKernelFrame(
-    tables::StackProfileFrameTable::RowReference frame) {
+    tables::StackProfileFrameTable::Iterator& frame) {
   const auto mapping = *mapping_table_.FindById(frame.mapping());
   uint64_t address = static_cast<uint64_t>(frame.rel_pc()) +
                      static_cast<uint64_t>(mapping.start());
@@ -147,7 +147,7 @@ void PerfTracker::SymbolizeKernelFrame(
 }
 
 bool PerfTracker::TrySymbolizeFrame(
-    tables::StackProfileFrameTable::RowReference frame) {
+    tables::StackProfileFrameTable::Iterator& frame) {
   const auto mapping = *mapping_table_.FindById(frame.mapping());
   auto* file = files_.Find(mapping.name());
   if (!file) {

@@ -17,7 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_SLICE_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_SLICE_TRACKER_H_
 
-#include <stdint.h>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -60,20 +59,6 @@ class SliceTracker {
   void BeginLegacyUnnestable(tables::SliceTable::Row row,
                              SetArgsCallback args_callback);
 
-  template <typename Table>
-  std::optional<SliceId> BeginTyped(
-      Table* table,
-      typename Table::Row row,
-      SetArgsCallback args_callback = SetArgsCallback()) {
-    // Ensure that the duration is pending for this row.
-    row.dur = kPendingDuration;
-    if (row.name) {
-      row.name = context_->slice_translation_table->TranslateName(*row.name);
-    }
-    return StartSlice(row.ts, row.dur, row.track_id, args_callback,
-                      [table, &row]() { return table->Insert(row).id; });
-  }
-
   // virtual for testing
   virtual std::optional<SliceId> Scoped(
       int64_t timestamp,
@@ -82,19 +67,6 @@ class SliceTracker {
       StringId raw_name,
       int64_t duration,
       SetArgsCallback args_callback = SetArgsCallback());
-
-  template <typename Table>
-  std::optional<SliceId> ScopedTyped(
-      Table* table,
-      typename Table::Row row,
-      SetArgsCallback args_callback = SetArgsCallback()) {
-    PERFETTO_DCHECK(row.dur >= 0);
-    if (row.name) {
-      row.name = context_->slice_translation_table->TranslateName(*row.name);
-    }
-    return StartSlice(row.ts, row.dur, row.track_id, args_callback,
-                      [table, &row]() { return table->Insert(row).id; });
-  }
 
   // virtual for testing
   virtual std::optional<SliceId> End(

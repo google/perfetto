@@ -25,9 +25,11 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {

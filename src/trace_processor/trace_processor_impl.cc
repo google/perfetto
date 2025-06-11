@@ -636,7 +636,7 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
                    GetTraceTimestampBoundsNs(*context_.storage));
 
   TraceProcessorStorageImpl::DestroyContext();
-  context_.storage->ShrinkToFitTables();
+  context_.storage->FinalizeTables();
 
   engine_->FinalizeAndShareAllStaticTables();
   IncludeAfterEofPrelude(engine_.get());

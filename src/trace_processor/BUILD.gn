@@ -130,6 +130,7 @@ source_set("storage_minimal") {
     "../base",
     "../protozero",
     "containers",
+    "dataframe",
     "importers/common",
     "importers/common:parser_types",
     "importers/ftrace:minimal",

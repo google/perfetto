@@ -21,9 +21,10 @@ INCLUDE PERFETTO MODULE graphs.search;
 -- can't add it to prelude (because it is initialised before the trace is loaded and the indexes
 -- are not rebuilt when the new data is loaded), so the interested parties should remember to import
 -- this module.
-CREATE PERFETTO INDEX flow_in ON flow(slice_in);
+-- DNS: readd these.
+-- CREATE PERFETTO INDEX flow_in ON flow(slice_in);
 
-CREATE PERFETTO INDEX flow_out ON flow(slice_out);
+-- CREATE PERFETTO INDEX flow_out ON flow(slice_out);
 
 -- Computes the "reachable" set of slices from the |flows| table, starting from slice ids
 -- specified in |source_table|. This provides a more efficient result than with the in-built

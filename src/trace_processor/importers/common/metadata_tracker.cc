@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/common/metadata_tracker.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -87,24 +88,23 @@ std::optional<SqlValue> MetadataTracker::GetMetadata(metadata::KeyId key) {
     return std::nullopt;
   }
 
-  std::optional<tables::MetadataTable::RowReference> row;
-  for (auto it = metadata_table.IterateRows(); it; ++it) {
+  auto it = metadata_table.IterateRows();
+  for (; it; ++it) {
     if (key_id == it.name()) {
-      row = it.row_reference();
       break;
     }
   }
-  if (!row.has_value()) {
+  if (!it) {
     return {};
   }
 
   auto value_type = metadata::kValueTypes[key];
   switch (value_type) {
     case Variadic::kInt: {
-      return SqlValue::Long(*row->int_value());
+      return SqlValue::Long(*it.int_value());
     }
     case Variadic::kString:
-      return SqlValue::String(storage_->GetString(*row->str_value()).c_str());
+      return SqlValue::String(storage_->GetString(it.str_value()).c_str());
     case Variadic::kNull:
       return SqlValue();
     case Variadic::kJson:

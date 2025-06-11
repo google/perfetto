@@ -18,13 +18,16 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ART_HPROF_ART_HEAP_GRAPH_BUILDER_H_
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/art_hprof/art_heap_graph.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_model.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_types.h"
 #include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/trace_blob_view_reader.h"
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -32,6 +35,7 @@
 #include <vector>
 
 namespace perfetto::trace_processor::art_hprof {
+
 constexpr uint32_t kHprofHeaderMagic = 0x4A415641;  // "JAVA" in ASCII
 constexpr size_t kHprofHeaderLength = 20;           // Header size in bytes
 
@@ -49,7 +53,7 @@ class ByteIterator {
   virtual bool ReadString(std::string& str, size_t length) = 0;
   virtual bool ReadBytes(std::vector<uint8_t>& data, size_t length) = 0;
   virtual bool SkipBytes(size_t count) = 0;
-  virtual void PushBlob(TraceBlobView&& data) = 0;
+  virtual void PushBlob(TraceBlobView data) = 0;
 
   virtual size_t GetPosition() const = 0;
   virtual bool CanReadRecord() const = 0;
@@ -68,7 +72,7 @@ struct DebugStats {
   size_t reference_count = 0;
   size_t record_count = 0;
 
-  void Write(TraceProcessorContext* context_) {
+  void Write(TraceProcessorContext* context_) const {
     context_->storage->SetStats(stats::hprof_string_counter,
                                 static_cast<int64_t>(string_count));
     context_->storage->SetStats(stats::hprof_class_counter,

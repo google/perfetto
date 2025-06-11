@@ -19,11 +19,28 @@
 #include <cstdint>
 #include <optional>
 
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/sched_tables_py.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
+namespace {
+
+uint32_t CommonFlagsToIrqContext(uint32_t common_flags) {
+  // If common_flags contains TRACE_FLAG_HARDIRQ | TRACE_FLAG_SOFTIRQ, wakeup
+  // was emitted in interrupt context.
+  // See:
+  // https://cs.android.com/android/kernel/superproject/+/common-android-mainline:common/include/linux/trace_events.h
+  // TODO(rsavitski): we could also include TRACE_FLAG_NMI for a complete
+  // "interrupt context" meaning. But at the moment it's not necessary as this
+  // is used for sched_waking events, which are not emitted from NMI contexts.
+  return common_flags & (0x08 | 0x10) ? 1 : 0;
+}
+
+}  // namespace
+
 ThreadStateTracker::ThreadStateTracker(TraceProcessorContext* context)
     : storage_(context->storage.get()),
       context_(context),
@@ -108,14 +125,16 @@ void ThreadStateTracker::PushBlockedReason(
     std::optional<bool> io_wait,
     std::optional<StringId> blocked_function) {
   // Return if there is no state, as there is are no previous rows available.
-  if (!HasPreviousRowNumbersForUtid(utid))
+  if (!HasPreviousRowNumbersForUtid(utid)) {
     return;
+  }
 
   // Return if no previous bocked row exists.
   auto blocked_row_number =
       prev_row_numbers_for_thread_[utid]->last_blocked_row;
-  if (!blocked_row_number.has_value())
+  if (!blocked_row_number.has_value()) {
     return;
+  }
 
   auto row_reference = RowNumToRef(blocked_row_number.value());
   if (io_wait.has_value()) {
@@ -134,8 +153,9 @@ void ThreadStateTracker::AddOpenState(int64_t ts,
                                       std::optional<uint16_t> common_flags) {
   // Ignore the swapper utid because it corresponds to the swapper thread which
   // doesn't make sense to insert.
-  if (utid == context_->process_tracker->swapper_utid())
+  if (utid == context_->process_tracker->swapper_utid()) {
     return;
+  }
 
   // Insert row with unfinished state
   tables::ThreadStateTable::Row row;
@@ -144,8 +164,9 @@ void ThreadStateTracker::AddOpenState(int64_t ts,
   row.dur = -1;
   row.utid = utid;
   row.state = state;
-  if (cpu)
+  if (cpu) {
     row.ucpu = context_->cpu_tracker->GetOrCreateCpu(*cpu);
+  }
   if (common_flags.has_value()) {
     row.irq_context = CommonFlagsToIrqContext(*common_flags);
   }
@@ -178,32 +199,21 @@ void ThreadStateTracker::AddOpenState(int64_t ts,
     prev_row_numbers_for_thread_[utid] = RelatedRows{std::nullopt, row_num};
   } else if (IsBlocked(state)) {
     prev_row_numbers_for_thread_[utid] = RelatedRows{row_num, row_num};
-  } else /* if (IsRunnable(state)) */ {
+  } else {
+    PERFETTO_DCHECK(IsRunnable(state));
     prev_row_numbers_for_thread_[utid]->last_row = row_num;
   }
-}
-
-uint32_t ThreadStateTracker::CommonFlagsToIrqContext(uint32_t common_flags) {
-  // If common_flags contains TRACE_FLAG_HARDIRQ | TRACE_FLAG_SOFTIRQ, wakeup
-  // was emitted in interrupt context.
-  // See:
-  // https://cs.android.com/android/kernel/superproject/+/common-android-mainline:common/include/linux/trace_events.h
-  // TODO(rsavitski): we could also include TRACE_FLAG_NMI for a complete
-  // "interrupt context" meaning. But at the moment it's not necessary as this
-  // is used for sched_waking events, which are not emitted from NMI contexts.
-  return common_flags & (0x08 | 0x10) ? 1 : 0;
 }
 
 void ThreadStateTracker::ClosePendingState(int64_t end_ts,
                                            UniqueTid utid,
                                            bool data_loss) {
   // Discard close if there is no open state to close.
-  if (!HasPreviousRowNumbersForUtid(utid))
+  if (!HasPreviousRowNumbersForUtid(utid)) {
     return;
-
-  auto row_ref = RowNumToRef(prev_row_numbers_for_thread_[utid]->last_row);
-
+  }
   // Update the duration only for states without data loss.
+  auto row_ref = RowNumToRef(prev_row_numbers_for_thread_[utid]->last_row);
   if (!data_loss) {
     row_ref.set_dur(end_ts - row_ref.ts());
   }
@@ -214,7 +224,6 @@ void ThreadStateTracker::PushThreadState(int64_t ts,
                                          StringId state,
                                          std::optional<uint16_t> cpu) {
   ClosePendingState(ts, utid, false /*data_loss*/);
-
   AddOpenState(ts, utid, state, cpu);
 }
 
@@ -225,27 +234,27 @@ void ThreadStateTracker::UpdatePendingState(
     std::optional<UniqueTid> waker_utid,
     std::optional<uint16_t> common_flags) {
   // Discard update if there is no open state to close.
-  if (!HasPreviousRowNumbersForUtid(utid))
+  if (!HasPreviousRowNumbersForUtid(utid)) {
     return;
-
+  }
   auto row_ref = RowNumToRef(prev_row_numbers_for_thread_[utid]->last_row);
-
   row_ref.set_state(state);
-  if (cpu)
+  if (cpu) {
     row_ref.set_ucpu(context_->cpu_tracker->GetOrCreateCpu(*cpu));
-  if (waker_utid)
+  }
+  if (waker_utid) {
     row_ref.set_waker_utid(*waker_utid);
+  }
   if (common_flags.has_value()) {
     row_ref.set_irq_context(CommonFlagsToIrqContext(*common_flags));
   }
 }
 
 StringId ThreadStateTracker::GetPrevEndState(UniqueTid utid) {
-  if (!HasPreviousRowNumbersForUtid(utid))
+  if (!HasPreviousRowNumbersForUtid(utid)) {
     return kNullStringId;
-
+  }
   auto row_ref = RowNumToRef(prev_row_numbers_for_thread_[utid]->last_row);
-
   return row_ref.state();
 }
 
@@ -261,5 +270,4 @@ bool ThreadStateTracker::IsBlocked(StringId state) {
   return !(IsRunnable(state) || IsRunning(state));
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

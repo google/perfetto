@@ -20,6 +20,7 @@
 #include <sys/types.h>
 
 #include <algorithm>
+#include <cstring>
 #include <deque>
 #include <optional>
 #include <string>
@@ -340,6 +341,7 @@ base::Status ListFilesRecursive(const std::string& dir_path,
         continue;
       }
       struct stat dirstat;
+      memset(&dirstat, 0, sizeof(dirstat));
       std::string full_path = cur_dir + dirent->d_name;
       PERFETTO_CHECK(stat(full_path.c_str(), &dirstat) == 0);
       if (S_ISDIR(dirstat.st_mode)) {

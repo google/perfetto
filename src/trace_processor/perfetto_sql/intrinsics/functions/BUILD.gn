@@ -73,6 +73,7 @@ source_set("functions") {
     "../../../../../protos/perfetto/trace_processor:zero",
     "../../../../base",
     "../../../containers",
+    "../../../dataframe",
     "../../../db",
     "../../../db/column",
     "../../../importers/common",

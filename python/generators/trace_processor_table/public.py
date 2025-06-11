@@ -190,7 +190,6 @@ class Table:
   class_name: str
   sql_name: str
   columns: List[Column]
-  parent: Optional['Table'] = None
   add_implicit_column: bool = True
   tabledoc: Optional[TableDoc] = None
   wrapping_sql_view: Optional[WrappingSqlView] = None

@@ -19,7 +19,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -27,7 +26,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/trace_processor/status.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
@@ -40,7 +38,6 @@
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/sched_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {

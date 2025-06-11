@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
@@ -41,8 +42,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/column/types.h"
-#include "src/trace_processor/db/typed_column_internal.h"
+#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/counter_tables_py.h"
@@ -330,28 +330,29 @@ class TraceStorage {
 
   // Reading methods.
   // Virtual for testing.
-  virtual NullTermStringView GetString(StringId id) const {
-    return string_pool_.Get(id);
+  virtual NullTermStringView GetString(std::optional<StringId> id) const {
+    return id ? string_pool_.Get(*id) : NullTermStringView();
   }
 
   // Requests the removal of unused capacity.
   // Matches the semantics of std::vector::shrink_to_fit.
-  void ShrinkToFitTables() {
-    // At the moment, we only bother calling ShrinkToFit on a set group
+  void FinalizeTables() {
+    // At the moment, we only bother calling Finalize on a set group
     // of tables. If we wanted to extend this to every table, we'd need to deal
     // with tracking all the tables in the storage: this is not worth doing
     // given most memory is used by these tables.
-    thread_table_.ShrinkToFit();
-    process_table_.ShrinkToFit();
-    track_table_.ShrinkToFit();
-    counter_table_.ShrinkToFit();
-    slice_table_.ShrinkToFit();
-    ftrace_event_table_.ShrinkToFit();
-    sched_slice_table_.ShrinkToFit();
-    thread_state_table_.ShrinkToFit();
-    arg_table_.ShrinkToFit();
-    heap_graph_object_table_.ShrinkToFit();
-    heap_graph_reference_table_.ShrinkToFit();
+    thread_table_.Finalize();
+    process_table_.Finalize();
+    track_table_.Finalize();
+    counter_table_.Finalize();
+    slice_table_.Finalize();
+    ftrace_event_table_.Finalize();
+    sched_slice_table_.Finalize();
+    thread_state_table_.Finalize();
+    arg_table_.Finalize();
+    heap_graph_object_table_.Finalize();
+    heap_graph_reference_table_.Finalize();
+    flow_table_.Finalize();
   }
 
   const tables::ThreadTable& thread_table() const { return thread_table_; }
@@ -937,16 +938,15 @@ class TraceStorage {
   base::Status ExtractArg(uint32_t arg_set_id,
                           const char* key,
                           std::optional<Variadic>* result) const {
-    const auto& args = arg_table();
-    Query q;
-    q.constraints = {args.arg_set_id().eq(arg_set_id), args.key().eq(key)};
-    auto it = args.FilterToIterator(q);
-    if (!it) {
+    args_cursor_.SetFilterValueUnchecked(0, arg_set_id);
+    args_cursor_.SetFilterValueUnchecked(1, key);
+    args_cursor_.Execute();
+    if (args_cursor_.Eof()) {
       *result = std::nullopt;
       return base::OkStatus();
     }
-    *result = GetArgValue(it.row_number().row_number());
-    if (++it) {
+    *result = GetArgValue(args_cursor_.ToRowNumber().row_number());
+    if (args_cursor_.Next(); !args_cursor_.Eof()) {
       return base::ErrStatus(
           "EXTRACT_ARG: received multiple args matching arg set id and key");
     }
@@ -955,7 +955,6 @@ class TraceStorage {
 
   Variadic GetArgValue(uint32_t row) const {
     auto rr = arg_table_[row];
-
     Variadic v = Variadic::Null();
     v.type = *GetVariadicTypeForId(rr.value_type());
     switch (v.type) {
@@ -1123,7 +1122,7 @@ class TraceStorage {
 
   // AndroidNetworkPackets tables
   tables::AndroidNetworkPacketsTable android_network_packets_table_{
-      &string_pool_, &slice_table_};
+      &string_pool_};
 
   // V8 tables
   tables::V8IsolateTable v8_isolate_table_{&string_pool_};
@@ -1192,6 +1191,21 @@ class TraceStorage {
   tables::ExpMissingChromeProcTable
       experimental_missing_chrome_processes_table_{&string_pool_};
 
+  mutable tables::ArgTable::Cursor args_cursor_{arg_table_.CreateCursor({
+      dataframe::FilterSpec{
+          tables::ArgTable::ColumnIndex::arg_set_id,
+          0,
+          dataframe::Eq{},
+          std::nullopt,
+      },
+      dataframe::FilterSpec{
+          tables::ArgTable::ColumnIndex::key,
+          1,
+          dataframe::Eq{},
+          std::nullopt,
+      },
+  })};
+
   // The below array allow us to map between enums and their string
   // representations.
   std::array<StringId, Variadic::kMaxType + 1> variadic_type_ids_;
@@ -1209,6 +1223,9 @@ struct std::hash<::perfetto::trace_processor::BaseId> {
   }
 };
 
+template <>
+struct std::hash<::perfetto::trace_processor::SliceId>
+    : std::hash<::perfetto::trace_processor::BaseId> {};
 template <>
 struct std::hash<::perfetto::trace_processor::TrackId>
     : std::hash<::perfetto::trace_processor::BaseId> {};
@@ -1239,7 +1256,8 @@ struct std::hash<
   using result_type = size_t;
 
   result_type operator()(const argument_type& r) const {
-    return std::hash<::perfetto::trace_processor::StringId>{}(r.name) ^
+    return std::hash<std::optional<::perfetto::trace_processor::StringId>>{}(
+               r.name) ^
            std::hash<std::optional<::perfetto::trace_processor::MappingId>>{}(
                r.mapping) ^
            std::hash<int64_t>{}(r.rel_pc);
@@ -1269,12 +1287,14 @@ struct std::hash<
   using result_type = size_t;
 
   result_type operator()(const argument_type& r) const {
-    return std::hash<::perfetto::trace_processor::StringId>{}(r.build_id) ^
+    return std::hash<std::optional<::perfetto::trace_processor::StringId>>{}(
+               r.build_id) ^
            std::hash<int64_t>{}(r.exact_offset) ^
            std::hash<int64_t>{}(r.start_offset) ^
            std::hash<int64_t>{}(r.start) ^ std::hash<int64_t>{}(r.end) ^
            std::hash<int64_t>{}(r.load_bias) ^
-           std::hash<::perfetto::trace_processor::StringId>{}(r.name);
+           std::hash<std::optional<::perfetto::trace_processor::StringId>>{}(
+               r.name);
   }
 };
 

@@ -22,10 +22,11 @@
 #include <optional>
 #include <tuple>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/small_vector.h"
-#include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/typed_column.h"
+#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -39,7 +40,8 @@ ArgsTracker::~ArgsTracker() {
   Flush();
 }
 
-void ArgsTracker::AddArg(ColumnLegacy* arg_set_id,
+void ArgsTracker::AddArg(dataframe::Dataframe* dataframe,
+                         uint32_t column,
                          uint32_t row,
                          StringId flat_key,
                          StringId key,
@@ -48,7 +50,8 @@ void ArgsTracker::AddArg(ColumnLegacy* arg_set_id,
   args_.emplace_back();
 
   auto* rid_arg = &args_.back();
-  rid_arg->column = arg_set_id;
+  rid_arg->dataframe = dataframe;
+  rid_arg->column = column;
   rid_arg->row = row;
   rid_arg->flat_key = flat_key;
   rid_arg->key = key;
@@ -111,10 +114,10 @@ void ArgsTracker::Flush() {
       entries.begin(), entries.end(), [&](const Entry& a, const Entry& b) {
         const Arg& first_arg = args_[a.index];
         const Arg& second_arg = args_[b.index];
-        return std::tie(first_arg.column, first_arg.row,
-                        a.smallest_index_for_key,
-                        a.index) < std::tie(second_arg.column, second_arg.row,
-                                            b.smallest_index_for_key, b.index);
+        return std::tie(first_arg.dataframe, first_arg.column, first_arg.row,
+                        a.smallest_index_for_key, a.index) <
+               std::tie(second_arg.dataframe, second_arg.column, second_arg.row,
+                        b.smallest_index_for_key, b.index);
       });
 
   // Apply permutation of entries[].index to args.
@@ -126,11 +129,13 @@ void ArgsTracker::Flush() {
   // Insert args.
   for (uint32_t i = 0; i < args_.size();) {
     const GlobalArgsTracker::Arg& arg = sorted_args[i];
-    auto* col = arg.column;
+    dataframe::Dataframe* df = arg.dataframe;
+    uint32_t col = arg.column;
     uint32_t row = arg.row;
 
     uint32_t next_rid_idx = i + 1;
     while (next_rid_idx < sorted_args.size() &&
+           df == sorted_args[next_rid_idx].dataframe &&
            col == sorted_args[next_rid_idx].column &&
            row == sorted_args[next_rid_idx].row) {
       next_rid_idx++;
@@ -138,23 +143,39 @@ void ArgsTracker::Flush() {
 
     ArgSetId set_id = context_->global_args_tracker->AddArgSet(
         sorted_args.data(), i, next_rid_idx);
-    if (col->IsNullable()) {
-      TypedColumn<std::optional<uint32_t>>::FromColumn(col)->Set(row, set_id);
+    auto n = df->GetNullabilityLegacy(arg.column);
+    base::ignore_result(set_id, n);
+    if (n.Is<dataframe::NonNull>()) {
+      df->SetCellUncheckedLegacy<dataframe::Uint32, dataframe::NonNull>(
+          arg.column, row, set_id);
+    } else if (n.Is<dataframe::DenseNull>()) {
+      df->SetCellUncheckedLegacy<dataframe::Uint32, dataframe::DenseNull>(
+          arg.column, row, std::make_optional(set_id));
+    } else if (n.Is<dataframe::SparseNullWithPopcountAlways>()) {
+      df->SetCellUncheckedLegacy<dataframe::Uint32,
+                                 dataframe::SparseNullWithPopcountAlways>(
+          arg.column, row, std::make_optional(set_id));
+    } else if (n.Is<dataframe::SparseNullWithPopcountUntilFinalization>()) {
+      df->SetCellUncheckedLegacy<
+          dataframe::Uint32,
+          dataframe::SparseNullWithPopcountUntilFinalization>(
+          arg.column, row, std::make_optional(set_id));
     } else {
-      TypedColumn<uint32_t>::FromColumn(col)->Set(row, set_id);
+      PERFETTO_FATAL("Unsupported nullability type for args.");
     }
-
     i = next_rid_idx;
   }
   args_.clear();
 }
 
 ArgsTracker::CompactArgSet ArgsTracker::ToCompactArgSet(
-    const ColumnLegacy& column,
+    const dataframe::Dataframe& dataframe,
+    uint32_t column,
     uint32_t row_number) && {
   CompactArgSet compact_args;
   for (const auto& arg : args_) {
-    PERFETTO_DCHECK(arg.column == &column);
+    PERFETTO_DCHECK(arg.dataframe == &dataframe);
+    PERFETTO_DCHECK(arg.column == column);
     PERFETTO_DCHECK(arg.row == row_number);
     compact_args.emplace_back(arg.ToCompactArg());
   }
@@ -170,10 +191,12 @@ bool ArgsTracker::NeedsTranslation(const ArgsTranslationTable& table) const {
 }
 
 ArgsTracker::BoundInserter::BoundInserter(ArgsTracker* args_tracker,
-                                          ColumnLegacy* arg_set_id_column,
+                                          dataframe::Dataframe* dataframe,
+                                          uint32_t column,
                                           uint32_t row)
     : args_tracker_(args_tracker),
-      arg_set_id_column_(arg_set_id_column),
+      dataframe_(dataframe),
+      column_(column),
       row_(row) {}
 
 ArgsTracker::BoundInserter::~BoundInserter() = default;

@@ -20,17 +20,17 @@
 #include <cstdint>
 #include <type_traits>
 #include <vector>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/small_vector.h"
-#include "src/trace_processor/db/column.h"
+#include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Interns args into the storage from all ArgsTrackers across trace processor.
 // Note: most users will want to use ArgsTracker to push args to the strorage
@@ -42,7 +42,7 @@ class GlobalArgsTracker {
   // same ArgSet. If |kSkipIfExists|, the arg will be ignored if another arg
   // with the same key already exists. If |kAddOrUpdate|, any existing arg with
   // the same key will be overridden.
-  enum class UpdatePolicy { kSkipIfExists, kAddOrUpdate };
+  enum class UpdatePolicy : uint8_t { kSkipIfExists, kAddOrUpdate };
 
   struct CompactArg {
     StringId flat_key = kNullStringId;
@@ -50,17 +50,18 @@ class GlobalArgsTracker {
     Variadic value = Variadic::Integer(0);
     UpdatePolicy update_policy = UpdatePolicy::kAddOrUpdate;
   };
-  static_assert(std::is_trivially_destructible<CompactArg>::value,
+  static_assert(std::is_trivially_destructible_v<CompactArg>,
                 "Args must be trivially destructible");
 
   struct Arg : public CompactArg {
-    ColumnLegacy* column;
+    dataframe::Dataframe* dataframe;
+    uint32_t column;
     uint32_t row;
 
     // Object slices this Arg to become a CompactArg.
-    CompactArg ToCompactArg() const { return CompactArg(*this); }
+    CompactArg ToCompactArg() const { return {*this}; }
   };
-  static_assert(std::is_trivially_destructible<Arg>::value,
+  static_assert(std::is_trivially_destructible_v<Arg>,
                 "Args must be trivially destructible");
 
   struct ArgHasher {
@@ -196,7 +197,6 @@ class GlobalArgsTracker {
   TraceStorage* storage_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_GLOBAL_ARGS_TRACKER_H_

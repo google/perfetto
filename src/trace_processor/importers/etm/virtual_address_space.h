@@ -92,11 +92,10 @@ namespace etm {
 
 class VirtualAddressSpace {
  public:
-  VirtualAddressSpace() {}
   class Builder {
    public:
     explicit Builder(TraceProcessorContext* context) : context_(context) {}
-    void AddMapping(tables::MmapRecordTable::ConstRowReference mmap);
+    void AddMapping(const tables::MmapRecordTable::ConstRowReference& mmap);
     VirtualAddressSpace Build() &&;
 
    private:
@@ -131,6 +130,8 @@ class VirtualAddressSpace {
     SortedMappingsWithOverlaps mappings_;
     Vertices vertices_;
   };
+  VirtualAddressSpace() = default;
+
   const MappingVersion* FindMapping(int64_t ts, uint64_t address) const;
 
   template <typename Callback>
@@ -160,7 +161,6 @@ class VirtualAddressSpace {
     }
   };
 
- private:
   explicit VirtualAddressSpace(std::vector<MappingVersion> mappings)
       : mappings_(std::move(mappings)) {}
   std::vector<MappingVersion> mappings_;

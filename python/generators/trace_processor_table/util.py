@@ -142,15 +142,6 @@ def parse_type(table: Table, col_type: CppColumnType) -> ParsedType:
   return parse_type_with_cols(table, table.columns, col_type)
 
 
-def typed_column_type(table: Table, col: ParsedColumn) -> str:
-  """Returns the TypedColumn/IdColumn C++ type for a given column."""
-
-  parsed = parse_type(table, col.column.type)
-  if col.is_implicit_id:
-    return f'IdColumn<{parsed.raw_cpp_type}>'
-  return f'TypedColumn<{parsed.cpp_type_with_optionality()}>'
-
-
 def data_layer_type(table: Table, col: ParsedColumn) -> str:
   """Returns the DataLayer C++ type for a given column."""
 
@@ -171,8 +162,6 @@ def find_table_deps(table: Table) -> List[Table]:
   defined (or included) before this table is defined."""
 
   deps: Dict[str, Table] = {}
-  if table.parent:
-    deps[table.parent.class_name] = table.parent
   for c in table.columns:
     # Aliases cannot have dependencies so simply ignore them: trying to parse
     # them before adding implicit columns can cause issues.
@@ -268,15 +257,8 @@ def parse_tables_from_modules(modules: List[str]) -> List[ParsedTable]:
   parsed_tables: Dict[str, ParsedTable] = {}
   for table in sorted_tables:
     parsed_columns: List[ParsedColumn] = []
-    if table.parent:
-      parsed_parent = parsed_tables[table.parent.class_name]
-      parsed_columns += [
-          dataclasses.replace(c, is_ancestor=True)
-          for c in parsed_parent.columns
-      ]
-    else:
-      if table.add_implicit_column or table.use_legacy_table_backend:
-        parsed_columns += _create_implicit_columns_for_root(table)
+    if table.add_implicit_column:
+      parsed_columns += _create_implicit_columns_for_root(table)
 
     for c in table.columns:
       doc = table.tabledoc.columns.get(c.name) if table.tabledoc else None

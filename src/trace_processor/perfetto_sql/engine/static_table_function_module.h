@@ -14,22 +14,21 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_MODULE_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_MODULE_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_STATIC_TABLE_FUNCTION_MODULE_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_STATIC_TABLE_FUNCTION_MODULE_H_
 
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "src/trace_processor/containers/null_term_string_view.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/dataframe/cursor.h"
-#include "src/trace_processor/dataframe/dataframe.h"
-#include "src/trace_processor/dataframe/value_fetcher.h"
-#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
+#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -40,73 +39,33 @@ namespace perfetto::trace_processor {
 
 // Adapter class between SQLite and the Dataframe API. Allows SQLite to query
 // and iterate over the results of a dataframe query.
-struct DataframeModule : sqlite::Module<DataframeModule> {
+struct StaticTableFunctionModule : sqlite::Module<StaticTableFunctionModule> {
   static constexpr auto kType = kCreateOnly;
   static constexpr bool kSupportsWrites = false;
   static constexpr bool kDoesOverloadFunctions = false;
   static constexpr bool kDoesSupportTransactions = true;
 
   struct State {
-    // For static tables.
-    explicit State(dataframe::Dataframe* _dataframe)
-        : dataframe(_dataframe) {}
-    // For runtime tables.
-    explicit State(DataframeSharedStorage::DataframeHandle _handle)
-        : handle(std::move(_handle)), dataframe(&**handle) {}
-    struct NamedIndex {
-      std::string name;
-      DataframeSharedStorage::IndexHandle index;
-    };
-    std::optional<DataframeSharedStorage::DataframeHandle> handle;
-    dataframe::Dataframe* dataframe;
-    std::vector<NamedIndex> named_indexes;
+    explicit State(std::unique_ptr<StaticTableFunction> _function)
+        : function(std::move(_function)) {}
+    std::unique_ptr<StaticTableFunction> function;
   };
-  struct Context : sqlite::ModuleStateManager<DataframeModule> {
+  struct Context : sqlite::ModuleStateManager<StaticTableFunctionModule> {
     std::unique_ptr<State> temporary_create_state;
   };
-  struct SqliteValueFetcher : dataframe::ValueFetcher {
-    using Type = sqlite::Type;
-    static const Type kInt64 = sqlite::Type::kInteger;
-    static const Type kDouble = sqlite::Type::kFloat;
-    static const Type kString = sqlite::Type::kText;
-    static const Type kNull = sqlite::Type::kNull;
-
-    int64_t GetInt64Value(uint32_t idx) const {
-      return sqlite::value::Int64(sqlite_value[idx]);
-    }
-    double GetDoubleValue(uint32_t idx) const {
-      return sqlite::value::Double(sqlite_value[idx]);
-    }
-    const char* GetStringValue(uint32_t idx) const {
-      return sqlite::value::Text(sqlite_value[idx]);
-    }
-    Type GetValueType(uint32_t idx) const {
-      return sqlite::value::Type(sqlite_value[idx]);
-    }
-    sqlite3_value** sqlite_value;
-  };
-  struct SqliteResultCallback : dataframe::CellCallback {
-    void OnCell(int64_t v) const { sqlite::result::Long(ctx, v); }
-    void OnCell(double v) const { sqlite::result::Double(ctx, v); }
-    void OnCell(NullTermStringView v) const {
-      sqlite::result::StaticString(ctx, v.data());
-    }
-    void OnCell(std::nullptr_t) const { sqlite::result::Null(ctx); }
-    void OnCell(uint32_t v) const { sqlite::result::Long(ctx, v); }
-    void OnCell(int32_t v) const { sqlite::result::Long(ctx, v); }
-    sqlite3_context* ctx;
-  };
-  struct Vtab : sqlite::Module<DataframeModule>::Vtab {
-    const dataframe::Dataframe* dataframe;
-    sqlite::ModuleStateManager<DataframeModule>::PerVtabState* state;
+  struct Vtab : sqlite::Module<StaticTableFunctionModule>::Vtab {
+    StaticTableFunction* function;
+    sqlite::ModuleStateManager<StaticTableFunctionModule>::PerVtabState* state;
     std::string name;
+    uint32_t output_count = 0;
+    uint32_t arg_count = 0;
     int best_idx_num = 0;
   };
-  using DfCursor = dataframe::Cursor<SqliteValueFetcher>;
-  struct Cursor : sqlite::Module<DataframeModule>::Cursor {
-    const dataframe::Dataframe* dataframe;
-    DfCursor df_cursor;
-    const char* last_idx_str = nullptr;
+  struct Cursor : sqlite::Module<StaticTableFunctionModule>::Cursor {
+    std::unique_ptr<StaticTableFunction::Cursor> cursor;
+    dataframe::Cursor<DataframeModule::SqliteValueFetcher> df_cursor;
+    std::vector<dataframe::FilterSpec> filters;
+    std::vector<SqlValue> values;
   };
 
   static int Create(sqlite3*,
@@ -145,18 +104,21 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   static int Commit(sqlite3_vtab*) { return SQLITE_OK; }
   static int Rollback(sqlite3_vtab*) { return SQLITE_OK; }
   static int Savepoint(sqlite3_vtab* t, int r) {
-    DataframeModule::Vtab* vtab = GetVtab(t);
-    sqlite::ModuleStateManager<DataframeModule>::OnSavepoint(vtab->state, r);
+    StaticTableFunctionModule::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<StaticTableFunctionModule>::OnSavepoint(
+        vtab->state, r);
     return SQLITE_OK;
   }
   static int Release(sqlite3_vtab* t, int r) {
-    DataframeModule::Vtab* vtab = GetVtab(t);
-    sqlite::ModuleStateManager<DataframeModule>::OnRelease(vtab->state, r);
+    StaticTableFunctionModule::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<StaticTableFunctionModule>::OnRelease(
+        vtab->state, r);
     return SQLITE_OK;
   }
   static int RollbackTo(sqlite3_vtab* t, int r) {
-    DataframeModule::Vtab* vtab = GetVtab(t);
-    sqlite::ModuleStateManager<DataframeModule>::OnRollbackTo(vtab->state, r);
+    StaticTableFunctionModule::Vtab* vtab = GetVtab(t);
+    sqlite::ModuleStateManager<StaticTableFunctionModule>::OnRollbackTo(
+        vtab->state, r);
     return SQLITE_OK;
   }
 
@@ -167,4 +129,4 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
 
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_MODULE_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_STATIC_TABLE_FUNCTION_MODULE_H_

@@ -20,9 +20,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <memory>
-#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -38,7 +36,7 @@ class IntervalIntersector {
  public:
   // Mode of intersection. Choosing the mode strongly impacts the performance
   // of intersector.
-  enum Mode {
+  enum Mode : uint8_t {
     // Use `IntervalTree` as an underlying implementation.. Would create an
     // interval tree - with complexity of O(N) and memory complexity of O(N).
     // Query cost is O(logN).
@@ -136,10 +134,10 @@ class IntervalIntersector {
   }
 
  private:
-  void UpdateResultVector(uint64_t s,
-                          uint64_t e,
-                          const Interval& overlap,
-                          std::vector<Interval>& res) const {
+  static void UpdateResultVector(uint64_t s,
+                                 uint64_t e,
+                                 const Interval& overlap,
+                                 std::vector<Interval>& res) {
     Interval new_int;
     new_int.start = std::max(s, overlap.start);
     new_int.end = std::min(e, overlap.end);
@@ -147,11 +145,10 @@ class IntervalIntersector {
     res.push_back(new_int);
   }
 
-  void UpdateResultVector(uint64_t,
-                          uint64_t,
-                          const Interval& overlap,
-
-                          std::vector<Id>& res) const {
+  static void UpdateResultVector(uint64_t,
+                                 uint64_t,
+                                 const Interval& overlap,
+                                 std::vector<Id>& res) {
     res.push_back(overlap.id);
   }
   const std::vector<Interval>& intervals_;
