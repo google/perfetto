@@ -272,7 +272,7 @@ struct TypedDataframeSpec {
                 "TypedSpec must have at least one column type");
 
   // Converts the typed spec to a untyped DataframeSpec.
-  DataframeSpec ToDataframeSpec() const {
+  DataframeSpec ToUntypedDataframeSpec() const {
     DataframeSpec spec;
     spec.column_names.reserve(kColumnCount);
     spec.column_specs.reserve(kColumnCount);

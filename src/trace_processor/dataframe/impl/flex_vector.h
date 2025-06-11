@@ -86,7 +86,7 @@ class FlexVector {
     return FlexVector(base::AlignUp(size, kAlignment), size);
   }
 
-  // Adds `count` elements of `value` to the end of the vector.
+  // Adds `value` to the end of the vector.
   PERFETTO_ALWAYS_INLINE void push_back(T value) {
     PERFETTO_DCHECK(capacity() % kAlignment == 0);
     PERFETTO_DCHECK(size_ <= capacity());
