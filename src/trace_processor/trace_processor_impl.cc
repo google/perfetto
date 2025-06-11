@@ -1195,7 +1195,8 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
     // If EOF has already been called, all the unfinalized static tables
     // should have finalized handles in the shared storage. Look those up.
     for (auto& table : unfinalized) {
-      auto handle = dataframe_shared_storage->Find(table.name);
+      auto handle = dataframe_shared_storage->Find(
+          DataframeSharedStorage::MakeKeyForStaticTable(table.name));
       if (!handle) {
         PERFETTO_FATAL("Static table '%s' not found in shared storage.",
                        table.name.c_str());

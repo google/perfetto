@@ -4979,16 +4979,18 @@ class EtwConfig(_message.Message):
     def __init__(self, kernel_flags: _Optional[_Iterable[_Union[EtwConfig.KernelFlag, str]]] = ...) -> None: ...
 
 class EtwTraceEvent(_message.Message):
-    __slots__ = ["c_switch", "cpu", "ready_thread", "timestamp"]
+    __slots__ = ["c_switch", "cpu", "ready_thread", "thread_id", "timestamp"]
     CPU_FIELD_NUMBER: _ClassVar[int]
     C_SWITCH_FIELD_NUMBER: _ClassVar[int]
     READY_THREAD_FIELD_NUMBER: _ClassVar[int]
+    THREAD_ID_FIELD_NUMBER: _ClassVar[int]
     TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     c_switch: CSwitchEtwEvent
     cpu: int
     ready_thread: ReadyThreadEtwEvent
+    thread_id: int
     timestamp: int
-    def __init__(self, timestamp: _Optional[int] = ..., cpu: _Optional[int] = ..., c_switch: _Optional[_Union[CSwitchEtwEvent, _Mapping]] = ..., ready_thread: _Optional[_Union[ReadyThreadEtwEvent, _Mapping]] = ...) -> None: ...
+    def __init__(self, timestamp: _Optional[int] = ..., cpu: _Optional[int] = ..., thread_id: _Optional[int] = ..., c_switch: _Optional[_Union[CSwitchEtwEvent, _Mapping]] = ..., ready_thread: _Optional[_Union[ReadyThreadEtwEvent, _Mapping]] = ...) -> None: ...
 
 class EtwTraceEventBundle(_message.Message):
     __slots__ = ["cpu", "event"]
