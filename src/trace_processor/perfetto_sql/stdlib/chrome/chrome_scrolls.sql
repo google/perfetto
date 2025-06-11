@@ -195,7 +195,7 @@ CREATE PERFETTO TABLE chrome_scroll_update_input_pipeline (
   compositor_coalesced_input_handled_ts TIMESTAMP,
   -- Duration for the `STEP_DID_HANDLE_INPUT_AND_OVERSCROLL` slice.
   compositor_coalesced_input_handled_dur DURATION,
-  -- End timestamp for the `STEP_DID_HANDLE_INPUT_AND_OVERSCROLL` slice.
+  -- End timestamp for the `STEP_DID_HANDLE_INPUT_AND_OVERSCROLL` slice. TEST.
   compositor_coalesced_input_handled_end_ts TIMESTAMP
 ) AS
 WITH
