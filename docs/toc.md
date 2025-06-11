@@ -126,6 +126,7 @@
 
     - [Single Trace Analysis](#)
 
+      - [Trace summary](analysis/trace-summary.md)
       - [Trace-based Metrics](analysis/metrics.md)
 
     - [Multi Trace Analysis](#)
