@@ -18,7 +18,6 @@ import {Track} from '../public/track';
 import {SourceDataset} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
 import {
-  ColumnType,
   LONG,
   NUM,
   SqlValue,
@@ -40,7 +39,7 @@ type PartitionMap = Map<string, Map<SqlValue, Track[]>>;
 // to find the corresponding track.
 export interface TrackGroup {
   readonly src: string;
-  readonly schema: Record<string, ColumnType>;
+  readonly schema: Record<string, SqlValue>;
   readonly nonPartitioned: Track[];
   readonly partitioned: PartitionMap;
 }
