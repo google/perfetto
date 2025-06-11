@@ -14,7 +14,7 @@
 
 import {assertUnreachable} from '../base/logging';
 import {getOrCreate} from '../base/utils';
-import {checkExtends, ColumnType, SqlValue, unionTypes} from './query_result';
+import {checkExtends, SqlValue, unionTypes} from './query_result';
 import {sqlValueToSqliteString} from './sql_utils';
 
 /**
@@ -105,7 +105,7 @@ export interface Dataset<T extends DatasetSchema = DatasetSchema> {
  * Defines a list of columns and types that define the shape of the data
  * represented by a dataset.
  */
-export type DatasetSchema = Readonly<Record<string, ColumnType>>;
+export type DatasetSchema = Readonly<Record<string, SqlValue>>;
 
 /**
  * A filter used to express that a column must equal a value.
@@ -207,14 +207,14 @@ export class UnionDataset implements Dataset {
   get schema(): DatasetSchema {
     // Find the minimal set of columns that are supported by all datasets of
     // the union
-    let unionSchema: Record<string, ColumnType> | undefined = undefined;
+    let unionSchema: Record<string, SqlValue> | undefined = undefined;
     this.union.forEach((ds) => {
       const dsSchema = ds.schema;
       if (unionSchema === undefined) {
         // First time just use this one
         unionSchema = dsSchema;
       } else {
-        const newSch: Record<string, ColumnType> = {};
+        const newSch: Record<string, SqlValue> = {};
         for (const [key, value] of Object.entries(unionSchema)) {
           if (key in dsSchema) {
             const commonType = unionTypes(value, dsSchema[key]);
