@@ -856,7 +856,7 @@ TEST_F(DataframeBytecodeTest, PlanQuery_SingleColIndex_EqFilter_NonNullInt) {
   for (uint32_t i = 0; i < 100; ++i) {
     df.InsertUnchecked(kSpec, i);
   }
-  df.MarkFinalized();
+  df.Finalize();
 
   std::vector<uint32_t> p_vec(100);
   std::iota(p_vec.begin(), p_vec.end(), 0);
@@ -890,7 +890,7 @@ TEST_F(DataframeBytecodeTest,
                      std::make_optional(string_pool_.InternString("banana")));
   df.InsertUnchecked(kSpec,
                      std::make_optional(string_pool_.InternString("apple")));
-  df.MarkFinalized();
+  df.Finalize();
   df.AddIndex(Index({0}, std::make_shared<std::vector<uint32_t>>(
                              std::vector<uint32_t>{1, 0, 3, 2})));
 
@@ -921,7 +921,7 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MultiColIndex_PrefixEqFilters) {
   df.InsertUnchecked(kSpec, 10u, 200u);
   df.InsertUnchecked(kSpec, 20u, 100u);
   df.InsertUnchecked(kSpec, 10u, 100u);
-  df.MarkFinalized();
+  df.Finalize();
 
   std::vector<uint32_t> p_vec(4);
   std::iota(p_vec.begin(), p_vec.end(), 0);
@@ -1342,7 +1342,7 @@ TEST(DataframeTest, TypedCursor) {
   auto cursor =
       df.CreateTypedCursorUnchecked(kSpec, {FilterSpec{0, 0, Eq{}, {}}}, {});
   {
-    cursor.SetFilterValues(0l);
+    cursor.SetFilterValueUnchecked(0, 0l);
     cursor.ExecuteUnchecked();
     ASSERT_FALSE(cursor.Eof());
     ASSERT_EQ(cursor.GetCellUnchecked<0>(), 0u);
@@ -1353,7 +1353,7 @@ TEST(DataframeTest, TypedCursor) {
     ASSERT_TRUE(cursor.Eof());
   }
   {
-    cursor.SetFilterValues(1l);
+    cursor.SetFilterValueUnchecked(0, 1l);
     cursor.ExecuteUnchecked();
     ASSERT_FALSE(cursor.Eof());
     ASSERT_EQ(cursor.GetCellUnchecked<0>(), 1u);
@@ -1389,7 +1389,7 @@ TEST(DataframeTest, TypedCursorSetMultipleTimes) {
   {
     auto cursor =
         df.CreateTypedCursorUnchecked(kSpec, {FilterSpec{1, 0, Eq{}, {}}}, {});
-    cursor.SetFilterValues(int64_t(20));
+    cursor.SetFilterValueUnchecked(0, int64_t(20));
     cursor.ExecuteUnchecked();
     ASSERT_FALSE(cursor.Eof());
     ASSERT_EQ(cursor.GetCellUnchecked<1>(), 20u);
@@ -1415,7 +1415,7 @@ TEST(DataframeTest,
   df.InsertUnchecked(kSpec, int64_t{10}, int64_t{100});
   df.InsertUnchecked(kSpec, int64_t{20}, int64_t{200});
   df.InsertUnchecked(kSpec, int64_t{30}, int64_t{300});
-  df.MarkFinalized();
+  df.Finalize();
 
   // Plan a query with an equality filter on the "unique_int_col".
   std::vector<FilterSpec> filters = {{0, 0, Eq{}, int64_t{20}}};
