@@ -28,6 +28,7 @@
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.h"
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_transactions_parser.h"
 #include "src/trace_processor/importers/proto/winscope/viewcapture_parser.h"
+#include "src/trace_processor/importers/proto/winscope/winscope_rect.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 

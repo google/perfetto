@@ -139,6 +139,7 @@ InputMethodServiceTable::~InputMethodServiceTable() = default;
 ProtoLogTable::~ProtoLogTable() = default;
 SurfaceFlingerLayersSnapshotTable::~SurfaceFlingerLayersSnapshotTable() =
     default;
+SurfaceFlingerDisplayTable::~SurfaceFlingerDisplayTable() = default;
 SurfaceFlingerLayerTable::~SurfaceFlingerLayerTable() = default;
 SurfaceFlingerTransactionsTable::~SurfaceFlingerTransactionsTable() = default;
 SurfaceFlingerTransactionTable::~SurfaceFlingerTransactionTable() = default;
@@ -156,6 +157,10 @@ WindowManagerShellTransitionParticipantsTable::
     ~WindowManagerShellTransitionParticipantsTable() = default;
 WindowManagerShellTransitionProtosTable::
     ~WindowManagerShellTransitionProtosTable() = default;
+WinscopeTraceRectTable::~WinscopeTraceRectTable() = default;
+WinscopeRectTable::~WinscopeRectTable() = default;
+WinscopeFillRegionTable::~WinscopeFillRegionTable() = default;
+WinscopeTransformTable::~WinscopeTransformTable() = default;
 
 }  // namespace tables
 
