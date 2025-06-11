@@ -74,7 +74,7 @@ jobs:
               console.log("PR body already contains the GitOrigin-RevId.");
             }
 
-            // STEP 3: Enable auto-merge and verify that the scheduled commit message includes the GitOrigin-RevId.
+            // STEP 3: Enable auto-merge.
             console.log("Attempting to enable auto-merge...");
             try {
               const mutation = `
@@ -84,6 +84,24 @@ jobs:
                     mergeMethod: SQUASH
                   }) {
                     pullRequest {
+                      id # We only need to know it succeeded, so we ask for the ID.
+                    }
+                  }
+                }`;
+              await github.graphql(mutation, { pullRequestId: pr.node_id });
+            } catch (error) {
+              core.setFailed(`Failed to enable auto-merge: ${error.message}`);
+              return;
+            }
+            console.log("Auto-merge enabled.");
+
+            // STEP 4: Verify that the scheduled merge commit message includes the GitOrigin-RevId.
+            console.log("Verifying scheduled merge commit message...");
+            try {
+              const query = `
+                query GetAutoMergeMessage($pullRequestId: ID!) {
+                  node(id: $pullRequestId) {
+                    ... on PullRequest {
                       autoMergeRequest {
                         commitHeadline
                         commitBody
@@ -91,20 +109,14 @@ jobs:
                     }
                   }
                 }`;
-              const result = await github.graphql(mutation, {
-                pullRequestId: pr.node_id
-              });
-
-              // Extract the scheduled commit message from the GraphQL response.
-              const { commitHeadline, commitBody } = result.enablePullRequestAutoMerge.pullRequest.autoMergeRequest;
+              const result = await github.graphql(query, { pullRequestId: pr.node_id });
+              const { commitHeadline, commitBody } = result.node.autoMergeRequest;
               const fullScheduledMessage = `${commitHeadline}\n\n${commitBody}`;
-
-              console.log("Auto-merge enabled. Verifying scheduled commit message...");
               if (fullScheduledMessage.includes(revId)) {
-                console.log("Verification successful: The scheduled merge commit contains the GitOrigin-RevId.");
+                console.log(`Verification successful: The scheduled merge commit message contains "${revId}".`);
               } else {
                 const errorLines = [
-                  'Verification FAILED: The scheduled merge commit message does not contain the GitOrigin-RevId.',
+                  `Verification FAILED: The scheduled merge commit message does not contain "${revId}".`,
                   'The scheduled message was:',
                   '---',
                   fullScheduledMessage,
@@ -113,5 +125,5 @@ jobs:
                 core.setFailed(errorLines.join('\n'));
               }
             } catch (error) {
-              core.setFailed(`Failed to enable auto-merge: ${error.message}`);
+              core.setFailed(`Failed to verify the scheduled merge commit message: ${error.message}`);
             }
