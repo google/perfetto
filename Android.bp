@@ -14608,6 +14608,7 @@ python_binary_host {
     srcs: [
         "python/generators/trace_processor_table/public.py",
         "python/generators/trace_processor_table/serialize.py",
+        "python/generators/trace_processor_table/serialize_new.py",
         "python/generators/trace_processor_table/util.py",
         "src/trace_processor/perfetto_sql/intrinsics/functions/tables.py",
         "tools/gen_tp_table_headers.py",
@@ -14691,6 +14692,7 @@ python_binary_host {
     srcs: [
         "python/generators/trace_processor_table/public.py",
         "python/generators/trace_processor_table/serialize.py",
+        "python/generators/trace_processor_table/serialize_new.py",
         "python/generators/trace_processor_table/util.py",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables.py",
         "src/trace_processor/tables/android_tables.py",
@@ -15141,6 +15143,7 @@ python_binary_host {
     srcs: [
         "python/generators/trace_processor_table/public.py",
         "python/generators/trace_processor_table/serialize.py",
+        "python/generators/trace_processor_table/serialize_new.py",
         "python/generators/trace_processor_table/util.py",
         "src/trace_processor/tables/android_tables.py",
         "src/trace_processor/tables/counter_tables.py",
