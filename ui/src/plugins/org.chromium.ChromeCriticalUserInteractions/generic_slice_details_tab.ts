@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
-import {ColumnType} from '../../trace_processor/query_result';
+import {SqlValue} from '../../trace_processor/query_result';
 import {sqlValueToReadableString} from '../../trace_processor/sql_utils';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout} from '../../widgets/grid_layout';
@@ -35,7 +35,7 @@ export type Columns = {
 // and renders it according to the provided config, specifying which columns
 // need to be rendered and how.
 export class GenericSliceDetailsTab implements TrackEventDetailsPanel {
-  private data?: {[key: string]: ColumnType};
+  private data?: {[key: string]: SqlValue};
 
   constructor(
     private readonly trace: Trace,
