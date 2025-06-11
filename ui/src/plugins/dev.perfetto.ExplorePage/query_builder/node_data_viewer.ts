@@ -69,10 +69,11 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
       if (this.queryResult.error !== undefined) {
         return `Error: ${this.queryResult.error}`;
       }
-      return;
+      return undefined;
     };
 
     runQuery();
+    const errors = queryErrors();
     return [
       m(
         '.pf-node-data-viewer',
@@ -109,8 +110,8 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
             ],
           ),
         ),
-        queryErrors()
-          ? m(TextParagraph, {text: queryErrors() ?? ''})
+        errors
+          ? m(TextParagraph, {text: errors ?? ''})
           : m(
               'article',
               m(QueryTable, {
