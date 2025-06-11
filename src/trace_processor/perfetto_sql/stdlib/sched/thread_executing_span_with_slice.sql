@@ -54,9 +54,10 @@ FROM _critical_path_intervals
       _wakeup_intervals) AS cr
 JOIN _kernel_nodes
   ON _kernel_nodes.id = cr.root_id
--- Important to allow for fast lookup of the parent_id in
--- `_critical_path_kernel_adjusted`.
-ORDER BY parent_id;
+ORDER BY
+  -- Important to allow for fast lookup of the parent_id in
+  -- `_critical_path_kernel_adjusted`.
+  parent_id;
 
 CREATE PERFETTO TABLE _critical_path_userspace_adjusted AS
 SELECT DISTINCT
