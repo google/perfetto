@@ -313,12 +313,20 @@ class TableSerializer(object):
   }};'''
 
   def serialize(self) -> str:
-    return f'''\
+    col_names = self.foreach_col(ColumnSerializer.typespec_column_name_literal, delimiter=',')
+    col_specs = self.foreach_col(ColumnSerializer.typespec_typed_column_spec_expr, delimiter=',\n    ')
+    col_index = self.foreach_col(ColumnSerializer.colindex_member, delimiter=';\n    ')
+    row_ref_getter = self.foreach_col(ColumnSerializer.row_reference_getter, delimiter='\n    ')
+    row_ref_setter = self.foreach_col(ColumnSerializer.row_reference_setter, delimiter='\n    ')
+    cursor_getter = self.foreach_col(ColumnSerializer.cursor_getter, delimiter='\n')
+    cursor_setter = self.foreach_col(ColumnSerializer.cursor_setter, delimiter='\n')
+    insert_argvalue = self.foreach_col(ColumnSerializer.row_insert_arg_value, delimiter=', ')
+    return f'''
 class {self.table_name} {{
  public:
   static constexpr auto kSpec = dataframe::CreateTypedDataframeSpec(
-    {{{self.foreach_col(ColumnSerializer.typespec_column_name_literal, delimiter=',')}}},
-    {self.foreach_col(ColumnSerializer.typespec_typed_column_spec_expr, delimiter=',\n    ')});
+    {{{col_names}}},
+    {col_specs});
 
   struct Id : BaseId {{
     Id() = default;
@@ -352,7 +360,7 @@ class {self.table_name} {{
     uint32_t value_;
   }};
   struct ColumnIndex {{
-    {self.foreach_col(ColumnSerializer.colindex_member, delimiter=';\n    ')};
+    {col_index};
   }};
   struct RowReference {{
    public:
@@ -360,8 +368,8 @@ class {self.table_name} {{
         : table_(table), row_(row) {{
         base::ignore_result(table_);
     }}
-    {self.foreach_col(ColumnSerializer.row_reference_getter, delimiter='\n    ')}
-    {self.foreach_col(ColumnSerializer.row_reference_setter, delimiter='\n    ')}
+    {row_ref_getter}
+    {row_ref_setter}
     RowNumber ToRowNumber() const {{
       return RowNumber{{row_}};
     }}
@@ -379,7 +387,7 @@ class {self.table_name} {{
     }}
     ConstRowReference(const RowReference& other)
         : table_(other.table_), row_(other.row_) {{}}
-    {self.foreach_col(ColumnSerializer.row_reference_getter, delimiter='\n    ')}
+    {row_ref_getter}
     RowNumber ToRowNumber() const {{
       return RowNumber{{row_}};
     }}
@@ -404,7 +412,7 @@ class {self.table_name} {{
     RowNumber ToRowNumber() const {{
       return RowNumber{{cursor_.RowIndex()}};
     }}
-    {self.foreach_col(ColumnSerializer.cursor_getter, delimiter='\n')}
+    {cursor_getter}
 
    private:
     dataframe::Dataframe::TypedCursor<std::remove_cv_t<std::remove_reference_t<decltype(kSpec)>>> cursor_;
@@ -426,8 +434,8 @@ class {self.table_name} {{
     RowNumber ToRowNumber() const {{
       return RowNumber{{cursor_.RowIndex()}};
     }}
-    {self.foreach_col(ColumnSerializer.cursor_getter, delimiter='\n')}
-    {self.foreach_col(ColumnSerializer.cursor_setter, delimiter='\n')}
+    {cursor_getter}
+    {cursor_setter}
 
    private:
     dataframe::Dataframe::TypedCursor<std::remove_cv_t<std::remove_reference_t<decltype(kSpec)>>> cursor_;
@@ -471,7 +479,7 @@ class {self.table_name} {{
       ConstRowReference ToRowReference() const {{
         return ConstRowReference(table_, row_);
       }}
-      {self.foreach_col(ColumnSerializer.row_reference_getter, delimiter='\n    ')}
+      {row_ref_getter}
 
     private:
       const {self.table_name}* table_;
@@ -490,8 +498,7 @@ class {self.table_name} {{
 
   IdAndRow Insert(const Row& row) {{
     uint32_t row_count = dataframe_.row_count();
-    dataframe_.InsertUnchecked(kSpec,
-      {self.foreach_col(ColumnSerializer.row_insert_arg_value, delimiter=', ')});
+    dataframe_.InsertUnchecked(kSpec, {insert_argvalue});
     return IdAndRow{{Id{{row_count}}, RowNumber{{row_count}}, row_count, RowReference(this, row_count)}};
   }}
 
