@@ -18,6 +18,7 @@ Contains tables related to perf data ingestion.
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import ColumnFlag
+from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppString
@@ -25,10 +26,11 @@ from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
-from .profiler_tables import STACK_PROFILE_FRAME_TABLE
-from .profiler_tables import STACK_PROFILE_MAPPING_TABLE
-from .metadata_tables import THREAD_TABLE
-from .etm_tables import FILE_TABLE
+
+from src.trace_processor.tables.profiler_tables import STACK_PROFILE_FRAME_TABLE
+from src.trace_processor.tables.profiler_tables import STACK_PROFILE_MAPPING_TABLE
+from src.trace_processor.tables.metadata_tables import THREAD_TABLE
+from src.trace_processor.tables.etm_tables import FILE_TABLE
 
 SPE_RECORD_TABLE = Table(
     python_module=__file__,
@@ -38,8 +40,10 @@ SPE_RECORD_TABLE = Table(
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C('utid', CppOptional(CppTableId(THREAD_TABLE))),
         C('exception_level', CppString()),
-        C('instruction_frame_id',
-          CppOptional(CppTableId(STACK_PROFILE_FRAME_TABLE))),
+        C(
+            'instruction_frame_id',
+            CppOptional(CppTableId(STACK_PROFILE_FRAME_TABLE)),
+        ),
         C('operation', CppString()),
         C('data_virtual_address', CppInt64()),
         C('data_physical_address', CppInt64()),
@@ -104,10 +108,22 @@ MMAP_RECORD = Table(
     class_name='MmapRecordTable',
     sql_name='__intrinsic_mmap_record',
     columns=[
-        C('ts', CppInt64()),
-        C('upid', CppOptional(CppUint32())),
-        C('mapping_id', CppTableId(STACK_PROFILE_MAPPING_TABLE)),
-        C('file_id', CppOptional(CppTableId(FILE_TABLE))),
+        C(
+            'ts',
+            CppInt64(),
+            cpp_access=CppAccess.READ,
+        ),
+        C('upid', CppOptional(CppUint32()), cpp_access=CppAccess.READ),
+        C(
+            'mapping_id',
+            CppTableId(STACK_PROFILE_MAPPING_TABLE),
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            'file_id',
+            CppOptional(CppTableId(FILE_TABLE)),
+            cpp_access=CppAccess.READ,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''
