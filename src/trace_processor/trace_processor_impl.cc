@@ -159,6 +159,7 @@
 #include "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h"
 #include "src/trace_processor/importers/etm/file_tracker.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.h"
 #endif
 
 namespace perfetto::trace_processor {
