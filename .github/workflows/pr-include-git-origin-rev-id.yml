@@ -17,21 +17,23 @@
 # if both PR1 and PR2 are opened, which is very confusing when dealing with
 # stacked changes.
 
-name: Autofill PR Body with Footer
+name: Include GitOrigin-RevId in Copybara PR Body
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
     branches:
-      - dev/copybara/chromium_tmp
+      - main  # Only apply to pull requests TO main.
 
 permissions:
   pull-requests: write  # Required to edit the PR body
   contents: read  # Required to read commit messages
 
 jobs:
-  autofill:
+  pr-include-git-origin-rev-id:
     runs-on: ubuntu-latest
+    # Only apply to pull requests FROM dev/copybara/chromium_tmp.
+    if: github.head_ref == 'dev/copybara/chromium_tmp'
     steps:
       - name: Get commit message
         id: get_commit_message
