@@ -555,6 +555,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
               );
             }
             this.areaDrag.update(e, timescale);
+            this.trace.raf.scheduleCanvasRedraw();
             trace.timeline.selectedSpan = this.areaDrag.timeSpan().toTimeSpan();
           },
           onDragEnd: (e) => {

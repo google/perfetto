@@ -48,6 +48,7 @@ import {removeFalsyValues} from './array_utils';
 import {DisposableStack} from './disposable_stack';
 import {bindEventListener, CSSCursor} from './dom_utils';
 import {Point2D, Rect2D, Size2D, Vector2D} from './geom';
+import {TouchscreenHandler} from './touch_handler';
 
 export interface DragEvent {
   // The location of the mouse at the start of the drag action.
@@ -100,6 +101,21 @@ export interface DragConfig {
   onDragEnd?(e: DragEvent, element: HTMLElement): void;
 }
 
+interface WheelLikeEvent {
+  ctrlKey: boolean;
+  clientX: number;
+  clientY: number;
+  deltaX: number;
+  deltaY: number;
+}
+
+interface MouseLikeEvent {
+  clientX: number;
+  clientY: number;
+  movementX: number;
+  movementY: number;
+}
+
 export interface Zone {
   // Unique ID for this zone. This is used to coordinate long events such as
   // drag event callbacks between update cycles.
@@ -148,6 +164,37 @@ export class ZonedInteractionHandler implements Disposable {
     this.bindEvent(document, 'keydown', this.onKeyDown.bind(this));
     this.bindEvent(document, 'keyup', this.onKeyUp.bind(this));
     this.bindEvent(this.target, 'wheel', this.handleWheel.bind(this));
+
+    this.trash.use(
+      new TouchscreenHandler(this.target, {
+        onPan: (args) => {
+          this.handleWheel({
+            ...args,
+            deltaX: -args.deltaX,
+            deltaY: args.deltaY,
+            ctrlKey: false,
+          });
+        },
+        onPinchZoom: (args) => {
+          // We translate pinch zoom into Ctrl+vertical wheel. This is
+          // consistent with what Linux laptops seem to do when pinching on the
+          // touchpad.
+          if (Math.abs(args.deltaX) > Math.abs(args.deltaY)) {
+            this.handleWheel({
+              ...args,
+              deltaY: -args.deltaX,
+              deltaX: 0,
+              ctrlKey: true,
+            });
+          }
+        },
+        onTapDown: (args) => this.onMouseDown(args),
+        onTapMove: (args) => {
+          this.onMouseMove(args);
+        },
+        onTapUp: (args) => this.onMouseUp(args),
+      }),
+    );
   }
 
   [Symbol.dispose](): void {
@@ -180,7 +227,7 @@ export class ZonedInteractionHandler implements Disposable {
     this.trash.use(bindEventListener(element, event, handler));
   }
 
-  private onMouseDown(e: MouseEvent) {
+  private onMouseDown(e: MouseLikeEvent) {
     const mousePositionClient = new Vector2D({x: e.clientX, y: e.clientY});
     const mouse = mousePositionClient.sub(this.target.getBoundingClientRect());
     const zone = this.findZone(
@@ -197,7 +244,7 @@ export class ZonedInteractionHandler implements Disposable {
     }
   }
 
-  private onMouseMove(e: MouseEvent) {
+  private onMouseMove(e: MouseLikeEvent) {
     const mousePositionClient = new Vector2D({x: e.clientX, y: e.clientY});
     const mousePosition = mousePositionClient.sub(
       this.target.getBoundingClientRect(),
@@ -230,7 +277,7 @@ export class ZonedInteractionHandler implements Disposable {
     }
   }
 
-  private onMouseUp(e: MouseEvent) {
+  private onMouseUp(e: MouseLikeEvent) {
     const mousePositionClient = new Vector2D({x: e.clientX, y: e.clientY});
     const mouse = mousePositionClient.sub(this.target.getBoundingClientRect());
 
@@ -268,7 +315,7 @@ export class ZonedInteractionHandler implements Disposable {
     this.updateCursor();
   }
 
-  private handleWheel(e: WheelEvent) {
+  private handleWheel(e: WheelLikeEvent) {
     const mousePositionClient = new Vector2D({x: e.clientX, y: e.clientY});
     const mouse = mousePositionClient.sub(this.target.getBoundingClientRect());
     const zone = this.findZone((z) => z.onWheel && this.hitTestZone(z, mouse));
@@ -284,7 +331,7 @@ export class ZonedInteractionHandler implements Disposable {
     element: HTMLElement,
     currentDrag: InProgressGesture,
     x: Vector2D,
-    e: MouseEvent,
+    e: MouseLikeEvent,
     dragConfig: DragConfig,
   ) {
     // Update the current position
@@ -300,7 +347,7 @@ export class ZonedInteractionHandler implements Disposable {
     dragConfig.onDragEnd?.(dragEvent, element);
   }
 
-  private handleClick(element: HTMLElement, e: MouseEvent) {
+  private handleClick(element: HTMLElement, e: MouseLikeEvent) {
     const mousePositionClient = new Vector2D({x: e.clientX, y: e.clientY});
     const mouse = mousePositionClient.sub(element.getBoundingClientRect());
     const zone = this.findZone((z) => z.onClick && this.hitTestZone(z, mouse));

@@ -53,7 +53,7 @@
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
-  touch-action: none;
+  touch-action: pan-x pan-y;
 }
 
 html {
