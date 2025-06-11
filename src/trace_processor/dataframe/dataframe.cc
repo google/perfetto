@@ -222,7 +222,8 @@ void Dataframe::Finalize() {
   }
 }
 
-dataframe::Dataframe Dataframe::Copy() const {
+dataframe::Dataframe Dataframe::CopyFinalized() const {
+  PERFETTO_CHECK(finalized_);
   return *this;
 }
 
