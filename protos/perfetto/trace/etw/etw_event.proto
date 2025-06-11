@@ -22,6 +22,7 @@ import "protos/perfetto/trace/etw/etw.proto";
 message EtwTraceEvent {
   optional uint64 timestamp = 1;
   optional uint32 cpu = 4;
+  optional uint32 thread_id = 5;
 
   oneof event {
     CSwitchEtwEvent c_switch = 2;
