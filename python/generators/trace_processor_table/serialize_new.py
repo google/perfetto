@@ -313,14 +313,22 @@ class TableSerializer(object):
   }};'''
 
   def serialize(self) -> str:
-    col_names = self.foreach_col(ColumnSerializer.typespec_column_name_literal, delimiter=',')
-    col_specs = self.foreach_col(ColumnSerializer.typespec_typed_column_spec_expr, delimiter=',\n    ')
-    col_index = self.foreach_col(ColumnSerializer.colindex_member, delimiter=';\n    ')
-    row_ref_getter = self.foreach_col(ColumnSerializer.row_reference_getter, delimiter='\n    ')
-    row_ref_setter = self.foreach_col(ColumnSerializer.row_reference_setter, delimiter='\n    ')
-    cursor_getter = self.foreach_col(ColumnSerializer.cursor_getter, delimiter='\n')
-    cursor_setter = self.foreach_col(ColumnSerializer.cursor_setter, delimiter='\n')
-    insert_argvalue = self.foreach_col(ColumnSerializer.row_insert_arg_value, delimiter=', ')
+    col_names = self.foreach_col(
+        ColumnSerializer.typespec_column_name_literal, delimiter=',')
+    col_specs = self.foreach_col(
+        ColumnSerializer.typespec_typed_column_spec_expr, delimiter=',\n    ')
+    col_index = self.foreach_col(
+        ColumnSerializer.colindex_member, delimiter=';\n    ')
+    row_ref_getter = self.foreach_col(
+        ColumnSerializer.row_reference_getter, delimiter='\n    ')
+    row_ref_setter = self.foreach_col(
+        ColumnSerializer.row_reference_setter, delimiter='\n    ')
+    cursor_getter = self.foreach_col(
+        ColumnSerializer.cursor_getter, delimiter='\n')
+    cursor_setter = self.foreach_col(
+        ColumnSerializer.cursor_setter, delimiter='\n')
+    insert_argvalue = self.foreach_col(
+        ColumnSerializer.row_insert_arg_value, delimiter=', ')
     return f'''
 class {self.table_name} {{
  public:
