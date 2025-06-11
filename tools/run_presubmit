@@ -229,15 +229,21 @@ def CheckChangeHasNoTabs(changed_files: List[str]) -> List[str]:
   return errors
 
 
-def CheckCodeFormatted(skip_formatters: str) -> List[str]:
+def CheckCodeFormatted(merge_base: str, skip_formatters: str) -> List[str]:
   # NOTE: format-sources does its own invocation of git diff ... to detect
   # changed file. We use that, rather than passing the list here, to avoid
   # ending in a situation where run_presubmit fails, but then
   # tools/format_sources succeeds because they diverge in their diff logic.
   tool = os.path.join(REPO_ROOT, 'tools/format-sources')
   try:
-    run_command([tool, '--quiet', '--check-only', '--skip=' + skip_formatters],
-                stderr=subprocess.STDOUT)
+    args = [
+        tool,
+        '--quiet',
+        '--check-only',
+        '--skip=' + skip_formatters,
+        '--upstream=' + merge_base,
+    ]
+    run_command(args, stderr=subprocess.STDOUT)
   except subprocess.CalledProcessError:
     return [f'Please run {tool} to format sources.']
   return []
@@ -865,7 +871,7 @@ def main():
 
   # Use RunAndReportIfLong for all checks
   checks_to_run = [
-      (CheckCodeFormatted, [args.skip_formatters]),
+      (CheckCodeFormatted, [merge_base, args.skip_formatters]),
       (CheckDoNotSubmit, [changed_files]),
       (CheckChangeHasNoTabs, [changed_files]),
       (CheckIncludeGuards, [changed_files]),

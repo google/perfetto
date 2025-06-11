@@ -18,11 +18,8 @@ import {Time} from '../../../../base/time';
 import {exists} from '../../../../base/utils';
 import {raf} from '../../../../core/raf_scheduler';
 import {Engine} from '../../../../trace_processor/engine';
-import {Row} from '../../../../trace_processor/query_result';
-import {
-  SqlValue,
-  sqlValueToReadableString,
-} from '../../../../trace_processor/sql_utils';
+import {Row, SqlValue} from '../../../../trace_processor/query_result';
+import {sqlValueToReadableString} from '../../../../trace_processor/sql_utils';
 import {Arg, getArgs} from '../../../sql_utils/args';
 import {asArgSetId} from '../../../sql_utils/core_types';
 import {Anchor} from '../../../../widgets/anchor';
