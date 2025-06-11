@@ -79,9 +79,6 @@ class CppAccess(Enum):
 
   # Indicates the column is read from C++ code and written to in
   # non-performance critical code paths.
-  #
-  # This only matters for nullable columns, as non-nullable columns
-  # will have the same overhead as .
   READ_AND_LOW_PERF_WRITE = auto()
 
   # Indicates the column is read from C++ code and written to in
@@ -91,7 +88,7 @@ class CppAccess(Enum):
 
 class CppAccessDuration(Enum):
   """
-  Indicates whether the column is access post finalization in C++ code.
+  Indicates whether the column is accessible post finalization in C++ code.
   """
   PRE_FINALIZATION_ONLY = False
   POST_FINALIZATION = True
@@ -179,6 +176,8 @@ class Table:
     class_name: Name of the C++ table class.
     sql_name: Name of the table in SQL.
     columns: The columns in this table.
+    add_implicit_column: Whether the implicit id column should be added to
+    this table.
     tabledoc: Documentation for this table. Can include documentation overrides
     for auto-added columns (i.e. id and type) and aliases added in
     |wrapping_sql_view|.
