@@ -78,25 +78,31 @@ struct Fetcher : ValueFetcher {
   // Fetches an int64_t value at the given index.
   int64_t GetInt64Value(uint32_t idx) const {
     PERFETTO_CHECK(idx == 0);
-    return std::get<int64_t>(value);
+    return std::get<int64_t>(value[i]);
   }
   // Fetches a double value at the given index.
   double GetDoubleValue(uint32_t idx) const {
     PERFETTO_CHECK(idx == 0);
-    return std::get<double>(value);
+    return std::get<double>(value[i]);
   }
   // Fetches a string value at the given index.
   const char* GetStringValue(uint32_t idx) const {
     PERFETTO_CHECK(idx == 0);
-    return std::get<const char*>(value);
+    return std::get<const char*>(value[i]);
   }
   // Fetches the type of the value at the given index.
   Type GetValueType(uint32_t idx) const {
     PERFETTO_CHECK(idx == 0);
-    return value.index();
+    return value[i].index();
+  }
+  bool IteratorInit(uint32_t idx) { PERFETTO_CHECK(idx == 0); }
+  bool IteratorNext(uint32_t idx) {
+    PERFETTO_CHECK(idx == 0);
+    ++i;
   }
 
-  FilterValue value;
+  std::vector<FilterValue> value;
+  uint32_t i = 0;
 };
 
 std::string FixNegativeAndDecimal(const std::string& str) {
@@ -522,8 +528,7 @@ class BytecodeInterpreterCastTest
 
 TEST_P(BytecodeInterpreterCastTest, Cast) {
   const auto& [input_type, input, expected, op] = GetParam();
-
-  fetcher_.value = input;
+  fetcher_.value.push_back(input);
   SetRegistersAndExecute(
       base::StackString<1024>(
           "CastFilterValue<%s>: [fval_handle=FilterValue(0), "

@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_MODULE_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_MODULE_H_
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -80,7 +81,16 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     Type GetValueType(uint32_t idx) const {
       return sqlite::value::Type(sqlite_value[idx]);
     }
-    sqlite3_value** sqlite_value;
+    bool IteratorInit(uint32_t idx) {
+      return sqlite3_vtab_in_first(argv[idx], &sqlite_value[idx]) ==
+             SQLITE_OK;
+    }
+    bool IteratorNext(uint32_t idx) {
+      return sqlite3_vtab_in_next(argv[idx], &sqlite_value[idx]) ==
+             SQLITE_OK;
+    }
+    std::array<sqlite3_value*, 16> sqlite_value;
+    sqlite3_value** argv;
   };
   struct SqliteResultCallback : dataframe::CellCallback {
     void OnCell(int64_t v) const { sqlite::result::Long(ctx, v); }
