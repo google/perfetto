@@ -59,7 +59,3 @@ perfetto_tp_tables("tables_python") {
   ]
   generate_docs = true
 }
-
-perfetto_tp_tables("py_tables_unittest") {
-  sources = [ "py_tables_unittest.py" ]
-}
