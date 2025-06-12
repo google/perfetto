@@ -14,14 +14,15 @@
 """Contains tables for relevant for TODO."""
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppSelfTableId
 from python.generators.trace_processor_table.public import CppString
-from python.generators.trace_processor_table.public import Table
-from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import Table
+from python.generators.trace_processor_table.public import TableDoc
 
 EXPERIMENTAL_PROTO_PATH_TABLE = Table(
     python_module=__file__,
@@ -31,7 +32,11 @@ EXPERIMENTAL_PROTO_PATH_TABLE = Table(
         C('parent_id', CppOptional(CppSelfTableId())),
         C('field_type', CppString()),
         C('field_name', CppOptional(CppString())),
-        C('arg_set_id', CppOptional(CppUint32())),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''

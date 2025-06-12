@@ -123,6 +123,7 @@ class DataframeSharedStorage {
   // be the same dataframe which was passed in as the argument or it might be a
   // a dataframe which is already stored in the shared storage.
   DataframeHandle Insert(std::string key, dataframe::Dataframe df) {
+    PERFETTO_DCHECK(df.finalized());
     return Insert<dataframe::Dataframe>(std::move(key), std::move(df));
   }
 
@@ -177,7 +178,7 @@ class DataframeSharedStorage {
       return std::nullopt;
     }
     it->refcount++;
-    return Handle<V>(key, it->value.Copy(), *this);
+    return Handle<V>(key, Copy(it->value), *this);
   }
 
   template <typename V>
@@ -186,12 +187,12 @@ class DataframeSharedStorage {
     auto& map = GetMap<V>();
     if (auto* it = map.Find(key); it) {
       it->refcount++;
-      return Handle<V>(std::move(key), it->value.Copy(), *this);
+      return Handle<V>(std::move(key), Copy(it->value), *this);
     }
     auto [it, inserted] = map.Insert(key, Refcounted<V>{std::move(value)});
     PERFETTO_CHECK(inserted);
     it->refcount++;
-    return Handle<V>(std::move(key), it->value.Copy(), *this);
+    return Handle<V>(std::move(key), Copy(it->value), *this);
   }
 
   template <typename V>
@@ -205,6 +206,12 @@ class DataframeSharedStorage {
       map.Erase(key);
     }
   }
+
+  static dataframe::Dataframe Copy(const dataframe::Dataframe& df) {
+    return df.CopyFinalized();
+  }
+
+  static dataframe::Index Copy(const dataframe::Index& df) { return df.Copy(); }
 
   template <typename T>
   auto& GetMap() PERFETTO_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
