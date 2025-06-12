@@ -21,16 +21,7 @@ export interface TouchArgs {
   clientY: number;
   deltaX: number;
   deltaY: number;
-  movementX: number;
-  movementY: number;
 }
-
-const NO_DELTA = {
-  deltaX: 0,
-  deltaY: 0,
-  movementX: 0,
-  movementY: 0,
-};
 
 interface TouchHandlerCallbacks {
   onPinchZoom?: (args: TouchArgs) => void;
@@ -73,7 +64,9 @@ export class TouchscreenHandler {
       bindEventListener(target, 'touchstart', this.onTouchStart.bind(this)),
     );
     this.trash.use(
-      bindEventListener(target, 'touchmove', this.onTouchMove.bind(this)),
+      bindEventListener(target, 'touchmove', this.onTouchMove.bind(this), {
+        passive: false,
+      }),
     );
     this.trash.use(
       bindEventListener(target, 'touchend', this.onTouchEnd.bind(this)),
@@ -125,17 +118,24 @@ export class TouchscreenHandler {
     assertTrue(this.mode === 'deciding');
     this.mode = 'mouse_emulation';
     this.callbacks.onTapDown?.({
-      ...NO_DELTA,
+      deltaX: 0,
+      deltaY: 0,
       clientX: t.clientX,
       clientY: t.clientY,
     });
   }
 
   private onTouchMove = (e: TouchEvent) => {
+    if (e.touches.length < 1 || e.touches.length > 2 || !this.tapStart) {
+      return;
+    }
+
     if (e.touches.length === 2) {
+      e.preventDefault(); // Disable browser panning.
       if (this.mode === 'mouse_emulation' && this.tapStart !== undefined) {
         this.callbacks.onTapUp?.({
-          ...NO_DELTA,
+          deltaX: 0,
+          deltaY: 0,
           ...this.tapStart,
         });
       }
@@ -144,7 +144,11 @@ export class TouchscreenHandler {
       return;
     }
 
-    if (e.touches.length !== 1 || !this.tapStart || this.mode === 'pinch') {
+    // When pinch-zooming we can get a mixture of interleaved touchmove(1) and
+    // touchmove(2) depending on how many fingers we started with. Suppress the
+    // former as it creates jittery vertical scrolling while panning.
+    if (this.mode === 'pinch') {
+      e.preventDefault();
       return;
     }
 
@@ -158,15 +162,13 @@ export class TouchscreenHandler {
     const distSq = dXInit * dXInit + dYInit * dYInit;
 
     this.lastTouch ||= this.tapStart;
-    const deltaX = t.clientX - this.lastTouch.clientX;
-    const deltaY = t.clientY - this.lastTouch.clientY;
+    const deltaX = this.lastTouch.clientX - t.clientX;
+    const deltaY = this.lastTouch.clientY - t.clientY;
     const args = {
       clientX: t.clientX,
       clientY: t.clientY,
       deltaX,
       deltaY,
-      movementX: deltaX,
-      movementY: deltaY,
     };
     this.lastTouch = t;
     const elapsed = performance.now() - this.tapStartTime;
@@ -184,6 +186,7 @@ export class TouchscreenHandler {
     // Not an "else" because we want to fall through after we change the
     // singleTapType above.
     if (this.mode === 'mouse_emulation') {
+      e.preventDefault();
       this.callbacks.onTapMove?.({...args});
     } else if (this.mode === 'pan') {
       this.callbacks.onPan?.({...args});
@@ -200,7 +203,8 @@ export class TouchscreenHandler {
     if (mode === 'mouse_emulation') {
       const t = e.changedTouches[0];
       this.callbacks.onTapUp?.({
-        ...NO_DELTA,
+        deltaX: 0,
+        deltaY: 0,
         clientX: t.clientX,
         clientY: t.clientY,
       });
@@ -214,16 +218,13 @@ export class TouchscreenHandler {
       this.lastPinch = [e.touches[0], e.touches[1]];
     }
 
-    const lastDX = Math.abs(
-      this.lastPinch[0].clientX - this.lastPinch[1].clientX,
-    );
-    const lastDY = Math.abs(
-      this.lastPinch[0].clientY - this.lastPinch[1].clientY,
-    );
-    const dX = Math.abs(e.touches[0].clientX - e.touches[1].clientX);
-    const dY = Math.abs(e.touches[0].clientY - e.touches[1].clientY);
-    const deltaX = Math.round(dX - lastDX);
-    const deltaY = Math.round(dY - lastDY);
+    function distance(t: ArrayLike<Touch>) {
+      const dX = t[0].clientX - t[1].clientX;
+      const dY = t[0].clientY - t[1].clientY;
+      return Math.sqrt(dX * dX + dY * dY);
+    }
+
+    const delta = Math.round(distance(this.lastPinch) - distance(e.touches));
     this.lastPinch = [e.touches[0], e.touches[1]];
 
     const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
@@ -232,10 +233,119 @@ export class TouchscreenHandler {
     this.callbacks.onPinchZoom?.({
       clientX: Math.round(midX),
       clientY: Math.round(midY),
-      deltaX,
-      deltaY,
-      movementX: deltaX,
-      movementY: deltaY,
+      deltaX: delta,
+      deltaY: delta,
     });
   }
+}
+
+export type TouchEventTranslation =
+  | 'down-up-move'
+  | 'pan-x'
+  | 'pinch-zoom-as-ctrl-wheel';
+export function convertTouchIntoMouseEvents(
+  target: HTMLElement,
+  events: TouchEventTranslation[],
+): Disposable {
+  return new TouchscreenHandler(target, {
+    onTapDown(args: TouchArgs) {
+      if (!events.includes('down-up-move')) return;
+      target.dispatchEvent(
+        new MouseEvent('mousedown', {
+          bubbles: true,
+          buttons: 1,
+          ...args,
+        }),
+      );
+    },
+    onTapUp(args: TouchArgs) {
+      if (!events.includes('down-up-move')) return;
+      target.dispatchEvent(
+        new MouseEvent('mouseup', {
+          bubbles: true,
+          buttons: 0,
+          ...args,
+        }),
+      );
+    },
+    onTapMove(args: TouchArgs) {
+      if (!events.includes('down-up-move')) return;
+      target.dispatchEvent(
+        new MouseEvent('mousemove', {
+          bubbles: true,
+          buttons: 1,
+          movementX: args.deltaX,
+          movementY: args.deltaY,
+          ...args,
+        }),
+      );
+    },
+    onPan(args: TouchArgs) {
+      if (
+        Math.abs(args.deltaX) > Math.abs(args.deltaY) &&
+        events.includes('pan-x')
+      ) {
+        withInertia(args.deltaX, 0, (dx) =>
+          target.dispatchEvent(
+            new WheelEvent('wheel', {
+              ...args,
+              deltaX: dx,
+              deltaY: 0,
+              ctrlKey: false,
+            }),
+          ),
+        );
+      }
+    },
+    onPinchZoom(args: TouchArgs) {
+      if (!events.includes('pinch-zoom-as-ctrl-wheel')) return;
+      // We translate pinch zoom into Ctrl+vertical wheel. This is consistent
+      // with what most laptops seem to do when pinching on the touchpad.
+      target.dispatchEvent(
+        new WheelEvent('wheel', {
+          ...args,
+          deltaX: 0,
+          deltaY: args.deltaY,
+          ctrlKey: true,
+        }),
+      );
+    },
+  });
+}
+
+function withInertia(
+  vx: number,
+  vy: number,
+  callback: (dx: number, dy: number) => void,
+  options?: {
+    friction?: number;
+    minVelocity?: number;
+  },
+): () => void {
+  const friction = options?.friction ?? 0.8;
+  const minVelocity = options?.minVelocity ?? 0.05;
+
+  let frame: number | null = null;
+
+  function step() {
+    vx *= friction;
+    vy *= friction;
+
+    if (Math.abs(vx) < minVelocity && Math.abs(vy) < minVelocity) {
+      if (frame !== null) cancelAnimationFrame(frame);
+      return;
+    }
+
+    callback(vx, vy);
+    frame = requestAnimationFrame(step);
+  }
+
+  frame = requestAnimationFrame(step);
+
+  return () => {
+    if (frame !== null) {
+      cancelAnimationFrame(frame);
+      frame = null;
+    }
+  };
 }
