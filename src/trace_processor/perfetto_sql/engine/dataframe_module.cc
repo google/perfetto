@@ -224,6 +224,7 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
           PERFETTO_DCHECK(op == SQLITE_INDEX_CONSTRAINT_OFFSET);
           limit_spec.offset = cast;
         }
+        continue;
       }
     }
     auto df_op = SqliteOpToDataframeOp(op);
