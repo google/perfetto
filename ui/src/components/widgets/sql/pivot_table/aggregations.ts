@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Row} from '../../../../trace_processor/query_result';
-import {SqlValue} from '../../../../trace_processor/sql_utils';
+import {Row, SqlValue} from '../../../../trace_processor/query_result';
 import {TableColumn} from '../table/table_column';
 import {aggregationId} from './ids';
 

@@ -22,7 +22,7 @@ import {
 import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 import {Trace} from '../../public/trace';
 import {TrackNode} from '../../public/workspace';
-import {ColumnType, NUM_NULL} from '../../trace_processor/query_result';
+import {SqlValue, NUM_NULL} from '../../trace_processor/query_result';
 
 /**
  * Aggregation types for the BreakdownTracks.
@@ -480,7 +480,7 @@ function buildFilterSqlClause(filters: Filter[]) {
 function filterToSql(filter: Filter) {
   const {columnName, value} = filter;
 
-  const filterValue: ColumnType | undefined = toSqlValue(value);
+  const filterValue: SqlValue | undefined = toSqlValue(value);
   return `${columnName} = ${filterValue === undefined ? '' : filterValue}`;
 }
 

@@ -94,12 +94,11 @@ class DynamicTables(TestSuite):
         query="""
         SELECT eac.id, eac.depth, eac.frame_id, eac.annotation,
                spf.name
-        FROM experimental_annotated_callstack eac
-        JOIN perf_sample ps
-          ON (eac.start_id = ps.callsite_id)
+        FROM perf_sample ps
+        JOIN experimental_annotated_callstack(ps.callsite_id) eac
         JOIN stack_profile_frame spf
           ON (eac.frame_id = spf.id)
-        ORDER BY eac.start_id ASC, eac.depth ASC;
+        ORDER BY ps.callsite_id ASC, eac.depth ASC;
         """,
         out=Path('perf_sample_sc_annotated_callstack.out'))
 

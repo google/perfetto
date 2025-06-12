@@ -317,6 +317,21 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
     return;
   }
 
+  // Optimization: If there's a single ascending sort constraint on a NonNull
+  // column that is already sorted accordingly, skip the sort operation.
+  if (sort_specs.size() == 1) {
+    const auto& single_spec = sort_specs[0];
+    if (single_spec.direction == SortDirection::kAscending) {
+      const Column& col = GetColumn(single_spec.col);
+      if (col.null_storage.nullability().Is<NonNull>() &&
+          (col.sort_state.Is<Sorted>() || col.sort_state.Is<IdSorted>() ||
+           col.sort_state.Is<SetIdSorted>())) {
+        // The column is NonNull and already sorted as required.
+        return;
+      }
+    }
+  }
+
   // main_indices_span will be modified by the final sort operation.
   // EnsureIndicesAreInSlab makes it an RwHandle.
   bytecode::reg::RwHandle<Span<uint32_t>> indices = EnsureIndicesAreInSlab();

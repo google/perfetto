@@ -15,13 +15,12 @@
 import m from 'mithril';
 import {
   Details,
-  DetailsSchema,
+  DetailsSchema as d,
 } from '../../components/widgets/sql/details/details';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {Trace} from '../../public/trace';
-import d = DetailsSchema;
 
 export class PageLoadDetailsPanel implements TrackEventDetailsPanel {
   private data: Details;

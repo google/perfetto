@@ -848,7 +848,7 @@ TEST_F(BytecodeInterpreterTest, SortedFilterIdEq) {
   }
 }
 
-TEST_F(BytecodeInterpreterTest, SortedFilterIdLowerBound) {
+TEST_F(BytecodeInterpreterTest, SortedFilter_LowerBound_BeginBound_Normal) {
   std::string bytecode =
       "SortedFilter<Id, LowerBound>: [col=0, val_register=Register(0), "
       "update_register=Register(1), write_result_to=BoundModifier(1)]";
@@ -861,7 +861,34 @@ TEST_F(BytecodeInterpreterTest, SortedFilterIdLowerBound) {
   EXPECT_EQ(result.e, 10u);
 }
 
-TEST_F(BytecodeInterpreterTest, SortedFilterIdUpperBound) {
+TEST_F(BytecodeInterpreterTest, SortedFilter_LowerBound_EndBound_EmptiesRange) {
+  std::string bytecode =
+      "SortedFilter<Id, LowerBound>: [col=0, val_register=Register(0), "
+      "update_register=Register(1), write_result_to=BoundModifier(2)]";
+  SetRegistersAndExecute(
+      bytecode, CastFilterValueResult::Valid(CastFilterValueResult::Id{2}),
+      Range{5, 10});
+
+  const auto& result = GetRegister<Range>(1);
+  EXPECT_EQ(result.b, 5u);
+  EXPECT_EQ(result.e, 5u);
+}
+
+TEST_F(BytecodeInterpreterTest,
+       SortedFilter_UpperBound_BeginBound_EmptiesRange) {
+  std::string bytecode =
+      "SortedFilter<Id, UpperBound>: [col=0, val_register=Register(0), "
+      "update_register=Register(1), write_result_to=BoundModifier(1)]";
+  SetRegistersAndExecute(
+      bytecode, CastFilterValueResult::Valid(CastFilterValueResult::Id{15}),
+      Range{5, 10});
+
+  const auto& result = GetRegister<Range>(1);
+  EXPECT_EQ(result.b, 16u);
+  EXPECT_EQ(result.e, 16u);
+}
+
+TEST_F(BytecodeInterpreterTest, SortedFilter_UpperBound_EndBound_Normal) {
   std::string bytecode =
       "SortedFilter<Id, UpperBound>: [col=0, val_register=Register(0), "
       "update_register=Register(1), write_result_to=BoundModifier(2)]";
@@ -872,6 +899,19 @@ TEST_F(BytecodeInterpreterTest, SortedFilterIdUpperBound) {
   const auto& result = GetRegister<Range>(1);
   EXPECT_EQ(result.b, 0u);
   EXPECT_EQ(result.e, 6u);
+}
+
+TEST_F(BytecodeInterpreterTest, SortedFilter_UpperBound_EndBound_Redundant) {
+  std::string bytecode =
+      "SortedFilter<Id, UpperBound>: [col=0, val_register=Register(0), "
+      "update_register=Register(1), write_result_to=BoundModifier(2)]";
+  SetRegistersAndExecute(
+      bytecode, CastFilterValueResult::Valid(CastFilterValueResult::Id{12}),
+      Range{0, 10});
+
+  const auto& result = GetRegister<Range>(1);
+  EXPECT_EQ(result.b, 0u);
+  EXPECT_EQ(result.e, 10u);
 }
 
 TEST_F(BytecodeInterpreterTest, SortedFilterUint32Eq) {

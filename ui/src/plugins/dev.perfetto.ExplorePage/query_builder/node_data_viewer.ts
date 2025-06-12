@@ -55,21 +55,25 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
         attrs.onQueryExecuted();
       });
     };
-    if (attrs.query === undefined) {
-      return m(TextParagraph, {text: `No data to display}`});
-    }
-    if (attrs.query instanceof Error) {
-      return m(TextParagraph, {text: `Error: ${attrs.query.message}`});
-    }
-    if (this.queryResult === undefined) {
-      runQuery();
-      return m(TextParagraph, {text: `No data to display`});
-    }
-    if (this.queryResult.error !== undefined) {
-      return m(TextParagraph, {text: `Error: ${this.queryResult.error}`});
-    }
+    const queryErrors = () => {
+      if (attrs.query === undefined) {
+        return `No data to display}`;
+      }
+      if (attrs.query instanceof Error) {
+        return `Error: ${attrs.query.message}`;
+      }
+      if (this.queryResult === undefined) {
+        runQuery();
+        return `No data to display`;
+      }
+      if (this.queryResult.error !== undefined) {
+        return `Error: ${this.queryResult.error}`;
+      }
+      return undefined;
+    };
 
     runQuery();
+    const errors = queryErrors();
     return [
       m(
         '.pf-node-data-viewer',
@@ -106,15 +110,18 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
             ],
           ),
         ),
-        m(
-          'article',
-          m(QueryTable, {
-            trace: attrs.trace,
-            query: queryToRun(attrs.query),
-            resp: this.queryResult,
-            fillParent: false,
-          }),
-        ),
+        errors
+          ? m(TextParagraph, {text: errors ?? ''})
+          : m(
+              'article',
+              m(QueryTable, {
+                trace: attrs.trace,
+                query:
+                  attrs.query instanceof Error ? '' : queryToRun(attrs.query),
+                resp: this.queryResult,
+                fillParent: false,
+              }),
+            ),
       ),
     ];
   }

@@ -113,6 +113,7 @@ from diff_tests.parser.translated_args.tests import TranslatedArgs
 from diff_tests.parser.ufs.tests import Ufs
 from diff_tests.parser.zip.tests import Zip
 from diff_tests.stdlib.android.cpu_cluster_tests import CpuClusters
+from diff_tests.stdlib.android.battery_tests import Battery
 from diff_tests.stdlib.android.desktop_mode_tests import DesktopMode
 from diff_tests.stdlib.android.frames_tests import Frames
 from diff_tests.stdlib.android.gpu import AndroidGpu
@@ -268,6 +269,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       AndroidGpu,
       AndroidStdlib,
       CpuClusters,
+      Battery,
       DesktopMode,
       LinuxCpu,
       LinuxTests,

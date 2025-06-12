@@ -56,7 +56,7 @@ base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
   }
 
   if (decoder.has_ready_thread()) {
-    ParseReadyThread(ts, decoder.ready_thread());
+    ParseReadyThread(ts, decoder.thread_id(), decoder.ready_thread());
   }
 
   return base::OkStatus();
@@ -77,12 +77,16 @@ void EtwParser::ParseCswitch(int64_t timestamp, uint32_t cpu, ConstBytes blob) {
                   new_thread_id, cs.new_thread_priority());
 }
 
-void EtwParser::ParseReadyThread(int64_t timestamp, ConstBytes blob) {
+void EtwParser::ParseReadyThread(int64_t timestamp,
+                                 uint32_t waker_tid,
+                                 ConstBytes blob) {
   protos::pbzero::ReadyThreadEtwEvent::Decoder rt(blob);
-  UniqueTid utid =
+  UniqueTid wakee_utid =
       context_->process_tracker->GetOrCreateThread(rt.t_thread_id());
-  ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(timestamp, utid,
-                                                             utid);
+  UniqueTid waker_utid =
+      context_->process_tracker->GetOrCreateThread(waker_tid);
+  ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(
+      timestamp, wakee_utid, waker_utid);
 }
 
 void EtwParser::PushSchedSwitch(uint32_t cpu,

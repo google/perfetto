@@ -1,0 +1,137 @@
+# Copyright (C) 2025 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Chromium Copybara import
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+    branches:
+      - main  # Only apply to pull requests TO main.
+
+permissions:
+  pull-requests: write  # Required to edit PR body and read PR data
+  contents: write       # Required to enable auto-merge
+
+jobs:
+  include-git-origin-rev-id-and-enable-auto-merge:
+    runs-on: ubuntu-latest
+    if: github.head_ref == 'dev/copybara/chromium_tmp'
+    steps:
+      - name: Include GitOrigin-RevId in Copybara PR body and enable auto-merge
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const revIdRegex = /GitOrigin-RevId: \w+/;
+            const pr = context.payload.pull_request;
+
+            // STEP 1: Find the GitOrigin-RevId in commits.
+            const { data: commits } = await github.rest.pulls.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+            });
+
+            let revId = null;
+            for (const item of commits) {
+              const match = item.commit.message.match(revIdRegex);
+              if (match) {
+                revId = match[0];
+                console.log(`Found GitOrigin-RevId in commit ${item.sha}: ${revId}`);
+                break;
+              }
+            }
+
+            if (!revId) {
+              core.setFailed('No "GitOrigin-RevId" found in any commit.');
+              return;
+            }
+
+            // STEP 2: Update the PR body to include GitOrigin-RevId (if missing).
+            const prBody = pr.body || '';
+            let prBodyWithRevId;
+            if (!prBody.includes(revId)) {
+              console.log("GitOrigin-RevId not found in PR body. Appending it now.");
+              prBodyWithRevId = prBody ? prBody.trim() + `\n\n${revId}` : revId;
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                body: prBodyWithRevId,
+              });
+              console.log("Successfully updated PR body.");
+            } else {
+              prBodyWithRevId = prBody;
+              console.log("PR body already contains the GitOrigin-RevId.");
+            }
+
+            // STEP 3: Enable auto-merge and set the commit message.
+            console.log("Attempting to enable auto-merge with commit message...");
+            try {
+              const mutation = `
+                mutation EnableAutoMerge($pullRequestId: ID!, $commitHeadline: String!, $commitBody: String!) {
+                  enablePullRequestAutoMerge(input: {
+                    pullRequestId: $pullRequestId,
+                    commitHeadline: $commitHeadline,
+                    commitBody: $commitBody,
+                    mergeMethod: SQUASH
+                  }) {
+                    pullRequest {
+                      id # We only need to know it succeeded, so we ask for the ID.
+                    }
+                  }
+                }`;
+              await github.graphql(mutation, {
+                pullRequestId: pr.node_id,
+                commitHeadline: pr.title,
+                commitBody: prBodyWithRevId
+              });
+            } catch (error) {
+              core.setFailed(`Failed to enable auto-merge: ${error.message}`);
+              return;
+            }
+            console.log("Auto-merge enabled.");
+
+            // STEP 4: Verify that the scheduled merge commit message includes the GitOrigin-RevId.
+            console.log("Verifying scheduled merge commit message...");
+            try {
+              const query = `
+                query GetAutoMergeMessage($pullRequestId: ID!) {
+                  node(id: $pullRequestId) {
+                    ... on PullRequest {
+                      autoMergeRequest {
+                        commitHeadline
+                        commitBody
+                      }
+                    }
+                  }
+                }`;
+              const result = await github.graphql(query, { pullRequestId: pr.node_id });
+              const { commitHeadline, commitBody } = result.node.autoMergeRequest;
+              const fullScheduledMessage = `${commitHeadline}\n\n${commitBody}`;
+              if (fullScheduledMessage.includes(revId)) {
+                console.log(`Verification successful: The scheduled merge commit message contains "${revId}".`);
+              } else {
+                const errorLines = [
+                  `Verification FAILED: The scheduled merge commit message does not contain "${revId}".`,
+                  'The scheduled message was:',
+                  '---',
+                  fullScheduledMessage,
+                  '---'
+                ];
+                core.setFailed(errorLines.join('\n'));
+              }
+            } catch (error) {
+              core.setFailed(`Failed to verify the scheduled merge commit message: ${error.message}`);
+            }

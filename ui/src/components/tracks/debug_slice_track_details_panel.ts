@@ -21,7 +21,7 @@ import {getThreadState, ThreadState} from '../sql_utils/thread_state';
 import {DurationWidget} from '../widgets/duration';
 import {Timestamp} from '../widgets/timestamp';
 import {
-  ColumnType,
+  SqlValue,
   durationFromSql,
   LONG,
   STR,
@@ -43,13 +43,13 @@ import {renderSliceArguments} from '../details/slice_args';
 
 export const ARG_PREFIX = 'arg_';
 
-function sqlValueToNumber(value?: ColumnType): number | undefined {
+function sqlValueToNumber(value?: SqlValue): number | undefined {
   if (typeof value === 'bigint') return Number(value);
   if (typeof value !== 'number') return undefined;
   return value;
 }
 
-function sqlValueToUtid(value?: ColumnType): Utid | undefined {
+function sqlValueToUtid(value?: SqlValue): Utid | undefined {
   if (typeof value === 'bigint') return Number(value) as Utid;
   if (typeof value !== 'number') return undefined;
   return value as Utid;
@@ -74,7 +74,7 @@ export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
     name: string;
     ts: time;
     dur: duration;
-    args: {[key: string]: ColumnType};
+    args: {[key: string]: SqlValue};
   };
   // We will try to interpret the arguments as references into well-known
   // tables. These values will be set if the relevant columns exist and
@@ -201,7 +201,7 @@ export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
     for (const key of Object.keys(row)) {
       if (key.startsWith(ARG_PREFIX)) {
         this.data.args[key.substr(ARG_PREFIX.length)] = (
-          row as {[key: string]: ColumnType}
+          row as {[key: string]: SqlValue}
         )[key];
       }
     }

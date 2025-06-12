@@ -16,10 +16,8 @@ import m from 'mithril';
 import {Button, ButtonBar, ButtonVariant} from '../../../../widgets/button';
 import {Intent} from '../../../../widgets/common';
 import {isSqlColumnEqual, SqlColumn, sqlColumnId} from './sql_column';
-import {
-  SqlValue,
-  sqlValueToSqliteString,
-} from '../../../../trace_processor/sql_utils';
+import {sqlValueToSqliteString} from '../../../../trace_processor/sql_utils';
+import {SqlValue} from '../../../../trace_processor/query_result';
 
 // A filter which can be applied to the table.
 export interface Filter {

@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -28,6 +29,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/android/network_trace.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
+#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
@@ -41,6 +43,7 @@
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "test/gtest_and_gmock.h"

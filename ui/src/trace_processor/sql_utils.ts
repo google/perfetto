@@ -157,8 +157,6 @@ export async function getTableRowCount(
   }).count;
 }
 
-export {SqlValue};
-
 /**
  * Asynchronously creates a 'perfetto' table using the given engine and returns
  * an disposable object to handle its cleanup.

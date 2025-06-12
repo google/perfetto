@@ -323,13 +323,19 @@ class Interpreter {
         update.e = inner_val + in_bounds;
       } else if constexpr (std::is_same_v<RangeOp, LowerBound> ||
                            std::is_same_v<RangeOp, UpperBound>) {
-        if (inner_val >= update.b && inner_val < update.e) {
-          BoundModifier bound = f.arg<B::write_result_to>();
-          auto& res = bound.Is<BeginBound>() ? update.b : update.e;
-          res = inner_val + std::is_same_v<RangeOp, UpperBound>;
-        } else {
-          update.e = update.b;
-        }
+        BoundModifier bound_to_modify = f.arg<B::write_result_to>();
+
+        uint32_t effective_val =
+            inner_val + std::is_same_v<RangeOp, UpperBound>;
+        bool is_begin_bound = bound_to_modify.Is<BeginBound>();
+
+        uint32_t new_b =
+            is_begin_bound ? std::max(update.b, effective_val) : update.b;
+        uint32_t new_e =
+            !is_begin_bound ? std::min(update.e, effective_val) : update.e;
+
+        update.b = new_b;
+        update.e = std::max(new_b, new_e);
       } else {
         static_assert(std::is_same_v<RangeOp, EqualRange>, "Unsupported op");
       }

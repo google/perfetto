@@ -86,9 +86,7 @@ class FlexVector {
     return FlexVector(base::AlignUp(size, kAlignment), size);
   }
 
-  // Adds an element to the end of the vector, automatically resizing if needed.
-  //
-  // value: The value to append.
+  // Adds `value` to the end of the vector.
   PERFETTO_ALWAYS_INLINE void push_back(T value) {
     PERFETTO_DCHECK(capacity() % kAlignment == 0);
     PERFETTO_DCHECK(size_ <= capacity());
@@ -96,6 +94,19 @@ class FlexVector {
       IncreaseCapacity();
     }
     slab_[size_++] = value;
+  }
+
+  // Adds `count` elements of `value` to the end of the vector.
+  PERFETTO_ALWAYS_INLINE void push_back_multiple(T value, uint64_t count) {
+    PERFETTO_DCHECK(capacity() % kAlignment == 0);
+    PERFETTO_DCHECK(size_ <= capacity());
+    while (PERFETTO_UNLIKELY(size_ + count > capacity())) {
+      IncreaseCapacity();
+    }
+    uint64_t end = size_ + count;
+    for (; size_ < end; ++size_) {
+      slab_[size_] = value;
+    }
   }
 
   // Removes the last element from the vector. Should not be called on an

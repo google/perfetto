@@ -65,6 +65,7 @@
 
 namespace perfetto::trace_processor {
 namespace {
+
 using ::testing::_;
 using ::testing::Args;
 using ::testing::AtLeast;
@@ -81,6 +82,7 @@ using ::testing::Pointwise;
 using ::testing::Return;
 using ::testing::ReturnRef;
 using ::testing::UnorderedElementsAreArray;
+
 class MockSchedEventTracker : public FtraceSchedEventTracker {
  public:
   explicit MockSchedEventTracker(TraceProcessorContext* context)
