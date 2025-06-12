@@ -1914,6 +1914,101 @@ TEST_F(BytecodeInterpreterTest, CopySpanIntersectingRange_NoOverlap) {
   EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
 }
 
+TEST_F(BytecodeInterpreterTest, LinearFilterEq_Uint32_NonNull_ValueExists) {
+  AddColumn(CreateNonNullColumn<uint32_t, uint32_t>(
+      {10u, 20u, 20u, 30u, 20u, 40u}, Unsorted{}, HasDuplicates{}));
+
+  std::string bytecode_str = R"(
+    LinearFilterEq<Uint32>: [col=0, filter_value_reg=Register(0), popcount_register=Register(1), source_register=Register(2), update_register=Register(3)]
+  )";
+  // Initial range covers all elements.
+  Range source_range{0, 6};
+  std::vector<uint32_t> update_data(
+      6);  // Sufficient space for all possible matches
+
+  SetRegistersAndExecute(
+      bytecode_str, CastFilterValueResult::Valid(20u),
+      Slab<uint32_t>::Alloc(0),  // Dummy popcount for NonNull
+      source_range, GetSpan(update_data));
+
+  // Expected indices where data[i] == 20u: 1, 2, 4
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(3), ElementsAre(1u, 2u, 4u));
+}
+
+TEST_F(BytecodeInterpreterTest, LinearFilterEq_Uint32_NonNull_ValueNotExists) {
+  AddColumn(CreateNonNullColumn<uint32_t, uint32_t>({10u, 20u, 30u}, Unsorted{},
+                                                    HasDuplicates{}));
+
+  std::string bytecode_str = R"(
+    LinearFilterEq<Uint32>: [col=0, filter_value_reg=Register(0), popcount_register=Register(1), source_register=Register(2), update_register=Register(3)]
+  )";
+  Range source_range{0, 3};
+  std::vector<uint32_t> update_data(3);
+
+  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid(25u),
+                         Slab<uint32_t>::Alloc(0),  // Dummy popcount
+                         source_range, GetSpan(update_data));
+
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(3), IsEmpty());
+}
+
+TEST_F(BytecodeInterpreterTest, LinearFilterEq_String_NonNull_ValueExists) {
+  AddColumn(CreateNonNullStringColumn<const char*>(
+      {"apple", "banana", "apple", "cherry"}, Unsorted{}, HasDuplicates{},
+      &spool_));
+
+  std::string bytecode_str = R"(
+    LinearFilterEq<String>: [col=0, filter_value_reg=Register(0), popcount_register=Register(1), source_register=Register(2), update_register=Register(3)]
+  )";
+  Range source_range{0, 4};
+  std::vector<uint32_t> update_data(4);
+
+  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid("apple"),
+                         Slab<uint32_t>::Alloc(0),  // Dummy popcount
+                         source_range, GetSpan(update_data));
+
+  // Expected indices where data[i] == "apple": 0, 2
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(3), ElementsAre(0u, 2u));
+}
+
+TEST_F(BytecodeInterpreterTest, LinearFilterEq_HandleInvalidCast_NoneMatch) {
+  AddColumn(CreateNonNullColumn<uint32_t, uint32_t>({10u, 20u, 30u}, Unsorted{},
+                                                    HasDuplicates{}));
+  std::string bytecode_str = R"(
+    LinearFilterEq<Uint32>: [col=0, filter_value_reg=Register(0), popcount_register=Register(1), source_register=Register(2), update_register=Register(3)]
+  )";
+  Range source_range{0, 3};
+  std::vector<uint32_t> update_data(3);
+
+  // Intentionally not pre-filling update_data to ensure iota in LinearFilterEq
+  // (user version) correctly handles an empty effective range.
+  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::NoneMatch(),
+                         Slab<uint32_t>::Alloc(0), source_range,
+                         GetSpan(update_data));
+
+  // HandleInvalidCastFilterValueResult should make the source_range empty,
+  // then the iota in the user's corrected LinearFilterEq will copy 0 elements.
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(3), IsEmpty());
+}
+
+TEST_F(BytecodeInterpreterTest, LinearFilterEq_HandleInvalidCast_AllMatch) {
+  AddColumn(CreateNonNullColumn<uint32_t, uint32_t>({10u, 20u, 30u}, Unsorted{},
+                                                    HasDuplicates{}));
+  std::string bytecode_str = R"(
+    LinearFilterEq<Uint32>: [col=0, filter_value_reg=Register(0), popcount_register=Register(1), source_register=Register(2), update_register=Register(3)]
+  )";
+  Range source_range{0, 3};
+  std::vector<uint32_t> update_data(3);
+
+  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::AllMatch(),
+                         Slab<uint32_t>::Alloc(0), source_range,
+                         GetSpan(update_data));
+  // HandleInvalidCastFilterValueResult returns early, source_range is not
+  // modified. The iota in LinearFilterEq (user corrected version) copies all
+  // original indices from the range.
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(3), ElementsAre(0u, 1u, 2u));
+}
+
 TEST_F(BytecodeInterpreterTest, CollectIdIntoRankMap) {
   AddColumn(CreateSparseNullableStringColumn(
       {std::make_optional("apple"), std::nullopt, std::make_optional("banana")},

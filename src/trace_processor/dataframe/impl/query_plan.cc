@@ -573,6 +573,15 @@ void QueryPlanBuilder::NonStringConstraint(
     const NonStringOp& op,
     const bytecode::reg::ReadHandle<CastFilterValueResult>& result) {
   const auto& col = GetColumn(c.col);
+  if (std::holds_alternative<bytecode::reg::RwHandle<Range>>(indices_reg_) &&
+      op.Is<Eq>() && col.null_storage.nullability().Is<NonNull>()) {
+    // Non null equality on an id column should have been handled earlier.
+    PERFETTO_CHECK(!type.Is<Id>());
+    auto non_id_type = type.TryDowncast<NonIdStorageType>();
+    PERFETTO_CHECK(non_id_type);
+    AddLinearFilterEqBytecode(c, result, *non_id_type);
+    return;
+  }
   auto update = EnsureIndicesAreInSlab();
   PruneNullIndices(c.col, update);
   auto source = TranslateNonNullIndices(c.col, update, false);
@@ -595,14 +604,19 @@ base::Status QueryPlanBuilder::StringConstraint(
     const FilterSpec& c,
     const StringOp& op,
     const bytecode::reg::ReadHandle<CastFilterValueResult>& result) {
+  const auto& col = GetColumn(c.col);
+  if (op.Is<Eq>() &&
+      std::holds_alternative<bytecode::reg::RwHandle<Range>>(indices_reg_) &&
+      col.null_storage.nullability().Is<NonNull>()) {
+    AddLinearFilterEqBytecode(c, result, NonIdStorageType{String{}});
+    return base::OkStatus();
+  }
   if constexpr (!regex::IsRegexSupported()) {
     if (op.Is<Regex>()) {
       return base::ErrStatus(
           "Regex is not supported on non-Unix platforms (e.g. Windows).");
     }
   }
-
-  const auto& col = GetColumn(c.col);
   auto update = EnsureIndicesAreInSlab();
   PruneNullIndices(c.col, update);
   auto source = TranslateNonNullIndices(c.col, update, false);
@@ -1130,6 +1144,49 @@ bytecode::reg::RwHandle<Slab<uint8_t>> QueryPlanBuilder::CopyToRowLayout(
   }
   PERFETTO_CHECK(current_offset == row_stride);
   return new_buffer_reg;
+}
+
+void QueryPlanBuilder::AddLinearFilterEqBytecode(
+    const FilterSpec& c,
+    const bytecode::reg::ReadHandle<CastFilterValueResult>&
+        filter_value_result_reg,
+    const NonIdStorageType& non_id_storage_type) {
+  const auto& col = GetColumn(c.col);
+  PERFETTO_DCHECK(
+      std::holds_alternative<bytecode::reg::RwHandle<Range>>(indices_reg_));
+  PERFETTO_DCHECK(col.null_storage.nullability().Is<NonNull>());
+  PERFETTO_DCHECK(c.op.Is<Eq>());
+
+  using SpanReg = bytecode::reg::RwHandle<Span<uint32_t>>;
+  using SlabReg = bytecode::reg::RwHandle<Slab<uint32_t>>;
+  using RegRange = bytecode::reg::RwHandle<Range>;
+
+  auto range_reg = base::unchecked_get<RegRange>(indices_reg_);
+  SlabReg slab_reg{plan_.params.register_count++};
+  SpanReg span_reg{plan_.params.register_count++};
+  {
+    using B = bytecode::AllocateIndices;
+    auto& bc = AddOpcode<B>(UnchangedRowCount{});
+    bc.arg<B::size>() = plan_.params.max_row_count;
+    bc.arg<B::dest_slab_register>() = slab_reg;
+    bc.arg<B::dest_span_register>() = span_reg;
+  }
+
+  {
+    using B = bytecode::LinearFilterEqBase;
+    B& bc = AddOpcode<B>(
+        bytecode::Index<bytecode::LinearFilterEq>(non_id_storage_type),
+        RowCountModifier{EqualityFilterRowCount{col.duplicate_state}});
+    bc.arg<B::col>() = c.col;
+    bc.arg<B::filter_value_reg>() = filter_value_result_reg;
+    // For NonNull columns, popcount_register is not used by LinearFilterEq
+    // logic. Pass a default-constructed handle.
+    bc.arg<B::popcount_register>() =
+        bytecode::reg::ReadHandle<Slab<uint32_t>>{};
+    bc.arg<B::source_register>() = range_reg;
+    bc.arg<B::update_register>() = span_reg;
+  }
+  indices_reg_ = span_reg;
 }
 
 }  // namespace perfetto::trace_processor::dataframe::impl
