@@ -355,6 +355,42 @@ class IntervalsIntersect(TestSuite):
         2,6,1
         """))
 
+  def test_ignore_instants(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        #      0 1 2 3 4 5 6 7
+        # A:   _ - - - - - - _
+        # B:   - - _ _ _ _ - -
+        # res: _ - _ - - _ - _
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (0, 1, 6)
+          )
+          SELECT * FROM data;
+
+        CREATE PERFETTO TABLE B AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (0, 0, 2),
+            (1, 3, 0),
+            (2, 6, 2)
+          )
+          SELECT * FROM data;
+
+        SELECT *
+        FROM _interval_intersect_single!(1, 6, B)
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "id","ts","dur"
+        0,1,1
+        2,6,1
+        """))
+
   def test_ii_wrong_partition(self):
     return DiffTestBlueprint(
         trace=TextProto(''),
