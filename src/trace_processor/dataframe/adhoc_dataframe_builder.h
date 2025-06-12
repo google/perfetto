@@ -27,7 +27,6 @@
 #include <optional>
 #include <string>
 #include <type_traits>
-#include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -240,12 +239,15 @@ class AdhocDataframeBuilder {
           columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
               impl::Storage{impl::FlexVector<uint32_t>()},
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
-              Unsorted{}, HasDuplicates{}}));
+              Unsorted{},
+              HasDuplicates{},
+          }));
           break;
         case base::variant_index<DataVariant, impl::FlexVector<int64_t>>(): {
           auto& data =
               base::unchecked_get<impl::FlexVector<int64_t>>(state.data);
           non_null_row_count = data.size();
+          duplicate_bit_vector_.clear();
 
           IntegerColumnSummary summary;
           summary.is_id_sorted = data.empty() || data[0] == 0;
@@ -253,13 +255,9 @@ class AdhocDataframeBuilder {
           summary.is_sorted = true;
           summary.min = data.empty() ? 0 : data[0];
           summary.max = data.empty() ? 0 : data[0];
-          summary.has_duplicates = false;
+          summary.has_duplicates =
+              data.empty() ? false : CheckDuplicate(data[0], data.size());
           summary.is_nullable = state.null_overlay.has_value();
-          if (!data.empty()) {
-            seen_ints_.clear();
-            seen_ints_.reserve(data.size());
-            seen_ints_.insert(data[0]);
-          }
           for (uint32_t j = 1; j < data.size(); ++j) {
             summary.is_id_sorted = summary.is_id_sorted && (data[j] == j);
             summary.is_setid_sorted = summary.is_setid_sorted &&
@@ -268,7 +266,7 @@ class AdhocDataframeBuilder {
             summary.min = std::min(summary.min, data[j]);
             summary.max = std::max(summary.max, data[j]);
             summary.has_duplicates =
-                summary.has_duplicates || !seen_ints_.insert(data[j]).second;
+                summary.has_duplicates || CheckDuplicate(data[j], data.size());
           }
           auto integer = CreateIntegerStorage(std::move(data), summary);
           impl::SpecializedStorage specialized_storage =
@@ -291,24 +289,16 @@ class AdhocDataframeBuilder {
 
           bool is_nullable = state.null_overlay.has_value();
           bool is_sorted = true;
-          bool has_duplicates = false;
-          if (!data.empty()) {
-            seen_doubles_.clear();
-            seen_doubles_.reserve(data.size());
-            seen_doubles_.insert(data[0]);
-          }
           for (uint32_t j = 1; j < data.size(); ++j) {
             is_sorted = is_sorted && data[j - 1] <= data[j];
-            has_duplicates =
-                has_duplicates || !seen_doubles_.insert(data[j]).second;
           }
           columns.emplace_back(std::make_shared<impl::Column>(impl::Column{
               impl::Storage{std::move(data)},
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
               is_sorted && !is_nullable ? SortState{Sorted{}}
                                         : SortState{Unsorted{}},
-              is_nullable || has_duplicates ? DuplicateState{HasDuplicates{}}
-                                            : DuplicateState{NoDuplicates{}}}));
+              HasDuplicates{},
+          }));
           break;
         }
         case base::variant_index<DataVariant,
@@ -319,17 +309,11 @@ class AdhocDataframeBuilder {
 
           bool is_nullable = state.null_overlay.has_value();
           bool is_sorted = true;
-          bool has_duplicates = false;
           if (!data.empty()) {
-            seen_strings_.clear();
-            seen_strings_.reserve(data.size());
-            seen_strings_.insert(data[0]);
             NullTermStringView prev = string_pool_->Get(data[0]);
             for (uint32_t j = 1; j < data.size(); ++j) {
               NullTermStringView curr = string_pool_->Get(data[j]);
               is_sorted = is_sorted && prev <= curr;
-              has_duplicates =
-                  has_duplicates || !seen_strings_.insert(data[j]).second;
               prev = curr;
             }
           }
@@ -338,8 +322,8 @@ class AdhocDataframeBuilder {
               CreateNullStorageFromBitvector(std::move(state.null_overlay)),
               is_sorted && !is_nullable ? SortState{Sorted{}}
                                         : SortState{Unsorted{}},
-              is_nullable || has_duplicates ? DuplicateState{HasDuplicates{}}
-                                            : DuplicateState{NoDuplicates{}}}));
+              HasDuplicates{},
+          }));
           break;
         }
         default:
@@ -618,15 +602,32 @@ class AdhocDataframeBuilder {
         impl::BitVector::CreateWithSize(static_cast<uint32_t>(row_count), true);
   }
 
+  // Returns true if the value is a definite duplicate.
+  PERFETTO_ALWAYS_INLINE bool CheckDuplicate(int64_t value, size_t size) {
+    if (value < 0) {
+      return false;
+    }
+    if (PERFETTO_UNLIKELY(value >=
+                          static_cast<int64_t>(duplicate_bit_vector_.size()))) {
+      if (value >= static_cast<int64_t>(16ll * size)) {
+        return true;
+      }
+      duplicate_bit_vector_.push_back_multiple(
+          false,
+          static_cast<uint32_t>(value) - duplicate_bit_vector_.size() + 1);
+    }
+    if (duplicate_bit_vector_.is_set(static_cast<uint32_t>(value))) {
+      return true;
+    }
+    duplicate_bit_vector_.set(static_cast<uint32_t>(value));
+    return false;
+  }
+
   StringPool* string_pool_;
   std::vector<std::string> column_names_;
   std::vector<ColumnState> column_states_;
   base::Status current_status_ = base::OkStatus();
-
-  // Class variables to avoid repeated allocations for sets across columns.
-  std::unordered_set<int64_t> seen_ints_;
-  std::unordered_set<double> seen_doubles_;
-  std::unordered_set<StringPool::Id> seen_strings_;
+  impl::BitVector duplicate_bit_vector_;
 };
 
 }  // namespace perfetto::trace_processor::dataframe
