@@ -48,7 +48,8 @@ import {removeFalsyValues} from './array_utils';
 import {DisposableStack} from './disposable_stack';
 import {bindEventListener, CSSCursor} from './dom_utils';
 import {Point2D, Rect2D, Size2D, Vector2D} from './geom';
-import {TouchscreenHandler} from './touch_handler';
+import {TouchscreenHandler} from './touchscreen_handler';
+import {TouchArgs} from './touchscreen_handler';
 
 export interface DragEvent {
   // The location of the mouse at the start of the drag action.
@@ -167,7 +168,7 @@ export class ZonedInteractionHandler implements Disposable {
 
     this.trash.use(
       new TouchscreenHandler(this.target, {
-        onPan: (args) => {
+        onPan: (args: TouchArgs) => {
           this.handleWheel({
             ...args,
             deltaX: -args.deltaX,
@@ -175,7 +176,7 @@ export class ZonedInteractionHandler implements Disposable {
             ctrlKey: false,
           });
         },
-        onPinchZoom: (args) => {
+        onPinchZoom: (args: TouchArgs) => {
           // We translate pinch zoom into Ctrl+vertical wheel. This is
           // consistent with what Linux laptops seem to do when pinching on the
           // touchpad.
@@ -188,11 +189,11 @@ export class ZonedInteractionHandler implements Disposable {
             });
           }
         },
-        onTapDown: (args) => this.onMouseDown(args),
-        onTapMove: (args) => {
+        onTapDown: (args: TouchArgs) => this.onMouseDown(args),
+        onTapMove: (args: TouchArgs) => {
           this.onMouseMove(args);
         },
-        onTapUp: (args) => this.onMouseUp(args),
+        onTapUp: (args: TouchArgs) => this.onMouseUp(args),
       }),
     );
   }
