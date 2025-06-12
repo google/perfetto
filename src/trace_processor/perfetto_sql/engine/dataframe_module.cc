@@ -17,6 +17,7 @@
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 
 #include <sqlite3.h>
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -63,6 +64,41 @@ std::optional<dataframe::Op> SqliteOpToDataframeOp(int op) {
       return dataframe::IsNotNull();
     default:
       return std::nullopt;
+  }
+}
+
+std::string OpToString(int op) {
+  switch (op) {
+    case SQLITE_INDEX_CONSTRAINT_EQ:
+      return "=";
+    case SQLITE_INDEX_CONSTRAINT_NE:
+      return "!=";
+    case SQLITE_INDEX_CONSTRAINT_GE:
+      return ">=";
+    case SQLITE_INDEX_CONSTRAINT_GT:
+      return ">";
+    case SQLITE_INDEX_CONSTRAINT_LE:
+      return "<=";
+    case SQLITE_INDEX_CONSTRAINT_LT:
+      return "<";
+    case SQLITE_INDEX_CONSTRAINT_MATCH:
+      return " match ";
+    case SQLITE_INDEX_CONSTRAINT_LIKE:
+      return " like ";
+    case SQLITE_INDEX_CONSTRAINT_GLOB:
+      return " glob ";
+    case SQLITE_INDEX_CONSTRAINT_REGEXP:
+      return " regexp ";
+    case SQLITE_INDEX_CONSTRAINT_ISNULL:
+      return " is null";
+    case SQLITE_INDEX_CONSTRAINT_ISNOTNULL:
+      return " is not null";
+    case SQLITE_INDEX_CONSTRAINT_LIMIT:
+      return "limit";
+    case SQLITE_INDEX_CONSTRAINT_FUNCTION:
+      return "function";
+    default:
+      return "unknown";
   }
 }
 
@@ -280,10 +316,55 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
         record->AddArg(
             "estimatedRows",
             base::StackString<32>("%lld", info->estimatedRows).string_view());
+        record->AddArg(
+            "orderByConsumed",
+            base::StackString<32>("%d", info->orderByConsumed).string_view());
+        for (uint64_t u = info->colUsed, i = 0, j = 0; u != 0; u >>= 1, ++i) {
+          if (u & 1) {
+            base::StackString<32> c("colUsed[%" PRIu64 "]", j++);
+            record->AddArg(c.string_view(), v->dataframe->column_names()[i]);
+          }
+        }
         auto str = plan.BytecodeToString();
         for (uint32_t i = 0; i < str.size(); ++i) {
           base::StackString<32> c("bytecode[%u]", i);
           record->AddArg(c.string_view(), str[i]);
+        }
+        for (int i = 0; i < info->nConstraint; ++i) {
+          {
+            base::StackString<32> c("constraint[%d].column", i);
+            auto col_idx = static_cast<uint32_t>(info->aConstraint[i].iColumn);
+            record->AddArg(c.string_view(),
+                           v->dataframe->column_names()[col_idx]);
+          }
+          {
+            base::StackString<32> c("constraint[%d].op", i);
+            record->AddArg(c.string_view(),
+                           OpToString(info->aConstraint[i].op));
+          }
+          {
+            base::StackString<32> c("constraint[%d].argvIndex", i);
+            record->AddArg(c.string_view(),
+                           std::to_string(info->aConstraintUsage[i].argvIndex));
+          }
+          {
+            base::StackString<32> c("constraint[%d].omit", i);
+            record->AddArg(c.string_view(),
+                           std::to_string(info->aConstraintUsage[i].omit));
+          }
+        }
+        for (int i = 0; i < info->nOrderBy; ++i) {
+          {
+            base::StackString<32> c("order_by[%d].column", i);
+            auto col_idx = static_cast<uint32_t>(info->aOrderBy[i].iColumn);
+            record->AddArg(c.string_view(),
+                           v->dataframe->column_names()[col_idx]);
+          }
+          {
+            base::StackString<32> c("order_by[%d].desc", i);
+            record->AddArg(c.string_view(),
+                           std::to_string(info->aOrderBy[i].desc));
+          }
         }
       });
   info->idxStr = sqlite3_mprintf("%s", std::move(plan).Serialize().data());
@@ -310,6 +391,15 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
   auto* c = GetCursor(cur);
   if (idxStr != c->last_idx_str) {
     auto plan = dataframe::Dataframe::QueryPlan::Deserialize(idxStr);
+    PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE,
+                      "DATAFRAME_FILTER_PREPARE",
+                      [&plan](metatrace::Record* record) {
+                        auto str = plan.BytecodeToString();
+                        for (uint32_t i = 0; i < str.size(); ++i) {
+                          base::StackString<32> c("bytecode[%u]", i);
+                          record->AddArg(c.string_view(), str[i]);
+                        }
+                      });
     v->dataframe->PrepareCursor(plan, c->df_cursor);
     c->last_idx_str = idxStr;
   }
