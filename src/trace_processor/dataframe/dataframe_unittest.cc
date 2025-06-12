@@ -819,6 +819,96 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationApplied) {
                   expected_bytecode, /*cols_used=*/1);
 }
 
+TEST_F(DataframeBytecodeTest, SortOptimizationApplied_SingleAscNonNullSorted) {
+  std::vector<impl::Column> cols = MakeColumnVector(
+      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
+                   Sorted{}, HasDuplicates{}});
+  std::vector<FilterSpec> filters;
+  std::vector<SortSpec> sorts = {{0, SortDirection::kAscending}};
+  RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
+    Iota: [source_register=Register(0), update_register=Register(2)]
+  )",
+                  /*cols_used=*/1);
+}
+
+TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_MultipleSpecs) {
+  std::vector<impl::Column> cols = MakeColumnVector(
+      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
+                   Sorted{}, HasDuplicates{}},
+      impl::Column{impl::Storage::Int32{}, impl::NullStorage::NonNull{},
+                   Unsorted{}, HasDuplicates{}});
+  std::vector<FilterSpec> filters;
+  std::vector<SortSpec> sorts = {{0, SortDirection::kAscending},
+                                 {1, SortDirection::kAscending}};
+  RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
+    Iota: [source_register=Register(0), update_register=Register(2)]
+    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
+    CopyToRowLayout<Uint32, NonNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    CopyToRowLayout<Int32, NonNull>: [col=1, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=4, row_layout_stride=8, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    SortRowLayout: [buffer_register=Register(3), total_row_stride=8, indices_register=Register(2)]
+  )",
+                  /*cols_used=*/3);  // 0b11
+}
+
+TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_DescendingOrder) {
+  std::vector<impl::Column> cols = MakeColumnVector(
+      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
+                   Sorted{}, HasDuplicates{}});
+  std::vector<FilterSpec> filters;
+  std::vector<SortSpec> sorts = {{0, SortDirection::kDescending}};
+  RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
+    Iota: [source_register=Register(0), update_register=Register(2)]
+    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
+    CopyToRowLayout<Uint32, NonNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=1, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    SortRowLayout: [buffer_register=Register(3), total_row_stride=4, indices_register=Register(2)]
+  )",
+                  /*cols_used=*/1);
+}
+
+TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_NullableColumn) {
+  std::vector<impl::Column> cols = MakeColumnVector(
+      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::SparseNull{},
+                   Sorted{}, HasDuplicates{}});
+  std::vector<FilterSpec> filters;
+  std::vector<SortSpec> sorts = {{0, SortDirection::kAscending}};
+  RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
+    Iota: [source_register=Register(0), update_register=Register(2)]
+    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
+    PrefixPopcount: [col=0, dest_register=Register(4)]
+    CopyToRowLayout<Uint32, SparseNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=5, invert_copied_bits=0, popcount_register=Register(4), rank_map_register=Register(4294967295)]
+    SortRowLayout: [buffer_register=Register(3), total_row_stride=5, indices_register=Register(2)]
+    AllocateIndices: [size=0, dest_slab_register=Register(5), dest_span_register=Register(6)]
+    StrideCopy: [source_register=Register(2), update_register=Register(6), stride=2]
+    StrideTranslateAndCopySparseNullIndices: [col=0, popcount_register=Register(4), update_register=Register(6), offset=1, stride=2]
+  )",
+                  /*cols_used=*/1);
+}
+
+TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_UnsortedColumn) {
+  std::vector<impl::Column> cols = MakeColumnVector(
+      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
+                   Unsorted{}, HasDuplicates{}});
+  std::vector<FilterSpec> filters;
+  std::vector<SortSpec> sorts = {{0, SortDirection::kAscending}};
+  RunBytecodeTest(cols, filters, {}, sorts, {}, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
+    Iota: [source_register=Register(0), update_register=Register(2)]
+    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
+    CopyToRowLayout<Uint32, NonNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=0, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
+    SortRowLayout: [buffer_register=Register(3), total_row_stride=4, indices_register=Register(2)]
+  )",
+                  /*cols_used=*/1);
+}
+
 TEST_F(DataframeBytecodeTest, PlanQuery_MinOptimizationNotAppliedNullable) {
   auto bv = impl::BitVector::CreateWithSize(0);
   std::vector<impl::Column> cols = MakeColumnVector(impl::Column{

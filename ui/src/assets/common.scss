@@ -53,13 +53,25 @@
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
-  touch-action: none;
 }
 
 html {
   font-family: Roboto, verdana, sans-serif;
   height: 100%;
   width: 100%;
+  touch-action: pan-x pan-y;
+}
+
+@media (pointer: coarse) {
+  // Disable long-press text selection on tablets. That collides with the mouse
+  // emulation we do where long press emulates a mousedown+move+up (to
+  // distinguish it from pans).
+  html {
+    // required for iOS which doesn't support unprefixed user-select.
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
 }
 
 html,
@@ -95,6 +107,7 @@ h3 {
   margin: 0;
 }
 table {
+  -webkit-user-select: text;
   user-select: text;
 }
 
@@ -345,6 +358,7 @@ header.overview {
 
 .text-select {
   user-select: text;
+  -webkit-user-select: text;
 }
 
 button.query-ctrl {
@@ -445,6 +459,7 @@ button.query-ctrl {
 
 .pivot-table {
   user-select: text;
+  -webkit-user-select: text;
   padding: $bottom-tab-padding;
 
   button.mode-button {
