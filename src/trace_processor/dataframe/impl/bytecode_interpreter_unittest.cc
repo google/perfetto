@@ -95,10 +95,13 @@ struct Fetcher : ValueFetcher {
     PERFETTO_CHECK(idx == 0);
     return value[i].index();
   }
-  bool IteratorInit(uint32_t idx) { PERFETTO_CHECK(idx == 0); }
+  bool IteratorInit(uint32_t idx) const {
+    PERFETTO_CHECK(idx == 0);
+    return i < value.size();
+  }
   bool IteratorNext(uint32_t idx) {
     PERFETTO_CHECK(idx == 0);
-    ++i;
+    return i++ < value.size();
   }
 
   std::vector<FilterValue> value;

@@ -263,6 +263,35 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
     const Column& col = GetColumn(c.col);
     StorageType ct = col.storage.type();
 
+    if (c.op.Is<In>()) {
+      bytecode::reg::RwHandle<CastFilterValueListResult> value{
+          plan_.params.register_count++};
+      {
+        using B = bytecode::CastFilterValueListBase;
+        auto& bc =
+            AddOpcode<B>(bytecode::Index<bytecode::CastFilterValueList>(ct),
+                         UnchangedRowCount{});
+        bc.arg<B::fval_handle>() = {plan_.params.filter_value_count};
+        bc.arg<B::write_register>() = value;
+        bc.arg<B::op>() = Eq{};
+        c.value_index = plan_.params.filter_value_count++;
+      }
+      auto update = EnsureIndicesAreInSlab();
+      PruneNullIndices(c.col, update);
+      auto source = TranslateNonNullIndices(c.col, update, false);
+      {
+        using B = bytecode::InBase;
+        B& bc = AddOpcode<B>(bytecode::Index<bytecode::In>(col.storage.type()),
+                             RowCountModifier{NonEqualityFilterRowCount{}});
+        bc.arg<B::col>() = c.col;
+        bc.arg<B::value_list_register>() = value;
+        bc.arg<B::source_register>() = source;
+        bc.arg<B::update_register>() = update;
+      }
+      MaybeReleaseScratchSpanRegister();
+      continue;
+    }
+
     // Get the non-null operation (all our ops are non-null at this point)
     auto non_null_op = c.op.TryDowncast<NonNullOp>();
     if (!non_null_op) {
