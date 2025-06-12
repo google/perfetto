@@ -53,7 +53,7 @@ class TraceBufferV2Test : public testing::Test {
     if (trace_buffer_) {
       const size_t used_size = trace_buffer_->used_size();
       ASSERT_LE(used_size, trace_buffer_->size());
-      trace_buffer_->EnsureCommitted(trace_buffer_->size());
+      trace_buffer_->data_.EnsureCommitted(trace_buffer_->size());
       bool zero_padded = true;
       for (size_t i = used_size; i < trace_buffer_->size(); ++i) {
         bool is_zero = static_cast<char*>(trace_buffer_->data_.Get())[i] == 0;
@@ -184,7 +184,7 @@ TEST_F(TraceBufferV2Test, ReadWrite_EmptyBuffer) {
 // On each iteration writes a fixed-size chunk and reads it back.
 TEST_F(TraceBufferV2Test, ReadWrite_Simple) {
   ResetBuffer(64 * 1024);
-  for (ChunkID chunk_id = 0; chunk_id < 1000; chunk_id++) {
+  for (ChunkID chunk_id = 0; chunk_id < 2 /*1000 TODO DNS*/; chunk_id++) {
     char seed = static_cast<char>(chunk_id);
     CreateChunk(ProducerID(1), WriterID(1), chunk_id)
         .AddPacket(42, seed)

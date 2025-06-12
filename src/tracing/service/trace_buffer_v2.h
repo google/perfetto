@@ -44,8 +44,11 @@ class TraceBufferV2;
 namespace internal {
 
 struct TBChunk {
-  explicit TBChunk(size_t plsz) : payload_size(static_cast<uint16_t>(plsz)) {
-    PERFETTO_DCHECK(plsz <= std::numeric_limits<decltype(payload_size)>::max());
+  static constexpr size_t kMaxSize = std::numeric_limits<uint16_t>::max();
+
+  explicit TBChunk(size_t plsz)
+      : payload_size(static_cast<uint16_t>(plsz)), exists(1) {
+    PERFETTO_DCHECK(plsz <= kMaxSize);
   }
 
   // NOTE: In the case of scraping we can have two contiguous TBChunks
@@ -61,7 +64,6 @@ struct TBChunk {
 
   // Size of the payload, excluding the TBCHunk header itself, and without
   // accounting for any alignment.
-  // TODO make this uint32_t to deal with padding ?
   uint16_t payload_size = 0;
 
   // The offset of the next unconsumed fragment. This starts at 0 when we write
@@ -70,6 +72,12 @@ struct TBChunk {
 
   // These are == the SharedMemoryABI's chunk flags.
   uint8_t flags = 0;
+
+  // This is always set to 1. It's only 0 on the first pass writing in the ring
+  // buffer, when no chunk exists and we hit 0-initialized mmap memory.
+  // The fact that a chunk exists doesn't imply that is valid. A padding chunk
+  // has exist=1, but pri_wi_id == 0;
+  uint8_t exists = 0;
 
   static size_t OuterSize(size_t payload) {
     return base::AlignUp<alignof(TBChunk)>(sizeof(TBChunk) + payload);
@@ -100,7 +108,7 @@ struct SequenceState {
   ProducerID producer_id = 0;
   WriterID writer_id = 0;
   ClientIdentity client_identity{};
-  uint64_t read_pass = 0;  // TODO remember to clear when cloning.
+  uint64_t ignore_in_read_pass = 0;  // TODO remember to clear when cloning.
 
   // An ordered list of chunks (ordered by their chunk_id). Each member
   // corresponsds to the offset within buf_ for the chunk.
@@ -185,12 +193,6 @@ class BufIterator {
   BufIterator(const BufIterator&) = default;  // Deliberately copyable.
   BufIterator& operator=(const BufIterator&) = default;
 
-  // Prepare to iterate until the passed target chunk. This starts setting
-  // both chunk_ and target_chunk_ to the argument, then walks back chunk_
-  // to the beginning of the per-sequence linked list.
-  // Returns true if we have already visited the sequence in the current
-  // read_pass_, false otherwise.
-  bool SetTargetChunkAndRewind(TBChunk*);
 
   void SetChunk(TBChunk* chunk) {
     chunk_ = chunk;
@@ -210,7 +212,7 @@ class BufIterator {
 
   std::optional<Frag> NextFragmentInChunk();
 
-  // TODO rename this.
+  // TODO rename this. Also reverse logic of consumed to available.
   void Consume() {
     PERFETTO_DCHECK(chunk_->payload_consumed <= next_frag_off_);
     PERFETTO_DCHECK(next_frag_off_ <= chunk_->payload_size);
@@ -218,11 +220,10 @@ class BufIterator {
   }
 
   TBChunk* chunk() { return chunk_; }
+  TBChunk* target_chunk() { return target_chunk_; }
   SequenceState* sequence_state() { return seq_; }
 
  private:
-  // These 3 pointers below are never null and always point to a valid portion
-  // of the buffer.
   TraceBufferV2* buf_ = nullptr;
   TBChunk* chunk_ = nullptr;
   TBChunk* target_chunk_ = nullptr;
@@ -321,12 +322,9 @@ class TraceBufferV2 {
   TraceBufferV2(CloneCtor, const TraceBufferV2&);
 
   bool Initialize(size_t size);
+  TBChunk* CreateTBChunk(size_t off, size_t payload_size);
+
   bool DeleteNextChunksFor(size_t bytes_to_clear);
-  void EnsureCommitted(size_t size) {
-    PERFETTO_DCHECK(size <= size_);
-    data_.EnsureCommitted(size);
-    used_size_ = std::max(used_size_, size);
-  }
 
   enum class FragReassemblyResult { kSuccess = 0, kNotEnoughData, kDataLoss };
   FragReassemblyResult ReassembleFragmentedPacket(TracePacket* out_packet,
@@ -338,10 +336,10 @@ class TraceBufferV2 {
     PERFETTO_DCHECK(off <= size_ - sizeof(TBChunk));
   }
 
+  // This should only be used when followed by a placement new.
+  // TODO remove this, it's useless.
   TBChunk* GetTBChunkAtUnchecked(size_t off) {
     DcheckIsAlignedAndWithinBounds(off);
-    // We may be accessing a new (empty) record.
-    EnsureCommitted(off + sizeof(TBChunk));
     return reinterpret_cast<TBChunk*>(begin() + off);
   }
 
@@ -361,15 +359,16 @@ class TraceBufferV2 {
     uintptr_t addr = reinterpret_cast<uintptr_t>(chunk);
     uintptr_t buf_start = reinterpret_cast<uintptr_t>(begin());
     // TODO check this
-    PERFETTO_DCHECK(addr >= buf_start  && buf_start <= addr + size_);
+    PERFETTO_DCHECK(addr >= buf_start && buf_start <= addr + size_);
     return static_cast<size_t>(addr - buf_start);
   }
 
   void EraseTBChunk(TBChunk*, SequenceState*);
   void DiscardWrite() {}  // TODO DNS
+  void DumpForTesting();
 
   uint8_t* begin() const { return reinterpret_cast<uint8_t*>(data_.Get()); }
-  // uint8_t* end() const { return begin() + size_; }
+  uint8_t* end() const { return begin() + size_; }
   size_t size_to_end() const { return size_ - wr_; }
 
   base::PagedMemory data_;
