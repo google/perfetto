@@ -387,7 +387,7 @@ int DataframeModule::Close(sqlite3_vtab_cursor* cursor) {
 }
 
 int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
-                            int,
+                            int idxNum,
                             const char* idxStr,
                             int,
                             sqlite3_value** argv) {
@@ -395,15 +395,17 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
   auto* c = GetCursor(cur);
   if (idxStr != c->last_idx_str) {
     auto plan = dataframe::Dataframe::QueryPlan::Deserialize(idxStr);
-    PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE,
-                      "DATAFRAME_FILTER_PREPARE",
-                      [&plan](metatrace::Record* record) {
-                        auto str = plan.BytecodeToString();
-                        for (uint32_t i = 0; i < str.size(); ++i) {
-                          base::StackString<32> c("bytecode[%u]", i);
-                          record->AddArg(c.string_view(), str[i]);
-                        }
-                      });
+    PERFETTO_TP_TRACE(
+        metatrace::Category::QUERY_TIMELINE, "DATAFRAME_FILTER_PREPARE",
+        [&plan, idxNum](metatrace::Record* record) {
+          record->AddArg("idxNum",
+                         base::StackString<32>("%d", idxNum).string_view());
+          auto str = plan.BytecodeToString();
+          for (uint32_t i = 0; i < str.size(); ++i) {
+            base::StackString<32> c("bytecode[%u]", i);
+            record->AddArg(c.string_view(), str[i]);
+          }
+        });
     v->dataframe->PrepareCursor(plan, c->df_cursor);
     c->last_idx_str = idxStr;
   }
