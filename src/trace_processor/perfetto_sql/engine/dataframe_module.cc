@@ -330,28 +330,32 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
           base::StackString<32> c("bytecode[%u]", i);
           record->AddArg(c.string_view(), str[i]);
         }
-        for (int i = 0; i < info->nConstraint; ++i) {
+        for (int i = 0, j = 0; i < info->nConstraint; ++i) {
+          if (!info->aConstraint[i].usable) {
+            continue;
+          }
           {
-            base::StackString<32> c("constraint[%d].column", i);
+            base::StackString<32> c("constraint[%d].column", j);
             auto col_idx = static_cast<uint32_t>(info->aConstraint[i].iColumn);
             record->AddArg(c.string_view(),
                            v->dataframe->column_names()[col_idx]);
           }
           {
-            base::StackString<32> c("constraint[%d].op", i);
+            base::StackString<32> c("constraint[%d].op", j);
             record->AddArg(c.string_view(),
                            OpToString(info->aConstraint[i].op));
           }
           {
-            base::StackString<32> c("constraint[%d].argvIndex", i);
+            base::StackString<32> c("constraint[%d].argvIndex", j);
             record->AddArg(c.string_view(),
                            std::to_string(info->aConstraintUsage[i].argvIndex));
           }
           {
-            base::StackString<32> c("constraint[%d].omit", i);
+            base::StackString<32> c("constraint[%d].omit", j);
             record->AddArg(c.string_view(),
                            std::to_string(info->aConstraintUsage[i].omit));
           }
+          j++;
         }
         for (int i = 0; i < info->nOrderBy; ++i) {
           {
