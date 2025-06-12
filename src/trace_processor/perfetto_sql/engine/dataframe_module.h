@@ -82,12 +82,10 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
       return sqlite::value::Type(sqlite_value[idx]);
     }
     bool IteratorInit(uint32_t idx) {
-      return sqlite3_vtab_in_first(argv[idx], &sqlite_value[idx]) ==
-             SQLITE_OK;
+      return sqlite3_vtab_in_first(argv[idx], &sqlite_value[idx]) == SQLITE_OK;
     }
     bool IteratorNext(uint32_t idx) {
-      return sqlite3_vtab_in_next(argv[idx], &sqlite_value[idx]) ==
-             SQLITE_OK;
+      return sqlite3_vtab_in_next(argv[idx], &sqlite_value[idx]) == SQLITE_OK;
     }
     std::array<sqlite3_value*, 16> sqlite_value;
     sqlite3_value** argv;

@@ -71,7 +71,7 @@ struct TestRowFetcher : ValueFetcher {
     return std::get<const char*>((*current_row_)[index]);
   }
   static bool IteratorInit(uint32_t) { PERFETTO_FATAL("Unsupported"); }
-  static bool IteratorNext(uint32_t){ PERFETTO_FATAL("Unsupported"); }
+  static bool IteratorNext(uint32_t) { PERFETTO_FATAL("Unsupported"); }
 
  private:
   const std::vector<Value>* current_row_ = nullptr;

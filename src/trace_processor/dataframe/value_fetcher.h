@@ -83,7 +83,7 @@ struct ErrorValueFetcher : public ValueFetcher {
     PERFETTO_FATAL("Dummy implementation; should not be called");
   }
   static bool IteratorInit(uint32_t) { PERFETTO_FATAL("Unsupported"); }
-  static bool IteratorNext(uint32_t){ PERFETTO_FATAL("Unsupported"); }
+  static bool IteratorNext(uint32_t) { PERFETTO_FATAL("Unsupported"); }
 };
 
 }  // namespace perfetto::trace_processor::dataframe
