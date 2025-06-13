@@ -704,6 +704,28 @@ class JsonParser(TestSuite):
           300,"[NULL]","CounterStringEdgeCases trailing_dot",246.000000
         """))
 
+  def test_json_trailing_comma(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          {"displayTimeUnit":"ms","traceEvents":[
+          {"name":"Foo","ph":"X","tid":0,"ts":3473608.458,"dur":295555.500},
+          {"name":"Bar","ph":"X","tid":0,"ts":4890.000,"dur":3764289.708},
+          ]}
+        '''),
+        query="""
+          SELECT
+            slice.name,
+            slice.ts,
+            slice.dur
+          FROM slice
+          ORDER BY slice.ts
+        """,
+        out=Csv("""
+          "name","ts","dur"
+          "Bar",4890000,3764289708
+          "Foo",3473608458,295555500
+        """))
+
   def test_json_id2(self):
     return DiffTestBlueprint(
         trace=Json('''

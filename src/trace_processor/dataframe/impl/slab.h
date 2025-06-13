@@ -65,8 +65,8 @@ class Slab {
   Slab() = default;
 
   // Move operations are supported.
-  Slab(Slab&&) = default;
-  Slab& operator=(Slab&&) = default;
+  constexpr Slab(Slab&&) = default;
+  constexpr Slab& operator=(Slab&&) = default;
 
   // Copy operations are deleted to avoid accidental copies.
   Slab(const Slab&) = delete;

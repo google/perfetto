@@ -371,6 +371,11 @@ class QueryPlanBuilder {
 
   void MaybeReleaseScratchSpanRegister();
 
+  void AddLinearFilterEqBytecode(
+      const FilterSpec&,
+      const bytecode::reg::ReadHandle<CastFilterValueResult>&,
+      const NonIdStorageType&);
+
   bool CanUseMinMaxOptimization(const std::vector<SortSpec>&, const LimitSpec&);
 
   const Column& GetColumn(uint32_t idx) { return *columns_[idx]; }

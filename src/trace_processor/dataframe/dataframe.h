@@ -128,6 +128,8 @@ class Dataframe {
       Type GetValueType(uint32_t col) const {
         return filter_values_[col].index();
       }
+      static bool IteratorInit(uint32_t) { PERFETTO_FATAL("Unsupported"); }
+      static bool IteratorNext(uint32_t) { PERFETTO_FATAL("Unsupported"); }
       FilterValue* filter_values_;
     };
 

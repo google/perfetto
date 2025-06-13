@@ -15,6 +15,40 @@
 
 INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_v3;
 
+DROP VIEW IF EXISTS chrome_scroll_jank_v3_causes_per_scroll;
+
+-- An "intermediate" view with jank causes per scroll.
+--
+-- @column scroll_id                   The ID of the scroll.
+-- @column max_delay_since_last_frame  The maximum time a frame was delayed
+--                                     after the presentation of the previous
+--                                     frame.
+-- @column vsync_interval              The expected vsync interval.
+-- @column scrolls                     A proto amalgamation of each scroll jank
+--                                     cause including cause name, sub cause and
+--                                     the duration of the delay since the
+--                                     previous frame was presented.
+CREATE PERFETTO VIEW chrome_scroll_jank_v3_causes_per_scroll AS
+SELECT
+  scroll_id,
+  max(1.0 * delay_since_last_frame / vsync_interval) AS max_delay_since_last_frame,
+  -- MAX does not matter, since `vsync_interval` is the computed as the same
+  -- value for a single trace.
+  max(vsync_interval) AS vsync_interval,
+  repeatedfield(
+    chromescrolljankv3_scroll_scrolljankcause(
+      'cause',
+      cause_of_jank,
+      'sub_cause',
+      sub_cause_of_jank,
+      'delay_since_last_frame',
+      1.0 * delay_since_last_frame / vsync_interval
+    )
+  ) AS scroll_jank_causes
+FROM chrome_janky_frames
+GROUP BY
+  scroll_id;
+
 DROP VIEW IF EXISTS chrome_scroll_jank_v3_intermediate;
 
 -- An "intermediate" view for computing `chrome_scroll_jank_v3_output` below.
@@ -52,7 +86,7 @@ SELECT
     AS scrolls
 FROM
   chrome_frames_per_scroll AS frames
-INNER JOIN chrome_causes_per_scroll AS causes
+INNER JOIN chrome_scroll_jank_v3_causes_per_scroll AS causes
   ON frames.scroll_id = causes.scroll_id;
 
 DROP VIEW IF EXISTS chrome_scroll_jank_v3_output;

@@ -78,8 +78,11 @@ struct IsNotNull {};
 // Filters only cells which are NULL.
 struct IsNull {};
 
+// Filters only cells which are part of the provided list of values.
+struct In {};
+
 // TypeSet of all possible operations for filter conditions.
-using Op = TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex, IsNotNull, IsNull>;
+using Op = TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex, IsNotNull, IsNull, In>;
 
 // -----------------------------------------------------------------------------
 // Sort State Types

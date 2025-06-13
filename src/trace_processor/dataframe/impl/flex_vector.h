@@ -67,6 +67,16 @@ class FlexVector {
   static_assert(internal::IsPowerOfTwo(kAlignment),
                 "Alignment must be a power of two");
 
+  using value_type = T;
+  using size_type = uint64_t;
+  using difference_type = std::ptrdiff_t;
+  using reference = T&;
+  using const_reference = const T&;
+  using pointer = T*;
+  using const_pointer = const T*;
+  using iterator = T*;
+  using const_iterator = const T*;
+
   // Default constructor creates an empty vector.
   FlexVector() = default;
 
