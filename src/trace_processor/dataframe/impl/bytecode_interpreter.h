@@ -699,10 +699,13 @@ class Interpreter {
   PERFETTO_ALWAYS_INLINE void StrideCopy(
       const bytecode::StrideCopy& stride_copy) {
     using B = bytecode::StrideCopy;
-    const auto& source =
+    const Span<uint32_t>& source =
         ReadFromRegister(stride_copy.arg<B::source_register>());
-    auto& update = ReadFromRegister(stride_copy.arg<B::update_register>());
+    Span<uint32_t>& update =
+        ReadFromRegister(stride_copy.arg<B::update_register>());
     uint32_t stride = stride_copy.arg<B::stride>();
+    PERFETTO_LOG("StrideCopy: source.size()=%zu, stride=%u, update.size()=%zu",
+                 source.size(), stride, update.size());
     PERFETTO_DCHECK(source.size() * stride <= update.size());
     if (PERFETTO_LIKELY(stride == 1)) {
       memcpy(update.b, source.b, source.size() * sizeof(uint32_t));
