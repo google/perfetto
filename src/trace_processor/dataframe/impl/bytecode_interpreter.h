@@ -1210,7 +1210,7 @@ class Interpreter {
     const uint32_t* o_read = o_start;
     uint32_t* o_write = o_start;
     for (const uint32_t* it = begin; it != end; ++it, ++o_read) {
-      // The choice of a brancy impleemntation is intentional: this seems faster
+      // The choice of a branchy implemntation is intentional: this seems faster
       // than trying to do something branchless, likely because the compiler is
       // helping us with branch prediction.
       if (comparator(data[*it], value)) {
@@ -1232,7 +1232,7 @@ class Interpreter {
     const uint32_t* o_read = o_start;
     uint32_t* o_write = o_start;
     for (const uint32_t* it = begin; it != end; ++it, ++o_read) {
-      // The choice of a brancy impleemntation is intentional: this seems faster
+      // The choice of a branchy implemntation is intentional: this seems faster
       // than trying to do something branchless, likely because the compiler is
       // helping us with branch prediction.
       if (comparator(*it, value)) {
