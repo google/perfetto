@@ -95,13 +95,15 @@ struct Fetcher : ValueFetcher {
     PERFETTO_CHECK(idx == 0);
     return value[i].index();
   }
-  bool IteratorInit(uint32_t idx) const {
+  bool IteratorInit(uint32_t idx) {
     PERFETTO_CHECK(idx == 0);
+    i = 0;
     return i < value.size();
   }
   bool IteratorNext(uint32_t idx) {
     PERFETTO_CHECK(idx == 0);
-    return i++ < value.size();
+    i++;
+    return i < value.size();
   }
 
   std::vector<FilterValue> value;
@@ -2180,7 +2182,8 @@ TEST_F(BytecodeInterpreterTest, InId) {
     CastFilterValueListResult value_list;
     value_list.validity = CastFilterValueResult::kValid;
     value_list.value_list =
-        CreateFlexVectorForTesting<CastFilterValueResult::Id>({{5}, {10}, {44}});
+        CreateFlexVectorForTesting<CastFilterValueResult::Id>(
+            {{5}, {10}, {44}});
 
     SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
                            GetSpan(indices));
@@ -2228,8 +2231,7 @@ TEST_F(BytecodeInterpreterTest, InUint32) {
 
     SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
                            GetSpan(indices));
-    EXPECT_THAT(GetRegister<Span<uint32_t>>(2),
-                ElementsAre(3, 3, 5, 0, 6, 0));
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(3, 3, 5, 0, 6, 0));
   }
   {
     // Test case 2: No values exist
@@ -2247,8 +2249,8 @@ TEST_F(BytecodeInterpreterTest, CastFilterValueList_Uint32) {
   fetcher_.value.emplace_back(int64_t(10));
   fetcher_.value.emplace_back(int64_t(20));
   fetcher_.value.emplace_back(int64_t(-1));
-  fetcher_.value.emplace_back(
-      int64_t(std::numeric_limits<uint32_t>::max()) + 1);
+  fetcher_.value.emplace_back(int64_t(std::numeric_limits<uint32_t>::max()) +
+                              1);
 
   SetRegistersAndExecute(
       "CastFilterValueList<Uint32>: [fval_handle=FilterValue(0), "
