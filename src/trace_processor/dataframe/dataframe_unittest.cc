@@ -224,6 +224,20 @@ TEST_F(DataframeBytecodeTest, NumericSortedEq) {
   )");
 }
 
+TEST_F(DataframeBytecodeTest, InFilter) {
+  std::vector<impl::Column> cols = MakeColumnVector(
+      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
+                   Unsorted{}, HasDuplicates{}});
+  std::vector<FilterSpec> filters = {{0, 0, In{}, std::nullopt}};
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    CastFilterValueList<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+    Iota: [source_register=Register(0), update_register=Register(3)]
+    In<Uint32>: [col=0, value_list_register=Register(1), source_register=Register(3), update_register=Register(3)]
+  )");
+}
+
 TEST_F(DataframeBytecodeTest, NumericSortedInEq) {
   {
     std::vector<impl::Column> cols = MakeColumnVector(
