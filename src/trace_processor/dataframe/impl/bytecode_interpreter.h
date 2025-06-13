@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_BYTECODE_INTERPRETER_H_
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -35,6 +34,7 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/endian.h"
@@ -1011,6 +1011,53 @@ class Interpreter {
     }
     *indices.b = best_idx;
     indices.e = indices.b + 1;
+  }
+
+  template <typename T>
+  PERFETTO_ALWAYS_INLINE void LinearFilterEq(
+      const bytecode::LinearFilterEqBase& leq) {
+    using B = bytecode::LinearFilterEqBase;
+
+    Span<uint32_t>& span = ReadFromRegister(leq.arg<B::update_register>());
+    Range range = ReadFromRegister(leq.arg<B::source_register>());
+    PERFETTO_DCHECK(range.size() <= span.size());
+
+    const auto& filter_value_res =
+        ReadFromRegister(leq.arg<B::filter_value_reg>());
+    if (!HandleInvalidCastFilterValueResult(filter_value_res, range)) {
+      std::iota(span.b, span.b + range.size(), range.b);
+      span.e = span.b + range.size();
+      return;
+    }
+
+    const Column& column = GetColumn(leq.arg<B::col>());
+    const auto* data = column.storage.template unchecked_data<T>();
+
+    using Compare = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
+    using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
+    const auto& value = base::unchecked_get<M>(filter_value_res.value);
+    Compare to_compare;
+    if constexpr (std::is_same_v<T, String>) {
+      auto id = string_pool_->GetId(value);
+      if (!id) {
+        span.e = span.b;
+        return;
+      }
+      to_compare = *id;
+    } else {
+      to_compare = value;
+    }
+
+    // Note to future readers: this can be optimized further with explicit SIMD
+    // but the compiler does a pretty good job even without it. For context,
+    // we're talking about query changing from 2s -> 1.6s on a 12m row table.
+    uint32_t* o_write = span.b;
+    for (uint32_t i = range.b; i < range.e; ++i) {
+      if (std::equal_to<>()(data[i], to_compare)) {
+        *o_write++ = i;
+      }
+    }
+    span.e = o_write;
   }
 
   template <typename Op>

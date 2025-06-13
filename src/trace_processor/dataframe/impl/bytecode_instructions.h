@@ -543,6 +543,32 @@ struct SortRowLayout : Bytecode {
                                      indices_register);
 };
 
+// Filters a column with a scan over a linear range of indices. Useful for the
+// first equality check of a query where we can scan a column without
+// materializing a large set of indices and then using
+// NonStringFilter/StringFilter to cut it down.
+struct LinearFilterEqBase : TemplatedBytecode1<NonIdStorageType> {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = LinearPerRowCost{7};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_5(uint32_t,
+                                     col,
+                                     reg::ReadHandle<CastFilterValueResult>,
+                                     filter_value_reg,
+                                     reg::ReadHandle<Slab<uint32_t>>,
+                                     popcount_register,
+                                     reg::ReadHandle<Range>,
+                                     source_register,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     update_register);
+};
+template <typename T>
+struct LinearFilterEq : LinearFilterEqBase {
+  static_assert(TS1::Contains<T>());
+};
+
 // List of all bytecode instruction types for variant definition.
 #define PERFETTO_DATAFRAME_BYTECODE_LIST(X)  \
   X(InitRange)                               \
@@ -574,6 +600,11 @@ struct SortRowLayout : Bytecode {
   X(SortedFilter<String, UpperBound>)        \
   X(Uint32SetIdSortedEq)                     \
   X(SpecializedStorageSmallValueEq)          \
+  X(LinearFilterEq<Uint32>)                  \
+  X(LinearFilterEq<Int32>)                   \
+  X(LinearFilterEq<Int64>)                   \
+  X(LinearFilterEq<Double>)                  \
+  X(LinearFilterEq<String>)                  \
   X(NonStringFilter<Id, Eq>)                 \
   X(NonStringFilter<Id, Ne>)                 \
   X(NonStringFilter<Id, Lt>)                 \
