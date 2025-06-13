@@ -529,11 +529,12 @@ export abstract class BaseSliceTrack<
     let lastColor = undefined;
     for (const slice of vizSlices) {
       const color = slice.isHighlighted
-        ? slice.colorScheme.variant.cssString
-        : slice.colorScheme.base.cssString;
-      if (color !== lastColor) {
-        lastColor = color;
-        ctx.fillStyle = color;
+        ? slice.colorScheme.variant
+        : slice.colorScheme.base;
+      const colorString = color.cssString;
+      if (colorString !== lastColor) {
+        lastColor = colorString;
+        ctx.fillStyle = colorString;
       }
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       if (slice.flags & SLICE_FLAGS_INSTANT) {
@@ -548,6 +549,7 @@ export abstract class BaseSliceTrack<
           y,
           w,
           sliceHeight,
+          color,
           !CROP_INCOMPLETE_SLICE_FLAG.get(),
         );
       } else {
