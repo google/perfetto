@@ -1210,8 +1210,12 @@ class Interpreter {
     const uint32_t* o_read = o_start;
     uint32_t* o_write = o_start;
     for (const uint32_t* it = begin; it != end; ++it, ++o_read) {
-      *o_write = *o_read;
-      o_write += comparator(data[*it], value);
+      // The choice of a branchy implemntation is intentional: this seems faster
+      // than trying to do something branchless, likely because the compiler is
+      // helping us with branch prediction.
+      if (comparator(data[*it], value)) {
+        *o_write++ = *o_read;
+      }
     }
     return o_write;
   }
@@ -1228,8 +1232,12 @@ class Interpreter {
     const uint32_t* o_read = o_start;
     uint32_t* o_write = o_start;
     for (const uint32_t* it = begin; it != end; ++it, ++o_read) {
-      *o_write = *o_read;
-      o_write += comparator(*it, value);
+      // The choice of a branchy implemntation is intentional: this seems faster
+      // than trying to do something branchless, likely because the compiler is
+      // helping us with branch prediction.
+      if (comparator(*it, value)) {
+        *o_write++ = *o_read;
+      }
     }
     return o_write;
   }
