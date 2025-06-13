@@ -71,29 +71,29 @@ class ColumnSerializer:
     if self.is_optional and self.is_id_type:
       return f'''
       {self.cpp_type_with_optionality} {self.name}() const {{
-        auto res = cursor_.GetCellUnchecked<ColumnIndex::{self.name}>();
+        auto res = cursor_.GetCellUnchecked<ColumnIndex::{self.name}>(kSpec);
         return res ? std::make_optional({self.cpp_type_non_optional}{{*res}}) : std::nullopt;
       }}'''
     if self.is_optional and self.is_string:
       return f'''
       {self.cpp_type_with_optionality} {self.name}() const {{
-        auto res = cursor_.GetCellUnchecked<ColumnIndex::{self.name}>();
+        auto res = cursor_.GetCellUnchecked<ColumnIndex::{self.name}>(kSpec);
         return res && res != StringPool::Id::Null() ? std::make_optional({self.cpp_type_non_optional}{{*res}}) : std::nullopt;
       }}'''
     if self.is_string:
       return f'''
       {self.cpp_type_with_optionality} {self.name}() const {{
-        auto res = cursor_.GetCellUnchecked<ColumnIndex::{self.name}>();
+        auto res = cursor_.GetCellUnchecked<ColumnIndex::{self.name}>(kSpec);
         return res && res != StringPool::Id::Null() ? *res : StringPool::Id::Null();
       }}'''
     if self.is_id_type:
       return f'''
       {self.cpp_type_with_optionality} {self.name}() const {{
-        return {self.cpp_type_non_optional}{{cursor_.GetCellUnchecked<ColumnIndex::{self.name}>()}};
+        return {self.cpp_type_non_optional}{{cursor_.GetCellUnchecked<ColumnIndex::{self.name}>(kSpec)}};
       }}'''
     return f'''
     {self.cpp_type_with_optionality} {self.name}() const {{
-      return cursor_.GetCellUnchecked<ColumnIndex::{self.name}>();
+      return cursor_.GetCellUnchecked<ColumnIndex::{self.name}>(kSpec);
     }}'''
 
   def cursor_setter(self) -> Optional[str]:
@@ -103,28 +103,28 @@ class ColumnSerializer:
       return f'''
       void set_{self.name}({self.cpp_type_with_optionality} res) {{
         auto res_value = res ? std::make_optional(res->value) : std::nullopt;
-        cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(res_value);
+        cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, res_value);
       }}'''
     if self.is_optional and self.is_string:
       return f'''
       void set_{self.name}({self.cpp_type_with_optionality} res) {{
         auto res_value = res && res != StringPool::Id::Null() ? std::make_optional(*res) : std::nullopt;
-        cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(res_value);
+        cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, res_value);
     }}'''
     if self.is_string:
       return f'''
       void set_{self.name}({self.cpp_type_with_optionality} res) {{
         auto res_value = res != StringPool::Id::Null() ? std::make_optional(res) : std::nullopt;
-        cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(res_value);
+        cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, res_value);
     }}'''
     if self.is_id_type and not self.is_no_transform_id:
       return f'''
       void set_{self.name}({self.cpp_type_with_optionality} res) {{
-        cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(res.value);
+        cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, res.value);
       }}'''
     return f'''
     void set_{self.name}({self.cpp_type_with_optionality} res) {{
-      cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(res);
+      cursor_.SetCellUnchecked<ColumnIndex::{self.name}>(kSpec, res);
     }}'''
 
   def row_reference_getter(self) -> str:
@@ -406,9 +406,9 @@ class {self.table_name} {{
   class ConstCursor {{
    public:
     explicit ConstCursor(const dataframe::Dataframe& df,
-                           std::vector<dataframe::FilterSpec> filters,
-                           std::vector<dataframe::SortSpec> sorts)
-      : cursor_(df.CreateTypedCursorUnchecked(kSpec, std::move(filters), std::move(sorts))) {{}}
+                         std::vector<dataframe::FilterSpec> filters,
+                         std::vector<dataframe::SortSpec> sorts)
+      : cursor_(&df, std::move(filters), std::move(sorts)) {{}}
 
     PERFETTO_ALWAYS_INLINE void Execute() {{ cursor_.ExecuteUnchecked(); }}
     PERFETTO_ALWAYS_INLINE bool Eof() const {{ return cursor_.Eof(); }}
@@ -423,14 +423,14 @@ class {self.table_name} {{
     {cursor_getter}
 
    private:
-    dataframe::Dataframe::TypedCursor<std::remove_cv_t<std::remove_reference_t<decltype(kSpec)>>> cursor_;
+    dataframe::TypedCursor cursor_;
   }};
   class Cursor {{
    public:
     explicit Cursor(dataframe::Dataframe& df,
                     std::vector<dataframe::FilterSpec> filters,
                     std::vector<dataframe::SortSpec> sorts)
-      : cursor_(df.CreateTypedCursorUnchecked(kSpec, std::move(filters), std::move(sorts))) {{}}
+      : cursor_(&df, std::move(filters), std::move(sorts)) {{}}
 
     PERFETTO_ALWAYS_INLINE void Execute() {{ cursor_.ExecuteUnchecked(); }}
     PERFETTO_ALWAYS_INLINE bool Eof() const {{ return cursor_.Eof(); }}
@@ -446,7 +446,7 @@ class {self.table_name} {{
     {cursor_setter}
 
    private:
-    dataframe::Dataframe::TypedCursor<std::remove_cv_t<std::remove_reference_t<decltype(kSpec)>>> cursor_;
+    dataframe::TypedCursor cursor_;
   }};
   class Iterator {{
     public:

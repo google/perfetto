@@ -752,6 +752,7 @@ def serialize_header(ifdef_guard: str, tables: List[ParsedTable],
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/typed_cursor.h"
 #include "src/trace_processor/db/base_id.h"
 #include "src/trace_processor/db/column_storage.h"
 #include "src/trace_processor/db/column.h"

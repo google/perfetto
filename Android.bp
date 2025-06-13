@@ -13458,6 +13458,7 @@ filegroup {
     srcs: [
         "src/trace_processor/dataframe/adhoc_dataframe_builder.cc",
         "src/trace_processor/dataframe/dataframe.cc",
+        "src/trace_processor/dataframe/typed_cursor.cc",
     ],
 }
 
