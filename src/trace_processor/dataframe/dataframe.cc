@@ -16,10 +16,8 @@
 
 #include "src/trace_processor/dataframe/dataframe.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -29,6 +27,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/cursor.h"
+#include "src/trace_processor/dataframe/cursor_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
@@ -288,18 +287,6 @@ std::vector<std::shared_ptr<impl::Column>> Dataframe::CreateColumnVector(
     }));
   }
   return columns;
-}
-
-void Dataframe::TypedCursorBase::PrepareCursorInternal() {
-  auto plan = dataframe_->PlanQuery(filter_specs_, {}, sort_specs_, {}, 0);
-  PERFETTO_CHECK(plan.ok());
-  dataframe_->PrepareCursor(*plan, cursor_);
-  last_execution_mutation_count_ = dataframe_->mutations_;
-  for (const auto& spec : filter_specs_) {
-    filter_value_mapping_[spec.source_index] =
-        spec.value_index.value_or(std::numeric_limits<uint32_t>::max());
-  }
-  std::fill(filter_values_.begin(), filter_values_.end(), nullptr);
 }
 
 }  // namespace perfetto::trace_processor::dataframe
