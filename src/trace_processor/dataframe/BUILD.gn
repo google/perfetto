@@ -24,7 +24,6 @@ source_set("dataframe") {
     "runtime_dataframe_builder.h",
     "typed_cursor.cc",
     "typed_cursor.h",
-    "typed_cursor_impl.h",
   ]
   deps = [
     "../../../gn:default_deps",
