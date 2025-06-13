@@ -2191,7 +2191,8 @@ TEST_F(BytecodeInterpreterTest, InId) {
 
   std::vector<uint32_t> indices_spec = {12, 44, 10, 4, 5, 2, 3};
   {
-    // Test case 1: Values exist in range
+    // Test case 1: Values exist in range. This should trigger the bitvector
+    // optimization as max(5, 10, 44) <= 3 * 16.
     std::vector<uint32_t> indices = indices_spec;
     CastFilterValueListResult value_list;
     value_list.validity = CastFilterValueResult::kValid;
@@ -2237,7 +2238,8 @@ TEST_F(BytecodeInterpreterTest, InUint32) {
 
   std::vector<uint32_t> indices_spec = {3, 3, 4, 5, 0, 6, 0};
   {
-    // Test case 1: Values exist
+    // Test case 1: Values exist. This should not trigger the bitvector
+    // optimization as max(4, 391) > 2 * 16.
     std::vector<uint32_t> indices = indices_spec;
     CastFilterValueListResult value_list;
     value_list.validity = CastFilterValueResult::kValid;
@@ -2256,6 +2258,55 @@ TEST_F(BytecodeInterpreterTest, InUint32) {
     SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
                            GetSpan(indices));
     EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+  }
+}
+
+TEST_F(BytecodeInterpreterTest, InIdBitVectorSparse) {
+  AddColumn(impl::Column{impl::Storage::Id{1000}, NullStorage::NonNull{},
+                         Unsorted{}, HasDuplicates{}});
+
+  std::string bytecode =
+      "In<Id>: [col=0, value_list_register=Register(0), "
+      "source_register=Register(1), update_register=Register(2)]";
+
+  std::vector<uint32_t> indices_spec = {12, 44, 10, 4, 5, 2, 3, 500};
+  {
+    // Test case: Sparse values, bitvector optimization should NOT trigger.
+    // max value is 500, list size is 2. 500 > 2 * 16 (32) is true.
+    std::vector<uint32_t> indices = indices_spec;
+    CastFilterValueListResult value_list;
+    value_list.validity = CastFilterValueResult::kValid;
+    value_list.value_list =
+        CreateFlexVectorForTesting<CastFilterValueResult::Id>({{5}, {500}});
+
+    SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
+                           GetSpan(indices));
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(5, 500));
+  }
+}
+
+TEST_F(BytecodeInterpreterTest, InUint32BitVector) {
+  std::string bytecode =
+      "In<Uint32>: [col=0, value_list_register=Register(0), "
+      "source_register=Register(1), update_register=Register(2)]";
+
+  auto values =
+      CreateFlexVectorForTesting<uint32_t>({4u, 49u, 392u, 4u, 49u, 4u, 391u});
+  AddColumn(impl::Column{std::move(values), NullStorage::NonNull{}, Unsorted{},
+                         HasDuplicates{}});
+
+  std::vector<uint32_t> indices_spec = {3, 3, 4, 5, 0, 6, 0};
+  {
+    // Test case: Values exist, bitvector optimization should trigger.
+    // max value 30, list size 2. 30 <= 32 is true.
+    std::vector<uint32_t> indices = indices_spec;
+    CastFilterValueListResult value_list;
+    value_list.validity = CastFilterValueResult::kValid;
+    value_list.value_list = CreateFlexVectorForTesting<uint32_t>({4u, 30u});
+
+    SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
+                           GetSpan(indices));
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(3, 3, 5, 0, 0));
   }
 }
 
