@@ -1618,11 +1618,11 @@ class Interpreter {
                         filter_value_type ==
                             FilterValueFetcherImpl ::kDouble)) {
       switch (op.index()) {
-        case Op::GetTypeIndex<Eq>():
         case Op::GetTypeIndex<Ge>():
         case Op::GetTypeIndex<Gt>():
         case Op::GetTypeIndex<Ne>():
           return CastFilterValueResult::kAllMatch;
+        case Op::GetTypeIndex<Eq>():
         case Op::GetTypeIndex<Le>():
         case Op::GetTypeIndex<Lt>():
         case Op::GetTypeIndex<Glob>():
