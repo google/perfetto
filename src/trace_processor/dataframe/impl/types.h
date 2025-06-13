@@ -19,9 +19,11 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
@@ -425,15 +427,13 @@ struct CastFilterValueResult {
     return validity == other.validity && value == other.value;
   }
 
-  static constexpr CastFilterValueResult Valid(Value value) {
-    return CastFilterValueResult{Validity::kValid, value};
+  static CastFilterValueResult Valid(Value value) {
+    return CastFilterValueResult{Validity::kValid, std::move(value)};
   }
-
-  static constexpr CastFilterValueResult NoneMatch() {
+  static CastFilterValueResult NoneMatch() {
     return CastFilterValueResult{Validity::kNoneMatch, Id{0}};
   }
-
-  static constexpr CastFilterValueResult AllMatch() {
+  static CastFilterValueResult AllMatch() {
     return CastFilterValueResult{Validity::kAllMatch, Id{0}};
   }
 
@@ -442,6 +442,38 @@ struct CastFilterValueResult {
 
   // Variant of all possible cast value types.
   Value value;
+};
+
+// Result of an operation that yields multiple values (e.g. from an IN clause).
+struct CastFilterValueListResult {
+  using Value = std::variant<CastFilterValueResult::Id,
+                             uint32_t,
+                             int32_t,
+                             int64_t,
+                             double,
+                             StringPool::Id>;
+  using ValueList = std::variant<FlexVector<CastFilterValueResult::Id>,
+                                 FlexVector<uint32_t>,
+                                 FlexVector<int32_t>,
+                                 FlexVector<int64_t>,
+                                 FlexVector<double>,
+                                 FlexVector<StringPool::Id>>;
+
+  static CastFilterValueListResult Valid(ValueList v) {
+    return CastFilterValueListResult{CastFilterValueResult::Validity::kValid,
+                                     std::move(v)};
+  }
+  static CastFilterValueListResult NoneMatch() {
+    return CastFilterValueListResult{
+        CastFilterValueResult::Validity::kNoneMatch,
+        FlexVector<CastFilterValueResult::Id>()};
+  }
+  static CastFilterValueListResult AllMatch() {
+    return CastFilterValueListResult{CastFilterValueResult::Validity::kAllMatch,
+                                     FlexVector<CastFilterValueResult::Id>()};
+  }
+  CastFilterValueResult::Validity validity;
+  ValueList value_list;
 };
 
 // Represents a contiguous range of indices [b, e).
