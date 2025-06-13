@@ -251,6 +251,7 @@ source_set("profile_builder") {
     "../../base",
     "../containers",
     "../db/column",
+    "../dataframe",
     "../storage",
     "../tables",
     "../types",
