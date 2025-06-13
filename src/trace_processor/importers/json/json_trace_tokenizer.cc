@@ -407,6 +407,15 @@ base::Status JsonTraceTokenizer::HandleTraceEvent(const char* start,
     if (PERFETTO_UNLIKELY(!json::internal::SkipWhitespace(cur, end))) {
       return SetOutAndReturn(global_cur, out);
     }
+    // Wwarning: the order of these checks is important. Due to bugs like
+    // https://github.com/google/perfetto/issues/1822, we allow for trailing
+    // commas in the trace events array, so we need to check for that first
+    // before checking for the end of the array.
+    if (PERFETTO_UNLIKELY(*cur == ',')) {
+      if (PERFETTO_UNLIKELY(!json::internal::SkipWhitespace(++cur, end))) {
+        return SetOutAndReturn(global_cur, out);
+      }
+    }
     if (PERFETTO_UNLIKELY(*cur == ']')) {
       if (format_ == TraceFormat::kOnlyTraceEvents) {
         position_ = TracePosition::kEof;
@@ -414,11 +423,6 @@ base::Status JsonTraceTokenizer::HandleTraceEvent(const char* start,
       }
       position_ = TracePosition::kDictionaryKey;
       return ParseInternal(cur + 1, end, out);
-    }
-    if (PERFETTO_UNLIKELY(*cur == ',')) {
-      if (PERFETTO_UNLIKELY(!json::internal::SkipWhitespace(++cur, end))) {
-        return SetOutAndReturn(global_cur, out);
-      }
     }
     it_.Reset(cur, end);
     if (!it_.ParseStart() || !ParseTraceEventContents()) {
