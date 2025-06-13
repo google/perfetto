@@ -97,22 +97,28 @@ namespace {
 
 struct SqliteStmtValueFetcher : public dataframe::ValueFetcher {
   using Type = int;
-  static constexpr Type kInt64 = SQLITE_INTEGER;
-  static constexpr Type kDouble = SQLITE_FLOAT;
-  static constexpr Type kString = SQLITE_TEXT;
-  static constexpr Type kNull = SQLITE_NULL;
+  [[maybe_unused]] static constexpr Type kInt64 = SQLITE_INTEGER;
+  [[maybe_unused]] static constexpr Type kDouble = SQLITE_FLOAT;
+  [[maybe_unused]] static constexpr Type kString = SQLITE_TEXT;
+  [[maybe_unused]] static constexpr Type kNull = SQLITE_NULL;
 
-  int64_t GetInt64Value(uint32_t i) const {
+  [[maybe_unused]] int64_t GetInt64Value(uint32_t i) const {
     return sqlite3_column_int64(stmt_, int(i));
   }
-  double GetDoubleValue(uint32_t i) const {
+  [[maybe_unused]] double GetDoubleValue(uint32_t i) const {
     return sqlite3_column_double(stmt_, int(i));
   }
-  const char* GetStringValue(uint32_t i) const {
+  [[maybe_unused]] const char* GetStringValue(uint32_t i) const {
     return reinterpret_cast<const char*>(sqlite3_column_text(stmt_, int(i)));
   }
-  Type GetValueType(uint32_t i) const {
+  [[maybe_unused]] Type GetValueType(uint32_t i) const {
     return static_cast<Type>(sqlite3_column_type(stmt_, int(i)));
+  }
+  [[maybe_unused]] static bool IteratorInit(uint32_t) {
+    PERFETTO_FATAL("Unsupported");
+  }
+  [[maybe_unused]] static bool IteratorNext(uint32_t) {
+    PERFETTO_FATAL("Unsupported");
   }
   sqlite3_stmt* stmt_;
 };
