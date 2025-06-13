@@ -909,3 +909,40 @@ class GenericKernelParser(TestSuite):
         "generic_task_state_invalid_order","error","analysis",1,""" +
             """"Invalid order of generic task state events. Should never happen."
         """))
+
+  def test_cpu_frequency_event(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 359831239274
+          generic_kernel_cpu_freq_event {
+            cpu: 0
+            freq_hz: 1500000000
+          }
+        }
+        packet {
+          timestamp: 360831239274
+          generic_kernel_cpu_freq_event {
+            cpu: 1
+            freq_hz: 2500000000
+          }
+          machine_id: 349028234
+        }
+        """),
+        query="""
+        select
+          ts,
+          cpu,
+          value,
+          name,
+          type,
+          machine_id
+        from counter c
+        join cpu_counter_track t on c.track_id = t.id
+        where t.type = 'cpu_frequency'
+        """,
+        out=Csv("""
+        "ts","cpu","value","name","type","machine_id"
+        359831239274,0,1500000.000000,"cpufreq","cpu_frequency","[NULL]"
+        360831239274,1,2500000.000000,"cpufreq","cpu_frequency",1
+        """))
