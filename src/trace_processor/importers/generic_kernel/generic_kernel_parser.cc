@@ -263,8 +263,8 @@ void GenericKernelParser::ParseGenericCpuFrequencyEvent(
   protos::pbzero::GenericKernelCpuFrequencyEvent::Decoder cpu_freq_event(data);
   TrackId track = context_->track_tracker->InternTrack(
       tracks::kCpuFrequencyBlueprint, tracks::Dimensions(cpu_freq_event.cpu()));
-  context_->event_tracker->PushCounter(ts, cpu_freq_event.freq_hz() / 1000.0,
-                                       track);
+  context_->event_tracker->PushCounter(
+      ts, static_cast<double>(cpu_freq_event.freq_hz()) / 1000.0, track);
 }
 
 }  // namespace perfetto::trace_processor
