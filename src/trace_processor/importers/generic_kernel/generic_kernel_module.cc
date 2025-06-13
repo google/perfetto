@@ -25,6 +25,7 @@ GenericKernelModule::GenericKernelModule(TraceProcessorContext* context)
     : parser_(context) {
   RegisterForField(TracePacket::kGenericKernelTaskStateEventFieldNumber,
                    context);
+  RegisterForField(TracePacket::kGenericKernelCpuFreqEventFieldNumber, context);
 }
 
 void GenericKernelModule::ParseTracePacketData(
@@ -36,6 +37,10 @@ void GenericKernelModule::ParseTracePacketData(
     case TracePacket::kGenericKernelTaskStateEventFieldNumber:
       parser_.ParseGenericTaskStateEvent(
           ts, decoder.generic_kernel_task_state_event());
+      return;
+    case TracePacket::kGenericKernelCpuFreqEventFieldNumber:
+      parser_.ParseGenericCpuFrequencyEvent(
+          ts, decoder.generic_kernel_cpu_freq_event());
       return;
   }
 }
