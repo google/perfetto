@@ -1030,7 +1030,6 @@ TraceProcessorImpl::GetLegacyStaticTables(TraceStorage* storage) {
   AddLegacyStaticTable(tables,
                        storage->mutable_android_network_packets_table());
 
-
   AddLegacyStaticTable(tables, storage->mutable_inputmethod_clients_table());
   AddLegacyStaticTable(tables,
                        storage->mutable_inputmethod_manager_service_table());
