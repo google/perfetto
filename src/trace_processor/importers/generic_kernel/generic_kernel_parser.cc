@@ -19,9 +19,11 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
+#include "protos/perfetto/trace/generic_kernel/generic_power.pbzero.h"
 #include "protos/perfetto/trace/generic_kernel/generic_task_state.pbzero.h"
 
 namespace perfetto::trace_processor {
@@ -254,4 +256,15 @@ GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
   }
   return kNone;
 }
+
+void GenericKernelParser::ParseGenericCpuFrequencyEvent(
+    int64_t ts,
+    protozero::ConstBytes data) {
+  protos::pbzero::GenericKernelCpuFrequencyEvent::Decoder cpu_freq_event(data);
+  TrackId track = context_->track_tracker->InternTrack(
+      tracks::kCpuFrequencyBlueprint, tracks::Dimensions(cpu_freq_event.cpu()));
+  context_->event_tracker->PushCounter(ts, cpu_freq_event.freq_hz() / 1000.0,
+                                       track);
+}
+
 }  // namespace perfetto::trace_processor
