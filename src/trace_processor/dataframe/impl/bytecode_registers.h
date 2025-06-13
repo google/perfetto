@@ -99,6 +99,7 @@ using Value = std::variant<Empty,
                            Slab<uint32_t>,
                            Span<uint32_t>,
                            CastFilterValueResult,
+                           CastFilterValueListResult,
                            Slab<uint8_t>,
                            StringIdToRankMap>;
 
