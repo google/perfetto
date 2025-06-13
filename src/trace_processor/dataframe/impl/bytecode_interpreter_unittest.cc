@@ -37,6 +37,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
@@ -95,13 +96,15 @@ struct Fetcher : ValueFetcher {
     PERFETTO_CHECK(idx == 0);
     return value[i].index();
   }
-  bool IteratorInit(uint32_t idx) const {
+  bool IteratorInit(uint32_t idx) {
     PERFETTO_CHECK(idx == 0);
+    i = 0;
     return i < value.size();
   }
   bool IteratorNext(uint32_t idx) {
     PERFETTO_CHECK(idx == 0);
-    return i++ < value.size();
+    i++;
+    return i < value.size();
   }
 
   std::vector<FilterValue> value;
@@ -392,27 +395,38 @@ Column CreateDenseNullableStringColumn(
       sort_state, duplicate_state};
 }
 
+PERFETTO_NO_INLINE BytecodeVector
+ParseBytecodeToVec(const std::string& bytecode_str) {
+  BytecodeVector bytecode_vector;
+  std::vector<std::string> lines = base::SplitString(bytecode_str, "\n");
+  for (const auto& line : lines) {
+    std::string trimmed = base::TrimWhitespace(line);
+    if (!trimmed.empty()) {
+      bytecode_vector.emplace_back(ParseBytecode(trimmed));
+    }
+  }
+  return bytecode_vector;
+}
+
 class BytecodeInterpreterTest : public testing::Test {
  protected:
   template <typename... Ts>
   void SetRegistersAndExecute(const std::string& bytecode_str, Ts... value) {
-    BytecodeVector bytecode_vector;
-    std::vector<std::string> lines = base::SplitString(bytecode_str, "\n");
-    for (const auto& line : lines) {
-      std::string trimmed = base::TrimWhitespace(line);
-      if (!trimmed.empty()) {
-        bytecode_vector.emplace_back(ParseBytecode(trimmed));
-      }
-    }
-    SetupInterpreterWithBytecode(bytecode_vector);
+    SetupInterpreterWithBytecode(ParseBytecodeToVec(bytecode_str));
     SetRegisterValuesForTesting(
         interpreter_.get(),
         std::make_integer_sequence<uint32_t, sizeof...(Ts)>(),
         std::move(value)...);
-    interpreter_->Execute(fetcher_);
+    Execute();
   }
 
-  void SetupInterpreterWithBytecode(const BytecodeVector& bytecode) {
+  // Intentionally not inlined to avoid inlining the entire
+  // Interpreter::Execute() function, which is large and not needed for
+  // testing purposes.
+  PERFETTO_NO_INLINE void Execute() { interpreter_->Execute(fetcher_); }
+
+  PERFETTO_NO_INLINE void SetupInterpreterWithBytecode(
+      const BytecodeVector& bytecode) {
     // Hardcode the register count to 128 for testing.
     static constexpr uint32_t kNumRegisters = 128;
     interpreter_ = std::make_unique<Interpreter<Fetcher>>();
