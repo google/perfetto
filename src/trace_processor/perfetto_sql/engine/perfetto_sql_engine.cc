@@ -41,8 +41,10 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/dataframe/adhoc_dataframe_builder.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/runtime_dataframe_builder.h"
+#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
@@ -309,6 +311,22 @@ std::string GetTokenNamesAllowedInMacro() {
     result.emplace_back(token);
   }
   return base::Join(result, ", ");
+}
+
+base::StatusOr<dataframe::AdhocDataframeBuilder::ColumnType>
+ArgumentTypeToDataframeType(sql_argument::Type type) {
+  switch (type) {
+    case sql_argument::Type::kLong:
+    case sql_argument::Type::kBool:
+      return dataframe::AdhocDataframeBuilder::ColumnType::kInt64;
+    case sql_argument::Type::kDouble:
+      return dataframe::AdhocDataframeBuilder::ColumnType::kDouble;
+    case sql_argument::Type::kString:
+      return dataframe::AdhocDataframeBuilder::ColumnType::kString;
+    case sql_argument::Type::kBytes:
+      return base::ErrStatus("Bytes type is not supported");
+  }
+  PERFETTO_FATAL("For GCC");
 }
 
 }  // namespace
@@ -681,24 +699,38 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
     SqliteEngine::PreparedStatement stmt = std::move(stmt_or);
     ASSIGN_OR_RETURN(auto column_names, GetColumnNamesFromSelectStatement(
                                             stmt, "CREATE PERFETTO TABLE"));
-    ASSIGN_OR_RETURN(
-        auto effective_schema,
-        ValidateAndGetEffectiveSchema(column_names, create_table.schema,
+    ASSIGN_OR_RETURN(auto schema, ValidateAndGetEffectiveSchema(
+                                      column_names, create_table.schema,
                                       "CREATE PERFETTO TABLE"));
+    // Should have been checked in ValidateAndGetEffectiveSchema.
+    PERFETTO_DCHECK(schema.empty() || schema.size() == column_names.size());
+    std::vector<dataframe::AdhocDataframeBuilder::ColumnType> types;
+    for (const auto& col : schema) {
+      auto type_or = ArgumentTypeToDataframeType(col.type());
+      if (!type_or.ok()) {
+        return base::ErrStatus("CREATE PERFETTO TABLE(%s): %s",
+                               create_table.name.c_str(),
+                               type_or.status().c_message());
+      }
+      types.push_back(*type_or);
+    }
     int res;
     auto* sqlite_stmt = stmt.sqlite_stmt();
     SqliteStmtValueFetcher fetcher{{}, sqlite_stmt};
-    dataframe::RuntimeDataframeBuilder builder(std::move(column_names), pool_);
+    dataframe::RuntimeDataframeBuilder builder(std::move(column_names), pool_,
+                                               types);
     for (res = sqlite3_step(sqlite_stmt); res == SQLITE_ROW;
          res = sqlite3_step(sqlite_stmt)) {
       if (!builder.AddRow(&fetcher)) {
-        RETURN_IF_ERROR(builder.status());
+        PERFETTO_CHECK(!builder.status().ok());
+        return base::ErrStatus("CREATE PERFETTO TABLE(%s): %s",
+                               create_table.name.c_str(),
+                               builder.status().c_message());
       }
     }
-    static const char* err_tag = "CREATE PERFETTO TABLE";
     if (res != SQLITE_DONE) {
       return base::ErrStatus(
-          "%s: SQLite error while creating body for table '%s': %s", err_tag,
+          "CREATE PERFETTO TABLE(%s): SQLite error while creating body: %s",
           create_table.name.c_str(), sqlite3_errmsg(engine_->db()));
     }
     ASSIGN_OR_RETURN(auto table, std::move(builder).Build());
