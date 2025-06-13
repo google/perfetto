@@ -467,6 +467,7 @@ class Interpreter {
       }
     };
     if constexpr (std::is_same_v<T, Id>) {
+      base::ignore_result(data);
       update.e =
           IdentityFilter(source.b, source.e, update.b, bv, InBitVector());
     } else {
