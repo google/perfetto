@@ -392,46 +392,87 @@ class Interpreter {
         StorageType::VariantTypeAtIndex<T,
                                         CastFilterValueListResult::ValueList>;
     const M& val = base::unchecked_get<M>(value.value_list);
-
     const auto& col = GetColumn(f.arg<B::col>());
+
+    // Try to use a bitvector if the value is an Id or uint32_t.
+    // This is a performance optimization to avoid iterating over the
+    // FlexVector for large lists of values.
+    if constexpr (std::is_same_v<T, Id> || std::is_same_v<T, Uint32>) {
+      const auto* data = col.storage.template unchecked_data<T>();
+      if (InBitVector<T>(val, data, source, update)) {
+        return;
+      }
+    }
     if constexpr (std::is_same_v<T, Id>) {
+      struct Comparator {
+        bool operator()(
+            uint32_t lhs,
+            const FlexVector<CastFilterValueResult::Id>& rhs) const {
+          for (const auto& r : rhs) {
+            if (lhs == r.value) {
+              return true;
+            }
+          }
+          return false;
+        }
+      };
       update.e =
-          IdentityFilter(source.b, source.e, update.b, val, IdInComparator());
+          IdentityFilter(source.b, source.e, update.b, val, Comparator());
     } else {
       const auto* data = col.storage.template unchecked_data<T>();
-      update.e = Filter(data, source.b, source.e, update.b, val,
-                        NonIdInComparator(val));
+      using D = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
+      struct Comparator {
+        bool operator()(D lhs, const FlexVector<D>& rhs) const {
+          for (const auto& r : rhs) {
+            if (std::equal_to<>()(lhs, r)) {
+              return true;
+            }
+          }
+          return false;
+        }
+      };
+      update.e = Filter(data, source.b, source.e, update.b, val, Comparator());
     }
   }
 
-  template <typename T>
-  auto NonIdInComparator(const FlexVector<T>&) {
-    struct Comparator {
-      bool operator()(T lhs, const FlexVector<T>& rhs) const {
-        for (const auto& r : rhs) {
-          if (std::equal_to<T>()(lhs, r)) {
-            return true;
-          }
-        }
-        return false;
+  template <typename T, typename M, typename D>
+  PERFETTO_ALWAYS_INLINE bool InBitVector(const FlexVector<M>& val,
+                                          const D* data,
+                                          const Span<uint32_t>& source,
+                                          Span<uint32_t>& update) {
+    uint32_t max = 0;
+    for (size_t i = 0; i < val.size(); ++i) {
+      if constexpr (std::is_same_v<T, Id>) {
+        max = std::max(max, val[i].value);
+      } else {
+        max = std::max(max, val[i]);
+      }
+    }
+    // If the bitvector is too sparse, don't waste memory on it.
+    if (max > val.size() * 16) {
+      return false;
+    }
+    BitVector bv = BitVector::CreateWithSize(max + 1, false);
+    for (size_t i = 0; i < val.size(); ++i) {
+      if constexpr (std::is_same_v<T, Id>) {
+        bv.set(val[i].value);
+      } else {
+        bv.set(val[i]);
+      }
+    }
+    struct InBitVector {
+      PERFETTO_ALWAYS_INLINE bool operator()(uint32_t lhs,
+                                             const BitVector& bv) const {
+        return lhs < bv.size() && bv.is_set(lhs);
       }
     };
-    return Comparator{};
-  }
-
-  auto IdInComparator() {
-    struct Comparator {
-      bool operator()(uint32_t lhs,
-                      const FlexVector<CastFilterValueResult::Id>& rhs) const {
-        for (const auto& r : rhs) {
-          if (lhs == r.value) {
-            return true;
-          }
-        }
-        return false;
-      }
-    };
-    return Comparator{};
+    if constexpr (std::is_same_v<T, Id>) {
+      update.e =
+          IdentityFilter(source.b, source.e, update.b, bv, InBitVector());
+    } else {
+      update.e = Filter(data, source.b, source.e, update.b, bv, InBitVector());
+    }
+    return true;
   }
 
   template <typename T, typename RangeOp>
