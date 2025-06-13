@@ -22,6 +22,8 @@ import {
 } from '../public/selection';
 import {Trace} from '../public/trace';
 import {SelectionAggregationManager} from './selection_aggregation_manager';
+import {EmptyState} from '../widgets/empty_state';
+import {Spinner} from '../widgets/spinner';
 
 // Define a type for the expected props of the panel components so that a
 // generic AggregationPanel can be specificed as an argument to
@@ -44,6 +46,7 @@ export function createBaseAggregationToTabAdaptor(
   const priority = tabPriorityOverride ?? kindRating + schemaSpecificity;
   const aggMan = new SelectionAggregationManager(trace.engine, aggregator);
   let currentSelection: AreaSelection | undefined;
+  let canAggregate = false;
 
   return {
     id: aggregator.id,
@@ -54,13 +57,28 @@ export function createBaseAggregationToTabAdaptor(
         currentSelection === undefined ||
         !areaSelectionsEqual(selection, currentSelection)
       ) {
-        aggMan.aggregateArea(selection);
+        canAggregate = aggMan.aggregateArea(selection);
         currentSelection = selection;
+      }
+
+      if (!canAggregate) {
+        return undefined;
       }
 
       const data = aggMan.aggregatedData;
       if (!data) {
-        return undefined;
+        return {
+          isLoading: true,
+          content: m(
+            EmptyState,
+            {
+              icon: 'mediation',
+              title: 'Computing aggregation ...',
+              className: 'pf-aggregation-loading',
+            },
+            m(Spinner, {easing: true}),
+          ),
+        };
       }
 
       return {

@@ -37,14 +37,22 @@ export class SelectionAggregationManager {
     return this._aggregatedData;
   }
 
-  aggregateArea(area: AreaSelection) {
+  aggregateArea(area: AreaSelection): boolean {
+    const aggr = this.aggregator;
+    const dataset = this.createDatasetForAggregator(aggr, area.tracks);
+
+    // We don't support this selection
+    if (!dataset) return false;
+
     this.limiter.schedule(async () => {
       this._currentArea = area;
       this._aggregatedData = undefined;
 
-      const data = await this.runAggregator(area);
+      const data = await this.runAggregator(dataset, area);
       this._aggregatedData = data;
     });
+
+    return true;
   }
 
   clear() {
@@ -88,19 +96,15 @@ export class SelectionAggregationManager {
   }
 
   private async runAggregator(
+    dataset: Dataset,
     area: AreaSelection,
   ): Promise<AggregateData | undefined> {
     const aggr = this.aggregator;
-    let dataset = this.createDatasetForAggregator(aggr, area.tracks);
     const duration = Time.durationBetween(area.start, area.end);
 
     // The dataset must contain ts, dur, and id columns for interval
     // intersection.
-    if (
-      duration > 0n &&
-      dataset &&
-      dataset.implements({id: NUM, ts: LONG, dur: LONG})
-    ) {
+    if (duration > 0n && dataset.implements({id: NUM, ts: LONG, dur: LONG})) {
       // Materialize the source into a perfetto table first.
       // Note: the `ORDER BY id` is absolutely crucial. Removing this
       // significantly worsens aggregation results compared to no
