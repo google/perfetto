@@ -20,6 +20,7 @@
 #include <cinttypes>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -232,6 +233,11 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
       has_unknown_constraint = true;
       continue;
     }
+    // Convert the eq constraint to a Is constraint if possible.
+    if (df_op->Is<dataframe::Eq>() && sqlite3_vtab_in(info, i, -1)) {
+      df_op = dataframe::In();
+      PERFETTO_CHECK(sqlite3_vtab_in(info, i, 1));
+    }
     filter_specs.emplace_back(dataframe::FilterSpec{
         static_cast<uint32_t>(info->aConstraint[i].iColumn),
         static_cast<uint32_t>(i),
@@ -356,6 +362,11 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
             record->AddArg(c.string_view(),
                            std::to_string(info->aConstraintUsage[i].omit));
           }
+          {
+            base::StackString<32> c("constraint[%d].in", j);
+            record->AddArg(c.string_view(),
+                           std::to_string(sqlite3_vtab_in(info, i, -1)));
+          }
           j++;
         }
         for (int i = 0; i < info->nOrderBy; ++i) {
@@ -390,7 +401,7 @@ int DataframeModule::Close(sqlite3_vtab_cursor* cursor) {
 int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
                             int idxNum,
                             const char* idxStr,
-                            int,
+                            int argc,
                             sqlite3_value** argv) {
   auto* v = GetVtab(cur->pVtab);
   auto* c = GetCursor(cur);
@@ -410,7 +421,13 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
     v->dataframe->PrepareCursor(plan, c->df_cursor);
     c->last_idx_str = idxStr;
   }
-  SqliteValueFetcher fetcher{{}, argv};
+  // SQLite's API claims it will never pass more than 16 arguments
+  // so assert that here as our std::array is fixed size.
+  PERFETTO_DCHECK(argc <= 16);
+  SqliteValueFetcher fetcher{{}, {}, argv};
+  memcpy(static_cast<void*>(fetcher.sqlite_value.data()),
+         static_cast<void*>(argv),
+         sizeof(sqlite3_value*) * static_cast<size_t>(argc));
   c->df_cursor.Execute(fetcher);
   return SQLITE_OK;
 }

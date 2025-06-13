@@ -90,10 +90,28 @@ struct CastFilterValueBase : TemplatedBytecode1<StorageType> {
                                      NonNullOp,
                                      op);
 };
-
-// Specialized coercion for specific type T.
 template <typename T>
 struct CastFilterValue : CastFilterValueBase {
+  static_assert(TS1::Contains<T>());
+};
+
+// Casts a list of filter values.
+struct CastFilterValueListBase : TemplatedBytecode1<StorageType> {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = FixedCost{1000};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(
+      FilterValueHandle,
+      fval_handle,
+      reg::WriteHandle<CastFilterValueListResult>,
+      write_register,
+      NonNullOp,
+      op);
+};
+template <typename T>
+struct CastFilterValueList : CastFilterValueListBase {
   static_assert(TS1::Contains<T>());
 };
 
@@ -569,6 +587,27 @@ struct LinearFilterEq : LinearFilterEqBase {
   static_assert(TS1::Contains<T>());
 };
 
+// Filters rows based on a list of values (IN operator).
+struct InBase : TemplatedBytecode1<StorageType> {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = LinearPerRowCost{10};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(uint32_t,
+                                     col,
+                                     reg::ReadHandle<CastFilterValueListResult>,
+                                     value_list_register,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     source_register,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     update_register);
+};
+template <typename T>
+struct In : InBase {
+  static_assert(TS1::Contains<T>());
+};
+
 // List of all bytecode instruction types for variant definition.
 #define PERFETTO_DATAFRAME_BYTECODE_LIST(X)  \
   X(InitRange)                               \
@@ -580,6 +619,12 @@ struct LinearFilterEq : LinearFilterEqBase {
   X(CastFilterValue<Int64>)                  \
   X(CastFilterValue<Double>)                 \
   X(CastFilterValue<String>)                 \
+  X(CastFilterValueList<Id>)                 \
+  X(CastFilterValueList<Uint32>)             \
+  X(CastFilterValueList<Int32>)              \
+  X(CastFilterValueList<Int64>)              \
+  X(CastFilterValueList<Double>)             \
+  X(CastFilterValueList<String>)             \
   X(SortedFilter<Id, EqualRange>)            \
   X(SortedFilter<Id, LowerBound>)            \
   X(SortedFilter<Id, UpperBound>)            \
@@ -703,7 +748,13 @@ struct LinearFilterEq : LinearFilterEqBase {
   X(InitRankMap)                             \
   X(CollectIdIntoRankMap)                    \
   X(FinalizeRanksInMap)                      \
-  X(SortRowLayout)
+  X(SortRowLayout)                           \
+  X(In<Id>)                                  \
+  X(In<Uint32>)                              \
+  X(In<Int32>)                               \
+  X(In<Int64>)                               \
+  X(In<Double>)                              \
+  X(In<String>)
 
 #define PERFETTO_DATAFRAME_BYTECODE_VARIANT(...) __VA_ARGS__,
 
