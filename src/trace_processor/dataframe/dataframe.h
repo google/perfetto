@@ -19,7 +19,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -27,7 +26,6 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
-#include <variant>
 #include <vector>
 
 #include "perfetto/base/compiler.h"
@@ -42,7 +40,6 @@
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/types.h"
-#include "src/trace_processor/dataframe/value_fetcher.h"
 
 namespace perfetto::trace_processor::dataframe {
 
@@ -103,154 +100,6 @@ class Dataframe {
     explicit QueryPlan(impl::QueryPlan plan) : plan_(std::move(plan)) {}
     // The underlying query plan implementation.
     impl::QueryPlan plan_;
-  };
-
-  // Base class for TypeCursor. See below for details.
-  struct TypedCursorBase {
-    using FilterValue =
-        std::variant<int64_t, double, const char*, std::nullptr_t>;
-    struct Fetcher : ValueFetcher {
-      using Type = size_t;
-      static const Type kInt64 = base::variant_index<FilterValue, int64_t>();
-      static const Type kDouble = base::variant_index<FilterValue, double>();
-      static const Type kString =
-          base::variant_index<FilterValue, const char*>();
-      static const Type kNull = base::variant_index<FilterValue, nullptr_t>();
-      int64_t GetInt64Value(uint32_t col) const {
-        return base::unchecked_get<int64_t>(filter_values_[col]);
-      }
-      double GetDoubleValue(uint32_t col) const {
-        return base::unchecked_get<double>(filter_values_[col]);
-      }
-      const char* GetStringValue(uint32_t col) const {
-        return base::unchecked_get<const char*>(filter_values_[col]);
-      }
-      Type GetValueType(uint32_t col) const {
-        return filter_values_[col].index();
-      }
-      static bool IteratorInit(uint32_t) { PERFETTO_FATAL("Unsupported"); }
-      static bool IteratorNext(uint32_t) { PERFETTO_FATAL("Unsupported"); }
-      FilterValue* filter_values_;
-    };
-
-    TypedCursorBase(const Dataframe* dataframe,
-                    std::vector<FilterSpec> filter_specs,
-                    std::vector<SortSpec> sort_specs,
-                    bool mut,
-                    uint32_t last_execution_mutation_count)
-        : dataframe_(dataframe),
-          filter_specs_(std::move(filter_specs)),
-          sort_specs_(std::move(sort_specs)),
-          mutable_(mut),
-          last_execution_mutation_count_(last_execution_mutation_count) {}
-
-    PERFETTO_ALWAYS_INLINE void ExecuteUncheckedInternal() {
-      if (PERFETTO_UNLIKELY(last_execution_mutation_count_ !=
-                            dataframe_->mutations_)) {
-        PrepareCursorInternal();
-      }
-      Fetcher fetcher{{}, filter_values_.data()};
-      cursor_.Execute(fetcher);
-    }
-
-    PERFETTO_NO_INLINE void PrepareCursorInternal();
-
-    const Dataframe* dataframe_;
-    std::vector<FilterValue> filter_values_;
-    std::vector<uint32_t> filter_value_mapping_;
-    std::vector<FilterSpec> filter_specs_;
-    std::vector<SortSpec> sort_specs_;
-    bool mutable_;
-    Cursor<Fetcher> cursor_;
-    uint32_t last_execution_mutation_count_;
-  };
-
-  // A typed version of `Cursor` which allows typed access and mutation of
-  // dataframe cells while iterating over the rows of the dataframe.
-  template <typename D>
-  struct TypedCursor : public TypedCursorBase {
-   public:
-    TypedCursor(const Dataframe* dataframe,
-                std::vector<FilterSpec> filter_specs,
-                std::vector<SortSpec> sort_specs)
-        : TypedCursorBase(dataframe,
-                          std::move(filter_specs),
-                          std::move(sort_specs),
-                          false,
-                          std::numeric_limits<uint32_t>::max()) {
-      filter_values_.resize(filter_specs_.size());
-      filter_value_mapping_.resize(filter_specs_.size(),
-                                   std::numeric_limits<uint32_t>::max());
-    }
-    TypedCursor(Dataframe* dataframe,
-                std::vector<FilterSpec> filter_specs,
-                std::vector<SortSpec> sort_specs)
-        : TypedCursorBase(dataframe,
-                          std::move(filter_specs),
-                          std::move(sort_specs),
-                          true,
-                          std::numeric_limits<uint32_t>::max()) {
-      filter_values_.resize(filter_specs_.size());
-      filter_value_mapping_.resize(filter_specs_.size(),
-                                   std::numeric_limits<uint32_t>::max());
-    }
-
-    TypedCursor(const TypedCursor&) = delete;
-    TypedCursor& operator=(const TypedCursor&) = delete;
-
-    TypedCursor(TypedCursor&&) = delete;
-    TypedCursor& operator=(TypedCursor&&) = delete;
-
-    // Sets the filter value at the given index for the current query plan.
-    template <typename C>
-    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index,
-                                                        C value) {
-      if (PERFETTO_UNLIKELY(last_execution_mutation_count_ !=
-                            dataframe_->mutations_)) {
-        PrepareCursorInternal();
-      }
-      uint32_t mapped = filter_value_mapping_[index];
-      if (mapped != std::numeric_limits<uint32_t>::max()) {
-        filter_values_[mapped] = value;
-      }
-    }
-
-    // Executes the current query plan against the specified filter values and
-    // populates the cursor with the results.
-    //
-    // See `SetFilterValueUnchecked` for details on how to set the filter
-    // values.
-    PERFETTO_ALWAYS_INLINE void ExecuteUnchecked() {
-      ExecuteUncheckedInternal();
-    }
-
-    // Returns the current row index.
-    PERFETTO_ALWAYS_INLINE uint32_t RowIndex() const {
-      return cursor_.RowIndex();
-    }
-
-    // Advances the cursor to the next row of results.
-    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
-
-    // Returns true if the cursor has reached the end of the result set.
-    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
-
-    // Calls `Dataframe:GetCellUnchecked` for the current row and specified
-    // column.
-    template <size_t C>
-    PERFETTO_ALWAYS_INLINE auto GetCellUnchecked() const {
-      return dataframe_->GetCellUncheckedInternal<C, D>(cursor_.RowIndex());
-    }
-
-    // Calls `Dataframe:SetCellUnchecked` for the current row, specified column
-    // and the given `value`.
-    template <size_t C>
-    PERFETTO_ALWAYS_INLINE void SetCellUnchecked(
-        const typename D::template column_spec<C>::mutate_type& value) {
-      PERFETTO_DCHECK(mutable_);
-      const_cast<Dataframe*>(dataframe_)
-          ->SetCellUncheckedInternal<C, D>(cursor_.RowIndex(), value);
-    }
   };
 
   // Constructs a Dataframe with the specified column names and types.
@@ -365,24 +214,6 @@ class Dataframe {
     SetCellUncheckedInternal<column, D>(row, value);
   }
 
-  // Creates a cursor for iterating over the rows of the dataframe.
-  template <typename D>
-  PERFETTO_ALWAYS_INLINE TypedCursor<D> CreateTypedCursorUnchecked(
-      const D&,
-      std::vector<FilterSpec> filter_specs,
-      std::vector<SortSpec> sort_specs) {
-    return TypedCursor<D>(this, std::move(filter_specs), std::move(sort_specs));
-  }
-
-  // Creates a cursor for iterating over the rows of the dataframe.
-  template <typename D>
-  PERFETTO_ALWAYS_INLINE TypedCursor<D> CreateTypedCursorUnchecked(
-      const D&,
-      std::vector<FilterSpec> filter_specs,
-      std::vector<SortSpec> sort_specs) const {
-    return TypedCursor<D>(this, std::move(filter_specs), std::move(sort_specs));
-  }
-
   // Clears the dataframe, removing all rows and resetting the state.
   void Clear();
 
@@ -453,6 +284,7 @@ class Dataframe {
 
  private:
   friend class AdhocDataframeBuilder;
+  friend class TypedCursor;
 
   // TODO(lalitm): remove this once we have a proper static builder for
   // dataframe.
