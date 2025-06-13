@@ -332,11 +332,6 @@ struct IntervalTreeIntervalsAgg
     }
     int64_t dur = sqlite::value::Int64(argv[2]);
 
-    // Ignore instants. We shouldn't error out on them, as they might be valid
-    // in empty traces or for empty TraceStorage.
-    if (dur == 0) {
-      return;
-    }
     if (dur < 0) {
       sqlite::result::Error(ctx,
                             "Interval intersect only works on intervals with "
