@@ -259,8 +259,15 @@ void FtraceController::StartIfNeeded(FtraceInstanceState* instance,
   PERFETTO_CHECK(instance->cpu_clock_state.empty());
   instance->cpu_clock_state.reserve(num_cpus);
   for (size_t cpu = 0; cpu < num_cpus; cpu++) {
-    instance->cpu_clock_state.emplace_back(
-        CpuClockState{instance->ftrace_procfs->OpenCpuStats(cpu), {}});
+    // If using the boot clock, don't bother opening the per-CPU stats file as
+    // we won't use it. Otherwise, open it for use in MaybeSnapshotFtraceClock.
+    if (instance->ftrace_clock ==
+        protos::pbzero::FtraceClock::FTRACE_CLOCK_UNSPECIFIED) {
+      instance->cpu_clock_state.emplace_back();
+    } else {
+      instance->cpu_clock_state.emplace_back(
+          CpuClockState{instance->ftrace_procfs->OpenCpuStats(cpu), {}});
+    }
   }
 
   PERFETTO_CHECK(instance->cpu_readers.empty());
