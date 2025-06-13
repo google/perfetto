@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_BYTECODE_INTERPRETER_H_
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -35,6 +34,7 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/endian.h"
@@ -48,6 +48,7 @@
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
 #include "src/trace_processor/dataframe/impl/bytecode_registers.h"
+#include "src/trace_processor/dataframe/impl/flex_vector.h"
 #include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
@@ -129,11 +130,11 @@ struct Regex {
 // Returns true if the result is valid, false otherwise.
 template <typename T>
 PERFETTO_ALWAYS_INLINE bool HandleInvalidCastFilterValueResult(
-    const CastFilterValueResult& value,
+    const CastFilterValueResult::Validity& validity,
     T& update) {
   static_assert(std::is_same_v<T, Range> || std::is_same_v<T, Span<uint32_t>>);
-  if (PERFETTO_UNLIKELY(value.validity != CastFilterValueResult::kValid)) {
-    if (value.validity == CastFilterValueResult::kNoneMatch) {
+  if (PERFETTO_UNLIKELY(validity != CastFilterValueResult::kValid)) {
+    if (validity == CastFilterValueResult::kNoneMatch) {
       update.e = update.b;
     }
     return false;
@@ -303,6 +304,136 @@ class Interpreter {
     WriteToRegister(f.arg<B::write_register>(), result);
   }
 
+  template <typename T>
+  PERFETTO_ALWAYS_INLINE void CastFilterValueList(
+      const bytecode::CastFilterValueListBase& c) {
+    using B = bytecode::CastFilterValueListBase;
+    FilterValueHandle handle = c.arg<B::fval_handle>();
+    using ValueType =
+        StorageType::VariantTypeAtIndex<T, CastFilterValueListResult::Value>;
+    FlexVector<ValueType> results;
+    bool all_match = false;
+    for (bool has_more = filter_value_fetcher_->IteratorInit(handle.index);
+         has_more;
+         has_more = filter_value_fetcher_->IteratorNext(handle.index)) {
+      typename FilterValueFetcherImpl::Type filter_value_type =
+          filter_value_fetcher_->GetValueType(handle.index);
+      if constexpr (std::is_same_v<T, Id>) {
+        auto op = *c.arg<B::op>().TryDowncast<NonStringOp>();
+        uint32_t result_value;
+        auto validity = CastFilterValueToInteger(
+            handle, filter_value_type, filter_value_fetcher_, op, result_value);
+        if (PERFETTO_LIKELY(validity == CastFilterValueResult::kValid)) {
+          results.push_back(CastFilterValueResult::Id{result_value});
+        } else if (validity == CastFilterValueResult::kAllMatch) {
+          all_match = true;
+          break;
+        }
+      } else if constexpr (IntegerOrDoubleType::Contains<T>()) {
+        auto op = *c.arg<B::op>().TryDowncast<NonStringOp>();
+        ValueType result_value;
+        auto validity = CastFilterValueToIntegerOrDouble(
+            handle, filter_value_type, filter_value_fetcher_, op, result_value);
+        if (PERFETTO_LIKELY(validity == CastFilterValueResult::kValid)) {
+          results.push_back(result_value);
+        } else if (validity == CastFilterValueResult::kAllMatch) {
+          all_match = true;
+          break;
+        }
+      } else if constexpr (std::is_same_v<T, String>) {
+        static_assert(std::is_same_v<ValueType, StringPool::Id>);
+        auto op = *c.arg<B::op>().TryDowncast<StringOp>();
+        // We only support equality checks for strings in this context. This is
+        // because mapping to StringPool::Id could not possibly work for
+        // non-equality checks.
+        PERFETTO_CHECK(op.Is<Eq>());
+        const char* result_value;
+        auto validity = CastFilterValueToString(
+            handle, filter_value_type, filter_value_fetcher_, op, result_value);
+        if (PERFETTO_LIKELY(validity == CastFilterValueResult::kValid)) {
+          auto id = string_pool_->GetId(result_value);
+          if (id) {
+            results.push_back(*id);
+          } else {
+            // Because we only support equality, we know for sure that nothing
+            // matches this value.
+          }
+        } else if (validity == CastFilterValueResult::kAllMatch) {
+          all_match = true;
+          break;
+        }
+      } else {
+        static_assert(std::is_same_v<T, Id>, "Unsupported type");
+      }
+    }
+    CastFilterValueListResult result;
+    if (all_match) {
+      result.validity = CastFilterValueResult::kAllMatch;
+    } else if (results.empty()) {
+      result.validity = CastFilterValueResult::kNoneMatch;
+    } else {
+      result.validity = CastFilterValueResult::kValid;
+      result.value_list = std::move(results);
+    }
+    WriteToRegister(c.arg<B::write_register>(), std::move(result));
+  }
+
+  template <typename T>
+  PERFETTO_ALWAYS_INLINE void In(const bytecode::InBase& f) {
+    using B = bytecode::InBase;
+    const auto& value = ReadFromRegister(f.arg<B::value_list_register>());
+    const Span<uint32_t>& source =
+        ReadFromRegister(f.arg<B::source_register>());
+    Span<uint32_t>& update = ReadFromRegister(f.arg<B::update_register>());
+    if (!HandleInvalidCastFilterValueResult(value.validity, update)) {
+      return;
+    }
+    using M =
+        StorageType::VariantTypeAtIndex<T,
+                                        CastFilterValueListResult::ValueList>;
+    const M& val = base::unchecked_get<M>(value.value_list);
+
+    const auto& col = GetColumn(f.arg<B::col>());
+    if constexpr (std::is_same_v<T, Id>) {
+      update.e =
+          IdentityFilter(source.b, source.e, update.b, val, IdInComparator());
+    } else {
+      const auto* data = col.storage.template unchecked_data<T>();
+      update.e = Filter(data, source.b, source.e, update.b, val,
+                        NonIdInComparator(val));
+    }
+  }
+
+  template <typename T>
+  auto NonIdInComparator(const FlexVector<T>&) {
+    struct Comparator {
+      bool operator()(T lhs, const FlexVector<T>& rhs) const {
+        for (const auto& r : rhs) {
+          if (std::equal_to<T>()(lhs, r)) {
+            return true;
+          }
+        }
+        return false;
+      }
+    };
+    return Comparator{};
+  }
+
+  auto IdInComparator() {
+    struct Comparator {
+      bool operator()(uint32_t lhs,
+                      const FlexVector<CastFilterValueResult::Id>& rhs) const {
+        for (const auto& r : rhs) {
+          if (lhs == r.value) {
+            return true;
+          }
+        }
+        return false;
+      }
+    };
+    return Comparator{};
+  }
+
   template <typename T, typename RangeOp>
   PERFETTO_ALWAYS_INLINE void SortedFilter(
       const bytecode::SortedFilterBase& f) {
@@ -310,7 +441,7 @@ class Interpreter {
 
     const auto& value = ReadFromRegister(f.arg<B::val_register>());
     Range& update = ReadFromRegister(f.arg<B::update_register>());
-    if (!HandleInvalidCastFilterValueResult(value, update)) {
+    if (!HandleInvalidCastFilterValueResult(value.validity, update)) {
       return;
     }
     using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
@@ -418,7 +549,7 @@ class Interpreter {
     const CastFilterValueResult& cast_result =
         ReadFromRegister(bytecode.arg<B::val_register>());
     auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
-    if (!HandleInvalidCastFilterValueResult(cast_result, update)) {
+    if (!HandleInvalidCastFilterValueResult(cast_result.validity, update)) {
       return;
     }
     using ValueType =
@@ -446,7 +577,7 @@ class Interpreter {
     const CastFilterValueResult& cast_result =
         ReadFromRegister(bytecode.arg<B::val_register>());
     auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
-    if (!HandleInvalidCastFilterValueResult(cast_result, update)) {
+    if (!HandleInvalidCastFilterValueResult(cast_result.validity, update)) {
       return;
     }
     using ValueType =
@@ -474,7 +605,7 @@ class Interpreter {
     using B = bytecode::NonStringFilterBase;
     const auto& value = ReadFromRegister(nf.arg<B::val_register>());
     auto& update = ReadFromRegister(nf.arg<B::update_register>());
-    if (!HandleInvalidCastFilterValueResult(value, update)) {
+    if (!HandleInvalidCastFilterValueResult(value.validity, update)) {
       return;
     }
     const auto& source = ReadFromRegister(nf.arg<B::source_register>());
@@ -501,7 +632,7 @@ class Interpreter {
     using B = bytecode::StringFilterBase;
     const auto& filter_value = ReadFromRegister(sf.arg<B::val_register>());
     auto& update = ReadFromRegister(sf.arg<B::update_register>());
-    if (!HandleInvalidCastFilterValueResult(filter_value, update)) {
+    if (!HandleInvalidCastFilterValueResult(filter_value.validity, update)) {
       return;
     }
     const char* val = base::unchecked_get<const char*>(filter_value.value);
@@ -795,7 +926,7 @@ class Interpreter {
     const auto& filter_value =
         ReadFromRegister(bytecode.arg<B::filter_value_reg>());
     auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
-    if (!HandleInvalidCastFilterValueResult(filter_value, update)) {
+    if (!HandleInvalidCastFilterValueResult(filter_value.validity, update)) {
       return;
     }
     using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
@@ -1013,6 +1144,52 @@ class Interpreter {
     indices.e = indices.b + 1;
   }
 
+  template <typename T>
+  PERFETTO_ALWAYS_INLINE void LinearFilterEq(
+      const bytecode::LinearFilterEqBase& leq) {
+    using B = bytecode::LinearFilterEqBase;
+
+    Span<uint32_t>& span = ReadFromRegister(leq.arg<B::update_register>());
+    Range range = ReadFromRegister(leq.arg<B::source_register>());
+    PERFETTO_DCHECK(range.size() <= span.size());
+
+    const auto& res = ReadFromRegister(leq.arg<B::filter_value_reg>());
+    if (!HandleInvalidCastFilterValueResult(res.validity, range)) {
+      std::iota(span.b, span.b + range.size(), range.b);
+      span.e = span.b + range.size();
+      return;
+    }
+
+    const Column& column = GetColumn(leq.arg<B::col>());
+    const auto* data = column.storage.template unchecked_data<T>();
+
+    using Compare = std::remove_cv_t<std::remove_reference_t<decltype(*data)>>;
+    using M = StorageType::VariantTypeAtIndex<T, CastFilterValueResult::Value>;
+    const auto& value = base::unchecked_get<M>(res.value);
+    Compare to_compare;
+    if constexpr (std::is_same_v<T, String>) {
+      auto id = string_pool_->GetId(value);
+      if (!id) {
+        span.e = span.b;
+        return;
+      }
+      to_compare = *id;
+    } else {
+      to_compare = value;
+    }
+
+    // Note to future readers: this can be optimized further with explicit SIMD
+    // but the compiler does a pretty good job even without it. For context,
+    // we're talking about query changing from 2s -> 1.6s on a 12m row table.
+    uint32_t* o_write = span.b;
+    for (uint32_t i = range.b; i < range.e; ++i) {
+      if (std::equal_to<>()(data[i], to_compare)) {
+        *o_write++ = i;
+      }
+    }
+    span.e = o_write;
+  }
+
   template <typename Op>
   PERFETTO_ALWAYS_INLINE uint32_t* FilterStringOp(const StringPool::Id* data,
                                                   const uint32_t* begin,
@@ -1163,26 +1340,34 @@ class Interpreter {
     const uint32_t* o_read = o_start;
     uint32_t* o_write = o_start;
     for (const uint32_t* it = begin; it != end; ++it, ++o_read) {
-      *o_write = *o_read;
-      o_write += comparator(data[*it], value);
+      // The choice of a brancy impleemntation is intentional: this seems faster
+      // than trying to do something branchless, likely because the compiler is
+      // helping us with branch prediction.
+      if (comparator(data[*it], value)) {
+        *o_write++ = *o_read;
+      }
     }
     return o_write;
   }
 
   // Similar to Filter but operates directly on the identity values
   // (indices) rather than dereferencing through a data array.
-  template <typename Comparator>
+  template <typename Comparator, typename ValueType>
   [[nodiscard]] PERFETTO_ALWAYS_INLINE static uint32_t* IdentityFilter(
       const uint32_t* begin,
       const uint32_t* end,
       uint32_t* o_start,
-      uint32_t value,
+      const ValueType& value,
       Comparator comparator) {
     const uint32_t* o_read = o_start;
     uint32_t* o_write = o_start;
     for (const uint32_t* it = begin; it != end; ++it, ++o_read) {
-      *o_write = *o_read;
-      o_write += comparator(*it, value);
+      // The choice of a brancy impleemntation is intentional: this seems faster
+      // than trying to do something branchless, likely because the compiler is
+      // helping us with branch prediction.
+      if (comparator(*it, value)) {
+        *o_write++ = *o_read;
+      }
     }
     return o_write;
   }
