@@ -38,6 +38,7 @@
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/typed_cursor.h"
 #include "src/trace_processor/dataframe/types.h"
 #include "src/trace_processor/util/regex.h"
 #include "test/gtest_and_gmock.h"
@@ -1539,16 +1540,15 @@ TEST(DataframeTest, TypedCursor) {
                      std::make_optional(pool.InternString("foo")));
   df.InsertUnchecked(kSpec, std::monostate(), 20u, std::nullopt, std::nullopt);
 
-  auto cursor =
-      df.CreateTypedCursorUnchecked(kSpec, {FilterSpec{0, 0, Eq{}, {}}}, {});
+  TypedCursor cursor(&df, {FilterSpec{0, 0, Eq{}, {}}}, {});
   {
     cursor.SetFilterValueUnchecked(0, 0l);
     cursor.ExecuteUnchecked();
     ASSERT_FALSE(cursor.Eof());
-    ASSERT_EQ(cursor.GetCellUnchecked<0>(), 0u);
-    ASSERT_EQ(cursor.GetCellUnchecked<1>(), 10u);
-    ASSERT_EQ(cursor.GetCellUnchecked<2>(), 0l);
-    ASSERT_EQ(cursor.GetCellUnchecked<3>(), pool.InternString("foo"));
+    ASSERT_EQ(cursor.GetCellUnchecked<0>(kSpec), 0u);
+    ASSERT_EQ(cursor.GetCellUnchecked<1>(kSpec), 10u);
+    ASSERT_EQ(cursor.GetCellUnchecked<2>(kSpec), 0l);
+    ASSERT_EQ(cursor.GetCellUnchecked<3>(kSpec), pool.InternString("foo"));
     cursor.Next();
     ASSERT_TRUE(cursor.Eof());
   }
@@ -1556,10 +1556,10 @@ TEST(DataframeTest, TypedCursor) {
     cursor.SetFilterValueUnchecked(0, 1l);
     cursor.ExecuteUnchecked();
     ASSERT_FALSE(cursor.Eof());
-    ASSERT_EQ(cursor.GetCellUnchecked<0>(), 1u);
-    ASSERT_EQ(cursor.GetCellUnchecked<1>(), 20u);
-    ASSERT_EQ(cursor.GetCellUnchecked<2>(), std::nullopt);
-    ASSERT_EQ(cursor.GetCellUnchecked<3>(), std::nullopt);
+    ASSERT_EQ(cursor.GetCellUnchecked<0>(kSpec), 1u);
+    ASSERT_EQ(cursor.GetCellUnchecked<1>(kSpec), 20u);
+    ASSERT_EQ(cursor.GetCellUnchecked<2>(kSpec), std::nullopt);
+    ASSERT_EQ(cursor.GetCellUnchecked<3>(kSpec), std::nullopt);
     cursor.Next();
     ASSERT_TRUE(cursor.Eof());
   }
@@ -1579,22 +1579,21 @@ TEST(DataframeTest, TypedCursorSetMultipleTimes) {
                      std::make_optional(pool.InternString("foo")));
   df.InsertUnchecked(kSpec, std::monostate(), 20u, std::nullopt, std::nullopt);
   {
-    auto cursor = df.CreateTypedCursorUnchecked(kSpec, {}, {});
+    TypedCursor cursor(&df, {}, {});
     cursor.ExecuteUnchecked();
     ASSERT_FALSE(cursor.Eof());
-    ASSERT_EQ(cursor.GetCellUnchecked<1>(), 10u);
-    cursor.SetCellUnchecked<1>(20u);
-    ASSERT_EQ(cursor.GetCellUnchecked<1>(), 20u);
+    ASSERT_EQ(cursor.GetCellUnchecked<1>(kSpec), 10u);
+    cursor.SetCellUnchecked<1>(kSpec, 20u);
+    ASSERT_EQ(cursor.GetCellUnchecked<1>(kSpec), 20u);
   }
   {
-    auto cursor =
-        df.CreateTypedCursorUnchecked(kSpec, {FilterSpec{1, 0, Eq{}, {}}}, {});
+    TypedCursor cursor(&df, {FilterSpec{1, 0, Eq{}, {}}}, {});
     cursor.SetFilterValueUnchecked(0, int64_t(20));
     cursor.ExecuteUnchecked();
     ASSERT_FALSE(cursor.Eof());
-    ASSERT_EQ(cursor.GetCellUnchecked<1>(), 20u);
-    cursor.SetCellUnchecked<1>(20u);
-    ASSERT_EQ(cursor.GetCellUnchecked<1>(), 20u);
+    ASSERT_EQ(cursor.GetCellUnchecked<1>(kSpec), 20u);
+    cursor.SetCellUnchecked<1>(kSpec, 20u);
+    ASSERT_EQ(cursor.GetCellUnchecked<1>(kSpec), 20u);
   }
 }
 
