@@ -130,7 +130,8 @@ class TraceBufferV2Test : public testing::Test {
   //     expected_seq << "{" << p << "," << w << "," << c << "},";
 
   //   std::stringstream actual_seq;
-  //   for (auto it = GetReadIterForSequence(p, w); it.is_valid(); it.MoveNext()) {
+  //   for (auto it = GetReadIterForSequence(p, w); it.is_valid();
+  //   it.MoveNext()) {
   //     actual_seq << "{" << it.producer_id() << "," << it.writer_id() << ","
   //                << it.chunk_id() << "},";
   //   }
@@ -184,7 +185,7 @@ TEST_F(TraceBufferV2Test, ReadWrite_EmptyBuffer) {
 // On each iteration writes a fixed-size chunk and reads it back.
 TEST_F(TraceBufferV2Test, ReadWrite_Simple) {
   ResetBuffer(64 * 1024);
-  for (ChunkID chunk_id = 0; chunk_id < 2 /*1000 TODO DNS*/; chunk_id++) {
+  for (ChunkID chunk_id = 0; chunk_id < 1000; chunk_id++) {
     char seed = static_cast<char>(chunk_id);
     CreateChunk(ProducerID(1), WriterID(1), chunk_id)
         .AddPacket(42, seed)
@@ -352,6 +353,8 @@ TEST_F(TraceBufferV2Test, ReadWrite_MinimalPadding) {
     ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
+// DNS I had to change this test because it was assuming readback in
+// producer,writer order, while instead now expects buffer order.
 TEST_F(TraceBufferV2Test, ReadWrite_RandomChunksNoWrapping) {
   for (unsigned int seed = 1; seed <= 32; seed++) {
     std::minstd_rand0 rnd_engine(seed);
@@ -360,7 +363,7 @@ TEST_F(TraceBufferV2Test, ReadWrite_RandomChunksNoWrapping) {
     std::uniform_int_distribution<ProducerID> prod_dist(1, kMaxProducerID);
     std::uniform_int_distribution<WriterID> wri_dist(1, kMaxWriterID);
     ChunkID chunk_id = 0;
-    std::map<std::tuple<ProducerID, WriterID, ChunkID>, size_t> expected_chunks;
+    std::vector<std::tuple<ProducerID, WriterID, ChunkID, size_t>> expected;
     for (;;) {
       const size_t chunk_size = size_dist(rnd_engine);
       if (base::AlignUp<16>(chunk_size) >= size_to_end())
@@ -368,15 +371,15 @@ TEST_F(TraceBufferV2Test, ReadWrite_RandomChunksNoWrapping) {
       ProducerID p = prod_dist(rnd_engine);
       WriterID w = wri_dist(rnd_engine);
       ChunkID c = chunk_id++;
-      expected_chunks.emplace(std::make_tuple(p, w, c), chunk_size);
+      expected.emplace_back(std::make_tuple(p, w, c, chunk_size));
       ASSERT_EQ(chunk_size,
                 CreateChunk(p, w, c)
                     .AddPacket(chunk_size - 16, static_cast<char>(chunk_size))
                     .CopyIntoTraceBuffer());
     }  // for(;;)
     trace_buffer()->BeginRead();
-    for (const auto& it : expected_chunks) {
-      const size_t chunk_size = it.second;
+    for (const auto& it : expected) {
+      const size_t chunk_size = std::get<3>(it);
       ASSERT_THAT(ReadPacket(),
                   ElementsAre(FakePacketFragment(
                       chunk_size - 16, static_cast<char>(chunk_size))));
@@ -396,11 +399,17 @@ TEST_F(TraceBufferV2Test, ReadWrite_WrappingCases) {
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4080 - 16, 'a')));
   ASSERT_THAT(ReadPacket(), IsEmpty());
 
+  PERFETTO_ELOG("----1");  // DNS
+
   ASSERT_EQ(16u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
                      .CopyIntoTraceBuffer());
   ASSERT_EQ(2048u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
                        .AddPacket(2048 - 16, 'b')
                        .CopyIntoTraceBuffer());
+
+  PERFETTO_ELOG("----");  // DNS
+  trace_buffer()->DumpForTesting();
+
   ASSERT_EQ(2048u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(3))
                        .AddPacket(2048 - 16, 'c')
                        .CopyIntoTraceBuffer());
@@ -479,8 +488,8 @@ TEST_F(TraceBufferV2Test, ReadWrite_WrappingCases) {
 //   ASSERT_THAT(GetIndex(), ElementsAre(ChunkMetaKey(1, 1, 9)));
 
 //   trace_buffer()->BeginRead();
-//   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(3104u - 16, 'j')));
-//   ASSERT_THAT(ReadPacket(), IsEmpty());
+//   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(3104u - 16,
+//   'j'))); ASSERT_THAT(ReadPacket(), IsEmpty());
 // }
 
 // Verify that empty packets are skipped.
@@ -1100,7 +1109,8 @@ TEST_F(TraceBufferV2Test, Malicious_OverflowingVarintHeader) {
 
 //   // Forge a packet which has a varint header that is just off by one.
 //   CreateChunk(ProducerID(2), WriterID(1), ChunkID(0))
-//       .AddPacket({0x16, '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b',
+//       .AddPacket({0x16, '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a',
+//       'b',
 //                   'c', 'd', 'e', 'f'})
 //       .CopyIntoTraceBuffer();
 
@@ -1115,8 +1125,8 @@ TEST_F(TraceBufferV2Test, Malicious_OverflowingVarintHeader) {
 //   chunk.back() = 0x7f;
 //   trace_buffer()->CopyChunkUntrusted(
 //       ProducerID(4), ClientIdentity(uid_t(0), pid_t(0)), WriterID(1),
-//       ChunkID(1), 1 /* num packets */, 0 /* flags*/, true /* chunk_complete */,
-//       chunk.data(), chunk.size());
+//       ChunkID(1), 1 /* num packets */, 0 /* flags*/, true /* chunk_complete
+//       */, chunk.data(), chunk.size());
 
 //   // Add a valid chunk.
 //   CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
@@ -1352,7 +1362,8 @@ TEST_F(TraceBufferV2Test, Malicious_OverrideWithDifferentOffsetAfterRead) {
 //   ASSERT_TRUE(IteratorSeqEq(ProducerID(-1), WriterID(-1), {}));
 //   ASSERT_TRUE(
 //       IteratorSeqEq(ProducerID(1), WriterID(1),
-//                     {kMaxChunkID - 2, kMaxChunkID - 1, kMaxChunkID, 0, 1, 2}));
+//                     {kMaxChunkID - 2, kMaxChunkID - 1, kMaxChunkID, 0, 1,
+//                     2}));
 // }
 
 // TEST_F(TraceBufferV2Test, Iterator_ManyStreamsOrdered) {
@@ -1389,9 +1400,10 @@ TEST_F(TraceBufferV2Test, Malicious_OverrideWithDifferentOffsetAfterRead) {
 //       {ProducerID(1), WriterID(1), ChunkID(0)},
 //       {ProducerID(3), WriterID(1), ChunkID(1)},
 //   });
-//   ASSERT_TRUE(IteratorSeqEq(ProducerID(1), WriterID(1), {Neg(-2), Neg(-1), 0}));
-//   ASSERT_TRUE(IteratorSeqEq(ProducerID(1), WriterID(2), {Neg(-1), 0, 1}));
-//   ASSERT_TRUE(IteratorSeqEq(ProducerID(3), WriterID(1), {Neg(-1), 0, 1}));
+//   ASSERT_TRUE(IteratorSeqEq(ProducerID(1), WriterID(1), {Neg(-2), Neg(-1),
+//   0})); ASSERT_TRUE(IteratorSeqEq(ProducerID(1), WriterID(2), {Neg(-1), 0,
+//   1})); ASSERT_TRUE(IteratorSeqEq(ProducerID(3), WriterID(1), {Neg(-1), 0,
+//   1}));
 // }
 
 // -------------------
@@ -1887,7 +1899,8 @@ TEST_F(TraceBufferV2Test, MissingPacketsOnSequence) {
 
 // TEST_F(TraceBufferV2Test, Clone_NoFragments) {
 //   const char kNumWriters = 3;
-//   for (char num_pre_reads = 0; num_pre_reads < kNumWriters; num_pre_reads++) {
+//   for (char num_pre_reads = 0; num_pre_reads < kNumWriters; num_pre_reads++)
+//   {
 //     ResetBuffer(4096);
 //     for (char i = 'A'; i < 'A' + kNumWriters; i++) {
 //       ASSERT_EQ(32u, CreateChunk(ProducerID(i), WriterID(i), ChunkID(i))
@@ -1897,7 +1910,8 @@ TEST_F(TraceBufferV2Test, MissingPacketsOnSequence) {
 
 //     ASSERT_EQ(trace_buffer()->used_size(), 32u * kNumWriters);
 
-//     // Make some reads *before* cloning. This is to check that the behaviour of
+//     // Make some reads *before* cloning. This is to check that the behaviour
+//     of
 //     // CloneReadOnly() is not affected by reads made before cloning.
 //     // On every round (|num_pre_reads|), read a different number of packets.
 //     for (char i = 0; i < num_pre_reads; i++) {
@@ -1929,7 +1943,8 @@ TEST_F(TraceBufferV2Test, MissingPacketsOnSequence) {
 //       .CopyIntoTraceBuffer();
 
 //   {
-//     // Create a snapshot before the middle 'b' chunk is copied. Only 'a' should
+//     // Create a snapshot before the middle 'b' chunk is copied. Only 'a'
+//     should
 //     // be readable at this point.
 //     std::unique_ptr<TraceBufferV2> snap = trace_buffer()->CloneReadOnly();
 //     snap->BeginRead();
@@ -1957,8 +1972,8 @@ TEST_F(TraceBufferV2Test, MissingPacketsOnSequence) {
 //       .CopyIntoTraceBuffer();
 //   CreateChunk(ProducerID(2), WriterID(1), ChunkID(0))
 //       .AddPacket(9, 'b')
-//       .ClearBytes(5, 4)  // 5 := 4th payload byte. Byte 0 is the varint header.
-//       .CopyIntoTraceBuffer();
+//       .ClearBytes(5, 4)  // 5 := 4th payload byte. Byte 0 is the varint
+//       header. .CopyIntoTraceBuffer();
 //   CreateChunk(ProducerID(3), WriterID(1), ChunkID(0))
 //       .AddPacket(100, 'c')
 //       .CopyIntoTraceBuffer();
@@ -1968,15 +1983,15 @@ TEST_F(TraceBufferV2Test, MissingPacketsOnSequence) {
 //   std::unique_ptr<TraceBufferV2> snap = trace_buffer()->CloneReadOnly();
 //   snap->BeginRead();
 //   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(100, 'a')));
-//   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment("b00-YMCA", 8)));
-//   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(100, 'c')));
-//   ASSERT_THAT(ReadPacket(snap), IsEmpty());
+//   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment("b00-YMCA",
+//   8))); ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(100,
+//   'c'))); ASSERT_THAT(ReadPacket(snap), IsEmpty());
 // }
 
 // TEST_F(TraceBufferV2Test, Clone_Wrapping) {
 //   ResetBuffer(4096);
-//   const size_t kFrgSize = 1024 - 16;  // For perfect wrapping every 4 fragments.
-//   for (WriterID i = 0; i < 6; i++) {
+//   const size_t kFrgSize = 1024 - 16;  // For perfect wrapping every 4
+//   fragments. for (WriterID i = 0; i < 6; i++) {
 //     CreateChunk(ProducerID(1), WriterID(i), ChunkID(0))
 //         .AddPacket(kFrgSize, static_cast<char>('a' + i))
 //         .CopyIntoTraceBuffer();
@@ -1984,10 +1999,12 @@ TEST_F(TraceBufferV2Test, MissingPacketsOnSequence) {
 //   std::unique_ptr<TraceBufferV2> snap = trace_buffer()->CloneReadOnly();
 //   ASSERT_EQ(snap->used_size(), snap->size());
 //   snap->BeginRead();
-//   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(kFrgSize, 'c')));
-//   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(kFrgSize, 'd')));
-//   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(kFrgSize, 'e')));
-//   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(kFrgSize, 'f')));
+//   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(kFrgSize,
+//   'c'))); ASSERT_THAT(ReadPacket(snap),
+//   ElementsAre(FakePacketFragment(kFrgSize, 'd')));
+//   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(kFrgSize,
+//   'e'))); ASSERT_THAT(ReadPacket(snap),
+//   ElementsAre(FakePacketFragment(kFrgSize, 'f')));
 //   ASSERT_THAT(ReadPacket(snap), IsEmpty());
 // }
 
@@ -1998,9 +2015,10 @@ TEST_F(TraceBufferV2Test, MissingPacketsOnSequence) {
 //       .AddPacket(2048, static_cast<char>('a'))
 //       .CopyIntoTraceBuffer();
 
-//   // Then write a 3KB chunk that fits in the buffer, but requires zero padding
-//   // and restarting from the beginning, so the contents are [bbbbbbbbbbbb0000].
-//   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+//   // Then write a 3KB chunk that fits in the buffer, but requires zero
+//   padding
+//   // and restarting from the beginning, so the contents are
+//   [bbbbbbbbbbbb0000]. CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
 //       .AddPacket(3192, static_cast<char>('b'))
 //       .CopyIntoTraceBuffer();
 
@@ -2027,10 +2045,12 @@ TEST_F(TraceBufferV2Test, MissingPacketsOnSequence) {
 //     return first_mapped && !rest_mapped;
 //   };
 
-//   // If the test doesn't work as expected until here, there is no point checking
-//   // that the same assumptions hold true on the cloned buffer. Various platforms
-//   // can legitimately pre-fetch memory even if we don't page fault (also asan).
-//   if (!is_only_first_page_mapped(*trace_buffer()))
+//   // If the test doesn't work as expected until here, there is no point
+//   checking
+//   // that the same assumptions hold true on the cloned buffer. Various
+//   platforms
+//   // can legitimately pre-fetch memory even if we don't page fault (also
+//   asan). if (!is_only_first_page_mapped(*trace_buffer()))
 //     GTEST_SKIP() << "VM commit detection not supported";
 
 //   std::unique_ptr<TraceBufferV2> snap = trace_buffer()->CloneReadOnly();

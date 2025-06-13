@@ -63,12 +63,15 @@ struct TBChunk {
   ProducerAndWriterID pri_wri_id = 0;
 
   // Size of the payload, excluding the TBCHunk header itself, and without
-  // accounting for any alignment.
+  // accounting for any alignment. This doesn't change throughout the lifecycle
+  // of a chunk.
   uint16_t payload_size = 0;
 
-  // The offset of the next unconsumed fragment. This starts at 0 when we write
-  // the chunk, and grows up to `payload_size` as we read fragments.
-  uint16_t payload_consumed = 0;
+  // The size of "unconsumed" payload. This starts at payload_size when a chunk
+  // is created (unless it's a zero padding chunk) and goes down to 0 as we
+  // read/erase chunks. Payload is consumed always in FIFO order, so the offset
+  // of the next unread fragment is (payload_size - payload_avail).
+  uint16_t payload_avail = 0;
 
   // These are == the SharedMemoryABI's chunk flags.
   uint8_t flags = 0;
@@ -77,7 +80,15 @@ struct TBChunk {
   // buffer, when no chunk exists and we hit 0-initialized mmap memory.
   // The fact that a chunk exists doesn't imply that is valid. A padding chunk
   // has exist=1, but pri_wi_id == 0;
+  // TODO remove this, not needed after all with used_size_.
   uint8_t exists = 0;
+
+  // Returns the offset to the next unread fragment in the chunk. Note that this
+  // points to the next fragment header (the varint with the size) NOT payload.
+  uint16_t unread_payload_off() {
+    PERFETTO_DCHECK((payload_avail <= payload_size));
+    return payload_size - payload_avail;
+  }
 
   static size_t OuterSize(size_t payload) {
     return base::AlignUp<alignof(TBChunk)>(sizeof(TBChunk) + payload);
@@ -89,11 +100,6 @@ struct TBChunk {
   uint8_t* fragments_begin() {
     return reinterpret_cast<uint8_t*>(this) + sizeof(TBChunk);
   }
-
-  // uint8_t* unread_fragments_begin() {
-  //   PERFETTO_DCHECK(payload_consumed <= payload_size);
-  //   return fragments_begin() + payload_consumed;
-  // }
 
   uint8_t* fragments_end() { return fragments_begin() + payload_size; }
 };
@@ -108,7 +114,11 @@ struct SequenceState {
   ProducerID producer_id = 0;
   WriterID writer_id = 0;
   ClientIdentity client_identity{};
-  uint64_t ignore_in_read_pass = 0;  // TODO remember to clear when cloning.
+
+  uint64_t read_generation = 0;
+  // The vars below apply only when read_pass matches the TraceBuffer read_pass.
+  bool skip = false;
+  std::optional<ChunkID> last_chunk_id_processed = 0;
 
   // An ordered list of chunks (ordered by their chunk_id). Each member
   // corresponsds to the offset within buf_ for the chunk.
@@ -118,7 +128,7 @@ struct SequenceState {
 };
 
 struct Frag {
-  enum FragType {
+  enum FragType : uint8_t {
     kFragWholePacket,
     kFragBegin,
     kFragContinue,
@@ -126,18 +136,16 @@ struct Frag {
   };
 
   TBChunk* chunk = nullptr;
+  SequenceState* seq = nullptr;  // TODO maybe unneeded delete.
 
-  // The offset of the payload start within the chunk.
-  uint16_t payload_off = 0;
-
-  // The size of the fragment payload (without any rounding / aligning).
-  uint16_t size = 0;
-
-  uint8_t* begin() { return chunk->fragments_begin() + payload_off; }
-  uint8_t* end() { return chunk->fragments_begin() + payload_off + size; }
-  uint16_t end_off() { return payload_off + size; }
-
+  uint16_t off;      // The offset of the fragment header within the chunk.
+  uint16_t size;     // Total size of the fragment, including header.
+  uint8_t hdr_size;  // The size of the varint header.
   FragType type = kFragWholePacket;
+
+  uint16_t payload_size() const { return size - hdr_size; }
+  uint8_t* begin() { return chunk->fragments_begin() + off + hdr_size; }
+  uint8_t* end() { return begin() + size; }
 };
 
 // BufIterator encapsulates the logic to move around chunks and fragments in
@@ -193,10 +201,9 @@ class BufIterator {
   BufIterator(const BufIterator&) = default;  // Deliberately copyable.
   BufIterator& operator=(const BufIterator&) = default;
 
-
   void SetChunk(TBChunk* chunk) {
     chunk_ = chunk;
-    next_frag_off_ = 0;
+    next_frag_off_ = chunk->unread_payload_off();
   }
 
   // Depending on the current iteration state, either:
@@ -206,19 +213,15 @@ class BufIterator {
   // `limit` chunk while iterating in buffer order mode. This is used to
   // implement the "DeleteNextChunksFor()" while overwriting.
   bool NextChunk();
-
   bool NextChunkInSequence();
-  bool NextChunkInBuffer();
-
+  bool NextChunkInBuffer(bool first_call_from_ctor = false);
   std::optional<Frag> NextFragmentInChunk();
+  void EraseCurrentChunk();
 
-  // TODO rename this. Also reverse logic of consumed to available.
-  void Consume() {
-    PERFETTO_DCHECK(chunk_->payload_consumed <= next_frag_off_);
-    PERFETTO_DCHECK(next_frag_off_ <= chunk_->payload_size);
-    chunk_->payload_consumed = next_frag_off_;
+  bool valid() {
+    PERFETTO_DCHECK((!chunk_ && !target_chunk_) || (chunk_ && target_chunk_));
+    return chunk_ != nullptr;
   }
-
   TBChunk* chunk() { return chunk_; }
   TBChunk* target_chunk() { return target_chunk_; }
   SequenceState* sequence_state() { return seq_; }
@@ -229,6 +232,12 @@ class BufIterator {
   TBChunk* target_chunk_ = nullptr;
 
   SequenceState* seq_ = nullptr;
+
+  // This field is the offset within the seq_.chunks list of the current chunk
+  // id. This is incremented every time NextChunkInSequence() advances
+  // (non-destructively) and reset every time NextChunkInBuffer moves to a
+  // different sequence.
+  size_t seq_idx_ = 0;  // TODO rename.
 
   // Position of the next fragment within the current `chunk_`.
   uint16_t next_frag_off_ = 0;
@@ -304,6 +313,8 @@ class TraceBufferV2 {
   OverwritePolicy overwrite_policy() const { return overwrite_policy_; }
   const TraceStats::BufferStats& stats() const { return stats_; }
 
+  void DumpForTesting();
+
  private:
   using BufIterator = internal::BufIterator;
   using Frag = internal::Frag;
@@ -323,8 +334,8 @@ class TraceBufferV2 {
 
   bool Initialize(size_t size);
   TBChunk* CreateTBChunk(size_t off, size_t payload_size);
-
   bool DeleteNextChunksFor(size_t bytes_to_clear);
+  void ConsumeFragment(Frag*);
 
   enum class FragReassemblyResult { kSuccess = 0, kNotEnoughData, kDataLoss };
   FragReassemblyResult ReassembleFragmentedPacket(TracePacket* out_packet,
@@ -358,14 +369,11 @@ class TraceBufferV2 {
   size_t OffsetOf(const TBChunk* chunk) {
     uintptr_t addr = reinterpret_cast<uintptr_t>(chunk);
     uintptr_t buf_start = reinterpret_cast<uintptr_t>(begin());
-    // TODO check this
     PERFETTO_DCHECK(addr >= buf_start && buf_start <= addr + size_);
     return static_cast<size_t>(addr - buf_start);
   }
 
-  void EraseTBChunk(TBChunk*, SequenceState*);
   void DiscardWrite() {}  // TODO DNS
-  void DumpForTesting();
 
   uint8_t* begin() const { return reinterpret_cast<uint8_t*>(data_.Get()); }
   uint8_t* end() const { return begin() + size_; }
@@ -394,7 +402,7 @@ class TraceBufferV2 {
   internal::BufIterator rd_iter_;
 
   // A generation counter incremented every time BeginRead() is called.
-  uint64_t read_pass_ = 0;
+  uint64_t read_generation_ = 0;
 
   // When true disable some DCHECKs that have been put in place to detect
   // bugs in the producers. This is for tests that feed malicious inputs and
