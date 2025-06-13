@@ -31,6 +31,7 @@
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/typed_cursor.h"
 #include "src/trace_processor/dataframe/types.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
 #include "src/trace_processor/util/status_macros.h"
@@ -139,10 +140,9 @@ base::StatusOr<Index> Dataframe::BuildIndex(const uint32_t* columns_start,
 
   // Heap allocate to avoid potential stack overflows due to large cursor
   // object.
-  auto c = std::make_unique<Cursor<ErrorValueFetcher>>();
-  PrepareCursor(plan, *c);
-  ErrorValueFetcher vf{};
-  c->Execute(vf);
+  auto c = std::make_unique<TypedCursor>(this, std::vector<FilterSpec>(),
+                                         std::vector<SortSpec>());
+  c->ExecuteUnchecked();
 
   std::vector<uint32_t> permutation;
   permutation.reserve(row_count_);
