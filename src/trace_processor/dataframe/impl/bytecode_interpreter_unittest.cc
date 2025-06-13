@@ -2260,8 +2260,8 @@ TEST_F(BytecodeInterpreterTest, InUint32) {
 }
 
 TEST_F(BytecodeInterpreterTest, InIdBitVectorSparse) {
-  AddColumn(impl::Column{CreateFlexVectorForTesting<uint32_t>({}),
-                         NullStorage::NonNull{}, Unsorted{}, HasDuplicates{}});
+  AddColumn(impl::Column{impl::Storage::Id{1000}, NullStorage::NonNull{},
+                         Unsorted{}, HasDuplicates{}});
 
   std::string bytecode =
       "In<Id>: [col=0, value_list_register=Register(0), "
