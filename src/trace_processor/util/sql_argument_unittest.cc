@@ -60,7 +60,7 @@ TEST(SqlArgumentTest, ParseType) {
 TEST(SqlArgumentTest, TypeToFriendlyString) {
   ASSERT_STREQ(TypeToHumanFriendlyString(Type::kBytes), "BYTES");
   ASSERT_STREQ(TypeToHumanFriendlyString(Type::kBool), "BOOL");
-  ASSERT_STREQ(TypeToHumanFriendlyString(Type::kLong), "UINT");
+  ASSERT_STREQ(TypeToHumanFriendlyString(Type::kLong), "LONG");
 }
 
 TEST(SqlArgumentTest, TypeToSqlValueType) {
@@ -79,7 +79,7 @@ TEST(SqlArgumentTest, ParseArguments) {
   ParseArgsSuccessfully("\nfoo UINT,\n bar LONG, baz PROTO\n",
                         {ArgumentDefinition("$foo", Type::kLong),
                          ArgumentDefinition("$bar", Type::kLong),
-                         ArgumentDefinition("$baz", Type::kBool)});
+                         ArgumentDefinition("$baz", Type::kBytes)});
   ParseArgsSuccessfully("foo123 UINT",
                         {ArgumentDefinition("$foo123", Type::kLong)});
 

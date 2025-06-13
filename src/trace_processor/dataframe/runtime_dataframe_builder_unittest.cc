@@ -228,15 +228,17 @@ TEST_F(DataframeBuilderTest, AddRowErrorStringToInt) {
   ASSERT_FALSE(builder.AddRow(&fetcher));
   ASSERT_FALSE(builder.status().ok());
 
-  EXPECT_THAT(builder.status().message(),
-              testing::HasSubstr("Type mismatch in column 'col_a'"));
-  EXPECT_THAT(builder.status().message(),
-              testing::HasSubstr("Existing type != fetched type"));
+  EXPECT_THAT(
+      builder.status().message(),
+      testing::HasSubstr("column 'col_a' was inferred to be LONG, but "
+                         "later received a value of type STRING"));
 
   base::StatusOr<Dataframe> df_status = std::move(builder).Build();
   ASSERT_FALSE(df_status.ok());
-  EXPECT_THAT(df_status.status().message(),
-              testing::HasSubstr("Type mismatch in column 'col_a'"));
+  EXPECT_THAT(
+      df_status.status().message(),
+      testing::HasSubstr("column 'col_a' was inferred to be LONG, but "
+                         "later received a value of type STRING"));
 }
 
 TEST_F(DataframeBuilderTest, AddRowPromoteIntColumnToDouble) {
