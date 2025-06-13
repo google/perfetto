@@ -61,7 +61,7 @@ class FtraceTokenizer {
 
   void HandleFtraceClockSnapshot(int64_t ftrace_ts,
                                  int64_t boot_ts,
-                                 uint32_t packet_sequence_id);
+                                 int64_t clock_id);
   void TokenizeFtraceGpuWorkPeriod(uint32_t cpu,
                                    TraceBlobView event,
                                    RefPtr<PacketSequenceStateGeneration> state);

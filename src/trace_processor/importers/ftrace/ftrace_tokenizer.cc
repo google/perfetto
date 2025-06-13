@@ -31,11 +31,10 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
-#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
-#include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -49,8 +48,7 @@
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "protos/perfetto/trace/ftrace/thermal_exynos.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 using protozero::ProtoDecoder;
 using protozero::proto_utils::MakeTagVarInt;
@@ -61,8 +59,6 @@ using protos::pbzero::FtraceClock;
 using protos::pbzero::FtraceEventBundle;
 
 namespace {
-
-static constexpr uint32_t kFtraceGlobalClockIdForOldKernels = 64;
 
 // Fast path for parsing the event id of an ftrace event.
 // Speculate on the fact that, if the timestamp was found, the common pid
@@ -142,15 +138,13 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
     case FtraceClock::FTRACE_CLOCK_UNSPECIFIED:
       clock_id = BuiltinClock::BUILTIN_CLOCK_BOOTTIME;
       break;
-    case FtraceClock::FTRACE_CLOCK_GLOBAL:
-      clock_id = ClockTracker::SequenceToGlobalClock(
-          packet_sequence_id, kFtraceGlobalClockIdForOldKernels);
-      break;
     case FtraceClock::FTRACE_CLOCK_MONO_RAW:
       clock_id = BuiltinClock::BUILTIN_CLOCK_MONOTONIC_RAW;
       break;
+    case FtraceClock::FTRACE_CLOCK_GLOBAL:
     case FtraceClock::FTRACE_CLOCK_LOCAL:
-      return base::ErrStatus("Unable to parse ftrace packets with local clock");
+      clock_id = (static_cast<int64_t>(packet_sequence_id) << 32) | cpu;
+      break;
     default:
       return base::ErrStatus(
           "Unable to parse ftrace packets with unknown clock");
@@ -433,17 +427,14 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedWaking(
 
 void FtraceTokenizer::HandleFtraceClockSnapshot(int64_t ftrace_ts,
                                                 int64_t boot_ts,
-                                                uint32_t packet_sequence_id) {
+                                                int64_t clock_id) {
   // If we've already seen a snapshot at this timestamp, don't unnecessarily
   // add another entry to the clock tracker.
   if (latest_ftrace_clock_snapshot_ts_ == ftrace_ts)
     return;
   latest_ftrace_clock_snapshot_ts_ = ftrace_ts;
-
-  ClockTracker::ClockId global_id = ClockTracker::SequenceToGlobalClock(
-      packet_sequence_id, kFtraceGlobalClockIdForOldKernels);
   context_->clock_tracker->AddSnapshot(
-      {ClockTracker::ClockTimestamp(global_id, ftrace_ts),
+      {ClockTracker::ClockTimestamp(clock_id, ftrace_ts),
        ClockTracker::ClockTimestamp(BuiltinClock::BUILTIN_CLOCK_BOOTTIME,
                                     boot_ts)});
 }
@@ -548,5 +539,4 @@ std::optional<protozero::Field> FtraceTokenizer::GetFtraceEventField(
   return ts_field;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
