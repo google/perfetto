@@ -253,25 +253,22 @@ void FtraceController::StartIfNeeded(FtraceInstanceState* instance,
   // of multiple ftrace instances, this might already be valid.
   parsing_mem_.AllocateIfNeeded();
 
-  const auto ftrace_clock = instance->ftrace_config_muxer->ftrace_clock();
+  instance->ftrace_clock = instance->ftrace_config_muxer->ftrace_clock();
   size_t num_cpus = instance->ftrace_procfs->NumberOfCpus();
+
+  PERFETTO_CHECK(instance->cpu_clock_state.empty());
+  instance->cpu_clock_state.reserve(num_cpus);
+  for (size_t cpu = 0; cpu < num_cpus; cpu++) {
+    instance->cpu_clock_state.emplace_back(
+        CpuClockState{instance->ftrace_procfs->OpenCpuStats(cpu), {}});
+  }
+
   PERFETTO_CHECK(instance->cpu_readers.empty());
-  instance->cpu_readers.reserve(num_cpus);
   for (size_t cpu = 0; cpu < num_cpus; cpu++) {
     instance->cpu_readers.emplace_back(
         cpu, instance->ftrace_procfs->OpenPipeForCpu(cpu),
-        instance->table.get(), &symbolizer_, ftrace_clock,
-        &ftrace_clock_snapshot_);
-  }
-
-  // Special case for primary instance: if not using the boot clock, take
-  // manual clock snapshots so that the trace parser can do a best effort
-  // conversion back to boot. This is primarily for old kernels that predate
-  // boot support, and therefore default to "global" clock.
-  if (instance == &primary_ &&
-      ftrace_clock != protos::pbzero::FtraceClock::FTRACE_CLOCK_UNSPECIFIED) {
-    cpu_zero_stats_fd_ = primary_.ftrace_procfs->OpenCpuStats(0 /* cpu */);
-    MaybeSnapshotFtraceClock();
+        instance->table.get(), &symbolizer_, instance->ftrace_clock,
+        &instance->cpu_clock_state[cpu].clock_snapshot);
   }
 
   // Set up poll callbacks for the buffers if requested by at least one DS.
@@ -311,7 +308,6 @@ void FtraceController::ReadTick(int generation) {
   if (generation != tick_generation_ || GetStartedDataSourcesCount() == 0) {
     return;
   }
-  MaybeSnapshotFtraceClock();
 
   // Read all per-cpu buffers.
   bool all_cpus_done = true;
@@ -354,6 +350,7 @@ void FtraceController::ReadTick(int generation) {
 bool FtraceController::ReadPassForInstance(FtraceInstanceState* instance) {
   if (instance->started_data_sources.empty())
     return true;
+  MaybeSnapshotFtraceClock(instance);
 
   bool all_cpus_done = true;
   for (size_t i = 0; i < instance->cpu_readers.size(); i++) {
@@ -485,7 +482,7 @@ void FtraceController::OnBufferPastWatermark(const std::string& instance_name,
     }
   }
 
-  MaybeSnapshotFtraceClock();
+  MaybeSnapshotFtraceClock(instance);
   bool all_cpus_done = ReadPassForInstance(instance);
   observer_->OnFtraceDataWrittenIntoDataSourceBuffers();
   if (!all_cpus_done) {
@@ -539,9 +536,7 @@ void FtraceController::StopIfNeeded(FtraceInstanceState* instance) {
 
   RemoveBufferWatermarkWatches(instance);
   instance->cpu_readers.clear();
-  if (instance == &primary_) {
-    cpu_zero_stats_fd_.reset();
-  }
+  instance->cpu_clock_state.clear();
   // Muxer cannot change the current_tracer until we close the trace pipe fds
   // (i.e. per_cpu). Hence an explicit request here.
   instance->ftrace_config_muxer->ResetCurrentTracer();
@@ -691,21 +686,21 @@ void FtraceController::DumpFtraceStats(FtraceDataSource* data_source,
   }
 }
 
-void FtraceController::MaybeSnapshotFtraceClock() {
-  if (!cpu_zero_stats_fd_)
+void FtraceController::MaybeSnapshotFtraceClock(FtraceInstanceState* instance) {
+  if (instance->ftrace_clock ==
+      protos::pbzero::FtraceClock::FTRACE_CLOCK_UNSPECIFIED)
     return;
 
-  auto ftrace_clock = primary_.ftrace_config_muxer->ftrace_clock();
-  PERFETTO_DCHECK(ftrace_clock != protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
+  for (auto& clock : instance->cpu_clock_state) {
+    // Snapshot the boot clock *before* reading CPU stats so that
+    // two clocks are as close togher as possible (i.e. if it was the
+    // other way round, we'd skew by the const of string parsing).
+    clock.clock_snapshot.boot_clock_ts = base::GetBootTimeNs().count();
 
-  // Snapshot the boot clock *before* reading CPU stats so that
-  // two clocks are as close togher as possible (i.e. if it was the
-  // other way round, we'd skew by the const of string parsing).
-  ftrace_clock_snapshot_.boot_clock_ts = base::GetBootTimeNs().count();
-
-  // A value of zero will cause this snapshot to be skipped.
-  ftrace_clock_snapshot_.ftrace_clock_ts =
-      ReadFtraceNowTs(cpu_zero_stats_fd_).value_or(0);
+    // A value of zero will cause this snapshot to be skipped.
+    clock.clock_snapshot.ftrace_clock_ts =
+        ReadFtraceNowTs(clock.cpu_stats_fd).value_or(0);
+  }
 }
 
 FtraceController::PollSupport

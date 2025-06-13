@@ -108,6 +108,11 @@ class FtraceController {
                    base::TaskRunner*,
                    Observer*);
 
+  struct CpuClockState {
+    base::ScopedFile cpu_stats_fd;
+    FtraceClockSnapshot clock_snapshot;
+  };
+
   struct FtraceInstanceState {
     FtraceInstanceState(std::unique_ptr<FtraceProcfs>,
                         std::unique_ptr<ProtoTranslationTable>,
@@ -117,6 +122,9 @@ class FtraceController {
     std::unique_ptr<ProtoTranslationTable> table;
     std::unique_ptr<FtraceConfigMuxer> ftrace_config_muxer;
     std::vector<CpuReader> cpu_readers;  // empty if no started data sources
+    std::vector<CpuClockState> cpu_clock_state;  // same size as cpu_readers
+    protos::pbzero::FtraceClock ftrace_clock =
+        protos::pbzero::FtraceClock::FTRACE_CLOCK_UNSPECIFIED;
     std::set<FtraceDataSource*> started_data_sources;
     bool buffer_watches_posted = false;
   };
@@ -158,7 +166,7 @@ class FtraceController {
   void DestroyIfUnusedSeconaryInstance(FtraceInstanceState* instance);
 
   size_t GetStartedDataSourcesCount();
-  void MaybeSnapshotFtraceClock();  // valid only for primary_ tracefs instance
+  static void MaybeSnapshotFtraceClock(FtraceInstanceState* instance);
 
   template <typename F /* void(FtraceInstanceState*) */>
   void ForEachInstance(F fn);
@@ -180,11 +188,6 @@ class FtraceController {
   FtraceInstanceState primary_;
   std::map<std::string, std::unique_ptr<FtraceInstanceState>>
       secondary_instances_;
-
-  // Additional state for snapshotting non-boot ftrace clock, specific to the
-  // primary_ instance:
-  base::ScopedFile cpu_zero_stats_fd_;
-  FtraceClockSnapshot ftrace_clock_snapshot_;
 
   base::WeakPtrFactory<FtraceController> weak_factory_;  // Keep last.
 };
