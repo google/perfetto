@@ -470,6 +470,18 @@ TEST_F(DataframeBuilderTest, DuplicateState_Int_HasDuplicates_NonNull) {
                   ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
 }
 
+TEST_F(DataframeBuilderTest, DuplicateState_Int_NegativeConsideredDuplicate) {
+  base::StatusOr<Dataframe> df_status =
+      BuildDf({"col_int"}, {{int64_t{-10}}, {int64_t{-20}}, {int64_t{-10}}});
+  ASSERT_OK(df_status.status());
+  Dataframe df = std::move(df_status.value());
+  auto spec = df.CreateSpec();
+  ASSERT_THAT(
+      spec.column_specs,
+      ElementsAre(ColumnSpec{Int32{}, NonNull{}, Unsorted{}, HasDuplicates{}},
+                  ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
+}
+
 TEST_F(DataframeBuilderTest, DuplicateState_Int_NullableBecomesHasDuplicates) {
   base::StatusOr<Dataframe> df_status =
       BuildDf({"col_int"}, {{int64_t{10}}, {std::nullopt}, {int64_t{30}}});
