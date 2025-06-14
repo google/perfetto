@@ -615,7 +615,7 @@ class AdhocDataframeBuilder {
   // Returns true if the value is a definite duplicate.
   PERFETTO_ALWAYS_INLINE bool CheckDuplicate(int64_t value, size_t size) {
     if (value < 0) {
-      return false;
+      return true;
     }
     if (PERFETTO_UNLIKELY(value >=
                           static_cast<int64_t>(duplicate_bit_vector_.size()))) {
