@@ -404,7 +404,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
 
     if (size.width > 0 && timescale.timeSpan.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width);
-      const offset = this.trace.timeline.timestampOffset();
+      const offset = this.trace.timeline.getTimeAxisOrigin();
       for (const {type, time} of generateTicks(
         timescale.timeSpan.toTimeSpan(),
         maxMajorTicks,
