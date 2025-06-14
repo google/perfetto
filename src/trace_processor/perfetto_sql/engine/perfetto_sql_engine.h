@@ -431,9 +431,6 @@ class PerfettoSqlEngine {
   // instances which are operating on different threads.
   DataframeSharedStorage* dataframe_shared_storage_;
 
-  // Counter for runtime table functions placed into the shared storage.
-  uint64_t runtime_table_key_counter_ = 0;
-
   // If true, engine will perform additional consistency checks when e.g.
   // creating tables and views.
   const bool enable_extra_checks_;
