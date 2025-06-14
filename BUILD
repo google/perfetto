@@ -1671,6 +1671,8 @@ perfetto_filegroup(
         "src/trace_processor/dataframe/impl/bytecode_core.h",
         "src/trace_processor/dataframe/impl/bytecode_instructions.h",
         "src/trace_processor/dataframe/impl/bytecode_interpreter.h",
+        "src/trace_processor/dataframe/impl/bytecode_interpreter_impl.h",
+        "src/trace_processor/dataframe/impl/bytecode_interpreter_state.h",
         "src/trace_processor/dataframe/impl/bytecode_registers.h",
         "src/trace_processor/dataframe/impl/flex_vector.h",
         "src/trace_processor/dataframe/impl/query_plan.cc",
@@ -1686,9 +1688,12 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/dataframe/adhoc_dataframe_builder.h",
         "src/trace_processor/dataframe/cursor.h",
+        "src/trace_processor/dataframe/cursor_impl.h",
         "src/trace_processor/dataframe/dataframe.cc",
         "src/trace_processor/dataframe/dataframe.h",
         "src/trace_processor/dataframe/runtime_dataframe_builder.h",
+        "src/trace_processor/dataframe/typed_cursor.cc",
+        "src/trace_processor/dataframe/typed_cursor.h",
     ],
 )
 

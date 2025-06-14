@@ -42,6 +42,7 @@
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
+#include "src/trace_processor/dataframe/impl/bytecode_interpreter_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/dataframe/impl/bytecode_registers.h"
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
 #include "src/trace_processor/dataframe/impl/slab.h"
