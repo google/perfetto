@@ -28,6 +28,7 @@ EXPERIMENTAL_PROTO_PATH_TABLE = Table(
     python_module=__file__,
     class_name='ExperimentalProtoPathTable',
     sql_name='experimental_proto_path',
+    use_legacy_table_backend=True,
     columns=[
         C('parent_id', CppOptional(CppSelfTableId())),
         C('field_type', CppString()),

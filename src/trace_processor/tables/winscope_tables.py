@@ -28,6 +28,7 @@ INPUTMETHOD_CLIENTS_TABLE = Table(
     python_module=__file__,
     class_name='InputMethodClientsTable',
     sql_name='__intrinsic_inputmethod_clients',
+    use_legacy_table_backend=True,
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C(
@@ -50,6 +51,7 @@ INPUTMETHOD_MANAGER_SERVICE_TABLE = Table(
     python_module=__file__,
     class_name='InputMethodManagerServiceTable',
     sql_name='__intrinsic_inputmethod_manager_service',
+    use_legacy_table_backend=True,
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C(
@@ -72,6 +74,7 @@ INPUTMETHOD_SERVICE_TABLE = Table(
     python_module=__file__,
     class_name='InputMethodServiceTable',
     sql_name='__intrinsic_inputmethod_service',
+    use_legacy_table_backend=True,
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C(
@@ -94,6 +97,7 @@ SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE = Table(
     python_module=__file__,
     class_name='SurfaceFlingerLayersSnapshotTable',
     sql_name='surfaceflinger_layers_snapshot',
+    use_legacy_table_backend=True,
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C(
@@ -116,6 +120,7 @@ SURFACE_FLINGER_LAYER_TABLE = Table(
     python_module=__file__,
     class_name='SurfaceFlingerLayerTable',
     sql_name='surfaceflinger_layer',
+    use_legacy_table_backend=True,
     columns=[
         C('snapshot_id', CppTableId(SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE)),
         C(
@@ -138,6 +143,7 @@ SURFACE_FLINGER_TRANSACTIONS_TABLE = Table(
     python_module=__file__,
     class_name='SurfaceFlingerTransactionsTable',
     sql_name='surfaceflinger_transactions',
+    use_legacy_table_backend=True,
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C(
@@ -163,6 +169,7 @@ SURFACE_FLINGER_TRANSACTION_TABLE = Table(
     python_module=__file__,
     class_name='SurfaceFlingerTransactionTable',
     sql_name='__intrinsic_surfaceflinger_transaction',
+    use_legacy_table_backend=True,
     columns=[
         C('snapshot_id', CppTableId(SURFACE_FLINGER_TRANSACTIONS_TABLE)),
         C(
@@ -227,6 +234,7 @@ VIEWCAPTURE_TABLE = Table(
     python_module=__file__,
     class_name='ViewCaptureTable',
     sql_name='__intrinsic_viewcapture',
+    use_legacy_table_backend=True,
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C(
@@ -249,6 +257,7 @@ VIEWCAPTURE_VIEW_TABLE = Table(
     python_module=__file__,
     class_name='ViewCaptureViewTable',
     sql_name='__intrinsic_viewcapture_view',
+    use_legacy_table_backend=True,
     columns=[
         C('snapshot_id', CppTableId(VIEWCAPTURE_TABLE)),
         C(
@@ -271,6 +280,7 @@ VIEWCAPTURE_INTERNED_DATA_TABLE = Table(
     python_module=__file__,
     class_name='ViewCaptureInternedDataTable',
     sql_name='__intrinsic_viewcapture_interned_data',
+    use_legacy_table_backend=True,
     columns=[
         C('base64_proto_id', CppUint32(), cpp_access=CppAccess.READ),
         C('flat_key', CppString(), cpp_access=CppAccess.READ),
@@ -291,6 +301,7 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
     python_module=__file__,
     class_name='WindowManagerShellTransitionsTable',
     sql_name='window_manager_shell_transitions',
+    use_legacy_table_backend=True,
     columns=[
         C('ts', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
         C('transition_id', CppInt64(), ColumnFlag.SORTED),
@@ -401,6 +412,7 @@ WINDOW_MANAGER_SHELL_TRANSITION_PROTOS_TABLE = Table(
     python_module=__file__,
     class_name='WindowManagerShellTransitionProtosTable',
     sql_name='__intrinsic_window_manager_shell_transition_protos',
+    use_legacy_table_backend=True,
     columns=[
         C('transition_id', CppInt64()),
         C('base64_proto_id', CppUint32()),
@@ -417,6 +429,7 @@ WINDOW_MANAGER_TABLE = Table(
     python_module=__file__,
     class_name='WindowManagerTable',
     sql_name='__intrinsic_windowmanager',
+    use_legacy_table_backend=True,
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
         C(

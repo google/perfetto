@@ -25,6 +25,7 @@ TREE_TABLE = Table(
     python_module=__file__,
     class_name="TreeTable",
     sql_name="__unused",
+    use_legacy_table_backend=True,
     columns=[
         C("node_id", CppUint32()),
         C("parent_node_id", CppOptional(CppUint32())),
@@ -34,6 +35,7 @@ DOMINATOR_TREE_TABLE = Table(
     python_module=__file__,
     class_name="DominatorTreeTable",
     sql_name="__intrinsic_dominator_tree",
+    use_legacy_table_backend=True,
     columns=[
         C("node_id", CppUint32()),
         C("dominator_node_id", CppOptional(CppUint32())),
@@ -43,6 +45,7 @@ STRUCTURAL_TREE_PARTITION_TABLE = Table(
     python_module=__file__,
     class_name="StructuralTreePartitionTable",
     sql_name="__intrinsic_structural_tree_partition",
+    use_legacy_table_backend=True,
     columns=[
         C("node_id", CppUint32()),
         C("parent_node_id", CppOptional(CppUint32())),
