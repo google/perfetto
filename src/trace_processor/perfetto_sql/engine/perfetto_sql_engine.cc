@@ -1032,13 +1032,15 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
     col_idxs.push_back(
         static_cast<uint32_t>(std::distance(df.column_names().begin(), it)));
   }
-  auto handle = dataframe_shared_storage_->FindIndex(state->handle->key());
+  auto index_key = DataframeSharedStorage::MakeIndexKey(
+      state->handle->key(), col_idxs.data(), col_idxs.data() + col_idxs.size());
+  auto handle = dataframe_shared_storage_->FindIndex(index_key);
   if (!handle) {
     ASSIGN_OR_RETURN(auto index,
                      state->dataframe->BuildIndex(
                          col_idxs.data(), col_idxs.data() + col_idxs.size()));
-    handle = dataframe_shared_storage_->InsertIndex(state->handle->key(),
-                                                    std::move(index));
+    handle =
+        dataframe_shared_storage_->InsertIndex(index_key, std::move(index));
   }
   state->dataframe->AddIndex(std::move(handle->value()));
   state->named_indexes.push_back(DataframeModule::State::NamedIndex{
@@ -1097,7 +1099,7 @@ base::Status PerfettoSqlEngine::ExecuteDropIndex(
     return ExecuteDropIndexUsingTable(index, *t);
   }
   for (const auto& [name, state] : dataframe_context_->GetAllStates()) {
-    PERFETTO_CHECK(state->named_indexes.size() == 0 ||
+    PERFETTO_CHECK(state->named_indexes.empty() ||
                    state->dataframe->finalized());
     for (uint32_t i = 0; i < state->named_indexes.size(); ++i) {
       if (state->named_indexes[i].name == index.name) {
