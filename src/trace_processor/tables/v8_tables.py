@@ -166,7 +166,6 @@ V8_JS_CODE = Table(
     python_module=__file__,
     class_name='V8JsCodeTable',
     sql_name='__intrinsic_v8_js_code',
-    use_legacy_table_backend=True,
     columns=[
         C('jit_code_id', CppOptional(CppTableId(JIT_CODE_TABLE))),
         C(
@@ -209,7 +208,6 @@ V8_INTERNAL_CODE = Table(
     python_module=__file__,
     class_name='V8InternalCodeTable',
     sql_name='__intrinsic_v8_internal_code',
-    use_legacy_table_backend=True,
     columns=[
         C('jit_code_id', CppTableId(JIT_CODE_TABLE)),
         C('v8_isolate_id', CppTableId(V8_ISOLATE)),
@@ -245,7 +243,6 @@ V8_WASM_CODE = Table(
     python_module=__file__,
     class_name='V8WasmCodeTable',
     sql_name='__intrinsic_v8_wasm_code',
-    use_legacy_table_backend=True,
     columns=[
         C('jit_code_id', CppTableId(JIT_CODE_TABLE)),
         C('v8_isolate_id', CppTableId(V8_ISOLATE)),
@@ -292,7 +289,6 @@ V8_REGEXP_CODE = Table(
     python_module=__file__,
     class_name='V8RegexpCodeTable',
     sql_name='__intrinsic_v8_regexp_code',
-    use_legacy_table_backend=True,
     columns=[
         C('jit_code_id', CppTableId(JIT_CODE_TABLE)),
         C('v8_isolate_id', CppTableId(V8_ISOLATE)),

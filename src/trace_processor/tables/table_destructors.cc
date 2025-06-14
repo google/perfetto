@@ -16,19 +16,16 @@
 
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/counter_tables_py.h"
-#include "src/trace_processor/tables/etm_tables_py.h"
 #include "src/trace_processor/tables/flow_tables_py.h"
 #include "src/trace_processor/tables/jit_tables_py.h"
 #include "src/trace_processor/tables/macros_internal.h"
 #include "src/trace_processor/tables/memory_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
-#include "src/trace_processor/tables/perf_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/tables/sched_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/tables/trace_proto_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
-#include "src/trace_processor/tables/v8_tables_py.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 
 namespace perfetto::trace_processor {
@@ -46,10 +43,6 @@ AndroidInputEventDispatchTable::~AndroidInputEventDispatchTable() = default;
 // counter_tables_py.h
 CounterTable::~CounterTable() = default;
 
-// jit_tables.py
-JitCodeTable::~JitCodeTable() = default;
-JitFrameTable::~JitFrameTable() = default;
-
 // metadata_tables_py.h
 ChromeRawTable::~ChromeRawTable() = default;
 FtraceEventTable::~FtraceEventTable() = default;
@@ -64,7 +57,6 @@ StackProfileMappingTable::~StackProfileMappingTable() = default;
 StackProfileFrameTable::~StackProfileFrameTable() = default;
 StackProfileCallsiteTable::~StackProfileCallsiteTable() = default;
 PerfSampleTable::~PerfSampleTable() = default;
-SymbolTable::~SymbolTable() = default;
 HeapProfileAllocationTable::~HeapProfileAllocationTable() = default;
 ExperimentalFlamegraphTable::~ExperimentalFlamegraphTable() = default;
 HeapGraphObjectTable::~HeapGraphObjectTable() = default;
@@ -90,12 +82,6 @@ ExperimentalProtoPathTable::~ExperimentalProtoPathTable() = default;
 
 // memory_tables_py.h
 MemorySnapshotNodeTable::~MemorySnapshotNodeTable() = default;
-
-// v8_tables_py.h
-V8JsCodeTable::~V8JsCodeTable() = default;
-V8InternalCodeTable::~V8InternalCodeTable() = default;
-V8WasmCodeTable::~V8WasmCodeTable() = default;
-V8RegexpCodeTable::~V8RegexpCodeTable() = default;
 
 // winscope_tables_py.h
 InputMethodClientsTable::~InputMethodClientsTable() = default;
