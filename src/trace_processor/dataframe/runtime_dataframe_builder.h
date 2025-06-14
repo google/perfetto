@@ -90,9 +90,16 @@ class RuntimeDataframeBuilder {
   //         string values encountered during row addition. Must remain
   //         valid for the lifetime of the builder and the resulting
   //         Dataframe.
-  RuntimeDataframeBuilder(std::vector<std::string> names, StringPool* pool)
+  //  types: An optional vector of `ColumnType` specifying the types
+  //         of the columns. If empty, types are inferred from the first
+  //         non-null value added to each column. If provided, must match
+  //         the size of `names`.
+  RuntimeDataframeBuilder(
+      std::vector<std::string> names,
+      StringPool* pool,
+      const std::vector<AdhocDataframeBuilder::ColumnType>& types = {})
       : coulumn_count_(static_cast<uint32_t>(names.size())),
-        builder_(std::move(names), pool),
+        builder_(std::move(names), pool, types),
         pool_(pool) {}
   ~RuntimeDataframeBuilder() = default;
 
