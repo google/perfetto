@@ -12457,6 +12457,19 @@ enum FtraceClock {
 
 // End of protos/perfetto/trace/ftrace/ftrace_event_bundle.proto
 
+// Begin of protos/perfetto/trace/generic_kernel/generic_power.proto
+
+// GenericKernelCpuFrequencyEvent is the standard proto to capture CPU
+// frequency change events in a generic kernel implementation.
+message GenericKernelCpuFrequencyEvent {
+  // CPU in which the event occurred.
+  optional int32 cpu = 1;
+  // Frequency (Hz) of the CPU.
+  optional int64 freq_hz = 2;
+}
+
+// End of protos/perfetto/trace/generic_kernel/generic_power.proto
+
 // Begin of protos/perfetto/trace/generic_kernel/generic_task_state.proto
 
 // GenericKernelTaskStateEvent is the standard proto to capture thread state
@@ -12482,6 +12495,9 @@ message GenericKernelTaskStateEvent {
   // These states are a generic representation of the actual thread state and
   // don't necessarily map one-to-one to the states the actual OS kernel
   // tracks internally.
+  //
+  // Note: Consecutive TASK_STATE_RUNNING states for the same TID is considered
+  // an error resulting in potential data loss.
   enum TaskStateEnum {
     TASK_STATE_UNKNOWN = 0;
     TASK_STATE_CREATED = 1;
@@ -16476,7 +16492,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 118.
+// Next id: 119.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -16625,6 +16641,7 @@ message TracePacket {
 
     // Generic events for a standard kernel implementation
     GenericKernelTaskStateEvent generic_kernel_task_state_event = 117;
+    GenericKernelCpuFrequencyEvent generic_kernel_cpu_freq_event = 118;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
