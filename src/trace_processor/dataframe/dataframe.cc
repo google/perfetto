@@ -130,18 +130,16 @@ void Dataframe::Clear() {
 base::StatusOr<Index> Dataframe::BuildIndex(const uint32_t* columns_start,
                                             const uint32_t* columns_end) const {
   std::vector<uint32_t> cols(columns_start, columns_end);
-  std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts;
   sorts.reserve(cols.size());
   for (const auto& col : cols) {
     sorts.push_back(SortSpec{col, SortDirection::kAscending});
   }
-  ASSIGN_OR_RETURN(auto plan, PlanQuery(filters, {}, sorts, {}, 0));
 
   // Heap allocate to avoid potential stack overflows due to large cursor
   // object.
   auto c = std::make_unique<TypedCursor>(this, std::vector<FilterSpec>(),
-                                         std::vector<SortSpec>());
+                                         std::move(sorts));
   c->ExecuteUnchecked();
 
   std::vector<uint32_t> permutation;
