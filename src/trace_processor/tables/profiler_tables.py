@@ -142,7 +142,12 @@ STACK_PROFILE_MAPPING_TABLE = Table(
         C('start', CppInt64(), cpp_access=CppAccess.READ),
         C('end', CppInt64(), cpp_access=CppAccess.READ),
         C('load_bias', CppInt64(), cpp_access=CppAccess.READ),
-        C('name', CppString(), cpp_access=CppAccess.READ),
+        C(
+            'name',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -175,6 +180,7 @@ STACK_PROFILE_FRAME_TABLE = Table(
             CppOptional(CppUint32()),
             sql_access=SqlAccess.HIGH_PERF,
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
             flags=ColumnFlag.DENSE,
         ),
         C(
@@ -358,6 +364,7 @@ SYMBOL_TABLE = Table(
             CppUint32(),
             flags=ColumnFlag.SORTED | ColumnFlag.SET_ID,
             cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C('name', CppString(), cpp_access=CppAccess.READ),
         C('source_file', CppOptional(CppString()), cpp_access=CppAccess.READ),
