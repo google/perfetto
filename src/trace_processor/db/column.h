@@ -17,17 +17,17 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_H_
 
-#include <stdint.h>
+#include <cstdint>
+#include <iterator>
 #include <optional>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/containers/row_map.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column_storage.h"
 #include "src/trace_processor/db/column_storage_overlay.h"
-#include "src/trace_processor/db/compare.h"
 #include "src/trace_processor/db/typed_column_internal.h"
 
 namespace perfetto::trace_processor {

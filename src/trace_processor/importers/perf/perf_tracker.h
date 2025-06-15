@@ -86,7 +86,7 @@ class PerfTracker : public Destructible {
       const tables::StackProfileFrameTable::RowReference frame);
 
   // Returns true it the frame was symbolized.
-  bool TrySymbolizeFrame(tables::StackProfileFrameTable::RowReference frame);
+  bool TrySymbolizeFrame(tables::StackProfileFrameTable::Iterator& frame);
 
   void AddMapping(int64_t trace_ts,
                   std::optional<UniquePid> upid,

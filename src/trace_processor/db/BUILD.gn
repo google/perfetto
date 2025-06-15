@@ -28,7 +28,6 @@ source_set("minimal") {
     "query_executor.h",
     "table.cc",
     "table.h",
-    "typed_column.h",
     "typed_column_internal.h",
   ]
   deps = [

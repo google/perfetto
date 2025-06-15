@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_STACK_PROFILE_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_STACK_PROFILE_TRACKER_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <tuple>
@@ -26,15 +27,13 @@
 #include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
-
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 struct NameInPackage {
-  StringId name;
+  std::optional<StringId> name;
   StringId package;
 
   bool operator==(const NameInPackage& b) const {
@@ -43,8 +42,9 @@ struct NameInPackage {
 
   struct Hasher {
     size_t operator()(const NameInPackage& o) const {
-      return static_cast<size_t>(
-          base::Hasher::Combine(o.name.raw_id(), o.package.raw_id()));
+      return static_cast<size_t>(base::Hasher::Combine(
+          o.name.has_value(), o.name.value_or(kNullStringId).raw_id(),
+          o.package.raw_id()));
     }
   };
 };
@@ -82,7 +82,6 @@ class StackProfileTracker {
   std::unordered_set<FrameId> java_frames_with_unknown_packages_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_STACK_PROFILE_TRACKER_H_

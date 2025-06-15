@@ -95,11 +95,8 @@ class ArgsTracker {
 
    protected:
     BoundInserter(ArgsTracker* args_tracker,
-                  ColumnLegacy* arg_set_id_column,
-                  uint32_t row);
-    BoundInserter(ArgsTracker* args_tracker,
                   dataframe::Dataframe* dataframe,
-                  uint32_t col,
+                  uint32_t column,
                   uint32_t row);
 
    private:
