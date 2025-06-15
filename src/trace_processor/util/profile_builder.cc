@@ -37,9 +37,11 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/column/types.h"
+#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/jit_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
+#include "src/trace_processor/tables/v8_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/annotated_callsites.h"
 
@@ -246,7 +248,65 @@ GProfileBuilder::GProfileBuilder(const TraceProcessorContext* context,
                                  const std::vector<ValueType>& sample_types)
     : context_(*context),
       string_table_(&result_, &context->storage->string_pool()),
-      annotations_(context) {
+      annotations_(context),
+      jit_frame_cursor_(context->storage->jit_frame_table().CreateCursor({
+          dataframe::FilterSpec{
+              tables::JitFrameTable::ColumnIndex::frame_id,
+              0,
+              dataframe::Eq{},
+              {},
+          },
+      })),
+      v8_js_code_cursor_(context->storage->v8_js_code_table().CreateCursor({
+          dataframe::FilterSpec{
+              tables::V8JsCodeTable::ColumnIndex::jit_code_id,
+              0,
+              dataframe::Eq{},
+              {},
+          },
+      })),
+      v8_wasm_code_cursor_(context->storage->v8_wasm_code_table().CreateCursor({
+          dataframe::FilterSpec{
+              tables::V8WasmCodeTable::ColumnIndex::jit_code_id,
+              0,
+              dataframe::Eq{},
+              {},
+          },
+      })),
+      v8_regexp_code_cursor_(
+          context->storage->v8_regexp_code_table().CreateCursor({
+              dataframe::FilterSpec{
+                  tables::V8RegexpCodeTable::ColumnIndex::jit_code_id,
+                  0,
+                  dataframe::Eq{},
+                  {},
+              },
+          })),
+      v8_internal_code_cursor_(
+          context->storage->v8_internal_code_table().CreateCursor({
+              dataframe::FilterSpec{
+                  tables::V8InternalCodeTable::ColumnIndex::jit_code_id,
+                  0,
+                  dataframe::Eq{},
+                  {},
+              },
+          })),
+      jit_code_cursor_(context->storage->jit_code_table().CreateCursor({
+          dataframe::FilterSpec{
+              tables::JitCodeTable::ColumnIndex::function_name,
+              0,
+              dataframe::Eq{},
+              {},
+          },
+      })),
+      symbol_cursor_(context->storage->symbol_table().CreateCursor({
+          dataframe::FilterSpec{
+              tables::SymbolTable::ColumnIndex::symbol_set_id,
+              0,
+              dataframe::Eq{},
+              {},
+          },
+      })) {
   // Make sure the empty function always gets id 0 which will be ignored
   // when writing the proto file.
   functions_.insert(
@@ -415,13 +475,10 @@ uint64_t GProfileBuilder::WriteFakeLocationIfNeeded(const std::string& name) {
 
   uint64_t& id =
       locations_[Location{0, 0, {{WriteFakeFunctionIfNeeded(name_id), 0}}}];
-
   if (id == 0) {
     id = locations_.size();
   }
-
   seen_fake_locations_.insert({name_id, id});
-
   return id;
 }
 
@@ -469,21 +526,6 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLines(
   return lines;
 }
 
-namespace {
-template <typename Table>
-std::optional<typename Table::ConstRowReference> GetByConstraint(
-    const Table& table,
-    Constraint&& c) {
-  Query q;
-  q.constraints = {c};
-  q.limit = 1;
-  auto row_map = table.QueryToRowMap(q);
-  if (row_map.empty())
-    return {};
-  return table[row_map.Get(0)];
-}
-}  // namespace
-
 std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForJitFrame(
     const tables::StackProfileFrameTable::ConstRowReference& frame,
     CallsiteAnnotation annotation,
@@ -512,26 +554,24 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForJitFrame(
   // implementation, e.g. by calling _callstacks_for_callsites in
   // GProfileBuilder.
 
-  const auto& jit_frames = context_.storage->jit_frame_table();
-  auto maybe_jf =
-      GetByConstraint(jit_frames, jit_frames.frame_id().eq(frame.id().value));
-  if (!maybe_jf) {
+  jit_frame_cursor_.SetFilterValueUnchecked(0, frame.id().value);
+  jit_frame_cursor_.Execute();
+  if (jit_frame_cursor_.Eof()) {
     return {};
   }
-  auto jf = *maybe_jf;
 
-  const auto& v8_js_code = context_.storage->v8_js_code_table();
-  auto maybe_jsc = GetByConstraint(
-      v8_js_code, v8_js_code.jit_code_id().eq(jf.jit_code_id().value));
-  if (maybe_jsc) {
-    auto jsc = *maybe_jsc;
-
+  v8_js_code_cursor_.SetFilterValueUnchecked(
+      0, jit_frame_cursor_.jit_code_id().value);
+  v8_js_code_cursor_.Execute();
+  if (!v8_js_code_cursor_.Eof()) {
     const auto& v8_js_funcs = context_.storage->v8_js_function_table();
-    auto maybe_jsf = v8_js_funcs.FindById(jsc.v8_js_function_id());
+    auto maybe_jsf =
+        v8_js_funcs.FindById(v8_js_code_cursor_.v8_js_function_id());
     if (maybe_jsf) {
       auto jsf = *maybe_jsf;
       auto jsf_name = context_.storage->string_pool().Get(jsf.name());
-      auto jsf_tier = context_.storage->string_pool().Get(jsc.tier());
+      auto jsf_tier =
+          context_.storage->string_pool().Get(v8_js_code_cursor_.tier());
       base::StackString<64> name(
           "JS: %s:%u:%u [%s]",
           jsf_name.empty() ? "(anonymous)" : jsf_name.c_str(),
@@ -549,55 +589,56 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForJitFrame(
     }
   }
 
-  const auto& v8_wasm_code = context_.storage->v8_wasm_code_table();
-  auto maybe_wc = GetByConstraint(
-      v8_wasm_code, v8_wasm_code.jit_code_id().eq(jf.jit_code_id().value));
-  if (maybe_wc) {
-    auto wc = *maybe_wc;
+  v8_wasm_code_cursor_.SetFilterValueUnchecked(
+      0, jit_frame_cursor_.jit_code_id().value);
+  v8_wasm_code_cursor_.Execute();
+  if (!v8_wasm_code_cursor_.Eof()) {
     std::string name =
         "WASM: " +
-        context_.storage->GetString(wc.function_name()).ToStdString();
+        context_.storage->GetString(v8_wasm_code_cursor_.function_name())
+            .ToStdString();
     return {Line{WriteFunctionIfNeeded(base::StringView(name), kNullStringId,
                                        annotation, mapping_id),
                  0}};
   }
 
-  const auto& v8_regexp_code = context_.storage->v8_regexp_code_table();
-  auto maybe_rc = GetByConstraint(
-      v8_regexp_code, v8_regexp_code.jit_code_id().eq(jf.jit_code_id().value));
-  if (maybe_rc) {
-    auto rc = *maybe_rc;
+  v8_regexp_code_cursor_.SetFilterValueUnchecked(
+      0, jit_frame_cursor_.jit_code_id().value);
+  v8_regexp_code_cursor_.Execute();
+  if (!v8_regexp_code_cursor_.Eof()) {
     std::string name =
-        "REGEXP: " + context_.storage->GetString(rc.pattern()).ToStdString();
+        "REGEXP: " +
+        context_.storage->GetString(v8_regexp_code_cursor_.pattern())
+            .ToStdString();
     return {Line{WriteFunctionIfNeeded(base::StringView(name), kNullStringId,
                                        annotation, mapping_id),
                  0}};
   }
 
-  const auto& v8_internal_code = context_.storage->v8_internal_code_table();
-  auto maybe_v8c = GetByConstraint(
-      v8_internal_code,
-      v8_internal_code.jit_code_id().eq(jf.jit_code_id().value));
-  if (maybe_v8c) {
-    auto v8c = *maybe_v8c;
+  v8_internal_code_cursor_.SetFilterValueUnchecked(
+      0, jit_frame_cursor_.jit_code_id().value);
+  v8_internal_code_cursor_.Execute();
+  if (!v8_internal_code_cursor_.Eof()) {
     std::string name =
-        "V8: " + context_.storage->GetString(v8c.function_name()).ToStdString();
+        "V8: " +
+        context_.storage->GetString(v8_internal_code_cursor_.function_name())
+            .ToStdString();
     return {Line{WriteFunctionIfNeeded(base::StringView(name), kNullStringId,
                                        annotation, mapping_id),
                  0}};
   }
 
-  const auto& jit_code = context_.storage->jit_code_table();
-  auto maybe_jc = jit_code.FindById(jf.jit_code_id());
-  if (maybe_jc) {
-    auto jc = *maybe_jc;
+  jit_code_cursor_.SetFilterValueUnchecked(
+      0, jit_frame_cursor_.jit_code_id().value);
+  jit_code_cursor_.Execute();
+  if (!jit_code_cursor_.Eof()) {
     std::string name =
-        "JIT: " + context_.storage->GetString(jc.function_name()).ToStdString();
+        "JIT: " + context_.storage->GetString(jit_code_cursor_.function_name())
+                      .ToStdString();
     return {Line{WriteFunctionIfNeeded(base::StringView(name), kNullStringId,
                                        annotation, mapping_id),
                  0}};
   }
-
   return {};
 }
 
@@ -609,26 +650,18 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForSymbolSetId(
     return {};
   }
 
-  const auto& symbols = context_.storage->symbol_table();
-
   using RowRef =
       perfetto::trace_processor::tables::SymbolTable::ConstRowReference;
   std::vector<RowRef> symbol_set;
-  Query q;
-  q.constraints = {symbols.symbol_set_id().eq(*symbol_set_id)};
-  for (auto it = symbols.FilterToIterator(q); it; ++it) {
-    symbol_set.push_back(it.row_reference());
-  }
-
-  std::sort(symbol_set.begin(), symbol_set.end(),
-            [](const RowRef& a, const RowRef& b) { return a.id() < b.id(); });
+  symbol_cursor_.SetFilterValueUnchecked(0, *symbol_set_id);
+  symbol_cursor_.Execute();
 
   std::vector<GProfileBuilder::Line> lines;
-  for (const RowRef& symbol : symbol_set) {
+  for (; !symbol_cursor_.Eof(); symbol_cursor_.Next()) {
     if (uint64_t function_id =
-            WriteFunctionIfNeeded(symbol, annotation, mapping_id);
+            WriteFunctionIfNeeded(symbol_cursor_, annotation, mapping_id);
         function_id != kNullFunctionId) {
-      lines.push_back({function_id, symbol.line_number().value_or(0)});
+      lines.push_back({function_id, symbol_cursor_.line_number().value_or(0)});
     }
   }
 
@@ -672,7 +705,7 @@ uint64_t GProfileBuilder::WriteFunctionIfNeeded(base::StringView name,
 }
 
 uint64_t GProfileBuilder::WriteFunctionIfNeeded(
-    const tables::SymbolTable::ConstRowReference& symbol,
+    const tables::SymbolTable::ConstCursor& symbol,
     CallsiteAnnotation annotation,
     uint64_t mapping_id) {
   int64_t name = string_table_.GetAnnotatedString(symbol.name(), annotation);
