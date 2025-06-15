@@ -243,6 +243,7 @@ STACK_PROFILE_CALLSITE_TABLE = Table(
             'parent_id',
             CppOptional(CppSelfTableId()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'frame_id',
