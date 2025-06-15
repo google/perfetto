@@ -25,7 +25,6 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/ext/base/variant.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
@@ -33,6 +32,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/variant.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/art_method/art_method_event.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"

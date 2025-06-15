@@ -28,9 +28,9 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/ext/base/variant.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/cursor.h"

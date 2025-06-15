@@ -29,9 +29,9 @@
 #include <variant>
 #include <vector>
 
-#include "perfetto/ext/base/variant.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
 
 namespace perfetto::trace_processor::json {
