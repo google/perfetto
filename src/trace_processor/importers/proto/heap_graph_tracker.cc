@@ -271,7 +271,8 @@ HeapGraphTracker::HeapGraphTracker(TraceStorage* storage)
       referred_cursor_(
           storage->mutable_heap_graph_reference_table()->CreateCursor({
               dataframe::FilterSpec{
-                  tables::HeapGraphReferenceTable::ColumnIndex::owned_id,
+                  tables::HeapGraphReferenceTable::ColumnIndex::
+                      reference_set_id,
                   0,
                   dataframe::Eq{},
                   {},
