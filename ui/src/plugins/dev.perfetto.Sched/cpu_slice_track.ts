@@ -304,7 +304,14 @@ export class CpuSliceTrack implements TrackRenderer {
       ctx.fillStyle = color.cssString;
 
       if (data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE) {
-        drawIncompleteSlice(ctx, rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
+        drawIncompleteSlice(
+          ctx,
+          rectStart,
+          MARGIN_TOP,
+          rectWidth,
+          RECT_HEIGHT,
+          color,
+        );
       } else {
         ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
       }
