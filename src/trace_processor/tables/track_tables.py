@@ -31,6 +31,7 @@ TRACK_TABLE = Table(
     python_module=__file__,
     class_name="TrackTable",
     sql_name="__intrinsic_track",
+    use_legacy_table_backend=True,
     columns=[
         C("name", CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
         C(

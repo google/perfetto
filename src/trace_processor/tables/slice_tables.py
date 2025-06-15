@@ -35,6 +35,7 @@ SLICE_TABLE = Table(
     python_module=__file__,
     class_name='SliceTable',
     sql_name='__intrinsic_slice',
+    use_legacy_table_backend=True,
     columns=[
         C(
             'ts',
@@ -192,6 +193,7 @@ EXPERIMENTAL_FLAT_SLICE_TABLE = Table(
     python_module=__file__,
     class_name='ExperimentalFlatSliceTable',
     sql_name='experimental_flat_slice',
+    use_legacy_table_backend=True,
     columns=[
         C('ts', CppInt64(), cpp_access=CppAccess.READ),
         C('dur', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
@@ -239,6 +241,7 @@ ANDROID_NETWORK_PACKETS_TABLE = Table(
     python_module=__file__,
     class_name='AndroidNetworkPacketsTable',
     sql_name='__intrinsic_android_network_packets',
+    use_legacy_table_backend=True,
     columns=[
         C('iface', CppString()),
         C('direction', CppString()),

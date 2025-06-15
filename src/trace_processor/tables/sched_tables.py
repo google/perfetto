@@ -33,6 +33,7 @@ SCHED_SLICE_TABLE = Table(
     python_module=__file__,
     class_name='SchedSliceTable',
     sql_name='__intrinsic_sched_slice',
+    use_legacy_table_backend=True,
     columns=[
         C('ts', CppInt64(), flags=ColumnFlag.SORTED, cpp_access=CppAccess.READ),
         C('dur', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
@@ -126,6 +127,7 @@ THREAD_STATE_TABLE = Table(
     python_module=__file__,
     class_name='ThreadStateTable',
     sql_name='__intrinsic_thread_state',
+    use_legacy_table_backend=True,
     columns=[
         C('ts', CppInt64(), flags=ColumnFlag.SORTED, cpp_access=CppAccess.READ),
         C('dur', CppInt64(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),

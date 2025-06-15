@@ -36,7 +36,7 @@ source_set("public_hdr") {
     "../../../../gn:default_deps",
     "../../../../include/perfetto/ext/base:base",
     "../../../../include/perfetto/trace_processor:storage",
-    "../../tables:tables_python",
+    "../../tables",
     "../../types",
   ]
 }
@@ -85,6 +85,7 @@ source_set("etm_impl") {
     ":public_hdr",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/base:base",
+    "../../db/column",
     "../../storage",
     "../../tables:tables_python",
     "../../types",

@@ -67,7 +67,7 @@ def gen_json_for_column(table: ParsedTable,
   parsed_type = util.parse_type_with_cols(table.table,
                                           [c.column for c in table.columns],
                                           col.column.type)
-  docs_type = parsed_type.cpp_type
+  docs_type = parsed_type.cpp_type()
   if docs_type == 'StringPool::Id':
     docs_type = 'string'
 
