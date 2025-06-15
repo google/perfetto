@@ -33,6 +33,7 @@
 #include "src/trace_processor/tables/memory_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/trace_proto_tables_py.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
@@ -215,13 +216,16 @@ class ArgsTracker {
   BoundInserter AddArgsTo(MetadataId id) {
     auto* table = context_->storage->mutable_metadata_table();
     uint32_t row = table->FindById(id)->ToRowNumber().row_number();
-    return BoundInserter(this, table->mutable_int_value(), row);
+    return BoundInserter(this, &table->dataframe(),
+                         tables::MetadataTable::ColumnIndex::int_value, row);
   }
 
   BoundInserter AddArgsTo(TrackId id) {
     auto* table = context_->storage->mutable_track_table();
     uint32_t row = table->FindById(id)->ToRowNumber().row_number();
-    return BoundInserter(this, table->mutable_source_arg_set_id(), row);
+    return BoundInserter(this, &table->dataframe(),
+                         tables::TrackTable::ColumnIndex::source_arg_set_id,
+                         row);
   }
 
   BoundInserter AddArgsTo(VulkanAllocId id) {

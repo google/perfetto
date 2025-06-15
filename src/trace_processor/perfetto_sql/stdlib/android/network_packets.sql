@@ -73,4 +73,6 @@ SELECT
   remote_port,
   packet_icmp_type,
   packet_icmp_code
-FROM __intrinsic_android_network_packets;
+FROM __intrinsic_android_network_packets
+JOIN slice
+  USING (id);
