@@ -594,7 +594,12 @@ HEAP_GRAPH_CLASS_TABLE = Table(
             CppOptional(CppUint32()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
-        C('kind', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C(
+            'kind',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''''',
