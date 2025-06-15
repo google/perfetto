@@ -224,6 +224,13 @@ class ColumnSerializer:
           CppAccess.READ,
           CppAccess.READ_AND_LOW_PERF_WRITE,
       )
+      # TODO(lalitm): we force this to dense for strings because in the
+      # pre-dataframe days, string nullability was just represented by
+      # StringPool::Id::Null(). There are hidden dependencies everywhere in the
+      # codebase that expect O(1) writes to string columns. Fixing this is
+      # non-trivial, so we just keep it dense for now.
+      if self.is_string and self.col.cpp_access == CppAccess.READ_AND_LOW_PERF_WRITE:
+        return 'dataframe::DenseNull'
       if self.col.cpp_access_duration == CppAccessDuration.PRE_FINALIZATION_ONLY:
         return 'dataframe::SparseNullWithPopcountUntilFinalization'
       assert self.col.cpp_access_duration == CppAccessDuration.POST_FINALIZATION
