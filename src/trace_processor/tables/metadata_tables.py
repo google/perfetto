@@ -128,7 +128,6 @@ PROCESS_TABLE = Table(
     python_module=__file__,
     class_name='ProcessTable',
     sql_name='__intrinsic_process',
-    use_legacy_table_backend=True,
     columns=[
         C('upid', Alias(underlying_column='id')),
         C('pid', CppInt64(), cpp_access=CppAccess.READ),
@@ -261,7 +260,6 @@ THREAD_TABLE = Table(
     python_module=__file__,
     class_name='ThreadTable',
     sql_name='__intrinsic_thread',
-    use_legacy_table_backend=True,
     columns=[
         C('utid', Alias(underlying_column='id')),
         C('tid', CppInt64(), cpp_access=CppAccess.READ),
@@ -365,7 +363,6 @@ CPU_TABLE = Table(
     python_module=__file__,
     class_name='CpuTable',
     sql_name='__intrinsic_cpu',
-    use_legacy_table_backend=True,
     columns=[
         C(
             'cpu',
@@ -429,7 +426,6 @@ CHROME_RAW_TABLE = Table(
     python_module=__file__,
     class_name='ChromeRawTable',
     sql_name='__intrinsic_chrome_raw',
-    use_legacy_table_backend=True,
     columns=[
         C('ts', CppInt64(), flags=ColumnFlag.SORTED, cpp_access=CppAccess.READ),
         C('name', CppString(), cpp_access=CppAccess.READ),
@@ -441,7 +437,6 @@ FTRACE_EVENT_TABLE = Table(
     python_module=__file__,
     class_name='FtraceEventTable',
     sql_name='__intrinsic_ftrace_event',
-    use_legacy_table_backend=True,
     columns=[
         C('ts', CppInt64(), flags=ColumnFlag.SORTED, cpp_access=CppAccess.READ),
         C(

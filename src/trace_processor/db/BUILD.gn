@@ -102,6 +102,6 @@ if (enable_perfetto_benchmarks) {
       "../tables:tables_python",
       "column",
     ]
-    sources = [ "query_executor_benchmark.cc" ]
+    sources = []
   }
 }

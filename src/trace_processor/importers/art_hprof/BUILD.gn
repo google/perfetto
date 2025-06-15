@@ -33,5 +33,6 @@ source_set("art_hprof") {
     "../../../base",
     "../../containers",
     "../../importers/common",
+    "../../tables",
   ]
 }

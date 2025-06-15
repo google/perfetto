@@ -230,9 +230,9 @@ class ArgsTracker {
   }
 
   BoundInserter AddArgsTo(UniquePid id) {
-    return BoundInserter(
-        this, context_->storage->mutable_process_table()->mutable_arg_set_id(),
-        id);
+    auto* table = context_->storage->mutable_process_table();
+    return BoundInserter(this, &table->dataframe(),
+                         tables::ProcessTable::ColumnIndex::arg_set_id, id);
   }
 
   BoundInserter AddArgsTo(tables::ExperimentalProtoPathTable::Id id) {

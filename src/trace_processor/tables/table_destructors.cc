@@ -34,24 +34,12 @@ namespace tables {
 CounterTable::~CounterTable() = default;
 
 // metadata_tables_py.h
-ChromeRawTable::~ChromeRawTable() = default;
-FtraceEventTable::~FtraceEventTable() = default;
 MetadataTable::~MetadataTable() = default;
-CpuTable::~CpuTable() = default;
-ThreadTable::~ThreadTable() = default;
-ProcessTable::~ProcessTable() = default;
 
 // profiler_tables_py.h
-StackProfileMappingTable::~StackProfileMappingTable() = default;
 StackProfileFrameTable::~StackProfileFrameTable() = default;
 StackProfileCallsiteTable::~StackProfileCallsiteTable() = default;
-PerfSampleTable::~PerfSampleTable() = default;
-HeapProfileAllocationTable::~HeapProfileAllocationTable() = default;
 ExperimentalFlamegraphTable::~ExperimentalFlamegraphTable() = default;
-HeapGraphObjectTable::~HeapGraphObjectTable() = default;
-HeapGraphClassTable::~HeapGraphClassTable() = default;
-HeapGraphReferenceTable::~HeapGraphReferenceTable() = default;
-VulkanMemoryAllocationsTable::~VulkanMemoryAllocationsTable() = default;
 
 // sched_tables_py.h
 SchedSliceTable::~SchedSliceTable() = default;
