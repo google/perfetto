@@ -87,6 +87,26 @@ class FileWriter : public OutputWriter {
   FILE* file_;
 };
 
+template <typename T, typename Compare>
+uint32_t LowerBoundIndex(uint32_t first,
+                         uint32_t last,
+                         const T& value,
+                         Compare comp) {
+  uint32_t count = last - first;
+  uint32_t step;
+  while (count > 0) {
+    step = count / 2;
+    uint32_t current = first + step;
+    if (comp(current, value)) {
+      first = current + 1;
+      count -= step + 1;
+    } else {
+      count = step;
+    }
+  }
+  return first;
+}
+
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 using IndexMap = perfetto::trace_processor::TraceStorage::Stats::IndexMap;
 
@@ -1790,40 +1810,16 @@ class JsonExporter {
   }
 
   uint64_t GetCounterValue(TrackId track_id, int64_t ts) {
-    struct Iterator {
-      using iterator_category = std::random_access_iterator_tag;
-      using value_type = uint32_t;
-      using difference_type = uint32_t;
-      using pointer = uint32_t*;
-      using reference = uint32_t&;
-      uint32_t operator*() const { return idx; }
-      Iterator& operator++() {
-        ++idx;
-        return *this;
-      }
-      Iterator& operator--() {
-        --idx;
-        return *this;
-      }
-      Iterator& operator+=(difference_type n) {
-        idx += n;
-        return *this;
-      }
-      uint32_t operator-(const Iterator& other) const {
-        return idx - other.idx;
-      }
-      uint32_t idx;
-    };
     const auto& counter_table = storage_->counter_table();
     // The timestamp column is sorted, so we can binary search for a matching
-    // timestamp. Note that we don't use RowMap operations like FilterInto()
-    // here because they bloat trace processor's binary size in Chrome too much.
-    auto it = std::lower_bound(Iterator{0}, Iterator{counter_table.row_count()},
-                               ts, [&](uint32_t i, int64_t expected_ts) {
-                                 return counter_table[i].ts() < expected_ts;
-                               });
-    for (; *it < counter_table.row_count(); ++it) {
-      auto rr = counter_table[*it];
+    // timestamp. Note that we don't want to use dataframe apis here as that
+    // would bloat the binary size of the Chrome binary.
+    uint32_t idx = LowerBoundIndex(0, counter_table.row_count(), ts,
+                                   [&](uint32_t i, int64_t expected_ts) {
+                                     return counter_table[i].ts() < expected_ts;
+                                   });
+    for (; idx < counter_table.row_count(); ++idx) {
+      auto rr = counter_table[idx];
       if (rr.ts() != ts) {
         break;
       }
