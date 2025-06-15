@@ -567,11 +567,17 @@ HEAP_GRAPH_CLASS_TABLE = Table(
     class_name='HeapGraphClassTable',
     sql_name='__intrinsic_heap_graph_class',
     columns=[
-        C('name', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C(
+            'name',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C(
             'deobfuscated_name',
             CppOptional(CppString()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'location',
@@ -624,11 +630,13 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
             'self_size',
             CppInt64(),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'native_size',
             CppInt64(),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'reference_set_id',
@@ -663,6 +671,7 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
             CppInt32(),
             flags=ColumnFlag.HIDDEN,
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
     ],
     tabledoc=TableDoc(
