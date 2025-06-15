@@ -26,8 +26,8 @@
 #include <vector>
 
 #include "perfetto/ext/base/string_utils.h"
-#include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/cursor_impl.h"  // IWYU pragma: keep
+#include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"

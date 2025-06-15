@@ -251,8 +251,8 @@ source_set("profile_builder") {
     "../../base",
     "../containers",
     "../dataframe",
-    "../db/column",
     "../dataframe",
+    "../db/column",
     "../storage",
     "../tables",
     "../types",
@@ -292,8 +292,8 @@ source_set("winscope_proto_mapping") {
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base:base",
-    "../db",
     "../dataframe",
+    "../db",
     "../storage:storage",
     "../tables",
   ]
