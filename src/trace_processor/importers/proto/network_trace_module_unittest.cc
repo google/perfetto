@@ -93,20 +93,30 @@ class NetworkTraceModuleTest : public testing::Test {
     return status;
   }
 
-  bool HasArg(ArgSetId sid, base::StringView key, Variadic value) {
+  bool HasArg(ArgSetId set_id, base::StringView key, Variadic value) {
     StringId key_id = storage_->InternString(key);
-    const auto& a = storage_->arg_table();
-    Query q;
-    q.constraints = {a.arg_set_id().eq(sid)};
-    for (auto it = a.FilterToIterator(q); it; ++it) {
-      if (it.key() == key_id) {
-        EXPECT_EQ(it.flat_key(), key_id);
-        if (storage_->GetArgValue(it.row_number().row_number()) == value) {
-          return true;
+    const auto& args = storage_->arg_table();
+    auto cursor = args.CreateCursor({
+        dataframe::FilterSpec{
+            tables::ArgTable::ColumnIndex::arg_set_id,
+            0,
+            dataframe::Eq{},
+            std::nullopt,
+        },
+    });
+    cursor.SetFilterValueUnchecked(0, set_id);
+
+    bool found = false;
+    for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
+      if (cursor.key() == key_id) {
+        EXPECT_EQ(cursor.flat_key(), key_id);
+        if (storage_->GetArgValue(cursor.ToRowNumber().row_number()) == value) {
+          found = true;
+          break;
         }
       }
     }
-    return false;
+    return found;
   }
 
  protected:
