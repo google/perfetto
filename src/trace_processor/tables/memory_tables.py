@@ -72,7 +72,6 @@ MEMORY_SNAPSHOT_NODE_TABLE = Table(
     python_module=__file__,
     class_name='MemorySnapshotNodeTable',
     sql_name='__intrinsic_memory_snapshot_node',
-    use_legacy_table_backend=True,
     columns=[
         C(
             'process_snapshot_id',
