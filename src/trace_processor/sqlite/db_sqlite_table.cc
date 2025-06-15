@@ -43,13 +43,10 @@
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/regex.h"
-
-#include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -387,8 +384,6 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
     case TableComputation::kRuntime:
       table = s->runtime_table.get();
       break;
-    case TableComputation::kTableFunction:
-      break;
   }
 
   uint32_t row_count;
@@ -398,20 +393,6 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
     case TableComputation::kRuntime:
       row_count = table->row_count();
       argv_index = 1;
-      break;
-    case TableComputation::kTableFunction:
-      base::Status status = sqlite::utils::ValidateFunctionArguments(
-          info, static_cast<size_t>(s->argument_count),
-          [s](uint32_t i) { return s->schema.columns[i].is_hidden; });
-      if (!status.ok()) {
-        // TODO(lalitm): instead of returning SQLITE_CONSTRAINT which shows the
-        // user a very cryptic error message, consider instead SQLITE_OK but
-        // with a very high (~infinite) cost. If SQLite still chose the query
-        // plan after that, we can throw a proper error message in xFilter.
-        return SQLITE_CONSTRAINT;
-      }
-      row_count = s->static_table_function->EstimateRowCount();
-      argv_index = 1 + s->argument_count;
       break;
   }
 
@@ -663,10 +644,6 @@ int DbSqliteModule::Open(sqlite3_vtab* tab, sqlite3_vtab_cursor** cursor) {
     case TableComputation::kRuntime:
       c->upstream_table = s->runtime_table.get();
       break;
-    case TableComputation::kTableFunction:
-      c->table_function_arguments.resize(
-          static_cast<size_t>(s->argument_count));
-      break;
   }
   *cursor = c.release();
   return SQLITE_OK;
@@ -690,7 +667,7 @@ int DbSqliteModule::Filter(sqlite3_vtab_cursor* cursor,
   // before the table's destructor.
   c->iterator = std::nullopt;
 
-  size_t offset = c->table_function_arguments.size();
+  size_t offset = 0;
   bool is_same_idx = idx_num == c->last_idx_num;
   if (PERFETTO_LIKELY(is_same_idx)) {
     for (auto& cs : c->query.constraints) {
@@ -713,25 +690,6 @@ int DbSqliteModule::Filter(sqlite3_vtab_cursor* cursor,
     case TableComputation::kStatic:
     case TableComputation::kRuntime:
       break;
-    case TableComputation::kTableFunction: {
-      PERFETTO_TP_TRACE(
-          metatrace::Category::QUERY_DETAILED, "TABLE_FUNCTION_CALL",
-          [t](metatrace::Record* r) { r->AddArg("Name", t->table_name); });
-      for (uint32_t i = 0; i < c->table_function_arguments.size(); ++i) {
-        c->table_function_arguments[i] =
-            sqlite::utils::SqliteValueToSqlValue(argv[i]);
-      }
-      base::StatusOr<std::unique_ptr<Table>> table =
-          s->static_table_function->ComputeTable(c->table_function_arguments);
-      if (!table.ok()) {
-        base::StackString<1024> err("%s: %s", t->table_name.c_str(),
-                                    table.status().c_message());
-        return sqlite::utils::SetError(t, err.c_str());
-      }
-      c->dynamic_table = std::move(*table);
-      c->upstream_table = c->dynamic_table.get();
-      break;
-    }
   }
 
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED,
@@ -911,16 +869,6 @@ DbSqliteModule::State::State(Table* _table, Table::Schema _schema)
 DbSqliteModule::State::State(std::unique_ptr<RuntimeTable> _table)
     : State(TableComputation::kRuntime, _table->schema()) {
   runtime_table = std::move(_table);
-}
-
-DbSqliteModule::State::State(
-    std::unique_ptr<StaticTableFunction> _static_function)
-    : State(TableComputation::kTableFunction,
-            _static_function->CreateSchema()) {
-  static_table_function = std::move(_static_function);
-  for (const auto& c : schema.columns) {
-    argument_count += c.is_hidden;
-  }
 }
 
 DbSqliteModule::State::State(TableComputation _computation,

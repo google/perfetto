@@ -37,6 +37,7 @@
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
+#include "src/trace_processor/perfetto_sql/engine/static_table_function_module.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
@@ -56,8 +57,8 @@
 namespace perfetto::trace_processor {
 
 // Intermediary class which translates high-level concepts and algorithms used
-// in trace processor into lower-level concepts and functions can be understood
-// by and executed against SQLite.
+// in trace processor into lower-level concepts and functions can be
+// understood by and executed against SQLite.
 class PerfettoSqlEngine {
  public:
   struct ExecutionStats {
@@ -68,11 +69,6 @@ class PerfettoSqlEngine {
   struct ExecutionResult {
     SqliteEngine::PreparedStatement stmt;
     ExecutionStats stats;
-  };
-  struct LegacyStaticTable {
-    Table* table;
-    std::string name;
-    Table::Schema schema;
   };
   struct UnfinalizedStaticTable {
     dataframe::Dataframe* dataframe;
@@ -88,10 +84,9 @@ class PerfettoSqlEngine {
 
   // Initializes the static tables and functions in the engine.
   base::Status InitializeStaticTablesAndFunctions(
-      const std::vector<LegacyStaticTable>& legacy_tables,
       const std::vector<UnfinalizedStaticTable>& unfinalized_tables,
       std::vector<FinalizedStaticTable> finalized_tables,
-      std::vector<std::unique_ptr<StaticTableFunction>> functions);
+      std::vector<std::unique_ptr<StaticTableFunction> > functions);
 
   // Finalizes all the static tables owned by this engine and makes them
   // sharable in the `DataframeSharedStorage` passed in the constructor.
@@ -106,9 +101,9 @@ class PerfettoSqlEngine {
   base::StatusOr<ExecutionStats> Execute(SqlSource sql);
 
   // Executes all the statements in |sql| fully until the final statement and
-  // returns a |ExecutionResult| object containing a |ScopedStmt| for the final
-  // statement (which has been stepped once) and metadata about all statements
-  // executed.
+  // returns a |ExecutionResult| object containing a |ScopedStmt| for the
+  // final statement (which has been stepped once) and metadata about all
+  // statements executed.
   //
   // Returns an error if the execution of any statement failed or if there was
   // no valid SQL to run.
@@ -117,8 +112,8 @@ class PerfettoSqlEngine {
   // Prepares a single SQLite statement in |sql| and returns a
   // |PreparedStatement| object.
   //
-  // Returns an error if the preparation of the statement failed or if there was
-  // no valid SQL to run.
+  // Returns an error if the preparation of the statement failed or if there
+  // was no valid SQL to run.
   base::StatusOr<SqliteEngine::PreparedStatement> PrepareSqliteStatement(
       SqlSource sql);
 
@@ -126,8 +121,8 @@ class PerfettoSqlEngine {
   //
   // |name|: name of the module in SQL.
   // |ctx|:  context object for the module. This object *must* outlive the
-  //         module so should likely be either static or scoped to the lifetime
-  //         of TraceProcessor.
+  //         module so should likely be either static or scoped to the
+  //         lifetime of TraceProcessor.
   template <typename Module>
   void RegisterVirtualTableModule(const char* name,
                                   typename Module::Context* ctx) {
@@ -203,8 +198,8 @@ class PerfettoSqlEngine {
   // The format of the function is given by the |SqliteFunction|.
   //
   // |ctx|:           context object for the function; this object *must*
-  //                  outlive the function so should likely be either static or
-  //                  scoped to the lifetime of TraceProcessor.
+  //                  outlive the function so should likely be either static
+  //                  or scoped to the lifetime of TraceProcessor.
   // |deterministic|: whether this function has deterministic output given the
   //                  same set of arguments.
   template <typename Function>
@@ -215,13 +210,14 @@ class PerfettoSqlEngine {
       std::unique_ptr<typename Function::UserDataContext> ctx,
       bool deterministic = true);
 
-  // Registers a trace processor C++ aggregate function to be runnable from SQL.
+  // Registers a trace processor C++ aggregate function to be runnable from
+  // SQL.
   //
   // The format of the function is given by the |SqliteAggregateFunction|.
   //
   // |ctx|:           context object for the function; this object *must*
-  //                  outlive the function so should likely be either static or
-  //                  scoped to the lifetime of TraceProcessor.
+  //                  outlive the function so should likely be either static
+  //                  or scoped to the lifetime of TraceProcessor.
   // |deterministic|: whether this function has deterministic output given the
   //                  same set of arguments.
   template <typename Function>
@@ -237,8 +233,8 @@ class PerfettoSqlEngine {
   // |argc|:          number of arguments for this function. This can be -1 if
   //                  the number of arguments is variable.
   // |ctx|:           context object for the function; this object *must*
-  //                  outlive the function so should likely be either static or
-  //                  scoped to the lifetime of TraceProcessor.
+  //                  outlive the function so should likely be either static
+  //                  or scoped to the lifetime of TraceProcessor.
   // |deterministic|: whether this function has deterministic output given the
   //                  same set of arguments.
   template <typename Function = SqliteWindowFunction>
@@ -274,8 +270,8 @@ class PerfettoSqlEngine {
   // Returns the number of objects (tables, views, functions etc) registered
   // with SQLite.
   uint64_t SqliteRegisteredObjectCount() {
-    // This query will return all the tables, views, indexes and table functions
-    // SQLite knows about.
+    // This query will return all the tables, views, indexes and table
+    // functions SQLite knows about.
     constexpr char kAllTablesQuery[] =
         "SELECT COUNT() FROM (SELECT * FROM sqlite_master "
         "UNION ALL SELECT * FROM sqlite_temp_master)";
@@ -313,9 +309,6 @@ class PerfettoSqlEngine {
                    dataframe::Dataframe*>;
   void RegisterStaticTable(UnfinalizedOrFinalizedStaticTable,
                            const std::string&);
-  void RegisterStaticTableUsingTable(Table* table,
-                                     const std::string& name,
-                                     Table::Schema schema);
   void RegisterStaticTableFunction(std::unique_ptr<StaticTableFunction> fn);
 
   base::Status ExecuteCreateFunction(const PerfettoSqlParser::CreateFunction&);
@@ -360,7 +353,7 @@ class PerfettoSqlEngine {
   };
   // |effective_schema| should have been normalised and its column order
   // should match |column_names|.
-  base::StatusOr<std::unique_ptr<RuntimeTable>>
+  base::StatusOr<std::unique_ptr<RuntimeTable> >
   CreateTableUsingRuntimeTableImpl(
       const char* tag,
       const std::string& name,
@@ -377,8 +370,8 @@ class PerfettoSqlEngine {
       bool deterministic = true);
 
   // Given a package and a key, include the correct file(s) from the package.
-  // The key can contain a wildcard to include all files in the module with the
-  // matching prefix.
+  // The key can contain a wildcard to include all files in the module with
+  // the matching prefix.
   base::Status IncludePackageImpl(sql_modules::RegisteredPackage&,
                                   const std::string& key,
                                   const PerfettoSqlParser&);
@@ -395,8 +388,8 @@ class PerfettoSqlEngine {
   // transactions in SQLite.
   int OnCommit();
 
-  // Called when a transaction is rolled back by SQLite; that is, the result of
-  // of running some SQL should be discarded and the state of the database
+  // Called when a transaction is rolled back by SQLite; that is, the result
+  // of of running some SQL should be discarded and the state of the database
   // should be restored to the state it was in before the transaction was
   // started.
   //
@@ -435,8 +428,8 @@ class PerfettoSqlEngine {
   // creating tables and views.
   const bool enable_extra_checks_;
 
-  // A stack which keeps track of the modules which are being included. Used to
-  // know when dataframes should be shared.
+  // A stack which keeps track of the modules which are being included. Used
+  // to know when dataframes should be shared.
   std::vector<std::string> module_include_stack_;
 
   uint64_t static_function_count_ = 0;
@@ -450,8 +443,7 @@ class PerfettoSqlEngine {
 
   RuntimeTableFunctionModule::Context* runtime_table_fn_context_ = nullptr;
   DbSqliteModule::Context* runtime_table_context_ = nullptr;
-  DbSqliteModule::Context* static_table_context_ = nullptr;
-  DbSqliteModule::Context* static_table_fn_context_ = nullptr;
+  StaticTableFunctionModule::Context* static_table_fn_context_ = nullptr;
   DataframeModule::Context* dataframe_context_ = nullptr;
   base::FlatHashMap<std::string, sql_modules::RegisteredPackage> packages_;
   base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro> macros_;
@@ -519,8 +511,8 @@ base::Status PerfettoSqlEngine::RegisterStaticFunction(
     int argc,
     typename Function::Context* ctx,
     bool deterministic) {
-  // Metric proto builder functions can be reregistered: don't double count when
-  // this happens.
+  // Metric proto builder functions can be reregistered: don't double count
+  // when this happens.
   if (!engine_->GetFunctionContext(name, argc)) {
     static_function_count_++;
   }
@@ -580,8 +572,8 @@ base::Status PerfettoSqlEngine::RegisterStaticFunction(
     int argc,
     std::unique_ptr<typename Function::Context> ctx,
     bool deterministic) {
-  // Metric proto builder functions can be reregistered: don't double count when
-  // this happens.
+  // Metric proto builder functions can be reregistered: don't double count
+  // when this happens.
   if (!engine_->GetFunctionContext(name, argc)) {
     static_function_count_++;
   }

@@ -17,20 +17,16 @@
 #include "src/trace_processor/importers/etm/target_memory.h"
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/public/compiler.h"
-#include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/etm/mapping_version.h"
 #include "src/trace_processor/importers/etm/virtual_address_space.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/metadata_tables_py.h"
-#include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::etm {
@@ -43,12 +39,19 @@ void TargetMemory::InitStorage(TraceProcessorContext* context) {
 }
 
 TargetMemory::TargetMemory(TraceProcessorContext* context)
-    : storage_(context->storage.get()) {
+    : storage_(context->storage.get()),
+      thread_cursor_(
+          context->storage->thread_table().CreateCursor({dataframe::FilterSpec{
+              tables::ThreadTable::ColumnIndex::tid,
+              0,
+              dataframe::Eq{},
+              {},
+          }})) {
   auto kernel = VirtualAddressSpace::Builder(context);
   base::FlatHashMap<UniquePid, VirtualAddressSpace::Builder> user;
 
-  for (auto mmap = context->storage->mmap_record_table().IterateRows(); mmap;
-       ++mmap) {
+  const auto& table = context->storage->mmap_record_table();
+  for (auto mmap = table.IterateRows(); mmap; ++mmap) {
     std::optional<UniquePid> upid = mmap.upid();
     if (!upid) {
       kernel.AddMapping(mmap.ToRowReference());
@@ -76,19 +79,16 @@ VirtualAddressSpace* TargetMemory::FindUserSpaceForTid(uint32_t tid) const {
         tid_to_space_.Insert(tid, upid ? user_memory_.Find(*upid) : nullptr)
             .first;
   }
-
   return *user_mem;
 }
 
 std::optional<UniquePid> TargetMemory::FindUpidForTid(uint32_t tid) const {
-  const auto& tread_table = storage_->thread_table();
-  Query q;
-  q.constraints = {tread_table.tid().eq(tid)};
-  auto it = tread_table.FilterToIterator(q);
-  if (!it) {
+  thread_cursor_.SetFilterValueUnchecked(0, tid);
+  thread_cursor_.Execute();
+  if (thread_cursor_.Eof()) {
     return std::nullopt;
   }
-  return it.upid();
+  return thread_cursor_.upid();
 }
 
 const MappingVersion* TargetMemory::FindMapping(int64_t ts,

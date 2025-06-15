@@ -48,9 +48,11 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   static constexpr bool kDoesSupportTransactions = true;
 
   struct State {
+    // For static tables.
+    explicit State(dataframe::Dataframe* _dataframe) : dataframe(_dataframe) {}
+    // For runtime tables.
     explicit State(DataframeSharedStorage::DataframeHandle _handle)
         : handle(std::move(_handle)), dataframe(&**handle) {}
-    explicit State(dataframe::Dataframe* _dataframe) : dataframe(_dataframe) {}
     struct NamedIndex {
       std::string name;
       DataframeSharedStorage::IndexHandle index;

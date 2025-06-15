@@ -101,7 +101,7 @@ inline const tables::ViewCaptureInternedDataTable* GetInternedDataTable(
     TraceStorage* storage) {
   if (table_name == tables::ViewCaptureTable::Name() ||
       table_name == tables::ViewCaptureViewTable::Name()) {
-    return storage->mutable_viewcapture_interned_data_table();
+    return &storage->viewcapture_interned_data_table();
   }
   return nullptr;
 }

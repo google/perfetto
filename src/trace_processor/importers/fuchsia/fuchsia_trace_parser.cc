@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <functional>

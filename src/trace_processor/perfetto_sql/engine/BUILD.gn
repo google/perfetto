@@ -27,6 +27,8 @@ source_set("engine") {
     "perfetto_sql_engine.h",
     "runtime_table_function.cc",
     "runtime_table_function.h",
+    "static_table_function_module.cc",
+    "static_table_function_module.h",
     "table_pointer_module.cc",
     "table_pointer_module.h",
   ]

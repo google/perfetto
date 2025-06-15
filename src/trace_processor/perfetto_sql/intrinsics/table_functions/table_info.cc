@@ -19,12 +19,10 @@
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/dataframe.h"
@@ -33,14 +31,10 @@
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 
 namespace perfetto::trace_processor {
-namespace tables {
-
-PerfettoTableInfoTable::~PerfettoTableInfoTable() = default;
-
-}  // namespace tables
 
 namespace {
 
@@ -127,45 +121,59 @@ std::vector<TableInfoTable::Row> GetColInfoRows(const dataframe::Dataframe* df,
 
 }  // namespace
 
+TableInfo::Cursor::Cursor(StringPool* string_pool,
+                          const PerfettoSqlEngine* engine)
+    : string_pool_(string_pool), engine_(engine), table_(string_pool) {}
+
+bool TableInfo::Cursor::Run(const std::vector<SqlValue>& arguments) {
+  PERFETTO_DCHECK(arguments.size() == 1);
+
+  if (arguments[0].type != SqlValue::kString) {
+    return OnFailure(
+        base::ErrStatus("perfetto_table_info takes table name as a string."));
+  }
+
+  table_.Clear();
+
+  std::string table_name_str = arguments[0].AsString();
+  auto table_name_id = string_pool_->InternString(table_name_str.c_str());
+
+  if (const Table* t = engine_->GetTableOrNull(table_name_str); t) {
+    for (auto& row : GetColInfoRows(t->columns(), string_pool_)) {
+      row.table_name = table_name_id;
+      table_.Insert(row);
+    }
+    return OnSuccess(&table_.dataframe());
+  }
+  if (const auto* df = engine_->GetDataframeOrNull(table_name_str); df) {
+    for (auto& row : GetColInfoRows(df, string_pool_)) {
+      row.table_name = table_name_id;
+      table_.Insert(row);
+    }
+    return OnSuccess(&table_.dataframe());
+  }
+  return OnFailure(base::ErrStatus("Perfetto table '%s' not found.",
+                                   table_name_str.c_str()));
+}
+
 TableInfo::TableInfo(StringPool* string_pool, const PerfettoSqlEngine* engine)
     : string_pool_(string_pool), engine_(engine) {}
 
-base::StatusOr<std::unique_ptr<Table>> TableInfo::ComputeTable(
-    const std::vector<SqlValue>& arguments) {
-  PERFETTO_CHECK(arguments.size() == 1);
-  if (arguments[0].type != SqlValue::kString) {
-    return base::ErrStatus("perfetto_table_info takes table name as a string.");
-  }
-
-  std::string table_name = arguments[0].AsString();
-  auto table = std::make_unique<TableInfoTable>(string_pool_);
-  auto table_name_id = string_pool_->InternString(table_name.c_str());
-
-  if (const Table* t = engine_->GetTableOrNull(table_name); t) {
-    for (auto& row : GetColInfoRows(t->columns(), string_pool_)) {
-      row.table_name = table_name_id;
-      table->Insert(row);
-    }
-    return std::unique_ptr<Table>(std::move(table));
-  }
-  if (const auto* df = engine_->GetDataframeOrNull(table_name); df) {
-    for (auto& row : GetColInfoRows(df, string_pool_)) {
-      row.table_name = table_name_id;
-      table->Insert(row);
-    }
-    return std::unique_ptr<Table>(std::move(table));
-  }
-  return base::ErrStatus("Perfetto table '%s' not found.", table_name.c_str());
+std::unique_ptr<StaticTableFunction::Cursor> TableInfo::MakeCursor() {
+  return std::make_unique<Cursor>(string_pool_, engine_);
 }
 
-Table::Schema TableInfo::CreateSchema() {
-  return TableInfoTable::ComputeStaticSchema();
+dataframe::DataframeSpec TableInfo::CreateSpec() {
+  return TableInfoTable::kSpec.ToDataframeSpec();
 }
 
 std::string TableInfo::TableName() {
   return TableInfoTable::Name();
 }
 
+uint32_t TableInfo::GetArgumentCount() const {
+  return 1;
+}
 uint32_t TableInfo::EstimateRowCount() {
   return 1;
 }

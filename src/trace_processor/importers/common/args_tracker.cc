@@ -23,6 +23,7 @@
 #include <optional>
 #include <tuple>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "src/trace_processor/dataframe/dataframe.h"
@@ -175,7 +176,6 @@ void ArgsTracker::Flush() {
         PERFETTO_FATAL("Unsupported nullability type for args.");
       }
     }
-
     i = next_rid_idx;
   }
   args_.clear();
@@ -202,7 +202,8 @@ bool ArgsTracker::NeedsTranslation(const ArgsTranslationTable& table) const {
 }
 
 ArgsTracker::BoundInserter::BoundInserter(ArgsTracker* args_tracker,
-                                          ColumnLegacy* arg_set_id_column,
+                                          dataframe::Dataframe* dataframe,
+                                          uint32_t column,
                                           uint32_t row)
     : args_tracker_(args_tracker),
       ptr_(arg_set_id_column),
