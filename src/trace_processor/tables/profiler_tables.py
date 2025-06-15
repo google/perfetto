@@ -135,7 +135,6 @@ STACK_PROFILE_MAPPING_TABLE = Table(
     python_module=__file__,
     class_name='StackProfileMappingTable',
     sql_name='stack_profile_mapping',
-    use_legacy_table_backend=True,
     columns=[
         C('build_id', CppString(), cpp_access=CppAccess.READ),
         C('exact_offset', CppInt64(), cpp_access=CppAccess.READ),
@@ -289,7 +288,6 @@ PERF_SAMPLE_TABLE = Table(
     python_module=__file__,
     class_name='PerfSampleTable',
     sql_name='perf_sample',
-    use_legacy_table_backend=True,
     columns=[
         C('ts', CppInt64(), flags=ColumnFlag.SORTED, cpp_access=CppAccess.READ),
         C('utid', CppUint32(), cpp_access=CppAccess.READ),
@@ -405,7 +403,6 @@ HEAP_PROFILE_ALLOCATION_TABLE = Table(
     python_module=__file__,
     class_name='HeapProfileAllocationTable',
     sql_name='heap_profile_allocation',
-    use_legacy_table_backend=True,
     columns=[
         # TODO(b/193757386): readd the sorted flag once this bug is fixed.
         C('ts', CppInt64(), cpp_access=CppAccess.READ),
@@ -569,7 +566,6 @@ HEAP_GRAPH_CLASS_TABLE = Table(
     python_module=__file__,
     class_name='HeapGraphClassTable',
     sql_name='__intrinsic_heap_graph_class',
-    use_legacy_table_backend=True,
     columns=[
         C('name', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
         C(
@@ -621,7 +617,6 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
     python_module=__file__,
     class_name='HeapGraphObjectTable',
     sql_name='__intrinsic_heap_graph_object',
-    use_legacy_table_backend=True,
     columns=[
         C('upid', CppUint32()),
         C('graph_sample_ts', CppInt64(), cpp_access=CppAccess.READ),
@@ -708,7 +703,6 @@ HEAP_GRAPH_REFERENCE_TABLE = Table(
     python_module=__file__,
     class_name='HeapGraphReferenceTable',
     sql_name='__intrinsic_heap_graph_reference',
-    use_legacy_table_backend=True,
     columns=[
         C(
             'reference_set_id',
@@ -772,7 +766,6 @@ VULKAN_MEMORY_ALLOCATIONS_TABLE = Table(
     python_module=__file__,
     class_name='VulkanMemoryAllocationsTable',
     sql_name='vulkan_memory_allocations',
-    use_legacy_table_backend=True,
     columns=[
         C(
             'arg_set_id',

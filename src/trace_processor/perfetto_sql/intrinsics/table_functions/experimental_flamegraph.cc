@@ -29,11 +29,9 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/flamegraph_construction_algorithms.h"
-#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -72,23 +70,23 @@ base::StatusOr<int64_t> ParseTimeConstraintTs(const std::string& c,
 base::StatusOr<TimeConstraints> ParseTimeConstraint(const std::string& c) {
   if (base::StartsWith(c, "=")) {
     ASSIGN_OR_RETURN(int64_t ts, ParseTimeConstraintTs(c, 1));
-    return TimeConstraints{FilterOp::kEq, ts};
+    return TimeConstraints{dataframe::Eq{}, ts};
   }
   if (base::StartsWith(c, ">=")) {
     ASSIGN_OR_RETURN(int64_t ts, ParseTimeConstraintTs(c, 2));
-    return TimeConstraints{FilterOp::kGe, ts};
+    return TimeConstraints{dataframe::Ge{}, ts};
   }
   if (base::StartsWith(c, ">")) {
     ASSIGN_OR_RETURN(int64_t ts, ParseTimeConstraintTs(c, 1));
-    return TimeConstraints{FilterOp::kGt, ts};
+    return TimeConstraints{dataframe::Gt{}, ts};
   }
   if (base::StartsWith(c, "<=")) {
     ASSIGN_OR_RETURN(int64_t ts, ParseTimeConstraintTs(c, 2));
-    return TimeConstraints{FilterOp::kLe, ts};
+    return TimeConstraints{dataframe::Le{}, ts};
   }
   if (base::StartsWith(c, ">=")) {
     ASSIGN_OR_RETURN(int64_t ts, ParseTimeConstraintTs(c, 2));
-    return TimeConstraints{FilterOp::kLt, ts};
+    return TimeConstraints{dataframe::Lt{}, ts};
   }
   return base::ErrStatus("experimental_flamegraph: Unknown time constraint");
 }
