@@ -31,7 +31,7 @@
 #include <variant>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
+#include "perfetto/ext/base/variant.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"

@@ -14,19 +14,14 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/counter_tables_py.h"
 #include "src/trace_processor/tables/flow_tables_py.h"
-#include "src/trace_processor/tables/jit_tables_py.h"
 #include "src/trace_processor/tables/macros_internal.h"
-#include "src/trace_processor/tables/memory_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/tables/sched_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
-#include "src/trace_processor/tables/trace_proto_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
-#include "src/trace_processor/tables/winscope_tables_py.h"
 
 namespace perfetto::trace_processor {
 namespace macros_internal {
@@ -35,11 +30,6 @@ MacroTable::~MacroTable() = default;
 }  // namespace macros_internal
 
 namespace tables {
-// android_tables_py.h
-AndroidKeyEventsTable::~AndroidKeyEventsTable() = default;
-AndroidMotionEventsTable::~AndroidMotionEventsTable() = default;
-AndroidInputEventDispatchTable::~AndroidInputEventDispatchTable() = default;
-
 // counter_tables_py.h
 CounterTable::~CounterTable() = default;
 
@@ -76,30 +66,6 @@ AndroidNetworkPacketsTable::~AndroidNetworkPacketsTable() = default;
 
 // track_tables_py.h
 TrackTable::~TrackTable() = default;
-
-// trace_proto_tables_py.h
-ExperimentalProtoPathTable::~ExperimentalProtoPathTable() = default;
-
-// memory_tables_py.h
-MemorySnapshotNodeTable::~MemorySnapshotNodeTable() = default;
-
-// winscope_tables_py.h
-InputMethodClientsTable::~InputMethodClientsTable() = default;
-InputMethodManagerServiceTable::~InputMethodManagerServiceTable() = default;
-InputMethodServiceTable::~InputMethodServiceTable() = default;
-SurfaceFlingerLayersSnapshotTable::~SurfaceFlingerLayersSnapshotTable() =
-    default;
-SurfaceFlingerLayerTable::~SurfaceFlingerLayerTable() = default;
-SurfaceFlingerTransactionsTable::~SurfaceFlingerTransactionsTable() = default;
-SurfaceFlingerTransactionTable::~SurfaceFlingerTransactionTable() = default;
-ViewCaptureTable::~ViewCaptureTable() = default;
-ViewCaptureViewTable::~ViewCaptureViewTable() = default;
-ViewCaptureInternedDataTable::~ViewCaptureInternedDataTable() = default;
-WindowManagerTable::~WindowManagerTable() = default;
-WindowManagerShellTransitionsTable::~WindowManagerShellTransitionsTable() =
-    default;
-WindowManagerShellTransitionProtosTable::
-    ~WindowManagerShellTransitionProtosTable() = default;
 
 }  // namespace tables
 

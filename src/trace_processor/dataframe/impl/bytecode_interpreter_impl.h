@@ -32,7 +32,7 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
+#include "perfetto/ext/base/variant.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/endian.h"
 #include "perfetto/ext/base/flat_hash_map.h"
