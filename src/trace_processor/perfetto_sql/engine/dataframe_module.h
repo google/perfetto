@@ -165,6 +165,10 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     return SQLITE_OK;
   }
 
+  // Static and public for binary size reasons.
+  static void ExecuteCursor(dataframe::Cursor<SqliteValueFetcher>& cursor,
+                            SqliteValueFetcher& fetcher);
+
   // This needs to happen at the end as it depends on the functions
   // defined above.
   static constexpr sqlite3_module kModule = CreateModule();
