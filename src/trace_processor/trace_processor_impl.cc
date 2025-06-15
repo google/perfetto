@@ -24,6 +24,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -45,6 +46,7 @@
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser_impl.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event_parser_impl.h"
@@ -225,10 +227,11 @@ void BuildBoundsTable(sqlite3* db, std::pair<int64_t, int64_t> bounds) {
   }
 }
 
-template <typename T>
+template <typename T, typename = std::enable_if_t<std::is_base_of_v<Table, T>>>
 void AddLegacyStaticTable(
     std::vector<PerfettoSqlEngine::LegacyStaticTable>& tables,
     T* table_instance) {
+  static_assert(std::is_base_of_v<Table, T>);
   tables.push_back({
       table_instance,
       T::Name(),
@@ -1019,47 +1022,14 @@ TraceProcessorImpl::GetLegacyStaticTables(TraceStorage* storage) {
   AddLegacyStaticTable(tables, storage->mutable_stack_profile_mapping_table());
   AddLegacyStaticTable(tables, storage->mutable_stack_profile_frame_table());
 
-  AddLegacyStaticTable(tables, storage->mutable_android_key_events_table());
-  AddLegacyStaticTable(tables, storage->mutable_android_motion_events_table());
-  AddLegacyStaticTable(tables,
-                       storage->mutable_android_input_event_dispatch_table());
-
   AddLegacyStaticTable(tables,
                        storage->mutable_vulkan_memory_allocations_table());
 
   AddLegacyStaticTable(tables,
                        storage->mutable_android_network_packets_table());
 
-  AddLegacyStaticTable(tables, storage->mutable_inputmethod_clients_table());
-  AddLegacyStaticTable(tables,
-                       storage->mutable_inputmethod_manager_service_table());
-  AddLegacyStaticTable(tables, storage->mutable_inputmethod_service_table());
-
-  AddLegacyStaticTable(tables,
-                       storage->mutable_surfaceflinger_layers_snapshot_table());
-  AddLegacyStaticTable(tables, storage->mutable_surfaceflinger_layer_table());
-  AddLegacyStaticTable(tables,
-                       storage->mutable_surfaceflinger_transactions_table());
-  AddLegacyStaticTable(tables,
-                       storage->mutable_surfaceflinger_transaction_table());
-
-  AddLegacyStaticTable(tables, storage->mutable_viewcapture_table());
-  AddLegacyStaticTable(tables, storage->mutable_viewcapture_view_table());
-
-  AddLegacyStaticTable(tables, storage->mutable_windowmanager_table());
-  AddLegacyStaticTable(
-      tables, storage->mutable_window_manager_shell_transition_protos_table());
-
-  AddLegacyStaticTable(
-      tables, storage->mutable_window_manager_shell_transitions_table());
-
   AddLegacyStaticTable(tables, storage->mutable_metadata_table());
   AddLegacyStaticTable(tables, storage->mutable_cpu_table());
-
-  AddLegacyStaticTable(tables, storage->mutable_memory_snapshot_node_table());
-
-  AddLegacyStaticTable(tables,
-                       storage->mutable_experimental_proto_path_table());
 
   return tables;
 }
@@ -1123,6 +1093,37 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
   AddUnfinalizedStaticTable(tables, storage->mutable_symbol_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_jit_code_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_jit_frame_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_android_key_events_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_android_motion_events_table());
+  AddUnfinalizedStaticTable(
+      tables, storage->mutable_android_input_event_dispatch_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_inputmethod_clients_table());
+  AddUnfinalizedStaticTable(
+      tables, storage->mutable_inputmethod_manager_service_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_inputmethod_service_table());
+  AddUnfinalizedStaticTable(
+      tables, storage->mutable_surfaceflinger_layers_snapshot_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_surfaceflinger_layer_table());
+  AddUnfinalizedStaticTable(
+      tables, storage->mutable_surfaceflinger_transactions_table());
+  AddUnfinalizedStaticTable(
+      tables, storage->mutable_surfaceflinger_transaction_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_viewcapture_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_viewcapture_view_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_windowmanager_table());
+  AddUnfinalizedStaticTable(
+      tables, storage->mutable_window_manager_shell_transition_protos_table());
+  AddUnfinalizedStaticTable(
+      tables, storage->mutable_window_manager_shell_transitions_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_memory_snapshot_node_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_experimental_proto_path_table());
   return tables;
 }
 
