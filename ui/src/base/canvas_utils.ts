@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Color} from './color';
 import {Size2D, Point2D} from './geom';
-import {isString} from './object_utils';
 
 export function drawDoubleHeadedArrow(
   ctx: CanvasRenderingContext2D,
@@ -55,6 +55,7 @@ export function drawIncompleteSlice(
   y: number,
   width: number,
   height: number,
+  color: Color,
   showGradient: boolean = true,
 ) {
   if (width <= 0 || height <= 0) {
@@ -74,22 +75,17 @@ export function drawIncompleteSlice(
   ctx.lineTo(x + width, y + 4 * triangleSize);
   ctx.lineTo(x, y + height);
 
-  const fillStyle = ctx.fillStyle;
-  if (isString(fillStyle)) {
-    if (showGradient) {
-      const gradient = ctx.createLinearGradient(x, y, x + width, y + height);
-      gradient.addColorStop(0.66, fillStyle);
-      gradient.addColorStop(1, '#FFFFFF');
-      ctx.fillStyle = gradient;
-    }
-  } else {
-    throw new Error(
-      `drawIncompleteSlice() expects fillStyle to be a simple color not ${fillStyle}`,
-    );
+  const originalFillStyle = ctx.fillStyle;
+
+  if (showGradient) {
+    const gradient = ctx.createLinearGradient(x, y, x + width, y + height);
+    gradient.addColorStop(0.66, color.cssString);
+    gradient.addColorStop(1, color.setAlpha(0).cssString);
+    ctx.fillStyle = gradient;
   }
 
   ctx.fill();
-  ctx.fillStyle = fillStyle;
+  ctx.fillStyle = originalFillStyle;
 }
 
 /**

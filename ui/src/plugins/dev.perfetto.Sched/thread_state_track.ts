@@ -12,12 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {HSLColor} from '../../base/color';
+import {ColorScheme} from '../../base/color_scheme';
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {Trace} from '../../public/trace';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {LONG, NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {colorForThreadState} from './common';
 import {ThreadStateDetailsPanel} from './thread_state_details_panel';
+
+const COLOR_TRANSPARENT = new HSLColor([0, 0, 0], 0.0);
+const COLOR_SCHEME_SLEEPING_IDLE: ColorScheme = {
+  base: COLOR_TRANSPARENT,
+  variant: new HSLColor([0, 0, 50], 0.2),
+  disabled: COLOR_TRANSPARENT,
+  textBase: COLOR_TRANSPARENT,
+  textVariant: COLOR_TRANSPARENT,
+  textDisabled: COLOR_TRANSPARENT,
+};
 
 export function createThreadStateTrack(
   trace: Trace,
@@ -68,7 +80,18 @@ export function createThreadStateTrack(
       sliceHeight: 12,
       titleSizePx: 10,
     },
-    colorizer: (row) => colorForThreadState(row.name),
+    sliceName: (row) => row.name,
+    colorizer: (row): ColorScheme => {
+      const colorForState = colorForThreadState(row.name);
+      if (row.name.includes('Sleeping') || row.name.includes('Idle')) {
+        // For sleeping/idle slices, return a transparent color scheme with
+        // transparent text + a subtle gray variant displayed when hovering the
+        // slice.
+        return COLOR_SCHEME_SLEEPING_IDLE;
+      } else {
+        return colorForState;
+      }
+    },
     detailsPanel: (row) => new ThreadStateDetailsPanel(trace, row.id),
     rootTableName: 'thread_state',
   });
