@@ -996,7 +996,6 @@ std::vector<uint8_t> TraceProcessorImpl::GetMetricDescriptors() {
 std::vector<PerfettoSqlEngine::LegacyStaticTable>
 TraceProcessorImpl::GetLegacyStaticTables(TraceStorage* storage) {
   std::vector<PerfettoSqlEngine::LegacyStaticTable> tables;
-  AddLegacyStaticTable(tables, storage->mutable_arg_table());
   AddLegacyStaticTable(tables, storage->mutable_chrome_raw_table());
   AddLegacyStaticTable(tables, storage->mutable_ftrace_event_table());
   AddLegacyStaticTable(tables, storage->mutable_thread_table());
@@ -1124,6 +1123,7 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
                             storage->mutable_memory_snapshot_node_table());
   AddUnfinalizedStaticTable(tables,
                             storage->mutable_experimental_proto_path_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_arg_table());
   return tables;
 }
 
@@ -1242,10 +1242,8 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   RegisterFunction<Import>(
       engine.get(), "IMPORT", 1,
       std::make_unique<Import::Context>(Import::Context{engine.get()}));
-  RegisterFunction<ToFtrace>(
-      engine.get(), "TO_FTRACE", 1,
-      std::make_unique<ToFtrace::Context>(
-          ToFtrace::Context{storage, SystraceSerializer(context)}));
+  RegisterFunction<ToFtrace>(engine.get(), "TO_FTRACE", 1,
+                             std::make_unique<ToFtrace::Context>(context));
 
   if constexpr (regex::IsRegexSupported()) {
     RegisterFunction<Regex>(engine.get(), "regexp", 2);
