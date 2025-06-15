@@ -1801,6 +1801,10 @@ class JsonExporter {
         ++idx;
         return *this;
       }
+      Iterator& operator--() {
+        --idx;
+        return *this;
+      }
       Iterator& operator+=(difference_type n) {
         idx += n;
         return *this;
