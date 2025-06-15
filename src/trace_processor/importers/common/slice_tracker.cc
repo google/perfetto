@@ -415,7 +415,17 @@ bool SliceTracker::MaybeCloseStack(int64_t new_ts,
       continue;
     }
 
-    if (end_ts <= new_ts) {
+    // Slices that have ended before the new slice begins can be popped from the
+    // stack.
+    // This is nuanced because of two cases:
+    // 1. A non-zero duration slice ends exactly when the new slice begins.
+    //    This should be considered as two separate slices and the old slice
+    //    should be popped.
+    // 2. A zero-duration slice starts exactly when the new slice begins. This
+    //    should be considered as a nested slice and the old slice should *not*
+    //    be popped.
+    // The condition below implements this logic.
+    if (end_ts < new_ts || (end_ts == new_ts && dur > 0)) {
       StackPop(track_id);
       continue;
     }
@@ -425,7 +435,13 @@ bool SliceTracker::MaybeCloseStack(int64_t new_ts,
       continue;
     }
 
-    if (end_ts <= new_ts + new_dur) {
+    // This is a sanity check for invalid nesting. This can happen in cases
+    // like the following:
+    // [  slice  1    ]
+    //          [     slice 2     ]
+    // This is invalid stacking by the producer and should be fixed. Duration
+    // events should either be nested or disjoint, never partially intersecting.
+    if (new_ts < end_ts && new_ts + new_dur > end_ts) {
       context_->storage->IncrementStats(
           stats::slice_drop_overlapping_complete_event);
       return false;
