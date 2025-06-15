@@ -305,7 +305,9 @@ void SliceTracker::MaybeAddTranslatableArgs(SliceInfo& slice_info) {
   translatable_args_.emplace_back(TranslatableArgs{
       ref.id(),
       std::move(slice_info.args_tracker)
-          .ToCompactArgSet(table.arg_set_id(), slice_info.row.row_number())});
+          .ToCompactArgSet(table.dataframe(),
+                           tables::SliceTable::ColumnIndex::arg_set_id,
+                           slice_info.row.row_number())});
 }
 
 void SliceTracker::FlushPendingSlices() {

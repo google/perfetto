@@ -255,7 +255,8 @@ class ArgsTracker {
   // Note that this means the args stored in this tracker will *not* be flushed
   // into the tables: it is the callers responsibility to ensure this happens if
   // necessary.
-  CompactArgSet ToCompactArgSet(const ColumnLegacy& column,
+  CompactArgSet ToCompactArgSet(const dataframe::Dataframe&,
+                                uint32_t column,
                                 uint32_t row_number) &&;
 
   // Returns whether this ArgsTracker contains any arg which require translation

@@ -374,10 +374,10 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool,
     RegisterVirtualTableModule<DbSqliteModule>("static_table", std::move(ctx));
   }
   {
-    auto ctx = std::make_unique<DbSqliteModule::Context>();
+    auto ctx = std::make_unique<StaticTableFunctionModule::Context>();
     static_table_fn_context_ = ctx.get();
-    RegisterVirtualTableModule<DbSqliteModule>("static_table_function",
-                                               std::move(ctx));
+    RegisterVirtualTableModule<StaticTableFunctionModule>(
+        "__intrinsic_static_table_function", std::move(ctx));
   }
   {
     auto ctx = std::make_unique<DataframeModule::Context>();
@@ -500,10 +500,11 @@ void PerfettoSqlEngine::RegisterStaticTableFunction(
   // creation.
   PERFETTO_CHECK(!static_table_fn_context_->temporary_create_state);
   static_table_fn_context_->temporary_create_state =
-      std::make_unique<DbSqliteModule::State>(std::move(fn));
+      std::make_unique<StaticTableFunctionModule::State>(std::move(fn));
 
   base::StackString<1024> sql(
-      "CREATE VIRTUAL TABLE %s USING static_table_function;", name.c_str());
+      "CREATE VIRTUAL TABLE %s USING __intrinsic_static_table_function;",
+      name.c_str());
   auto status =
       Execute(SqlSource::FromTraceProcessorImplementation(sql.ToStdString()));
   if (!status.ok()) {

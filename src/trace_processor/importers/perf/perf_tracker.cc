@@ -127,8 +127,8 @@ void PerfTracker::SymbolizeFrames() {
       continue;
     }
 
-    if (!TrySymbolizeFrame(frame.row_reference())) {
-      SymbolizeKernelFrame(frame.row_reference());
+    if (!TrySymbolizeFrame(frame.ToRowReference())) {
+      SymbolizeKernelFrame(frame.ToRowReference());
     }
   }
 }

@@ -37,6 +37,7 @@
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
+#include "src/trace_processor/perfetto_sql/engine/static_table_function_module.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
@@ -451,7 +452,7 @@ class PerfettoSqlEngine {
   RuntimeTableFunctionModule::Context* runtime_table_fn_context_ = nullptr;
   DbSqliteModule::Context* runtime_table_context_ = nullptr;
   DbSqliteModule::Context* static_table_context_ = nullptr;
-  DbSqliteModule::Context* static_table_fn_context_ = nullptr;
+  StaticTableFunctionModule::Context* static_table_fn_context_ = nullptr;
   DataframeModule::Context* dataframe_context_ = nullptr;
   base::FlatHashMap<std::string, sql_modules::RegisteredPackage> packages_;
   base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro> macros_;
