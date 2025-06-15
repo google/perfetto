@@ -27,9 +27,10 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/db/column.h"
 #include "src/trace_processor/db/column/types.h"
-#include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
@@ -88,6 +89,42 @@ std::vector<TableInfoTable::Row> GetColInfoRows(
   return rows;
 }
 
+std::vector<TableInfoTable::Row> GetColInfoRows(const dataframe::Dataframe* df,
+                                                StringPool* pool) {
+  auto spec = df->CreateSpec();
+  std::vector<TableInfoTable::Row> rows;
+  for (uint32_t i = 0; i < spec.column_specs.size(); ++i) {
+    TableInfoTable::Row row;
+    row.name = pool->InternString(spec.column_names[i].c_str());
+
+    const auto& col_spec = spec.column_specs[i];
+    switch (col_spec.type.index()) {
+      case dataframe::StorageType::GetTypeIndex<dataframe::String>():
+        row.col_type = pool->InternString("string");
+        break;
+      case dataframe::StorageType::GetTypeIndex<dataframe::Int64>():
+        row.col_type = pool->InternString("int64");
+        break;
+      case dataframe::StorageType::GetTypeIndex<dataframe::Int32>():
+        row.col_type = pool->InternString("int32");
+        break;
+      case dataframe::StorageType::GetTypeIndex<dataframe::Uint32>():
+        row.col_type = pool->InternString("uint32");
+        break;
+      case dataframe::StorageType::GetTypeIndex<dataframe::Double>():
+        row.col_type = pool->InternString("double");
+        break;
+      case dataframe::StorageType::GetTypeIndex<dataframe::Id>():
+        row.col_type = pool->InternString("id");
+        break;
+    }
+    row.nullable = col_spec.nullability.index();
+    row.sorted = col_spec.sort_state.index();
+    rows.push_back(row);
+  }
+  return rows;
+}
+
 }  // namespace
 
 TableInfo::TableInfo(StringPool* string_pool, const PerfettoSqlEngine* engine)
@@ -104,10 +141,15 @@ base::StatusOr<std::unique_ptr<Table>> TableInfo::ComputeTable(
   auto table = std::make_unique<TableInfoTable>(string_pool_);
   auto table_name_id = string_pool_->InternString(table_name.c_str());
 
-  // Find table
-  const Table* t = engine_->GetTableOrNull(table_name);
-  if (t) {
+  if (const Table* t = engine_->GetTableOrNull(table_name); t) {
     for (auto& row : GetColInfoRows(t->columns(), string_pool_)) {
+      row.table_name = table_name_id;
+      table->Insert(row);
+    }
+    return std::unique_ptr<Table>(std::move(table));
+  }
+  if (const auto* df = engine_->GetDataframeOrNull(table_name); df) {
+    for (auto& row : GetColInfoRows(df, string_pool_)) {
       row.table_name = table_name_id;
       table->Insert(row);
     }

@@ -13467,6 +13467,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_dataframe_dataframe",
     srcs: [
+        "src/trace_processor/dataframe/adhoc_dataframe_builder.cc",
         "src/trace_processor/dataframe/dataframe.cc",
         "src/trace_processor/dataframe/typed_cursor.cc",
     ],

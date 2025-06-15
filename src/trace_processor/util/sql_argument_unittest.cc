@@ -51,37 +51,37 @@ TEST(SqlArgumentTest, IsValidName) {
 }
 
 TEST(SqlArgumentTest, ParseType) {
-  ASSERT_EQ(ParseType("PROTO"), Type::kProto);
+  ASSERT_EQ(ParseType("PROTO"), Type::kBytes);
   ASSERT_EQ(ParseType("BOOL"), Type::kBool);
   ASSERT_EQ(ParseType("UNKNOWN"), std::nullopt);
-  ASSERT_EQ(ParseType("UINT"), Type::kUint);
+  ASSERT_EQ(ParseType("UINT"), Type::kLong);
 }
 
 TEST(SqlArgumentTest, TypeToFriendlyString) {
-  ASSERT_STREQ(TypeToHumanFriendlyString(Type::kProto), "PROTO");
+  ASSERT_STREQ(TypeToHumanFriendlyString(Type::kBytes), "BYTES");
   ASSERT_STREQ(TypeToHumanFriendlyString(Type::kBool), "BOOL");
-  ASSERT_STREQ(TypeToHumanFriendlyString(Type::kUint), "UINT");
+  ASSERT_STREQ(TypeToHumanFriendlyString(Type::kLong), "LONG");
 }
 
 TEST(SqlArgumentTest, TypeToSqlValueType) {
-  ASSERT_EQ(TypeToSqlValueType(Type::kProto), SqlValue::Type::kBytes);
+  ASSERT_EQ(TypeToSqlValueType(Type::kBytes), SqlValue::Type::kBytes);
   ASSERT_EQ(TypeToSqlValueType(Type::kBool), SqlValue::Type::kLong);
-  ASSERT_EQ(TypeToSqlValueType(Type::kUint), SqlValue::Type::kLong);
+  ASSERT_EQ(TypeToSqlValueType(Type::kLong), SqlValue::Type::kLong);
 }
 
 TEST(SqlArgumentTest, ParseArguments) {
   ParseArgsSuccessfully("", {});
-  ParseArgsSuccessfully("foo UINT", {ArgumentDefinition("$foo", Type::kUint)});
+  ParseArgsSuccessfully("foo UINT", {ArgumentDefinition("$foo", Type::kLong)});
   ParseArgsSuccessfully("foo UINT, bar LONG, baz PROTO",
-                        {ArgumentDefinition("$foo", Type::kUint),
+                        {ArgumentDefinition("$foo", Type::kLong),
                          ArgumentDefinition("$bar", Type::kLong),
-                         ArgumentDefinition("$baz", Type::kProto)});
+                         ArgumentDefinition("$baz", Type::kBytes)});
   ParseArgsSuccessfully("\nfoo UINT,\n bar LONG, baz PROTO\n",
-                        {ArgumentDefinition("$foo", Type::kUint),
+                        {ArgumentDefinition("$foo", Type::kLong),
                          ArgumentDefinition("$bar", Type::kLong),
-                         ArgumentDefinition("$baz", Type::kProto)});
+                         ArgumentDefinition("$baz", Type::kBytes)});
   ParseArgsSuccessfully("foo123 UINT",
-                        {ArgumentDefinition("$foo123", Type::kUint)});
+                        {ArgumentDefinition("$foo123", Type::kLong)});
 
   ParseArgsWithFailure("foo");
   ParseArgsWithFailure("foo bar UINT, baz UINT");
