@@ -340,11 +340,7 @@ class TraceStorage {
     // of tables. If we wanted to extend this to every table, we'd need to deal
     // with tracking all the tables in the storage: this is not worth doing
     // given most memory is used by these tables.
-    track_table_.ShrinkToFit();
-    counter_table_.ShrinkToFit();
     slice_table_.ShrinkToFit();
-    sched_slice_table_.ShrinkToFit();
-    thread_state_table_.ShrinkToFit();
   }
 
   const tables::ThreadTable& thread_table() const { return thread_table_; }
@@ -1115,7 +1111,7 @@ class TraceStorage {
 
   // AndroidNetworkPackets tables
   tables::AndroidNetworkPacketsTable android_network_packets_table_{
-      &string_pool_, &slice_table_};
+      &string_pool_};
 
   // V8 tables
   tables::V8IsolateTable v8_isolate_table_{&string_pool_};

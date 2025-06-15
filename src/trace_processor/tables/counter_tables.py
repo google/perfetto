@@ -29,7 +29,6 @@ COUNTER_TABLE = Table(
     python_module=__file__,
     class_name='CounterTable',
     sql_name='__intrinsic_counter',
-    use_legacy_table_backend=True,
     columns=[
         C('ts', CppInt64(), flags=ColumnFlag.SORTED, cpp_access=CppAccess.READ),
         C(

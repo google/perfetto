@@ -18,10 +18,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <deque>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <memory>
@@ -43,6 +45,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/iterator.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/export_json.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -1787,22 +1790,40 @@ class JsonExporter {
   }
 
   uint64_t GetCounterValue(TrackId track_id, int64_t ts) {
+    struct Iterator {
+      using iterator_category = std::random_access_iterator_tag;
+      using value_type = uint32_t;
+      using difference_type = uint32_t;
+      using pointer = uint32_t*;
+      using reference = uint32_t&;
+      uint32_t operator*() const { return idx; }
+      Iterator& operator++() {
+        ++idx;
+        return *this;
+      }
+      Iterator& operator+=(difference_type n) {
+        idx += n;
+        return *this;
+      }
+      uint32_t operator-(const Iterator& other) const {
+        return idx - other.idx;
+      }
+      uint32_t idx;
+    };
     const auto& counter_table = storage_->counter_table();
-    auto begin = counter_table.ts().begin();
-    auto end = counter_table.ts().end();
-    PERFETTO_DCHECK(counter_table.ts().IsSorted() &&
-                    counter_table.ts().IsColumnType<int64_t>());
     // The timestamp column is sorted, so we can binary search for a matching
     // timestamp. Note that we don't use RowMap operations like FilterInto()
     // here because they bloat trace processor's binary size in Chrome too much.
-    auto it = std::lower_bound(begin, end, ts,
-                               [](const SqlValue& value, int64_t expected_ts) {
-                                 return value.AsLong() < expected_ts;
+    auto it = std::lower_bound(Iterator{0}, Iterator{counter_table.row_count()},
+                               ts, [&](uint32_t i, int64_t expected_ts) {
+                                 return counter_table[i].ts() < expected_ts;
                                });
-    for (; it < end; ++it) {
-      if ((*it).AsLong() != ts)
+    for (; *it < counter_table.row_count(); ++it) {
+      auto rr = counter_table[*it];
+      if (rr.ts() != ts) {
         break;
-      if (auto rr = counter_table[it.row()]; rr.track_id() == track_id) {
+      }
+      if (rr.track_id() == track_id) {
         return static_cast<uint64_t>(rr.value());
       }
     }
