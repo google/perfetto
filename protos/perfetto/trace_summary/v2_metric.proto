@@ -144,7 +144,7 @@ import "protos/perfetto/perfetto_sql/structured_query.proto";
 // metrics. This makes it possible e.g. to have an automatic metric viewer in
 // the Perfetto UI visualizing the results of running a metric.
 //
-// Next id: 7
+// Next id: 8
 message TraceMetricV2Spec {
   // The id of the metric. Required.
   //
@@ -211,6 +211,13 @@ message TraceMetricV2Spec {
     UNIQUE = 2;
   }
   optional DimensionUniqueness dimension_uniqueness = 6;
+
+  // =============================================
+  // Advanced features start here
+  // =============================================
+
+  //
+  optional string output_group_id = 7;
 }
 
 // A template for generating multiple v2 trace-based metrics.
@@ -342,4 +349,13 @@ message TraceMetricV2 {
   //
   // Useful for knowing what the dimension names/value names are.
   optional TraceMetricV2Spec spec = 2;
+}
+
+// A group of v2 trace-based metrics.
+//
+// This is an advanced feature of v2 trace-based metrics which allows you to
+// group multiple v2 trace-based metrics together. Groups require that all
+// metrics have the same
+message TraceMetricV2Group {
+
 }
