@@ -15,7 +15,6 @@
 import dataclasses
 from dataclasses import dataclass
 import importlib
-import sys
 from typing import Dict
 from typing import List
 from typing import Set
@@ -26,6 +25,8 @@ from python.generators.trace_processor_table.public import Alias
 from python.generators.trace_processor_table.public import Column
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import ColumnFlag
+from python.generators.trace_processor_table.public import CppAccess
+from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import CppColumnType
 from python.generators.trace_processor_table.public import CppDouble
 from python.generators.trace_processor_table.public import CppInt32

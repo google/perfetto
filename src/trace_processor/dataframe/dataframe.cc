@@ -16,8 +16,10 @@
 
 #include "src/trace_processor/dataframe/dataframe.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -61,7 +63,7 @@ Dataframe::Dataframe(bool finalized,
     column_ptrs_.emplace_back(col.get());
   }
   if (finalized) {
-    MarkFinalized();
+    Finalize();
   }
 }
 
@@ -76,6 +78,53 @@ base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
                        row_count_, columns_, indexes_, filter_specs,
                        distinct_specs, sort_specs, limit_spec, cols_used));
   return QueryPlan(std::move(plan));
+}
+
+void Dataframe::Clear() {
+  PERFETTO_DCHECK(!finalized_);
+  for (const auto& c : columns_) {
+    switch (c->storage.type().index()) {
+      case StorageType::GetTypeIndex<Uint32>():
+        c->storage.unchecked_get<Uint32>().clear();
+        break;
+      case StorageType::GetTypeIndex<Int32>():
+        c->storage.unchecked_get<Int32>().clear();
+        break;
+      case StorageType::GetTypeIndex<Int64>():
+        c->storage.unchecked_get<Int64>().clear();
+        break;
+      case StorageType::GetTypeIndex<Double>():
+        c->storage.unchecked_get<Double>().clear();
+        break;
+      case StorageType::GetTypeIndex<String>():
+        c->storage.unchecked_get<String>().clear();
+        break;
+      case StorageType::GetTypeIndex<Id>():
+        c->storage.unchecked_get<Id>().size = 0;
+        break;
+      default:
+        PERFETTO_FATAL("Invalid storage type");
+    }
+    switch (c->null_storage.nullability().index()) {
+      case Nullability::GetTypeIndex<NonNull>():
+        break;
+      case Nullability::GetTypeIndex<SparseNull>():
+      case Nullability::GetTypeIndex<SparseNullWithPopcountUntilFinalization>():
+      case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>(): {
+        auto& null = c->null_storage.unchecked_get<SparseNull>();
+        null.bit_vector.clear();
+        null.prefix_popcount_for_cell_get.clear();
+        break;
+      }
+      case Nullability::GetTypeIndex<DenseNull>():
+        c->null_storage.unchecked_get<DenseNull>().bit_vector.clear();
+        break;
+      default:
+        PERFETTO_FATAL("Invalid nullability type");
+    }
+  }
+  row_count_ = 0;
+  ++mutations_;
 }
 
 base::StatusOr<Index> Dataframe::BuildIndex(const uint32_t* columns_start,
@@ -117,7 +166,7 @@ void Dataframe::RemoveIndexAt(uint32_t index) {
   ++mutations_;
 }
 
-void Dataframe::MarkFinalized() {
+void Dataframe::Finalize() {
   if (finalized_) {
     return;
   }
@@ -173,7 +222,8 @@ void Dataframe::MarkFinalized() {
   }
 }
 
-dataframe::Dataframe Dataframe::Copy() const {
+dataframe::Dataframe Dataframe::CopyFinalized() const {
+  PERFETTO_CHECK(finalized_);
   return *this;
 }
 
@@ -245,6 +295,11 @@ void Dataframe::TypedCursorBase::PrepareCursorInternal() {
   PERFETTO_CHECK(plan.ok());
   dataframe_->PrepareCursor(*plan, cursor_);
   last_execution_mutation_count_ = dataframe_->mutations_;
+  for (const auto& spec : filter_specs_) {
+    filter_value_mapping_[spec.source_index] =
+        spec.value_index.value_or(std::numeric_limits<uint32_t>::max());
+  }
+  std::fill(filter_values_.begin(), filter_values_.end(), nullptr);
 }
 
 }  // namespace perfetto::trace_processor::dataframe

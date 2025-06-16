@@ -786,8 +786,11 @@ class TrackEvent(TestSuite):
     return DiffTestBlueprint(
         trace=Path('experimental_slice_layout_depth.py'),
         query="""
-        SELECT layout_depth FROM experimental_slice_layout
-        WHERE filter_track_ids = (SELECT group_concat(track_id, ',') FROM slice);
+        SELECT layout_depth
+        FROM experimental_slice_layout((
+          SELECT group_concat(track_id, ',')
+          FROM slice
+        ))
         """,
         out=Csv("""
         "layout_depth"

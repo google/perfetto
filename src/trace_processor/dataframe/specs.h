@@ -78,8 +78,11 @@ struct IsNotNull {};
 // Filters only cells which are NULL.
 struct IsNull {};
 
+// Filters only cells which are part of the provided list of values.
+struct In {};
+
 // TypeSet of all possible operations for filter conditions.
-using Op = TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex, IsNotNull, IsNull>;
+using Op = TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex, IsNotNull, IsNull, In>;
 
 // -----------------------------------------------------------------------------
 // Sort State Types
@@ -270,6 +273,18 @@ struct TypedDataframeSpec {
 
   static_assert(kColumnCount > 0,
                 "TypedSpec must have at least one column type");
+
+  // Converts the typed spec to a untyped DataframeSpec.
+  DataframeSpec ToUntypedDataframeSpec() const {
+    DataframeSpec spec;
+    spec.column_names.reserve(kColumnCount);
+    spec.column_specs.reserve(kColumnCount);
+    for (size_t i = 0; i < kColumnCount; ++i) {
+      spec.column_names.push_back(column_names[i]);
+      spec.column_specs.push_back(column_specs[i]);
+    }
+    return spec;
+  }
 
   std::array<const char*, kColumnCount> column_names;
   std::array<ColumnSpec, kColumnCount> column_specs;
