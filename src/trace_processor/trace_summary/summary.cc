@@ -349,23 +349,24 @@ base::Status Summarize(TraceProcessor* processor,
                        const std::vector<TraceSummarySpecBytes>& specs,
                        std::vector<uint8_t>* output,
                        const TraceSummaryOutputSpec& output_spec) {
+  std::vector<std::vector<uint8_t>> synthetic_protos;
   std::vector<protos::pbzero::TraceSummarySpec::Decoder> spec_decoders;
-  std::vector<std::vector<uint8_t>> textproto_converted_specs(specs.size());
   for (uint32_t i = 0; i < specs.size(); ++i) {
     switch (specs[i].format) {
       case TraceSummarySpecBytes::Format::kBinaryProto:
         spec_decoders.emplace_back(specs[i].ptr, specs[i].size);
         break;
       case TraceSummarySpecBytes::Format::kTextProto:
+        synthetic_protos.emplace_back();
         ASSIGN_OR_RETURN(
-            textproto_converted_specs[i],
+            synthetic_protos.back(),
             protozero::TextToProto(
                 kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size(),
                 ".perfetto.protos.TraceSummarySpec", "-",
                 std::string_view(reinterpret_cast<const char*>(specs[i].ptr),
                                  specs[i].size)));
-        spec_decoders.emplace_back(textproto_converted_specs[i].data(),
-                                   textproto_converted_specs[i].size());
+        spec_decoders.emplace_back(synthetic_protos.back().data(),
+                                   synthetic_protos.back().size());
         break;
     }
   }
@@ -377,83 +378,63 @@ base::Status Summarize(TraceProcessor* processor,
     }
   }
 
-  base::FlatHashMap<std::string, Metric> queries_per_metric;
-  if (!computation.v2_metric_ids.has_value()) {
-    // If nullopt, compute all metrics.
-    for (const auto& spec : spec_decoders) {
-      for (auto it = spec.metric_spec(); it; ++it) {
-        protos::pbzero::TraceMetricV2Spec::Decoder m(*it);
-        std::string id = m.id().ToStdString();
-        if (id.empty()) {
-          return base::ErrStatus(
-              "Metric with empty id field: this is not allowed");
-        }
-        if (base::CaseInsensitiveEqual(id, "all")) {
-          return base::ErrStatus(
-              "Metric with `id` field value `all` is not allowed. Please "
-              "change the value of the `id` field of the metric spec.");
-        }
-        if (queries_per_metric.Find(id)) {
-          return base::ErrStatus(
-              "Duplicate definitions for metric '%s' received: this is not "
-              "allowed",
-              id.c_str());
-        }
-        Metric metric;
-        base::StatusOr<std::string> query_or =
-            generator.Generate(m.query().data, m.query().size);
-        if (!query_or.ok()) {
-          return base::ErrStatus("Unable to build query for metric '%s': %s",
-                                 id.c_str(), query_or.status().c_message());
-        }
-        metric.query = *query_or;
-        metric.spec = protozero::ConstBytes{
-            m.begin(),
-            static_cast<size_t>(m.end() - m.begin()),
-        };
-        queries_per_metric.Insert(id, std::move(metric));
-      }
-    }
-  } else if (!computation.v2_metric_ids->empty()) {
-    for (const auto& id : *computation.v2_metric_ids) {
-      queries_per_metric.Insert(id, Metric{});
-    }
-    for (const auto& spec : spec_decoders) {
-      for (auto it = spec.metric_spec(); it; ++it) {
-        protos::pbzero::TraceMetricV2Spec::Decoder m(*it);
-        std::string id = m.id().ToStdString();
-        if (id.empty()) {
-          return base::ErrStatus(
-              "Metric with empty id field: this is not allowed");
-        }
-
-        // Only compute metrics which were populated in the map (i.e. the ones
-        // which were specified in the `computation.v2_metric_ids` field).
-        Metric* metric = queries_per_metric.Find(id);
-        if (!metric) {
-          continue;
-        }
-        if (!metric->query.empty()) {
-          return base::ErrStatus(
-              "Duplicate definitions for metric '%s' received: this is not "
-              "allowed",
-              id.c_str());
-        }
-        base::StatusOr<std::string> query_or =
-            generator.Generate(m.query().data, m.query().size);
-        if (!query_or.ok()) {
-          return base::ErrStatus("Unable to build query for metric '%s': %s",
-                                 id.c_str(), query_or.status().c_message());
-        }
-        metric->query = *query_or;
-        metric->spec = protozero::ConstBytes{
-            m.begin(),
-            static_cast<size_t>(m.end() - m.begin()),
-        };
-      }
+  std::vector<protos::pbzero::TraceMetricV2Spec::Decoder> metric_decoders;
+  for (const auto& spec : spec_decoders) {
+    for (auto it = spec.metric_spec(); it; ++it) {
+      metric_decoders.emplace_back(*it);
     }
   }
+
   // If `v2_metric_ids` is an empty vector, we will not compute any metrics.
+  std::vector<std::string> metric_ids;
+  if (computation.v2_metric_ids) {
+    metric_ids = std::move(*computation.v2_metric_ids);
+  } else {
+    // If `v2_metric_ids` is not specified, we will compute all metrics
+    // specified in the summary specs.
+    for (const auto& spec : metric_decoders) {
+      metric_ids.push_back(spec.id().ToStdString());
+    }
+  }
+
+  base::FlatHashMap<std::string, Metric> queries_per_metric;
+  for (const auto& id : metric_ids) {
+    if (base::CaseInsensitiveEqual(id, "all")) {
+      return base::ErrStatus(
+          "Metric has id 'all' which is not allowed as this is a reserved "
+          "name. Please use a different id for your metric");
+    }
+    queries_per_metric.Insert(id, Metric{});
+  }
+  for (const auto& m : metric_decoders) {
+    std::string id = m.id().ToStdString();
+    if (id.empty()) {
+      return base::ErrStatus("Metric with empty id field: this is not allowed");
+    }
+    // Only compute metrics which were populated in the map (i.e. the ones
+    // which were specified in the `computation.v2_metric_ids` field).
+    Metric* metric = queries_per_metric.Find(id);
+    if (!metric) {
+      continue;
+    }
+    if (!metric->query.empty()) {
+      return base::ErrStatus(
+          "Duplicate definitions for metric '%s' received: this is not "
+          "allowed",
+          id.c_str());
+    }
+    base::StatusOr<std::string> query_or =
+        generator.Generate(m.query().data, m.query().size);
+    if (!query_or.ok()) {
+      return base::ErrStatus("Unable to build query for metric '%s': %s",
+                             id.c_str(), query_or.status().c_message());
+    }
+    metric->query = *query_or;
+    metric->spec = protozero::ConstBytes{
+        m.begin(),
+        static_cast<size_t>(m.end() - m.begin()),
+    };
+  }
 
   std::optional<std::string> metadata_sql;
   if (computation.metadata_query_id) {
