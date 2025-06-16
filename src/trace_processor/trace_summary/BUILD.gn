@@ -43,9 +43,9 @@ perfetto_cc_proto_descriptor("gen_cc_trace_summary_descriptor") {
   descriptor_target = "../../../protos/perfetto/trace_summary:descriptor"
 }
 
-perfetto_unittest_source_set("unittests") {
+source_set("integrationtests") {
   testonly = true
-  sources = [ "summary_unittest.cc" ]
+  sources = [ "summary_integrationtest.cc" ]
   deps = [
     ":trace_summary",
     "../../../gn:default_deps",
