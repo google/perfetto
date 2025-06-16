@@ -15212,6 +15212,14 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/trace_summary:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_trace_summary_unittests",
+    srcs: [
+        "src/trace_processor/trace_summary/summary_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/types:types
 filegroup {
     name: "perfetto_src_trace_processor_types_types",
@@ -17147,6 +17155,7 @@ cc_test {
         ":perfetto_src_trace_processor_tables_tables",
         ":perfetto_src_trace_processor_top_level_unittests",
         ":perfetto_src_trace_processor_trace_summary_trace_summary",
+        ":perfetto_src_trace_processor_trace_summary_unittests",
         ":perfetto_src_trace_processor_types_types",
         ":perfetto_src_trace_processor_types_unittests",
         ":perfetto_src_trace_processor_unittests",
