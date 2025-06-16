@@ -95,7 +95,7 @@ class Etm(TestSuite):
 
   def test_symbolization(self):
     return DiffTestBlueprint(
-        index_path=DataPath('simpleperf/bin'),
+        register_files_dir=DataPath('simpleperf/bin'),
         trace=DataPath('simpleperf/cs_etm_u.perf'),
         query='''
           SELECT d.element_index, i.instruction_index, s.*
