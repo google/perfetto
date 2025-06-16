@@ -41,6 +41,7 @@
 
 #include "protos/perfetto/trace_summary/file.pbzero.h"
 #include "protos/perfetto/trace_summary/v2_metric.pbzero.h"
+
 namespace perfetto::trace_processor::summary {
 
 namespace {
@@ -124,6 +125,9 @@ base::Status CreateQueriesAndComputeMetrics(
     auto it = processor->ExecuteQuery(m.value().query);
     protos::pbzero::TraceMetricV2Spec::Decoder spec_decoder(m.value().spec);
 
+    bool is_unique_dimensions =
+        spec_decoder.dimension_uniqueness() ==
+        protos::pbzero::TraceMetricV2Spec::DimensionUniqueness::UNIQUE;
     uint32_t col_count = it.ColumnCount();
     std::string metric_value_column_name = spec_decoder.value().ToStdString();
     std::optional<uint32_t> metric_value_index;
@@ -202,6 +206,7 @@ base::Status CreateQueriesAndComputeMetrics(
       }
     }
 
+    base::FlatHashMap<uint64_t, bool> seen_dimensions;
     while (it.Next()) {
       PERFETTO_CHECK(col_count > 0);
       const auto& metric_value_column = it.Get(*metric_value_index);
@@ -234,62 +239,86 @@ base::Status CreateQueriesAndComputeMetrics(
       }
 
       // Read dimensions.
+      base::Hasher hasher;
       for (size_t i = 0; i < dimension_types.size(); ++i) {
+        uint32_t dim_column_index = dimension_column_indices[i];
+        const auto& dimension_value = it.Get(dim_column_index);
+        hasher.Update(dimension_value.type);
+
         protos::pbzero::TraceMetricV2::MetricRow::Dimension* dimension =
             row->add_dimension();
 
-        uint32_t dim_column_index = dimension_column_indices[i];
         protos::pbzero::TraceMetricV2Spec::DimensionType dimension_type =
             dimension_types[i];
 
-        const auto& dimension_value = it.Get(dim_column_index);
         if (dimension_value.is_null()) {
           // Accept null value for all dimension types.
           dimension->set_null_value();
           continue;
         }
         switch (dimension_type) {
-          case protos::pbzero::TraceMetricV2Spec::STRING:
+          case protos::pbzero::TraceMetricV2Spec::STRING: {
             if (dimension_value.type != SqlValue::kString) {
               return base::ErrStatus(
                   "Expected string for dimension '%zu' in metric '%s', got %d",
                   i, metric_name.c_str(), dimension_value.type);
             }
-            dimension->set_string_value(dimension_value.AsString());
+            const char* dimension_str = dimension_value.string_value;
+            hasher.Update(dimension_str);
+            dimension->set_string_value(dimension_str);
             break;
-          case protos::pbzero::TraceMetricV2Spec::INT64:
+          }
+          case protos::pbzero::TraceMetricV2Spec::INT64: {
             if (dimension_value.type != SqlValue::kLong) {
               return base::ErrStatus(
                   "Expected int64 for dimension '%zu' in metric '%s', got %d",
                   i, metric_name.c_str(), dimension_value.type);
             }
-            dimension->set_int64_value(dimension_value.AsLong());
+            int64_t dim_value = dimension_value.long_value;
+            hasher.Update(dim_value);
+            dimension->set_int64_value(dim_value);
             break;
-          case protos::pbzero::TraceMetricV2Spec::DOUBLE:
+          }
+          case protos::pbzero::TraceMetricV2Spec::DOUBLE: {
             if (dimension_value.type != SqlValue::kDouble) {
               return base::ErrStatus(
                   "Expected double for dimension '%zu' in metric '%s', got %d",
                   i, metric_name.c_str(), dimension_value.type);
             }
-            dimension->set_double_value(dimension_value.AsDouble());
+            double dim_value = dimension_value.AsDouble();
+            hasher.Update(dim_value);
+            dimension->set_double_value(dim_value);
             break;
+          }
           case protos::pbzero::TraceMetricV2Spec::DIMENSION_TYPE_UNSPECIFIED:
-            if (dimension_value.type == SqlValue::kNull) {
-              dimension->set_null_value();
-            } else if (dimension_value.type == SqlValue::kLong) {
-              dimension->set_int64_value(dimension_value.AsLong());
+            if (dimension_value.type == SqlValue::kLong) {
+              int64_t dim_value = dimension_value.long_value;
+              hasher.Update(dim_value);
+              dimension->set_int64_value(dim_value);
             } else if (dimension_value.type == SqlValue::kDouble) {
-              dimension->set_double_value(dimension_value.AsDouble());
+              double dim_value = dimension_value.AsDouble();
+              hasher.Update(dim_value);
+              dimension->set_double_value(dim_value);
             } else if (dimension_value.type == SqlValue::kString) {
-              dimension->set_string_value(dimension_value.AsString());
+              const char* dimension_str = dimension_value.string_value;
+              hasher.Update(dimension_str);
+              dimension->set_string_value(dimension_str);
             } else if (dimension_value.type == SqlValue::kBytes) {
               return base::ErrStatus(
                   "Received bytes for dimension in metric '%s': this is not "
                   "supported",
                   metric_name.c_str());
+            } else {
+              PERFETTO_FATAL("Null dimension should have been handled above");
             }
             break;
         }
+      }
+      uint64_t hash = hasher.digest();
+      if (is_unique_dimensions && !seen_dimensions.Insert(hash, true).second) {
+        return base::ErrStatus(
+            "Duplicate dimensions found for metric '%s': this is not allowed",
+            metric_name.c_str());
       }
     }
     RETURN_IF_ERROR(it.Status());
