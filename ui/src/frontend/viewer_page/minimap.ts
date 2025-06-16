@@ -93,7 +93,7 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
 
     if (size.width > 0 && traceContext.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width);
-      const offset = trace.timeline.timestampOffset();
+      const offset = trace.timeline.getTimeAxisOrigin();
       const tickGen = generateTicks(traceContext, maxMajorTicks, offset);
 
       // Draw time labels

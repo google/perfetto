@@ -94,7 +94,7 @@ export class WattsonProcessSelectionAggregator
       {
         title: 'PID',
         kind: 'NUMBER',
-        columnConstructor: Uint16Array,
+        columnConstructor: Float64Array,
         columnId: 'pid',
       },
       {
