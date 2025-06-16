@@ -109,7 +109,7 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
       {
         title: 'PID',
         kind: 'NUMBER',
-        columnConstructor: Uint16Array,
+        columnConstructor: Float64Array,
         columnId: 'pid',
       },
       {
@@ -121,7 +121,7 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
       {
         title: 'TID',
         kind: 'NUMBER',
-        columnConstructor: Uint16Array,
+        columnConstructor: Float64Array,
         columnId: 'tid',
       },
       {
