@@ -309,7 +309,7 @@ base::Status CreateQueriesAndComputeMetrics(
                   "supported",
                   metric_name.c_str());
             } else {
-              PERFETTO_FATAL("Null dimension should have been hnandled above");
+              PERFETTO_FATAL("Null dimension should have been handled above");
             }
             break;
         }
