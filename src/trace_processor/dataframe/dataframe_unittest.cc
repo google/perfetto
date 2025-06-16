@@ -224,6 +224,20 @@ TEST_F(DataframeBytecodeTest, NumericSortedEq) {
   )");
 }
 
+TEST_F(DataframeBytecodeTest, InFilter) {
+  std::vector<impl::Column> cols = MakeColumnVector(
+      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
+                   Unsorted{}, HasDuplicates{}});
+  std::vector<FilterSpec> filters = {{0, 0, In{}, std::nullopt}};
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    CastFilterValueList<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+    Iota: [source_register=Register(0), update_register=Register(3)]
+    In<Uint32>: [col=0, value_list_register=Register(1), source_register=Register(3), update_register=Register(3)]
+  )");
+}
+
 TEST_F(DataframeBytecodeTest, NumericSortedInEq) {
   {
     std::vector<impl::Column> cols = MakeColumnVector(
@@ -294,8 +308,7 @@ TEST_F(DataframeBytecodeTest, Numeric) {
       InitRange: [size=0, dest_register=Register(0)]
       CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
       AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-      Iota: [source_register=Register(0), update_register=Register(3)]
-      NonStringFilter<Uint32, Eq>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
+      LinearFilterEq<Uint32>: [col=0, filter_value_reg=Register(1), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(3)]
     )");
   }
   {
@@ -787,8 +800,7 @@ TEST_F(DataframeBytecodeTest, LimitOffsetPlacement) {
     InitRange: [size=0, dest_register=Register(0)]
     CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
-    Iota: [source_register=Register(0), update_register=Register(3)]
-    NonStringFilter<Uint32, Eq>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
+    LinearFilterEq<Uint32>: [col=0, filter_value_reg=Register(1), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(3)]
     LimitOffsetIndices: [offset_value=2, limit_value=10, update_register=Register(3)]
     AllocateIndices: [size=0, dest_slab_register=Register(4), dest_span_register=Register(5)]
     StrideCopy: [source_register=Register(3), update_register=Register(5), stride=2]
@@ -1033,6 +1045,104 @@ TEST_F(DataframeBytecodeTest, PlanQuery_MultiColIndex_PrefixEqFilters) {
     CopySpanIntersectingRange: [source_register=Register(1), source_range_register=Register(0), update_register=Register(7)]
   )";
   RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode);
+}
+
+TEST_F(DataframeBytecodeTest, PlanQuery_LinearFilterEq_NonNullUint32) {
+  std::vector<impl::Column> cols = MakeColumnVector(
+      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
+                   Unsorted{}, HasDuplicates{}});
+  std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
+  // Expect LinearFilterEq because:
+  // 1. Input is a Range (initially).
+  // 2. Operation is Eq.
+  // 3. Column is NonNull.
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+    LinearFilterEq<Uint32>: [col=0, filter_value_reg=Register(1), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(3)]
+  )",
+                  /*cols_used=*/1);
+}
+
+TEST_F(DataframeBytecodeTest, PlanQuery_LinearFilterEq_NonNullString) {
+  std::vector<impl::Column> cols = MakeColumnVector(
+      impl::Column{impl::Storage::String{}, impl::NullStorage::NonNull{},
+                   Unsorted{}, HasDuplicates{}});
+  std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    CastFilterValue<String>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+    LinearFilterEq<String>: [col=0, filter_value_reg=Register(1), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(3)]
+  )",
+                  /*cols_used=*/1);
+}
+
+TEST_F(DataframeBytecodeTest,
+       PlanQuery_NoLinearFilterEq_IfInputNotRangeAfterSortedFilter) {
+  std::vector<impl::Column> cols = MakeColumnVector(
+      impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
+                   IdSorted{},
+                   NoDuplicates{}},  // col0, sorted, used to make input a Span
+      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
+                   Unsorted{}, HasDuplicates{}}  // col1, target for filter
+  );
+  std::vector<FilterSpec> filters = {
+      {0, 0, Gt{}, std::nullopt},  // This filter makes indices_reg_ a Span
+      {1, 1, Eq{}, std::nullopt}   // This should use NonStringFilter
+  };
+  // After the Gt filter on col0, indices_reg_ will be a Span (materialized by
+  // Iota). So, the Eq filter on col1 should use NonStringFilter, not
+  // LinearFilterEq.
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    CastFilterValue<Id>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(4)]
+    SortedFilter<Id, UpperBound>: [col=0, val_register=Register(1), update_register=Register(0), write_result_to=BoundModifier(1)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(1), write_register=Register(2), op=NonNullOp(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(3), dest_span_register=Register(4)]
+    LinearFilterEq<Uint32>: [col=1, filter_value_reg=Register(2), popcount_register=Register(4294967295), source_register=Register(0), update_register=Register(4)]
+  )",
+                  /*cols_used=*/3);  // 0b11
+}
+
+TEST_F(DataframeBytecodeTest, PlanQuery_NoLinearFilterEq_IfNotEqOperator) {
+  std::vector<impl::Column> cols = MakeColumnVector(
+      impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
+                   Unsorted{}, HasDuplicates{}});
+  std::vector<FilterSpec> filters = {{0, 0, Gt{}, std::nullopt}};  // Not Eq
+  // Should use NonStringFilter because op is Gt, not Eq.
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(4)]
+    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+    Iota: [source_register=Register(0), update_register=Register(3)]
+    NonStringFilter<Uint32, Gt>: [col=0, val_register=Register(1), source_register=Register(3), update_register=Register(3)]
+  )",
+                  /*cols_used=*/1);
+}
+
+TEST_F(DataframeBytecodeTest, PlanQuery_NoLinearFilterEq_IfNullableColumn) {
+  std::vector<impl::Column> cols = MakeColumnVector(impl::Column{
+      impl::Storage::Uint32{}, impl::NullStorage::SparseNull{},  // Nullable
+      Unsorted{}, HasDuplicates{}});
+  std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
+  // Should use NonStringFilter because column is nullable.
+  RunBytecodeTest(cols, filters, {}, {}, {}, R"(
+    InitRange: [size=0, dest_register=Register(0)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(1), op=NonNullOp(0)]
+    AllocateIndices: [size=0, dest_slab_register=Register(2), dest_span_register=Register(3)]
+    Iota: [source_register=Register(0), update_register=Register(3)]
+    NullFilter<IsNotNull>: [col=0, update_register=Register(3)]
+    AllocateIndices: [size=0, dest_slab_register=Register(4), dest_span_register=Register(5)]
+    PrefixPopcount: [col=0, dest_register=Register(6)]
+    TranslateSparseNullIndices: [col=0, popcount_register=Register(6), source_register=Register(3), update_register=Register(5)]
+    NonStringFilter<Uint32, Eq>: [col=0, val_register=Register(1), source_register=Register(5), update_register=Register(3)]
+    AllocateIndices: [size=0, dest_slab_register=Register(7), dest_span_register=Register(8)]
+    StrideCopy: [source_register=Register(3), update_register=Register(8), stride=2]
+    StrideTranslateAndCopySparseNullIndices: [col=0, popcount_register=Register(6), update_register=Register(8), offset=1, stride=2]
+  )",
+                  /*cols_used=*/1);
 }
 
 TEST(DataframeTest, Insert) {

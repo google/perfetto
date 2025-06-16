@@ -92,9 +92,6 @@ export class SelectionAggregationManager {
   ): Promise<AggregateData | undefined> {
     const aggr = this.aggregator;
     let dataset = this.createDatasetForAggregator(aggr, area.tracks);
-
-    await this.engine.query('INCLUDE PERFETTO MODULE viz.aggregation');
-
     const duration = Time.durationBetween(area.start, area.end);
 
     // The dataset must contain ts, dur, and id columns for interval
@@ -104,15 +101,28 @@ export class SelectionAggregationManager {
       dataset &&
       dataset.implements({id: NUM, ts: LONG, dur: LONG})
     ) {
+      // Materialize the source into a perfetto table first.
+      // Note: the `ORDER BY id` is absolutely crucial. Removing this
+      // significantly worsens aggregation results compared to no
+      // materialization at all.
+      const tableName = `__aggdata_${this.aggregator.id}`;
+      await this.engine.query(`
+        CREATE OR REPLACE PERFETTO TABLE ${tableName} AS
+        ${dataset.query()}
+        ORDER BY id
+      `);
+
+      // Pass the interval intersect to the aggregator.
+      await this.engine.query('INCLUDE PERFETTO MODULE viz.aggregation');
       dataset = new SourceDataset({
         src: `
           SELECT
-            ii_dur as dur,
+            ii_dur AS dur,
             *
           FROM _intersect_slices!(
             ${area.start},
             ${duration},
-            (${dataset.query()})
+            ${tableName}
           )
         `,
         schema: dataset.schema,

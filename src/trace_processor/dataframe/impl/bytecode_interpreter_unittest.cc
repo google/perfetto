@@ -37,6 +37,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
@@ -78,25 +79,36 @@ struct Fetcher : ValueFetcher {
   // Fetches an int64_t value at the given index.
   int64_t GetInt64Value(uint32_t idx) const {
     PERFETTO_CHECK(idx == 0);
-    return std::get<int64_t>(value);
+    return std::get<int64_t>(value[i]);
   }
   // Fetches a double value at the given index.
   double GetDoubleValue(uint32_t idx) const {
     PERFETTO_CHECK(idx == 0);
-    return std::get<double>(value);
+    return std::get<double>(value[i]);
   }
   // Fetches a string value at the given index.
   const char* GetStringValue(uint32_t idx) const {
     PERFETTO_CHECK(idx == 0);
-    return std::get<const char*>(value);
+    return std::get<const char*>(value[i]);
   }
   // Fetches the type of the value at the given index.
   Type GetValueType(uint32_t idx) const {
     PERFETTO_CHECK(idx == 0);
-    return value.index();
+    return value[i].index();
+  }
+  bool IteratorInit(uint32_t idx) {
+    PERFETTO_CHECK(idx == 0);
+    i = 0;
+    return i < value.size();
+  }
+  bool IteratorNext(uint32_t idx) {
+    PERFETTO_CHECK(idx == 0);
+    i++;
+    return i < value.size();
   }
 
-  FilterValue value;
+  std::vector<FilterValue> value;
+  uint32_t i = 0;
 };
 
 std::string FixNegativeAndDecimal(const std::string& str) {
@@ -385,27 +397,38 @@ Column CreateDenseNullableStringColumn(
       sort_state, duplicate_state};
 }
 
+PERFETTO_NO_INLINE BytecodeVector
+ParseBytecodeToVec(const std::string& bytecode_str) {
+  BytecodeVector bytecode_vector;
+  std::vector<std::string> lines = base::SplitString(bytecode_str, "\n");
+  for (const auto& line : lines) {
+    std::string trimmed = base::TrimWhitespace(line);
+    if (!trimmed.empty()) {
+      bytecode_vector.emplace_back(ParseBytecode(trimmed));
+    }
+  }
+  return bytecode_vector;
+}
+
 class BytecodeInterpreterTest : public testing::Test {
  protected:
   template <typename... Ts>
   void SetRegistersAndExecute(const std::string& bytecode_str, Ts... value) {
-    BytecodeVector bytecode_vector;
-    std::vector<std::string> lines = base::SplitString(bytecode_str, "\n");
-    for (const auto& line : lines) {
-      std::string trimmed = base::TrimWhitespace(line);
-      if (!trimmed.empty()) {
-        bytecode_vector.emplace_back(ParseBytecode(trimmed));
-      }
-    }
-    SetupInterpreterWithBytecode(bytecode_vector);
+    SetupInterpreterWithBytecode(ParseBytecodeToVec(bytecode_str));
     SetRegisterValuesForTesting(
         interpreter_.get(),
         std::make_integer_sequence<uint32_t, sizeof...(Ts)>(),
         std::move(value)...);
-    interpreter_->Execute(fetcher_);
+    Execute();
   }
 
-  void SetupInterpreterWithBytecode(const BytecodeVector& bytecode) {
+  // Intentionally not inlined to avoid inlining the entire
+  // Interpreter::Execute() function, which is large and not needed for
+  // testing purposes.
+  PERFETTO_NO_INLINE void Execute() { interpreter_->Execute(fetcher_); }
+
+  PERFETTO_NO_INLINE void SetupInterpreterWithBytecode(
+      const BytecodeVector& bytecode) {
     // Hardcode the register count to 128 for testing.
     static constexpr uint32_t kNumRegisters = 128;
     interpreter_ = std::make_unique<Interpreter<Fetcher>>();
@@ -522,8 +545,7 @@ class BytecodeInterpreterCastTest
 
 TEST_P(BytecodeInterpreterCastTest, Cast) {
   const auto& [input_type, input, expected, op] = GetParam();
-
-  fetcher_.value = input;
+  fetcher_.value.push_back(input);
   SetRegistersAndExecute(
       base::StackString<1024>(
           "CastFilterValue<%s>: [fval_handle=FilterValue(0), "
@@ -784,7 +806,7 @@ INSTANTIATE_TEST_SUITE_P(
 
         // Strings are always greater than integers.
         CastTestCase{"String", FilterValue{int64_t(123)},
-                     CastResult::AllMatch(), dataframe::Eq{}},
+                     CastResult::NoneMatch(), dataframe::Eq{}},
         CastTestCase{"String", FilterValue{int64_t(123)},
                      CastResult::AllMatch(), dataframe::Ne{}},
         CastTestCase{"String", FilterValue{int64_t(123)},
@@ -801,7 +823,7 @@ INSTANTIATE_TEST_SUITE_P(
                      CastResult::NoneMatch(), dataframe::Regex{}},
 
         // Strings are also always greater than doubles.
-        CastTestCase{"String", FilterValue{123.45}, CastResult::AllMatch(),
+        CastTestCase{"String", FilterValue{123.45}, CastResult::NoneMatch(),
                      dataframe::Eq{}},
         CastTestCase{"String", FilterValue{123.45}, CastResult::AllMatch(),
                      dataframe::Ne{}},
@@ -1914,6 +1936,101 @@ TEST_F(BytecodeInterpreterTest, CopySpanIntersectingRange_NoOverlap) {
   EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
 }
 
+TEST_F(BytecodeInterpreterTest, LinearFilterEq_Uint32_NonNull_ValueExists) {
+  AddColumn(CreateNonNullColumn<uint32_t, uint32_t>(
+      {10u, 20u, 20u, 30u, 20u, 40u}, Unsorted{}, HasDuplicates{}));
+
+  std::string bytecode_str = R"(
+    LinearFilterEq<Uint32>: [col=0, filter_value_reg=Register(0), popcount_register=Register(1), source_register=Register(2), update_register=Register(3)]
+  )";
+  // Initial range covers all elements.
+  Range source_range{0, 6};
+  std::vector<uint32_t> update_data(
+      6);  // Sufficient space for all possible matches
+
+  SetRegistersAndExecute(
+      bytecode_str, CastFilterValueResult::Valid(20u),
+      Slab<uint32_t>::Alloc(0),  // Dummy popcount for NonNull
+      source_range, GetSpan(update_data));
+
+  // Expected indices where data[i] == 20u: 1, 2, 4
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(3), ElementsAre(1u, 2u, 4u));
+}
+
+TEST_F(BytecodeInterpreterTest, LinearFilterEq_Uint32_NonNull_ValueNotExists) {
+  AddColumn(CreateNonNullColumn<uint32_t, uint32_t>({10u, 20u, 30u}, Unsorted{},
+                                                    HasDuplicates{}));
+
+  std::string bytecode_str = R"(
+    LinearFilterEq<Uint32>: [col=0, filter_value_reg=Register(0), popcount_register=Register(1), source_register=Register(2), update_register=Register(3)]
+  )";
+  Range source_range{0, 3};
+  std::vector<uint32_t> update_data(3);
+
+  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid(25u),
+                         Slab<uint32_t>::Alloc(0),  // Dummy popcount
+                         source_range, GetSpan(update_data));
+
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(3), IsEmpty());
+}
+
+TEST_F(BytecodeInterpreterTest, LinearFilterEq_String_NonNull_ValueExists) {
+  AddColumn(CreateNonNullStringColumn<const char*>(
+      {"apple", "banana", "apple", "cherry"}, Unsorted{}, HasDuplicates{},
+      &spool_));
+
+  std::string bytecode_str = R"(
+    LinearFilterEq<String>: [col=0, filter_value_reg=Register(0), popcount_register=Register(1), source_register=Register(2), update_register=Register(3)]
+  )";
+  Range source_range{0, 4};
+  std::vector<uint32_t> update_data(4);
+
+  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::Valid("apple"),
+                         Slab<uint32_t>::Alloc(0),  // Dummy popcount
+                         source_range, GetSpan(update_data));
+
+  // Expected indices where data[i] == "apple": 0, 2
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(3), ElementsAre(0u, 2u));
+}
+
+TEST_F(BytecodeInterpreterTest, LinearFilterEq_HandleInvalidCast_NoneMatch) {
+  AddColumn(CreateNonNullColumn<uint32_t, uint32_t>({10u, 20u, 30u}, Unsorted{},
+                                                    HasDuplicates{}));
+  std::string bytecode_str = R"(
+    LinearFilterEq<Uint32>: [col=0, filter_value_reg=Register(0), popcount_register=Register(1), source_register=Register(2), update_register=Register(3)]
+  )";
+  Range source_range{0, 3};
+  std::vector<uint32_t> update_data(3);
+
+  // Intentionally not pre-filling update_data to ensure iota in LinearFilterEq
+  // (user version) correctly handles an empty effective range.
+  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::NoneMatch(),
+                         Slab<uint32_t>::Alloc(0), source_range,
+                         GetSpan(update_data));
+
+  // HandleInvalidCastFilterValueResult should make the source_range empty,
+  // then the iota in the user's corrected LinearFilterEq will copy 0 elements.
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(3), IsEmpty());
+}
+
+TEST_F(BytecodeInterpreterTest, LinearFilterEq_HandleInvalidCast_AllMatch) {
+  AddColumn(CreateNonNullColumn<uint32_t, uint32_t>({10u, 20u, 30u}, Unsorted{},
+                                                    HasDuplicates{}));
+  std::string bytecode_str = R"(
+    LinearFilterEq<Uint32>: [col=0, filter_value_reg=Register(0), popcount_register=Register(1), source_register=Register(2), update_register=Register(3)]
+  )";
+  Range source_range{0, 3};
+  std::vector<uint32_t> update_data(3);
+
+  SetRegistersAndExecute(bytecode_str, CastFilterValueResult::AllMatch(),
+                         Slab<uint32_t>::Alloc(0), source_range,
+                         GetSpan(update_data));
+  // HandleInvalidCastFilterValueResult returns early, source_range is not
+  // modified. The iota in LinearFilterEq (user corrected version) copies all
+  // original indices from the range.
+  EXPECT_THAT(GetRegister<Span<uint32_t>>(3), ElementsAre(0u, 1u, 2u));
+}
+
 TEST_F(BytecodeInterpreterTest, CollectIdIntoRankMap) {
   AddColumn(CreateSparseNullableStringColumn(
       {std::make_optional("apple"), std::nullopt, std::make_optional("banana")},
@@ -2063,6 +2180,173 @@ TEST_F(BytecodeInterpreterTest,
 
   SetRegistersAndExecute(bytecode_sequence, GetSpan(indices));
   EXPECT_THAT(GetRegister<Span<uint32_t>>(0), ElementsAre(1, 3, 2, 0));
+}
+
+TEST_F(BytecodeInterpreterTest, InId) {
+  AddColumn(impl::Column{impl::Storage::Id{}, impl::NullStorage::NonNull{},
+                         Unsorted{}, HasDuplicates{}});
+  std::string bytecode =
+      "In<Id>: [col=0, value_list_register=Register(0), "
+      "source_register=Register(1), update_register=Register(2)]";
+
+  std::vector<uint32_t> indices_spec = {12, 44, 10, 4, 5, 2, 3};
+  {
+    // Test case 1: Values exist in range. This should trigger the bitvector
+    // optimization as max(5, 10, 44) <= 3 * 16.
+    std::vector<uint32_t> indices = indices_spec;
+    CastFilterValueListResult value_list;
+    value_list.validity = CastFilterValueResult::kValid;
+    value_list.value_list =
+        CreateFlexVectorForTesting<CastFilterValueResult::Id>(
+            {{5}, {10}, {44}});
+
+    SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
+                           GetSpan(indices));
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(44, 10, 5));
+  }
+  {
+    // Test case 2: No values exist in range
+    std::vector<uint32_t> indices = indices_spec;
+    CastFilterValueListResult value_list;
+    value_list.validity = CastFilterValueResult::kValid;
+    value_list.value_list =
+        CreateFlexVectorForTesting<CastFilterValueResult::Id>({{100}, {200}});
+    SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
+                           GetSpan(indices));
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+  }
+  {
+    // Test case 3: Invalid cast result (NoneMatch)
+    std::vector<uint32_t> indices = indices_spec;
+    CastFilterValueListResult value_list;
+    value_list.validity = CastFilterValueResult::kNoneMatch;
+    SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
+                           GetSpan(indices));
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+  }
+}
+
+TEST_F(BytecodeInterpreterTest, InUint32) {
+  std::string bytecode =
+      "In<Uint32>: [col=0, value_list_register=Register(0), "
+      "source_register=Register(1), update_register=Register(2)]";
+
+  auto values =
+      CreateFlexVectorForTesting<uint32_t>({4u, 49u, 392u, 4u, 49u, 4u, 391u});
+  AddColumn(impl::Column{std::move(values), NullStorage::NonNull{}, Unsorted{},
+                         HasDuplicates{}});
+
+  std::vector<uint32_t> indices_spec = {3, 3, 4, 5, 0, 6, 0};
+  {
+    // Test case 1: Values exist. This should not trigger the bitvector
+    // optimization as max(4, 391) > 2 * 16.
+    std::vector<uint32_t> indices = indices_spec;
+    CastFilterValueListResult value_list;
+    value_list.validity = CastFilterValueResult::kValid;
+    value_list.value_list = CreateFlexVectorForTesting<uint32_t>({4u, 391u});
+
+    SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
+                           GetSpan(indices));
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(3, 3, 5, 0, 6, 0));
+  }
+  {
+    // Test case 2: No values exist
+    std::vector<uint32_t> indices = indices_spec;
+    CastFilterValueListResult value_list;
+    value_list.validity = CastFilterValueResult::kValid;
+    value_list.value_list = CreateFlexVectorForTesting<uint32_t>({100u, 200u});
+    SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
+                           GetSpan(indices));
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), IsEmpty());
+  }
+}
+
+TEST_F(BytecodeInterpreterTest, InIdBitVectorSparse) {
+  AddColumn(impl::Column{impl::Storage::Id{1000}, NullStorage::NonNull{},
+                         Unsorted{}, HasDuplicates{}});
+
+  std::string bytecode =
+      "In<Id>: [col=0, value_list_register=Register(0), "
+      "source_register=Register(1), update_register=Register(2)]";
+
+  std::vector<uint32_t> indices_spec = {12, 44, 10, 4, 5, 2, 3, 500};
+  {
+    // Test case: Sparse values, bitvector optimization should NOT trigger.
+    // max value is 500, list size is 2. 500 > 2 * 16 (32) is true.
+    std::vector<uint32_t> indices = indices_spec;
+    CastFilterValueListResult value_list;
+    value_list.validity = CastFilterValueResult::kValid;
+    value_list.value_list =
+        CreateFlexVectorForTesting<CastFilterValueResult::Id>({{5}, {500}});
+
+    SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
+                           GetSpan(indices));
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(5, 500));
+  }
+}
+
+TEST_F(BytecodeInterpreterTest, InUint32BitVector) {
+  std::string bytecode =
+      "In<Uint32>: [col=0, value_list_register=Register(0), "
+      "source_register=Register(1), update_register=Register(2)]";
+
+  auto values =
+      CreateFlexVectorForTesting<uint32_t>({4u, 49u, 392u, 4u, 49u, 4u, 391u});
+  AddColumn(impl::Column{std::move(values), NullStorage::NonNull{}, Unsorted{},
+                         HasDuplicates{}});
+
+  std::vector<uint32_t> indices_spec = {3, 3, 4, 5, 0, 6, 0};
+  {
+    // Test case: Values exist, bitvector optimization should trigger.
+    // max value 30, list size 2. 30 <= 32 is true.
+    std::vector<uint32_t> indices = indices_spec;
+    CastFilterValueListResult value_list;
+    value_list.validity = CastFilterValueResult::kValid;
+    value_list.value_list = CreateFlexVectorForTesting<uint32_t>({4u, 30u});
+
+    SetRegistersAndExecute(bytecode, std::move(value_list), GetSpan(indices),
+                           GetSpan(indices));
+    EXPECT_THAT(GetRegister<Span<uint32_t>>(2), ElementsAre(3, 3, 5, 0, 0));
+  }
+}
+
+TEST_F(BytecodeInterpreterTest, CastFilterValueList_Uint32) {
+  fetcher_.value.emplace_back(int64_t(10));
+  fetcher_.value.emplace_back(int64_t(20));
+  fetcher_.value.emplace_back(int64_t(-1));
+  fetcher_.value.emplace_back(int64_t(std::numeric_limits<uint32_t>::max()) +
+                              1);
+
+  SetRegistersAndExecute(
+      "CastFilterValueList<Uint32>: [fval_handle=FilterValue(0), "
+      "write_register=Register(0), op=Op(0)]"  // Op(0) is Eq
+  );
+
+  const auto& result = GetRegister<CastFilterValueListResult>(0);
+  ASSERT_EQ(result.validity, CastFilterValueResult::kValid);
+  const auto& list = std::get<FlexVector<uint32_t>>(result.value_list);
+  EXPECT_THAT(list, ElementsAre(10u, 20u));
+}
+
+TEST_F(BytecodeInterpreterTest, CastFilterValueList_String) {
+  fetcher_.value.emplace_back("hello");
+  fetcher_.value.emplace_back("world");
+  fetcher_.value.emplace_back(int64_t(10));
+
+  spool_.InternString("hello");
+  spool_.InternString("world");
+
+  SetRegistersAndExecute(
+      "CastFilterValueList<String>: [fval_handle=FilterValue(0), "
+      "write_register=Register(0), op=Op(0)]"  // Op(0) is Eq
+  );
+
+  const auto& result = GetRegister<CastFilterValueListResult>(0);
+  ASSERT_EQ(result.validity, CastFilterValueResult::kValid);
+  const auto& list = std::get<FlexVector<StringPool::Id>>(result.value_list);
+  ASSERT_EQ(list.size(), 2u);
+  EXPECT_EQ(spool_.Get(list[0]), "hello");
+  EXPECT_EQ(spool_.Get(list[1]), "world");
 }
 
 }  // namespace

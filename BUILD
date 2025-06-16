@@ -3420,7 +3420,9 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/wattson/estimates.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/gpu/estimates.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/gpu/freq_idle.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/attribution.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/threads_w_processes.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/ui/continuous_estimates.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/utils.sql",
     ],
 )
@@ -6365,6 +6367,7 @@ perfetto_cc_protozero_library(
 perfetto_proto_library(
     name = "protos_perfetto_trace_generic_kernel_protos",
     srcs = [
+        "protos/perfetto/trace/generic_kernel/generic_power.proto",
         "protos/perfetto/trace/generic_kernel/generic_task_state.proto",
     ],
     visibility = [
