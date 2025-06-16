@@ -132,8 +132,7 @@ async function getDataset(engine: Engine, trackIds: ReadonlyArray<number>) {
       select
         id,
         layout_depth as depth
-      from experimental_slice_layout
-      where filter_track_ids = '${trackIds.join(',')}'
+      from experimental_slice_layout('${trackIds.join(',')}')
     `);
 
     // The (inner) join acts as a filter as well as providing the depth.

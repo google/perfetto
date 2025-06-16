@@ -189,7 +189,6 @@ STACK_PROFILE_FRAME_TABLE = Table(
     python_module=__file__,
     class_name='StackProfileFrameTable',
     sql_name='stack_profile_frame',
-    use_legacy_table_backend=True,
     columns=[
         C('name', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
         C('mapping',
@@ -234,7 +233,6 @@ STACK_PROFILE_CALLSITE_TABLE = Table(
     python_module=__file__,
     class_name='StackProfileCallsiteTable',
     sql_name='stack_profile_callsite',
-    use_legacy_table_backend=True,
     columns=[
         C(
             'depth',
@@ -245,6 +243,7 @@ STACK_PROFILE_CALLSITE_TABLE = Table(
             'parent_id',
             CppOptional(CppSelfTableId()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'frame_id',
@@ -479,7 +478,6 @@ EXPERIMENTAL_FLAMEGRAPH_TABLE = Table(
     python_module=__file__,
     class_name='ExperimentalFlamegraphTable',
     sql_name='experimental_flamegraph',
-    use_legacy_table_backend=True,
     columns=[
         C(
             'profile_type',

@@ -15,13 +15,11 @@
  */
 
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/ancestor.h"
+
 #include <memory>
 
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/base/test/status_matchers.h"
-#include "src/trace_processor/db/table.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "test/gtest_and_gmock.h"
 
@@ -35,13 +33,13 @@ TEST(Ancestor, SliceTableNullConstraint) {
   storage.mutable_slice_table()->Insert({});
 
   Ancestor generator{Ancestor::Type::kSlice, &storage};
+  auto cursor = generator.MakeCursor();
 
   // Check that if we pass start_id = NULL as a constraint, we correctly return
   // an empty table.
-  base::StatusOr<std::unique_ptr<Table>> res =
-      generator.ComputeTable({SqlValue()});
-  ASSERT_OK(res);
-  ASSERT_EQ(res->get()->row_count(), 0u);
+  bool res = cursor->Run({SqlValue()});
+  ASSERT_TRUE(res);
+  ASSERT_EQ(cursor->dataframe()->row_count(), 0u);
 }
 
 TEST(Ancestor, CallsiteTableNullConstraint) {
@@ -51,13 +49,13 @@ TEST(Ancestor, CallsiteTableNullConstraint) {
   storage.mutable_stack_profile_callsite_table()->Insert({});
 
   Ancestor generator{Ancestor::Type::kStackProfileCallsite, &storage};
+  auto cursor = generator.MakeCursor();
 
   // Check that if we pass start_id = NULL as a constraint, we correctly return
   // an empty table.
-  base::StatusOr<std::unique_ptr<Table>> res =
-      generator.ComputeTable({SqlValue()});
-  ASSERT_OK(res);
-  ASSERT_EQ(res->get()->row_count(), 0u);
+  bool res = cursor->Run({SqlValue()});
+  ASSERT_TRUE(res);
+  ASSERT_EQ(cursor->dataframe()->row_count(), 0u);
 }
 
 TEST(Ancestor, SliceByStackTableNullConstraint) {
@@ -67,13 +65,13 @@ TEST(Ancestor, SliceByStackTableNullConstraint) {
   storage.mutable_slice_table()->Insert({});
 
   Ancestor generator{Ancestor::Type::kSliceByStack, &storage};
+  auto cursor = generator.MakeCursor();
 
   // Check that if we pass start_id = NULL as a constraint, we correctly return
   // an empty table.
-  base::StatusOr<std::unique_ptr<Table>> res =
-      generator.ComputeTable({SqlValue()});
-  ASSERT_OK(res);
-  ASSERT_EQ(res->get()->row_count(), 0u);
+  bool res = cursor->Run({SqlValue()});
+  ASSERT_TRUE(res);
+  ASSERT_EQ(cursor->dataframe()->row_count(), 0u);
 }
 
 }  // namespace

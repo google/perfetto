@@ -2786,6 +2786,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.cc",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.h",
+        "src/trace_processor/perfetto_sql/engine/static_table_function_module.cc",
+        "src/trace_processor/perfetto_sql/engine/static_table_function_module.h",
         "src/trace_processor/perfetto_sql/engine/table_pointer_module.cc",
         "src/trace_processor/perfetto_sql/engine/table_pointer_module.h",
     ],

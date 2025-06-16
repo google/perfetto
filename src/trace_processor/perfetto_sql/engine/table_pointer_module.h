@@ -19,10 +19,8 @@
 
 #include <array>
 #include <cstdint>
-#include <optional>
 
 #include "src/trace_processor/dataframe/dataframe.h"
-#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 

@@ -40,8 +40,8 @@
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/typed_cursor.h"
-#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -51,9 +51,6 @@
 #include "src/trace_processor/util/winscope_proto_mapping.h"
 
 namespace perfetto::trace_processor {
-namespace tables {
-WinscopeArgsWithDefaultsTable::~WinscopeArgsWithDefaultsTable() = default;
-}  // namespace tables
 
 namespace {
 constexpr char kDeinternError[] = "STRING DE-INTERNING ERROR";
@@ -300,59 +297,76 @@ base::Status InsertRows(
 }
 }  // namespace
 
+WinscopeProtoToArgsWithDefaults::Cursor::Cursor(StringPool* string_pool,
+                                                const PerfettoSqlEngine* engine,
+                                                TraceProcessorContext* context)
+    : string_pool_(string_pool),
+      engine_(engine),
+      context_(context),
+      table_(string_pool) {}
+
+bool WinscopeProtoToArgsWithDefaults::Cursor::Run(
+    const std::vector<SqlValue>& arguments) {
+  PERFETTO_DCHECK(arguments.size() == 1);
+  if (arguments[0].type != SqlValue::kString) {
+    return OnFailure(base::ErrStatus(
+        "__intrinsic_winscope_proto_to_args_with_defaults takes table name as "
+        "a string."));
+  }
+  std::string table_name_str = arguments[0].AsString();
+  const dataframe::Dataframe* static_table_from_engine =
+      engine_->GetDataframeOrNull(table_name_str);
+  if (!static_table_from_engine) {
+    return OnFailure(
+        base::ErrStatus("Failed to find %s table.", table_name_str.c_str()));
+  }
+
+  base::StatusOr<const char* const> proto_name =
+      util::winscope_proto_mapping::GetProtoName(table_name_str);
+  if (!proto_name.ok()) {
+    return OnFailure(proto_name.status());
+  }
+  table_.Clear();
+
+  auto allowed_fields =
+      util::winscope_proto_mapping::GetAllowedFields(table_name_str);
+  auto group_id_col_name =
+      util::winscope_proto_mapping::GetGroupIdColName(table_name_str);
+  auto proto_to_interned_data =
+      GetProtoToInternedData(table_name_str, context_->storage.get());
+  base::Status insert_status = InsertRows(
+      *static_table_from_engine, &table_, *proto_name,
+      allowed_fields ? &allowed_fields.value() : nullptr,
+      group_id_col_name ? &group_id_col_name.value() : nullptr,
+      *context_->descriptor_pool_, string_pool_, proto_to_interned_data);
+  if (!insert_status.ok()) {
+    return OnFailure(insert_status);
+  }
+  return OnSuccess(&table_.dataframe());
+}
+
 WinscopeProtoToArgsWithDefaults::WinscopeProtoToArgsWithDefaults(
     StringPool* string_pool,
     const PerfettoSqlEngine* engine,
     TraceProcessorContext* context)
     : string_pool_(string_pool), engine_(engine), context_(context) {}
 
-base::StatusOr<std::unique_ptr<Table>>
-WinscopeProtoToArgsWithDefaults::ComputeTable(
-    const std::vector<SqlValue>& arguments) {
-  PERFETTO_CHECK(arguments.size() == 1);
-  if (arguments[0].type != SqlValue::kString) {
-    return base::ErrStatus(
-        "__intrinsic_winscope_proto_to_args_with_defaults takes table name as "
-        "a string.");
-  }
-  std::string table_name = arguments[0].AsString();
-
-  const dataframe::Dataframe* static_table =
-      engine_->GetDataframeOrNull(table_name);
-  if (!static_table) {
-    return base::ErrStatus("Failed to find %s table.", table_name.c_str());
-  }
-
-  std::string proto_name;
-  ASSIGN_OR_RETURN(proto_name,
-                   util::winscope_proto_mapping::GetProtoName(table_name));
-
-  auto table =
-      std::make_unique<tables::WinscopeArgsWithDefaultsTable>(string_pool_);
-  auto allowed_fields =
-      util::winscope_proto_mapping::GetAllowedFields(table_name);
-  auto group_id_col_name =
-      util::winscope_proto_mapping::GetGroupIdColName(table_name);
-  auto proto_to_interned_data =
-      GetProtoToInternedData(table_name, context_->storage.get());
-
-  RETURN_IF_ERROR(InsertRows(
-      *static_table, table.get(), proto_name,
-      allowed_fields ? &allowed_fields.value() : nullptr,
-      group_id_col_name ? &group_id_col_name.value() : nullptr,
-      *context_->descriptor_pool_, string_pool_, proto_to_interned_data));
-
-  return std::unique_ptr<Table>(std::move(table));
+std::unique_ptr<StaticTableFunction::Cursor>
+WinscopeProtoToArgsWithDefaults::MakeCursor() {
+  return std::make_unique<Cursor>(string_pool_, engine_, context_);
 }
 
-Table::Schema WinscopeProtoToArgsWithDefaults::CreateSchema() {
-  return tables::WinscopeArgsWithDefaultsTable::ComputeStaticSchema();
+dataframe::DataframeSpec WinscopeProtoToArgsWithDefaults::CreateSpec() {
+  return tables::WinscopeArgsWithDefaultsTable::kSpec.ToUntypedDataframeSpec();
 }
 
 std::string WinscopeProtoToArgsWithDefaults::TableName() {
   return tables::WinscopeArgsWithDefaultsTable::Name();
 }
 
+uint32_t WinscopeProtoToArgsWithDefaults::GetArgumentCount() const {
+  return 1;
+}
 uint32_t WinscopeProtoToArgsWithDefaults::EstimateRowCount() {
   // 100 inflated args per 100 elements per 100 entries
   return 1000000;

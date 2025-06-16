@@ -227,18 +227,6 @@ void BuildBoundsTable(sqlite3* db, std::pair<int64_t, int64_t> bounds) {
   }
 }
 
-template <typename T, typename = std::enable_if_t<std::is_base_of_v<Table, T>>>
-void AddLegacyStaticTable(
-    std::vector<PerfettoSqlEngine::LegacyStaticTable>& tables,
-    T* table_instance) {
-  static_assert(std::is_base_of_v<Table, T>);
-  tables.push_back({
-      table_instance,
-      T::Name(),
-      T::ComputeStaticSchema(),
-  });
-}
-
 template <typename T>
 void AddUnfinalizedStaticTable(
     std::vector<PerfettoSqlEngine::UnfinalizedStaticTable>& tables,
@@ -994,12 +982,8 @@ std::vector<uint8_t> TraceProcessorImpl::GetMetricDescriptors() {
 }
 
 std::vector<PerfettoSqlEngine::LegacyStaticTable>
-TraceProcessorImpl::GetLegacyStaticTables(TraceStorage* storage) {
+TraceProcessorImpl::GetLegacyStaticTables(TraceStorage*) {
   std::vector<PerfettoSqlEngine::LegacyStaticTable> tables;
-  AddLegacyStaticTable(tables, storage->mutable_slice_table());
-  AddLegacyStaticTable(tables, storage->mutable_flow_table());
-  AddLegacyStaticTable(tables, storage->mutable_stack_profile_frame_table());
-  AddLegacyStaticTable(tables, storage->mutable_stack_profile_callsite_table());
   return tables;
 }
 
@@ -1117,6 +1101,12 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
   AddUnfinalizedStaticTable(tables,
                             storage->mutable_android_network_packets_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_metadata_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_slice_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_flow_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_stack_profile_frame_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_stack_profile_callsite_table());
   return tables;
 }
 

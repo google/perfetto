@@ -29,18 +29,6 @@ namespace macros_internal {
 MacroTable::~MacroTable() = default;
 }  // namespace macros_internal
 
-namespace tables {
-
-// profiler_tables_py.h
-StackProfileFrameTable::~StackProfileFrameTable() = default;
-StackProfileCallsiteTable::~StackProfileCallsiteTable() = default;
-ExperimentalFlamegraphTable::~ExperimentalFlamegraphTable() = default;
-
-// slice_tables_py.h
-SliceTable::~SliceTable() = default;
-FlowTable::~FlowTable() = default;
-ExperimentalFlatSliceTable::~ExperimentalFlatSliceTable() = default;
-
-}  // namespace tables
+namespace tables {}  // namespace tables
 
 }  // namespace perfetto::trace_processor

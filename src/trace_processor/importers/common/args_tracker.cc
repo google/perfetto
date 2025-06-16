@@ -182,11 +182,13 @@ void ArgsTracker::Flush() {
 }
 
 ArgsTracker::CompactArgSet ArgsTracker::ToCompactArgSet(
-    const ColumnLegacy& column,
+    const dataframe::Dataframe& dataframe,
+    uint32_t col,
     uint32_t row) && {
   CompactArgSet compact_args;
   for (const auto& arg : args_) {
-    PERFETTO_DCHECK(arg.ptr == &column);
+    PERFETTO_DCHECK(arg.ptr == &dataframe);
+    PERFETTO_DCHECK(arg.col == col);
     PERFETTO_DCHECK(arg.row == row);
     compact_args.emplace_back(arg.ToCompactArg());
   }
