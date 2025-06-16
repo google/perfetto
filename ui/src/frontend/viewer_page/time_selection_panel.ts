@@ -163,7 +163,7 @@ export class TimeSelectionPanel {
 
     if (size.width > 0 && timespan.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width);
-      const offset = this.trace.timeline.timestampOffset();
+      const offset = this.trace.timeline.getTimeAxisOrigin();
       const tickGen = generateTicks(timespan, maxMajorTicks, offset);
       for (const {type, time} of tickGen) {
         const px = Math.floor(timescale.timeToPx(time));
