@@ -1351,7 +1351,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
       "__intrinsic_etm_decode_trace", storage);
   engine->RegisterVirtualTableModule<etm::EtmIterateRangeVtable>(
       "__intrinsic_etm_iterate_instruction_range", storage);
-  if (config.dev_flags.count("llmv-symbolizer")) {
+  if (config.dev_flags.count("llvm-symbolizer")) {
     engine->RegisterVirtualTableModule<etm::SymbolizeVtable>(
         "__intrinsic_etm_symbolize", storage);
   }
