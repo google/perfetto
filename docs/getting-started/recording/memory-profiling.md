@@ -1,7 +1,7 @@
 # Recording memory profiles with Perfetto
 
 The memory use of a process plays a key role in the performance of processes and
-impact on overall system statbility. Understanding where and how your process is
+impact on overall system stability. Understanding where and how your process is
 using memory can give significant insight to understand why your process may be
 running slower than you expect or just help make your program more efficient.
 
@@ -19,7 +19,7 @@ memory:
   app lives in the managed heap (in the case of Android, managed by ART's
   garbage collector). This is where evevery `new X()` object lives.
 
-Perfetto offers two complimentary techniques for debugging the above:
+Perfetto offers two complementary techniques for debugging the above:
 
 - [**heap profiling**](#native-c-c-rust-heap-profling) for native code:
   this is based on sampling callstacks when a
