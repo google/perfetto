@@ -133,13 +133,13 @@ export class WattsonThreadSelectionAggregator
       {
         title: 'TID',
         kind: 'NUMBER',
-        columnConstructor: Uint16Array,
+        columnConstructor: Float64Array,
         columnId: 'tid',
       },
       {
         title: 'PID',
         kind: 'NUMBER',
-        columnConstructor: Uint16Array,
+        columnConstructor: Float64Array,
         columnId: 'pid',
       },
       {
