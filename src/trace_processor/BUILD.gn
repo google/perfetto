@@ -344,6 +344,7 @@ perfetto_unittest_source_set("unittests") {
     "perfetto_sql/generator:unittests",
     "rpc:unittests",
     "sorter:unittests",
+    "trace_summary:unittests",
     "types:unittests",
     "util:unittests",
   ]
