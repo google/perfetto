@@ -168,8 +168,18 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
       context_->process_tracker->EndThread(ts, tid);
       return utid_opt;
     }
+    case TaskStateEnum::TASK_STATE_RUNNING: {
+      auto utid_opt = context_->process_tracker->GetThreadOrNull(tid);
+      if (utid_opt &&
+          ThreadStateTracker::GetOrCreate(context_)->GetPrevEndState(
+              *utid_opt) == running_string_id_) {
+        context_->storage->IncrementStats(
+            stats::generic_task_state_invalid_order);
+        return std::nullopt;
+      }
+      PERFETTO_FALLTHROUGH;
+    }
     case TaskStateEnum::TASK_STATE_RUNNABLE:
-    case TaskStateEnum::TASK_STATE_RUNNING:
     case TaskStateEnum::TASK_STATE_INTERRUPTIBLE_SLEEP:
     case TaskStateEnum::TASK_STATE_UNINTERRUPTIBLE_SLEEP:
     case TaskStateEnum::TASK_STATE_STOPPED: {

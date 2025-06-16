@@ -12,7 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Duration, Time, Timecode, TimeSpan} from '../base/time';
+import {
+  Duration,
+  Time,
+  Timecode,
+  TimeSpan,
+  formatDate,
+  formatTimezone,
+} from '../base/time';
 
 const t = Time.fromRaw;
 
@@ -149,4 +156,40 @@ describe('TimeSpan', () => {
     const x = mkSpan(10n, 20n);
     expect(x.pad(5n)).toEqual(mkSpan(5n, 25n));
   });
+});
+
+test('formatTimezone', () => {
+  expect(formatTimezone(0)).toEqual('UTC+00:00');
+  expect(formatTimezone(60)).toEqual('UTC+01:00');
+  expect(formatTimezone(-60)).toEqual('UTC-01:00');
+  expect(formatTimezone(330)).toEqual('UTC+05:30');
+  expect(formatTimezone(-420)).toEqual('UTC-07:00');
+  expect(formatTimezone(14 * 60)).toEqual('UTC+14:00');
+  expect(formatTimezone(-12 * 60)).toEqual('UTC-12:00');
+});
+
+test('formatDate', () => {
+  const date = new Date('2025-06-15T00:00:00.000Z');
+
+  // Formatting
+  expect(formatDate(date)).toBe('2025-06-15 00:00:00.000 UTC+00:00');
+  expect(formatDate(date, {printDate: false})).toBe('00:00:00.000 UTC+00:00');
+  expect(formatDate(date, {printTime: false})).toBe('2025-06-15 UTC+00:00');
+  expect(formatDate(date, {printTimezone: false})).toBe(
+    '2025-06-15 00:00:00.000',
+  );
+
+  // Specific timezone: UTC+5:30 (IST)
+  expect(
+    formatDate(date, {
+      tzOffsetMins: 330,
+    }),
+  ).toBe('2025-06-15 05:30:00.000 UTC+05:30');
+
+  // Specific timezone: UTC-7 (PDT)
+  expect(
+    formatDate(date, {
+      tzOffsetMins: -420,
+    }),
+  ).toEqual('2025-06-14 17:00:00.000 UTC-07:00');
 });

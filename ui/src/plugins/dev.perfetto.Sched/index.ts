@@ -53,6 +53,21 @@ export default class implements PerfettoPlugin {
     await this.addCpuSliceTracks(ctx);
     await this.addThreadStateTracks(ctx);
     await this.addMinimapProvider(ctx);
+
+    ctx.commands.registerCommand({
+      id: 'dev.perfetto.Sched#SelectAllThreadStateTracks',
+      name: 'Select all thread state tracks',
+      callback: () => {
+        const tracks = ctx.tracks
+          .getAllTracks()
+          .filter((t) => t.tags?.kind === THREAD_STATE_TRACK_KIND);
+        ctx.selection.selectArea({
+          trackUris: tracks.map((t) => t.uri),
+          start: ctx.traceInfo.start,
+          end: ctx.traceInfo.end,
+        });
+      },
+    });
   }
 
   async addCpuSliceTracks(ctx: Trace): Promise<void> {

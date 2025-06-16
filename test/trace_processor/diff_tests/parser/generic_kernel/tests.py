@@ -451,6 +451,82 @@ class GenericKernelParser(TestSuite):
         362831239274,-1,"[NULL]",3,"S","[NULL]"
         """))
 
+  def test_thread_state_consecutive_running_states(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 360831239274
+          generic_kernel_task_state_event {
+            cpu: 0
+            tid: 101
+            state: TASK_STATE_RUNNING
+            prio: 100
+          }
+        }
+        packet {
+          timestamp: 361831239274
+          generic_kernel_task_state_event {
+            cpu: 0
+            comm: "task1"
+            tid: 101
+            state: TASK_STATE_RUNNING
+          }
+        }
+        """),
+        query="""
+        select
+          ts,
+          dur,
+          cpu,
+          utid,
+          state,
+          ucpu
+        from thread_state
+        """,
+        out=Csv("""
+        "ts","dur","cpu","utid","state","ucpu"
+        360831239274,-1,0,1,"Running",0
+        """))
+
+  def test_error_stats_consecutive_running_states(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 360831239274
+          generic_kernel_task_state_event {
+            cpu: 0
+            tid: 101
+            state: TASK_STATE_RUNNING
+            prio: 100
+          }
+        }
+        packet {
+          timestamp: 361831239274
+          generic_kernel_task_state_event {
+            cpu: 0
+            comm: "task1"
+            tid: 101
+            state: TASK_STATE_RUNNING
+          }
+        }
+        """),
+        query="""
+        select
+          name,
+          severity,
+          source,
+          value,
+          description
+        from stats
+        where name = "generic_task_state_invalid_order"
+        """,
+        out=Csv(
+            """
+        "name","severity","source","value","description"
+        "generic_task_state_invalid_order","error","analysis",1,""" +
+            """"Invalid order of generic task state events. Should never happen."
+        """))
+
   def test_thread_state_created_and_dead(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""

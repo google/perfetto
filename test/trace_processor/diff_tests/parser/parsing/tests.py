@@ -1751,3 +1751,59 @@ class Parsing(TestSuite):
         "utid","tid","name"
         0,0,"swapper"
         """))
+
+  # Slice nesting with same timestamps and zero duration.
+  def test_same_ts_zero_duration_slice_nesting(self):
+    return DiffTestBlueprint(
+        trace=Json('''[
+          {
+            "name": "Slice 1",
+            "ph": "X",
+            "ts": 1000,
+            "dur": 0,
+            "pid": 1,
+            "tid": 1
+          },
+          {
+            "name": "Slice 2",
+            "ph": "X",
+            "ts": 1000,
+            "dur": 0,
+            "pid": 1,
+            "tid": 1
+          }
+        ]'''),
+        query="SELECT name, depth FROM slice ORDER BY name",
+        out=Csv('''
+        "name","depth"
+        "Slice 1",0
+        "Slice 2",1
+        '''))
+
+  # Slice unnesting with same timestamps and non-zero duration.
+  def test_same_ts_non_zero_duration_slice_unnesting(self):
+    return DiffTestBlueprint(
+        trace=Json('''[
+          {
+            "name": "Slice 1",
+            "ph": "X",
+            "ts": 1000,
+            "dur": 100,
+            "pid": 1,
+            "tid": 1
+          },
+          {
+            "name": "Slice 2",
+            "ph": "X",
+            "ts": 1100,
+            "dur": 100,
+            "pid": 1,
+            "tid": 1
+          }
+        ]'''),
+        query="SELECT name, depth FROM slice ORDER BY name",
+        out=Csv('''
+        "name","depth"
+        "Slice 1",0
+        "Slice 2",0
+        '''))

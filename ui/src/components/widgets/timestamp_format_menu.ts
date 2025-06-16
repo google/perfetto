@@ -16,7 +16,7 @@ import m from 'mithril';
 import {MenuItem} from '../../widgets/menu';
 import {Trace} from '../../public/trace';
 import {TimestampFormat} from '../../public/timeline';
-import {Time} from '../../base/time';
+import {formatTimezone} from '../../base/time';
 
 interface TimestampFormatMenuItemAttrs {
   trace: Trace;
@@ -36,7 +36,7 @@ export class TimestampFormatMenuItem
       });
     }
 
-    const timeZone = Time.formatTimezone(attrs.trace.traceInfo.tzOffMin);
+    const timeZone = formatTimezone(attrs.trace.traceInfo.tzOffMin);
 
     return m(
       MenuItem,

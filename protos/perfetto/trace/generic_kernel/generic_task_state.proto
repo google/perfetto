@@ -40,6 +40,9 @@ message GenericKernelTaskStateEvent {
   // These states are a generic representation of the actual thread state and
   // don't necessarily map one-to-one to the states the actual OS kernel
   // tracks internally.
+  //
+  // Note: Consecutive TASK_STATE_RUNNING states for the same TID is considered
+  // an error resulting in potential data loss.
   enum TaskStateEnum {
     TASK_STATE_UNKNOWN = 0;
     TASK_STATE_CREATED = 1;
