@@ -860,6 +860,7 @@ perfetto_filegroup(
         "include/perfetto/ext/base/unix_task_runner.h",
         "include/perfetto/ext/base/utils.h",
         "include/perfetto/ext/base/uuid.h",
+        "include/perfetto/ext/base/variant.h",
         "include/perfetto/ext/base/waitable_event.h",
         "include/perfetto/ext/base/watchdog.h",
         "include/perfetto/ext/base/watchdog_noop.h",
@@ -1671,6 +1672,8 @@ perfetto_filegroup(
         "src/trace_processor/dataframe/impl/bytecode_core.h",
         "src/trace_processor/dataframe/impl/bytecode_instructions.h",
         "src/trace_processor/dataframe/impl/bytecode_interpreter.h",
+        "src/trace_processor/dataframe/impl/bytecode_interpreter_impl.h",
+        "src/trace_processor/dataframe/impl/bytecode_interpreter_state.h",
         "src/trace_processor/dataframe/impl/bytecode_registers.h",
         "src/trace_processor/dataframe/impl/flex_vector.h",
         "src/trace_processor/dataframe/impl/query_plan.cc",
@@ -1684,11 +1687,15 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_dataframe_dataframe",
     srcs = [
+        "src/trace_processor/dataframe/adhoc_dataframe_builder.cc",
         "src/trace_processor/dataframe/adhoc_dataframe_builder.h",
         "src/trace_processor/dataframe/cursor.h",
+        "src/trace_processor/dataframe/cursor_impl.h",
         "src/trace_processor/dataframe/dataframe.cc",
         "src/trace_processor/dataframe/dataframe.h",
         "src/trace_processor/dataframe/runtime_dataframe_builder.h",
+        "src/trace_processor/dataframe/typed_cursor.cc",
+        "src/trace_processor/dataframe/typed_cursor.h",
     ],
 )
 
@@ -2779,6 +2786,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.cc",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.h",
+        "src/trace_processor/perfetto_sql/engine/static_table_function_module.cc",
+        "src/trace_processor/perfetto_sql/engine/static_table_function_module.h",
         "src/trace_processor/perfetto_sql/engine/table_pointer_module.cc",
         "src/trace_processor/perfetto_sql/engine/table_pointer_module.h",
     ],

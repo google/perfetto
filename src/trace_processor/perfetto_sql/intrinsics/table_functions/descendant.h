@@ -17,16 +17,17 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_DESCENDANT_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_DESCENDANT_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
 #include <vector>
 
-#include "perfetto/ext/base/status_or.h"
+#include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/db/table.h"
+#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 
@@ -41,25 +42,44 @@ class TraceProcessorContext;
 // See docs/analysis/trace-processor for usage.
 class Descendant : public StaticTableFunction {
  public:
-  enum class Type { kSlice = 1, kSliceByStack = 2 };
+  enum class Type : uint8_t { kSlice = 1, kSliceByStack = 2 };
+  class Cursor : public StaticTableFunction::Cursor {
+   public:
+    Cursor(Type type, TraceStorage* storage);
+    bool Run(const std::vector<SqlValue>& arguments) override;
 
-  Descendant(Type type, const TraceStorage*);
+   private:
+    Type type_;
+    TraceStorage* storage_ = nullptr;
+    tables::SliceSubsetTable table_;
+    std::vector<tables::SliceTable::RowNumber> descendants_;
+    tables::SliceTable::ConstCursor slice_cursor_;
+    tables::SliceTable::ConstCursor stack_cursor_;
+  };
 
-  Table::Schema CreateSchema() override;
+  Descendant(Type type, TraceStorage* storage);
+
+  std::unique_ptr<StaticTableFunction::Cursor> MakeCursor() override;
+  dataframe::DataframeSpec CreateSpec() override;
   std::string TableName() override;
+  uint32_t GetArgumentCount() const override;
   uint32_t EstimateRowCount() override;
-  base::StatusOr<std::unique_ptr<Table>> ComputeTable(
-      const std::vector<SqlValue>& arguments) override;
 
-  // Returns a vector of slice rows which are descendants of |slice_id|. Returns
-  // std::nullopt if an invalid |slice_id| is given. This is used by
-  // ConnectedFlow to traverse flow indirectly connected flow events.
-  static std::optional<std::vector<tables::SliceTable::RowNumber>>
-  GetDescendantSlices(const tables::SliceTable& slices, SliceId slice_id);
+  static tables::SliceTable::ConstCursor MakeCursor(const tables::SliceTable&);
+
+  // Returns a vector of slice rows which are descendants of |slice_id|.
+  // Returns false if an invalid |slice_id| is given or another error occurs.
+  // This is used by ConnectedFlow to traverse flow indirectly connected flow
+  // events.
+  static bool GetDescendantSlices(const tables::SliceTable&,
+                                  tables::SliceTable::ConstCursor&,
+                                  SliceId slice_id,
+                                  std::vector<tables::SliceTable::RowNumber>&,
+                                  base::Status&);
 
  private:
   Type type_;
-  const TraceStorage* storage_ = nullptr;
+  TraceStorage* storage_ = nullptr;
 };
 
 }  // namespace perfetto::trace_processor

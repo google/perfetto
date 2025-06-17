@@ -18,10 +18,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <deque>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <memory>
@@ -43,6 +45,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/iterator.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/export_json.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -83,6 +86,26 @@ class FileWriter : public OutputWriter {
  private:
   FILE* file_;
 };
+
+template <typename T, typename Compare>
+uint32_t LowerBoundIndex(uint32_t first,
+                         uint32_t last,
+                         const T& value,
+                         Compare comp) {
+  uint32_t count = last - first;
+  uint32_t step;
+  while (count > 0) {
+    step = count / 2;
+    uint32_t current = first + step;
+    if (comp(current, value)) {
+      first = current + 1;
+      count -= step + 1;
+    } else {
+      count = step;
+    }
+  }
+  return first;
+}
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 using IndexMap = perfetto::trace_processor::TraceStorage::Stats::IndexMap;
@@ -653,7 +676,7 @@ class JsonExporter {
   base::Status MapUniquePidsAndTids() {
     const auto& process_table = storage_->process_table();
     for (auto it = process_table.IterateRows(); it; ++it) {
-      UniquePid upid = it.id().value;
+      UniquePid upid = it.id();
       int64_t exported_pid = it.pid();
       auto it_and_inserted =
           exported_pids_to_upids_.emplace(exported_pid, upid);
@@ -666,7 +689,7 @@ class JsonExporter {
 
     const auto& thread_table = storage_->thread_table();
     for (auto it = thread_table.IterateRows(); it; ++it) {
-      UniqueTid utid = it.id().value;
+      UniqueTid utid = it.id();
 
       int64_t exported_pid = 0;
       std::optional<UniquePid> upid = it.upid();
@@ -695,7 +718,7 @@ class JsonExporter {
     for (auto it = thread_table.IterateRows(); it; ++it) {
       auto opt_name = it.name();
       if (opt_name.has_value()) {
-        UniqueTid utid = it.id().value;
+        UniqueTid utid = it.id();
         const char* thread_name = GetNonNullString(storage_, opt_name);
         auto pid_and_tid = UtidToPidAndTid(utid);
         writer_.WriteMetadataEvent("thread_name", "name", thread_name,
@@ -710,7 +733,7 @@ class JsonExporter {
     for (auto it = process_table.IterateRows(); it; ++it) {
       auto opt_name = it.name();
       if (opt_name.has_value()) {
-        UniquePid upid = it.id().value;
+        UniquePid upid = it.id();
         const char* process_name = GetNonNullString(storage_, opt_name);
         writer_.WriteMetadataEvent("process_name", "name", process_name,
                                    UpidToPid(upid), /*tid=*/0);
@@ -734,7 +757,7 @@ class JsonExporter {
         continue;
       }
 
-      UniquePid upid = it.id().value;
+      UniquePid upid = it.id();
       int64_t process_uptime_seconds =
           (last_timestamp_ns - start_timestamp_ns.value()) /
           (1000l * 1000 * 1000);
@@ -1560,7 +1583,7 @@ class JsonExporter {
           if (it.type() != process_stats) {
             continue;
           }
-          if (it.upid() != pit.id().value) {
+          if (it.upid() != pit.id()) {
             continue;
           }
           TrackId track_id = it.id();
@@ -1592,7 +1615,7 @@ class JsonExporter {
                 ? &event["args"]["dumps"]["process_mmaps"]["vm_regions"]
                 : nullptr;
         for (auto it = smaps_table.IterateRows(); it; ++it) {
-          if (it.upid() != pit.id().value)
+          if (it.upid() != pit.id())
             continue;
           if (it.ts() != snapshot_ts)
             continue;
@@ -1788,21 +1811,19 @@ class JsonExporter {
 
   uint64_t GetCounterValue(TrackId track_id, int64_t ts) {
     const auto& counter_table = storage_->counter_table();
-    auto begin = counter_table.ts().begin();
-    auto end = counter_table.ts().end();
-    PERFETTO_DCHECK(counter_table.ts().IsSorted() &&
-                    counter_table.ts().IsColumnType<int64_t>());
     // The timestamp column is sorted, so we can binary search for a matching
-    // timestamp. Note that we don't use RowMap operations like FilterInto()
-    // here because they bloat trace processor's binary size in Chrome too much.
-    auto it = std::lower_bound(begin, end, ts,
-                               [](const SqlValue& value, int64_t expected_ts) {
-                                 return value.AsLong() < expected_ts;
-                               });
-    for (; it < end; ++it) {
-      if ((*it).AsLong() != ts)
+    // timestamp. Note that we don't want to use dataframe apis here as that
+    // would bloat the binary size of the Chrome binary.
+    uint32_t idx = LowerBoundIndex(0, counter_table.row_count(), ts,
+                                   [&](uint32_t i, int64_t expected_ts) {
+                                     return counter_table[i].ts() < expected_ts;
+                                   });
+    for (; idx < counter_table.row_count(); ++idx) {
+      auto rr = counter_table[idx];
+      if (rr.ts() != ts) {
         break;
-      if (auto rr = counter_table[it.row()]; rr.track_id() == track_id) {
+      }
+      if (rr.track_id() == track_id) {
         return static_cast<uint64_t>(rr.value());
       }
     }

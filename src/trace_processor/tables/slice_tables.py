@@ -240,6 +240,7 @@ ANDROID_NETWORK_PACKETS_TABLE = Table(
     class_name='AndroidNetworkPacketsTable',
     sql_name='__intrinsic_android_network_packets',
     columns=[
+        C('id', CppTableId(SLICE_TABLE), flags=ColumnFlag.SORTED),
         C('iface', CppString()),
         C('direction', CppString()),
         C('packet_transport', CppString()),
@@ -255,7 +256,7 @@ ANDROID_NETWORK_PACKETS_TABLE = Table(
         C('packet_tcp_flags', CppOptional(CppUint32())),
         C('packet_tcp_flags_str', CppOptional(CppString())),
     ],
-    parent=SLICE_TABLE,
+    add_implicit_column=False,
 )
 
 # Keep this list sorted.

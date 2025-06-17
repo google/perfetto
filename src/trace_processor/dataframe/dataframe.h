@@ -19,7 +19,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -27,12 +26,11 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
-#include <variant>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/cursor.h"
@@ -42,7 +40,6 @@
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/types.h"
-#include "src/trace_processor/dataframe/value_fetcher.h"
 
 namespace perfetto::trace_processor::dataframe {
 
@@ -103,154 +100,6 @@ class Dataframe {
     explicit QueryPlan(impl::QueryPlan plan) : plan_(std::move(plan)) {}
     // The underlying query plan implementation.
     impl::QueryPlan plan_;
-  };
-
-  // Base class for TypeCursor. See below for details.
-  struct TypedCursorBase {
-    using FilterValue =
-        std::variant<int64_t, double, const char*, std::nullptr_t>;
-    struct Fetcher : ValueFetcher {
-      using Type = size_t;
-      static const Type kInt64 = base::variant_index<FilterValue, int64_t>();
-      static const Type kDouble = base::variant_index<FilterValue, double>();
-      static const Type kString =
-          base::variant_index<FilterValue, const char*>();
-      static const Type kNull = base::variant_index<FilterValue, nullptr_t>();
-      int64_t GetInt64Value(uint32_t col) const {
-        return base::unchecked_get<int64_t>(filter_values_[col]);
-      }
-      double GetDoubleValue(uint32_t col) const {
-        return base::unchecked_get<double>(filter_values_[col]);
-      }
-      const char* GetStringValue(uint32_t col) const {
-        return base::unchecked_get<const char*>(filter_values_[col]);
-      }
-      Type GetValueType(uint32_t col) const {
-        return filter_values_[col].index();
-      }
-      static bool IteratorInit(uint32_t) { PERFETTO_FATAL("Unsupported"); }
-      static bool IteratorNext(uint32_t) { PERFETTO_FATAL("Unsupported"); }
-      FilterValue* filter_values_;
-    };
-
-    TypedCursorBase(const Dataframe* dataframe,
-                    std::vector<FilterSpec> filter_specs,
-                    std::vector<SortSpec> sort_specs,
-                    bool mut,
-                    uint32_t last_execution_mutation_count)
-        : dataframe_(dataframe),
-          filter_specs_(std::move(filter_specs)),
-          sort_specs_(std::move(sort_specs)),
-          mutable_(mut),
-          last_execution_mutation_count_(last_execution_mutation_count) {}
-
-    PERFETTO_ALWAYS_INLINE void ExecuteUncheckedInternal() {
-      if (PERFETTO_UNLIKELY(last_execution_mutation_count_ !=
-                            dataframe_->mutations_)) {
-        PrepareCursorInternal();
-      }
-      Fetcher fetcher{{}, filter_values_.data()};
-      cursor_.Execute(fetcher);
-    }
-
-    PERFETTO_NO_INLINE void PrepareCursorInternal();
-
-    const Dataframe* dataframe_;
-    std::vector<FilterValue> filter_values_;
-    std::vector<uint32_t> filter_value_mapping_;
-    std::vector<FilterSpec> filter_specs_;
-    std::vector<SortSpec> sort_specs_;
-    bool mutable_;
-    Cursor<Fetcher> cursor_;
-    uint32_t last_execution_mutation_count_;
-  };
-
-  // A typed version of `Cursor` which allows typed access and mutation of
-  // dataframe cells while iterating over the rows of the dataframe.
-  template <typename D>
-  struct TypedCursor : public TypedCursorBase {
-   public:
-    TypedCursor(const Dataframe* dataframe,
-                std::vector<FilterSpec> filter_specs,
-                std::vector<SortSpec> sort_specs)
-        : TypedCursorBase(dataframe,
-                          std::move(filter_specs),
-                          std::move(sort_specs),
-                          false,
-                          std::numeric_limits<uint32_t>::max()) {
-      filter_values_.resize(filter_specs_.size());
-      filter_value_mapping_.resize(filter_specs_.size(),
-                                   std::numeric_limits<uint32_t>::max());
-    }
-    TypedCursor(Dataframe* dataframe,
-                std::vector<FilterSpec> filter_specs,
-                std::vector<SortSpec> sort_specs)
-        : TypedCursorBase(dataframe,
-                          std::move(filter_specs),
-                          std::move(sort_specs),
-                          true,
-                          std::numeric_limits<uint32_t>::max()) {
-      filter_values_.resize(filter_specs_.size());
-      filter_value_mapping_.resize(filter_specs_.size(),
-                                   std::numeric_limits<uint32_t>::max());
-    }
-
-    TypedCursor(const TypedCursor&) = delete;
-    TypedCursor& operator=(const TypedCursor&) = delete;
-
-    TypedCursor(TypedCursor&&) = delete;
-    TypedCursor& operator=(TypedCursor&&) = delete;
-
-    // Sets the filter value at the given index for the current query plan.
-    template <typename C>
-    PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index,
-                                                        C value) {
-      if (PERFETTO_UNLIKELY(last_execution_mutation_count_ !=
-                            dataframe_->mutations_)) {
-        PrepareCursorInternal();
-      }
-      uint32_t mapped = filter_value_mapping_[index];
-      if (mapped != std::numeric_limits<uint32_t>::max()) {
-        filter_values_[mapped] = value;
-      }
-    }
-
-    // Executes the current query plan against the specified filter values and
-    // populates the cursor with the results.
-    //
-    // See `SetFilterValueUnchecked` for details on how to set the filter
-    // values.
-    PERFETTO_ALWAYS_INLINE void ExecuteUnchecked() {
-      ExecuteUncheckedInternal();
-    }
-
-    // Returns the current row index.
-    PERFETTO_ALWAYS_INLINE uint32_t RowIndex() const {
-      return cursor_.RowIndex();
-    }
-
-    // Advances the cursor to the next row of results.
-    PERFETTO_ALWAYS_INLINE void Next() { cursor_.Next(); }
-
-    // Returns true if the cursor has reached the end of the result set.
-    PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
-
-    // Calls `Dataframe:GetCellUnchecked` for the current row and specified
-    // column.
-    template <size_t C>
-    PERFETTO_ALWAYS_INLINE auto GetCellUnchecked() const {
-      return dataframe_->GetCellUncheckedInternal<C, D>(cursor_.RowIndex());
-    }
-
-    // Calls `Dataframe:SetCellUnchecked` for the current row, specified column
-    // and the given `value`.
-    template <size_t C>
-    PERFETTO_ALWAYS_INLINE void SetCellUnchecked(
-        const typename D::template column_spec<C>::mutate_type& value) {
-      PERFETTO_DCHECK(mutable_);
-      const_cast<Dataframe*>(dataframe_)
-          ->SetCellUncheckedInternal<C, D>(cursor_.RowIndex(), value);
-    }
   };
 
   // Constructs a Dataframe with the specified column names and types.
@@ -365,24 +214,6 @@ class Dataframe {
     SetCellUncheckedInternal<column, D>(row, value);
   }
 
-  // Creates a cursor for iterating over the rows of the dataframe.
-  template <typename D>
-  PERFETTO_ALWAYS_INLINE TypedCursor<D> CreateTypedCursorUnchecked(
-      const D&,
-      std::vector<FilterSpec> filter_specs,
-      std::vector<SortSpec> sort_specs) {
-    return TypedCursor<D>(this, std::move(filter_specs), std::move(sort_specs));
-  }
-
-  // Creates a cursor for iterating over the rows of the dataframe.
-  template <typename D>
-  PERFETTO_ALWAYS_INLINE TypedCursor<D> CreateTypedCursorUnchecked(
-      const D&,
-      std::vector<FilterSpec> filter_specs,
-      std::vector<SortSpec> sort_specs) const {
-    return TypedCursor<D>(this, std::move(filter_specs), std::move(sort_specs));
-  }
-
   // Clears the dataframe, removing all rows and resetting the state.
   void Clear();
 
@@ -442,6 +273,15 @@ class Dataframe {
     return columns_[column]->null_storage.nullability();
   }
 
+  // Gets the value of a column at the specified row.
+  //
+  // DO NOT USE: this function only exists for legacy reasons and should not
+  // be used in new code. Use `GetCellUnchecked` instead.
+  template <typename T, typename N>
+  auto GetCellUncheckedLegacy(uint32_t col, uint32_t row) const {
+    return GetCellUncheckedInternal<T, N>(row, *column_ptrs_[col]);
+  }
+
   // Sets the value of a column at the specified row to the given value.
   //
   // DO NOT USE: this function only exists for legacy reasons and should not
@@ -451,8 +291,23 @@ class Dataframe {
     SetCellUncheckedInternal<T, N, M>(row, *column_ptrs_[col], value);
   }
 
+  // Give a column name, returns the index of the column in the
+  // dataframe, or std::nullopt if the column does not exist.
+  //
+  // DO NOT USE: this function only exists for legacy reasons and should not
+  // be used in new code.
+  std::optional<uint32_t> IndexOfColumnLegacy(std::string_view name) const {
+    for (uint32_t i = 0; i < column_names_.size(); ++i) {
+      if (column_names_[i] == name) {
+        return i;
+      }
+    }
+    return std::nullopt;
+  }
+
  private:
   friend class AdhocDataframeBuilder;
+  friend class TypedCursor;
 
   // TODO(lalitm): remove this once we have a proper static builder for
   // dataframe.
@@ -542,41 +397,8 @@ class Dataframe {
     using ColumnSpec = std::tuple_element_t<column, typename D::columns>;
     using type = typename ColumnSpec::type;
     using null_storage_type = typename ColumnSpec::null_storage_type;
-    static constexpr bool is_sparse_null_supporting_get_always =
-        std::is_same_v<null_storage_type, SparseNullWithPopcountAlways>;
-    static constexpr bool is_sparse_null_supporting_get_until_finalization =
-        std::is_same_v<null_storage_type,
-                       SparseNullWithPopcountUntilFinalization>;
-    const auto& col = *column_ptrs_[column];
-    const auto& storage = col.storage.unchecked_get<type>();
-    const auto& nulls = col.null_storage.unchecked_get<null_storage_type>();
-    if constexpr (std::is_same_v<null_storage_type, NonNull>) {
-      return GetCellUncheckedFromStorage(storage, row);
-    } else if constexpr (std::is_same_v<null_storage_type, DenseNull>) {
-      return nulls.bit_vector.is_set(row)
-                 ? std::make_optional(GetCellUncheckedFromStorage(storage, row))
-                 : std::nullopt;
-    } else if constexpr (is_sparse_null_supporting_get_always ||
-                         is_sparse_null_supporting_get_until_finalization) {
-      PERFETTO_DCHECK(is_sparse_null_supporting_get_always || !finalized_);
-      using Ret = decltype(GetCellUncheckedFromStorage(storage, {}));
-      if (nulls.bit_vector.is_set(row)) {
-        auto index = static_cast<uint32_t>(
-            nulls.prefix_popcount_for_cell_get[row / 64] +
-            nulls.bit_vector.count_set_bits_until_in_word(row));
-        return std::make_optional(GetCellUncheckedFromStorage(storage, index));
-      }
-      return static_cast<std::optional<Ret>>(std::nullopt);
-    } else if constexpr (std::is_same_v<null_storage_type, SparseNull>) {
-      static_assert(
-          !std::is_same_v<null_storage_type, null_storage_type>,
-          "Trying to access a column with sparse nulls but without an "
-          "approach that supports it. Please use SparseNullWithPopcountAlways "
-          "or SparseNullWithPopcountUntilFinalization as appropriate.");
-    } else {
-      static_assert(std::is_same_v<null_storage_type, NonNull>,
-                    "Unsupported null storage type");
-    }
+    return GetCellUncheckedInternal<type, null_storage_type>(
+        row, *column_ptrs_[column]);
   }
 
   template <size_t column, typename D>
@@ -592,6 +414,45 @@ class Dataframe {
     static_assert(!std::is_same_v<type, Id>, "Cannot call set on Id column");
     SetCellUncheckedInternal<type, null_storage_type, mutate_type>(
         row, *column_ptrs_[column], value);
+  }
+
+  template <typename T, typename N>
+  PERFETTO_ALWAYS_INLINE auto GetCellUncheckedInternal(
+      uint32_t row,
+      const impl::Column& col) const {
+    static constexpr bool is_sparse_null_supporting_get_always =
+        std::is_same_v<N, SparseNullWithPopcountAlways>;
+    static constexpr bool is_sparse_null_supporting_get_until_finalization =
+        std::is_same_v<N, SparseNullWithPopcountUntilFinalization>;
+    const auto& storage = col.storage.unchecked_get<T>();
+    const auto& nulls = col.null_storage.unchecked_get<N>();
+    if constexpr (std::is_same_v<N, NonNull>) {
+      return GetCellUncheckedFromStorage(storage, row);
+    } else if constexpr (std::is_same_v<N, DenseNull>) {
+      return nulls.bit_vector.is_set(row)
+                 ? std::make_optional(GetCellUncheckedFromStorage(storage, row))
+                 : std::nullopt;
+    } else if constexpr (is_sparse_null_supporting_get_always ||
+                         is_sparse_null_supporting_get_until_finalization) {
+      PERFETTO_DCHECK(is_sparse_null_supporting_get_always || !finalized_);
+      using Ret = decltype(GetCellUncheckedFromStorage(storage, {}));
+      if (nulls.bit_vector.is_set(row)) {
+        auto index = static_cast<uint32_t>(
+            nulls.prefix_popcount_for_cell_get[row / 64] +
+            nulls.bit_vector.count_set_bits_until_in_word(row));
+        return std::make_optional(GetCellUncheckedFromStorage(storage, index));
+      }
+      return static_cast<std::optional<Ret>>(std::nullopt);
+    } else if constexpr (std::is_same_v<N, SparseNull>) {
+      static_assert(
+          !std::is_same_v<N, N>,
+          "Trying to access a column with sparse nulls but without an "
+          "approach that supports it. Please use SparseNullWithPopcountAlways "
+          "or SparseNullWithPopcountUntilFinalization as appropriate.");
+    } else {
+      static_assert(std::is_same_v<N, NonNull>,
+                    "Unsupported null storage type");
+    }
   }
 
   template <typename T, typename N, typename M>

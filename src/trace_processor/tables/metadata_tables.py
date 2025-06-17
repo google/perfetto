@@ -252,7 +252,9 @@ PROCESS_TABLE = Table(
                   Machine identifier, non-null for processes on a remote
                   machine.
                 ''',
-        }))
+        },
+    ),
+)
 
 THREAD_TABLE = Table(
     python_module=__file__,
@@ -353,7 +355,9 @@ THREAD_TABLE = Table(
                 '''
                   Machine identifier, non-null for threads on a remote machine.
                 ''',
-        }))
+        },
+    ),
+)
 
 CPU_TABLE = Table(
     python_module=__file__,

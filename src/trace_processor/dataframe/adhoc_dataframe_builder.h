@@ -31,10 +31,10 @@
 #include <variant>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -117,7 +117,7 @@ class AdhocDataframeBuilder {
   AdhocDataframeBuilder(std::vector<std::string> names,
                         StringPool* pool,
                         const std::vector<ColumnType>& types = {})
-      : string_pool_(pool) {
+      : string_pool_(pool), did_declare_types_(!types.empty()) {
     PERFETTO_DCHECK(types.empty() || types.size() == names.size());
     for (uint32_t i = 0; i < names.size(); ++i) {
       if (types.empty()) {
@@ -446,9 +446,16 @@ class AdhocDataframeBuilder {
             break;
           }
         }
-        current_status_ = base::ErrStatus(
-            "Type mismatch in column '%s'. Existing type != fetched type.",
-            column_names_[col].c_str());
+        if (did_declare_types_) {
+          current_status_ = base::ErrStatus(
+              "column '%s' declared as %s in the schema, but %s found",
+              column_names_[col].c_str(), ToString(data), ToString<T>());
+        } else {
+          current_status_ = base::ErrStatus(
+              "column '%s' was inferred to be %s, but later received a value "
+              "of type %s",
+              column_names_[col].c_str(), ToString(data), ToString<T>());
+        }
         return false;
       }
     }
@@ -474,7 +481,10 @@ class AdhocDataframeBuilder {
   static impl::Storage CreateIntegerStorage(
       impl::FlexVector<int64_t> data,
       const IntegerColumnSummary& summary) {
-    if (summary.is_id_sorted) {
+    // TODO(lalitm): `!summary.is_nullable` is an unnecesarily strong condition
+    // but we impose it as query planning assumes that id columns never have an
+    // index added to them.
+    if (summary.is_id_sorted && !summary.is_nullable) {
       return impl::Storage{
           impl::Storage::Id{static_cast<uint32_t>(data.size())}};
     }
@@ -605,7 +615,7 @@ class AdhocDataframeBuilder {
   // Returns true if the value is a definite duplicate.
   PERFETTO_ALWAYS_INLINE bool CheckDuplicate(int64_t value, size_t size) {
     if (value < 0) {
-      return false;
+      return true;
     }
     if (PERFETTO_UNLIKELY(value >=
                           static_cast<int64_t>(duplicate_bit_vector_.size()))) {
@@ -623,9 +633,25 @@ class AdhocDataframeBuilder {
     return false;
   }
 
+  PERFETTO_NO_INLINE static const char* ToString(const DataVariant&);
+
+  template <typename T>
+  PERFETTO_NO_INLINE static const char* ToString() {
+    if constexpr (std::is_same_v<T, int64_t>) {
+      return "LONG";
+    } else if constexpr (std::is_same_v<T, double>) {
+      return "DOUBLE";
+    } else if constexpr (std::is_same_v<T, StringPool::Id>) {
+      return "STRING";
+    } else {
+      return "unknown type";
+    }
+  }
+
   StringPool* string_pool_;
   std::vector<std::string> column_names_;
   std::vector<ColumnState> column_states_;
+  bool did_declare_types_ = false;
   base::Status current_status_ = base::OkStatus();
   impl::BitVector duplicate_bit_vector_;
 };
