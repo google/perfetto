@@ -47,10 +47,12 @@ source_set("integrationtests") {
   testonly = true
   sources = [ "summary_integrationtest.cc" ]
   deps = [
+    ":gen_cc_trace_summary_descriptor",
     ":trace_summary",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../../include/perfetto/trace_processor",
+    "../../base",
     "../util:descriptors",
   ]
 }
