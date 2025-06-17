@@ -29,7 +29,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/flamegraph_construction_algorithms.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -185,7 +184,7 @@ class Matcher {
   const std::string focus_str_;
 };
 
-enum class FocusedState {
+enum class FocusedState : uint8_t {
   kNotFocused,
   kFocusedPropagating,
   kFocusedNotPropagating,
@@ -318,62 +317,80 @@ std::unique_ptr<tables::ExperimentalFlamegraphTable> FocusTable(
 }
 }  // namespace
 
-ExperimentalFlamegraph::ExperimentalFlamegraph(TraceProcessorContext* context)
-    : context_(context) {}
+ExperimentalFlamegraph::Cursor::Cursor(TraceProcessorContext* context)
+    : context_(context), table_(context_->storage->mutable_string_pool()) {}
 
-ExperimentalFlamegraph::~ExperimentalFlamegraph() = default;
-
-base::StatusOr<std::unique_ptr<Table>> ExperimentalFlamegraph::ComputeTable(
+bool ExperimentalFlamegraph::Cursor::Run(
     const std::vector<SqlValue>& arguments) {
-  ASSIGN_OR_RETURN(auto values, GetFlamegraphInputValues(arguments));
-
-  std::unique_ptr<tables::ExperimentalFlamegraphTable> table;
+  base::StatusOr<InputValues> values_status =
+      GetFlamegraphInputValues(arguments);
+  if (!values_status.ok()) {
+    return OnFailure(values_status.status());
+  }
+  InputValues values = std::move(values_status.value());
+  std::unique_ptr<tables::ExperimentalFlamegraphTable> constructed_table;
   switch (values.profile_type) {
     case ProfileType::kGraph: {
       if (!values.ts || !values.upid) {
-        return base::ErrStatus(
+        return OnFailure(base::ErrStatus(
             "experimental_flamegraph: ts and upid must be present for heap "
-            "graph");
+            "graph"));
       }
-      table = HeapGraphTracker::GetOrCreate(context_)->BuildFlamegraph(
-          *values.ts, *values.upid);
+      constructed_table =
+          HeapGraphTracker::GetOrCreate(context_)->BuildFlamegraph(
+              *values.ts, *values.upid);
       break;
     }
     case ProfileType::kHeapProfile: {
       if (!values.ts || !values.upid) {
-        return base::ErrStatus(
+        return OnFailure(base::ErrStatus(
             "experimental_flamegraph: ts and upid must be present for heap "
-            "profile");
+            "profile"));
       }
-      table = BuildHeapProfileFlamegraph(context_->storage.get(), *values.upid,
-                                         *values.ts);
+      constructed_table = BuildHeapProfileFlamegraph(context_->storage.get(),
+                                                     *values.upid, *values.ts);
       break;
     }
     case ProfileType::kPerf: {
-      table = BuildNativeCallStackSamplingFlamegraph(
+      constructed_table = BuildNativeCallStackSamplingFlamegraph(
           context_->storage.get(), values.upid, values.upid_group,
           values.time_constraints);
       break;
     }
   }
-  if (!table) {
-    return base::ErrStatus("Failed to build flamegraph");
+  if (!constructed_table) {
+    return OnFailure(base::ErrStatus("Failed to build flamegraph"));
   }
   if (values.focus_str) {
-    table = FocusTable(context_->storage.get(), std::move(table),
-                       *values.focus_str);
+    constructed_table =
+        FocusTable(context_->storage.get(), std::move(constructed_table),
+                   *values.focus_str);
   }
-  return std::unique_ptr<Table>(std::move(table));
+  table_ = std::move(*constructed_table);
+  return OnSuccess(&table_.dataframe());
 }
 
-Table::Schema ExperimentalFlamegraph::CreateSchema() {
-  return tables::ExperimentalFlamegraphTable::ComputeStaticSchema();
+ExperimentalFlamegraph::ExperimentalFlamegraph(TraceProcessorContext* context)
+    : context_(context) {}
+
+ExperimentalFlamegraph::~ExperimentalFlamegraph() = default;
+
+std::unique_ptr<StaticTableFunction::Cursor>
+ExperimentalFlamegraph::MakeCursor() {
+  return std::make_unique<Cursor>(context_);
+}
+
+dataframe::DataframeSpec ExperimentalFlamegraph::CreateSpec() {
+  return tables::ExperimentalFlamegraphTable::kSpec.ToUntypedDataframeSpec();
 }
 
 std::string ExperimentalFlamegraph::TableName() {
   return tables::ExperimentalFlamegraphTable::Name();
 }
 
+uint32_t ExperimentalFlamegraph::GetArgumentCount() const {
+  return 6;
+}
 uint32_t ExperimentalFlamegraph::EstimateRowCount() {
   // TODO(lalitm): return a better estimate here when possible.
   return 1024;
