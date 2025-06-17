@@ -336,11 +336,7 @@ class TraceStorage {
   // Requests the removal of unused capacity.
   // Matches the semantics of std::vector::shrink_to_fit.
   void ShrinkToFitTables() {
-    // At the moment, we only bother calling ShrinkToFit on a set group
-    // of tables. If we wanted to extend this to every table, we'd need to deal
-    // with tracking all the tables in the storage: this is not worth doing
-    // given most memory is used by these tables.
-    slice_table_.ShrinkToFit();
+    // TODO(lalitm): remove.
   }
 
   const tables::ThreadTable& thread_table() const { return thread_table_; }
