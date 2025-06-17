@@ -46,17 +46,6 @@ class TrackEventInternal;
 class PERFETTO_EXPORT_COMPONENT EventContext {
  public:
   EventContext(EventContext&&) = default;
-
-  // For Chromium during the transition phase to the client library.
-  // TODO(eseckler): Remove once Chromium has switched to client lib entirely.
-  explicit EventContext(
-      protos::pbzero::TrackEvent* event,
-      internal::TrackEventIncrementalState* incremental_state = nullptr,
-      bool filter_debug_annotations = false)
-      : event_(event),
-        incremental_state_(incremental_state),
-        filter_debug_annotations_(filter_debug_annotations) {}
-
   ~EventContext();
 
   internal::TrackEventIncrementalState* GetIncrementalState() const {
@@ -71,12 +60,13 @@ class PERFETTO_EXPORT_COMPONENT EventContext {
   // TODO(kraskevich): Come up with a more precise name once we have more than
   // one usecase.
   bool ShouldFilterDebugAnnotations() const {
-    if (tls_state_) {
-      return tls_state_->filter_debug_annotations;
-    }
-    // In Chromium tls_state_ is nullptr, so we need to get this information
-    // from a separate field.
-    return filter_debug_annotations_;
+    return tls_state_->filter_debug_annotations;
+  }
+
+  // Disclaimer: Experimental method, subject to change. Exposed publicly to
+  // emit some DynamicFilter fields in Chromium only in local tracing.
+  bool ShouldFilterDynamicEventNames() const {
+    return tls_state_->filter_dynamic_event_names;
   }
 
   // Get a TrackEvent message to write typed arguments to.
@@ -156,10 +146,6 @@ class PERFETTO_EXPORT_COMPONENT EventContext {
   // are certain that it cannot be nullptr. Once we switch to client library in
   // chrome, we can make that happen.
   internal::TrackEventTlsState* tls_state_ = nullptr;
-  // TODO(kraskevich): Come up with a more precise name once we have more than
-  // one usecase.
-  // TODO(kraskevich): Remove once Chromium has fully switched to client lib.
-  const bool filter_debug_annotations_ = false;
 };
 
 }  // namespace perfetto
