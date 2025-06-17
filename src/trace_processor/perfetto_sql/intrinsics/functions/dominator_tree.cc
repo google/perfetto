@@ -26,14 +26,12 @@
 #include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/tables_py.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 
 namespace perfetto::trace_processor {
-namespace tables {
-DominatorTreeTable::~DominatorTreeTable() = default;
-}  // namespace tables
 
 namespace {
 
@@ -319,9 +317,10 @@ void DominatorTree::Final(sqlite3_context* ctx) {
     graph.ToTable(table.get(), start_node);
   }
   // Take the computed dominator tree and convert it to a table.
-  return sqlite::result::RawPointer(
-      ctx, table.release(), "TABLE",
-      [](void* ptr) { delete static_cast<tables::DominatorTreeTable*>(ptr); });
+  return sqlite::result::UniquePointer(
+      ctx,
+      std::make_unique<dataframe::Dataframe>(std::move(table->dataframe())),
+      "TABLE");
 }
 
 }  // namespace perfetto::trace_processor
