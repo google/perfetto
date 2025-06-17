@@ -1542,7 +1542,7 @@ TEST(DataframeTest, TypedCursor) {
 
   TypedCursor cursor(&df, {FilterSpec{0, 0, Eq{}, {}}}, {});
   {
-    cursor.SetFilterValueUnchecked(0, 0l);
+    cursor.SetFilterValueUnchecked(0, int64_t(0l));
     cursor.ExecuteUnchecked();
     ASSERT_FALSE(cursor.Eof());
     ASSERT_EQ(cursor.GetCellUnchecked<0>(kSpec), 0u);
@@ -1553,7 +1553,7 @@ TEST(DataframeTest, TypedCursor) {
     ASSERT_TRUE(cursor.Eof());
   }
   {
-    cursor.SetFilterValueUnchecked(0, 1l);
+    cursor.SetFilterValueUnchecked(0, int64_t(1l));
     cursor.ExecuteUnchecked();
     ASSERT_FALSE(cursor.Eof());
     ASSERT_EQ(cursor.GetCellUnchecked<0>(kSpec), 1u);

@@ -41,7 +41,7 @@ class Dataframe;
 class TypedCursor {
  public:
   using FilterValue =
-      std::variant<int64_t, double, const char*, std::nullptr_t>;
+      std::variant<std::nullptr_t, int64_t, double, const char*>;
   struct Fetcher : ValueFetcher {
     using Type = size_t;
     static const Type kInt64 = base::variant_index<FilterValue, int64_t>();
@@ -90,16 +90,21 @@ class TypedCursor {
   TypedCursor& operator=(TypedCursor&&) = delete;
 
   // Sets the filter value at the given index for the current query plan.
-  template <typename C>
-  PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index, C value) {
-    if (PERFETTO_UNLIKELY(last_execution_mutation_count_ !=
-                          dataframe_->mutations_)) {
-      PrepareCursorInternal();
-    }
-    uint32_t mapped = filter_value_mapping_[index];
-    if (mapped != std::numeric_limits<uint32_t>::max()) {
-      filter_values_[mapped] = value;
-    }
+  PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index,
+                                                      uint32_t value) {
+    SetFilterValueInternal(index, int64_t(value));
+  }
+  PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index,
+                                                      int64_t value) {
+    SetFilterValueInternal(index, value);
+  }
+  PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index,
+                                                      double value) {
+    SetFilterValueInternal(index, value);
+  }
+  PERFETTO_ALWAYS_INLINE void SetFilterValueUnchecked(uint32_t index,
+                                                      const char* value) {
+    SetFilterValueInternal(index, value);
   }
 
   // Executes the current query plan against the specified filter values and
@@ -152,6 +157,17 @@ class TypedCursor {
     filter_values_.resize(filter_specs_.size());
     filter_value_mapping_.resize(filter_specs_.size(),
                                  std::numeric_limits<uint32_t>::max());
+  }
+  template <typename C>
+  PERFETTO_ALWAYS_INLINE void SetFilterValueInternal(uint32_t index, C value) {
+    if (PERFETTO_UNLIKELY(last_execution_mutation_count_ !=
+                          dataframe_->mutations_)) {
+      PrepareCursorInternal();
+    }
+    uint32_t mapped = filter_value_mapping_[index];
+    if (mapped != std::numeric_limits<uint32_t>::max()) {
+      filter_values_[mapped] = value;
+    }
   }
 
   void PrepareCursorInternal();

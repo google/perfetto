@@ -250,6 +250,7 @@ source_set("profile_builder") {
     "../../../protos/third_party/pprof:zero",
     "../../base",
     "../containers",
+    "../dataframe",
     "../db/column",
     "../storage",
     "../tables",
