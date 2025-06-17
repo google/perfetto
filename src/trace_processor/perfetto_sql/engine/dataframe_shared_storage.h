@@ -152,7 +152,9 @@ class DataframeSharedStorage {
     return "static_table:" + table_name;
   }
   static std::string MakeUniqueKey() {
-    return "unique:" + base::Uuidv4().ToPrettyString();
+    static std::atomic<uint64_t> next_key_counter_ = 0;
+    return "unique:" + std::to_string(next_key_counter_.fetch_add(
+                           1, std::memory_order_relaxed));
   }
   static std::string MakeIndexKey(const std::string& key,
                                   const uint32_t* col_start,
