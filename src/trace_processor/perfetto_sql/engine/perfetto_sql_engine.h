@@ -304,6 +304,9 @@ class PerfettoSqlEngine {
     return GetStaticTableOrNull(name);
   }
 
+  // Find dataframe registered with engine with provided name.
+  const dataframe::Dataframe* GetDataframeOrNull(const std::string& name) const;
+
  private:
   using UnfinalizedOrFinalizedStaticTable =
       std::variant<DataframeSharedStorage::DataframeHandle,
