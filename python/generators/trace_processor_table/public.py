@@ -193,6 +193,7 @@ class Table:
   add_implicit_column: bool = True
   tabledoc: Optional[TableDoc] = None
   wrapping_sql_view: Optional[WrappingSqlView] = None
+  # TODO(lalitm): remove once migration sticks.
   use_legacy_table_backend: bool = False
 
 
