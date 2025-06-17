@@ -18,11 +18,22 @@ import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
 import {exists} from '../../base/utils';
 import {NUM} from '../../trace_processor/query_result';
+import {Track} from '../../public/track';
 
 export class WattsonPackageSelectionAggregator
   implements AreaSelectionAggregator
 {
   readonly id = 'wattson_plugin_package_aggregation';
+
+  appliesTo(tracks: ReadonlyArray<Track>) {
+    const selectedCpus: number[] = [];
+    for (const trackInfo of tracks) {
+      if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
+        exists(trackInfo.tags.cpu) && selectedCpus.push(trackInfo.tags.cpu);
+      }
+    }
+    return selectedCpus.length > 0;
+  }
 
   async createAggregateView(engine: Engine, area: AreaSelection) {
     await engine.query(`drop view if exists ${this.id};`);

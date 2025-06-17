@@ -19,6 +19,7 @@ import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
 import {AreaSelectionAggregator} from '../../public/selection';
 import {LONG, NUM} from '../../trace_processor/query_result';
+import {Track} from '../../public/track';
 
 export class PowerCounterSelectionAggregator
   implements AreaSelectionAggregator
@@ -33,6 +34,19 @@ export class PowerCounterSelectionAggregator
     ts: LONG,
     value: NUM,
   };
+
+  appliesTo(tracks: ReadonlyArray<Track>) {
+    const trackIds: (string | number)[] = [];
+    for (const trackInfo of tracks) {
+      if (
+        trackInfo?.tags?.kind === COUNTER_TRACK_KIND &&
+        trackInfo?.tags?.type === 'power_rails'
+      ) {
+        trackInfo.tags?.trackIds && trackIds.push(...trackInfo.tags.trackIds);
+      }
+    }
+    return trackIds.length > 0;
+  }
 
   async createAggregateView(engine: Engine, area: AreaSelection) {
     const trackIds: (string | number)[] = [];

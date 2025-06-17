@@ -211,6 +211,11 @@ export class SelectionAggregationManager {
     aggr: AreaSelectionAggregator,
     tracks: ReadonlyArray<Track>,
   ): Dataset | undefined {
+    if (aggr.appliesTo) {
+      if (!aggr.appliesTo(tracks)) {
+        return undefined;
+      }
+    }
     const filteredDatasets = tracks
       .filter(
         (td) =>

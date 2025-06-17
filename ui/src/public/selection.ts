@@ -161,6 +161,14 @@ export interface AreaSelectionAggregator {
   readonly schema?: DatasetSchema;
 
   /**
+   * Returns true if this aggregation applies to the current selection.
+   * This should be supplied if trackKind or schema is not.
+   *
+   * @param tracks
+   */
+  appliesTo?(tracks: ReadonlyArray<Track>): boolean;
+
+  /**
    * Creates a view for the aggregated data corresponding to the selected area.
    *
    * The dataset provided will be filtered based on the `trackKind` and `schema`

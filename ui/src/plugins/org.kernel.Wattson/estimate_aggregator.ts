@@ -24,11 +24,26 @@ import {
   CPUSS_ESTIMATE_TRACK_KIND,
   GPUSS_ESTIMATE_TRACK_KIND,
 } from './track_kinds';
+import {Track} from '../../public/track';
 
 export class WattsonEstimateSelectionAggregator
   implements AreaSelectionAggregator
 {
   readonly id = 'wattson_plugin_estimate_aggregation';
+
+  appliesTo(tracks: ReadonlyArray<Track>) {
+    const estimateTracks: string[] = [];
+    for (const trackInfo of tracks) {
+      if (
+        (trackInfo?.tags?.kind === CPUSS_ESTIMATE_TRACK_KIND ||
+          trackInfo?.tags?.kind === GPUSS_ESTIMATE_TRACK_KIND) &&
+        exists(trackInfo.tags?.wattson)
+      ) {
+        estimateTracks.push(`${trackInfo.tags.wattson}`);
+      }
+    }
+    return estimateTracks.length > 0;
+  }
 
   async createAggregateView(engine: Engine, area: AreaSelection) {
     await engine.query(`drop view if exists ${this.id};`);
