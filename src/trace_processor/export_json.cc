@@ -653,7 +653,7 @@ class JsonExporter {
   base::Status MapUniquePidsAndTids() {
     const auto& process_table = storage_->process_table();
     for (auto it = process_table.IterateRows(); it; ++it) {
-      UniquePid upid = it.id().value;
+      UniquePid upid = it.id();
       int64_t exported_pid = it.pid();
       auto it_and_inserted =
           exported_pids_to_upids_.emplace(exported_pid, upid);
@@ -666,7 +666,7 @@ class JsonExporter {
 
     const auto& thread_table = storage_->thread_table();
     for (auto it = thread_table.IterateRows(); it; ++it) {
-      UniqueTid utid = it.id().value;
+      UniqueTid utid = it.id();
 
       int64_t exported_pid = 0;
       std::optional<UniquePid> upid = it.upid();
@@ -695,7 +695,7 @@ class JsonExporter {
     for (auto it = thread_table.IterateRows(); it; ++it) {
       auto opt_name = it.name();
       if (opt_name.has_value()) {
-        UniqueTid utid = it.id().value;
+        UniqueTid utid = it.id();
         const char* thread_name = GetNonNullString(storage_, opt_name);
         auto pid_and_tid = UtidToPidAndTid(utid);
         writer_.WriteMetadataEvent("thread_name", "name", thread_name,
@@ -710,7 +710,7 @@ class JsonExporter {
     for (auto it = process_table.IterateRows(); it; ++it) {
       auto opt_name = it.name();
       if (opt_name.has_value()) {
-        UniquePid upid = it.id().value;
+        UniquePid upid = it.id();
         const char* process_name = GetNonNullString(storage_, opt_name);
         writer_.WriteMetadataEvent("process_name", "name", process_name,
                                    UpidToPid(upid), /*tid=*/0);
@@ -734,7 +734,7 @@ class JsonExporter {
         continue;
       }
 
-      UniquePid upid = it.id().value;
+      UniquePid upid = it.id();
       int64_t process_uptime_seconds =
           (last_timestamp_ns - start_timestamp_ns.value()) /
           (1000l * 1000 * 1000);
@@ -1560,7 +1560,7 @@ class JsonExporter {
           if (it.type() != process_stats) {
             continue;
           }
-          if (it.upid() != pit.id().value) {
+          if (it.upid() != pit.id()) {
             continue;
           }
           TrackId track_id = it.id();
@@ -1592,7 +1592,7 @@ class JsonExporter {
                 ? &event["args"]["dumps"]["process_mmaps"]["vm_regions"]
                 : nullptr;
         for (auto it = smaps_table.IterateRows(); it; ++it) {
-          if (it.upid() != pit.id().value)
+          if (it.upid() != pit.id())
             continue;
           if (it.ts() != snapshot_ts)
             continue;
