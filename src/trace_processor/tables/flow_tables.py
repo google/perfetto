@@ -28,6 +28,7 @@ FLOW_TABLE = Table(
     python_module=__file__,
     class_name='FlowTable',
     sql_name='flow',
+    use_legacy_table_backend=True,
     columns=[
         C(
             'slice_out',

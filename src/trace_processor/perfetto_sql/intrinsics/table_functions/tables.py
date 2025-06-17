@@ -34,6 +34,7 @@ TABLE_INFO_TABLE = Table(
     python_module=__file__,
     class_name="PerfettoTableInfoTable",
     sql_name="perfetto_table_info",
+    use_legacy_table_backend=True,
     columns=[
         C("table_name", CppString(), flags=ColumnFlag.HIDDEN),
         C('name', CppString()),
@@ -46,6 +47,7 @@ ANCESTOR_SLICE_TABLE = Table(
     python_module=__file__,
     class_name="AncestorSliceTable",
     sql_name="ancestor_slice",
+    use_legacy_table_backend=True,
     columns=[
         C("start_id", CppTableId(SLICE_TABLE), flags=ColumnFlag.HIDDEN),
     ],
@@ -55,6 +57,7 @@ ANCESTOR_SLICE_BY_STACK_TABLE = Table(
     python_module=__file__,
     class_name="AncestorSliceByStackTable",
     sql_name="ancestor_slice_by_stack",
+    use_legacy_table_backend=True,
     columns=[
         C("start_stack_id", CppInt64(), flags=ColumnFlag.HIDDEN),
     ],
@@ -64,6 +67,7 @@ ANCESTOR_STACK_PROFILE_CALLSITE_TABLE = Table(
     python_module=__file__,
     class_name="AncestorStackProfileCallsiteTable",
     sql_name="experimental_ancestor_stack_profile_callsite",
+    use_legacy_table_backend=True,
     columns=[
         C("start_id",
           CppTableId(STACK_PROFILE_CALLSITE_TABLE),
@@ -75,6 +79,7 @@ CONNECTED_FLOW_TABLE = Table(
     python_module=__file__,
     class_name="ConnectedFlowTable",
     sql_name="not_exposed_to_sql",
+    use_legacy_table_backend=True,
     columns=[
         C("start_id", CppTableId(SLICE_TABLE), flags=ColumnFlag.HIDDEN),
     ],
@@ -84,6 +89,7 @@ ARGS_WITH_DEFAULTS_TABLE = Table(
     python_module=__file__,
     class_name='WinscopeArgsWithDefaultsTable',
     sql_name='__intrinsic_winscope_proto_to_args_with_defaults',
+    use_legacy_table_backend=True,
     columns=[
         C("table_name", CppString(), flags=ColumnFlag.HIDDEN),
         C('base64_proto_id', CppUint32()),
@@ -99,6 +105,7 @@ DESCENDANT_SLICE_TABLE = Table(
     python_module=__file__,
     class_name="DescendantSliceTable",
     sql_name="descendant_slice",
+    use_legacy_table_backend=True,
     columns=[
         C("start_id", CppTableId(SLICE_TABLE), flags=ColumnFlag.HIDDEN),
     ],
@@ -108,6 +115,7 @@ DESCENDANT_SLICE_BY_STACK_TABLE = Table(
     python_module=__file__,
     class_name="DescendantSliceByStackTable",
     sql_name="descendant_slice_by_stack",
+    use_legacy_table_backend=True,
     columns=[
         C("start_stack_id", CppInt64(), flags=ColumnFlag.HIDDEN),
     ],
@@ -117,6 +125,7 @@ EXPERIMENTAL_ANNOTATED_CALLSTACK_TABLE = Table(
     python_module=__file__,
     class_name="ExperimentalAnnotatedCallstackTable",
     sql_name="experimental_annotated_callstack",
+    use_legacy_table_backend=True,
     columns=[
         C("annotation", CppString()),
         C("start_id",
@@ -129,6 +138,7 @@ EXPERIMENTAL_SLICE_LAYOUT_TABLE = Table(
     python_module=__file__,
     class_name="ExperimentalSliceLayoutTable",
     sql_name="experimental_slice_layout",
+    use_legacy_table_backend=True,
     columns=[
         C("layout_depth", CppUint32()),
         C("filter_track_ids", CppString(), flags=ColumnFlag.HIDDEN),
@@ -139,6 +149,7 @@ DFS_WEIGHT_BOUNDED_TABLE = Table(
     python_module=__file__,
     class_name="DfsWeightBoundedTable",
     sql_name="__intrinsic_dfs_weight_bounded",
+    use_legacy_table_backend=True,
     columns=[
         C("root_node_id", CppUint32()),
         C("node_id", CppUint32()),
@@ -163,6 +174,7 @@ DATAFRAME_QUERY_PLAN_DECODER_TABLE_TABLE = Table(
     python_module=__file__,
     class_name="DataframeQueryPlanDecoderTable",
     sql_name="__intrinsic_dataframe_query_plan_decoder",
+    use_legacy_table_backend=True,
     columns=[
         C("bytecode_str", CppString()),
         C("serialized_bc", CppString(), flags=ColumnFlag.HIDDEN),
