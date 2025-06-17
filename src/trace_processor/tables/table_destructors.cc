@@ -36,7 +36,6 @@ CounterTable::~CounterTable() = default;
 // metadata_tables_py.h
 ChromeRawTable::~ChromeRawTable() = default;
 FtraceEventTable::~FtraceEventTable() = default;
-ArgTable::~ArgTable() = default;
 MetadataTable::~MetadataTable() = default;
 CpuTable::~CpuTable() = default;
 ThreadTable::~ThreadTable() = default;
