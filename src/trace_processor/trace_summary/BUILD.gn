@@ -32,7 +32,6 @@ source_set("trace_summary") {
     "../../protozero",
     "../../protozero/text_to_proto",
     "../perfetto_sql/generator",
-    "../util",
     "../util:descriptors",
     "../util:protozero_to_text",
   ]
