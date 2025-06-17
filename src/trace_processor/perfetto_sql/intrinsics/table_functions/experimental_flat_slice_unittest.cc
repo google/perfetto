@@ -17,12 +17,10 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <limits>
-#include <utility>
 #include <vector>
 
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/table.h"
+#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "test/gtest_and_gmock.h"
@@ -57,20 +55,33 @@ class TableInseter {
 
 class TableAsserter {
  public:
-  explicit TableAsserter(tables::ExperimentalFlatSliceTable::Iterator it)
-      : iterator_(std::move(it)) {}
+  explicit TableAsserter(const tables::ExperimentalFlatSliceTable* out)
+      : cursor_(out->CreateCursor(
+            {},
+            {
+                dataframe::SortSpec{
+                    tables::ExperimentalFlatSliceTable::ColumnIndex::track_id,
+                    dataframe::SortDirection::kAscending,
+                },
+                dataframe::SortSpec{
+                    tables::ExperimentalFlatSliceTable::ColumnIndex::ts,
+                    dataframe::SortDirection::kAscending,
+                },
+            })) {
+    cursor_.Execute();
+  }
 
   void NextSlice(int64_t ts, int64_t dur) {
     ASSERT_TRUE(HasMoreSlices());
-    ASSERT_EQ(iterator_.ts(), ts);
-    ASSERT_EQ(iterator_.dur(), dur);
-    ++iterator_;
+    ASSERT_EQ(cursor_.ts(), ts);
+    ASSERT_EQ(cursor_.dur(), dur);
+    cursor_.Next();
   }
 
-  bool HasMoreSlices() { return bool(iterator_); }
+  bool HasMoreSlices() { return !cursor_.Eof(); }
 
  private:
-  tables::ExperimentalFlatSliceTable::Iterator iterator_;
+  tables::ExperimentalFlatSliceTable::ConstCursor cursor_;
 };
 
 TEST(ExperimentalFlatSlice, Smoke) {
@@ -100,11 +111,7 @@ TEST(ExperimentalFlatSlice, Smoke) {
   inserter.Populate(table);
 
   auto out = ExperimentalFlatSlice::ComputeFlatSliceTable(table, &pool, 0, 400);
-  Query q;
-  q.orders = {out->track_id().ascending(), out->ts().ascending()};
-  auto it = out->FilterToIterator(q);
-
-  TableAsserter asserter(std::move(it));
+  TableAsserter asserter(out.get());
 
   // Track 1's slices.
   ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(0, 100));
@@ -184,11 +191,7 @@ TEST(ExperimentalFlatSlice, Bounds) {
 
   auto out =
       ExperimentalFlatSlice::ComputeFlatSliceTable(table, &pool, start, end);
-  Query q;
-  q.orders = {out->track_id().ascending(), out->ts().ascending()};
-  auto it = out->FilterToIterator(q);
-
-  TableAsserter asserter(std::move(it));
+  TableAsserter asserter(out.get());
 
   // Track 1's slices.
   ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(200, 0));
