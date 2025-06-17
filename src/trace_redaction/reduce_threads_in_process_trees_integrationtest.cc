@@ -144,9 +144,9 @@ TEST_F(RedactProcessTreesIntegrationTest, FilterProcesses) {
   // process once.
 
   ASSERT_EQ(redacted_pids.size(), 10u);
-  ASSERT_EQ(std::count(redacted_pids.begin(), redacted_pids.end(), 7105), 1u);
-  ASSERT_EQ(std::count(redacted_pids.begin(), redacted_pids.end(), 4194305),
-            9u);
+
+  ASSERT_EQ(std::count(redacted_pids.begin(), redacted_pids.end(), 7105), 1);
+  ASSERT_EQ(std::count(redacted_pids.begin(), redacted_pids.end(), 4194305), 9);
 }
 
 TEST_F(RedactProcessTreesIntegrationTest, FilterThreads) {
