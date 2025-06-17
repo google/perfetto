@@ -166,25 +166,44 @@ class TraceProcessor:
     metrics.ParseFromString(response.metrics)
     return metrics
 
-  def trace_summary(self,
-                    specs: List[Union[str, bytes]],
-                    metric_ids: Optional[List[str]] = None,
-                    metadata_query_id: Optional[str] = None):
-    """Returns the trace summary data corresponding to the passed in metric
-    IDs and specs. Raises TraceProcessorException if the response returns with
-    an error.
+  def trace_summary(
+      self,
+      specs: List[Union[str, bytes]],
+      metric_ids: Optional[List[str]] = None,
+      metadata_query_id: Optional[str] = None,
+      trace_metric_v2_output_format: Optional[str] = None,
+  ):
+    """Returns a summary of the trace based on the provided summary specs,
+    metirc IDs, and metadata query ID.
+
+    Please see the documentation on docs.perfetto.dev and the TraceSummary
+    proto for more details on how to use this function and the
+    specifications for the summary specs.
+
+    Raises TraceProcessorException if there was an error computing the summary.
 
     Args:
       specs: A list of textproto (as str) or binary proto (as bytes) specs to be
         used for the summary
-      metric_ids: Optional list of metric IDs as defined in TraceMetrics. 
+      metric_ids: Optional list of metric IDs as defined in TraceMetrics.
         If `None` all metrics will be executed.
       metadata_query_id: Optional query ID for metadata
+      trace_metric_v2_output_format (advanced): Optional output format for v2
+        metrics. This is an advanced feature and should only be set if you
+        understand the implications of this setting. If set, it will change the
+        output format of the trace metrics to a more complex (but compact)
+        representation. Please refer to the documentation on the TraceMetrics
+        protos for more details.
 
     Returns:
       The trace summary data as a proto message
     """
-    response = self.http.trace_summary(specs, metric_ids, metadata_query_id)
+    response = self.http.trace_summary(
+        specs,
+        metric_ids,
+        metadata_query_id,
+        trace_metric_v2_output_format,
+    )
     if response.error:
       raise TraceProcessorException(response.error)
 

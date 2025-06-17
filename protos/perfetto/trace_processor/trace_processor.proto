@@ -401,10 +401,16 @@ message TraceSummaryArgs {
     BINARY_PROTOBUF = 0;
     TEXTPROTO = 1;
   }
+  enum TraceMetricV2OutputFormat {
+    TRACE_METRIC_V2_OUTPUT_FORMAT_UNSPECIFIED = 0;
+    TRACE_METRIC_V2_OUTPUT_FORMAT_INDIVIDUAL = 1;
+    TRACE_METRIC_V2_OUTPUT_FORMAT_GROUPED = 2;
+  }
   repeated TraceSummarySpec proto_specs = 1;
   repeated string textproto_specs = 2;
   optional ComputationSpec computation_spec = 3;
   optional Format output_format = 4;
+  optional TraceMetricV2OutputFormat trace_metric_v2_output_format = 5;
 }
 
 message TraceSummaryResult {
