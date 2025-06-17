@@ -16,6 +16,7 @@ import("../../../gn/test.gni")
 
 source_set("dataframe") {
   sources = [
+    "adhoc_dataframe_builder.cc",
     "adhoc_dataframe_builder.h",
     "cursor.h",
     "cursor_impl.h",
