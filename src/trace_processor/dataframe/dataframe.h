@@ -28,9 +28,9 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/cursor.h"
@@ -273,6 +273,15 @@ class Dataframe {
     return columns_[column]->null_storage.nullability();
   }
 
+  // Gets the value of a column at the specified row.
+  //
+  // DO NOT USE: this function only exists for legacy reasons and should not
+  // be used in new code. Use `GetCellUnchecked` instead.
+  template <typename T, typename N>
+  auto GetCellUncheckedLegacy(uint32_t col, uint32_t row) const {
+    return GetCellUncheckedInternal<T, N>(row, *column_ptrs_[col]);
+  }
+
   // Sets the value of a column at the specified row to the given value.
   //
   // DO NOT USE: this function only exists for legacy reasons and should not
@@ -280,6 +289,20 @@ class Dataframe {
   template <typename T, typename N, typename M>
   void SetCellUncheckedLegacy(uint32_t col, uint32_t row, M value) {
     SetCellUncheckedInternal<T, N, M>(row, *column_ptrs_[col], value);
+  }
+
+  // Give a column name, returns the index of the column in the
+  // dataframe, or std::nullopt if the column does not exist.
+  //
+  // DO NOT USE: this function only exists for legacy reasons and should not
+  // be used in new code.
+  std::optional<uint32_t> IndexOfColumnLegacy(std::string_view name) const {
+    for (uint32_t i = 0; i < column_names_.size(); ++i) {
+      if (column_names_[i] == name) {
+        return i;
+      }
+    }
+    return std::nullopt;
   }
 
  private:
@@ -374,41 +397,8 @@ class Dataframe {
     using ColumnSpec = std::tuple_element_t<column, typename D::columns>;
     using type = typename ColumnSpec::type;
     using null_storage_type = typename ColumnSpec::null_storage_type;
-    static constexpr bool is_sparse_null_supporting_get_always =
-        std::is_same_v<null_storage_type, SparseNullWithPopcountAlways>;
-    static constexpr bool is_sparse_null_supporting_get_until_finalization =
-        std::is_same_v<null_storage_type,
-                       SparseNullWithPopcountUntilFinalization>;
-    const auto& col = *column_ptrs_[column];
-    const auto& storage = col.storage.unchecked_get<type>();
-    const auto& nulls = col.null_storage.unchecked_get<null_storage_type>();
-    if constexpr (std::is_same_v<null_storage_type, NonNull>) {
-      return GetCellUncheckedFromStorage(storage, row);
-    } else if constexpr (std::is_same_v<null_storage_type, DenseNull>) {
-      return nulls.bit_vector.is_set(row)
-                 ? std::make_optional(GetCellUncheckedFromStorage(storage, row))
-                 : std::nullopt;
-    } else if constexpr (is_sparse_null_supporting_get_always ||
-                         is_sparse_null_supporting_get_until_finalization) {
-      PERFETTO_DCHECK(is_sparse_null_supporting_get_always || !finalized_);
-      using Ret = decltype(GetCellUncheckedFromStorage(storage, {}));
-      if (nulls.bit_vector.is_set(row)) {
-        auto index = static_cast<uint32_t>(
-            nulls.prefix_popcount_for_cell_get[row / 64] +
-            nulls.bit_vector.count_set_bits_until_in_word(row));
-        return std::make_optional(GetCellUncheckedFromStorage(storage, index));
-      }
-      return static_cast<std::optional<Ret>>(std::nullopt);
-    } else if constexpr (std::is_same_v<null_storage_type, SparseNull>) {
-      static_assert(
-          !std::is_same_v<null_storage_type, null_storage_type>,
-          "Trying to access a column with sparse nulls but without an "
-          "approach that supports it. Please use SparseNullWithPopcountAlways "
-          "or SparseNullWithPopcountUntilFinalization as appropriate.");
-    } else {
-      static_assert(std::is_same_v<null_storage_type, NonNull>,
-                    "Unsupported null storage type");
-    }
+    return GetCellUncheckedInternal<type, null_storage_type>(
+        row, *column_ptrs_[column]);
   }
 
   template <size_t column, typename D>
@@ -424,6 +414,45 @@ class Dataframe {
     static_assert(!std::is_same_v<type, Id>, "Cannot call set on Id column");
     SetCellUncheckedInternal<type, null_storage_type, mutate_type>(
         row, *column_ptrs_[column], value);
+  }
+
+  template <typename T, typename N>
+  PERFETTO_ALWAYS_INLINE auto GetCellUncheckedInternal(
+      uint32_t row,
+      const impl::Column& col) const {
+    static constexpr bool is_sparse_null_supporting_get_always =
+        std::is_same_v<N, SparseNullWithPopcountAlways>;
+    static constexpr bool is_sparse_null_supporting_get_until_finalization =
+        std::is_same_v<N, SparseNullWithPopcountUntilFinalization>;
+    const auto& storage = col.storage.unchecked_get<T>();
+    const auto& nulls = col.null_storage.unchecked_get<N>();
+    if constexpr (std::is_same_v<N, NonNull>) {
+      return GetCellUncheckedFromStorage(storage, row);
+    } else if constexpr (std::is_same_v<N, DenseNull>) {
+      return nulls.bit_vector.is_set(row)
+                 ? std::make_optional(GetCellUncheckedFromStorage(storage, row))
+                 : std::nullopt;
+    } else if constexpr (is_sparse_null_supporting_get_always ||
+                         is_sparse_null_supporting_get_until_finalization) {
+      PERFETTO_DCHECK(is_sparse_null_supporting_get_always || !finalized_);
+      using Ret = decltype(GetCellUncheckedFromStorage(storage, {}));
+      if (nulls.bit_vector.is_set(row)) {
+        auto index = static_cast<uint32_t>(
+            nulls.prefix_popcount_for_cell_get[row / 64] +
+            nulls.bit_vector.count_set_bits_until_in_word(row));
+        return std::make_optional(GetCellUncheckedFromStorage(storage, index));
+      }
+      return static_cast<std::optional<Ret>>(std::nullopt);
+    } else if constexpr (std::is_same_v<N, SparseNull>) {
+      static_assert(
+          !std::is_same_v<N, N>,
+          "Trying to access a column with sparse nulls but without an "
+          "approach that supports it. Please use SparseNullWithPopcountAlways "
+          "or SparseNullWithPopcountUntilFinalization as appropriate.");
+    } else {
+      static_assert(std::is_same_v<N, NonNull>,
+                    "Unsupported null storage type");
+    }
   }
 
   template <typename T, typename N, typename M>
