@@ -115,10 +115,12 @@ struct SequenceState {
   WriterID writer_id = 0;
   ClientIdentity client_identity{};
 
+  // TODO explain this is like a std::optional<bool> reset on each BeginRead().
+  uint64_t skip_in_generation = 0;
+
+  // TODO explain this goes in pair.
   uint64_t read_generation = 0;
-  // The vars below apply only when read_pass matches the TraceBuffer read_pass.
-  bool skip = false;
-  std::optional<ChunkID> last_chunk_id_processed = 0;
+  ChunkID last_chunk_id_consumed = 0;
 
   // An ordered list of chunks (ordered by their chunk_id). Each member
   // corresponsds to the offset within buf_ for the chunk.
@@ -198,13 +200,10 @@ class BufIterator {
   BufIterator();
   // TODO comment on limit.
   explicit BufIterator(TraceBufferV2*, size_t limit = 0);
-  BufIterator(const BufIterator&) = default;  // Deliberately copyable.
-  BufIterator& operator=(const BufIterator&) = default;
 
-  void SetChunk(TBChunk* chunk) {
-    chunk_ = chunk;
-    next_frag_off_ = chunk->unread_payload_off();
-  }
+  static BufIterator CloneReadOnly(const BufIterator&) noexcept;
+
+  void Reset(size_t limit) { *this = BufIterator(buf_, limit); }
 
   // Depending on the current iteration state, either:
   // 1. Moves next in the linked list, if chunk_ != target_chunk_.
@@ -216,7 +215,9 @@ class BufIterator {
   bool NextChunkInSequence();
   bool NextChunkInBuffer(bool first_call_from_ctor = false);
   std::optional<Frag> NextFragmentInChunk();
+  void SkipCurrentSequence();
   void EraseCurrentChunk();
+  void SetChunk(SequenceState* seq, TBChunk* chunk);
 
   bool valid() {
     PERFETTO_DCHECK((!chunk_ && !target_chunk_) || (chunk_ && target_chunk_));
@@ -227,6 +228,9 @@ class BufIterator {
   SequenceState* sequence_state() { return seq_; }
 
  private:
+  BufIterator(const BufIterator&) noexcept = default;  // For CopyReadOnly.
+  BufIterator& operator=(const BufIterator&) noexcept = default;
+
   TraceBufferV2* buf_ = nullptr;
   TBChunk* chunk_ = nullptr;
   TBChunk* target_chunk_ = nullptr;
@@ -236,11 +240,13 @@ class BufIterator {
   // This field is the offset within the seq_.chunks list of the current chunk
   // id. This is incremented every time NextChunkInSequence() advances
   // (non-destructively) and reset every time NextChunkInBuffer moves to a
-  // different sequence.
+  // different sequence changing `seq_`.
   size_t seq_idx_ = 0;  // TODO rename.
 
   // Position of the next fragment within the current `chunk_`.
   uint16_t next_frag_off_ = 0;
+
+  bool read_only_iterator_ = false;
 
   // TODO explain that limit is only for iterating in buffer order (and why).
   // It stops AFTER passing the limit.

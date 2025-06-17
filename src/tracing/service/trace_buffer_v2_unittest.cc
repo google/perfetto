@@ -399,16 +399,11 @@ TEST_F(TraceBufferV2Test, ReadWrite_WrappingCases) {
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(4080 - 16, 'a')));
   ASSERT_THAT(ReadPacket(), IsEmpty());
 
-  PERFETTO_ELOG("----1");  // DNS
-
   ASSERT_EQ(16u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
                      .CopyIntoTraceBuffer());
   ASSERT_EQ(2048u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
                        .AddPacket(2048 - 16, 'b')
                        .CopyIntoTraceBuffer());
-
-  PERFETTO_ELOG("----");  // DNS
-  trace_buffer()->DumpForTesting();
 
   ASSERT_EQ(2048u, CreateChunk(ProducerID(1), WriterID(1), ChunkID(3))
                        .AddPacket(2048 - 16, 'c')
@@ -531,6 +526,8 @@ TEST_F(TraceBufferV2Test, Fragments_Simple) {
   // previous chunk, hence should be treated as a data loss.
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'b')));
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'c')));
+
+  PERFETTO_ELOG("---------");  // DNS
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(10, 'd'),
                                         FakePacketFragment(20, 'e')));
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'f')));
