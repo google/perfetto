@@ -35,7 +35,6 @@ JIT_CODE_TABLE = Table(
     python_module=__file__,
     class_name='JitCodeTable',
     sql_name='__intrinsic_jit_code',
-    use_legacy_table_backend=True,
     columns=[
         C(
             'create_ts',
@@ -81,7 +80,6 @@ JIT_FRAME_TABLE = Table(
     python_module=__file__,
     class_name='JitFrameTable',
     sql_name='__intrinsic_jit_frame',
-    use_legacy_table_backend=True,
     columns=[
         C('jit_code_id', CppTableId(JIT_CODE_TABLE), cpp_access=CppAccess.READ),
         C(
