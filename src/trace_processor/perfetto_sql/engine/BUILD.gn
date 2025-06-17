@@ -47,7 +47,6 @@ source_set("engine") {
     "../../perfetto_sql/intrinsics/table_functions:interface",
     "../../sqlite",
     "../../types",
-    "../../util",
     "../../util:sql_argument",
     "../../util:stdlib",
     "../parser",

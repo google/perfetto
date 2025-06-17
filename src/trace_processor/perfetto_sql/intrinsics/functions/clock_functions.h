@@ -20,10 +20,10 @@
 #include <sqlite3.h>
 #include <unordered_map>
 #include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/common/clock_converter.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
 namespace trace_processor {

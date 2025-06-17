@@ -30,6 +30,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/small_vector.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
@@ -41,7 +42,6 @@
 #include "src/trace_processor/dataframe/type_set.h"
 #include "src/trace_processor/dataframe/types.h"
 #include "src/trace_processor/util/regex.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::dataframe::impl {
 
