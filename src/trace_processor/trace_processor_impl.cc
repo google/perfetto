@@ -996,10 +996,6 @@ std::vector<uint8_t> TraceProcessorImpl::GetMetricDescriptors() {
 std::vector<PerfettoSqlEngine::LegacyStaticTable>
 TraceProcessorImpl::GetLegacyStaticTables(TraceStorage* storage) {
   std::vector<PerfettoSqlEngine::LegacyStaticTable> tables;
-  AddLegacyStaticTable(tables, storage->mutable_chrome_raw_table());
-  AddLegacyStaticTable(tables, storage->mutable_ftrace_event_table());
-  AddLegacyStaticTable(tables, storage->mutable_thread_table());
-  AddLegacyStaticTable(tables, storage->mutable_process_table());
 
   AddLegacyStaticTable(tables, storage->mutable_slice_table());
   AddLegacyStaticTable(tables, storage->mutable_flow_table());
@@ -1010,25 +1006,13 @@ TraceProcessorImpl::GetLegacyStaticTables(TraceStorage* storage) {
 
   AddLegacyStaticTable(tables, storage->mutable_counter_table());
 
-  AddLegacyStaticTable(tables, storage->mutable_heap_graph_object_table());
-  AddLegacyStaticTable(tables, storage->mutable_heap_graph_reference_table());
-  AddLegacyStaticTable(tables, storage->mutable_heap_graph_class_table());
-
-  AddLegacyStaticTable(tables,
-                       storage->mutable_heap_profile_allocation_table());
-  AddLegacyStaticTable(tables, storage->mutable_perf_sample_table());
-  AddLegacyStaticTable(tables, storage->mutable_stack_profile_callsite_table());
-  AddLegacyStaticTable(tables, storage->mutable_stack_profile_mapping_table());
-  AddLegacyStaticTable(tables, storage->mutable_stack_profile_frame_table());
-
-  AddLegacyStaticTable(tables,
-                       storage->mutable_vulkan_memory_allocations_table());
-
   AddLegacyStaticTable(tables,
                        storage->mutable_android_network_packets_table());
 
   AddLegacyStaticTable(tables, storage->mutable_metadata_table());
-  AddLegacyStaticTable(tables, storage->mutable_cpu_table());
+
+  AddLegacyStaticTable(tables, storage->mutable_stack_profile_frame_table());
+  AddLegacyStaticTable(tables, storage->mutable_stack_profile_callsite_table());
 
   return tables;
 }
@@ -1124,6 +1108,22 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
   AddUnfinalizedStaticTable(tables,
                             storage->mutable_experimental_proto_path_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_arg_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_heap_graph_object_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_heap_graph_reference_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_heap_graph_class_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_heap_profile_allocation_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_perf_sample_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_stack_profile_mapping_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_vulkan_memory_allocations_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_chrome_raw_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_ftrace_event_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_thread_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_process_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_cpu_table());
   return tables;
 }
 
