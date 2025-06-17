@@ -379,6 +379,7 @@ class GProfileBuilder {
                      MaybeAnnotatedCallsiteId::Hash>
       cached_location_ids_;
 
+  // Cursors to help lookup data in the tables.
   tables::JitFrameTable::ConstCursor jit_frame_cursor_;
   tables::V8JsCodeTable::ConstCursor v8_js_code_cursor_;
   tables::V8WasmCodeTable::ConstCursor v8_wasm_code_cursor_;
