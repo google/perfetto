@@ -498,7 +498,6 @@ ARG_TABLE = Table(
     python_module=__file__,
     class_name='ArgTable',
     sql_name='__intrinsic_args',
-    use_legacy_table_backend=True,
     columns=[
         C(
             'arg_set_id',
