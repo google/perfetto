@@ -340,16 +340,11 @@ class TraceStorage {
     // of tables. If we wanted to extend this to every table, we'd need to deal
     // with tracking all the tables in the storage: this is not worth doing
     // given most memory is used by these tables.
-    thread_table_.ShrinkToFit();
-    process_table_.ShrinkToFit();
     track_table_.ShrinkToFit();
     counter_table_.ShrinkToFit();
     slice_table_.ShrinkToFit();
-    ftrace_event_table_.ShrinkToFit();
     sched_slice_table_.ShrinkToFit();
     thread_state_table_.ShrinkToFit();
-    heap_graph_object_table_.ShrinkToFit();
-    heap_graph_reference_table_.ShrinkToFit();
   }
 
   const tables::ThreadTable& thread_table() const { return thread_table_; }

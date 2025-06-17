@@ -20,9 +20,11 @@
 #include <cstdint>
 #include <optional>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/etm/virtual_address_space.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/destructible.h"
 
 namespace perfetto::trace_processor {
@@ -64,6 +66,9 @@ class TargetMemory : public Destructible {
   std::optional<UniquePid> FindUpidForTid(uint32_t tid) const;
 
   TraceStorage* const storage_;
+
+  mutable tables::ThreadTable::ConstCursor thread_cursor_;
+
   // Kernel memory is shared by all processes.
   VirtualAddressSpace kernel_memory_;
 

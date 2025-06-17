@@ -135,15 +135,39 @@ STACK_PROFILE_MAPPING_TABLE = Table(
     python_module=__file__,
     class_name='StackProfileMappingTable',
     sql_name='stack_profile_mapping',
-    use_legacy_table_backend=True,
     columns=[
-        C('build_id', CppString(), cpp_access=CppAccess.READ),
-        C('exact_offset', CppInt64(), cpp_access=CppAccess.READ),
+        C(
+            'build_id',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'exact_offset',
+            CppInt64(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C('start_offset', CppInt64(), cpp_access=CppAccess.READ),
-        C('start', CppInt64(), cpp_access=CppAccess.READ),
-        C('end', CppInt64(), cpp_access=CppAccess.READ),
+        C(
+            'start',
+            CppInt64(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'end',
+            CppInt64(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C('load_bias', CppInt64(), cpp_access=CppAccess.READ),
-        C('name', CppString(), cpp_access=CppAccess.READ),
+        C(
+            'name',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -177,6 +201,7 @@ STACK_PROFILE_FRAME_TABLE = Table(
             CppOptional(CppUint32()),
             sql_access=SqlAccess.HIGH_PERF,
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
             flags=ColumnFlag.DENSE,
         ),
         C(
@@ -289,15 +314,17 @@ PERF_SAMPLE_TABLE = Table(
     python_module=__file__,
     class_name='PerfSampleTable',
     sql_name='perf_sample',
-    use_legacy_table_backend=True,
     columns=[
         C('ts', CppInt64(), flags=ColumnFlag.SORTED, cpp_access=CppAccess.READ),
         C('utid', CppUint32(), cpp_access=CppAccess.READ),
         C('cpu', CppOptional(CppUint32())),
         C('cpu_mode', CppString()),
-        C('callsite_id',
-          CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE)),
-          cpp_access=CppAccess.READ),
+        C(
+            'callsite_id',
+            CppOptional(CppTableId(STACK_PROFILE_CALLSITE_TABLE)),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C('unwind_error', CppOptional(CppString())),
         C('perf_session_id', CppTableId(PERF_SESSION_TABLE)),
     ],
@@ -362,6 +389,7 @@ SYMBOL_TABLE = Table(
             CppUint32(),
             flags=ColumnFlag.SORTED | ColumnFlag.SET_ID,
             cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C('name', CppString(), cpp_access=CppAccess.READ),
         C('source_file', CppOptional(CppString()), cpp_access=CppAccess.READ),
@@ -405,7 +433,6 @@ HEAP_PROFILE_ALLOCATION_TABLE = Table(
     python_module=__file__,
     class_name='HeapProfileAllocationTable',
     sql_name='heap_profile_allocation',
-    use_legacy_table_backend=True,
     columns=[
         # TODO(b/193757386): readd the sorted flag once this bug is fixed.
         C('ts', CppInt64(), cpp_access=CppAccess.READ),
@@ -569,13 +596,18 @@ HEAP_GRAPH_CLASS_TABLE = Table(
     python_module=__file__,
     class_name='HeapGraphClassTable',
     sql_name='__intrinsic_heap_graph_class',
-    use_legacy_table_backend=True,
     columns=[
-        C('name', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C(
+            'name',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C(
             'deobfuscated_name',
             CppOptional(CppString()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'location',
@@ -595,7 +627,12 @@ HEAP_GRAPH_CLASS_TABLE = Table(
             CppOptional(CppUint32()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
-        C('kind', CppString(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C(
+            'kind',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''''',
@@ -621,7 +658,6 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
     python_module=__file__,
     class_name='HeapGraphObjectTable',
     sql_name='__intrinsic_heap_graph_object',
-    use_legacy_table_backend=True,
     columns=[
         C('upid', CppUint32()),
         C('graph_sample_ts', CppInt64(), cpp_access=CppAccess.READ),
@@ -629,11 +665,13 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
             'self_size',
             CppInt64(),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'native_size',
             CppInt64(),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'reference_set_id',
@@ -668,6 +706,7 @@ HEAP_GRAPH_OBJECT_TABLE = Table(
             CppInt32(),
             flags=ColumnFlag.HIDDEN,
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
     ],
     tabledoc=TableDoc(
@@ -708,7 +747,6 @@ HEAP_GRAPH_REFERENCE_TABLE = Table(
     python_module=__file__,
     class_name='HeapGraphReferenceTable',
     sql_name='__intrinsic_heap_graph_reference',
-    use_legacy_table_backend=True,
     columns=[
         C(
             'reference_set_id',
@@ -772,7 +810,6 @@ VULKAN_MEMORY_ALLOCATIONS_TABLE = Table(
     python_module=__file__,
     class_name='VulkanMemoryAllocationsTable',
     sql_name='vulkan_memory_allocations',
-    use_legacy_table_backend=True,
     columns=[
         C(
             'arg_set_id',

@@ -200,6 +200,7 @@ source_set("full") {
     "../../../kernel_utils:syscall_table",
     "../../../protozero",
     "../../containers",
+    "../../dataframe",
     "../../sorter",
     "../../storage",
     "../../tables",
