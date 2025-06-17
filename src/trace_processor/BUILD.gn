@@ -277,6 +277,7 @@ if (enable_perfetto_trace_processor_sqlite) {
     deps = [
       ":lib",
       "../../gn:default_deps",
+      "../base",
     ]
     sources = [ "minimal_shell.cc" ]
   }
