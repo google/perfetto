@@ -30,29 +30,16 @@ MacroTable::~MacroTable() = default;
 }  // namespace macros_internal
 
 namespace tables {
-// counter_tables_py.h
-CounterTable::~CounterTable() = default;
-
-// metadata_tables_py.h
-MetadataTable::~MetadataTable() = default;
 
 // profiler_tables_py.h
 StackProfileFrameTable::~StackProfileFrameTable() = default;
 StackProfileCallsiteTable::~StackProfileCallsiteTable() = default;
 ExperimentalFlamegraphTable::~ExperimentalFlamegraphTable() = default;
 
-// sched_tables_py.h
-SchedSliceTable::~SchedSliceTable() = default;
-ThreadStateTable::~ThreadStateTable() = default;
-
 // slice_tables_py.h
 SliceTable::~SliceTable() = default;
 FlowTable::~FlowTable() = default;
 ExperimentalFlatSliceTable::~ExperimentalFlatSliceTable() = default;
-AndroidNetworkPacketsTable::~AndroidNetworkPacketsTable() = default;
-
-// track_tables_py.h
-TrackTable::~TrackTable() = default;
 
 }  // namespace tables
 

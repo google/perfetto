@@ -550,7 +550,6 @@ METADATA_TABLE = Table(
     python_module=__file__,
     class_name='MetadataTable',
     sql_name='metadata',
-    use_legacy_table_backend=True,
     columns=[
         C('name', CppString(), cpp_access=CppAccess.READ),
         C('key_type', CppString()),
