@@ -16,10 +16,8 @@
 
 #include "src/trace_processor/dataframe/dataframe.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -29,9 +27,11 @@
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/cursor.h"
+#include "src/trace_processor/dataframe/cursor_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/typed_cursor.h"
 #include "src/trace_processor/dataframe/types.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
 #include "src/trace_processor/util/status_macros.h"
@@ -130,20 +130,17 @@ void Dataframe::Clear() {
 base::StatusOr<Index> Dataframe::BuildIndex(const uint32_t* columns_start,
                                             const uint32_t* columns_end) const {
   std::vector<uint32_t> cols(columns_start, columns_end);
-  std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts;
   sorts.reserve(cols.size());
   for (const auto& col : cols) {
     sorts.push_back(SortSpec{col, SortDirection::kAscending});
   }
-  ASSIGN_OR_RETURN(auto plan, PlanQuery(filters, {}, sorts, {}, 0));
 
   // Heap allocate to avoid potential stack overflows due to large cursor
   // object.
-  auto c = std::make_unique<Cursor<ErrorValueFetcher>>();
-  PrepareCursor(plan, *c);
-  ErrorValueFetcher vf{};
-  c->Execute(vf);
+  auto c = std::make_unique<TypedCursor>(this, std::vector<FilterSpec>(),
+                                         std::move(sorts));
+  c->ExecuteUnchecked();
 
   std::vector<uint32_t> permutation;
   permutation.reserve(row_count_);
@@ -288,18 +285,6 @@ std::vector<std::shared_ptr<impl::Column>> Dataframe::CreateColumnVector(
     }));
   }
   return columns;
-}
-
-void Dataframe::TypedCursorBase::PrepareCursorInternal() {
-  auto plan = dataframe_->PlanQuery(filter_specs_, {}, sort_specs_, {}, 0);
-  PERFETTO_CHECK(plan.ok());
-  dataframe_->PrepareCursor(*plan, cursor_);
-  last_execution_mutation_count_ = dataframe_->mutations_;
-  for (const auto& spec : filter_specs_) {
-    filter_value_mapping_[spec.source_index] =
-        spec.value_index.value_or(std::numeric_limits<uint32_t>::max());
-  }
-  std::fill(filter_values_.begin(), filter_values_.end(), nullptr);
 }
 
 }  // namespace perfetto::trace_processor::dataframe
