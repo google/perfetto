@@ -14619,6 +14619,7 @@ python_binary_host {
     srcs: [
         "python/generators/trace_processor_table/public.py",
         "python/generators/trace_processor_table/serialize.py",
+        "python/generators/trace_processor_table/serialize_new.py",
         "python/generators/trace_processor_table/util.py",
         "src/trace_processor/perfetto_sql/intrinsics/functions/tables.py",
         "tools/gen_tp_table_headers.py",
@@ -14702,6 +14703,7 @@ python_binary_host {
     srcs: [
         "python/generators/trace_processor_table/public.py",
         "python/generators/trace_processor_table/serialize.py",
+        "python/generators/trace_processor_table/serialize_new.py",
         "python/generators/trace_processor_table/util.py",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables.py",
         "src/trace_processor/tables/android_tables.py",
@@ -15154,6 +15156,7 @@ python_binary_host {
     srcs: [
         "python/generators/trace_processor_table/public.py",
         "python/generators/trace_processor_table/serialize.py",
+        "python/generators/trace_processor_table/serialize_new.py",
         "python/generators/trace_processor_table/util.py",
         "src/trace_processor/tables/android_tables.py",
         "src/trace_processor/tables/counter_tables.py",
@@ -18159,6 +18162,9 @@ cc_binary {
         ":perfetto_src_base_base",
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_trace_processor_containers_containers",
+        ":perfetto_src_trace_processor_dataframe_dataframe",
+        ":perfetto_src_trace_processor_dataframe_impl_impl",
+        ":perfetto_src_trace_processor_dataframe_specs",
         ":perfetto_src_trace_processor_db_column_column",
         ":perfetto_src_trace_processor_db_compare",
         ":perfetto_src_trace_processor_db_minimal",
