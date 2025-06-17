@@ -996,24 +996,10 @@ std::vector<uint8_t> TraceProcessorImpl::GetMetricDescriptors() {
 std::vector<PerfettoSqlEngine::LegacyStaticTable>
 TraceProcessorImpl::GetLegacyStaticTables(TraceStorage* storage) {
   std::vector<PerfettoSqlEngine::LegacyStaticTable> tables;
-
   AddLegacyStaticTable(tables, storage->mutable_slice_table());
   AddLegacyStaticTable(tables, storage->mutable_flow_table());
-  AddLegacyStaticTable(tables, storage->mutable_sched_slice_table());
-  AddLegacyStaticTable(tables, storage->mutable_thread_state_table());
-
-  AddLegacyStaticTable(tables, storage->mutable_track_table());
-
-  AddLegacyStaticTable(tables, storage->mutable_counter_table());
-
-  AddLegacyStaticTable(tables,
-                       storage->mutable_android_network_packets_table());
-
-  AddLegacyStaticTable(tables, storage->mutable_metadata_table());
-
   AddLegacyStaticTable(tables, storage->mutable_stack_profile_frame_table());
   AddLegacyStaticTable(tables, storage->mutable_stack_profile_callsite_table());
-
   return tables;
 }
 
@@ -1124,6 +1110,13 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
   AddUnfinalizedStaticTable(tables, storage->mutable_thread_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_process_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_cpu_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_sched_slice_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_thread_state_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_track_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_counter_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_android_network_packets_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_metadata_table());
   return tables;
 }
 
