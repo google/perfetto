@@ -46,6 +46,7 @@ class TrackEventInternal;
 class PERFETTO_EXPORT_COMPONENT EventContext {
  public:
   EventContext(EventContext&&) = default;
+
   ~EventContext();
 
   internal::TrackEventIncrementalState* GetIncrementalState() const {
@@ -124,6 +125,7 @@ class PERFETTO_EXPORT_COMPONENT EventContext {
   template <typename, size_t, typename, typename>
   friend class TrackEventInternedDataIndex;
   friend class internal::TrackEventInternal;
+  friend class TracedProtoTest;
 
   using TracePacketHandle =
       ::protozero::MessageHandle<protos::pbzero::TracePacket>;
@@ -132,6 +134,9 @@ class PERFETTO_EXPORT_COMPONENT EventContext {
                TracePacketHandle,
                internal::TrackEventIncrementalState*,
                internal::TrackEventTlsState*);
+  explicit EventContext(protos::pbzero::TrackEvent* event,
+                        internal::TrackEventIncrementalState* incremental_state)
+      : event_(event), incremental_state_(incremental_state) {}
   EventContext(const EventContext&) = delete;
 
   protos::pbzero::DebugAnnotation* AddDebugAnnotation(const char* name);
@@ -146,6 +151,10 @@ class PERFETTO_EXPORT_COMPONENT EventContext {
   // are certain that it cannot be nullptr. Once we switch to client library in
   // chrome, we can make that happen.
   internal::TrackEventTlsState* tls_state_ = nullptr;
+  // TODO(kraskevich): Come up with a more precise name once we have more than
+  // one usecase.
+  // TODO(kraskevich): Remove once Chromium has fully switched to client lib.
+  const bool filter_debug_annotations_ = false;
 };
 
 }  // namespace perfetto
