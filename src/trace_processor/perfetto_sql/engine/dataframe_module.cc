@@ -31,6 +31,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/dataframe/cursor_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -120,6 +121,7 @@ std::string ToSqliteCreateTableType(dataframe::StorageType type) {
 }
 
 std::string CreateTableStmt(const dataframe::DataframeSpec& spec) {
+  std::string id;
   std::string create_stmt = "CREATE TABLE x(";
   for (uint32_t i = 0; i < spec.column_specs.size(); ++i) {
     create_stmt += spec.column_names[i] + " " +
@@ -127,9 +129,12 @@ std::string CreateTableStmt(const dataframe::DataframeSpec& spec) {
     if (spec.column_names[i] == "_auto_id") {
       create_stmt += " HIDDEN";
     }
+    if (spec.column_names[i] == "id" || spec.column_names[i] == "_auto_id") {
+      id = spec.column_names[i];
+    }
     create_stmt += ", ";
   }
-  create_stmt += "PRIMARY KEY(_auto_id)) WITHOUT ROWID";
+  create_stmt += "PRIMARY KEY(" + id + ")) WITHOUT ROWID";
   return create_stmt;
 }
 

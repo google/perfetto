@@ -17,19 +17,19 @@
 #include "src/trace_processor/perfetto_sql/engine/table_pointer_module.h"
 
 #include <sqlite3.h>
-#include <algorithm>
 #include <array>
 #include <cstdint>
-#include <iterator>
+#include <limits>
 #include <memory>
+#include <optional>
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/public/compiler.h"
-#include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/table.h"
+#include "src/trace_processor/dataframe/cursor_impl.h"  // IWYU pragma: keep
+#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
@@ -149,7 +149,7 @@ int TablePointerModule::Open(sqlite3_vtab*, sqlite3_vtab_cursor** cursor) {
 }
 
 int TablePointerModule::Close(sqlite3_vtab_cursor* cursor) {
-  delete GetCursor(cursor);
+  std::unique_ptr<Cursor> c(GetCursor(cursor));
   return SQLITE_OK;
 }
 
@@ -162,8 +162,9 @@ int TablePointerModule::Filter(sqlite3_vtab_cursor* cur,
   if (argc == 0) {
     return sqlite::utils::SetError(c->pVtab, "tab parameter is not set");
   }
-  c->table = static_cast<const Table*>(sqlite3_value_pointer(argv[0], "TABLE"));
-  if (!c->table) {
+  c->dataframe = static_cast<const dataframe::Dataframe*>(
+      sqlite3_value_pointer(argv[0], "TABLE"));
+  if (!c->dataframe) {
     return sqlite::utils::SetError(c->pVtab, "tab parameter is NULL");
   }
   c->col_count = 0;
@@ -171,10 +172,16 @@ int TablePointerModule::Filter(sqlite3_vtab_cursor* cur,
     if (sqlite3_value_type(argv[i]) != SQLITE_TEXT) {
       return sqlite::utils::SetError(c->pVtab, "Column name is not text");
     }
-
     const char* tok =
         reinterpret_cast<const char*>(sqlite3_value_text(argv[i]));
-    auto idx = c->table->ColumnIdxFromName(tok);
+    std::optional<uint32_t> idx;
+    for (uint32_t j = 0; j < c->dataframe->column_names().size(); ++j) {
+      const auto& name = c->dataframe->column_names()[j];
+      if (name == tok) {
+        idx = j;
+        break;
+      }
+    }
     if (!idx) {
       base::StackString<128> err("column '%s' does not exist in table",
                                  sqlite3_value_text(argv[i]));
@@ -182,31 +189,34 @@ int TablePointerModule::Filter(sqlite3_vtab_cursor* cur,
     }
     c->bound_col_to_table_index[c->col_count++] = *idx;
   }
-  c->iterator = c->table->IterateRows();
+  std::vector<dataframe::FilterSpec> specs;
+  SQLITE_ASSIGN_OR_RETURN(
+      c->pVtab, auto plan,
+      c->dataframe->PlanQuery(specs, {}, {}, {},
+                              std::numeric_limits<uint64_t>::max()));
+  c->dataframe->PrepareCursor(plan, c->cursor);
+
+  DataframeModule::SqliteValueFetcher fetcher{{}, {}, nullptr};
+  c->cursor.Execute(fetcher);
   return SQLITE_OK;
 }
 
 int TablePointerModule::Next(sqlite3_vtab_cursor* cur) {
-  auto* c = GetCursor(cur);
-  ++(*c->iterator);
+  GetCursor(cur)->cursor.Next();
   return SQLITE_OK;
 }
 
 int TablePointerModule::Eof(sqlite3_vtab_cursor* cur) {
-  return !*GetCursor(cur)->iterator;
+  return GetCursor(cur)->cursor.Eof();
 }
 
 int TablePointerModule::Column(sqlite3_vtab_cursor* cur,
                                sqlite3_context* ctx,
                                int raw_n) {
   auto* c = GetCursor(cur);
-  auto N = static_cast<uint32_t>(raw_n);
-  if (PERFETTO_UNLIKELY(N >= c->col_count)) {
-    return sqlite::utils::SetError(c->pVtab,
-                                   "Asking for value of non bound column");
-  }
-  uint32_t table_index = c->bound_col_to_table_index[N];
-  sqlite::utils::ReportSqlValue(ctx, c->iterator->Get(table_index));
+  DataframeModule::SqliteResultCallback visitor{{}, ctx};
+  c->cursor.Cell(c->bound_col_to_table_index[static_cast<uint32_t>(raw_n)],
+                 visitor);
   return SQLITE_OK;
 }
 
@@ -221,7 +231,8 @@ int TablePointerModule::FindFunction(sqlite3_vtab*,
                                      void**) {
   if (base::CaseInsensitiveEqual(name, "__intrinsic_table_ptr_bind")) {
     *fn = [](sqlite3_context* ctx, int, sqlite3_value**) {
-      return sqlite::result::Error(ctx, "Should not be called.");
+      sqlite::result::Error(ctx, "Should not be called.");
+      return;
     };
     return SQLITE_INDEX_CONSTRAINT_FUNCTION + 1;
   }

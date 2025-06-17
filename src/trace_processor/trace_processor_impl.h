@@ -42,7 +42,6 @@
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/descriptors.h"
-#include "src/trace_processor/util/sql_modules.h"
 
 namespace perfetto::trace_processor {
 

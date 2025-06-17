@@ -16,6 +16,7 @@
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import CppAccess
+from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import CppDouble
 from python.generators.trace_processor_table.public import CppInt32
 from python.generators.trace_processor_table.public import CppInt64
@@ -175,7 +176,12 @@ ANDROID_MOTION_EVENTS_TABLE = Table(
             CppOptional(CppUint32()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
-        C('base64_proto_id', CppOptional(CppUint32())),
+        C(
+            'base64_proto_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='Contains Android MotionEvents processed by the system',
@@ -210,7 +216,12 @@ ANDROID_KEY_EVENTS_TABLE = Table(
             CppOptional(CppUint32()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
-        C('base64_proto_id', CppOptional(CppUint32())),
+        C(
+            'base64_proto_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='Contains Android KeyEvents processed by the system',
@@ -246,7 +257,12 @@ ANDROID_INPUT_EVENT_DISPATCH_TABLE = Table(
         ),
         C('vsync_id', CppInt64()),
         C('window_id', CppInt32()),
-        C('base64_proto_id', CppOptional(CppUint32())),
+        C(
+            'base64_proto_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''

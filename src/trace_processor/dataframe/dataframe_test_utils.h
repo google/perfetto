@@ -27,6 +27,7 @@
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/dataframe/cursor.h"
+#include "src/trace_processor/dataframe/cursor_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/dataframe/value_fetcher.h"
 
 namespace perfetto::trace_processor::dataframe {

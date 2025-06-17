@@ -30,12 +30,12 @@
 #include <variant>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"

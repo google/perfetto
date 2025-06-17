@@ -391,6 +391,7 @@ source_set("integrationtests") {
       "../base",
       "../base:test_support",
       "sqlite",
+      "trace_summary:integrationtests",
     ]
   }
 }

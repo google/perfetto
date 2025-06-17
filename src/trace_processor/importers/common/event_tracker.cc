@@ -19,7 +19,7 @@
 #include <cstdint>
 #include <optional>
 
-#include "perfetto/base/compiler.h"
+#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"

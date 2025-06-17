@@ -75,6 +75,8 @@ export function getTrackName(
     return `${name} (${userName})`;
   } else if (isUidTrack && hasName && hasUid) {
     return `${name} ${uid}`;
+  } else if (hasName && !hasUpid && !hasUtid) {
+    return `${name}${machineLabel}`;
   } else if (hasName) {
     return `${name}`;
   } else if (hasThreadName && hasTid) {

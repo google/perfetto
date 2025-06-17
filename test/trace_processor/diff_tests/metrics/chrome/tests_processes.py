@@ -41,7 +41,9 @@ class ChromeProcesses(TestSuite):
         trace=DataPath('chrome_android_systrace.pftrace'),
         query="""
         SELECT RUN_METRIC('chrome/chrome_processes.sql');
-        SELECT pid, name, process_type FROM chrome_process;
+        SELECT pid, name, process_type
+        FROM chrome_process
+        ORDER BY pid;
         """,
         out=Path('chrome_processes_android_systrace.out'))
 

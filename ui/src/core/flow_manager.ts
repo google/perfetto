@@ -279,10 +279,9 @@ export class FlowManager {
           id,
           layout_depth as depth
         FROM
-          experimental_slice_layout
+          experimental_slice_layout('${info.siblingTrackIds.join(',')}')
         WHERE
-          filter_track_ids = '${info.siblingTrackIds.join(',')}'
-          AND id in (${info.sliceIds.join(', ')})
+          id in (${info.sliceIds.join(', ')})
       `);
 
       // Create the sliceId -> new depth map:

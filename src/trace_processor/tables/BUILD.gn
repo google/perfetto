@@ -20,6 +20,7 @@ source_set("tables") {
   deps = [
     ":macros_internal",
     "../../../gn:default_deps",
+    "../dataframe",
   ]
   public_deps = [ ":tables_python" ]
 }

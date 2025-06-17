@@ -22,19 +22,18 @@
 #include <memory>
 #include <numeric>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/tables_py.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 
 namespace perfetto::trace_processor {
-namespace tables {
-StructuralTreePartitionTable::~StructuralTreePartitionTable() = default;
-}  // namespace tables
 
 namespace {
 
@@ -130,8 +129,7 @@ void StructuralTreePartition::Final(sqlite3_context* ctx) {
 
   // If Step was never called, this will be null. Don't run the algorithm in
   // that case, causing an empty table to be returned.
-  auto table =
-      std::make_unique<tables::StructuralTreePartitionTable>(GetUserData(ctx));
+  tables::StructuralTreePartitionTable table(GetUserData(ctx));
   if (auto* agg_ctx = scoped_agg_ctx.get(); agg_ctx) {
     // If there is no root, we cannot do anything.
     if (!agg_ctx->root) {
@@ -172,7 +170,7 @@ void StructuralTreePartition::Final(sqlite3_context* ctx) {
         stack.pop_back();
         continue;
       }
-      table->Insert(
+      table.Insert(
           {ss.row.id, ancestor_id_for_group[ss.row.group], ss.row.group});
 
       // Keep track of the fact this node was processed and update the ancestor
@@ -188,10 +186,9 @@ void StructuralTreePartition::Final(sqlite3_context* ctx) {
       }
     }
   }
-  return sqlite::result::RawPointer(
-      ctx, table.release(), "TABLE", [](void* ptr) {
-        delete static_cast<tables::StructuralTreePartitionTable*>(ptr);
-      });
+  return sqlite::result::UniquePointer(
+      ctx, std::make_unique<dataframe::Dataframe>(std::move(table.dataframe())),
+      "TABLE");
 }
 
 }  // namespace perfetto::trace_processor
