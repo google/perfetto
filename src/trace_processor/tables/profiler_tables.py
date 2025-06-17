@@ -356,7 +356,6 @@ SYMBOL_TABLE = Table(
     python_module=__file__,
     class_name='SymbolTable',
     sql_name='stack_profile_symbol',
-    use_legacy_table_backend=True,
     columns=[
         C(
             'symbol_set_id',
