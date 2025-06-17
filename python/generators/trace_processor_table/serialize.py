@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List
+from typing import List, Union
 from typing import Optional
 
 from python.generators.trace_processor_table.public import Alias
@@ -22,6 +22,7 @@ from python.generators.trace_processor_table.util import ParsedColumn
 from python.generators.trace_processor_table.util import data_layer_type
 from python.generators.trace_processor_table.util import parse_type
 from python.generators.trace_processor_table.util import typed_column_type
+from python.generators.trace_processor_table.serialize_new import TableSerializer as NewTableSerializer
 
 
 class ColumnSerializer:
@@ -42,7 +43,7 @@ class ColumnSerializer:
 
     self.is_implicit_id = self.parsed_col.is_implicit_id
     self.is_ancestor = self.parsed_col.is_ancestor
-    self.is_string = parsed_type.cpp_type == 'StringPool::Id'
+    self.is_string = parsed_type.raw_cpp_type == 'StringPool::Id'
     self.is_optional = parsed_type.is_optional
 
   def colindex(self) -> str:
@@ -719,7 +720,13 @@ def serialize_header(ifdef_guard: str, tables: List[ParsedTable],
   # Caused b/327985369 without the replace.
   include_paths_str = '\n'.join([f'#include "{i}"' for i in include_paths
                                 ]).replace("\\", "/")
-  tables_str = '\n\n'.join([TableSerializer(t).serialize() for t in tables])
+  serializers: List[Union[TableSerializer, NewTableSerializer]] = []
+  for t in tables:
+    if t.table.use_legacy_table_backend:
+      serializers.append(TableSerializer(t))
+    else:
+      serializers.append(NewTableSerializer(t))
+  tables_str = '\n\n'.join([t.serialize() for t in serializers])
   return f'''
 #ifndef {ifdef_guard}
 #define {ifdef_guard}
@@ -729,32 +736,40 @@ def serialize_header(ifdef_guard: str, tables: List[ParsedTable],
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <tuple>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/typed_cursor.h"
+#include "src/trace_processor/db/base_id.h"
+#include "src/trace_processor/db/column_storage.h"
+#include "src/trace_processor/db/column.h"
 #include "src/trace_processor/db/column/arrangement_overlay.h"
 #include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/dense_null_overlay.h"
-#include "src/trace_processor/db/column/numeric_storage.h"
 #include "src/trace_processor/db/column/id_storage.h"
 #include "src/trace_processor/db/column/null_overlay.h"
+#include "src/trace_processor/db/column/numeric_storage.h"
 #include "src/trace_processor/db/column/range_overlay.h"
 #include "src/trace_processor/db/column/selector_overlay.h"
 #include "src/trace_processor/db/column/set_id_storage.h"
 #include "src/trace_processor/db/column/string_storage.h"
 #include "src/trace_processor/db/column/types.h"
-#include "src/trace_processor/db/column_storage.h"
-#include "src/trace_processor/db/column.h"
 #include "src/trace_processor/db/table.h"
-#include "src/trace_processor/db/typed_column.h"
 #include "src/trace_processor/db/typed_column_internal.h"
+#include "src/trace_processor/db/typed_column.h"
 #include "src/trace_processor/tables/macros_internal.h"
 
 {include_paths_str}
