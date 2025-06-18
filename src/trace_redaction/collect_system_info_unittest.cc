@@ -15,8 +15,8 @@
  */
 
 #include "src/trace_redaction/collect_system_info.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "src/base/test/status_matchers.h"
-#include "src/trace_processor/util/status_macros.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
