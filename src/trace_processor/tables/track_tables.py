@@ -15,6 +15,7 @@
 
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import CppAccess
+from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppSelfTableId
 from python.generators.trace_processor_table.public import CppString
@@ -59,13 +60,13 @@ TRACK_TABLE = Table(
             "utid",
             CppOptional(CppTableId(THREAD_TABLE)),
             cpp_access=CppAccess.READ,
-            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             "upid",
             CppOptional(CppTableId(PROCESS_TABLE)),
             cpp_access=CppAccess.READ,
-            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
     ])
 
