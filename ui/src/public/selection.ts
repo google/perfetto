@@ -147,32 +147,25 @@ export interface Aggregation {
    * if these properties are defined.
    *
    * @param engine - The query engine used to execute queries.
-   * @param area - The currently selected area to aggregate.
-   * @param dataset - The dataset representing a union of the data in the
-   * selected tracks sliced by the intersection of the area assuming datasets
-   * have a `dur` column. If no tracks have a dataset, this will be undefined.
    */
   prepareData(engine: Engine): Promise<AggregationData>;
 }
 
-/**
- * Aggregator tabs are displayed in descending order of specificity, determined
- * by the following precedence hierarchy:
- * 1. Aggregators explicitly defining a `trackKind` string take priority over
- *    those that do not.
- * 2. Otherwise, aggregators with schemas containing a greater number of keys
- *    (higher specificity) are prioritized over those with fewer keys.
- * 3. In cases of identical specificity, tabs are ranked based on their
- *    registration order.
- */
 export interface AreaSelectionAggregator {
   readonly id: string;
 
   /**
-   * Returns true if this aggregation applies to the current selection.
-   * This should be supplied if trackKind or schema is not.
+   * This function is called every time the area selection changes. The purpose
+   * of this function is to test whether this aggregator applies to the given
+   * area selection. If it does, it returns an aggregation object which gives
+   * further instructions on how to prepare the aggregation data.
    *
-   * @param tracks
+   * Aggregators are arranged this way because often the computation required to
+   * work out whether this aggregation applies is the same as the computation
+   * required to actually do the aggregation, so doing it like this means the
+   * prepareData() function returned can capture intermediate state avoiding
+   * having to do it again or awkwardly cache it somewhere in the aggregators
+   * local state.
    */
   probe(area: AreaSelection): Aggregation | undefined;
   getTabName(): string;
