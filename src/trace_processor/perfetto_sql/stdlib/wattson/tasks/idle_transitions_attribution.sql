@@ -17,21 +17,19 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE wattson.estimates;
 
+INCLUDE PERFETTO MODULE wattson.tasks.threads_w_processes;
+
 INCLUDE PERFETTO MODULE wattson.utils;
 
 -- Get slice info of threads/processes
 CREATE PERFETTO TABLE _thread_process_slices AS
 SELECT
-  sched.ts,
-  sched.dur,
-  sched.cpu,
-  thread.utid,
-  thread.upid
-FROM thread
-JOIN sched
-  USING (utid)
-WHERE
-  dur > 0;
+  ts,
+  dur,
+  cpu,
+  utid,
+  upid
+FROM _sched_w_thread_process_package_summary;
 
 -- Get slices only where there is transition from deep idle to active
 CREATE PERFETTO TABLE _idle_exits AS
