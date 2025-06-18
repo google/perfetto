@@ -151,10 +151,6 @@ class PERFETTO_EXPORT_COMPONENT EventContext {
   // are certain that it cannot be nullptr. Once we switch to client library in
   // chrome, we can make that happen.
   internal::TrackEventTlsState* tls_state_ = nullptr;
-  // TODO(kraskevich): Come up with a more precise name once we have more than
-  // one usecase.
-  // TODO(kraskevich): Remove once Chromium has fully switched to client lib.
-  const bool filter_debug_annotations_ = false;
 };
 
 }  // namespace perfetto
