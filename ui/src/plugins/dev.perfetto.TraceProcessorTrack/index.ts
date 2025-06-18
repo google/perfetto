@@ -72,6 +72,7 @@ export default class implements PerfettoPlugin {
           ct.name,
           ct.id,
           ct.unit,
+          ct.machine_id as machine,
           extract_arg(ct.dimension_arg_set_id, 'utid') as utid,
           extract_arg(ct.dimension_arg_set_id, 'upid') as upid
         from counter_track ct
@@ -108,6 +109,7 @@ export default class implements PerfettoPlugin {
       pid: NUM_NULL,
       isMainThread: NUM,
       isKernelThread: NUM,
+      machine: NUM_NULL,
     });
     for (; it.valid(); it.next()) {
       const {
@@ -123,13 +125,14 @@ export default class implements PerfettoPlugin {
         pid,
         isMainThread,
         isKernelThread,
+        machine,
       } = it;
       const schema = schemas.get(type);
       if (schema === undefined) {
         continue;
       }
       const {group, topLevelGroup} = schema;
-      const title = getTrackName({
+      const trackName = getTrackName({
         name,
         tid,
         threadName,
@@ -139,11 +142,11 @@ export default class implements PerfettoPlugin {
         utid,
         kind: COUNTER_TRACK_KIND,
         threadTrack: utid !== undefined,
+        machine,
       });
       const uri = `/counter_${trackId}`;
       ctx.tracks.registerTrack({
         uri,
-        title,
         tags: {
           kind: COUNTER_TRACK_KIND,
           trackIds: [trackId],
@@ -155,7 +158,7 @@ export default class implements PerfettoPlugin {
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',
         ]),
-        track: new TraceProcessorCounterTrack(
+        renderer: new TraceProcessorCounterTrack(
           ctx,
           uri,
           {
@@ -164,7 +167,7 @@ export default class implements PerfettoPlugin {
             unit: unit ?? undefined,
           },
           trackId,
-          title,
+          trackName,
         ),
       });
       this.addTrack(
@@ -175,7 +178,7 @@ export default class implements PerfettoPlugin {
         utid,
         new TrackNode({
           uri,
-          title,
+          name: trackName,
           sortOrder: utid !== undefined || upid !== undefined ? 30 : 0,
         }),
       );
@@ -255,7 +258,7 @@ export default class implements PerfettoPlugin {
       }
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
       const {group, topLevelGroup} = schema;
-      const title = getTrackName({
+      const trackName = getTrackName({
         name,
         tid,
         threadName,
@@ -269,7 +272,6 @@ export default class implements PerfettoPlugin {
       const uri = `/slice_${trackIds[0]}`;
       ctx.tracks.registerTrack({
         uri,
-        title,
         tags: {
           kind: SLICE_TRACK_KIND,
           trackIds: trackIds,
@@ -281,7 +283,7 @@ export default class implements PerfettoPlugin {
         chips: removeFalsyValues([
           isKernelThread === 0 && isMainThread === 1 && 'main thread',
         ]),
-        track: await createTraceProcessorSliceTrack({
+        renderer: await createTraceProcessorSliceTrack({
           trace: ctx,
           uri,
           maxDepth,
@@ -296,7 +298,7 @@ export default class implements PerfettoPlugin {
         utid,
         new TrackNode({
           uri,
-          title,
+          name: trackName,
           sortOrder: utid !== undefined || upid !== undefined ? 20 : 0,
         }),
       );
@@ -368,7 +370,7 @@ export default class implements PerfettoPlugin {
     const newGroup = new TrackNode({
       uri: `/${group}`,
       isSummary: true,
-      title: name,
+      name,
       collapsed: !expanded,
     });
     node.addChildInOrder(newGroup);

@@ -294,6 +294,9 @@ class TestCaseRunner:
       actual_summary = summary_message_factory()
       actual_summary.ParseFromString(stdout)
 
+      actual = text_format.MessageToString(actual_summary.metric[0]) if len(
+          actual_summary.metric) > 0 else ''
+
       os.remove(tmp_perf_file.name)
       if not keep_input:
         os.remove(tmp_spec_file.name)
@@ -303,7 +306,7 @@ class TestCaseRunner:
           trace_path,
           cmd,
           text_format.MessageToString(expected_summary.metric[0]),
-          text_format.MessageToString(actual_summary.metric[0]),
+          actual,
           stderr.decode('utf8'),
           tp.returncode,
           [line.decode('utf8') for line in tmp_perf_file.readlines()],

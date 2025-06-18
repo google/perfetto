@@ -23,8 +23,8 @@
 #include <utility>
 #include <variant>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
@@ -120,8 +120,8 @@ using SparseNullCollapsedNullability = TypeSet<NonNull, SparseNull, DenseNull>;
 
 // TypeSet of all possible sparse nullability states.
 using SparseNullTypes = TypeSet<SparseNull,
-                                SparseNullSupportingCellGetAlways,
-                                SparseNullSupportingCellGetUntilFinalization>;
+                                SparseNullWithPopcountAlways,
+                                SparseNullWithPopcountUntilFinalization>;
 
 // Storage implementation for column data. Provides physical storage
 // for different types of column content.
@@ -259,12 +259,11 @@ class NullStorage {
   NullStorage(NonNull n) : nullability_(dataframe::NonNull{}), data_(n) {}
   NullStorage(SparseNull s, dataframe::SparseNull = dataframe::SparseNull{})
       : nullability_(dataframe::SparseNull{}), data_(std::move(s)) {}
-  NullStorage(SparseNull s, dataframe::SparseNullSupportingCellGetAlways)
-      : nullability_(dataframe::SparseNullSupportingCellGetAlways{}),
+  NullStorage(SparseNull s, dataframe::SparseNullWithPopcountAlways)
+      : nullability_(dataframe::SparseNullWithPopcountAlways{}),
         data_(std::move(s)) {}
-  NullStorage(SparseNull s,
-              dataframe::SparseNullSupportingCellGetUntilFinalization)
-      : nullability_(dataframe::SparseNullSupportingCellGetUntilFinalization{}),
+  NullStorage(SparseNull s, dataframe::SparseNullWithPopcountUntilFinalization)
+      : nullability_(dataframe::SparseNullWithPopcountUntilFinalization{}),
         data_(std::move(s)) {}
   NullStorage(DenseNull d)
       : nullability_(dataframe::DenseNull{}), data_(std::move(d)) {}
@@ -276,9 +275,8 @@ class NullStorage {
       return base::unchecked_get<NonNull>(data_);
     } else if constexpr (
         std::is_same_v<T, dataframe::SparseNull> ||
-        std::is_same_v<T, dataframe::SparseNullSupportingCellGetAlways> ||
-        std::is_same_v<
-            T, dataframe::SparseNullSupportingCellGetUntilFinalization>) {
+        std::is_same_v<T, dataframe::SparseNullWithPopcountAlways> ||
+        std::is_same_v<T, dataframe::SparseNullWithPopcountUntilFinalization>) {
       return base::unchecked_get<SparseNull>(data_);
     } else if constexpr (std::is_same_v<T, dataframe::DenseNull>) {
       return base::unchecked_get<DenseNull>(data_);
@@ -293,9 +291,8 @@ class NullStorage {
       return base::unchecked_get<NonNull>(data_);
     } else if constexpr (
         std::is_same_v<T, dataframe::SparseNull> ||
-        std::is_same_v<T, dataframe::SparseNullSupportingCellGetAlways> ||
-        std::is_same_v<
-            T, dataframe::SparseNullSupportingCellGetUntilFinalization>) {
+        std::is_same_v<T, dataframe::SparseNullWithPopcountAlways> ||
+        std::is_same_v<T, dataframe::SparseNullWithPopcountUntilFinalization>) {
       return base::unchecked_get<SparseNull>(data_);
     } else if constexpr (std::is_same_v<T, dataframe::DenseNull>) {
       return base::unchecked_get<DenseNull>(data_);
@@ -347,12 +344,63 @@ class NullStorage {
   Variant data_;
 };
 
+// Holds a specialized alternative representation of the storage of a column.
+//
+// Should be used to speed up very common operations on columns that have
+// specific properties.
+struct SpecializedStorage {
+ public:
+  // Special data structure capable of giving very fast results for equality
+  // constraints on sorted, non-duplicate columns with not-too large values.
+  // This is very common when joining two tables together by id.
+  //
+  // Usable in situations where the column has all the following properties:
+  //  1) It's non-null.
+  //  2) It's sorted.
+  //  3) It has no duplicate values.
+  //  4) The max(value) is "reasonably small".
+  //     - as the the memory used will be O(max(value)) *not* O(size(column)).
+  struct SmallValueEq {
+    // BitVector with 1s representing the presence of a value in the
+    // column. The value is the index of the value in the column.
+    //
+    // For example, if the column has values [1, 2, 3], then the bit vector
+    // will have 1s at indices 1, 2, and 3.
+    BitVector bit_vector;
+
+    // Cumulative count of set bits in the bit vector. Key to allowing O(1)
+    // equality queries.
+    //
+    // See BitVector::PrefixPopcount() for details.
+    Slab<uint32_t> prefix_popcount;
+  };
+
+  SpecializedStorage() = default;
+  SpecializedStorage(SmallValueEq data) : data_(std::move(data)) {}
+
+  template <typename T>
+  bool Is() const {
+    return std::holds_alternative<T>(data_);
+  }
+
+  template <typename T>
+  const T& unchecked_get() const {
+    PERFETTO_DCHECK(Is<T>());
+    return base::unchecked_get<T>(data_);
+  }
+
+ private:
+  using Variant = std::variant<std::monostate, SmallValueEq>;
+  Variant data_;
+};
+
 // Represents a complete column in the dataframe.
 struct Column {
   Storage storage;
   NullStorage null_storage;
   SortState sort_state;
   DuplicateState duplicate_state;
+  SpecializedStorage specialized_storage = SpecializedStorage{};
 };
 
 // Handle for referring to a filter value during query execution.
@@ -376,15 +424,13 @@ struct CastFilterValueResult {
     return validity == other.validity && value == other.value;
   }
 
-  static constexpr CastFilterValueResult Valid(Value value) {
-    return CastFilterValueResult{Validity::kValid, value};
+  static CastFilterValueResult Valid(Value value) {
+    return CastFilterValueResult{Validity::kValid, std::move(value)};
   }
-
-  static constexpr CastFilterValueResult NoneMatch() {
+  static CastFilterValueResult NoneMatch() {
     return CastFilterValueResult{Validity::kNoneMatch, Id{0}};
   }
-
-  static constexpr CastFilterValueResult AllMatch() {
+  static CastFilterValueResult AllMatch() {
     return CastFilterValueResult{Validity::kAllMatch, Id{0}};
   }
 
@@ -393,6 +439,38 @@ struct CastFilterValueResult {
 
   // Variant of all possible cast value types.
   Value value;
+};
+
+// Result of an operation that yields multiple values (e.g. from an IN clause).
+struct CastFilterValueListResult {
+  using Value = std::variant<CastFilterValueResult::Id,
+                             uint32_t,
+                             int32_t,
+                             int64_t,
+                             double,
+                             StringPool::Id>;
+  using ValueList = std::variant<FlexVector<CastFilterValueResult::Id>,
+                                 FlexVector<uint32_t>,
+                                 FlexVector<int32_t>,
+                                 FlexVector<int64_t>,
+                                 FlexVector<double>,
+                                 FlexVector<StringPool::Id>>;
+
+  static CastFilterValueListResult Valid(ValueList v) {
+    return CastFilterValueListResult{CastFilterValueResult::Validity::kValid,
+                                     std::move(v)};
+  }
+  static CastFilterValueListResult NoneMatch() {
+    return CastFilterValueListResult{
+        CastFilterValueResult::Validity::kNoneMatch,
+        FlexVector<CastFilterValueResult::Id>()};
+  }
+  static CastFilterValueListResult AllMatch() {
+    return CastFilterValueListResult{CastFilterValueResult::Validity::kAllMatch,
+                                     FlexVector<CastFilterValueResult::Id>()};
+  }
+  CastFilterValueResult::Validity validity;
+  ValueList value_list;
 };
 
 // Represents a contiguous range of indices [b, e).

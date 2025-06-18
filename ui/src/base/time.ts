@@ -102,32 +102,39 @@ export class Time {
     return Number(t) / TIME_UNITS_PER_MICROSEC;
   }
 
-  // Convert a Date object to a time value, given an offset from the unix epoch.
-  // Note: number -> BigInt conversion is relatively slow.
-  static fromDate(d: Date, offset: duration): time {
-    const millis = d.getTime();
-    const t = Time.fromMillis(millis);
-    return Time.add(t, offset);
+  /**
+   * Convert a JavaScript Date to trace time.
+   *
+   * @param date - The date. Note that Date objects are time zone agnostic, they
+   * are a simple wrapper around a unix timestamp. A time zone is applied only
+   * when extracting data from it such as printing it to a string.
+   * @param unixOffset - This represents the trace time at the unix epoch
+   * (usually some large negative number).
+   * @returns The time represented in trace time.
+   */
+  static fromDate(date: Date, unixOffset: duration): time {
+    const unixTimeMillis = date.getTime();
+    const traceTime = Time.add(Time.fromMillis(unixTimeMillis), unixOffset);
+    return traceTime;
   }
 
   // Convert time value to a Date object, given an offset from the unix epoch.
   // Warning: This function is lossy, i.e. precision is lost when converting
   // BigInt -> number.
   // Note: BigInt -> number conversion is relatively slow.
-  static toDate(t: time, offset: duration): Date {
-    const timeSinceEpoch = Time.sub(t, offset);
-    const millis = Time.toMillis(timeSinceEpoch);
-    return new Date(millis);
-  }
 
-  // Find the closest previous midnight for a given time value.
-  static getLatestMidnight(time: time, offset: duration): time {
-    const date = Time.toDate(time, offset);
-    const floorDay = new Date(
-      Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
-    );
-
-    return Time.fromDate(floorDay, offset);
+  /**
+   * Converts trace time to a JavaScript Date object.
+   *
+   * @param time - A trace time.
+   * @param unixOffset - This represents the trace time at the unix epoch
+   * (usually some large negative number).
+   * @returns A JavaScript Date object. Remember Date objects don't contain any
+   * timezone information, they are a simple wrapper around unix time.
+   */
+  static toDate(time: time, unixOffset: duration): Date {
+    const unixTimeMillis = Time.toMillis(Time.sub(time, unixOffset));
+    return new Date(unixTimeMillis);
   }
 
   static add(t: time, d: duration): time {
@@ -142,8 +149,11 @@ export class Time {
     return a - b;
   }
 
+  // Similar to Time.diff(), but you put the cardinality of the arguments are
+  // swapped.
+  // E.g: durationBetween(start, end);
   static durationBetween(a: time, b: time): duration {
-    return a >= b ? a - b : b - a;
+    return b - a;
   }
 
   static min(a: time, b: time): time {
@@ -180,16 +190,6 @@ export class Time {
 
   static toTimecode(time: time): Timecode {
     return new Timecode(time);
-  }
-
-  static formatTimezone(minutes: number): string {
-    const sign = minutes >= 0 ? '+' : '-';
-    const absMins = Math.abs(minutes);
-    const hours = Math.floor(absMins / 60);
-    const mins = absMins % 60;
-    const hoursStr = String(hours).padStart(2, '0');
-    const minsStr = String(mins).padStart(2, '0');
-    return `UTC${sign}${hoursStr}:${minsStr}`;
   }
 }
 
@@ -440,11 +440,106 @@ export class TimeSpan {
   }
 }
 
-// Print the date only for a given date in ISO format.
-export function toISODateOnly(date: Date) {
-  const year = date.getUTCFullYear();
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(date.getUTCDate()).padStart(2, '0');
+/**
+ * Formats a Date object (unix timestamp) to a string in a specified timezone.
+ *
+ * @description
+ * The output format is a customizable combination of `YYYY-MM-DD`,
+ * `HH:mm:ss.SSS`, and the timezone offset `(±HH:MM)`.
+ *
+ * @param date The original JavaScript `Date` object to format.
+ * @param options An optional configuration object.
+ * @param {number} [options.tzOffsetMins=0] - The timezone offset in minutes
+ * from UTC. For example, -420 for UTC-7 or 330 for UTC+5:30. Defaults to 0
+ * (UTC).
+ * @param {boolean} [options.printDate=true] - Whether to include the date part
+ * (`YYYY-MM-DD`).
+ * @param {boolean} [options.printTime=true] - Whether to include the time part
+ * (`HH:mm:ss.SSS`).
+ * @param {boolean} [options.printTimezone=true] - Whether to include the
+ * timezone offset.
+ *
+ * @returns A formatted string representing the date and time in the specified
+ * timezone.
+ *
+ * @example
+ * const myDate = new Date('2025-06-15T10:00:00.000Z');
+ *
+ * // Format for Indian Standard Time (UTC+5:30)
+ * // tzOffsetMins = 5 * 60 + 30 = 330
+ * const istString = formatDate(myDate, { tzOffsetMins: 330 });
+ * console.log(istString); // "2025-06-15 15:30:00.000 UTC+05:30"
+ *
+ * // Format for Pacific Daylight Time (UTC-7)
+ * // tzOffsetMins = -7 * 60 = -420
+ * const pdtString = formatDate(myDate, { tzOffsetMins: -420 });
+ * console.log(pdtString); // "2025-06-15 03:00:00.000 UTC-07:00"
+ *
+ * // Format with only the date and timezone
+ * const dateOnly = formatDate(myDate, { tzOffsetMins: -420, printTime: false });
+ * console.log(dateOnly); // "2025-06-15 UTC-07:00"
+ *
+ * // Format as UTC with no timezone part
+ * const utcOnly = formatDate(myDate, { printTimezone: false });
+ * console.log(utcOnly); // "2025-06-15 10:00:00.000"
+ */
+export function formatDate(
+  date: Date,
+  {
+    tzOffsetMins = 0,
+    printDate = true,
+    printTime = true,
+    printTimezone = true,
+  }: {
+    printDate?: boolean;
+    printTime?: boolean;
+    printTimezone?: boolean;
+    tzOffsetMins?: number;
+  } = {},
+) {
+  const originalTimestamp = date.getTime();
+  const timezoneOffsetInMilliseconds = tzOffsetMins * 60 * 1000;
+  const dateInTimezone = new Date(
+    originalTimestamp + timezoneOffsetInMilliseconds,
+  );
 
-  return `${year}-${month}-${day}`;
+  const dateStringParts: string[] = [];
+
+  if (printDate) {
+    const year = dateInTimezone.getUTCFullYear();
+    const month = String(dateInTimezone.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(dateInTimezone.getUTCDate()).padStart(2, '0');
+    dateStringParts.push(`${year}-${month}-${day}`);
+  }
+
+  if (printTime) {
+    const hours = String(dateInTimezone.getUTCHours()).padStart(2, '0');
+    const mins = String(dateInTimezone.getUTCMinutes()).padStart(2, '0');
+    const sec = String(dateInTimezone.getUTCSeconds()).padStart(2, '0');
+    const ms = String(dateInTimezone.getUTCMilliseconds()).padStart(3, '0');
+    dateStringParts.push(`${hours}:${mins}:${sec}.${ms}`);
+  }
+
+  if (printTimezone) {
+    dateStringParts.push(formatTimezone(tzOffsetMins));
+  }
+
+  return dateStringParts.join(' ');
+}
+
+/**
+ * Given a timezone as an offset from UTC in minutes, format it in the usual ISO
+ * standard way. E.g.: UTC+01:00
+ *
+ * @param tzOffsetMins - The timezone offset in minutes.
+ * @returns A string representing the timezone in ISO format.
+ */
+export function formatTimezone(tzOffsetMins: number): string {
+  const sign = tzOffsetMins >= 0 ? '+' : '-';
+  const absMins = Math.abs(tzOffsetMins);
+  const hours = Math.floor(absMins / 60);
+  const mins = absMins % 60;
+  const hoursStr = String(hours).padStart(2, '0');
+  const minsStr = String(mins).padStart(2, '0');
+  return `UTC${sign}${hoursStr}:${minsStr}`;
 }

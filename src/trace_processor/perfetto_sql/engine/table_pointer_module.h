@@ -19,9 +19,9 @@
 
 #include <array>
 #include <cstdint>
-#include <optional>
 
-#include "src/trace_processor/db/table.h"
+#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 
 namespace perfetto::trace_processor {
@@ -66,10 +66,10 @@ struct TablePointerModule : sqlite::Module<TablePointerModule> {
   using Context = void;
   struct Vtab : sqlite::Module<TablePointerModule>::Vtab {};
   struct Cursor : sqlite::Module<TablePointerModule>::Cursor {
-    const Table* table = nullptr;
+    const dataframe::Dataframe* dataframe = nullptr;
     std::array<uint32_t, kBindableColumnCount> bound_col_to_table_index{};
     uint32_t col_count = 0;
-    std::optional<Table::Iterator> iterator;
+    DataframeModule::DfCursor cursor;
   };
 
   static constexpr auto kType = kEponymousOnly;

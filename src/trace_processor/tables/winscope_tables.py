@@ -13,14 +13,16 @@
 # limitations under the License.
 
 from python.generators.trace_processor_table.public import Column as C
-from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import ColumnFlag
-from python.generators.trace_processor_table.public import Table
-from python.generators.trace_processor_table.public import CppTableId
+from python.generators.trace_processor_table.public import CppAccess
+from python.generators.trace_processor_table.public import CppAccessDuration
+from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
-from python.generators.trace_processor_table.public import TableDoc
-from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import CppString
+from python.generators.trace_processor_table.public import CppTableId
+from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import Table
+from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import WrappingSqlView
 
 INPUTMETHOD_CLIENTS_TABLE = Table(
@@ -29,8 +31,17 @@ INPUTMETHOD_CLIENTS_TABLE = Table(
     sql_name='__intrinsic_inputmethod_clients',
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
-        C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto_id', CppOptional(CppUint32())),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'base64_proto_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='InputMethod clients',
@@ -47,8 +58,17 @@ INPUTMETHOD_MANAGER_SERVICE_TABLE = Table(
     sql_name='__intrinsic_inputmethod_manager_service',
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
-        C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto_id', CppOptional(CppUint32())),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'base64_proto_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='InputMethod manager service',
@@ -65,8 +85,17 @@ INPUTMETHOD_SERVICE_TABLE = Table(
     sql_name='__intrinsic_inputmethod_service',
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
-        C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto_id', CppOptional(CppUint32())),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'base64_proto_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='InputMethod service',
@@ -83,8 +112,17 @@ SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE = Table(
     sql_name='surfaceflinger_layers_snapshot',
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
-        C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto_id', CppOptional(CppUint32())),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'base64_proto_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='SurfaceFlinger layers snapshot',
@@ -101,8 +139,17 @@ SURFACE_FLINGER_LAYER_TABLE = Table(
     sql_name='surfaceflinger_layer',
     columns=[
         C('snapshot_id', CppTableId(SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE)),
-        C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto_id', CppOptional(CppUint32())),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'base64_proto_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='SurfaceFlinger layer',
@@ -119,8 +166,17 @@ SURFACE_FLINGER_TRANSACTIONS_TABLE = Table(
     sql_name='surfaceflinger_transactions',
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
-        C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto_id', CppOptional(CppUint32())),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'base64_proto_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C('vsync_id', CppOptional(CppInt64())),
     ],
     tabledoc=TableDoc(
@@ -140,8 +196,17 @@ SURFACE_FLINGER_TRANSACTION_TABLE = Table(
     sql_name='__intrinsic_surfaceflinger_transaction',
     columns=[
         C('snapshot_id', CppTableId(SURFACE_FLINGER_TRANSACTIONS_TABLE)),
-        C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto_id', CppOptional(CppUint32())),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'base64_proto_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C('transaction_id', CppOptional(CppInt64())),
         C('pid', CppOptional(CppUint32())),
         C('uid', CppOptional(CppUint32())),
@@ -200,8 +265,17 @@ VIEWCAPTURE_TABLE = Table(
     sql_name='__intrinsic_viewcapture',
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
-        C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto_id', CppOptional(CppUint32())),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'base64_proto_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='ViewCapture',
@@ -218,8 +292,17 @@ VIEWCAPTURE_VIEW_TABLE = Table(
     sql_name='__intrinsic_viewcapture_view',
     columns=[
         C('snapshot_id', CppTableId(VIEWCAPTURE_TABLE)),
-        C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto_id', CppOptional(CppUint32())),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'base64_proto_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='ViewCapture view',
@@ -227,7 +310,7 @@ VIEWCAPTURE_VIEW_TABLE = Table(
         columns={
             'snapshot_id': 'The snapshot that generated this view',
             'arg_set_id': 'Extra args parsed from the proto message',
-            'base64_proto_id': 'String id for raw proto message',
+            '': 'String id for raw proto message',
         }))
 
 VIEWCAPTURE_INTERNED_DATA_TABLE = Table(
@@ -235,10 +318,15 @@ VIEWCAPTURE_INTERNED_DATA_TABLE = Table(
     class_name='ViewCaptureInternedDataTable',
     sql_name='__intrinsic_viewcapture_interned_data',
     columns=[
-        C('base64_proto_id', CppUint32()),
-        C('flat_key', CppString()),
-        C('iid', CppInt64()),
-        C('deinterned_value', CppString()),
+        C(
+            'base64_proto_id',
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C('flat_key', CppString(), cpp_access=CppAccess.READ),
+        C('iid', CppInt64(), cpp_access=CppAccess.READ),
+        C('deinterned_value', CppString(), cpp_access=CppAccess.READ),
     ],
     tabledoc=TableDoc(
         doc='ViewCapture interned data',
@@ -255,16 +343,48 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
     class_name='WindowManagerShellTransitionsTable',
     sql_name='window_manager_shell_transitions',
     columns=[
-        C('ts', CppInt64()),
+        C('ts', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
         C('transition_id', CppInt64(), ColumnFlag.SORTED),
-        C('arg_set_id', CppOptional(CppUint32())),
-        C('transition_type', CppOptional(CppUint32())),
-        C('send_time_ns', CppOptional(CppInt64())),
-        C('dispatch_time_ns', CppOptional(CppInt64())),
-        C('duration_ns', CppOptional(CppInt64())),
-        C('handler', CppOptional(CppInt64())),
-        C('status', CppOptional(CppString())),
-        C('flags', CppOptional(CppUint32())),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'transition_type',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'send_time_ns',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'dispatch_time_ns',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'duration_ns',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'handler',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'status',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'flags',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
     ],
     tabledoc=TableDoc(
         doc='Window Manager Shell Transitions',
@@ -299,7 +419,12 @@ WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE = Table(
     columns=[
         C('handler_id', CppInt64()),
         C('handler_name', CppString()),
-        C('base64_proto_id', CppOptional(CppUint32())),
+        C(
+            'base64_proto_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='Window Manager Shell Transition Handlers',
@@ -333,8 +458,18 @@ WINDOW_MANAGER_SHELL_TRANSITION_PROTOS_TABLE = Table(
     class_name='WindowManagerShellTransitionProtosTable',
     sql_name='__intrinsic_window_manager_shell_transition_protos',
     columns=[
-        C('transition_id', CppInt64()),
-        C('base64_proto_id', CppUint32()),
+        C(
+            'transition_id',
+            CppInt64(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'base64_proto_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='Window Manager Shell Transition Protos',
@@ -350,8 +485,17 @@ WINDOW_MANAGER_TABLE = Table(
     sql_name='__intrinsic_windowmanager',
     columns=[
         C('ts', CppInt64(), ColumnFlag.SORTED),
-        C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto_id', CppOptional(CppUint32())),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'base64_proto_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     wrapping_sql_view=WrappingSqlView('windowmanager'),
     tabledoc=TableDoc(
@@ -368,12 +512,37 @@ PROTOLOG_TABLE = Table(
     class_name='ProtoLogTable',
     sql_name='protolog',
     columns=[
-        C('ts', CppInt64(), ColumnFlag.SORTED),
-        C('level', CppString()),
-        C('tag', CppString()),
-        C('message', CppString()),
-        C('stacktrace', CppString()),
-        C('location', CppString()),
+        C(
+            'ts',
+            CppInt64(),
+            ColumnFlag.SORTED,
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'level',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'tag',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'message',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'stacktrace',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'location',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
     ],
     tabledoc=TableDoc(
         doc='Protolog',

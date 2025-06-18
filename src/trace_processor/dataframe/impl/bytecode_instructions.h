@@ -21,8 +21,8 @@
 #include <string>
 #include <variant>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
 #include "src/trace_processor/dataframe/impl/bytecode_registers.h"
@@ -90,10 +90,28 @@ struct CastFilterValueBase : TemplatedBytecode1<StorageType> {
                                      NonNullOp,
                                      op);
 };
-
-// Specialized coercion for specific type T.
 template <typename T>
 struct CastFilterValue : CastFilterValueBase {
+  static_assert(TS1::Contains<T>());
+};
+
+// Casts a list of filter values.
+struct CastFilterValueListBase : TemplatedBytecode1<StorageType> {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = FixedCost{1000};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(
+      FilterValueHandle,
+      fval_handle,
+      reg::WriteHandle<CastFilterValueListResult>,
+      write_register,
+      NonNullOp,
+      op);
+};
+template <typename T>
+struct CastFilterValueList : CastFilterValueListBase {
   static_assert(TS1::Contains<T>());
 };
 
@@ -135,6 +153,22 @@ struct Uint32SetIdSortedEq : Bytecode {
   // is plucked from thin air and has no real foundation. Fix this by creating
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = FixedCost{100};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(uint32_t,
+                                     col,
+                                     reg::ReadHandle<CastFilterValueResult>,
+                                     val_register,
+                                     reg::RwHandle<Range>,
+                                     update_register);
+};
+
+// Equality filter for columns with a specialized storage containing
+// SmallValueEq.
+struct SpecializedStorageSmallValueEq : Bytecode {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = FixedCost{10};
 
   PERFETTO_DATAFRAME_BYTECODE_IMPL_3(uint32_t,
                                      col,
@@ -527,6 +561,53 @@ struct SortRowLayout : Bytecode {
                                      indices_register);
 };
 
+// Filters a column with a scan over a linear range of indices. Useful for the
+// first equality check of a query where we can scan a column without
+// materializing a large set of indices and then using
+// NonStringFilter/StringFilter to cut it down.
+struct LinearFilterEqBase : TemplatedBytecode1<NonIdStorageType> {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = LinearPerRowCost{7};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_5(uint32_t,
+                                     col,
+                                     reg::ReadHandle<CastFilterValueResult>,
+                                     filter_value_reg,
+                                     reg::ReadHandle<Slab<uint32_t>>,
+                                     popcount_register,
+                                     reg::ReadHandle<Range>,
+                                     source_register,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     update_register);
+};
+template <typename T>
+struct LinearFilterEq : LinearFilterEqBase {
+  static_assert(TS1::Contains<T>());
+};
+
+// Filters rows based on a list of values (IN operator).
+struct InBase : TemplatedBytecode1<StorageType> {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = LinearPerRowCost{10};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_4(uint32_t,
+                                     col,
+                                     reg::ReadHandle<CastFilterValueListResult>,
+                                     value_list_register,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     source_register,
+                                     reg::RwHandle<Span<uint32_t>>,
+                                     update_register);
+};
+template <typename T>
+struct In : InBase {
+  static_assert(TS1::Contains<T>());
+};
+
 // List of all bytecode instruction types for variant definition.
 #define PERFETTO_DATAFRAME_BYTECODE_LIST(X)  \
   X(InitRange)                               \
@@ -538,6 +619,12 @@ struct SortRowLayout : Bytecode {
   X(CastFilterValue<Int64>)                  \
   X(CastFilterValue<Double>)                 \
   X(CastFilterValue<String>)                 \
+  X(CastFilterValueList<Id>)                 \
+  X(CastFilterValueList<Uint32>)             \
+  X(CastFilterValueList<Int32>)              \
+  X(CastFilterValueList<Int64>)              \
+  X(CastFilterValueList<Double>)             \
+  X(CastFilterValueList<String>)             \
   X(SortedFilter<Id, EqualRange>)            \
   X(SortedFilter<Id, LowerBound>)            \
   X(SortedFilter<Id, UpperBound>)            \
@@ -557,6 +644,12 @@ struct SortRowLayout : Bytecode {
   X(SortedFilter<String, LowerBound>)        \
   X(SortedFilter<String, UpperBound>)        \
   X(Uint32SetIdSortedEq)                     \
+  X(SpecializedStorageSmallValueEq)          \
+  X(LinearFilterEq<Uint32>)                  \
+  X(LinearFilterEq<Int32>)                   \
+  X(LinearFilterEq<Int64>)                   \
+  X(LinearFilterEq<Double>)                  \
+  X(LinearFilterEq<String>)                  \
   X(NonStringFilter<Id, Eq>)                 \
   X(NonStringFilter<Id, Ne>)                 \
   X(NonStringFilter<Id, Lt>)                 \
@@ -655,7 +748,13 @@ struct SortRowLayout : Bytecode {
   X(InitRankMap)                             \
   X(CollectIdIntoRankMap)                    \
   X(FinalizeRanksInMap)                      \
-  X(SortRowLayout)
+  X(SortRowLayout)                           \
+  X(In<Id>)                                  \
+  X(In<Uint32>)                              \
+  X(In<Int32>)                               \
+  X(In<Int64>)                               \
+  X(In<Double>)                              \
+  X(In<String>)
 
 #define PERFETTO_DATAFRAME_BYTECODE_VARIANT(...) __VA_ARGS__,
 

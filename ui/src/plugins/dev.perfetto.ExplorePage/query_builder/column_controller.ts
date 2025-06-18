@@ -53,7 +53,7 @@ export function columnControllerRowFromName(
   return {
     id: name,
     checked,
-    column: {name: name, type: {name: 'NA', shortName: 'NA'}},
+    column: {name, type: {name: 'NA', shortName: 'NA'}},
   };
 }
 

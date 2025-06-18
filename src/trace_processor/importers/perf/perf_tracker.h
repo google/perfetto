@@ -19,16 +19,18 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
-#include <utility>
+#include <string>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/create_mapping_params.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/perf/auxtrace_info_record.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/perf_tables_py.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -80,7 +82,9 @@ class PerfTracker : public Destructible {
   // have been processed and all tables updated.
   void SymbolizeFrames();
 
-  void SymbolizeKernelFrame(tables::StackProfileFrameTable::RowReference frame);
+  void SymbolizeKernelFrame(
+      const tables::StackProfileFrameTable::RowReference frame);
+
   // Returns true it the frame was symbolized.
   bool TrySymbolizeFrame(tables::StackProfileFrameTable::RowReference frame);
 

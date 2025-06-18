@@ -107,14 +107,15 @@ class ViewCapture(TestSuite):
           args.key, args.display_value
         FROM
           __intrinsic_viewcapture_view AS vc JOIN args ON vc.arg_set_id = args.arg_set_id
-        WHERE args.key = 'class_name';
+        WHERE args.key = 'class_name'
+        ORDER BY display_value;
         """,
         out=Csv("""
         "key","display_value"
-        "class_name","com.android.internal.policy.PhoneWindow@6cec234"
-        "class_name","com.android.internal.policy.PhoneWindow@6cec234"
-        "class_name","com.android.internal.policy.DecorView"
         "class_name","STRING DE-INTERNING ERROR"
+        "class_name","com.android.internal.policy.DecorView"
+        "class_name","com.android.internal.policy.PhoneWindow@6cec234"
+        "class_name","com.android.internal.policy.PhoneWindow@6cec234"
         """))
 
   def test_tables_has_raw_protos(self):

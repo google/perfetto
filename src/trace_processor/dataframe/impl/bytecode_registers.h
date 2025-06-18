@@ -20,20 +20,15 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
-#include <unordered_set>
 #include <variant>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 
 namespace perfetto::trace_processor::dataframe::impl::bytecode::reg {
-
-// Set an upper bound on registers to allow for using std::array to
-// store register values.
-// Arbitrary value chosen to be larger than any reasonable bytecode program.
-static constexpr uint32_t kMaxRegisters = 64;
 
 // Register system for the bytecode interpreter.
 // Provides typed handles for accessing virtual registers with appropriate
@@ -104,6 +99,7 @@ using Value = std::variant<Empty,
                            Slab<uint32_t>,
                            Span<uint32_t>,
                            CastFilterValueResult,
+                           CastFilterValueListResult,
                            Slab<uint8_t>,
                            StringIdToRankMap>;
 

@@ -123,7 +123,7 @@ export class TraceContext implements Disposable {
         this.selectionMgr.selection.kind === 'note' &&
         this.selectionMgr.selection.id === noteId
       ) {
-        this.selectionMgr.clear();
+        this.selectionMgr.clearSelection();
       }
     };
 

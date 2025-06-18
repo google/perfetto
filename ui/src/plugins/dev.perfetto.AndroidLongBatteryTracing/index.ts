@@ -848,7 +848,7 @@ export default class implements PerfettoPlugin {
         existingGroup.addChildInOrder(track);
       } else {
         const group = new TrackNode({
-          title: groupName,
+          name: groupName,
           isSummary: true,
           collapsed: groupCollapsed,
         });
@@ -881,10 +881,9 @@ export default class implements PerfettoPlugin {
     });
     ctx.tracks.registerTrack({
       uri,
-      title: name,
-      track,
+      renderer: track,
     });
-    const trackNode = new TrackNode({uri, title: name});
+    const trackNode = new TrackNode({uri, name});
     this.addTrack(ctx, trackNode, groupName, groupCollapsed);
   }
 
@@ -908,10 +907,9 @@ export default class implements PerfettoPlugin {
     });
     ctx.tracks.registerTrack({
       uri,
-      title: name,
-      track,
+      renderer: track,
     });
-    const trackNode = new TrackNode({uri, title: name});
+    const trackNode = new TrackNode({uri, name});
     this.addTrack(ctx, trackNode, groupName, groupCollapsed);
   }
 
