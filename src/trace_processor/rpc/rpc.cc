@@ -673,21 +673,6 @@ void Rpc::ComputeTraceSummaryInternal(
     default:
       PERFETTO_FATAL("Unknown format");
   }
-  using MetricOutputFormat =
-      protos::pbzero::TraceSummaryArgs::TraceMetricV2OutputFormat;
-  switch (args.trace_metric_v2_output_format()) {
-    case MetricOutputFormat::TRACE_METRIC_V2_OUTPUT_FORMAT_INDIVIDUAL:
-      output_spec.trace_metric_v2_format =
-          TraceSummaryOutputSpec::TraceMetricV2Format::kIndividual;
-      break;
-    case MetricOutputFormat::TRACE_METRIC_V2_OUTPUT_FORMAT_GROUPED:
-      output_spec.trace_metric_v2_format =
-          TraceSummaryOutputSpec::TraceMetricV2Format::kGrouped;
-      break;
-    case MetricOutputFormat::TRACE_METRIC_V2_OUTPUT_FORMAT_UNSPECIFIED:
-      break;
-  }
-
   std::vector<uint8_t> output;
   base::Status status = trace_processor_->Summarize(
       computation_spec, summary_specs, &output, output_spec);

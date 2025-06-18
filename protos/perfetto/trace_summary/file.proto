@@ -58,16 +58,16 @@ message TraceSummarySpec {
 //
 // Next id: 4
 message TraceSummary {
-  // The result of computing a v2 trace metric.
-  //
-  // See documentation for TraceMetric for usage of this field.
-  repeated TraceMetricV2 metric = 1;
+  // Was TraceMetricV2: replaced with `metric_bundles`, a more flexible way of
+  // representing the results of computing multiple, potentially correlated,
+  // metrics.
+  reserved 1;
 
-  // An alternative encoding of the v2 trace metric where metrics are grouped
-  // by their `group_id` field.
+  // A set of TraceMetricV2Bundle instances, each of which contains
+  // the results of one or more v2 trace metrics.
   //
-  // See documentation for TraceMetricV2Group for usage of this field.
-  repeated TraceMetricV2Group metric_groups = 3;
+  // See documentation for TraceMetricV2Bundle for usage of this field.
+  repeated TraceMetricV2Bundle metric_bundles = 3;
 
   // Metadata about the whole trace file as key value pairs. This is intended
   // to put metadata about the trace (e.g. the device trace was collected on,

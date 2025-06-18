@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "src/base/test/status_matchers.h"
 #include "src/trace_processor/trace_summary/summary.h"
 
 #include "perfetto/ext/base/status_or.h"
@@ -59,10 +60,7 @@ class TraceSummaryTest : public ::testing::Test {
                                    kTraceSummaryDescriptor.size());
   }
 
-  base::StatusOr<std::string> RunSummarize(
-      const std::string& spec_str,
-      TraceSummaryOutputSpec::TraceMetricV2Format v2_format =
-          TraceSummaryOutputSpec::TraceMetricV2Format::kIndividual) {
+  base::StatusOr<std::string> RunSummarize(const std::string& spec_str) {
     TraceSummarySpecBytes spec;
     spec.ptr = reinterpret_cast<const uint8_t*>(spec_str.data());
     spec.size = spec_str.size();
@@ -71,7 +69,6 @@ class TraceSummaryTest : public ::testing::Test {
     std::vector<uint8_t> output;
     TraceSummaryOutputSpec output_spec;
     output_spec.format = TraceSummaryOutputSpec::Format::kTextProto;
-    output_spec.trace_metric_v2_format = v2_format;
 
     base::Status status =
         Summarize(tp_.get(), pool_, {}, {spec}, &output, output_spec);
@@ -102,8 +99,9 @@ TEST_F(TraceSummaryTest, DuplicateDimensionsErrorIfUnique) {
     }
   )");
   ASSERT_FALSE(status_or_output.ok());
-  EXPECT_THAT(status_or_output.status().message(),
-              HasSubstr("Duplicate dimensions found for metric 'my_metric'"));
+  EXPECT_THAT(
+      status_or_output.status().message(),
+      HasSubstr("Duplicate dimensions found for metric bundle 'my_metric'"));
 }
 
 TEST_F(TraceSummaryTest, DuplicateDimensionsNoErrorIfNotUnique) {
@@ -240,7 +238,7 @@ TEST_F(TraceSummaryTest, GroupedBasic) {
     metric_spec {
       id: "metric_a"
       value: "value_a"
-      output_group_id: "group"
+      bundle_id: "group"
       query {
         sql {
           sql: "SELECT 1.0 as value_a, 2.0 as value_b"
@@ -252,7 +250,7 @@ TEST_F(TraceSummaryTest, GroupedBasic) {
     metric_spec {
       id: "metric_b"
       value: "value_b"
-      output_group_id: "group"
+      bundle_id: "group"
       query {
         sql {
           sql: "SELECT 1.0 as value_a, 2.0 as value_b"
@@ -261,15 +259,14 @@ TEST_F(TraceSummaryTest, GroupedBasic) {
         }
       }
     }
-  )",
-      TraceSummaryOutputSpec::TraceMetricV2Format::kGrouped);
+  )");
   ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
   EXPECT_THAT(*status_or_output, EqualsIgnoringWhitespace(R"(
-    metric_groups {
+    metric_bundles {
       specs {
         id: "metric_a"
         value: "value_a"
-        output_group_id: "group"
+        bundle_id: "group"
         query {
           sql {
             sql: "SELECT 1.0 as value_a, 2.0 as value_b"
@@ -281,7 +278,7 @@ TEST_F(TraceSummaryTest, GroupedBasic) {
       specs {
         id: "metric_b"
         value: "value_b"
-        output_group_id: "group"
+        bundle_id: "group"
         query {
           sql {
             sql: "SELECT 1.0 as value_a, 2.0 as value_b"
@@ -313,11 +310,10 @@ TEST_F(TraceSummaryTest, GroupedTemplateGroupingOrder) {
         }
       }
     }
-  )",
-      TraceSummaryOutputSpec::TraceMetricV2Format::kGrouped);
+  )");
   ASSERT_TRUE(status_or_output.ok());
   EXPECT_THAT(*status_or_output, EqualsIgnoringWhitespace(R"(
-    metric_groups {
+    metric_bundles {
       specs {
         id: "my_metric_value_a"
         value: "value_a"
@@ -328,7 +324,7 @@ TEST_F(TraceSummaryTest, GroupedTemplateGroupingOrder) {
             column_names: "value_b"
           }
         }
-        output_group_id: "my_metric"
+        bundle_id: "my_metric"
         dimension_uniqueness: DIMENSION_UNIQUENESS_UNSPECIFIED
       }
       specs {
@@ -341,7 +337,7 @@ TEST_F(TraceSummaryTest, GroupedTemplateGroupingOrder) {
             column_names: "value_b"
           }
         }
-        output_group_id: "my_metric"
+        bundle_id: "my_metric"
         dimension_uniqueness: DIMENSION_UNIQUENESS_UNSPECIFIED
       }
       row {
@@ -359,7 +355,7 @@ TEST_F(TraceSummaryTest, GroupedDifferentDimensionsError) {
       id: "metric_a"
       value: "value"
       dimensions: "dim_a"
-      output_group_id: "group"
+      bundle_id: "group"
       query {
         sql {
           sql: "SELECT 1.0 as value, 'a' as dim_a, 'b' as dim_b"
@@ -373,7 +369,7 @@ TEST_F(TraceSummaryTest, GroupedDifferentDimensionsError) {
       id: "metric_b"
       value: "value"
       dimensions: "dim_b"
-      output_group_id: "group"
+      bundle_id: "group"
       query {
         sql {
           sql: "SELECT 1.0 as value, 'a' as dim_a, 'b' as dim_b"
@@ -383,8 +379,7 @@ TEST_F(TraceSummaryTest, GroupedDifferentDimensionsError) {
         }
       }
     }
-  )",
-      TraceSummaryOutputSpec::TraceMetricV2Format::kGrouped);
+  )");
   ASSERT_FALSE(status_or_output.ok());
   EXPECT_THAT(status_or_output.status().message(),
               HasSubstr("has different dimensions than the first metric"));
@@ -396,35 +391,34 @@ TEST_F(TraceSummaryTest, GroupedMultipleGroups) {
     metric_spec {
       id: "metric_a"
       value: "value"
-      output_group_id: "group_a"
+      bundle_id: "group_a"
       query { sql { sql: "SELECT 1.0 as value" column_names: "value" } }
     }
     metric_spec {
       id: "metric_b"
       value: "value"
-      output_group_id: "group_b"
+      bundle_id: "group_b"
       query { sql { sql: "SELECT 2.0 as value" column_names: "value" } }
     }
-  )",
-      TraceSummaryOutputSpec::TraceMetricV2Format::kGrouped);
+  )");
   ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
   EXPECT_THAT(*status_or_output, HasSubstrIgnoringWhitespace(R"(
-    metric_groups {
+    metric_bundles {
       specs {
         id: "metric_a"
         value: "value"
-        output_group_id: "group_a"
+        bundle_id: "group_a"
         query { sql { sql: "SELECT 1.0 as value" column_names: "value" } }
       }
       row { values { double_value: 1.000000 } }
     }
   )"));
   EXPECT_THAT(*status_or_output, HasSubstrIgnoringWhitespace(R"(
-    metric_groups {
+    metric_bundles {
       specs {
         id: "metric_b"
         value: "value"
-        output_group_id: "group_b"
+        bundle_id: "group_b"
         query { sql { sql: "SELECT 2.0 as value" column_names: "value" } }
       }
       row { values { double_value: 2.000000 } }
@@ -439,7 +433,7 @@ TEST_F(TraceSummaryTest, GroupedNullValues) {
       id: "my_metric"
       value: "value"
       dimensions: "dim"
-      output_group_id: "group"
+      bundle_id: "group"
       query {
         sql {
           sql: "SELECT NULL as dim, NULL as value"
@@ -448,16 +442,15 @@ TEST_F(TraceSummaryTest, GroupedNullValues) {
         }
       }
     }
-  )",
-      TraceSummaryOutputSpec::TraceMetricV2Format::kGrouped);
+  )");
   ASSERT_TRUE(status_or_output.ok());
   EXPECT_THAT(*status_or_output, EqualsIgnoringWhitespace(R"(
-    metric_groups {
+    metric_bundles {
       specs {
         id: "my_metric"
         value: "value"
         dimensions: "dim"
-        output_group_id: "group"
+        bundle_id: "group"
         query {
           sql {
             sql: "SELECT NULL as dim, NULL as value"
@@ -480,7 +473,7 @@ TEST_F(TraceSummaryTest, GroupedMixedGrouping) {
     metric_spec {
       id: "metric_a"
       value: "value"
-      output_group_id: "group"
+      bundle_id: "group"
       query { sql { sql: "SELECT 1.0 as value" column_names: "value" } }
     }
     metric_spec {
@@ -488,22 +481,21 @@ TEST_F(TraceSummaryTest, GroupedMixedGrouping) {
       value: "value"
       query { sql { sql: "SELECT 2.0 as value" column_names: "value" } }
     }
-  )",
-      TraceSummaryOutputSpec::TraceMetricV2Format::kGrouped);
+  )");
   ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
   EXPECT_THAT(*status_or_output, HasSubstrIgnoringWhitespace(R"(
-    metric_groups {
+    metric_bundles {
       specs {
         id: "metric_a"
         value: "value"
-        output_group_id: "group"
+        bundle_id: "group"
         query { sql { sql: "SELECT 1.0 as value" column_names: "value" } }
       }
       row { values { double_value: 1.000000 } }
     }
   )"));
   EXPECT_THAT(*status_or_output, HasSubstrIgnoringWhitespace(R"(
-    metric_groups {
+    metric_bundles {
       specs {
         id: "metric_b"
         value: "value"
@@ -520,17 +512,16 @@ TEST_F(TraceSummaryTest, GroupedQueryMismatchError) {
     metric_spec {
       id: "metric_a"
       value: "value"
-      output_group_id: "group"
+      bundle_id: "group"
       query { sql { sql: "SELECT 1.0 as value" column_names: "value" } }
     }
     metric_spec {
       id: "metric_b"
       value: "value"
-      output_group_id: "group"
+      bundle_id: "group"
       query { sql { sql: "SELECT 2.0 as value" column_names: "value" } }
     }
-  )",
-      TraceSummaryOutputSpec::TraceMetricV2Format::kGrouped);
+  )");
   ASSERT_FALSE(status_or_output.ok());
   EXPECT_THAT(status_or_output.status().message(),
               HasSubstr("has different query than the first metric"));
@@ -542,47 +533,21 @@ TEST_F(TraceSummaryTest, GroupedDimensionUniquenessMismatchError) {
     metric_spec {
       id: "metric_a"
       value: "value"
-      output_group_id: "group"
+      bundle_id: "group"
       dimension_uniqueness: UNIQUE
       query { sql { sql: "SELECT 1.0 as value" column_names: "value" } }
     }
     metric_spec {
       id: "metric_b"
       value: "value"
-      output_group_id: "group"
+      bundle_id: "group"
       query { sql { sql: "SELECT 1.0 as value" column_names: "value" } }
     }
-  )",
-      TraceSummaryOutputSpec::TraceMetricV2Format::kGrouped);
+  )");
   ASSERT_FALSE(status_or_output.ok());
   EXPECT_THAT(
       status_or_output.status().message(),
       HasSubstr("has different dimension_uniqueness than the first metric"));
-}
-
-TEST_F(TraceSummaryTest, IndividualFormatIgnoresGroupId) {
-  base::StatusOr<std::string> status_or_output = RunSummarize(
-      R"(
-    metric_spec {
-      id: "metric_a"
-      value: "value"
-      output_group_id: "group"
-      query { sql { sql: "SELECT 1.0 as value" column_names: "value" } }
-    }
-  )",
-      TraceSummaryOutputSpec::TraceMetricV2Format::kIndividual);
-  ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
-  EXPECT_THAT(*status_or_output, EqualsIgnoringWhitespace(R"(
-    metric {
-      spec {
-        id: "metric_a"
-        value: "value"
-        output_group_id: "group"
-        query { sql { sql: "SELECT 1.0 as value" column_names: "value" } }
-      }
-      row { value: 1.000000 }
-    }
-  )"));
 }
 
 TEST_F(TraceSummaryTest, GroupedEmptyGroupId) {
@@ -591,18 +556,17 @@ TEST_F(TraceSummaryTest, GroupedEmptyGroupId) {
     metric_spec {
       id: "metric_a"
       value: "value"
-      output_group_id: ""
+      bundle_id: ""
       query { sql { sql: "SELECT 1.0 as value" column_names: "value" } }
     }
-  )",
-      TraceSummaryOutputSpec::TraceMetricV2Format::kGrouped);
+  )");
   ASSERT_TRUE(status_or_output.ok()) << status_or_output.status().message();
   EXPECT_THAT(*status_or_output, EqualsIgnoringWhitespace(R"(
-    metric_groups {
+    metric_bundles {
       specs {
         id: "metric_a"
         value: "value"
-        output_group_id: ""
+        bundle_id: ""
         query { sql { sql: "SELECT 1.0 as value" column_names: "value" } }
       }
       row { values { double_value: 1.000000 } }
@@ -611,13 +575,13 @@ TEST_F(TraceSummaryTest, GroupedEmptyGroupId) {
 }
 
 TEST_F(TraceSummaryTest, GroupedTemplateDisabledGrouping) {
-  base::StatusOr<std::string> status_or_output = RunSummarize(
-      R"(
+  ASSERT_OK_AND_ASSIGN(auto output, RunSummarize(
+                                        R"(
     metric_template_spec {
       id_prefix: "my_metric"
       value_columns: "value_a"
       value_columns: "value_b"
-      disable_output_grouping: true
+      disable_auto_bundling: true
       query {
         sql {
           sql: "SELECT 1.0 as value_a, 2.0 as value_b"
@@ -626,11 +590,9 @@ TEST_F(TraceSummaryTest, GroupedTemplateDisabledGrouping) {
         }
       }
     }
-  )",
-      TraceSummaryOutputSpec::TraceMetricV2Format::kGrouped);
-  ASSERT_TRUE(status_or_output.ok());
-  EXPECT_THAT(*status_or_output, HasSubstrIgnoringWhitespace(R"(
-    metric_groups {
+  )"));
+  EXPECT_THAT(output, HasSubstrIgnoringWhitespace(R"(
+    metric_bundles {
       specs {
         id: "my_metric_value_a"
         value: "value_a"
@@ -648,8 +610,8 @@ TEST_F(TraceSummaryTest, GroupedTemplateDisabledGrouping) {
       }
     }
   )"));
-  EXPECT_THAT(*status_or_output, HasSubstrIgnoringWhitespace(R"(
-    metric_groups {
+  EXPECT_THAT(output, HasSubstrIgnoringWhitespace(R"(
+    metric_bundles {
       specs {
         id: "my_metric_value_b"
         value: "value_b"

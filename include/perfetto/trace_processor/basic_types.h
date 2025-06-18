@@ -335,34 +335,6 @@ struct TraceSummaryOutputSpec {
     kTextProto,
   };
   Format format;
-
-  // An enum which defines how v2 metrics should be output in the TraceSummary
-  // proto.
-  //
-  // If `kIndividual`, each v2 metric will be output as an instance of the
-  // `TraceMetricV2` proto.
-  // If `kGrouped`, v2 metrics will be first grouped by their `group_id`
-  // field and then output as an instance of the `TraceMetricV2Group` proto.
-  //
-  // Note: kGrouped is an advanced feature and is not recommended for most
-  // users. It's recommended to stick with the default `kIndividual` format
-  // unless you have a specific use case that requires grouping of v2 metrics.
-  //
-  // See the documentation on the protos for more details on the how grouping
-  // works.
-  enum class TraceMetricV2Format : uint8_t {
-    // Indicates that v2 metrics should be output as individual
-    // `TraceMetricV2` protos.
-    //
-    // This is the default format.
-    kIndividual = 0,
-
-    // Indicates that v2 metrics should be output as
-    // `TraceMetricV2Group` protos, where each group contains all v2 metrics
-    // with the same `group_id`.
-    kGrouped = 1,
-  };
-  TraceMetricV2Format trace_metric_v2_format = TraceMetricV2Format::kIndividual;
 };
 
 // A struct wrapping the bytes of a `TraceSummarySpec` instance.

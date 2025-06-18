@@ -85,8 +85,8 @@ base::Status ExpandMetricTemplates(
           expanded->set_query()->AppendRawProtoBytes(tmpl.query().data,
                                                      tmpl.query().size);
         }
-        if (!tmpl.disable_output_grouping()) {
-          expanded->set_output_group_id(id_prefix);
+        if (!tmpl.disable_auto_bundling()) {
+          expanded->set_bundle_id(id_prefix);
         }
         expanded->set_dimension_uniqueness(
             static_cast<protos::pbzero::TraceMetricV2Spec::DimensionUniqueness>(
@@ -217,9 +217,9 @@ base::StatusOr<std::vector<DimensionWithIndex>> GetDimensionsWithIndex(
 
 base::Status WriteDimension(
     const DimensionWithIndex& dim_with_index,
-    const std::string& metric_or_group_name,
+    const std::string& metric_or_bundle_name,
     Iterator& it,
-    protos::pbzero::TraceMetricV2::MetricRow::Dimension* dimension,
+    protos::pbzero::TraceMetricV2Bundle::Row::Dimension* dimension,
     base::Hasher* hasher) {
   const auto& dimension_value = it.Get(dim_with_index.index);
   hasher->Update(dimension_value.type);
@@ -232,8 +232,9 @@ base::Status WriteDimension(
     case protos::pbzero::TraceMetricV2Spec::STRING: {
       if (dimension_value.type != SqlValue::kString) {
         return base::ErrStatus(
-            "Expected string for dimension '%s' in metric '%s', got %d",
-            dim_with_index.name.c_str(), metric_or_group_name.c_str(),
+            "Expected string for dimension '%s' in metric or bundle '%s', got "
+            "%d",
+            dim_with_index.name.c_str(), metric_or_bundle_name.c_str(),
             dimension_value.type);
       }
       const char* dimension_str = dimension_value.string_value;
@@ -244,8 +245,9 @@ base::Status WriteDimension(
     case protos::pbzero::TraceMetricV2Spec::INT64: {
       if (dimension_value.type != SqlValue::kLong) {
         return base::ErrStatus(
-            "Expected int64 for dimension '%s' in metric '%s', got %d",
-            dim_with_index.name.c_str(), metric_or_group_name.c_str(),
+            "Expected int64 for dimension '%s' in metric or bundle '%s', got "
+            "%d",
+            dim_with_index.name.c_str(), metric_or_bundle_name.c_str(),
             dimension_value.type);
       }
       int64_t dim_value = dimension_value.long_value;
@@ -256,8 +258,9 @@ base::Status WriteDimension(
     case protos::pbzero::TraceMetricV2Spec::DOUBLE: {
       if (dimension_value.type != SqlValue::kDouble) {
         return base::ErrStatus(
-            "Expected double for dimension '%s' in metric '%s', got %d",
-            dim_with_index.name.c_str(), metric_or_group_name.c_str(),
+            "Expected double for dimension '%s' in metric or bundle '%s', got "
+            "%d",
+            dim_with_index.name.c_str(), metric_or_bundle_name.c_str(),
             dimension_value.type);
       }
       double dim_value = dimension_value.AsDouble();
@@ -280,9 +283,9 @@ base::Status WriteDimension(
         dimension->set_string_value(dimension_str);
       } else if (dimension_value.type == SqlValue::kBytes) {
         return base::ErrStatus(
-            "Received bytes for dimension '%s' in metric '%s': this is not "
-            "supported",
-            dim_with_index.name.c_str(), metric_or_group_name.c_str());
+            "Received bytes for dimension '%s' in metric or bundle '%s': this "
+            "is not supported",
+            dim_with_index.name.c_str(), metric_or_bundle_name.c_str());
       } else {
         PERFETTO_FATAL("Null dimension should have been handled above");
       }
@@ -291,152 +294,72 @@ base::Status WriteDimension(
   return base::OkStatus();
 }
 
-base::Status CreateQueriesAndComputeIndividualMetrics(
-    TraceProcessor* processor,
-    const std::vector<Metric>& metrics,
-    protos::pbzero::TraceSummary* summary) {
-  for (const auto& m : metrics) {
-    const std::string& id = m.id;
-    if (m.query.empty()) {
-      return base::ErrStatus(
-          "Metric '%s' does not have a query: this is not allowed", id.c_str());
-    }
-    auto* metric = summary->add_metric();
-    metric->AppendBytes(protos::pbzero::TraceMetricV2::kSpecFieldNumber,
-                        m.spec.data, m.spec.size);
-
-    auto it = processor->ExecuteQuery(m.query);
-    uint32_t col_count = it.ColumnCount();
-
-    protos::pbzero::TraceMetricV2Spec::Decoder spec_decoder(m.spec);
-    bool is_unique_dimensions =
-        spec_decoder.dimension_uniqueness() ==
-        protos::pbzero::TraceMetricV2Spec::DimensionUniqueness::UNIQUE;
-
-    std::string metric_col_name = spec_decoder.value().ToStdString();
-    std::optional<uint32_t> metric_value_index;
-    for (uint32_t i = 0; i < col_count; ++i) {
-      if (it.GetColumnName(i) == metric_col_name) {
-        metric_value_index = i;
-        break;
-      }
-    }
-    if (!metric_value_index) {
-      return base::ErrStatus(
-          "Column '%s' not found in the query result for metric '%s'",
-          metric_col_name.c_str(), id.c_str());
-    }
-
-    ASSIGN_OR_RETURN(std::vector<DimensionWithIndex> dimensions_with_index,
-                     GetDimensionsWithIndex(spec_decoder, it));
-    base::FlatHashMap<uint64_t, bool> seen_dimensions;
-    while (it.Next()) {
-      PERFETTO_CHECK(col_count > 0);
-      const auto& metric_value_column = it.Get(*metric_value_index);
-      if (metric_value_column.is_null()) {
-        continue;
-      }
-      auto* row = metric->add_row();
-      switch (metric_value_column.type) {
-        case SqlValue::kLong:
-          row->set_value(static_cast<double>(metric_value_column.long_value));
-          break;
-        case SqlValue::kDouble:
-          row->set_value(metric_value_column.double_value);
-          break;
-        case SqlValue::kNull:
-          PERFETTO_FATAL("Null value should have been skipped");
-        case SqlValue::kString:
-          return base::ErrStatus(
-              "Received string for value column in metric '%s': this is not "
-              "supported",
-              id.c_str());
-        case SqlValue::kBytes:
-          return base::ErrStatus(
-              "Received bytes for metric value in metric '%s': this is not "
-              "supported",
-              id.c_str());
-      }
-      // Read dimensions.
-      base::Hasher hasher;
-      for (const auto& d : dimensions_with_index) {
-        RETURN_IF_ERROR(
-            WriteDimension(d, id, it, row->add_dimension(), &hasher));
-      }
-      uint64_t hash = hasher.digest();
-      if (is_unique_dimensions && !seen_dimensions.Insert(hash, true).second) {
-        return base::ErrStatus(
-            "Duplicate dimensions found for metric '%s': this is not allowed",
-            id.c_str());
-      }
-    }
-    RETURN_IF_ERROR(it.Status());
-  }
-  return base::OkStatus();
-}
-
-base::Status VerifyGroupHasConsistentSpecs(
-    const std::string& group_id,
+base::Status VerifyBundleHasConsistentSpecs(
+    const std::string& bundle_id,
     const std::vector<const Metric*>& metrics) {
   if (metrics.empty()) {
-    return base::ErrStatus("Empty metric group: this is not allowed");
+    return base::ErrStatus("Empty metric bundle %s: this is not allowed",
+                           bundle_id.c_str());
+  }
+  if (metrics.size() == 1) {
+    return base::OkStatus();
   }
   const Metric* first = metrics.front();
   protos::pbzero::TraceMetricV2Spec::Decoder first_spec(first->spec);
   ASSIGN_OR_RETURN(auto first_dims, GetDimensions(first_spec));
   for (const Metric* metric : metrics) {
     protos::pbzero::TraceMetricV2Spec::Decoder spec(metric->spec);
-    if (spec.output_group_id().ToStdStringView() !=
-        first_spec.output_group_id().ToStdStringView()) {
+    if (spec.bundle_id().ToStdStringView() !=
+        first_spec.bundle_id().ToStdStringView()) {
       return base::ErrStatus(
-          "Metric '%s' in group '%s' has different output_group_id than the "
+          "Metric '%s' in bundle '%s' has different bundle_id than the "
           "first metric '%s': this is not allowed",
-          metric->id.c_str(), group_id.c_str(), first->id.c_str());
+          metric->id.c_str(), bundle_id.c_str(), first->id.c_str());
     }
     if (spec.dimension_uniqueness() != first_spec.dimension_uniqueness()) {
       return base::ErrStatus(
-          "Metric '%s' in group '%s' has different dimension_uniqueness than "
+          "Metric '%s' in bundle '%s' has different dimension_uniqueness than "
           "the first metric '%s': this is not allowed",
-          metric->id.c_str(), group_id.c_str(), first->id.c_str());
+          metric->id.c_str(), bundle_id.c_str(), first->id.c_str());
     }
     ASSIGN_OR_RETURN(auto dims, GetDimensions(spec));
     if (dims != first_dims) {
       return base::ErrStatus(
-          "Metric '%s' in group '%s' has different dimensions than the first "
+          "Metric '%s' in bundle '%s' has different dimensions than the first "
           "metric '%s': this is not allowed",
-          metric->id.c_str(), group_id.c_str(), first->id.c_str());
+          metric->id.c_str(), bundle_id.c_str(), first->id.c_str());
     }
     if (first->query != metric->query) {
       return base::ErrStatus(
-          "Metric '%s' in group '%s' has different query than the first "
+          "Metric '%s' in bundle '%s' has different query than the first "
           "metric '%s': this is not allowed",
-          metric->id.c_str(), group_id.c_str(), first->id.c_str());
+          metric->id.c_str(), bundle_id.c_str(), first->id.c_str());
     }
   }
   return base::OkStatus();
 }
 
-base::Status CreateQueriesAndComputeGroupedMetrics(
+base::Status CreateQueriesAndComputeMetrics(
     TraceProcessor* processor,
     const std::vector<Metric>& metrics,
     protos::pbzero::TraceSummary* summary) {
-  base::FlatHashMap<std::string, std::vector<const Metric*>> metrics_by_group;
+  base::FlatHashMap<std::string, std::vector<const Metric*>> metrics_by_bundle;
   for (const Metric& m : metrics) {
     protos::pbzero::TraceMetricV2Spec::Decoder spec_decoder(m.spec);
-    std::string group_id = spec_decoder.output_group_id().ToStdString();
-    if (group_id.empty()) {
-      group_id = m.id;
+    std::string bundle_id = spec_decoder.bundle_id().ToStdString();
+    if (bundle_id.empty()) {
+      bundle_id = m.id;
     }
-    metrics_by_group[group_id].push_back(&m);
+    metrics_by_bundle[bundle_id].push_back(&m);
   }
-  for (auto it = metrics_by_group.GetIterator(); it; ++it) {
-    RETURN_IF_ERROR(VerifyGroupHasConsistentSpecs(it.key(), it.value()));
+  for (auto it = metrics_by_bundle.GetIterator(); it; ++it) {
+    RETURN_IF_ERROR(VerifyBundleHasConsistentSpecs(it.key(), it.value()));
 
-    const std::string& group_id = it.key();
-    auto* group = summary->add_metric_groups();
+    const std::string& bundle_id = it.key();
+    auto* bundle = summary->add_metric_bundles();
     for (const Metric* metric : it.value()) {
-      group->add_specs()->AppendRawProtoBytes(metric->spec.data,
-                                              metric->spec.size);
+      bundle->add_specs()->AppendRawProtoBytes(metric->spec.data,
+                                               metric->spec.size);
     }
 
     const Metric* first = it.value().front();
@@ -469,18 +392,18 @@ base::Status CreateQueriesAndComputeGroupedMetrics(
         protos::pbzero::TraceMetricV2Spec::DimensionUniqueness::UNIQUE;
     base::FlatHashMap<uint64_t, bool> seen_dimensions;
     while (query_it.Next()) {
-      auto* row = group->add_row();
+      auto* row = bundle->add_row();
       base::Hasher hasher;
       for (const auto& dim : dimensions_with_index) {
-        RETURN_IF_ERROR(WriteDimension(dim, group_id, query_it,
+        RETURN_IF_ERROR(WriteDimension(dim, bundle_id, query_it,
                                        row->add_dimension(), &hasher));
       }
       uint64_t hash = hasher.digest();
       if (is_unique_dimensions && !seen_dimensions.Insert(hash, true).second) {
         return base::ErrStatus(
-            "Duplicate dimensions found for metric group '%s': this is not "
+            "Duplicate dimensions found for metric bundle '%s': this is not "
             "allowed",
-            group_id.c_str());
+            bundle_id.c_str());
       }
       for (size_t i = 0; i < it.value().size(); ++i) {
         const auto& metric_value_column = query_it.Get(value_indices[i]);
@@ -531,16 +454,8 @@ base::Status CreateQueriesAndComputeMetrics(
     }
   }
   protozero::HeapBuffered<protos::pbzero::TraceSummary> summary;
-  switch (output_spec.trace_metric_v2_format) {
-    case TraceSummaryOutputSpec::TraceMetricV2Format::kIndividual:
-      RETURN_IF_ERROR(CreateQueriesAndComputeIndividualMetrics(
-          processor, metrics, summary.get()));
-      break;
-    case TraceSummaryOutputSpec::TraceMetricV2Format::kGrouped:
-      RETURN_IF_ERROR(CreateQueriesAndComputeGroupedMetrics(processor, metrics,
-                                                            summary.get()));
-      break;
-  }
+  RETURN_IF_ERROR(
+      CreateQueriesAndComputeMetrics(processor, metrics, summary.get()));
   if (metadata_sql) {
     RETURN_IF_ERROR(WriteMetadata(processor, *metadata_sql, summary.get()));
   }
