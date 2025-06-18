@@ -59,11 +59,13 @@ TRACK_TABLE = Table(
             "utid",
             CppOptional(CppTableId(THREAD_TABLE)),
             cpp_access=CppAccess.READ,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
         ),
         C(
             "upid",
             CppOptional(CppTableId(PROCESS_TABLE)),
             cpp_access=CppAccess.READ,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
         ),
     ])
 
