@@ -24,30 +24,13 @@ import {
   CPUSS_ESTIMATE_TRACK_KIND,
   GPUSS_ESTIMATE_TRACK_KIND,
 } from './track_kinds';
-import {Track} from '../../public/track';
 
 export class WattsonEstimateSelectionAggregator
   implements AreaSelectionAggregator
 {
   readonly id = 'wattson_plugin_estimate_aggregation';
 
-  appliesTo(tracks: ReadonlyArray<Track>) {
-    const estimateTracks: string[] = [];
-    for (const trackInfo of tracks) {
-      if (
-        (trackInfo?.tags?.kind === CPUSS_ESTIMATE_TRACK_KIND ||
-          trackInfo?.tags?.kind === GPUSS_ESTIMATE_TRACK_KIND) &&
-        exists(trackInfo.tags?.wattson)
-      ) {
-        estimateTracks.push(`${trackInfo.tags.wattson}`);
-      }
-    }
-    return estimateTracks.length > 0;
-  }
-
-  async createAggregateView(engine: Engine, area: AreaSelection) {
-    await engine.query(`drop view if exists ${this.id};`);
-
+  probe(area: AreaSelection) {
     const estimateTracks: string[] = [];
     for (const trackInfo of area.tracks) {
       if (
@@ -58,15 +41,18 @@ export class WattsonEstimateSelectionAggregator
         estimateTracks.push(`${trackInfo.tags.wattson}`);
       }
     }
-    if (estimateTracks.length === 0) return false;
+    if (estimateTracks.length === 0) return undefined;
 
-    const query = this.getEstimateTracksQuery(area, estimateTracks);
-    engine.query(query);
-
-    return true;
+    return {
+      prepareData: async (engine: Engine) => {
+        await engine.query(`drop view if exists ${this.id};`);
+        const query = this.getEstimateTracksQuery(area, estimateTracks);
+        engine.query(query);
+      },
+    };
   }
 
-  getEstimateTracksQuery(
+  private getEstimateTracksQuery(
     area: Area,
     estimateTracks: ReadonlyArray<string>,
   ): string {

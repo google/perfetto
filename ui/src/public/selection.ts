@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {duration, time, TimeSpan} from '../base/time';
-import {Dataset, DatasetSchema} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
 import {ColumnDef, Sorting, BarChartData} from './aggregation';
 import {Track} from './track';
@@ -135,6 +134,24 @@ export interface SelectionManager {
   registerAreaSelectionTab(tab: AreaSelectionTab): void;
 }
 
+export interface Aggregation {
+  /**
+   * Creates a view for the aggregated data corresponding to the selected area.
+   *
+   * The dataset provided will be filtered based on the `trackKind` and `schema`
+   * if these properties are defined.
+   *
+   * @param engine - The query engine used to execute queries.
+   * @param area - The currently selected area to aggregate.
+   * @param dataset - The dataset representing a union of the data in the
+   * selected tracks sliced by the intersection of the area assuming datasets
+   * have a `dur` column. If no tracks have a dataset, this will be undefined.
+   */
+  prepareData(engine: Engine): Promise<void>;
+
+  getBarChartData?(engine: Engine): Promise<BarChartData[] | undefined>;
+}
+
 /**
  * Aggregator tabs are displayed in descending order of specificity, determined
  * by the following precedence hierarchy:
@@ -149,47 +166,12 @@ export interface AreaSelectionAggregator {
   readonly id: string;
 
   /**
-   * If defined, the dataset passed to `createAggregateView` will only contain
-   * tracks with a matching `kind` tag.
-   */
-  readonly trackKind?: string;
-
-  /**
-   * If defined, the dataset passed to `createAggregateView` will only contain
-   * tracks that export datasets that implement this schema.
-   */
-  readonly schema?: DatasetSchema;
-
-  /**
    * Returns true if this aggregation applies to the current selection.
    * This should be supplied if trackKind or schema is not.
    *
    * @param tracks
    */
-  appliesTo?(tracks: ReadonlyArray<Track>): boolean;
-
-  /**
-   * Creates a view for the aggregated data corresponding to the selected area.
-   *
-   * The dataset provided will be filtered based on the `trackKind` and `schema`
-   * if these properties are defined.
-   *
-   * @param engine - The query engine used to execute queries.
-   * @param area - The currently selected area to aggregate.
-   * @param dataset - The dataset representing a union of the data in the
-   * selected tracks sliced by the intersection of the area assuming datasets
-   * have a `dur` column. If no tracks have a dataset, this will be undefined.
-   */
-  createAggregateView(
-    engine: Engine,
-    area: AreaSelection,
-    dataset?: Dataset,
-  ): Promise<boolean>;
-  getBarChartData?(
-    engine: Engine,
-    area: AreaSelection,
-    dataset?: Dataset,
-  ): Promise<BarChartData[] | undefined>;
+  probe(area: AreaSelection): Aggregation | undefined;
   getTabName(): string;
   getDefaultSorting(): Sorting;
   getColumnDefinitions(): ColumnDef[];

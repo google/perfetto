@@ -13,12 +13,15 @@
 // limitations under the License.
 
 import {ColumnDef, Sorting} from '../../public/aggregation';
-import {AreaSelection} from '../../public/selection';
+import {Aggregation, AreaSelection} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {AreaSelectionAggregator} from '../../public/selection';
-import {Dataset} from '../../trace_processor/dataset';
 import {LONG, NUM} from '../../trace_processor/query_result';
+import {
+  ii,
+  selectTracksAndGetDataset,
+} from '../../components/aggregation_adapter';
 
 export class CpuSliceByProcessSelectionAggregator
   implements AreaSelectionAggregator
@@ -26,32 +29,39 @@ export class CpuSliceByProcessSelectionAggregator
   readonly id = 'cpu_by_process_aggregation';
   readonly trackKind = CPU_SLICE_TRACK_KIND;
   readonly schema = {
+    id: NUM,
     dur: LONG,
     ts: LONG,
     utid: NUM,
   } as const;
 
-  async createAggregateView(
-    engine: Engine,
-    _area: AreaSelection,
-    dataset?: Dataset,
-  ) {
-    if (!dataset) return false;
+  probe(area: AreaSelection): Aggregation | undefined {
+    const dataset = selectTracksAndGetDataset(
+      area.tracks,
+      this.schema,
+      this.trackKind,
+    );
 
-    await engine.query(`
-      create or replace perfetto table ${this.id} as
-      select
-        process.name as process_name,
-        process.pid,
-        sum(dur) AS total_dur,
-        sum(dur) / count() as avg_dur,
-        count() as occurrences
-      from (${dataset.query()})
-      join thread USING (utid)
-      join process USING (upid)
-      group by upid
-    `);
-    return true;
+    if (!dataset) return undefined;
+
+    return {
+      prepareData: async (engine: Engine) => {
+        const iiDataset = await ii(engine, this.id, dataset, area);
+        await engine.query(`
+          create or replace perfetto table ${this.id} as
+          select
+            process.name as process_name,
+            process.pid,
+            sum(dur) AS total_dur,
+            sum(dur) / count() as avg_dur,
+            count() as occurrences
+          from (${iiDataset.query()})
+          join thread USING (utid)
+          join process USING (upid)
+          group by upid
+        `);
+      },
+    };
   }
 
   getTabName() {

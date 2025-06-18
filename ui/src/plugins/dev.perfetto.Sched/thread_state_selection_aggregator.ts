@@ -13,82 +13,87 @@
 // limitations under the License.
 
 import {ColumnDef, Sorting, BarChartData} from '../../public/aggregation';
-import {AreaSelection} from '../../public/selection';
+import {Aggregation, AreaSelection} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
 import {AreaSelectionAggregator} from '../../public/selection';
-import {Dataset} from '../../trace_processor/dataset';
 import {colorForThreadState} from './common';
+import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
+import {
+  ii,
+  selectTracksAndGetDataset,
+} from '../../components/aggregation_adapter';
 
 export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'thread_state_aggregation';
+  private barChartData: BarChartData[] = [];
 
-  readonly schema = {
-    dur: LONG,
-    state: STR,
-    utid: NUM,
-  } as const;
+  probe(area: AreaSelection): Aggregation | undefined {
+    const dataset = selectTracksAndGetDataset(
+      area.tracks,
+      {id: NUM, ts: LONG, dur: LONG, state: STR, utid: NUM},
+      THREAD_STATE_TRACK_KIND,
+    );
 
-  async createAggregateView(
-    engine: Engine,
-    _area: AreaSelection,
-    dataset?: Dataset,
-  ) {
-    if (dataset === undefined) return false;
+    // If we couldn't pick out a dataset, we have nothing to show for this
+    // selection so just return undefined to indicate that no tab should be
+    // displayed.
+    if (!dataset) return undefined;
 
-    await engine.query(`
-      create or replace perfetto table ${this.id} as
-      select
-        process.name as process_name,
-        process.pid,
-        thread.name as thread_name,
-        thread.tid,
-        tstate.state as state,
-        sum(tstate.dur) AS total_dur,
-        sum(tstate.dur) / count() as avg_dur,
-        count() as occurrences
-      from (${dataset.query()}) tstate
-      join thread using (utid)
-      left join process using (upid)
-      group by utid, state
-    `);
+    return {
+      prepareData: async (engine: Engine) => {
+        const iiDataset = await ii(engine, this.id, dataset, area);
 
-    return true;
-  }
+        await engine.query(`
+          create or replace perfetto table ${this.id} as
+          select
+            process.name as process_name,
+            process.pid,
+            thread.name as thread_name,
+            thread.tid,
+            tstate.state as state,
+            sum(tstate.dur) AS total_dur,
+            sum(tstate.dur) / count() as avg_dur,
+            count() as occurrences
+          from (${iiDataset.query()}) tstate
+          join thread using (utid)
+          left join process using (upid)
+          group by utid, state
+        `);
 
-  async getBarChartData(
-    engine: Engine,
-    _area: AreaSelection,
-    dataset?: Dataset,
-  ): Promise<BarChartData[] | undefined> {
-    if (dataset === undefined) return undefined;
+        const query = `
+          select
+            tstate.state as state,
+            sum(dur) as totalDur
+          from (${iiDataset.query()}) tstate
+          join thread using (utid)
+          group by tstate.state
+        `;
+        const result = await engine.query(query);
 
-    const query = `
-      select
-        tstate.state as state,
-        sum(dur) as totalDur
-      from (${dataset.query()}) tstate
-      join thread using (utid)
-      group by tstate.state
-    `;
-    const result = await engine.query(query);
+        const it = result.iter({
+          state: STR_NULL,
+          totalDur: NUM,
+        });
 
-    const it = result.iter({
-      state: STR_NULL,
-      totalDur: NUM,
-    });
+        const states: BarChartData[] = [];
+        for (let i = 0; it.valid(); ++i, it.next()) {
+          const name = it.state ?? 'Unknown';
+          const ms = it.totalDur / 1000000;
+          states.push({
+            name,
+            timeInStateMs: ms,
+            color: colorForThreadState(name),
+          });
+        }
 
-    const states: BarChartData[] = [];
-    for (let i = 0; it.valid(); ++i, it.next()) {
-      const name = it.state ?? 'Unknown';
-      const ms = it.totalDur / 1000000;
-      states.push({
-        name,
-        timeInStateMs: ms,
-        color: colorForThreadState(name),
-      });
-    }
-    return states;
+        this.barChartData = states;
+      },
+
+      getBarChartData: async () => {
+        return this.barChartData;
+      },
+    };
   }
 
   getColumnDefinitions(): ColumnDef[] {

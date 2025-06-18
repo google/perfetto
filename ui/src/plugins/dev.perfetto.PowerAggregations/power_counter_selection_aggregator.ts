@@ -14,12 +14,11 @@
 
 import {Duration} from '../../base/time';
 import {ColumnDef, Sorting} from '../../public/aggregation';
-import {AreaSelection} from '../../public/selection';
+import {Aggregation, AreaSelection} from '../../public/selection';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
 import {AreaSelectionAggregator} from '../../public/selection';
 import {LONG, NUM} from '../../trace_processor/query_result';
-import {Track} from '../../public/track';
 
 export class PowerCounterSelectionAggregator
   implements AreaSelectionAggregator
@@ -35,20 +34,7 @@ export class PowerCounterSelectionAggregator
     value: NUM,
   };
 
-  appliesTo(tracks: ReadonlyArray<Track>) {
-    const trackIds: (string | number)[] = [];
-    for (const trackInfo of tracks) {
-      if (
-        trackInfo?.tags?.kind === COUNTER_TRACK_KIND &&
-        trackInfo?.tags?.type === 'power_rails'
-      ) {
-        trackInfo.tags?.trackIds && trackIds.push(...trackInfo.tags.trackIds);
-      }
-    }
-    return trackIds.length > 0;
-  }
-
-  async createAggregateView(engine: Engine, area: AreaSelection) {
+  probe(area: AreaSelection): Aggregation | undefined {
     const trackIds: (string | number)[] = [];
     for (const trackInfo of area.tracks) {
       if (
@@ -58,31 +44,36 @@ export class PowerCounterSelectionAggregator
         trackInfo.tags?.trackIds && trackIds.push(...trackInfo.tags.trackIds);
       }
     }
-    if (trackIds.length === 0) return false;
-    const duration = area.end - area.start;
-    const durationSec = Duration.toSeconds(duration);
+    if (trackIds.length === 0) return undefined;
 
-    const query = `CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
-      WITH  aggregated AS (
-        SELECT track_id,
-          COUNT(1) AS count,
-          value_at_max_ts(-ts, value) AS first,
-          value_at_max_ts(ts, value) AS last
-        FROM counter
-        WHERE counter.track_id in (${trackIds})
-          AND ts BETWEEN ${area.start} AND ${area.end}
-        GROUP BY track_id
-      )
-      SELECT
-        name,
-        count,
-        last - first AS delta_value,
-        ROUND((last - first)/${durationSec}, 2) AS rate
-      FROM aggregated JOIN counter_track ON
-        track_id = counter_track.id
-      GROUP BY track_id`;
-    await engine.query(query);
-    return true;
+    return {
+      prepareData: async (engine: Engine) => {
+        const duration = area.end - area.start;
+        const durationSec = Duration.toSeconds(duration);
+
+        const query = `CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
+          WITH  aggregated AS (
+            SELECT track_id,
+              COUNT(1) AS count,
+              value_at_max_ts(-ts, value) AS first,
+              value_at_max_ts(ts, value) AS last
+            FROM counter
+            WHERE counter.track_id in (${trackIds})
+              AND ts BETWEEN ${area.start} AND ${area.end}
+            GROUP BY track_id
+          )
+          SELECT
+            name,
+            count,
+            last - first AS delta_value,
+            ROUND((last - first)/${durationSec}, 2) AS rate
+          FROM aggregated JOIN counter_track ON
+            track_id = counter_track.id
+          GROUP BY track_id
+        `;
+        await engine.query(query);
+      },
+    };
   }
 
   getColumnDefinitions(): ColumnDef[] {

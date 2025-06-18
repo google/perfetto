@@ -14,7 +14,7 @@
 
 import {Duration} from '../../base/time';
 import {ColumnDef, Sorting} from '../../public/aggregation';
-import {AreaSelection} from '../../public/selection';
+import {Aggregation, AreaSelection} from '../../public/selection';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
 import {AreaSelectionAggregator} from '../../public/selection';
@@ -32,98 +32,104 @@ export class CounterSelectionAggregator implements AreaSelectionAggregator {
     value: NUM,
   };
 
-  async createAggregateView(engine: Engine, area: AreaSelection) {
+  probe(area: AreaSelection): Aggregation | undefined {
     const trackIds: (string | number)[] = [];
     for (const trackInfo of area.tracks) {
       if (trackInfo?.tags?.kind === COUNTER_TRACK_KIND) {
         trackInfo.tags?.trackIds && trackIds.push(...trackInfo.tags.trackIds);
       }
     }
-    if (trackIds.length === 0) return false;
-    const duration = area.end - area.start;
-    const durationSec = Duration.toSeconds(duration);
+    if (trackIds.length === 0) return undefined;
 
-    await engine.query(`include perfetto module counters.intervals`);
+    return {
+      prepareData: async (engine: Engine) => {
+        const duration = area.end - area.start;
+        const durationSec = Duration.toSeconds(duration);
 
-    // TODO(lalitm): Rewrite this query in a way that is both simpler and faster
-    let query;
-    if (trackIds.length === 1) {
-      // Optimized query for the special case where there is only 1 track id.
-      query = `CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
-      WITH
-        res AS (
-          select c.*
-          from counter_leading_intervals!((
-            SELECT counter.*
-            FROM counter
-            WHERE counter.track_id = ${trackIds[0]}
-              AND counter.ts <= ${area.end}
-          )) c
-          WHERE c.ts + c.dur >= ${area.start}
-        ),
-        aggregated AS (
-          SELECT
-            COUNT(1) AS count,
-            ROUND(SUM(
-              (MIN(ts + dur, ${area.end}) - MAX(ts,${area.start}))*value)/${duration},
-              2
-            ) AS avg_value,
-            value_at_max_ts(ts, value) AS last_value,
-            value_at_max_ts(-ts, value) AS first_value,
-            MIN(value) AS min_value,
-            MAX(value) AS max_value
-          FROM res
-        )
-      SELECT
-        (SELECT name FROM counter_track WHERE id = ${trackIds[0]}) AS name,
-        *,
-        MAX(last_value) - MIN(first_value) AS delta_value,
-        ROUND((MAX(last_value) - MIN(first_value))/${durationSec}, 2) AS rate
-      FROM aggregated`;
-    } else {
-      // Slower, but general purspose query that can aggregate multiple tracks
-      query = `CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
-      WITH
-        res AS (
-          select c.*
-          from counter_leading_intervals!((
-            SELECT counter.*
-            FROM counter
-            WHERE counter.track_id in (${trackIds})
-              AND counter.ts <= ${area.end}
-          )) c
-          where c.ts + c.dur >= ${area.start}
-        ),
-        aggregated AS (
-          SELECT track_id,
-            COUNT(1) AS count,
-            ROUND(SUM(
-              (MIN(ts + dur, ${area.end}) - MAX(ts,${area.start}))*value)/${duration},
-              2
-            ) AS avg_value,
-            value_at_max_ts(-ts, value) AS first,
-            value_at_max_ts(ts, value) AS last,
-            MIN(value) AS min_value,
-            MAX(value) AS max_value
-          FROM res
-          GROUP BY track_id
-        )
-      SELECT
-        name,
-        count,
-        avg_value,
-        last AS last_value,
-        first AS first_value,
-        last - first AS delta_value,
-        ROUND((last - first)/${durationSec}, 2) AS rate,
-        min_value,
-        max_value
-      FROM aggregated JOIN counter_track ON
-        track_id = counter_track.id
-      GROUP BY track_id`;
-    }
-    await engine.query(query);
-    return true;
+        await engine.query(`include perfetto module counters.intervals`);
+
+        // TODO(lalitm): Rewrite this query in a way that is both simpler and faster
+        let query;
+        if (trackIds.length === 1) {
+          // Optimized query for the special case where there is only 1 track id.
+          query = `
+            CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
+            WITH
+              res AS (
+                select c.*
+                from counter_leading_intervals!((
+                  SELECT counter.*
+                  FROM counter
+                  WHERE counter.track_id = ${trackIds[0]}
+                    AND counter.ts <= ${area.end}
+                )) c
+                WHERE c.ts + c.dur >= ${area.start}
+              ),
+              aggregated AS (
+                SELECT
+                  COUNT(1) AS count,
+                  ROUND(SUM(
+                    (MIN(ts + dur, ${area.end}) - MAX(ts,${area.start}))*value)/${duration},
+                    2
+                  ) AS avg_value,
+                  value_at_max_ts(ts, value) AS last_value,
+                  value_at_max_ts(-ts, value) AS first_value,
+                  MIN(value) AS min_value,
+                  MAX(value) AS max_value
+                FROM res
+              )
+            SELECT
+              (SELECT name FROM counter_track WHERE id = ${trackIds[0]}) AS name,
+              *,
+              MAX(last_value) - MIN(first_value) AS delta_value,
+              ROUND((MAX(last_value) - MIN(first_value))/${durationSec}, 2) AS rate
+            FROM aggregated`;
+        } else {
+          // Slower, but general purspose query that can aggregate multiple tracks
+          query = `
+            CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
+            WITH
+              res AS (
+                select c.*
+                from counter_leading_intervals!((
+                  SELECT counter.*
+                  FROM counter
+                  WHERE counter.track_id in (${trackIds})
+                    AND counter.ts <= ${area.end}
+                )) c
+                where c.ts + c.dur >= ${area.start}
+              ),
+              aggregated AS (
+                SELECT track_id,
+                  COUNT(1) AS count,
+                  ROUND(SUM(
+                    (MIN(ts + dur, ${area.end}) - MAX(ts,${area.start}))*value)/${duration},
+                    2
+                  ) AS avg_value,
+                  value_at_max_ts(-ts, value) AS first,
+                  value_at_max_ts(ts, value) AS last,
+                  MIN(value) AS min_value,
+                  MAX(value) AS max_value
+                FROM res
+                GROUP BY track_id
+              )
+            SELECT
+              name,
+              count,
+              avg_value,
+              last AS last_value,
+              first AS first_value,
+              last - first AS delta_value,
+              ROUND((last - first)/${durationSec}, 2) AS rate,
+              min_value,
+              max_value
+            FROM aggregated JOIN counter_track ON
+              track_id = counter_track.id
+            GROUP BY track_id`;
+        }
+        await engine.query(query);
+      },
+    };
   }
 
   getColumnDefinitions(): ColumnDef[] {

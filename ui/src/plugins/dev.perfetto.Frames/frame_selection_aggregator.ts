@@ -13,42 +13,52 @@
 // limitations under the License.
 
 import {ColumnDef, Sorting} from '../../public/aggregation';
-import {AreaSelection} from '../../public/selection';
+import {Aggregation, AreaSelection} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
 import {AreaSelectionAggregator} from '../../public/selection';
-import {LONG, STR} from '../../trace_processor/query_result';
-import {Dataset} from '../../trace_processor/dataset';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {
+  ii,
+  selectTracksAndGetDataset,
+} from '../../components/aggregation_adapter';
 
 export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
 
 export class FrameSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'frame_aggregation';
   readonly schema = {
+    id: NUM,
     ts: LONG,
     dur: LONG,
     jank_type: STR,
   } as const;
   readonly trackKind = ACTUAL_FRAMES_SLICE_TRACK_KIND;
 
-  async createAggregateView(
-    engine: Engine,
-    _area: AreaSelection,
-    dataset?: Dataset,
-  ) {
-    if (!dataset) return false;
+  probe(area: AreaSelection): Aggregation | undefined {
+    const dataset = selectTracksAndGetDataset(
+      area.tracks,
+      this.schema,
+      this.trackKind,
+    );
 
-    await engine.query(`
-      create or replace perfetto table ${this.id} as
-      select
-        jank_type,
-        count(1) as occurrences,
-        min(dur) as minDur,
-        avg(dur) as meanDur,
-        max(dur) as maxDur
-      from (${dataset.query()})
-      group by jank_type
-    `);
-    return true;
+    if (!dataset) return undefined;
+
+    return {
+      prepareData: async (engine: Engine) => {
+        const iiDataset = await ii(engine, this.id, dataset, area);
+        await engine.query(`
+          create or replace perfetto table ${this.id} as
+          select
+            jank_type,
+            count(1) as occurrences,
+            min(dur) as minDur,
+            avg(dur) as meanDur,
+            max(dur) as maxDur
+          from (${iiDataset.query()})
+          group by jank_type
+        `);
+      },
+    };
   }
 
   getTabName() {
