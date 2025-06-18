@@ -25,19 +25,17 @@ import {
 
 export class CpuSliceSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'cpu_aggregation';
-  readonly trackKind = CPU_SLICE_TRACK_KIND;
-  readonly schema = {
-    id: NUM,
-    dur: LONG,
-    ts: LONG,
-    utid: NUM,
-  } as const;
 
   probe(area: AreaSelection): Aggregation | undefined {
     const dataset = selectTracksAndGetDataset(
       area.tracks,
-      this.schema,
-      this.trackKind,
+      {
+        id: NUM,
+        dur: LONG,
+        ts: LONG,
+        utid: NUM,
+      },
+      CPU_SLICE_TRACK_KIND,
     );
 
     if (!dataset) return undefined;

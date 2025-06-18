@@ -30,7 +30,13 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
   probe(area: AreaSelection): Aggregation | undefined {
     const dataset = selectTracksAndGetDataset(
       area.tracks,
-      {id: NUM, ts: LONG, dur: LONG, state: STR, utid: NUM},
+      {
+        id: NUM,
+        ts: LONG,
+        dur: LONG,
+        state: STR,
+        utid: NUM,
+      },
       THREAD_STATE_TRACK_KIND,
     );
 

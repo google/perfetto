@@ -26,19 +26,17 @@ export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
 
 export class FrameSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'frame_aggregation';
-  readonly schema = {
-    id: NUM,
-    ts: LONG,
-    dur: LONG,
-    jank_type: STR,
-  } as const;
-  readonly trackKind = ACTUAL_FRAMES_SLICE_TRACK_KIND;
 
   probe(area: AreaSelection): Aggregation | undefined {
     const dataset = selectTracksAndGetDataset(
       area.tracks,
-      this.schema,
-      this.trackKind,
+      {
+        id: NUM,
+        ts: LONG,
+        dur: LONG,
+        jank_type: STR,
+      },
+      ACTUAL_FRAMES_SLICE_TRACK_KIND,
     );
 
     if (!dataset) return undefined;
