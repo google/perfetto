@@ -17,7 +17,7 @@
 #include "src/trace_processor/importers/etm/frame_decoder.h"
 
 #include "perfetto/base/status.h"
-#include "src/trace_processor/util/status_macros.h"
+#include "perfetto/ext/base/status_macros.h"
 
 namespace perfetto::trace_processor::etm {
 

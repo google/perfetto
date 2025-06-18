@@ -2173,14 +2173,14 @@ TEST_P(PerfettoApiTest, TrackEventCustomNamedTrack) {
   TRACE_EVENT_BEGIN("bar", "SubEvent",
                     perfetto::NamedTrack("MyCustomTrack", async_id),
                     [](perfetto::EventContext) {});
-  const auto main_thread_track = perfetto::NamedTrack(
-      "MyCustomTrack", async_id, perfetto::ThreadTrack::Current());
+  const auto main_thread_track =
+      perfetto::NamedTrack::ThreadScoped("MyCustomTrack", async_id);
   std::thread thread([&] {
     TRACE_EVENT_END("bar", perfetto::NamedTrack("MyCustomTrack", async_id));
     TRACE_EVENT_END("bar", perfetto::NamedTrack("MyCustomTrack", async_id),
                     "arg1", false, "arg2", true);
-    const auto thread_track = perfetto::NamedTrack(
-        "MyCustomTrack", async_id, perfetto::ThreadTrack::Current());
+    const auto thread_track =
+        perfetto::NamedTrack::ThreadScoped("MyCustomTrack", async_id);
     // Thread-scoped tracks will have different uuids on different thread even
     // if the id matches.
     ASSERT_NE(main_thread_track.uuid, thread_track.uuid);

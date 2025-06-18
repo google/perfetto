@@ -26,6 +26,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/field.h"
@@ -37,7 +38,6 @@
 #include "src/trace_processor/trace_summary/trace_summary.descriptor.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/protozero_to_text.h"
-#include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/trace_summary/file.pbzero.h"
 #include "protos/perfetto/trace_summary/v2_metric.pbzero.h"
@@ -52,6 +52,47 @@ struct Metric {
 };
 
 using perfetto_sql::generator::StructuredQueryGenerator;
+
+base::Status ExpandMetricTemplates(
+    const std::vector<protos::pbzero::TraceSummarySpec::Decoder>& spec_decoders,
+    std::vector<std::vector<uint8_t>>& synthetic_protos) {
+  protozero::HeapBuffered<protos::pbzero::TraceMetricV2Spec> expanded;
+  for (const auto& spec : spec_decoders) {
+    for (auto it = spec.metric_template_spec(); it; ++it) {
+      protos::pbzero::TraceMetricV2TemplateSpec::Decoder tmpl(*it);
+      std::string id_prefix = tmpl.id_prefix().ToStdString();
+      if (id_prefix.empty()) {
+        return base::ErrStatus(
+            "Metric template with empty id_prefix field: this is not allowed");
+      }
+      for (auto vc_it = tmpl.value_columns(); vc_it; ++vc_it) {
+        expanded.Reset();
+
+        protozero::ConstChars value_column = *vc_it;
+        expanded->set_id(id_prefix + "_" + value_column.ToStdString());
+        expanded->set_value(value_column);
+        for (auto dim = tmpl.dimensions(); dim; ++dim) {
+          protozero::ConstChars dim_str = *dim;
+          expanded->add_dimensions(dim_str.data, dim_str.size);
+        }
+        for (auto dim = tmpl.dimensions_specs(); dim; ++dim) {
+          protozero::ConstBytes dim_spec = *dim;
+          expanded->add_dimensions_specs()->AppendRawProtoBytes(dim_spec.data,
+                                                                dim_spec.size);
+        }
+        if (tmpl.has_query()) {
+          expanded->set_query()->AppendRawProtoBytes(tmpl.query().data,
+                                                     tmpl.query().size);
+        }
+        expanded->set_dimension_uniqueness(
+            static_cast<protos::pbzero::TraceMetricV2Spec::DimensionUniqueness>(
+                tmpl.dimension_uniqueness()));
+        synthetic_protos.push_back(expanded.SerializeAsArray());
+      }
+    }
+  }
+  return base::OkStatus();
+}
 
 base::Status WriteMetadata(TraceProcessor* processor,
                            const std::string& metadata_sql,
@@ -383,6 +424,12 @@ base::Status Summarize(TraceProcessor* processor,
     for (auto it = spec.metric_spec(); it; ++it) {
       metric_decoders.emplace_back(*it);
     }
+  }
+
+  std::vector<std::vector<uint8_t>> expanded_metrics;
+  RETURN_IF_ERROR(ExpandMetricTemplates(spec_decoders, expanded_metrics));
+  for (const auto& expanded : expanded_metrics) {
+    metric_decoders.emplace_back(expanded.data(), expanded.size());
   }
 
   // If `v2_metric_ids` is an empty vector, we will not compute any metrics.

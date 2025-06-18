@@ -72,6 +72,7 @@ export default class implements PerfettoPlugin {
           ct.name,
           ct.id,
           ct.unit,
+          ct.machine_id as machine,
           extract_arg(ct.dimension_arg_set_id, 'utid') as utid,
           extract_arg(ct.dimension_arg_set_id, 'upid') as upid
         from counter_track ct
@@ -108,6 +109,7 @@ export default class implements PerfettoPlugin {
       pid: NUM_NULL,
       isMainThread: NUM,
       isKernelThread: NUM,
+      machine: NUM_NULL,
     });
     for (; it.valid(); it.next()) {
       const {
@@ -123,6 +125,7 @@ export default class implements PerfettoPlugin {
         pid,
         isMainThread,
         isKernelThread,
+        machine,
       } = it;
       const schema = schemas.get(type);
       if (schema === undefined) {
@@ -139,6 +142,7 @@ export default class implements PerfettoPlugin {
         utid,
         kind: COUNTER_TRACK_KIND,
         threadTrack: utid !== undefined,
+        machine,
       });
       const uri = `/counter_${trackId}`;
       ctx.tracks.registerTrack({

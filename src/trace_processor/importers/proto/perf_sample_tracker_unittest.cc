@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -33,7 +34,6 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/status_macros.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/perf_events.gen.h"
