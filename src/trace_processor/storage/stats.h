@@ -442,19 +442,19 @@ namespace perfetto::trace_processor::stats {
       "in some arguments missing. You may need a newer version of trace "      \
       "processor to parse them."),                                             \
   F(winscope_protolog_invalid_interpolation_parse_errors,                      \
-                                          kSingle,  kError,    kAnalysis,      \
+                                          kSingle,  kInfo,     kAnalysis,      \
       "ProtoLog message string has invalid interplation parameter."),          \
   F(winscope_protolog_missing_interned_arg_parse_errors,                       \
-                                          kSingle,  kError,    kAnalysis,      \
+                                          kSingle,  kInfo,     kAnalysis,      \
       "Failed to find interned ProtoLog argument."),                           \
   F(winscope_protolog_missing_interned_stacktrace_parse_errors,                \
-                                          kSingle,  kError,    kAnalysis,      \
+                                          kSingle,  kInfo,     kAnalysis,      \
       "Failed to find interned ProtoLog stacktrace."),                         \
   F(winscope_protolog_message_decoding_failed,                                 \
-                                          kSingle,  kError,    kAnalysis,      \
+                                          kSingle,  kInfo,     kAnalysis,      \
       "Failed to decode ProtoLog message."),                                   \
   F(winscope_protolog_view_config_collision,                                   \
-                                          kSingle,  kError,    kAnalysis,      \
+                                          kSingle,  kInfo,     kAnalysis,      \
       "Got a viewer config collision!"),                                       \
   F(winscope_viewcapture_parse_errors,                                         \
                                           kSingle,  kError,    kAnalysis,      \

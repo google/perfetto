@@ -26,6 +26,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/field.h"
@@ -37,7 +38,6 @@
 #include "src/trace_processor/trace_summary/trace_summary.descriptor.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/protozero_to_text.h"
-#include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/trace_summary/file.pbzero.h"
 #include "protos/perfetto/trace_summary/v2_metric.pbzero.h"

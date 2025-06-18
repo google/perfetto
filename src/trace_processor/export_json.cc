@@ -40,6 +40,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -57,7 +58,6 @@
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/status_macros.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 #include <json/config.h>

@@ -26,7 +26,6 @@ source_set("generator") {
     "../../../base",
     "../../../protozero",
     "../../sqlite",
-    "../../util",
     "../tokenizer",
   ]
 }
