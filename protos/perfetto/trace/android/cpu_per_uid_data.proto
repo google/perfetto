@@ -32,5 +32,10 @@ message CpuPerUidData {
   // Ordered like:
   // [{UID 0, cluster 0}, {UID 0, cluster 1}, {UID 0, cluster 2},
   //  {UID 1, cluster 0}, {UID 1, cluster 1}, {UID 1, cluster 2}, ...]
+  //
+  // Each value is an absolute count for the first packet in a sequence, and a
+  // delta thereafter. UIDs for which all clusters have a zero delta are
+  // omitted; a single non-zero value for any cluster for a UID will cause
+  // values for all clusters to be recorded.
   repeated uint64 total_time_ms = 3 [packed = true];
 }

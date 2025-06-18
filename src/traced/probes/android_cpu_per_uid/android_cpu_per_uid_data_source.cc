@@ -107,10 +107,11 @@ AndroidCpuPerUidDataSource::~AndroidCpuPerUidDataSource() = default;
 
 void AndroidCpuPerUidDataSource::Start() {
   lib_.reset(new DynamicLibLoader());
-  if (!lib_->EnsureCpuTimesAvailable()) {
+  if (lib_->EnsureCpuTimesAvailable()) {
+    Tick();
+  } else {
     PERFETTO_ELOG("Could not enable CPU per UID data source");
   }
-  Tick();
 }
 
 void AndroidCpuPerUidDataSource::Tick() {
