@@ -42,8 +42,8 @@ export class WattsonThreadSelectionAggregator
         const duration = area.end - area.start;
         const cpusCsv = `(` + selectedCpus.join() + `)`;
         engine.query(`
-          INCLUDE PERFETTO MODULE wattson.cpu.idle_attribution;
           INCLUDE PERFETTO MODULE wattson.tasks.attribution;
+          INCLUDE PERFETTO MODULE wattson.tasks.idle_transitions_attribution;
           INCLUDE PERFETTO MODULE wattson.ui.continuous_estimates;
 
           CREATE OR REPLACE PERFETTO TABLE wattson_plugin_ui_selection_window AS
