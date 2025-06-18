@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 import {duration, time, TimeSpan} from '../base/time';
-import {Dataset, DatasetSchema} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
 import {ColumnDef, Sorting, BarChartData} from './aggregation';
 import {Track} from './track';
@@ -135,31 +134,12 @@ export interface SelectionManager {
   registerAreaSelectionTab(tab: AreaSelectionTab): void;
 }
 
-/**
- * Aggregator tabs are displayed in descending order of specificity, determined
- * by the following precedence hierarchy:
- * 1. Aggregators explicitly defining a `trackKind` string take priority over
- *    those that do not.
- * 2. Otherwise, aggregators with schemas containing a greater number of keys
- *    (higher specificity) are prioritized over those with fewer keys.
- * 3. In cases of identical specificity, tabs are ranked based on their
- *    registration order.
- */
-export interface AreaSelectionAggregator {
-  readonly id: string;
+export interface AggregationData {
+  readonly tableName: string;
+  readonly barChartData?: ReadonlyArray<BarChartData>;
+}
 
-  /**
-   * If defined, the dataset passed to `createAggregateView` will only contain
-   * tracks with a matching `kind` tag.
-   */
-  readonly trackKind?: string;
-
-  /**
-   * If defined, the dataset passed to `createAggregateView` will only contain
-   * tracks that export datasets that implement this schema.
-   */
-  readonly schema?: DatasetSchema;
-
+export interface Aggregation {
   /**
    * Creates a view for the aggregated data corresponding to the selected area.
    *
@@ -167,21 +147,27 @@ export interface AreaSelectionAggregator {
    * if these properties are defined.
    *
    * @param engine - The query engine used to execute queries.
-   * @param area - The currently selected area to aggregate.
-   * @param dataset - The dataset representing a union of the data in the
-   * selected tracks sliced by the intersection of the area assuming datasets
-   * have a `dur` column. If no tracks have a dataset, this will be undefined.
    */
-  createAggregateView(
-    engine: Engine,
-    area: AreaSelection,
-    dataset?: Dataset,
-  ): Promise<boolean>;
-  getBarChartData?(
-    engine: Engine,
-    area: AreaSelection,
-    dataset?: Dataset,
-  ): Promise<BarChartData[] | undefined>;
+  prepareData(engine: Engine): Promise<AggregationData>;
+}
+
+export interface AreaSelectionAggregator {
+  readonly id: string;
+
+  /**
+   * This function is called every time the area selection changes. The purpose
+   * of this function is to test whether this aggregator applies to the given
+   * area selection. If it does, it returns an aggregation object which gives
+   * further instructions on how to prepare the aggregation data.
+   *
+   * Aggregators are arranged this way because often the computation required to
+   * work out whether this aggregation applies is the same as the computation
+   * required to actually do the aggregation, so doing it like this means the
+   * prepareData() function returned can capture intermediate state avoiding
+   * having to do it again or awkwardly cache it somewhere in the aggregators
+   * local state.
+   */
+  probe(area: AreaSelection): Aggregation | undefined;
   getTabName(): string;
   getDefaultSorting(): Sorting;
   getColumnDefinitions(): ColumnDef[];
