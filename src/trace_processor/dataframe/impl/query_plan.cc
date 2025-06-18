@@ -964,18 +964,23 @@ PERFETTO_NO_INLINE bytecode::Bytecode& QueryPlanBuilder::AddRawOpcode(
     case base::variant_index<RowCountModifier, UnchangedRowCount>():
       break;
     case base::variant_index<RowCountModifier, NonEqualityFilterRowCount>():
-      plan_.params.estimated_row_count =
-          std::min(std::max(1u, plan_.params.estimated_row_count / 2),
-                   plan_.params.estimated_row_count);
+      if (plan_.params.estimated_row_count > 1) {
+        plan_.params.estimated_row_count = plan_.params.estimated_row_count / 2;
+      } else {
+        // Leave the estimated row count as is if it is already 1 or less.
+      }
       break;
     case base::variant_index<RowCountModifier, EqualityFilterRowCount>(): {
       const auto& eq = base::unchecked_get<EqualityFilterRowCount>(rc);
       if (eq.duplicate_state.Is<HasDuplicates>()) {
-        double new_count = plan_.params.estimated_row_count /
-                           (2 * log2(plan_.params.estimated_row_count));
-        plan_.params.estimated_row_count =
-            std::min(std::max(1u, static_cast<uint32_t>(new_count)),
-                     plan_.params.estimated_row_count);
+        if (plan_.params.estimated_row_count > 1) {
+          double new_count = plan_.params.estimated_row_count /
+                             (2 * log2(plan_.params.estimated_row_count));
+          plan_.params.estimated_row_count =
+              std::max(1u, static_cast<uint32_t>(new_count));
+        } else {
+          // Leave the estimated row count as is if it is already 1 or less.
+        }
       } else {
         PERFETTO_CHECK(eq.duplicate_state.Is<NoDuplicates>());
         plan_.params.estimated_row_count =
