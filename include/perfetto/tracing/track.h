@@ -232,7 +232,7 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
   }
 
   template <class TrackEventName>
-  static NamedTrack Global(TrackEventName name, uint64_t id = 0) {
+  static NamedTrack Global(TrackEventName&& name, uint64_t id = 0) {
     return NamedTrack(std::forward<TrackEventName>(name), id, Track());
   }
 
