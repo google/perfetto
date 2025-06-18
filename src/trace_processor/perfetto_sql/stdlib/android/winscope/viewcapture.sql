@@ -27,3 +27,18 @@ SELECT
   ts,
   arg_set_id
 FROM __intrinsic_viewcapture;
+
+-- Android viewcapture view (from android.viewcapture data source).
+CREATE PERFETTO VIEW android_viewcapture_view (
+  -- Row id
+  id LONG,
+  -- Snapshot id
+  snapshot_id LONG,
+  -- Extra args parsed from the proto message
+  arg_set_id ARGSETID
+) AS
+SELECT
+  id,
+  snapshot_id,
+  arg_set_id
+FROM __intrinsic_viewcapture_view;

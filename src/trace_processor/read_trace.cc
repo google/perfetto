@@ -23,6 +23,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
@@ -31,7 +32,6 @@
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/read_trace_internal.h"
 #include "src/trace_processor/util/gzip_utils.h"
-#include "src/trace_processor/util/status_macros.h"
 #include "src/trace_processor/util/trace_type.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"

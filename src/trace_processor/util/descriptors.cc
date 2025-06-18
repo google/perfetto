@@ -25,6 +25,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
@@ -33,7 +34,6 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor {
 namespace {

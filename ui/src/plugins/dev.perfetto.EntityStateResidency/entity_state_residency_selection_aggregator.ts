@@ -18,23 +18,13 @@ import {AreaSelection} from '../../public/selection';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
 import {AreaSelectionAggregator} from '../../public/selection';
-import {LONG, NUM} from '../../trace_processor/query_result';
 
 export class EntityStateResidencySelectionAggregator
   implements AreaSelectionAggregator
 {
   readonly id = 'entity_state_residency_aggregation';
 
-  // This just describes which counters we match, we don't actually use the
-  // resulting datasets, but it's a useful too to show what we actually match.
-  readonly trackKind = COUNTER_TRACK_KIND;
-  readonly schema = {
-    id: NUM,
-    ts: LONG,
-    value: NUM,
-  };
-
-  async createAggregateView(engine: Engine, area: AreaSelection) {
+  probe(area: AreaSelection) {
     const trackIds: (string | number)[] = [];
     for (const trackInfo of area.tracks) {
       if (
@@ -44,35 +34,48 @@ export class EntityStateResidencySelectionAggregator
         trackInfo.tags?.trackIds && trackIds.push(...trackInfo.tags.trackIds);
       }
     }
-    if (trackIds.length === 0) return false;
-    const duration = area.end - area.start;
-    const durationSec = Duration.toSeconds(duration);
 
-    const query = `INCLUDE PERFETTO MODULE android.entity_state_residency;
-      CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
-        WITH aggregated AS (
-          SELECT
-            track_id,
-            entity_name,
-            state_name,
-            COUNT(state_time_since_boot) AS count,
-            value_at_max_ts(-ts, state_time_since_boot) AS first,
-            value_at_max_ts(ts, state_time_since_boot) AS last
-          FROM android_entity_state_residency
-          WHERE track_id in (${trackIds})
-            AND ts BETWEEN ${area.start} AND ${area.end}
-          GROUP BY track_id, entity_name, state_name
-        )
-        SELECT
-          entity_name,
-          state_name,
-          count,
-          (last - first) / 1e6 AS delta_value,
-          ROUND((last - first)/(${durationSec} * 1e9) * 100, 2) AS rate_percent
-        FROM aggregated
-        GROUP BY track_id, entity_name, state_name`;
-    await engine.query(query);
-    return true;
+    if (trackIds.length === 0) {
+      return undefined;
+    }
+
+    return {
+      prepareData: async (engine: Engine) => {
+        const duration = area.end - area.start;
+        const durationSec = Duration.toSeconds(duration);
+
+        const query = `
+          INCLUDE PERFETTO MODULE android.entity_state_residency;
+          CREATE OR REPLACE PERFETTO TABLE ${this.id} AS
+            WITH aggregated AS (
+              SELECT
+                track_id,
+                entity_name,
+                state_name,
+                COUNT(state_time_since_boot) AS count,
+                value_at_max_ts(-ts, state_time_since_boot) AS first,
+                value_at_max_ts(ts, state_time_since_boot) AS last
+              FROM android_entity_state_residency
+              WHERE track_id in (${trackIds})
+                AND ts BETWEEN ${area.start} AND ${area.end}
+              GROUP BY track_id, entity_name, state_name
+            )
+            SELECT
+              entity_name,
+              state_name,
+              count,
+              (last - first) / 1e6 AS delta_value,
+              ROUND((last - first)/(${durationSec} * 1e9) * 100, 2) AS rate_percent
+            FROM aggregated
+            GROUP BY track_id, entity_name, state_name
+        `;
+        await engine.query(query);
+
+        return {
+          tableName: this.id,
+        };
+      },
+    };
   }
 
   getColumnDefinitions(): ColumnDef[] {

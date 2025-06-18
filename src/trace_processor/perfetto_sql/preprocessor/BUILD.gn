@@ -26,7 +26,6 @@ source_set("preprocessor") {
     "../../../../gn:default_deps",
     "../../../base",
     "../../sqlite",
-    "../../util",
     "../tokenizer",
   ]
 }

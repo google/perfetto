@@ -51,7 +51,6 @@ source_set("sqlite") {
     "../perfetto_sql/intrinsics/table_functions:interface",
     "../storage",
     "../types",
-    "../util",
     "../util:profile_builder",
     "../util:regex",
   ]

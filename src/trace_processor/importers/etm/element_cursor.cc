@@ -22,6 +22,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "src/trace_processor/importers/etm/etm_v4_decoder.h"
 #include "src/trace_processor/importers/etm/mapping_version.h"
 #include "src/trace_processor/importers/etm/sql_values.h"
@@ -30,7 +31,6 @@
 #include "src/trace_processor/importers/etm/target_memory_reader.h"
 #include "src/trace_processor/importers/etm/types.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::etm {
 

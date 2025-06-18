@@ -244,12 +244,24 @@ async function addWattsonCpuElements(ctx: Trace, group: TrackNode) {
       new WattsonProcessSelectionAggregator(),
     ),
   );
-  ctx.selection.registerAreaSelectionTab(
-    createWattsonAggregationToTabAdaptor(
-      ctx,
-      new WattsonPackageSelectionAggregator(),
-    ),
-  );
+
+  if (await isProcessMetadataPresent(ctx.engine)) {
+    ctx.selection.registerAreaSelectionTab(
+      createWattsonAggregationToTabAdaptor(
+        ctx,
+        new WattsonPackageSelectionAggregator(),
+      ),
+    );
+  }
+}
+
+async function isProcessMetadataPresent(engine: Engine) {
+  const packageInfo = await engine.query(`
+    INCLUDE PERFETTO MODULE android.process_metadata;
+    SELECT COUNT(*) as count FROM android_process_metadata
+    WHERE package_name IS NOT NULL
+  `);
+  return packageInfo.firstRow({count: NUM}).count > 0;
 }
 
 async function addWattsonGpuElements(ctx: Trace, group: TrackNode) {

@@ -49,6 +49,7 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
+#include "perfetto/ext/base/status_macros.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
@@ -58,7 +59,6 @@
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor {
 

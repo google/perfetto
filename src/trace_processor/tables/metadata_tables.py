@@ -130,7 +130,10 @@ PROCESS_TABLE = Table(
     sql_name='__intrinsic_process',
     columns=[
         C('upid', Alias(underlying_column='id')),
-        C('pid', CppInt64(), cpp_access=CppAccess.READ),
+        C('pid',
+          CppInt64(),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
         C(
             'name',
             CppOptional(CppString()),
@@ -262,12 +265,16 @@ THREAD_TABLE = Table(
     sql_name='__intrinsic_thread',
     columns=[
         C('utid', Alias(underlying_column='id')),
-        C('tid', CppInt64(), cpp_access=CppAccess.READ),
+        C('tid',
+          CppInt64(),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
         C(
             'name',
             CppOptional(CppString()),
             sql_access=SqlAccess.HIGH_PERF,
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'start_ts',
@@ -286,6 +293,7 @@ THREAD_TABLE = Table(
             CppOptional(CppTableId(PROCESS_TABLE)),
             sql_access=SqlAccess.HIGH_PERF,
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'is_main_thread',
@@ -369,6 +377,7 @@ CPU_TABLE = Table(
             CppOptional(CppUint32()),
             sql_access=SqlAccess.HIGH_PERF,
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'cluster_id',
@@ -427,10 +436,31 @@ CHROME_RAW_TABLE = Table(
     class_name='ChromeRawTable',
     sql_name='__intrinsic_chrome_raw',
     columns=[
-        C('ts', CppInt64(), flags=ColumnFlag.SORTED, cpp_access=CppAccess.READ),
-        C('name', CppString(), cpp_access=CppAccess.READ),
-        C('utid', CppTableId(THREAD_TABLE), cpp_access=CppAccess.READ),
-        C('arg_set_id', CppUint32(), cpp_access=CppAccess.READ),
+        C(
+            'ts',
+            CppInt64(),
+            flags=ColumnFlag.SORTED,
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'name',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'utid',
+            CppTableId(THREAD_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'arg_set_id',
+            CppUint32(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ])
 
 FTRACE_EVENT_TABLE = Table(
@@ -438,14 +468,21 @@ FTRACE_EVENT_TABLE = Table(
     class_name='FtraceEventTable',
     sql_name='__intrinsic_ftrace_event',
     columns=[
-        C('ts', CppInt64(), flags=ColumnFlag.SORTED, cpp_access=CppAccess.READ),
+        C('ts',
+          CppInt64(),
+          flags=ColumnFlag.SORTED,
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
         C(
             'name',
             CppString(),
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
-        C('utid', CppTableId(THREAD_TABLE), cpp_access=CppAccess.READ),
+        C('utid',
+          CppTableId(THREAD_TABLE),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
         C(
             'arg_set_id',
             CppUint32(),
@@ -453,7 +490,10 @@ FTRACE_EVENT_TABLE = Table(
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C('common_flags', CppUint32()),
-        C('ucpu', CppTableId(CPU_TABLE), cpp_access=CppAccess.READ),
+        C('ucpu',
+          CppTableId(CPU_TABLE),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
     ],
     wrapping_sql_view=WrappingSqlView('ftrace_event'),
     tabledoc=TableDoc(
@@ -551,19 +591,26 @@ METADATA_TABLE = Table(
     class_name='MetadataTable',
     sql_name='metadata',
     columns=[
-        C('name', CppString(), cpp_access=CppAccess.READ),
+        C(
+            'name',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C('key_type', CppString()),
         C(
             'int_value',
             CppOptional(CppInt64()),
             sql_access=SqlAccess.HIGH_PERF,
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'str_value',
             CppOptional(CppString()),
             sql_access=SqlAccess.HIGH_PERF,
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
     ],
     tabledoc=TableDoc(
@@ -651,10 +698,23 @@ CLOCK_SNAPSHOT_TABLE = Table(
     class_name='ClockSnapshotTable',
     sql_name='clock_snapshot',
     columns=[
-        C('ts', CppInt64(), cpp_access=CppAccess.READ),
-        C('clock_id', CppInt64(), cpp_access=CppAccess.READ),
+        C(
+            'ts',
+            CppInt64(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'clock_id',
+            CppInt64(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C('clock_name', CppOptional(CppString())),
-        C('clock_value', CppInt64(), cpp_access=CppAccess.READ),
+        C('clock_value',
+          CppInt64(),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
         C('snapshot_id', CppUint32()),
         C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
     ],

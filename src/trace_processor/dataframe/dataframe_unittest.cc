@@ -1627,4 +1627,39 @@ TEST(DataframeTest,
   EXPECT_EQ(plan.GetImplForTesting().params.estimated_row_count, 1u);
   EXPECT_EQ(plan.GetImplForTesting().params.max_row_count, 1u);
 }
+
+TEST(DataframeTest, SortedFilterWithDuplicatesAndRowCountOfOne) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"sorted_col"},
+      CreateTypedColumnSpec(Int64(), NonNull(), Sorted{}, HasDuplicates{}));
+
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+
+  df.InsertUnchecked(kSpec, int64_t{10});
+  df.InsertUnchecked(kSpec, int64_t{20});
+  df.InsertUnchecked(kSpec, int64_t{20});
+  df.Finalize();
+
+  std::vector<FilterSpec> filters = {{0, 0, Eq{}, int64_t{20}}};
+  ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
+                       df.PlanQuery(filters, {}, {}, {}, 1u));
+  EXPECT_EQ(plan.GetImplForTesting().params.estimated_row_count, 1u);
+}
+
+TEST(DataframeTest, SortedFilterWithDuplicatesAndRowCountOfZero) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"sorted_col"},
+      CreateTypedColumnSpec(Int64(), NonNull(), Sorted{}, HasDuplicates{}));
+
+  StringPool pool;
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &pool);
+  df.Finalize();
+
+  std::vector<FilterSpec> filters = {{0, 0, Eq{}, int64_t{20}}};
+  ASSERT_OK_AND_ASSIGN(Dataframe::QueryPlan plan,
+                       df.PlanQuery(filters, {}, {}, {}, 1u));
+  EXPECT_EQ(plan.GetImplForTesting().params.estimated_row_count, 0u);
+}
+
 }  // namespace perfetto::trace_processor::dataframe

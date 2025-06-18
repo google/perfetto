@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_UTIL_STATUS_MACROS_H_
-#define SRC_TRACE_PROCESSOR_UTIL_STATUS_MACROS_H_
+#ifndef INCLUDE_PERFETTO_EXT_BASE_STATUS_MACROS_H_
+#define INCLUDE_PERFETTO_EXT_BASE_STATUS_MACROS_H_
 
-#include "perfetto/trace_processor/status.h"
+#include "perfetto/base/status.h"
 
 // Evaluates |expr|, which should return a base::Status. If the status is an
 // error status, returns the status from the current function.
@@ -40,4 +40,4 @@
       PERFETTO_INTERNAL_MACRO_CONCAT(status_or, __LINE__).status()); \
   lhs = std::move(PERFETTO_INTERNAL_MACRO_CONCAT(status_or, __LINE__).value())
 
-#endif  // SRC_TRACE_PROCESSOR_UTIL_STATUS_MACROS_H_
+#endif  // INCLUDE_PERFETTO_EXT_BASE_STATUS_MACROS_H_

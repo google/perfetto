@@ -149,8 +149,11 @@ export class Time {
     return a - b;
   }
 
+  // Similar to Time.diff(), but you put the cardinality of the arguments are
+  // swapped.
+  // E.g: durationBetween(start, end);
   static durationBetween(a: time, b: time): duration {
-    return a >= b ? a - b : b - a;
+    return b - a;
   }
 
   static min(a: time, b: time): time {

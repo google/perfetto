@@ -29,6 +29,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/field.h"
@@ -36,7 +37,6 @@
 #include "protos/perfetto/perfetto_sql/structured_query.pbzero.h"
 #include "src/trace_processor/perfetto_sql/tokenizer/sqlite_tokenizer.h"
 #include "src/trace_processor/sqlite/sql_source.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::perfetto_sql::generator {
 

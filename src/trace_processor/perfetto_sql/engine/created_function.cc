@@ -21,6 +21,7 @@
 #include <stack>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
@@ -28,7 +29,6 @@
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
 namespace trace_processor {

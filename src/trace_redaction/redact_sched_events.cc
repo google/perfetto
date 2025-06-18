@@ -16,8 +16,8 @@
 
 #include "src/trace_redaction/redact_sched_events.h"
 
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "src/trace_processor/util/status_macros.h"
 #include "src/trace_redaction/proto_util.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"

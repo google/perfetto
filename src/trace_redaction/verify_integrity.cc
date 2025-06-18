@@ -17,7 +17,7 @@
 
 #include "src/trace_redaction/verify_integrity.h"
 
-#include "src/trace_processor/util/status_macros.h"
+#include "perfetto/ext/base/status_macros.h"
 
 #include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"

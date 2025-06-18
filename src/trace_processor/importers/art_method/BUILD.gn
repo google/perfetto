@@ -39,7 +39,6 @@ source_set("art_method") {
     "../../sorter",
     "../../storage",
     "../../types",
-    "../../util",
     "../../util:trace_blob_view_reader",
   ]
 }

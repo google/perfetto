@@ -41,6 +41,7 @@ source_set("base") {
     "scoped_mmap.h",
     "small_set.h",
     "small_vector.h",
+    "status_macros.h",
     "status_or.h",
     "string_splitter.h",
     "string_utils.h",

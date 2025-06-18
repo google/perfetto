@@ -26,6 +26,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/string_writer.h"
@@ -60,7 +61,6 @@
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/debug_annotation_parser.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
-#include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/common/android_log_constants.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"

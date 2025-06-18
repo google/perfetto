@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -48,7 +49,6 @@
 #include "src/trace_processor/trace_reader_registry.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
-#include "src/trace_processor/util/status_macros.h"
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {

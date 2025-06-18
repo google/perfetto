@@ -32,8 +32,8 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/util/gzip_utils.h"
 
+#include "perfetto/ext/base/status_macros.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
-#include "src/trace_processor/util/status_macros.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
 namespace perfetto::trace_processor {

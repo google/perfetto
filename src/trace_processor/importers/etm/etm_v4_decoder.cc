@@ -21,11 +21,11 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/importers/etm/mapping_version.h"
 #include "src/trace_processor/importers/etm/opencsd.h"
 #include "src/trace_processor/importers/etm/target_memory_reader.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::etm {
 namespace {

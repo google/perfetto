@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 #include "src/bigtrace/worker/repository_policies/local_trace_processor_loader.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/trace_processor/read_trace.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::bigtrace {
 

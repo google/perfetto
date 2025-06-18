@@ -83,7 +83,6 @@ source_set("functions") {
     "../../../storage",
     "../../../tables",
     "../../../types",
-    "../../../util",
     "../../../util:profile_builder",
     "../../../util:regex",
     "../../../util:sql_argument",

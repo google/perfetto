@@ -25,6 +25,7 @@
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/importers/etm/etm_tracker.h"
 #include "src/trace_processor/importers/etm/etm_v4_stream.h"
@@ -37,7 +38,6 @@
 #include "src/trace_processor/importers/perf/reader.h"
 #include "src/trace_processor/importers/perf/util.h"
 #include "src/trace_processor/tables/etm_tables_py.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::etm {
 namespace {

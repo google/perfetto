@@ -13,9 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.cpu.idle_attribution;
 INCLUDE PERFETTO MODULE wattson.estimates;
 INCLUDE PERFETTO MODULE wattson.tasks.attribution;
+INCLUDE PERFETTO MODULE wattson.tasks.idle_transitions_attribution;
 INCLUDE PERFETTO MODULE wattson.utils;
 
 -- Take only the Wattson estimations that are in the window of interest

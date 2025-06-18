@@ -60,10 +60,11 @@ class ViewCapture(TestSuite):
     return DiffTestBlueprint(
         trace=Path('viewcapture.textproto'),
         query="""
+        INCLUDE PERFETTO MODULE android.winscope.viewcapture;
         SELECT
           id, snapshot_id
         FROM
-          __intrinsic_viewcapture_view;
+          android_viewcapture_view;
         """,
         out=Csv("""
         "id","snapshot_id"
@@ -77,10 +78,11 @@ class ViewCapture(TestSuite):
     return DiffTestBlueprint(
         trace=Path('viewcapture.textproto'),
         query="""
+        INCLUDE PERFETTO MODULE android.winscope.viewcapture;
         SELECT
           args.key, args.display_value
         FROM
-          __intrinsic_viewcapture_view AS vc JOIN args ON vc.arg_set_id = args.arg_set_id
+          android_viewcapture_view AS vc JOIN args ON vc.arg_set_id = args.arg_set_id
           WHERE vc.snapshot_id = 1
         ORDER BY args.arg_set_id, args.key
         LIMIT 10;
@@ -103,10 +105,11 @@ class ViewCapture(TestSuite):
     return DiffTestBlueprint(
         trace=Path('viewcapture.textproto'),
         query="""
+        INCLUDE PERFETTO MODULE android.winscope.viewcapture;
         SELECT
           args.key, args.display_value
         FROM
-          __intrinsic_viewcapture_view AS vc JOIN args ON vc.arg_set_id = args.arg_set_id
+          android_viewcapture_view AS vc JOIN args ON vc.arg_set_id = args.arg_set_id
         WHERE args.key = 'class_name'
         ORDER BY display_value;
         """,

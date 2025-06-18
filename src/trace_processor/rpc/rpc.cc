@@ -29,6 +29,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/ext/trace_processor/rpc/query_result_serializer.h"
@@ -39,7 +40,6 @@
 #include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/tp_metatrace.h"
-#include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"

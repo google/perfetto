@@ -12,41 +12,51 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {
+  ii,
+  selectTracksAndGetDataset,
+} from '../../components/aggregation_adapter';
 import {ColumnDef, Sorting} from '../../public/aggregation';
-import {AreaSelection, AreaSelectionAggregator} from '../../public/selection';
-import {Dataset} from '../../trace_processor/dataset';
+import {
+  Aggregation,
+  AreaSelection,
+  AreaSelectionAggregator,
+} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
 
 export class SliceSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'slice_aggregation';
 
-  readonly schema = {
-    id: NUM,
-    name: STR_NULL,
-    ts: LONG,
-    dur: LONG,
-  } as const;
+  probe(area: AreaSelection): Aggregation | undefined {
+    const dataset = selectTracksAndGetDataset(area.tracks, {
+      id: NUM,
+      name: STR_NULL,
+      ts: LONG,
+      dur: LONG,
+    });
 
-  async createAggregateView(
-    engine: Engine,
-    _area: AreaSelection,
-    dataset?: Dataset,
-  ) {
-    if (!dataset) return false;
+    if (!dataset) return undefined;
 
-    await engine.query(`
-      create or replace perfetto table ${this.id} as
-      select
-        name,
-        sum(dur) AS total_dur,
-        sum(dur)/count() as avg_dur,
-        count() as occurrences
-      from (${dataset.query()})
-      group by name
-    `);
+    return {
+      prepareData: async (engine: Engine) => {
+        const iiDataset = await ii(engine, this.id, dataset, area);
+        await engine.query(`
+          create or replace perfetto table ${this.id} as
+          select
+            name,
+            sum(dur) AS total_dur,
+            sum(dur)/count() as avg_dur,
+            count() as occurrences
+          from (${iiDataset.query()})
+          group by name
+        `);
 
-    return true;
+        return {
+          tableName: this.id,
+        };
+      },
+    };
   }
 
   getTabName() {

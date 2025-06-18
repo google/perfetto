@@ -84,7 +84,6 @@ source_set("trace_redaction") {
     "../../protos/perfetto/trace/ftrace:zero",
     "../../protos/perfetto/trace/ps:zero",
     "../trace_processor:storage_minimal",
-    "../trace_processor/util:util",
   ]
 }
 
@@ -154,6 +153,5 @@ perfetto_unittest_source_set("unittests") {
     "../../protos/perfetto/trace/ps:cpp",
     "../../protos/perfetto/trace/ps:zero",
     "../base:test_support",
-    "../trace_processor/util:util",
   ]
 }

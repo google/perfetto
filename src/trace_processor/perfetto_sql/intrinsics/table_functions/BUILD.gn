@@ -63,7 +63,6 @@ source_set("table_functions") {
     "../../../storage",
     "../../../tables",
     "../../../types",
-    "../../../util",
     "../../../util:descriptors",
     "../../../util:proto_to_args_parser",
     "../../../util:winscope_proto_mapping",

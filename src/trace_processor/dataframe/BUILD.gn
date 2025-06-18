@@ -30,7 +30,6 @@ source_set("dataframe") {
     "../../../gn:default_deps",
     "../../base",
     "../containers",
-    "../util",
     "../util:glob",
     "../util:regex",
     "impl",

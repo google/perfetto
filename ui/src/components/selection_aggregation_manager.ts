@@ -14,18 +14,19 @@
 
 import {AsyncLimiter} from '../base/async_limiter';
 import {isString} from '../base/object_utils';
-import {Time} from '../base/time';
 import {AggregateData, Column, ColumnDef, Sorting} from '../public/aggregation';
-import {AreaSelection, AreaSelectionAggregator} from '../public/selection';
-import {Track} from '../public/track';
-import {Dataset, SourceDataset, UnionDataset} from '../trace_processor/dataset';
+import {
+  Aggregation,
+  AreaSelection,
+  AreaSelectionAggregator,
+} from '../public/selection';
 import {Engine} from '../trace_processor/engine';
-import {LONG, NUM} from '../trace_processor/query_result';
+import {NUM} from '../trace_processor/query_result';
 
 export class SelectionAggregationManager {
   private readonly limiter = new AsyncLimiter();
   private _sorting?: Sorting;
-  private _currentArea: AreaSelection | undefined = undefined;
+  private _currentArea: AreaSelection | undefined;
   private _aggregatedData?: AggregateData;
 
   constructor(
@@ -37,14 +38,19 @@ export class SelectionAggregationManager {
     return this._aggregatedData;
   }
 
-  aggregateArea(area: AreaSelection) {
+  aggregateArea(area: AreaSelection): boolean {
+    const aggregation = this.aggregator.probe(area);
+    if (!aggregation) return false;
+
     this.limiter.schedule(async () => {
       this._currentArea = area;
       this._aggregatedData = undefined;
 
-      const data = await this.runAggregator(area);
+      const data = await this.runAggregator(aggregation);
       this._aggregatedData = data;
     });
+
+    return true;
   }
 
   clear() {
@@ -88,56 +94,12 @@ export class SelectionAggregationManager {
   }
 
   private async runAggregator(
-    area: AreaSelection,
+    aggregation: Aggregation,
   ): Promise<AggregateData | undefined> {
     const aggr = this.aggregator;
-    let dataset = this.createDatasetForAggregator(aggr, area.tracks);
-    const duration = Time.durationBetween(area.start, area.end);
 
-    // The dataset must contain ts, dur, and id columns for interval
-    // intersection.
-    if (
-      duration > 0n &&
-      dataset &&
-      dataset.implements({id: NUM, ts: LONG, dur: LONG})
-    ) {
-      // Materialize the source into a perfetto table first.
-      // Note: the `ORDER BY id` is absolutely crucial. Removing this
-      // significantly worsens aggregation results compared to no
-      // materialization at all.
-      const tableName = `__aggdata_${this.aggregator.id}`;
-      await this.engine.query(`
-        CREATE OR REPLACE PERFETTO TABLE ${tableName} AS
-        ${dataset.query()}
-        ORDER BY id
-      `);
-
-      // Pass the interval intersect to the aggregator.
-      await this.engine.query('INCLUDE PERFETTO MODULE viz.aggregation');
-      dataset = new SourceDataset({
-        src: `
-          SELECT
-            ii_dur AS dur,
-            *
-          FROM _intersect_slices!(
-            ${area.start},
-            ${duration},
-            ${tableName}
-          )
-        `,
-        schema: dataset.schema,
-      });
-    }
-
-    const viewExists = await aggr.createAggregateView(
-      this.engine,
-      area,
-      dataset,
-    );
-
-    if (!viewExists) {
-      return undefined;
-    }
+    // This initializes the tables for this aggregation.
+    const aggregationData = await aggregation.prepareData(this.engine);
 
     const defs = aggr.getColumnDefinitions();
     const colIds = defs.map((col) => col.columnId);
@@ -148,22 +110,21 @@ export class SelectionAggregationManager {
     if (sorting) {
       sortClause = `${sorting.column} ${sorting.direction}`;
     }
-    const query = `select ${colIds} from ${aggr.id} order by ${sortClause}`;
+    const query = `select ${colIds} from ${aggregationData.tableName} order by ${sortClause}`;
     const result = await this.engine.query(query);
 
     const numRows = result.numRows();
     const columns = defs.map((def) => columnFromColumnDef(def, numRows));
     const columnSums = await Promise.all(
-      defs.map((def) => this.getSum(aggr.id, def)),
+      defs.map((def) => this.getSum(aggregationData.tableName, def)),
     );
-    const extraData = await aggr.getBarChartData?.(this.engine, area, dataset);
-    const extra = extraData ? extraData : undefined;
+    const barChartData = aggregationData.barChartData;
     const data: AggregateData = {
       tabName: aggr.getTabName(),
       columns,
       columnSums,
       strings: [],
-      barChart: extra,
+      barChart: barChartData,
     };
 
     const stringIndexes = new Map<string, number>();
@@ -201,26 +162,6 @@ export class SelectionAggregationManager {
     }
 
     return data;
-  }
-
-  private createDatasetForAggregator(
-    aggr: AreaSelectionAggregator,
-    tracks: ReadonlyArray<Track>,
-  ): Dataset | undefined {
-    const filteredDatasets = tracks
-      .filter(
-        (td) =>
-          aggr.trackKind === undefined || aggr.trackKind === td.tags?.kind,
-      )
-      .map((td) => td.renderer.getDataset?.())
-      .filter((dataset) => dataset !== undefined)
-      .filter(
-        (dataset) =>
-          aggr.schema === undefined || dataset.implements(aggr.schema),
-      );
-
-    if (filteredDatasets.length === 0) return undefined;
-    return new UnionDataset(filteredDatasets).optimize();
   }
 
   private async getSum(tableName: string, def: ColumnDef): Promise<string> {

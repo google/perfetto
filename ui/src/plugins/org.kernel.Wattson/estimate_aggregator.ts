@@ -30,9 +30,7 @@ export class WattsonEstimateSelectionAggregator
 {
   readonly id = 'wattson_plugin_estimate_aggregation';
 
-  async createAggregateView(engine: Engine, area: AreaSelection) {
-    await engine.query(`drop view if exists ${this.id};`);
-
+  probe(area: AreaSelection) {
     const estimateTracks: string[] = [];
     for (const trackInfo of area.tracks) {
       if (
@@ -43,15 +41,22 @@ export class WattsonEstimateSelectionAggregator
         estimateTracks.push(`${trackInfo.tags.wattson}`);
       }
     }
-    if (estimateTracks.length === 0) return false;
+    if (estimateTracks.length === 0) return undefined;
 
-    const query = this.getEstimateTracksQuery(area, estimateTracks);
-    engine.query(query);
+    return {
+      prepareData: async (engine: Engine) => {
+        await engine.query(`drop view if exists ${this.id};`);
+        const query = this.getEstimateTracksQuery(area, estimateTracks);
+        engine.query(query);
 
-    return true;
+        return {
+          tableName: this.id,
+        };
+      },
+    };
   }
 
-  getEstimateTracksQuery(
+  private getEstimateTracksQuery(
     area: Area,
     estimateTracks: ReadonlyArray<string>,
   ): string {

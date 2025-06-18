@@ -26,6 +26,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "protos/perfetto/common/android_log_constants.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
@@ -34,7 +35,6 @@
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor {
 

@@ -2660,7 +2660,6 @@ cc_test {
         ":perfetto_src_trace_processor_util_stdlib",
         ":perfetto_src_trace_processor_util_trace_blob_view_reader",
         ":perfetto_src_trace_processor_util_trace_type",
-        ":perfetto_src_trace_processor_util_util",
         ":perfetto_src_trace_processor_util_winscope_proto_mapping",
         ":perfetto_src_trace_processor_util_zip_reader",
         ":perfetto_src_traced_probes_android_game_intervention_list_android_game_intervention_list",
@@ -14863,6 +14862,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/android/version.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/wakeups.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/winscope/inputmethod.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/winscope/surfaceflinger.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/winscope/transitions.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/winscope/viewcapture.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/winscope/windowmanager.sql",
@@ -14942,7 +14942,6 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/freq_idle.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/hotplug.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/idle.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/idle_attribution.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/split.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/w_cpu_dependence.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/w_dsu_dependence.sql",
@@ -14954,6 +14953,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/wattson/gpu/estimates.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/gpu/freq_idle.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/attribution.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/idle_transitions_attribution.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/threads_w_processes.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/ui/continuous_estimates.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/utils.sql",
@@ -15382,11 +15382,6 @@ filegroup {
         "src/trace_processor/util/trace_blob_view_reader_unittest.cc",
         "src/trace_processor/util/zip_reader_unittest.cc",
     ],
-}
-
-// GN: //src/trace_processor/util:util
-filegroup {
-    name: "perfetto_src_trace_processor_util_util",
 }
 
 // GN: //src/trace_processor/util:winscope_proto_mapping
@@ -17169,7 +17164,6 @@ cc_test {
         ":perfetto_src_trace_processor_util_trace_blob_view_reader",
         ":perfetto_src_trace_processor_util_trace_type",
         ":perfetto_src_trace_processor_util_unittests",
-        ":perfetto_src_trace_processor_util_util",
         ":perfetto_src_trace_processor_util_winscope_proto_mapping",
         ":perfetto_src_trace_processor_util_zip_reader",
         ":perfetto_src_trace_redaction_trace_redaction",
@@ -17989,7 +17983,6 @@ cc_binary {
         ":perfetto_src_trace_processor_util_stdlib",
         ":perfetto_src_trace_processor_util_trace_blob_view_reader",
         ":perfetto_src_trace_processor_util_trace_type",
-        ":perfetto_src_trace_processor_util_util",
         ":perfetto_src_trace_processor_util_winscope_proto_mapping",
         ":perfetto_src_trace_processor_util_zip_reader",
         "src/trace_processor/trace_processor_shell.cc",
@@ -18209,7 +18202,6 @@ cc_binary {
         ":perfetto_src_trace_processor_util_regex",
         ":perfetto_src_trace_processor_util_trace_blob_view_reader",
         ":perfetto_src_trace_processor_util_trace_type",
-        ":perfetto_src_trace_processor_util_util",
         ":perfetto_src_trace_redaction_trace_redaction",
         "src/trace_redaction/main.cc",
     ],
@@ -18444,7 +18436,6 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_stdlib",
         ":perfetto_src_trace_processor_util_trace_blob_view_reader",
         ":perfetto_src_trace_processor_util_trace_type",
-        ":perfetto_src_trace_processor_util_util",
         ":perfetto_src_trace_processor_util_winscope_proto_mapping",
         ":perfetto_src_trace_processor_util_zip_reader",
         ":perfetto_src_traceconv_lib",

@@ -222,7 +222,7 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
   // Usage: TRACE_EVENT_BEGIN("...", "...",
   // perfetto::NamedTrack::ThreadScoped("rendering"))
   template <class TrackEventName>
-  static NamedTrack ThreadScoped(TrackEventName name,
+  static NamedTrack ThreadScoped(TrackEventName&& name,
                                  uint64_t id = 0,
                                  Track parent = Track()) {
     if (parent.uuid == 0)
