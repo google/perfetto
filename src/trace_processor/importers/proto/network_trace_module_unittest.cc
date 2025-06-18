@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -28,6 +29,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/android/network_trace.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
+#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
@@ -41,6 +43,7 @@
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "test/gtest_and_gmock.h"
@@ -90,20 +93,30 @@ class NetworkTraceModuleTest : public testing::Test {
     return status;
   }
 
-  bool HasArg(ArgSetId sid, base::StringView key, Variadic value) {
+  bool HasArg(ArgSetId set_id, base::StringView key, Variadic value) {
     StringId key_id = storage_->InternString(key);
-    const auto& a = storage_->arg_table();
-    Query q;
-    q.constraints = {a.arg_set_id().eq(sid)};
-    for (auto it = a.FilterToIterator(q); it; ++it) {
-      if (it.key() == key_id) {
-        EXPECT_EQ(it.flat_key(), key_id);
-        if (storage_->GetArgValue(it.row_number().row_number()) == value) {
-          return true;
+    const auto& args = storage_->arg_table();
+    auto cursor = args.CreateCursor({
+        dataframe::FilterSpec{
+            tables::ArgTable::ColumnIndex::arg_set_id,
+            0,
+            dataframe::Eq{},
+            std::nullopt,
+        },
+    });
+    cursor.SetFilterValueUnchecked(0, set_id);
+
+    bool found = false;
+    for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
+      if (cursor.key() == key_id) {
+        EXPECT_EQ(cursor.flat_key(), key_id);
+        if (storage_->GetArgValue(cursor.ToRowNumber().row_number()) == value) {
+          found = true;
+          break;
         }
       }
     }
-    return false;
+    return found;
   }
 
  protected:

@@ -62,7 +62,8 @@ class Cursor {
                   const impl::Column* const* column_ptrs,
                   const Index* indexes,
                   const StringPool* pool) {
-    interpreter_.Initialize(plan.bytecode, column_ptrs, indexes, pool);
+    interpreter_.Initialize(plan.bytecode, plan.params.register_count,
+                            column_ptrs, indexes, pool);
     params_ = plan.params;
     col_to_output_offset_ = plan.col_to_output_offset;
     pool_ = pool;
@@ -80,16 +81,7 @@ class Cursor {
   // Parameters:
   //   fvf: A subclass of `ValueFetcher` that defines the logic for fetching
   //        filter values for each filter spec.
-  PERFETTO_ALWAYS_INLINE void Execute(
-      FilterValueFetcherImpl& filter_value_fetcher) {
-    using S = impl::Span<uint32_t>;
-    interpreter_.Execute(filter_value_fetcher);
-
-    const auto& span =
-        *interpreter_.template GetRegisterValue<S>(params_.output_register);
-    pos_ = span.b;
-    end_ = span.e;
-  }
+  PERFETTO_ALWAYS_INLINE void Execute(FilterValueFetcherImpl&);
 
   // Returns the index of the row in the table this cursor is pointing to.
   PERFETTO_ALWAYS_INLINE uint32_t RowIndex() const { return *pos_; }

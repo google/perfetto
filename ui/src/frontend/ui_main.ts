@@ -47,7 +47,7 @@ import {
 import {featureFlags} from '../core/feature_flags';
 import {trackMatchesFilter} from '../core/track_manager';
 import {renderStatusBar} from './statusbar';
-import {Time} from '../base/time';
+import {formatTimezone} from '../base/time';
 
 const showStatusBarFlag = featureFlags.register({
   id: 'Enable status bar',
@@ -117,7 +117,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         name: 'Set timestamp and duration format',
         callback: async () => {
           const TF = TimestampFormat;
-          const timeZone = Time.formatTimezone(trace.traceInfo.tzOffMin);
+          const timeZone = formatTimezone(trace.traceInfo.tzOffMin);
           const result = await app.omnibox.prompt('Select format...', {
             values: [
               {format: TF.Timecode, name: 'Timecode'},
@@ -205,14 +205,14 @@ export class UiMainPerTrace implements m.ClassComponent {
       {
         id: 'perfetto.FocusSelection',
         name: 'Focus current selection',
-        callback: () => trace.selection.scrollToCurrentSelection(),
+        callback: () => trace.selection.scrollToSelection(),
         defaultHotkey: 'F',
       },
       {
         id: 'perfetto.Deselect',
         name: 'Deselect',
         callback: () => {
-          trace.selection.clear();
+          trace.selection.clearSelection();
         },
         defaultHotkey: 'Escape',
       },
@@ -312,7 +312,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         name: 'Convert selection to area selection',
         callback: () => {
           const selection = trace.selection.selection;
-          const range = trace.selection.findTimeRangeOfSelection();
+          const range = trace.selection.getTimeSpanOfSelection();
           if (selection.kind === 'track_event' && range) {
             trace.selection.selectArea({
               start: range.start,

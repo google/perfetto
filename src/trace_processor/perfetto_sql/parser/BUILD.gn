@@ -29,7 +29,6 @@ source_set("parser") {
     "../../../../gn:sqlite",
     "../../../base",
     "../../sqlite",
-    "../../util",
     "../../util:sql_argument",
     "../grammar",
     "../preprocessor",

@@ -36,7 +36,6 @@ if (enable_perfetto_grpc) {
       "../../../protos/perfetto/bigtrace:orchestrator_lite",
       "../../../protos/perfetto/bigtrace:worker_grpc",
       "../../../protos/perfetto/bigtrace:worker_lite",
-      "../../../src/trace_processor/util",
       "../../base",
       "../../base/threading",
     ]

@@ -48,7 +48,6 @@ CREATE PERFETTO VIEW _curves_w_dependencies (
   cpu7_curve DOUBLE,
   l3_hit_count LONG,
   l3_miss_count LONG,
-  suspended BOOL,
   no_static LONG,
   all_cpu_deep_idle LONG,
   dependent_freq LONG,
@@ -72,17 +71,17 @@ SELECT
   -- base.cpu[0-3]_curve will be non-zero if CPU has 1D dependency
   -- base.cpu[0-3]_curve will be zero if device is suspended or deep idle
   -- base.cpu[0-3]_curve will be NULL if 2D dependency required
-  iif(suspended, 0.0, coalesce(base.cpu0_curve, lut0.curve_value)) AS cpu0_curve,
-  iif(suspended, 0.0, coalesce(base.cpu1_curve, lut1.curve_value)) AS cpu1_curve,
-  iif(suspended, 0.0, coalesce(base.cpu2_curve, lut2.curve_value)) AS cpu2_curve,
-  iif(suspended, 0.0, coalesce(base.cpu3_curve, lut3.curve_value)) AS cpu3_curve,
+  coalesce(base.cpu0_curve, lut0.curve_value) AS cpu0_curve,
+  coalesce(base.cpu1_curve, lut1.curve_value) AS cpu1_curve,
+  coalesce(base.cpu2_curve, lut2.curve_value) AS cpu2_curve,
+  coalesce(base.cpu3_curve, lut3.curve_value) AS cpu3_curve,
   -- base.cpu[4-7]_curve will be non-zero if CPU has 1D dependency
   -- base.cpu[4-7]_curve will be zero if device is suspended or deep idle
   -- base.cpu[4-7]_curve will be NULL if CPU doesn't exist on device
-  iif(suspended, 0.0, coalesce(base.cpu4_curve, 0.0)) AS cpu4_curve,
-  iif(suspended, 0.0, coalesce(base.cpu5_curve, 0.0)) AS cpu5_curve,
-  iif(suspended, 0.0, coalesce(base.cpu6_curve, 0.0)) AS cpu6_curve,
-  iif(suspended, 0.0, coalesce(base.cpu7_curve, 0.0)) AS cpu7_curve,
+  coalesce(base.cpu4_curve, 0.0) AS cpu4_curve,
+  coalesce(base.cpu5_curve, 0.0) AS cpu5_curve,
+  coalesce(base.cpu6_curve, 0.0) AS cpu6_curve,
+  coalesce(base.cpu7_curve, 0.0) AS cpu7_curve,
   iif(no_static = 1, 0.0, coalesce(static_1d.curve_value, static_2d.curve_value)) AS static_curve,
   iif(all_cpu_deep_idle = 1, 0, base.l3_hit_count * l3_hit_lut.curve_value) AS l3_hit_value,
   iif(all_cpu_deep_idle = 1, 0, base.l3_miss_count * l3_miss_lut.curve_value) AS l3_miss_value

@@ -19,9 +19,11 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
+#include "protos/perfetto/trace/generic_kernel/generic_power.pbzero.h"
 #include "protos/perfetto/trace/generic_kernel/generic_task_state.pbzero.h"
 
 namespace perfetto::trace_processor {
@@ -81,7 +83,7 @@ void GenericKernelParser::ParseGenericTaskStateEvent(
 
   StringId comm_id = context_->storage->InternString(task_event.comm());
   const uint32_t cpu = static_cast<uint32_t>(task_event.cpu());
-  const uint32_t tid = static_cast<uint32_t>(task_event.tid());
+  const int64_t tid = task_event.tid();
   const int32_t prio = task_event.prio();
   const size_t state = static_cast<size_t>(task_event.state());
 
@@ -134,7 +136,7 @@ void GenericKernelParser::ParseGenericTaskStateEvent(
 }
 
 std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
-                                                              uint32_t tid,
+                                                              int64_t tid,
                                                               StringId comm_id,
                                                               size_t state) {
   switch (state) {
@@ -166,8 +168,18 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
       context_->process_tracker->EndThread(ts, tid);
       return utid_opt;
     }
+    case TaskStateEnum::TASK_STATE_RUNNING: {
+      auto utid_opt = context_->process_tracker->GetThreadOrNull(tid);
+      if (utid_opt &&
+          ThreadStateTracker::GetOrCreate(context_)->GetPrevEndState(
+              *utid_opt) == running_string_id_) {
+        context_->storage->IncrementStats(
+            stats::generic_task_state_invalid_order);
+        return std::nullopt;
+      }
+      PERFETTO_FALLTHROUGH;
+    }
     case TaskStateEnum::TASK_STATE_RUNNABLE:
-    case TaskStateEnum::TASK_STATE_RUNNING:
     case TaskStateEnum::TASK_STATE_INTERRUPTIBLE_SLEEP:
     case TaskStateEnum::TASK_STATE_UNINTERRUPTIBLE_SLEEP:
     case TaskStateEnum::TASK_STATE_STOPPED: {
@@ -202,7 +214,7 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
 GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
     int64_t ts,
     uint32_t cpu,
-    uint32_t tid,
+    int64_t tid,
     UniqueTid utid,
     StringId state_string_id,
     int32_t prio) {
@@ -254,4 +266,15 @@ GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
   }
   return kNone;
 }
+
+void GenericKernelParser::ParseGenericCpuFrequencyEvent(
+    int64_t ts,
+    protozero::ConstBytes data) {
+  protos::pbzero::GenericKernelCpuFrequencyEvent::Decoder cpu_freq_event(data);
+  TrackId track = context_->track_tracker->InternTrack(
+      tracks::kCpuFrequencyBlueprint, tracks::Dimensions(cpu_freq_event.cpu()));
+  context_->event_tracker->PushCounter(
+      ts, static_cast<double>(cpu_freq_event.freq_hz()) / 1000.0, track);
+}
+
 }  // namespace perfetto::trace_processor

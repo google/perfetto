@@ -32,6 +32,8 @@ class GenericKernelParser {
 
   void ParseGenericTaskStateEvent(int64_t ts, protozero::ConstBytes data);
 
+  void ParseGenericCpuFrequencyEvent(int64_t ts, protozero::ConstBytes data);
+
  private:
   enum SchedSwitchType {
     // No context switch event was handled.
@@ -54,13 +56,13 @@ class GenericKernelParser {
   };
 
   std::optional<UniqueTid> GetUtidForState(int64_t ts,
-                                           uint32_t tid,
+                                           int64_t tid,
                                            StringId comm_id,
                                            size_t state);
 
   SchedSwitchType PushSchedSwitch(int64_t ts,
                                   uint32_t cpu,
-                                  uint32_t tid,
+                                  int64_t tid,
                                   UniqueTid utid,
                                   StringId state_string_id,
                                   int32_t prio);

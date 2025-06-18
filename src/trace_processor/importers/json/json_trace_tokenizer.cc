@@ -30,12 +30,13 @@
 #include <variant>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
@@ -46,7 +47,6 @@
 #include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -407,6 +407,15 @@ base::Status JsonTraceTokenizer::HandleTraceEvent(const char* start,
     if (PERFETTO_UNLIKELY(!json::internal::SkipWhitespace(cur, end))) {
       return SetOutAndReturn(global_cur, out);
     }
+    // Warning: the order of these checks is important. Due to bugs like
+    // https://github.com/google/perfetto/issues/1822, we allow for trailing
+    // commas in the trace events array, so we need to check for that first
+    // before checking for the end of the array.
+    if (PERFETTO_UNLIKELY(*cur == ',')) {
+      if (PERFETTO_UNLIKELY(!json::internal::SkipWhitespace(++cur, end))) {
+        return SetOutAndReturn(global_cur, out);
+      }
+    }
     if (PERFETTO_UNLIKELY(*cur == ']')) {
       if (format_ == TraceFormat::kOnlyTraceEvents) {
         position_ = TracePosition::kEof;
@@ -414,11 +423,6 @@ base::Status JsonTraceTokenizer::HandleTraceEvent(const char* start,
       }
       position_ = TracePosition::kDictionaryKey;
       return ParseInternal(cur + 1, end, out);
-    }
-    if (PERFETTO_UNLIKELY(*cur == ',')) {
-      if (PERFETTO_UNLIKELY(!json::internal::SkipWhitespace(++cur, end))) {
-        return SetOutAndReturn(global_cur, out);
-      }
     }
     it_.Reset(cur, end);
     if (!it_.ParseStart() || !ParseTraceEventContents()) {
