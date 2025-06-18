@@ -98,7 +98,8 @@ class SurfaceFlingerTransactions(TestSuite):
     return DiffTestBlueprint(
         trace=Path('surfaceflinger_transactions.textproto'),
         query="""
-        SELECT COUNT(*) FROM __intrinsic_surfaceflinger_transaction
+        INCLUDE PERFETTO MODULE android.winscope.surfaceflinger;
+        SELECT COUNT(*) FROM android_surfaceflinger_transaction
         """,
         out=Csv("""
         "COUNT(*)"
@@ -109,6 +110,7 @@ class SurfaceFlingerTransactions(TestSuite):
     return DiffTestBlueprint(
         trace=Path('surfaceflinger_transactions.textproto'),
         query="""
+        INCLUDE PERFETTO MODULE android.winscope.surfaceflinger;
         SELECT
           snapshot_id,
           arg_set_id,
@@ -119,7 +121,7 @@ class SurfaceFlingerTransactions(TestSuite):
           display_id,
           flags_id
         FROM
-          __intrinsic_surfaceflinger_transaction
+          android_surfaceflinger_transaction
         WHERE transaction_type = 'LAYER_CHANGED';
         """,
         out=Csv("""
@@ -132,10 +134,11 @@ class SurfaceFlingerTransactions(TestSuite):
     return DiffTestBlueprint(
         trace=Path('surfaceflinger_transactions.textproto'),
         query="""
+        INCLUDE PERFETTO MODULE android.winscope.surfaceflinger;
         SELECT
           args.key, args.display_value
         FROM
-          __intrinsic_surfaceflinger_transaction AS sft JOIN args ON sft.arg_set_id = args.arg_set_id
+          android_surfaceflinger_transaction AS sft JOIN args ON sft.arg_set_id = args.arg_set_id
         WHERE sft.transaction_type = 'LAYER_CHANGED' AND sft.snapshot_id = 1
         ORDER BY args.key;
         """,
@@ -168,6 +171,7 @@ class SurfaceFlingerTransactions(TestSuite):
     return DiffTestBlueprint(
         trace=Path('surfaceflinger_transactions.textproto'),
         query="""
+        INCLUDE PERFETTO MODULE android.winscope.surfaceflinger;
         SELECT
           snapshot_id,
           arg_set_id,
@@ -178,7 +182,7 @@ class SurfaceFlingerTransactions(TestSuite):
           display_id,
           flags_id
         FROM
-          __intrinsic_surfaceflinger_transaction
+          android_surfaceflinger_transaction
         WHERE transaction_type = 'DISPLAY_CHANGED';
         """,
         out=Csv("""
@@ -190,10 +194,11 @@ class SurfaceFlingerTransactions(TestSuite):
     return DiffTestBlueprint(
         trace=Path('surfaceflinger_transactions.textproto'),
         query="""
+        INCLUDE PERFETTO MODULE android.winscope.surfaceflinger;
         SELECT
           args.key, args.display_value
         FROM
-          __intrinsic_surfaceflinger_transaction AS sft JOIN args ON sft.arg_set_id = args.arg_set_id
+          android_surfaceflinger_transaction AS sft JOIN args ON sft.arg_set_id = args.arg_set_id
         WHERE sft.transaction_type = 'DISPLAY_CHANGED' AND sft.snapshot_id = 2
         ORDER BY args.key;
         """,
@@ -208,6 +213,7 @@ class SurfaceFlingerTransactions(TestSuite):
     return DiffTestBlueprint(
         trace=Path('surfaceflinger_transactions.textproto'),
         query="""
+        INCLUDE PERFETTO MODULE android.winscope.surfaceflinger;
         SELECT
           snapshot_id,
           arg_set_id,
@@ -218,7 +224,7 @@ class SurfaceFlingerTransactions(TestSuite):
           display_id,
           flags_id
         FROM
-          __intrinsic_surfaceflinger_transaction
+          android_surfaceflinger_transaction
         WHERE transaction_type = 'NOOP';
         """,
         out=Csv("""
@@ -230,6 +236,7 @@ class SurfaceFlingerTransactions(TestSuite):
     return DiffTestBlueprint(
         trace=Path('surfaceflinger_transactions.textproto'),
         query="""
+        INCLUDE PERFETTO MODULE android.winscope.surfaceflinger;
         SELECT
           snapshot_id,
           arg_set_id,
@@ -240,7 +247,7 @@ class SurfaceFlingerTransactions(TestSuite):
           display_id,
           flags_id
         FROM
-          __intrinsic_surfaceflinger_transaction
+          android_surfaceflinger_transaction
         WHERE transaction_type = 'LAYER_ADDED';
         """,
         out=Csv("""
@@ -252,10 +259,11 @@ class SurfaceFlingerTransactions(TestSuite):
     return DiffTestBlueprint(
         trace=Path('surfaceflinger_transactions.textproto'),
         query="""
+        INCLUDE PERFETTO MODULE android.winscope.surfaceflinger;
         SELECT
           args.key, args.display_value
         FROM
-          __intrinsic_surfaceflinger_transaction AS sft JOIN args ON sft.arg_set_id = args.arg_set_id
+          android_surfaceflinger_transaction AS sft JOIN args ON sft.arg_set_id = args.arg_set_id
         WHERE sft.transaction_type = 'LAYER_ADDED' AND sft.snapshot_id = 2
         ORDER BY args.key;
         """,
@@ -268,6 +276,7 @@ class SurfaceFlingerTransactions(TestSuite):
     return DiffTestBlueprint(
         trace=Path('surfaceflinger_transactions.textproto'),
         query="""
+        INCLUDE PERFETTO MODULE android.winscope.surfaceflinger;
         SELECT
           snapshot_id,
           arg_set_id,
@@ -278,7 +287,7 @@ class SurfaceFlingerTransactions(TestSuite):
           display_id,
           flags_id
         FROM
-          __intrinsic_surfaceflinger_transaction
+          android_surfaceflinger_transaction
         WHERE transaction_type = 'LAYER_DESTROYED';
         """,
         out=Csv("""
@@ -291,6 +300,7 @@ class SurfaceFlingerTransactions(TestSuite):
     return DiffTestBlueprint(
         trace=Path('surfaceflinger_transactions.textproto'),
         query="""
+        INCLUDE PERFETTO MODULE android.winscope.surfaceflinger;
         SELECT
           snapshot_id,
           arg_set_id,
@@ -301,7 +311,7 @@ class SurfaceFlingerTransactions(TestSuite):
           display_id,
           flags_id
         FROM
-          __intrinsic_surfaceflinger_transaction
+          android_surfaceflinger_transaction
         WHERE transaction_type = 'DISPLAY_ADDED';
         """,
         out=Csv("""
@@ -313,10 +323,11 @@ class SurfaceFlingerTransactions(TestSuite):
     return DiffTestBlueprint(
         trace=Path('surfaceflinger_transactions.textproto'),
         query="""
+        INCLUDE PERFETTO MODULE android.winscope.surfaceflinger;
         SELECT
           args.key, args.display_value
         FROM
-          __intrinsic_surfaceflinger_transaction AS sft JOIN args ON sft.arg_set_id = args.arg_set_id
+          android_surfaceflinger_transaction AS sft JOIN args ON sft.arg_set_id = args.arg_set_id
         WHERE sft.transaction_type = 'DISPLAY_ADDED' AND sft.snapshot_id = 2
         ORDER BY args.key;
         """,
@@ -331,6 +342,7 @@ class SurfaceFlingerTransactions(TestSuite):
     return DiffTestBlueprint(
         trace=Path('surfaceflinger_transactions.textproto'),
         query="""
+        INCLUDE PERFETTO MODULE android.winscope.surfaceflinger;
         SELECT
           snapshot_id,
           arg_set_id,
@@ -341,7 +353,7 @@ class SurfaceFlingerTransactions(TestSuite):
           display_id,
           flags_id
         FROM
-          __intrinsic_surfaceflinger_transaction
+          android_surfaceflinger_transaction
         WHERE transaction_type = 'DISPLAY_REMOVED';
         """,
         out=Csv("""
@@ -354,6 +366,7 @@ class SurfaceFlingerTransactions(TestSuite):
     return DiffTestBlueprint(
         trace=Path('surfaceflinger_transactions.textproto'),
         query="""
+        INCLUDE PERFETTO MODULE android.winscope.surfaceflinger;
         SELECT
           snapshot_id,
           arg_set_id,
@@ -364,7 +377,7 @@ class SurfaceFlingerTransactions(TestSuite):
           display_id,
           flags_id
         FROM
-          __intrinsic_surfaceflinger_transaction
+          android_surfaceflinger_transaction
         WHERE transaction_type = 'LAYER_HANDLE_DESTROYED';
         """,
         out=Csv("""
@@ -376,7 +389,8 @@ class SurfaceFlingerTransactions(TestSuite):
     return DiffTestBlueprint(
         trace=Path('surfaceflinger_transactions.textproto'),
         query="""
-        SELECT flags_id, flag FROM __intrinsic_surfaceflinger_transaction_flag
+        INCLUDE PERFETTO MODULE android.winscope.surfaceflinger;
+        SELECT flags_id, flag FROM android_surfaceflinger_transaction_flag
         """,
         out=Csv("""
         "flags_id","flag"
