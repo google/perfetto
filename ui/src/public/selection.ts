@@ -134,6 +134,11 @@ export interface SelectionManager {
   registerAreaSelectionTab(tab: AreaSelectionTab): void;
 }
 
+export interface AggregationData {
+  readonly tableName: string;
+  readonly barChartData?: ReadonlyArray<BarChartData>;
+}
+
 export interface Aggregation {
   /**
    * Creates a view for the aggregated data corresponding to the selected area.
@@ -147,9 +152,7 @@ export interface Aggregation {
    * selected tracks sliced by the intersection of the area assuming datasets
    * have a `dur` column. If no tracks have a dataset, this will be undefined.
    */
-  prepareData(engine: Engine): Promise<void>;
-
-  getBarChartData?(engine: Engine): Promise<BarChartData[] | undefined>;
+  prepareData(engine: Engine): Promise<AggregationData>;
 }
 
 /**

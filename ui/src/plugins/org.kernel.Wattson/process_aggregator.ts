@@ -81,6 +81,10 @@ export class WattsonProcessSelectionAggregator
             from base INNER JOIN secondary
             USING (pid);
         `);
+
+        return {
+          tableName: this.id,
+        };
       },
     };
   }

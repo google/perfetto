@@ -80,6 +80,10 @@ export class EntityStateResidencySelectionAggregator
             GROUP BY track_id, entity_name, state_name
         `;
         await engine.query(query);
+
+        return {
+          tableName: this.id,
+        };
       },
     };
   }

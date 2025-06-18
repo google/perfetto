@@ -61,6 +61,10 @@ export class CpuSliceSelectionAggregator implements AreaSelectionAggregator {
           join (${iiDataset.query()}) as sched using (utid)
           group by utid
         `);
+
+        return {
+          tableName: this.id,
+        };
       },
     };
   }

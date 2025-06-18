@@ -60,6 +60,10 @@ export class CpuSliceByProcessSelectionAggregator
           join process USING (upid)
           group by upid
         `);
+
+        return {
+          tableName: this.id,
+        };
       },
     };
   }

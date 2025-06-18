@@ -48,6 +48,10 @@ export class WattsonEstimateSelectionAggregator
         await engine.query(`drop view if exists ${this.id};`);
         const query = this.getEstimateTracksQuery(area, estimateTracks);
         engine.query(query);
+
+        return {
+          tableName: this.id,
+        };
       },
     };
   }

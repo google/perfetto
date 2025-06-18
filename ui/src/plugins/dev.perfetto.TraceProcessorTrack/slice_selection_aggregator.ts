@@ -51,6 +51,10 @@ export class SliceSelectionAggregator implements AreaSelectionAggregator {
           from (${iiDataset.query()})
           group by name
         `);
+
+        return {
+          tableName: this.id,
+        };
       },
     };
   }

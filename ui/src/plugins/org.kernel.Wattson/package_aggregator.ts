@@ -61,6 +61,10 @@ export class WattsonPackageSelectionAggregator
           FROM wattson_plugin_unioned_per_cpu_total
           GROUP BY uid;
         `);
+
+        return {
+          tableName: this.id,
+        };
       },
     };
   }

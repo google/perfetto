@@ -72,6 +72,10 @@ export class PowerCounterSelectionAggregator
           GROUP BY track_id
         `;
         await engine.query(query);
+
+        return {
+          tableName: this.id,
+        };
       },
     };
   }

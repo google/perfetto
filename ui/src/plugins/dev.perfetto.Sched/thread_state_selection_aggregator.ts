@@ -26,7 +26,6 @@ import {
 
 export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'thread_state_aggregation';
-  private barChartData: BarChartData[] = [];
 
   probe(area: AreaSelection): Aggregation | undefined {
     const dataset = selectTracksAndGetDataset(
@@ -87,11 +86,10 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
           });
         }
 
-        this.barChartData = states;
-      },
-
-      getBarChartData: async () => {
-        return this.barChartData;
+        return {
+          tableName: this.id,
+          barChartData: states,
+        };
       },
     };
   }

@@ -57,6 +57,10 @@ export class FrameSelectionAggregator implements AreaSelectionAggregator {
           from (${iiDataset.query()})
           group by jank_type
         `);
+
+        return {
+          tableName: this.id,
+        };
       },
     };
   }

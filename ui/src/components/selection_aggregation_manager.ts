@@ -99,7 +99,7 @@ export class SelectionAggregationManager {
     const aggr = this.aggregator;
 
     // This initializes the tables for this aggregation.
-    await aggregation.prepareData(this.engine);
+    const aggregationData = await aggregation.prepareData(this.engine);
 
     const defs = aggr.getColumnDefinitions();
     const colIds = defs.map((col) => col.columnId);
@@ -110,15 +110,15 @@ export class SelectionAggregationManager {
     if (sorting) {
       sortClause = `${sorting.column} ${sorting.direction}`;
     }
-    const query = `select ${colIds} from ${aggr.id} order by ${sortClause}`;
+    const query = `select ${colIds} from ${aggregationData.tableName} order by ${sortClause}`;
     const result = await this.engine.query(query);
 
     const numRows = result.numRows();
     const columns = defs.map((def) => columnFromColumnDef(def, numRows));
     const columnSums = await Promise.all(
-      defs.map((def) => this.getSum(aggr.id, def)),
+      defs.map((def) => this.getSum(aggregationData.tableName, def)),
     );
-    const barChartData = await aggregation.getBarChartData?.(this.engine);
+    const barChartData = aggregationData.barChartData;
     const data: AggregateData = {
       tabName: aggr.getTabName(),
       columns,

@@ -123,6 +123,10 @@ export class WattsonThreadSelectionAggregator
             from base INNER JOIN secondary
             USING (utid);
         `);
+
+        return {
+          tableName: this.id,
+        };
       },
     };
   }
