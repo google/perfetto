@@ -250,7 +250,6 @@ export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
     if (this.data === undefined) {
       return m('h2', 'Loading');
     }
-    // TODO also put the extra cols here...
     const details = dictToTreeNodes({
       'Name': this.data['name'] as string,
       'Start time': m(Timestamp, {ts: timeFromSql(this.data['ts'])}),
@@ -265,8 +264,7 @@ export class DebugSliceTrackDetailsPanel implements TrackEventDetailsPanel {
       rawCols[key] = sqlValueToReadableString(this.data.rawCols[key]);
     }
 
-    // Put the raw columns value from the source query (previously called
-    // 'args') are now put here on the details panel.
+    // Print the raw columns from the source query (previously called 'args')
     details.push(m(TreeNode, {left: 'Raw columns'}, dictToTree(rawCols)));
 
     return m(
