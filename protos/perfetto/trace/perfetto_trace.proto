@@ -652,6 +652,16 @@ message AppWakelocksConfig {
 
 // End of protos/perfetto/config/android/app_wakelock_config.proto
 
+// Begin of protos/perfetto/config/android/cpu_per_uid_config.proto
+
+// Data source that records CPU per UID data.
+message CpuPerUidConfig {
+  // Record at this frequency.
+  optional uint32 poll_ms = 1;
+}
+
+// End of protos/perfetto/config/android/cpu_per_uid_config.proto
+
 // Begin of protos/perfetto/config/android/kernel_wakelocks_config.proto
 
 // Data source that records kernel (and native) wakelock data.
@@ -3796,7 +3806,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 137
+// Next id: 138
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -3990,6 +4000,9 @@ message DataSourceConfig {
 
   // Data source name: android.app_wakelocks
   optional AppWakelocksConfig app_wakelocks_config = 135 [lazy = true];
+
+  // Data source name: android.cpu_per_uid
+  optional CpuPerUidConfig cpu_per_uid_config = 137 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
@@ -5346,6 +5359,27 @@ message AndroidCameraSessionStats {
 }
 
 // End of protos/perfetto/trace/android/camera_event.proto
+
+// Begin of protos/perfetto/trace/android/cpu_per_uid_data.proto
+
+message CpuPerUidData {
+  // Number of clusters in the device. This will only be filled in the first
+  // packet in a sequence.
+  optional uint32 cluster_count = 1;
+
+  // The UIDs for which we have data in this packet.
+  repeated uint32 uid = 2 [packed = true];
+
+  // List of times for {UID, cluster} tuples. This will be cluster_count
+  // times as long as the UID list.
+  //
+  // Ordered like:
+  // [{UID 0, cluster 0}, {UID 0, cluster 1}, {UID 0, cluster 2},
+  //  {UID 1, cluster 0}, {UID 1, cluster 1}, {UID 1, cluster 2}, ...]
+  repeated uint64 total_time_ms = 3 [packed = true];
+}
+
+// End of protos/perfetto/trace/android/cpu_per_uid_data.proto
 
 // Begin of protos/perfetto/trace/android/frame_timeline_event.proto
 
@@ -16492,7 +16526,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 119.
+// Next id: 120.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -16642,6 +16676,8 @@ message TracePacket {
     // Generic events for a standard kernel implementation
     GenericKernelTaskStateEvent generic_kernel_task_state_event = 117;
     GenericKernelCpuFrequencyEvent generic_kernel_cpu_freq_event = 118;
+
+    CpuPerUidData cpu_per_uid_data = 119;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
