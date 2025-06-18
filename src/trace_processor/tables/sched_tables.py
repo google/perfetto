@@ -135,17 +135,15 @@ THREAD_STATE_TABLE = Table(
     class_name='ThreadStateTable',
     sql_name='__intrinsic_thread_state',
     columns=[
-        C(
-            'ts',
-            CppInt64(),
-            flags=ColumnFlag.SORTED,
-            cpp_access=CppAccess.READ,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
-        C(
-            'dur',
-            CppInt64(),
-            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
-            cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('ts',
+          CppInt64(),
+          flags=ColumnFlag.SORTED,
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('dur',
+          CppInt64(),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
         C('utid', CppUint32(), cpp_access=CppAccess.READ),
         C('state', CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
         C(
