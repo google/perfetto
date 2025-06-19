@@ -63,9 +63,9 @@ export interface SearchProvider {
    *
    * @param searchTerm - The raw search term entered by the user.
    * @returns A promise that resolves to a FilterExpression that is compiled into
-   * the resulting SQL query.
+   * the resulting SQL query. If undefined, this provider will not be used.
    */
-  getSearchFilter(searchTerm: string): Promise<FilterExpression>;
+  getSearchFilter(searchTerm: string): Promise<FilterExpression | undefined>;
 }
 
 export interface SearchManager {

@@ -49,7 +49,15 @@ export async function searchTrackEvents(
 
   for (const provider of providers) {
     const filteredTracks = provider.selectTracks(tracks);
+    if (filteredTracks.length === 0) {
+      // If the provider does not select any tracks, skip it.
+      continue;
+    }
     const filter = await provider.getSearchFilter(searchTerm);
+    if (!filter) {
+      // If the provider does not have a filter for this search term, skip it.
+      continue;
+    }
     const providerResults = await searchTracksUsingProvider(
       engine,
       filteredTracks,
@@ -58,10 +66,14 @@ export async function searchTrackEvents(
     results = results.concat(providerResults);
   }
 
-  // Always search by ID
-  const trackGroups = buildTrackGroups(tracks);
-  const resultsById = await searchIds(trackGroups, searchTerm, engine);
-  results = results.concat(resultsById);
+  // We may want to search all events by id in the future, but for now in order
+  // to meet parity with the original search mechanism we avoid it.
+  // TODO(stevegolton): Revisit this decision in the future.
+  if (false) {
+    const trackGroups = buildTrackGroups(tracks);
+    const resultsById = await searchIds(trackGroups, searchTerm, engine);
+    results = results.concat(resultsById);
+  }
 
   // Remove duplicates
   const uniqueResults = new Map<string, SearchResult>();
