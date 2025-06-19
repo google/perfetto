@@ -69,7 +69,7 @@ export class SearchManagerImpl implements SearchManager {
   private _limiter = new AsyncLimiter();
   private _onResultStep?: ResultStepEventHandler;
 
-  private readonly providers: SearchProvider[] = [];
+  private readonly _providers: SearchProvider[] = [];
 
   constructor(args?: {
     timeline: TimelineImpl;
@@ -86,7 +86,7 @@ export class SearchManagerImpl implements SearchManager {
   }
 
   registerSearchProvider(provider: SearchProvider): void {
-    this.providers.push(provider);
+    this._providers.push(provider);
   }
 
   search(text: string) {
@@ -363,7 +363,7 @@ export class SearchManagerImpl implements SearchManager {
     const allResults = await searchTrackEvents(
       engine,
       trackManager.getAllTracks(),
-      this.providers,
+      this._providers,
       this._searchText,
     );
 

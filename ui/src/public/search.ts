@@ -27,18 +27,30 @@ export interface SearchResult {
 export type ResultStepEventHandler = (r: SearchResult) => void;
 
 export interface FilterExpression {
+  /**
+   * A SQL WHERE clause that filters the events in the selected tracks. The
+   * 'where' keyword is added automatically.
+   */
   readonly where: string;
+
+  /**
+   * An optional SQL JOIN clause that can be used to join with other tables. The
+   * 'join' keyword is added automatically.
+   */
   readonly join?: string;
 }
 
 export interface SearchProvider {
+  /**
+   * A human-readable name for this search provider. This is not currently used
+   * but it will be used to identify the provider in the UI and logs.
+   */
   readonly name: string;
 
   /**
    * Returns a set of tracks that this provider is interested in.
-   * @param tracks - A list of all tracks we are searching in.
-   * @returns A subset of tracks that this provider is interested in. If empty,
-   *          the provider will not be used.
+   * @param tracks - A list of all tracks we want to search inside.
+   * @returns A subset of tracks that this provider is interested in.
    */
   selectTracks(tracks: ReadonlyArray<Track>): ReadonlyArray<Track>;
 
@@ -48,6 +60,10 @@ export interface SearchProvider {
    *
    * This function is async because it may need to query some data using the
    * search term before it can return a filter expression.
+   *
+   * @param searchTerm - The raw search term entered by the user.
+   * @returns A promise that resolves to a FilterExpression that is compiled into
+   * the resulting SQL query.
    */
   getSearchFilter(searchTerm: string): Promise<FilterExpression>;
 }
