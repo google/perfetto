@@ -14,7 +14,7 @@
 
 import {Time, time} from '../base/time';
 import {getOrCreate} from '../base/utils';
-import {SearchProvider} from '../public/search';
+import {FilterExpression, SearchProvider} from '../public/search';
 import {Track} from '../public/track';
 import {SourceDataset} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
@@ -81,7 +81,7 @@ export async function searchTrackEvents(
 async function searchTracksUsingProvider(
   engine: Engine,
   tracks: ReadonlyArray<Track>,
-  filterClause: string,
+  filterClause: FilterExpression,
 ): Promise<SearchResult[]> {
   const trackGroups = buildTrackGroups(tracks);
 
@@ -170,7 +170,7 @@ function normalizeMapKey(value: SqlValue): SqlValue {
 async function searchTrackGroupsWithFilter(
   engine: Engine,
   trackGroups: Map<string, TrackGroup>,
-  filterClause: string,
+  filterClause: FilterExpression,
 ): Promise<SearchResult[]> {
   let searchResults: SearchResult[] = [];
 
@@ -215,7 +215,11 @@ async function searchIds(
       schema: trackGroup.schema,
     });
     if (groupDataset.implements({id: NUM, ts: LONG})) {
-      const results = await searchTrackGroup(trackGroup, `id = ${id}`, engine);
+      const results = await searchTrackGroup(
+        trackGroup,
+        {where: `id = ${id}`},
+        engine,
+      );
       searchResults = searchResults.concat(results);
     }
   }
@@ -225,7 +229,7 @@ async function searchIds(
 
 async function searchTrackGroup(
   trackGroup: TrackGroup,
-  condition: string,
+  condition: FilterExpression,
   engine: Engine,
 ): Promise<SearchResult[]> {
   const results: SearchResult[] = [];
@@ -241,9 +245,10 @@ async function searchTrackGroup(
   // Build and execute search query
   const query = `
     SELECT
-      ${selectCols.join(', ')}
-    FROM (${trackGroup.src})
-    WHERE ${condition}
+      ${selectCols.map((c) => `source.${c} AS ${c}`).join()}
+    FROM (${trackGroup.src}) AS source
+    ${condition.join ? `JOIN ${condition.join}` : ''}
+    WHERE ${condition.where}
   `;
   const result = await engine.query(query);
 

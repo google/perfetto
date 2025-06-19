@@ -130,7 +130,9 @@ export default class implements PerfettoPlugin {
           );
       },
       async getSearchFilter(searchTerm) {
-        return `msg GLOB ${escapeSearchQuery(searchTerm)}`;
+        return {
+          where: `msg GLOB ${escapeSearchQuery(searchTerm)}`,
+        };
       },
     });
   }

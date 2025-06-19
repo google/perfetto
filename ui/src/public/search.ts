@@ -26,6 +26,11 @@ export interface SearchResult {
 
 export type ResultStepEventHandler = (r: SearchResult) => void;
 
+export interface FilterExpression {
+  readonly where: string;
+  readonly join?: string;
+}
+
 export interface SearchProvider {
   readonly name: string;
 
@@ -44,7 +49,7 @@ export interface SearchProvider {
    * This function is async because it may need to query some data using the
    * search term before it can return a filter expression.
    */
-  getSearchFilter(searchTerm: string): Promise<string>;
+  getSearchFilter(searchTerm: string): Promise<FilterExpression>;
 }
 
 export interface SearchManager {

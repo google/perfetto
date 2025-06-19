@@ -63,7 +63,7 @@ export default class implements PerfettoPlugin {
     this.addMinimapContentProvider(ctx);
 
     ctx.search.registerSearchProvider({
-      name: 'Slices',
+      name: 'Slices by name',
       selectTracks(tracks) {
         return tracks
           .filter((t) => t.tags?.kind === SLICE_TRACK_KIND)
@@ -72,7 +72,9 @@ export default class implements PerfettoPlugin {
           );
       },
       async getSearchFilter(searchTerm) {
-        return `name GLOB ${escapeSearchQuery(searchTerm)}`;
+        return {
+          where: `name GLOB ${escapeSearchQuery(searchTerm)}`,
+        };
       },
     });
 
@@ -87,21 +89,28 @@ export default class implements PerfettoPlugin {
       },
       async getSearchFilter(searchTerm) {
         const searchLiteral = escapeSearchQuery(searchTerm);
-        const argSetIdsResult = await ctx.engine.query(`
-          SELECT arg_set_id as argSetId
-          FROM args
-          WHERE
-            string_value GLOB ${searchLiteral} OR key GLOB ${searchLiteral}
-        `);
-        const argSetIds = [];
-        for (
-          const it = argSetIdsResult.iter({argSetId: NUM});
-          it.valid();
-          it.next()
-        ) {
-          argSetIds.push(it.argSetId);
-        }
-        return `arg_set_id IN (${argSetIds.join()})`;
+        // const argSetIdsResult = await ctx.engine.query(`
+        //   SELECT arg_set_id as argSetId
+        //   FROM args
+        //   WHERE
+        //     string_value GLOB ${searchLiteral} OR key GLOB ${searchLiteral}
+        // `);
+        // const argSetIds = [];
+        // for (
+        //   const it = argSetIdsResult.iter({argSetId: NUM});
+        //   it.valid();
+        //   it.next()
+        // ) {
+        //   argSetIds.push(it.argSetId);
+        // }
+        return {
+          join: `args USING(arg_set_id)`,
+          where: `
+            args.string_value GLOB ${searchLiteral}
+            OR
+            args.key GLOB ${searchLiteral}
+          `,
+        };
       },
     });
   }

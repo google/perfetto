@@ -95,7 +95,9 @@ export default class implements PerfettoPlugin {
         for (const it = utidRes.iter({utid: NUM}); it.valid(); it.next()) {
           utids.push(it.utid);
         }
-        return `utid IN (${utids.join()})`;
+        return {
+          where: `utid IN (${utids.join()})`,
+        };
       },
     });
   }
