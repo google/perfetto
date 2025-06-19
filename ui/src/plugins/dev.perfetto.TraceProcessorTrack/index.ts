@@ -89,20 +89,6 @@ export default class implements PerfettoPlugin {
       },
       async getSearchFilter(searchTerm) {
         const searchLiteral = escapeSearchQuery(searchTerm);
-        // const argSetIdsResult = await ctx.engine.query(`
-        //   SELECT arg_set_id as argSetId
-        //   FROM args
-        //   WHERE
-        //     string_value GLOB ${searchLiteral} OR key GLOB ${searchLiteral}
-        // `);
-        // const argSetIds = [];
-        // for (
-        //   const it = argSetIdsResult.iter({argSetId: NUM});
-        //   it.valid();
-        //   it.next()
-        // ) {
-        //   argSetIds.push(it.argSetId);
-        // }
         return {
           join: `args USING(arg_set_id)`,
           where: `

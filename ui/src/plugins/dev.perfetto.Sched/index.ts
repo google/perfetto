@@ -71,7 +71,7 @@ export default class implements PerfettoPlugin {
     });
 
     ctx.search.registerSearchProvider({
-      name: 'Scheduler Slices',
+      name: 'Sched Slices',
       selectTracks(tracks) {
         return tracks
           .filter((t) => t.tags?.kind === CPU_SLICE_TRACK_KIND)
