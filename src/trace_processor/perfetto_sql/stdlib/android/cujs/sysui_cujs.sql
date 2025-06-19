@@ -27,6 +27,41 @@ AND (
   $process.name GLOB 'com.google.android*' OR $process.name GLOB 'com.android.*'
 );
 
+CREATE PERFETTO TABLE _marker_missed_callback AS
+SELECT
+  marker_track.name AS cuj_slice_name,
+  marker.ts,
+  marker.name AS marker_name
+FROM slice AS marker
+JOIN track AS marker_track
+  ON marker_track.id = marker.track_id
+WHERE
+  marker.name GLOB '*FT#Missed*';
+
+CREATE PERFETTO FUNCTION _android_missed_vsyncs_for_callback(
+    -- name of the cuj slice.
+    cuj_slice_name STRING,
+    -- min ts.
+    ts_min INTEGER,
+    -- max ts.
+    ts_max INTEGER,
+    -- missed callback.
+    callback_missed STRING
+)
+RETURNS INTEGER AS
+SELECT
+  coalesce(sum(marker_name GLOB $callback_missed), 0)
+FROM _marker_missed_callback
+WHERE
+  cuj_slice_name = $cuj_slice_name
+  AND ts >= $ts_min
+  AND (
+    $ts_max IS NULL OR ts <= $ts_max
+  )
+ORDER BY
+  ts ASC
+LIMIT 1;
+
 -- List of CUJ slices emitted. Note that this is not the final list of CUJs with the correct
 -- boundary information. The proper CUJs and their boundaries are computed after taking into
 -- account instant events and frame boundaries in the following tables.
@@ -161,6 +196,8 @@ CREATE PERFETTO TABLE android_sysui_jank_cujs (
   ui_thread JOINID(thread.id),
   -- layer id associated with the actual frame.
   layer_id LONG,
+  -- layer name associated with the actual frame.
+  layer_name STRING,
   -- vysnc id of the first frame that falls within the CUJ boundary.
   begin_vsync LONG,
   -- vysnc id of the last frame that falls within the CUJ boundary.
@@ -176,6 +213,7 @@ WITH
       cuj.upid,
       cuj.process_name,
       frame.layer_id,
+      frame.layer_name,
       frame.frame_id,
       frame.do_frame_id,
       frame.expected_frame_timeline_id,
@@ -270,6 +308,7 @@ SELECT
   END AS state,
   cuj_events.ui_thread,
   cuj_events.layer_id,
+  boundary.layer_name,
   cuj_events.begin_vsync,
   cuj_events.end_vsync
 FROM _sysui_cujs_slices AS cuj
@@ -401,6 +440,8 @@ CREATE PERFETTO TABLE android_jank_latency_cujs (
   ui_thread JOINID(thread.id),
   -- layer id associated with the actual frame.
   layer_id LONG,
+  -- layer name associated with the actual frame.
+  layer_name STRING,
   -- vysnc id of the first frame that falls within the CUJ boundary.
   begin_vsync LONG,
   -- vysnc id of the last frame that falls within the CUJ boundary.
@@ -418,6 +459,7 @@ SELECT
   -- upid is used as the ui_thread as it's the tid of the main thread.
   upid AS ui_thread,
   NULL AS layer_id,
+  NULL AS layer_name,
   NULL AS begin_vsync,
   NULL AS end_vsync,
   "latency" AS cuj_type
