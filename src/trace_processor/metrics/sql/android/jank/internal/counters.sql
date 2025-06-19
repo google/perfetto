@@ -12,6 +12,7 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
+
 INCLUDE PERFETTO MODULE android.cujs.sysui_cuj_counters;
 INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
 
