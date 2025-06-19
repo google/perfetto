@@ -52,7 +52,8 @@ class TraceProcessorConfig:
   # If True, the trace processor will print verbose output to stdout.
   verbose: bool = False
 
-  # If True, the trace processor will ingest ftrace in raw format.
+  # If True, the trace processor will ingest ftrace in the `ftrace_event`
+  # table.
   ingest_ftrace_in_raw: bool = False
 
   # If True, the trace processor will enable development features.
@@ -64,8 +65,8 @@ class TraceProcessorConfig:
   # A registry of custom URI resolvers to use when resolving trace URIs.
   resolver_registry: Optional[ResolverRegistry] = None
 
-  # The timeout in seconds for loading traces. If the trace takes longer
-  # than this to load, a TraceProcessorException will be raised.
+  # The timeout in seconds for the trace processor binary starting up. If the
+  # binary does not start within this time, an exception will be raised.
   load_timeout: int = 2
 
   # Any extra flags to pass to the trace processor binary.
