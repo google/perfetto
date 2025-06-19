@@ -14,17 +14,11 @@
 
 import {Time, time} from '../base/time';
 import {getOrCreate} from '../base/utils';
+import {SearchProvider} from '../public/search';
 import {Track} from '../public/track';
 import {SourceDataset} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
-import {
-  LONG,
-  NUM,
-  SqlValue,
-  STR_NULL,
-  UNKNOWN,
-} from '../trace_processor/query_result';
-import {escapeSearchQuery} from '../trace_processor/query_utils';
+import {LONG, NUM, SqlValue, UNKNOWN} from '../trace_processor/query_result';
 
 // Type alias for search results
 export type SearchResult = {
@@ -48,31 +42,56 @@ export interface TrackGroup {
 export async function searchTrackEvents(
   engine: Engine,
   tracks: ReadonlyArray<Track>,
+  providers: ReadonlyArray<SearchProvider>,
   searchTerm: string,
+): Promise<SearchResult[]> {
+  let results: SearchResult[] = [];
+
+  for (const provider of providers) {
+    const filteredTracks = provider.selectTracks(tracks);
+    const filter = await provider.getSearchFilter(searchTerm);
+    const providerResults = await searchTracksUsingProvider(
+      engine,
+      filteredTracks,
+      filter,
+    );
+    results = results.concat(providerResults);
+  }
+
+  // Always search by ID
+  const trackGroups = buildTrackGroups(tracks);
+  const resultsById = await searchIds(trackGroups, searchTerm, engine);
+  results = results.concat(resultsById);
+
+  // // Remove duplicates
+  // const uniqueResults = new Map<string, SearchResult>();
+  // for (const result of results) {
+  //   const key = `${result.id}-${result.ts}`;
+  //   if (!uniqueResults.has(key)) {
+  //     uniqueResults.set(key, result);
+  //   }
+  // }
+
+  // Sort the results by timestamp
+  results.sort((a, b) => Number(a.ts - b.ts));
+
+  return results;
+}
+
+async function searchTracksUsingProvider(
+  engine: Engine,
+  tracks: ReadonlyArray<Track>,
+  filterClause: string,
 ): Promise<SearchResult[]> {
   const trackGroups = buildTrackGroups(tracks);
 
-  // TODO(stevegolton): We currently only search names and ids, but in the
-  // future we will allow custom search facets to be defined by plugins.
-  const names = await searchNames(trackGroups, searchTerm, engine);
-  const ids = await searchIds(trackGroups, searchTerm, engine);
-  const results = names.concat(ids);
-
-  // Remove duplicates
-  const uniqueResults = new Map<string, SearchResult>();
-  for (const result of results) {
-    const key = `${result.id}-${result.ts}`;
-    if (!uniqueResults.has(key)) {
-      uniqueResults.set(key, result);
-    }
-  }
-
-  // Sort the results by timestamp
-  const sortedResults = Array.from(uniqueResults.values()).sort((a, b) =>
-    Number(a.ts - b.ts),
+  const results = await searchTrackGroupsWithFilter(
+    engine,
+    trackGroups,
+    filterClause,
   );
 
-  return sortedResults;
+  return results;
 }
 
 function buildTrackGroups(
@@ -148,27 +167,23 @@ function normalizeMapKey(value: SqlValue): SqlValue {
   }
 }
 
-async function searchNames(
-  trackGroups: Map<string, TrackGroup>,
-  searchTerm: string,
+async function searchTrackGroupsWithFilter(
   engine: Engine,
+  trackGroups: Map<string, TrackGroup>,
+  filterClause: string,
 ): Promise<SearchResult[]> {
   let searchResults: SearchResult[] = [];
 
   // Process each track group
   for (const trackGroup of trackGroups.values()) {
     // Only search track groups that implement the required schema
-    // The schema check ensures 'id', 'ts', and 'name' columns exist.
+    // The schema check ensures 'id', 'ts' columns exist.
     const groupDataset = new SourceDataset({
       src: trackGroup.src,
       schema: trackGroup.schema,
     });
-    if (groupDataset.implements({id: NUM, ts: LONG, name: STR_NULL})) {
-      const results = await searchTrackGroup(
-        trackGroup,
-        `name GLOB ${escapeSearchQuery(searchTerm)}`,
-        engine,
-      );
+    if (groupDataset.implements({id: NUM, ts: LONG})) {
+      const results = await searchTrackGroup(trackGroup, filterClause, engine);
       searchResults = searchResults.concat(results);
     }
   }

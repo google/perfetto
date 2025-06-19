@@ -45,6 +45,7 @@ import {
   QueryFlamegraph,
 } from '../../components/query_flamegraph';
 import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
+import {escapeSearchQuery} from '../../trace_processor/query_utils';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TraceProcessorTrack';
@@ -60,6 +61,49 @@ export default class implements PerfettoPlugin {
     await this.addSlices(ctx);
     this.addAggregations(ctx);
     this.addMinimapContentProvider(ctx);
+
+    ctx.search.registerSearchProvider({
+      name: 'Slices',
+      selectTracks(tracks) {
+        return tracks
+          .filter((t) => t.tags?.kind === SLICE_TRACK_KIND)
+          .filter((t) =>
+            t.renderer.getDataset?.()?.implements({name: STR_NULL}),
+          );
+      },
+      async getSearchFilter(searchTerm) {
+        return `name GLOB ${escapeSearchQuery(searchTerm)}`;
+      },
+    });
+
+    ctx.search.registerSearchProvider({
+      name: 'Slice arguments',
+      selectTracks(tracks) {
+        return tracks
+          .filter((t) => t.tags?.kind === SLICE_TRACK_KIND)
+          .filter((t) =>
+            t.renderer.getDataset?.()?.implements({arg_set_id: NUM_NULL}),
+          );
+      },
+      async getSearchFilter(searchTerm) {
+        const searchLiteral = escapeSearchQuery(searchTerm);
+        const argSetIdsResult = await ctx.engine.query(`
+          SELECT arg_set_id as argSetId
+          FROM args
+          WHERE
+            string_value GLOB ${searchLiteral} OR key GLOB ${searchLiteral}
+        `);
+        const argSetIds = [];
+        for (
+          const it = argSetIdsResult.iter({argSetId: NUM});
+          it.valid();
+          it.next()
+        ) {
+          argSetIds.push(it.argSetId);
+        }
+        return `arg_set_id IN (${argSetIds.join()})`;
+      },
+    });
   }
 
   private async addCounters(ctx: Trace) {

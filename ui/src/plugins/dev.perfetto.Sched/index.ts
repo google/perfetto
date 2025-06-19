@@ -40,6 +40,7 @@ import {WakerOverlay} from './waker_overlay';
 import {duration, time, Time} from '../../base/time';
 import {createPerfettoTable} from '../../trace_processor/sql_utils';
 import {MinimapRow} from '../../public/minimap';
+import {escapeSearchQuery} from '../../trace_processor/query_utils';
 
 function uriForThreadStateTrack(upid: number | null, utid: number): string {
   return `${getThreadUriPrefix(upid, utid)}_state`;
@@ -66,6 +67,35 @@ export default class implements PerfettoPlugin {
           start: ctx.traceInfo.start,
           end: ctx.traceInfo.end,
         });
+      },
+    });
+
+    ctx.search.registerSearchProvider({
+      name: 'Scheduler Slices',
+      selectTracks(tracks) {
+        return tracks
+          .filter((t) => t.tags?.kind === CPU_SLICE_TRACK_KIND)
+          .filter((track) =>
+            track.renderer.getDataset?.()?.implements({utid: NUM_NULL}),
+          );
+      },
+      async getSearchFilter(searchTerm) {
+        // Look up all the utids of threads and processes that match the search
+        // term, and return a filter on those utids.
+        const searchLiteral = escapeSearchQuery(searchTerm);
+        const utidRes = await ctx.engine.query(`
+          SELECT utid
+          FROM thread
+          JOIN process USING(upid)
+          WHERE
+            thread.name GLOB ${searchLiteral} OR
+            process.name GLOB ${searchLiteral}
+        `);
+        const utids = [];
+        for (const it = utidRes.iter({utid: NUM}); it.valid(); it.next()) {
+          utids.push(it.utid);
+        }
+        return `utid IN (${utids.join()})`;
       },
     });
   }
