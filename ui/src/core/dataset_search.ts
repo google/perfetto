@@ -63,19 +63,22 @@ export async function searchTrackEvents(
   const resultsById = await searchIds(trackGroups, searchTerm, engine);
   results = results.concat(resultsById);
 
-  // // Remove duplicates
-  // const uniqueResults = new Map<string, SearchResult>();
-  // for (const result of results) {
-  //   const key = `${result.id}-${result.ts}`;
-  //   if (!uniqueResults.has(key)) {
-  //     uniqueResults.set(key, result);
-  //   }
-  // }
+  // Remove duplicates
+  const uniqueResults = new Map<string, SearchResult>();
+  for (const result of results) {
+    // Use a combination of id and track URI to ensure uniqueness.
+    const key = `${result.id}-${result.track.uri}`;
+    if (!uniqueResults.has(key)) {
+      uniqueResults.set(key, result);
+    }
+  }
 
   // Sort the results by timestamp
-  results.sort((a, b) => Number(a.ts - b.ts));
+  const sortedResults = Array.from(uniqueResults.values()).sort((a, b) =>
+    Number(a.ts - b.ts),
+  );
 
-  return results;
+  return sortedResults;
 }
 
 async function searchTracksUsingProvider(
