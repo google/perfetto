@@ -1097,66 +1097,66 @@ TEST_F(TraceBufferV2Test, Malicious_OverflowingVarintHeader) {
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
-// TEST_F(TraceBufferV2Test, Malicious_VarintHeaderTooBig) {
-//   ResetBuffer(4096);
-//   SuppressClientDchecksForTesting();
+TEST_F(TraceBufferV2Test, Malicious_VarintHeaderTooBig) {
+  ResetBuffer(4096);
+  SuppressClientDchecksForTesting();
 
-//   // Add a valid chunk.
-//   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
-//       .AddPacket(32, 'a')
-//       .CopyIntoTraceBuffer();
+  // Add a valid chunk.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(32, 'a')
+      .CopyIntoTraceBuffer();
 
-//   // Forge a packet which has a varint header that is just off by one.
-//   CreateChunk(ProducerID(2), WriterID(1), ChunkID(0))
-//       .AddPacket({0x16, '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a',
-//       'b',
-//                   'c', 'd', 'e', 'f'})
-//       .CopyIntoTraceBuffer();
+  // Forge a packet which has a varint header that is just off by one.
+  CreateChunk(ProducerID(2), WriterID(1), ChunkID(0))
+      .AddPacket({0x16, '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a',
+      'b',
+                  'c', 'd', 'e', 'f'})
+      .CopyIntoTraceBuffer();
 
-//   // Forge a packet which has a varint header that tries to hit an overflow.
-//   CreateChunk(ProducerID(3), WriterID(1), ChunkID(0))
-//       .AddPacket({0xff, 0xff, 0xff, 0x7f})
-//       .CopyIntoTraceBuffer();
+  // Forge a packet which has a varint header that tries to hit an overflow.
+  CreateChunk(ProducerID(3), WriterID(1), ChunkID(0))
+      .AddPacket({0xff, 0xff, 0xff, 0x7f})
+      .CopyIntoTraceBuffer();
 
-//   // Forge a packet which has a jumbo varint header: 0xff, 0xff .. 0x7f.
-//   std::vector<uint8_t> chunk;
-//   chunk.insert(chunk.end(), 128 - sizeof(ChunkRecord), 0xff);
-//   chunk.back() = 0x7f;
-//   trace_buffer()->CopyChunkUntrusted(
-//       ProducerID(4), ClientIdentity(uid_t(0), pid_t(0)), WriterID(1),
-//       ChunkID(1), 1 /* num packets */, 0 /* flags*/, true /* chunk_complete
-//       */, chunk.data(), chunk.size());
+  // Forge a packet which has a jumbo varint header: 0xff, 0xff .. 0x7f.
+  std::vector<uint8_t> chunk;
+  chunk.insert(chunk.end(), 128 - sizeof(internal::TBChunk), 0xff);
+  chunk.back() = 0x7f;
+  trace_buffer()->CopyChunkUntrusted(
+      ProducerID(4), ClientIdentity(uid_t(0), pid_t(0)), WriterID(1),
+      ChunkID(1), 1 /* num packets */, 0 /* flags*/, true /* chunk_complete
+      */, chunk.data(), chunk.size());
 
-//   // Add a valid chunk.
-//   CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
-//       .AddPacket(32, 'b')
-//       .CopyIntoTraceBuffer();
+  // Add a valid chunk.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
+      .AddPacket(32, 'b')
+      .CopyIntoTraceBuffer();
 
-//   trace_buffer()->BeginRead();
-//   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32, 'a')));
-//   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32, 'b')));
-//   ASSERT_THAT(ReadPacket(), IsEmpty());
-// }
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32, 'a')));
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(32, 'b')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
 
 // Similar to Malicious_VarintHeaderTooBig, but this time the full chunk
 // contains an enormous varint number that tries to overflow.
-// TEST_F(TraceBufferV2Test, Malicious_JumboVarint) {
-//   ResetBuffer(64 * 1024);
-//   SuppressClientDchecksForTesting();
+TEST_F(TraceBufferV2Test, Malicious_JumboVarint) {
+  ResetBuffer(64 * 1024);
+  SuppressClientDchecksForTesting();
 
-//   std::vector<uint8_t> chunk;
-//   chunk.insert(chunk.end(), 64 * 1024 - sizeof(ChunkRecord) * 2, 0xff);
-//   chunk.back() = 0x7f;
-//   for (int i = 0; i < 3; i++) {
-//     trace_buffer()->CopyChunkUntrusted(
-//         ProducerID(1), ClientIdentity(uid_t(0), pid_t(0)), WriterID(1),
-//         ChunkID(1), 1 /* num packets */, 0 /* flags */,
-//         true /* chunk_complete */, chunk.data(), chunk.size());
-//   }
+  std::vector<uint8_t> chunk;
+  chunk.insert(chunk.end(), 64 * 1024 - sizeof(internal::TBChunk) * 2, 0xff);
+  chunk.back() = 0x7f;
+  for (int i = 0; i < 3; i++) {
+    trace_buffer()->CopyChunkUntrusted(
+        ProducerID(1), ClientIdentity(uid_t(0), pid_t(0)), WriterID(1),
+        ChunkID(1), 1 /* num packets */, 0 /* flags */,
+        true /* chunk_complete */, chunk.data(), chunk.size());
+  }
 
-//   trace_buffer()->BeginRead();
-//   ASSERT_THAT(ReadPacket(), IsEmpty());
-// }
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
 
 // Like the Malicious_ZeroVarintHeader, but put the chunk in the middle of a
 // sequence that would be otherwise valid. The zero-sized fragment should be

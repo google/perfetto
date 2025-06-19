@@ -166,7 +166,6 @@ bool BufIterator::NextChunkInBuffer(bool first_iteration) {
     // we should skip the sequence now and in future (until BeginRead() is
     // called again).
 
-    // Ensure we have the current chunk in the list.
     auto& chunk_list = seq->chunks;
     PERFETTO_CHECK(!chunk_list.empty());
     PERFETTO_DCHECK(chunk_list.Find(off) != chunk_list.end());
@@ -174,8 +173,12 @@ bool BufIterator::NextChunkInBuffer(bool first_iteration) {
     TBChunk* first_chunk_of_seq = buf_->GetTBChunkAt(first_off);
     PERFETTO_DCHECK(!first_chunk_of_seq->is_padding());
 
-    if (seq->last_chunk_id_consumed.has_value() &&
-        first_chunk_of_seq->chunk_id != *seq->last_chunk_id_consumed + 1) {
+    bool chunk_id_gap =
+        seq->last_chunk_id_consumed.has_value() &&
+        first_chunk_of_seq->chunk_id != *seq->last_chunk_id_consumed + 1;
+    bool needs_patching = next_chunk->flags & kChunkNeedsPatching;
+    if (chunk_id_gap || needs_patching) {
+      PERFETTO_DCHECK(!read_only_iterator_);
       seq->skip_in_generation = buf_->read_generation_;
       continue;
     }
@@ -187,7 +190,7 @@ bool BufIterator::NextChunkInBuffer(bool first_iteration) {
   }
 }
 
-bool BufIterator::NextChunkInSequence(bool has_erased_current_chunk) {
+bool BufIterator::NextChunkInSequence() {
   // TODO if the chunk needs patching (and is still unpatched), return false.
 
   PERFETTO_DCHECK(valid());
@@ -204,10 +207,10 @@ bool BufIterator::NextChunkInSequence(bool has_erased_current_chunk) {
 
   // Either the current chunk has been deleted (is_padding()), or if it exist it
   // must be consistent with the internal tracking in seq_idx_.
-  PERFETTO_DCHECK((has_erased_current_chunk && chunk_->is_padding()) ||
+  PERFETTO_DCHECK(chunk_->is_padding() ||
                   chunk_list.at(seq_idx_) == buf_->OffsetOf(chunk_));
 
-  size_t next_seq_idx = has_erased_current_chunk ? seq_idx_ : seq_idx_ + 1;
+  size_t next_seq_idx = seq_idx_ + 1;
   if (next_seq_idx >= chunk_list.size()) {
     // There is no "next chunk" the chunk list for this sequence.
     // NOTE: this has nothing to do with the "ChunkID is not consecutive" check
@@ -238,15 +241,23 @@ bool BufIterator::NextChunkInSequence(bool has_erased_current_chunk) {
   TBChunk* next_chunk = buf_->GetTBChunkAt(next_chunk_off);  // O(1)
   ChunkID next_chunk_id = next_chunk->chunk_id;              // O(1)
 
+  if (next_chunk->flags & kChunkNeedsPatching) {
+    return false;
+  }
+
   // TODO rename chunk_list with chunk_offsets
   PERFETTO_DCHECK(!last_chunk_id.has_value() ||
                   ChunkIdCompare(*last_chunk_id, next_chunk_id) < 0);
   // PERFETTO_ILOG("NextInSeq %lu -> %lu", chunk_list.at(next_seq_idx),
   //               chunk_list.at(seq_idx_) + 1);  // DNS
-  if (last_chunk_id.has_value() && next_chunk_id != *last_chunk_id + 1) {
-    // There is a gap in the current sequence and we are missing some
-    // intermediate chunk. Abort the sequence-order walk and never visit this
-    // sequence again (unless this was a read-only iterator for reassembly).
+  bool chunk_id_gap =
+      last_chunk_id.has_value() && next_chunk_id != *last_chunk_id + 1;
+  bool needs_patching = next_chunk->flags & kChunkNeedsPatching;
+  if (chunk_id_gap || needs_patching) {
+    // If we get here, either there is a gap in the sequence and we are missing
+    // some intermediate chunks, or one of the chunks in the sequence are
+    // awaiting a patch. In either case, abort the sequence-order walk and skip
+    // this sequence (unless this was a read-only iterator for reassembly).
     if (PERFETTO_LIKELY(!read_only_iterator_)) {
       seq_->skip_in_generation = buf_->read_generation_;
     }
@@ -258,7 +269,7 @@ bool BufIterator::NextChunkInSequence(bool has_erased_current_chunk) {
 }
 
 // See comments around BufIterator in the .h file for the rationale.
-bool BufIterator::NextChunk(bool has_erased_current_chunk) {
+bool BufIterator::NextChunk() {
   PERFETTO_DCHECK(valid());
   const bool move_in_seq_order = chunk_ != target_chunk_;
   if (move_in_seq_order) {
@@ -267,7 +278,7 @@ bool BufIterator::NextChunk(bool has_erased_current_chunk) {
     // state by initially rewining to the beginning of the list.
     // However, if there is a gap in the sequence (e.g. producer data loss)
     // NextChunkInSequence() will return false.
-    if (NextChunkInSequence(has_erased_current_chunk)) {
+    if (NextChunkInSequence()) {
       return true;
     }
   }
@@ -373,7 +384,14 @@ bool BufIterator::EraseCurrentChunkAndMoveNext() {
     stats.set_chunks_overwritten(stats.chunks_overwritten() + 1);
     stats.set_bytes_overwritten(stats.bytes_overwritten() + outer_size);
   }  //  if (!is_padding)
-  return NextChunk(/*has_erased_current_chunk=*/true);
+
+  // Rationale for the -1: seq_idx_ is expected to point to the current chunk_.
+  // However we have just deleted the "current" chunk from the
+  // SequenceState.chunks list. The best "current chunk" is 0xff..ff, so that
+  // the next call to NextChunkInSequence will +1 and move to the 0th entry,
+  // which is the right "next".
+  seq_idx_ = std::numeric_limits<decltype(seq_idx_)>::max();
+  return NextChunk();
 }
 }  // namespace internal
 
@@ -616,7 +634,7 @@ TraceBufferV2::FragReassemblyResult TraceBufferV2::ReassembleFragmentedPacket(
   }  // for (chunk in list)
 
   for (Frag& f : frags) {
-    if (res == FragReassemblyResult::kSuccess) {
+    if (res == FragReassemblyResult::kSuccess && f.payload_size() > 0) {
       out_packet->AddSlice(f.begin(), f.payload_size());
     }
     if (res == FragReassemblyResult::kSuccess ||
@@ -661,6 +679,8 @@ void TraceBufferV2::CopyChunkUntrusted(
   const uint8_t* cur = src;
   const uint8_t* const end = src + size;
 
+  // chunk_complete is true in the majority of cases, and is false only when
+  // the service performs SBM scraping (upon flush).
   // If the chunk hasn't been completed, we should only consider the first
   // |num_fragments - 1| packets. For simplicity, we simply disregard
   // the last one when we copy the chunk.
@@ -730,6 +750,7 @@ void TraceBufferV2::CopyChunkUntrusted(
   }  // for (fragments)
   PERFETTO_CHECK(all_frags_size <= size);
 
+
   // Make space in the buffer for the chunk we are about to copy.
 
   // TODO if the chunk is incomplete, copy the original size, ignore the payload
@@ -742,6 +763,10 @@ void TraceBufferV2::CopyChunkUntrusted(
   // in the buffer, we use aligned_size() which does the rounding.
   // tbchunk_outer_size := header + all_frags_size + alignment.
   size_t tbchunk_outer_size = TBChunk::OuterSize(all_frags_size);
+  if (PERFETTO_UNLIKELY(!chunk_complete)) {
+    // TODO explain.
+    // tbchunk_outer_size = size;
+  }
 
   if (PERFETTO_UNLIKELY(tbchunk_outer_size > size_)) {
     // The chunk is bigger than the buffer. Extremely rare, but can happen, e.g.
@@ -750,6 +775,21 @@ void TraceBufferV2::CopyChunkUntrusted(
     PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
     return;
   }
+
+
+  auto seq_key = MkProducerAndWriterID(producer_id_trusted, writer_id);
+  auto seq_it = sequences_.find(seq_key);
+  if (seq_it == sequences_.end()) {
+    TRACE_BUFFER_DLOG("  Added seq %x", seq_key);
+    auto it_and_inserted = sequences_.emplace(
+        seq_key,
+        SequenceState(producer_id_trusted, writer_id, client_identity_trusted));
+    seq_it = it_and_inserted.first;
+  }
+  SequenceState& seq = seq_it->second;
+
+  // HANDLE recommit case
+
 
   // If there isn't enough room from the given write position: write a padding
   // record to clear the end of the buffer, wrap and start at offset 0.
@@ -766,16 +806,6 @@ void TraceBufferV2::CopyChunkUntrusted(
   if (!DeleteNextChunksFor(tbchunk_outer_size))
     return DiscardWrite();
 
-  auto seq_key = MkProducerAndWriterID(producer_id_trusted, writer_id);
-  auto seq_it = sequences_.find(seq_key);
-  if (seq_it == sequences_.end()) {
-    TRACE_BUFFER_DLOG("  Added seq %x", seq_key);
-    auto it_and_inserted = sequences_.emplace(
-        seq_key,
-        SequenceState(producer_id_trusted, writer_id, client_identity_trusted));
-    seq_it = it_and_inserted.first;
-  }
-  SequenceState& seq = seq_it->second;
 
   TBChunk* tbchunk = CreateTBChunk(wr_, all_frags_size);
   tbchunk->payload_avail = all_frags_size;
@@ -911,16 +941,70 @@ bool TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
   return true;
 }
 
-bool TraceBufferV2::TryPatchChunkContents(ProducerID,
-                                          WriterID,
-                                          ChunkID,
+bool TraceBufferV2::TryPatchChunkContents(ProducerID producer_id,
+                                          WriterID writer_id,
+                                          ChunkID chunk_id,
                                           const Patch* patches,
                                           size_t patches_size,
                                           bool other_patches_pending) {
-  (void)patches;
-  (void)patches_size;
-  (void)other_patches_pending;
-  return false;
+  ProducerAndWriterID seq_key = MkProducerAndWriterID(producer_id, writer_id);
+  auto seq_it = sequences_.find(seq_key);
+  if (seq_it == sequences_.end()) {
+    stats_.set_patches_failed(stats_.patches_failed() + 1);
+    return false;
+  }
+
+  // We have to do a linear search to find the chunk to patch. In the majority
+  // of cases the chunk to patch is one of the last ones committed, so we walk
+  // the list backwards.
+  auto& chunk_list = seq_it->second.chunks;
+  TBChunk* chunk = nullptr;
+  for (auto it = chunk_list.rbegin(); it != chunk_list.rend(); ++it) {
+    TBChunk* it_chunk = GetTBChunkAt(*it);
+    if (it_chunk->chunk_id == chunk_id) {
+      chunk = it_chunk;
+      break;
+    }
+  }
+
+  if (chunk == nullptr) {
+    stats_.set_patches_failed(stats_.patches_failed() + 1);
+    return false;
+  }
+
+  size_t payload_size = chunk->payload_size;
+  PERFETTO_DCHECK(chunk->chunk_id == chunk_id);
+
+  static_assert(Patch::kSize == SharedMemoryABI::kPacketHeaderSize,
+                "Patch::kSize out of sync with SharedMemoryABI");
+
+  for (size_t i = 0; i < patches_size; i++) {
+    const size_t offset_untrusted = patches[i].offset_untrusted;
+    if (payload_size < Patch::kSize ||
+        offset_untrusted > payload_size - Patch::kSize) {
+      // Either the IPC was so slow and in the meantime the writer managed to
+      // wrap over |chunk_id| or the producer sent a malicious IPC.
+      stats_.set_patches_failed(stats_.patches_failed() + 1);
+      return false;
+    }
+    PERFETTO_DCHECK(offset_untrusted >= payload_size - chunk->payload_avail);
+    TRACE_BUFFER_DLOG("PatchChunk {%" PRIu32 ",%" PRIu32
+                      ",%u} size=%zu @ %zu with {%02x %02x %02x %02x}",
+                      producer_id, writer_id, chunk_id,
+                      size_t(chunk->payload_size), offset_untrusted,
+                      patches[i].data[0], patches[i].data[1],
+                      patches[i].data[2], patches[i].data[3]);
+    uint8_t* dst = chunk->fragments_begin() + offset_untrusted;
+    memcpy(dst, &patches[i].data[0], Patch::kSize);
+  }
+  TRACE_BUFFER_DLOG(
+      "Chunk raw (after patch): %s",
+      base::HexDump(chunk->fragments_begin(), chunk->payload_size).c_str());
+  stats_.set_patches_succeeded(stats_.patches_succeeded() + patches_size);
+  if (!other_patches_pending) {
+    chunk->flags &= ~kChunkNeedsPatching;
+  }
+  return true;
 }
 
 void TraceBufferV2::DumpForTesting() {
@@ -939,9 +1023,10 @@ void TraceBufferV2::DumpForTesting() {
   for (size_t rd = 0; rd < size_;) {
     TBChunk* c = GetTBChunkAtUnchecked(rd);
     if (c->exists) {
-      PERFETTO_DLOG("[%06zu-%06zu] size=%05u(%05u) id=%05u pr_wr=%08x", rd,
-                    rd + c->outer_size(), c->payload_size, c->payload_avail,
-                    c->chunk_id, c->pri_wri_id);
+      PERFETTO_DLOG(
+          "[%06zu-%06zu] size=%05u(%05u) id=%05u pr_wr=%08x flags=%08x", rd,
+          rd + c->outer_size(), c->payload_size, c->payload_avail, c->chunk_id,
+          c->pri_wri_id, c->flags);
       rd += c->outer_size();
       continue;
     }
@@ -963,3 +1048,5 @@ void TraceBufferV2::DumpForTesting() {
 
 // TODO handle recommit of same chunk id (allow only for the last chunk of a
 // seq?). Also add test for it.
+
+// TODO delete SequenceState once its empty?

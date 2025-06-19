@@ -209,8 +209,8 @@ class BufIterator {
   // If `limit` is non-null, NextChunk returns prematurely false if we hit the
   // `limit` chunk while iterating in buffer order mode. This is used to
   // implement the "DeleteNextChunksFor()" while overwriting.
-  bool NextChunk(bool has_erased_current_chunk = false);
-  bool NextChunkInSequence(bool has_erased_current_chunk = false);
+  bool NextChunk();
+  bool NextChunkInSequence();
   bool NextChunkInBuffer(bool first_call_from_ctor = false);
   std::optional<Frag> NextFragmentInChunk();
   void SkipCurrentSequence();
