@@ -24,6 +24,7 @@ source_set("android_cpu_per_uid") {
     "../../../../protos/perfetto/config/android:zero",
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/android:zero",
+    "../../../android_internal:lazy_library_loader",
     "../../../base",
   ]
   sources = [

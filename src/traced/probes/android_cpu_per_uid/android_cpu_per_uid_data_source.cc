@@ -39,6 +39,7 @@ namespace perfetto {
 namespace {
 constexpr uint32_t kMinPollIntervalMs = 10;
 constexpr uint32_t kDefaultPollIntervalMs = 1000;
+constexpr uint32_t kInvalidUid = 0xffffffff;
 constexpr size_t kMaxNumResults = 4096;
 }  // namespace
 
@@ -152,12 +153,12 @@ void AndroidCpuPerUidDataSource::WriteCpuPerUid() {
   protozero::PackedVarInt uid;
   protozero::PackedVarInt total_time_ms;
   std::vector<uint64_t> cluster_deltas_ms;
-  int32_t first_uid = -1;
-  int32_t current_uid = -1;
+  uint32_t first_uid = kInvalidUid;
+  uint32_t current_uid = kInvalidUid;
 
   // GetCpuTimes() returns values grouped by UID.
   for (auto& time : cpu_times) {
-    if (first_uid == -1) {
+    if (first_uid == kInvalidUid) {
       first_uid = time.uid;
     }
 
@@ -166,7 +167,7 @@ void AndroidCpuPerUidDataSource::WriteCpuPerUid() {
     }
 
     if (time.uid != current_uid) {
-      if (current_uid != -1) {
+      if (current_uid != kInvalidUid) {
         MaybeAppendUid(current_uid, cluster_deltas_ms, uid, total_time_ms);
       }
       current_uid = time.uid;
@@ -175,7 +176,7 @@ void AndroidCpuPerUidDataSource::WriteCpuPerUid() {
       }
     }
 
-    uint64_t key = (((uint64_t)current_uid) << 32) | time.cluster;
+    uint64_t key = ((uint64_t(current_uid)) << 32) | time.cluster;
     uint64_t* previous = previous_times_.Find(key);
     if (previous) {
       cluster_deltas_ms[time.cluster] = time.total_time_ms - *previous;
@@ -188,14 +189,14 @@ void AndroidCpuPerUidDataSource::WriteCpuPerUid() {
   MaybeAppendUid(current_uid, cluster_deltas_ms, uid, total_time_ms);
 
   if (first_time) {
-    proto->set_cluster_count(cluster_deltas_ms.size());
+    proto->set_cluster_count(uint32_t(cluster_deltas_ms.size()));
   }
   proto->set_uid(uid);
   proto->set_total_time_ms(total_time_ms);
 }
 
 void AndroidCpuPerUidDataSource::MaybeAppendUid(
-    int32_t uid,
+    uint32_t uid,
     std::vector<uint64_t>& cluster_deltas_ms,
     protozero::PackedVarInt& uid_list,
     protozero::PackedVarInt& total_time_ms_list) {
