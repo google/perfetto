@@ -118,9 +118,7 @@ struct SequenceState {
   // TODO explain this is like a std::optional<bool> reset on each BeginRead().
   uint64_t skip_in_generation = 0;
 
-  // TODO explain this goes in pair.
-  uint64_t read_generation = 0;
-  ChunkID last_chunk_id_consumed = 0;
+  std::optional<ChunkID> last_chunk_id_consumed;
 
   // An ordered list of chunks (ordered by their chunk_id). Each member
   // corresponsds to the offset within buf_ for the chunk.
@@ -211,12 +209,12 @@ class BufIterator {
   // If `limit` is non-null, NextChunk returns prematurely false if we hit the
   // `limit` chunk while iterating in buffer order mode. This is used to
   // implement the "DeleteNextChunksFor()" while overwriting.
-  bool NextChunk();
-  bool NextChunkInSequence();
+  bool NextChunk(bool has_erased_current_chunk = false);
+  bool NextChunkInSequence(bool has_erased_current_chunk = false);
   bool NextChunkInBuffer(bool first_call_from_ctor = false);
   std::optional<Frag> NextFragmentInChunk();
   void SkipCurrentSequence();
-  void EraseCurrentChunk();
+  bool EraseCurrentChunkAndMoveNext();
   void SetChunk(SequenceState* seq, TBChunk* chunk);
 
   bool valid() {

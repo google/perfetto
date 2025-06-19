@@ -527,7 +527,6 @@ TEST_F(TraceBufferV2Test, Fragments_Simple) {
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'b')));
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'c')));
 
-  PERFETTO_ELOG("---------");  // DNS
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(10, 'd'),
                                         FakePacketFragment(20, 'e')));
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'f')));
@@ -576,6 +575,7 @@ TEST_F(TraceBufferV2Test, Fragments_OutOfOrderLastChunkIsMiddle) {
       .AddPacket(20, 'b')
       .CopyIntoTraceBuffer();
   EXPECT_EQ(1u, trace_buffer()->stats().chunks_committed_out_of_order());
+
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'b')));
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'c')));
@@ -793,6 +793,8 @@ TEST_F(TraceBufferV2Test, Fragments_LongPacketWithWrappingID) {
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
+// DNS: here I had to swap the order of expected packets because now we respect
+// buffer order.
 TEST_F(TraceBufferV2Test, Fragments_PreserveUID) {
   ResetBuffer(4096);
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
@@ -822,16 +824,16 @@ TEST_F(TraceBufferV2Test, Fragments_PreserveUID) {
   ASSERT_EQ(static_cast<uid_t>(11), sequence_properties.producer_uid_trusted());
 
   ASSERT_THAT(ReadPacket(&sequence_properties),
-              ElementsAre(FakePacketFragment(10, 'f')));
-  ASSERT_EQ(static_cast<uid_t>(11), sequence_properties.producer_uid_trusted());
-
-  ASSERT_THAT(ReadPacket(&sequence_properties),
               ElementsAre(FakePacketFragment(10, 'c')));
   ASSERT_EQ(static_cast<uid_t>(22), sequence_properties.producer_uid_trusted());
 
   ASSERT_THAT(ReadPacket(&sequence_properties),
               ElementsAre(FakePacketFragment(10, 'd')));
   ASSERT_EQ(static_cast<uid_t>(22), sequence_properties.producer_uid_trusted());
+
+  ASSERT_THAT(ReadPacket(&sequence_properties),
+              ElementsAre(FakePacketFragment(10, 'f')));
+  ASSERT_EQ(static_cast<uid_t>(11), sequence_properties.producer_uid_trusted());
 
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
