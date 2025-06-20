@@ -73,7 +73,6 @@
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/protozero/static_buffer.h"
-#include "perfetto/trace_processor/status.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/tracing_service_capabilities.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
