@@ -59,6 +59,7 @@ source_set("probes_src") {
     "../../base",
     "../../tracing/core",
     "../../tracing/ipc/producer",
+    "android_cpu_per_uid",
     "android_game_intervention_list",
     "android_kernel_wakelocks",
     "android_log",

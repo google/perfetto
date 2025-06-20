@@ -40,6 +40,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeMetadataPacket);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeTrigger);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ClockSnapshot);
 PERFETTO_PB_MSG_DECL(perfetto_protos_CpuInfo);
+PERFETTO_PB_MSG_DECL(perfetto_protos_CpuPerUidData);
 PERFETTO_PB_MSG_DECL(perfetto_protos_DeobfuscationMapping);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EntityStateResidency);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EtwTraceEventBundle);
@@ -540,6 +541,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_GenericKernelCpuFrequencyEvent,
                   generic_kernel_cpu_freq_event,
                   118);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_CpuPerUidData,
+                  cpu_per_uid_data,
+                  119);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_TestEvent,

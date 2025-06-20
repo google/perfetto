@@ -678,6 +678,7 @@ perfetto_cc_library(
             ":src_kernel_utils_kernel_wakelock_errors",
             ":src_kernel_utils_syscall_table",
             ":src_protozero_proto_ring_buffer",
+            ":src_traced_probes_android_cpu_per_uid_android_cpu_per_uid",
             ":src_traced_probes_android_game_intervention_list_android_game_intervention_list",
             ":src_traced_probes_android_kernel_wakelocks_android_kernel_wakelocks",
             ":src_traced_probes_android_log_android_log",
@@ -1211,6 +1212,7 @@ perfetto_filegroup(
     name = "src_android_internal_headers",
     srcs = [
         "src/android_internal/atrace_hal.h",
+        "src/android_internal/cpu_time_in_state.h",
         "src/android_internal/health_hal.h",
         "src/android_internal/incident_service.h",
         "src/android_internal/power_stats.h",
@@ -4004,6 +4006,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/traced/probes/android_cpu_per_uid:android_cpu_per_uid
+perfetto_filegroup(
+    name = "src_traced_probes_android_cpu_per_uid_android_cpu_per_uid",
+    srcs = [
+        "src/traced/probes/android_cpu_per_uid/android_cpu_per_uid_data_source.cc",
+        "src/traced/probes/android_cpu_per_uid/android_cpu_per_uid_data_source.h",
+    ],
+)
+
 # GN target: //src/traced/probes/android_game_intervention_list:android_game_intervention_list
 perfetto_filegroup(
     name = "src_traced_probes_android_game_intervention_list_android_game_intervention_list",
@@ -5238,6 +5249,7 @@ perfetto_proto_library(
         "protos/perfetto/config/android/android_sdk_sysprop_guard_config.proto",
         "protos/perfetto/config/android/android_system_property_config.proto",
         "protos/perfetto/config/android/app_wakelock_config.proto",
+        "protos/perfetto/config/android/cpu_per_uid_config.proto",
         "protos/perfetto/config/android/kernel_wakelocks_config.proto",
         "protos/perfetto/config/android/network_trace_config.proto",
         "protos/perfetto/config/android/packages_list_config.proto",
@@ -6019,6 +6031,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/android/app_wakelock_data.proto",
         "protos/perfetto/trace/android/bluetooth_trace.proto",
         "protos/perfetto/trace/android/camera_event.proto",
+        "protos/perfetto/trace/android/cpu_per_uid_data.proto",
         "protos/perfetto/trace/android/frame_timeline_event.proto",
         "protos/perfetto/trace/android/gpu_mem_event.proto",
         "protos/perfetto/trace/android/graphics_frame_event.proto",
