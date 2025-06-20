@@ -6,7 +6,7 @@
 
   - [Tutorials](#)
 
-    - [End-to-end Perfetto Tracing](#)
+    - [End-to-end Tracing](#)
 
       - [System Tracing](getting-started/system-tracing.md)
       - [In-App Tracing](getting-started/in-app-tracing.md)
@@ -14,14 +14,14 @@
       - [CPU Profiling](getting-started/cpu-profiling.md)
       - [Chrome Tracing](getting-started/chrome-tracing.md)
 
-    - [Instrumentation without Perfetto](#)
+    - [Adding Tracepoints](#)
 
       - [Android atrace](getting-started/atrace.md)
       - [Linux ftrace](getting-started/ftrace.md)
 
-    - [Non-Perfetto data analysis](#)
+    - [Ad-hoc Trace Analysis](#)
 
-      - [Other trace formats](getting-started/other-formats.md)
+      - [Supported trace formats](getting-started/other-formats.md)
       - [Converting to Perfetto](getting-started/converting.md)
 
   - [Recipes](#)
@@ -30,7 +30,7 @@
 
   - [Case Studies](#)
 
-    - [Debugging Android memory usage](case-studies/memory.md)
+    - [Understanding Android memory usage](case-studies/memory.md)
 
 - [Learning more](#)
 

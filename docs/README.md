@@ -1,12 +1,12 @@
 # What is Perfetto?
 
-Perfetto is an open-source suite of SDKs, daemons and tools which use
-**tracing** to help developers understand the behaviour of the complex systems
-and root-cause functional and performance issues on client / embedded systems.
-
 TIP: If you are unfamiliar with tracing or, in general, are new to the world of
 performance, we suggest reading the [What is Tracing?](/docs/tracing-101.md)
 page first.
+
+Perfetto is an open-source suite of SDKs, daemons and tools which use
+**tracing** to help developers understand the behaviour of the complex systems
+and root-cause functional and performance issues on client / embedded systems.
 
 TODO: add updated diagram here.
 
@@ -63,12 +63,16 @@ Other usecases Perfetto is commonly used for include:
   memory usage of C/C++/Rust apps and libraries.
 - **Analysing and visualizing CPU profiles (Linux perf profiles) on Linux** to
   optmize CPU usage in C/C++/Rust apps and libraries.
-- **Analysing and visualizing common profiling/tracing formats**. _Chrome JSON
-  format_, _Firefox Profiler JSON format_, _Linux perf binary and text formats_,
-  Linux ftrace text format, _macOS Instruments_, _Fuchsia tracing format_ etc.
-  Even if the traces/profiles were not collected with Perfetto's recording
-  tools, they can still be be visualized with the Perfetto UI and analyzed with
-  our SQL-based query engine.
+- **Analyze and visualize a wide range of profiling and tracing formats.**
+  Perfetto can open traces and profiles from various other tools, allowing you
+  to use the Perfetto UI and its SQL-based query engine on many data sources,
+  including:
+  - _Chrome JSON format_
+  - _Firefox Profiler JSON format_
+  - _Linux perf (binary and text formats)_
+  - _Linux ftrace text format_
+  - _macOS Instruments_
+  - _Fuchsia tracing format_
 - **Analysing and visualizing arbitrary "trace-like" data**. The Perfetto
   analysis and visualization tools can be used on any "trace-like" data (e.g.
   data with a timestamp and some payload) as long as it can be converted to the
@@ -85,8 +89,9 @@ explicltly unsupported.
     Jaeger, Datadog. Perfetto's recording tools are entirely for recording
     client side traces, especially at the system level. Our team believes that
     the space of distributed/server tracing is well covered by the
-    aforementioned projects, unlike Android and Linux-embeded systems.
-  - However, the Perfetto UI _can_ be used to visualize distributed traces if
+    aforementioned projects, unlike client side systems like Android and
+    Linux/embeded systems.
+  - However, the Perfetto UI **can** be used to visualize distributed traces if
     traces are converted to a format that Perfetto supports. In fact, this is
     commonly done inside Google.
 
