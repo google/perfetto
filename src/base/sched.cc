@@ -21,7 +21,8 @@
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <linux/capability.h>
 #include <sched.h>
-#include <sys/capability.h>  // for capget()
+#include <sys/syscall.h>
+#include <unistd.h>
 #endif
 
 #include "perfetto/ext/base/status_macros.h"
@@ -99,8 +100,10 @@ bool SchedManager::HasCapabilityToSetSchedPolicy() const {
   header.version = _LINUX_CAPABILITY_VERSION_3;
   header.pid = kCurrentPid;
   __user_cap_data_struct data[_LINUX_CAPABILITY_U32S_3];
-  if (capget(&header, data) == -1) {
-    PERFETTO_PLOG("Failed to call capget");
+  // Don't want to add a build dependency on a libcap(3), so use raw syscall.
+  if (syscall(__NR_capget, &header, data) == -1) {
+    PERFETTO_DFATAL_OR_ELOG("Failed to call capget (errno: %d, %s)", errno,
+                            strerror(errno));
     return false;
   }
 

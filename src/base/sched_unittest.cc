@@ -127,6 +127,14 @@ RR(priority=99, kernel_policy=2, kernel_prio=0))";
   ASSERT_STREQ(actual_string.c_str(), expected_string);
 }
 
+TEST(SchedManagerTest, TestHasCapabilityToSetSchedPolicy) {
+  SchedManager* instance = SchedManager::GetInstance();
+  ASSERT_NE(instance, nullptr);
+  const bool is_root = geteuid() == 0;
+  // Assert we don't crash and return the correct value.
+  ASSERT_EQ(is_root, instance->HasCapabilityToSetSchedPolicy());
+}
+
 #else
 TEST(SchedManagerTest, TestReportErrorWhenNotSupported) {
   SchedManager* instance = SchedManager::GetInstance();
