@@ -503,14 +503,14 @@ class InterpreterImpl {
 
       // Scan 16 rows: it's often the case that we have just a very small number
       // of equal rows, so we can avoid a binary search.
-      const DataType* eq_end_limit = std::min(end, eq_start + 16);
+      const DataType* eq_end_limit = eq_start + 16;
       for (;; ++eq_end) {
+        if (eq_end == end) {
+          break;
+        }
         if (eq_end == eq_end_limit) {
           eq_end =
               std::upper_bound(eq_start, end, val, GetUbComparator<DataType>());
-          break;
-        }
-        if (eq_end == end) {
           break;
         }
         if (std::not_equal_to<>()(*eq_end, cmp_value)) {
