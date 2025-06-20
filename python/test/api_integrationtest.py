@@ -360,7 +360,7 @@ class TestApi(unittest.TestCase):
 
     tp = create_tp(trace=example_android_trace_path())
     trace_summary = tp.trace_summary([metric_spec], ['memory_per_process'])
-    self.assertEqual(trace_summary.metric[0].spec.id, 'memory_per_process')
+    self.assertEqual(trace_summary.metric_bundles[0].specs[0].id, 'memory_per_process')
     tp.close()
 
   def test_trace_summary_success_multiple_metrics(self):
@@ -387,9 +387,9 @@ class TestApi(unittest.TestCase):
     tp = create_tp(trace=example_android_trace_path())
     trace_summary = tp.trace_summary([metric_spec_1, metric_spec_2],
                                      ['metric_one', 'metric_two'])
-    self.assertEqual(len(trace_summary.metric), 2)
-    self.assertIn(trace_summary.metric[0].spec.id, ['metric_one', 'metric_two'])
-    self.assertIn(trace_summary.metric[1].spec.id, ['metric_one', 'metric_two'])
+    self.assertEqual(len(trace_summary.metric_bundles), 2)
+    self.assertIn(trace_summary.metric_bundles[0].specs[0].id, ['metric_one', 'metric_two'])
+    self.assertIn(trace_summary.metric_bundles[1].specs[0].id, ['metric_one', 'metric_two'])
     tp.close()
 
   def test_trace_summary_success_with_metadata_query(self):
@@ -414,7 +414,7 @@ class TestApi(unittest.TestCase):
     tp = create_tp(trace=example_android_trace_path())
     trace_summary = tp.trace_summary([metric_spec], ['memory_per_process'],
                                      metadata_query_id='metadata_query')
-    self.assertEqual(trace_summary.metric[0].spec.id, 'memory_per_process')
+    self.assertEqual(trace_summary.metric_bundles[0].specs[0].id, 'memory_per_process')
     self.assertTrue(hasattr(trace_summary, 'metadata'))
     tp.close()
 
@@ -432,7 +432,7 @@ class TestApi(unittest.TestCase):
 
     tp = create_tp(trace=example_android_trace_path())
     trace_summary = tp.trace_summary([metric_spec], [])
-    self.assertEqual(len(trace_summary.metric), 0)
+    self.assertEqual(len(trace_summary.metric_bundles), 0)
     tp.close()
 
   def test_trace_summary_no_ids_specified(self):
@@ -458,9 +458,9 @@ class TestApi(unittest.TestCase):
       """
     tp = create_tp(trace=example_android_trace_path())
     trace_summary = tp.trace_summary([metric_spec_1, metric_spec_2])
-    self.assertEqual(len(trace_summary.metric), 2)
-    self.assertIn(trace_summary.metric[0].spec.id, ['metric_one', 'metric_two'])
-    self.assertIn(trace_summary.metric[1].spec.id, ['metric_one', 'metric_two'])
+    self.assertEqual(len(trace_summary.metric_bundles), 2)
+    self.assertIn(trace_summary.metric_bundles[0].specs[0].id, ['metric_one', 'metric_two'])
+    self.assertIn(trace_summary.metric_bundles[1].specs[0].id, ['metric_one', 'metric_two'])
     tp.close()
 
   def test_trace_summary_specs_as_bytes(self):
@@ -485,9 +485,9 @@ class TestApi(unittest.TestCase):
 
     tp = create_tp(trace=example_android_trace_path())
     trace_summary = tp.trace_summary([metric_spec_1_bytes, metric_spec_2_bytes])
-    self.assertEqual(len(trace_summary.metric), 2)
-    self.assertIn(trace_summary.metric[0].spec.id, ['metric_one', 'metric_two'])
-    self.assertIn(trace_summary.metric[1].spec.id, ['metric_one', 'metric_two'])
+    self.assertEqual(len(trace_summary.metric_bundles), 2)
+    self.assertIn(trace_summary.metric_bundles[0].specs[0].id, ['metric_one', 'metric_two'])
+    self.assertIn(trace_summary.metric_bundles[1].specs[0].id, ['metric_one', 'metric_two'])
     tp.close()
 
   def test_trace_summary_specs_as_bytes_and_text(self):
@@ -515,7 +515,7 @@ class TestApi(unittest.TestCase):
 
     tp = create_tp(trace=example_android_trace_path())
     trace_summary = tp.trace_summary([metric_spec_1_bytes, metric_spec_2])
-    self.assertEqual(len(trace_summary.metric), 2)
-    self.assertIn(trace_summary.metric[0].spec.id, ['metric_one', 'metric_two'])
-    self.assertIn(trace_summary.metric[1].spec.id, ['metric_one', 'metric_two'])
+    self.assertEqual(len(trace_summary.metric_bundles), 2)
+    self.assertIn(trace_summary.metric_bundles[0].specs[0].id, ['metric_one', 'metric_two'])
+    self.assertIn(trace_summary.metric_bundles[1].specs[0].id, ['metric_one', 'metric_two'])
     tp.close()
