@@ -57,6 +57,7 @@
     - [PerfettoSQL Standard Library](analysis/stdlib-docs.autogen)
     - [Trace Processor (Python)](analysis/trace-processor-python.md)
     - [Trace Processor (C++)](analysis/trace-processor.md)
+    - [Trace Summarization](analysis/trace-summary.md)
 
   - [Trace Visualization](#)
 
@@ -129,7 +130,6 @@
 
     - [Single Trace Analysis](#)
 
-      - [Trace summary](analysis/trace-summary.md)
       - [Trace-based Metrics](analysis/metrics.md)
 
     - [Multi Trace Analysis](#)
