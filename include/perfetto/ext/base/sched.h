@@ -19,10 +19,6 @@
 
 #include "perfetto/base/build_config.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#include <sched.h>
-#endif
 #include <string>
 
 #include "perfetto/base/logging.h"
@@ -94,6 +90,7 @@ struct SchedConfig {
     return std::tie(policy_, rt_priority_, nice_) ==
            std::tie(other.policy_, other.rt_priority_, other.nice_);
   }
+  bool operator!=(const SchedConfig& other) const { return !(*this == other); }
 
   SchedPolicy policy() const { return policy_; }
   unsigned int priority() const { return rt_priority_; }

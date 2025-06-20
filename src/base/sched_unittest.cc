@@ -16,6 +16,8 @@
 
 #include "perfetto/ext/base/sched.h"
 
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/string_utils.h"
 
 #include "test/gtest_and_gmock.h"
@@ -133,6 +135,49 @@ TEST(SchedManagerTest, TestHasCapabilityToSetSchedPolicy) {
   const bool is_root = geteuid() == 0;
   // Assert we don't crash and return the correct value.
   ASSERT_EQ(is_root, instance->HasCapabilityToSetSchedPolicy());
+}
+
+TEST(SchedManagerTest, TestGetAndSetSchedConfig) {
+  // Root is required to set the higher priority for the process, but not
+  // required to set the lower priority.
+  // We don't want all other tests to continue running in this process with
+  // reduced priority, so we fork and check try to lower the priority in a
+  // child process.
+  SchedManager* instance = SchedManager::GetInstance();
+  ASSERT_NE(instance, nullptr);
+  const auto current = instance->GetCurrentSchedConfig();
+  ASSERT_OK(current);
+  const SchedConfig initial = current.value();
+  if (initial != SchedConfig::CreateDefaultUserspacePolicy()) {
+    GTEST_SKIP() << "Skipping test because the current sched policy for the "
+                    "test process '"
+                 << initial.ToString() << "' is not what we expect";
+  }
+
+  // Inspired by UnixSocketTest#SharedMemory test.
+  Pipe pipe = Pipe::Create();
+  pid_t pid = fork();
+  ASSERT_GE(pid, 0);
+
+  if (pid == 0) {
+    // Child process.
+    const SchedConfig new_value = SchedConfig::CreateOther(1);
+    ASSERT_LT(new_value, initial);
+    ASSERT_OK(instance->SetSchedConfig(new_value));
+    const auto new_current = instance->GetCurrentSchedConfig();
+    ASSERT_OK(new_current);
+    ASSERT_EQ(new_current.value(), new_value);
+    // We can't change the priority to the initial value because it is higher
+    // than the current one. We can end the test here.
+    exit(HasFailure());
+  } else {
+    // Parent process.
+    int st = 0;
+    PERFETTO_EINTR(waitpid(pid, &st, 0));
+    ASSERT_FALSE(WIFSIGNALED(st)) << "Child died with signal " << WTERMSIG(st);
+    EXPECT_TRUE(WIFEXITED(st));
+    ASSERT_EQ(0, WEXITSTATUS(st)) << "Test failed";
+  }
 }
 
 #else

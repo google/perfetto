@@ -20,7 +20,7 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <linux/capability.h>
-#include <sched.h>
+#include <sched.h>  // Used only for SCHED_ macros
 #include <sys/syscall.h>
 #include <unistd.h>
 #endif
@@ -96,10 +96,10 @@ bool SchedManager::IsSupportedOnTheCurrentPlatform() const {
 }
 
 bool SchedManager::HasCapabilityToSetSchedPolicy() const {
-  struct __user_cap_header_struct header{};
+  __user_cap_header_struct header{};
   header.version = _LINUX_CAPABILITY_VERSION_3;
   header.pid = kCurrentPid;
-  struct __user_cap_data_struct data[_LINUX_CAPABILITY_U32S_3];
+  __user_cap_data_struct data[_LINUX_CAPABILITY_U32S_3];
   // Don't want to add a build dependency on a libcap(3), so use raw syscall.
   if (syscall(__NR_capget, &header, data) == -1) {
     PERFETTO_DFATAL_OR_ELOG("Failed to call capget (errno: %d, %s)", errno,
@@ -114,9 +114,43 @@ bool SchedManager::HasCapabilityToSetSchedPolicy() const {
   return (data[index].effective & mask) != 0;
 }
 
+namespace {
+// 'sched_attr' struct (together with sched_setattr and sched_getattr wrapper
+// functions) was added to the glibc version 2.41. To support older libc
+// versions, we define the struct ourselves and use raw syscalls.
+// See b/183240349 on the sched_attr support in bionic.
+struct sched_attr_redefined {
+  __u32 size;
+
+  __u32 sched_policy;
+  __u64 sched_flags;
+
+  /* SCHED_NORMAL, SCHED_BATCH */
+  __s32 sched_nice;
+
+  /* SCHED_FIFO, SCHED_RR */
+  __u32 sched_priority;
+
+  /* SCHED_DEADLINE */
+  __u64 sched_runtime;
+  __u64 sched_deadline;
+  __u64 sched_period;
+
+  /* Utilization hints */
+  __u32 sched_util_min;
+  __u32 sched_util_max;
+};
+
+// Define our own version if not defined in <sched.h>
+#ifndef SCHED_FLAG_RESET_ON_FORK
+#define SCHED_FLAG_RESET_ON_FORK 0x01
+#endif
+}  // namespace
+
 StatusOr<SchedConfig> SchedManager::GetCurrentSchedConfig() const {
-  struct sched_attr attrs{};
-  if (const int ret = sched_getattr(kCurrentPid, &attrs, sizeof(attrs), 0);
+  sched_attr_redefined attrs{};
+  if (const int ret = static_cast<int>(
+          syscall(__NR_sched_getattr, kCurrentPid, &attrs, sizeof(attrs), 0));
       ret < 0) {
     return ErrStatus("Cannot get current scheduler info (errno: %d, %s)", errno,
                      strerror(errno));
@@ -134,15 +168,17 @@ StatusOr<SchedConfig> SchedManager::GetCurrentSchedConfig() const {
 }
 
 Status SchedManager::SetSchedConfig(const SchedConfig& arg) {
-  struct sched_attr attrs{};
-  attrs.size = sizeof(sched_attr);
+  sched_attr_redefined attrs{};
+  attrs.size = sizeof(sched_attr_redefined);
   attrs.sched_policy = SchedPolicyToCApi(arg.policy());
   attrs.sched_priority = arg.priority();
   attrs.sched_nice = arg.nice();
-  attrs.sched_flags =
-      SCHED_FLAG_RESET_ON_FORK;  // Children created by fork(2) do not inherit
-                                 // privileged scheduling policies.
-  if (const int ret = sched_setattr(kCurrentPid, &attrs, 0); ret < 0) {
+  attrs.sched_flags = SCHED_FLAG_RESET_ON_FORK;  // Children created by fork(2)
+                                                 // do not inherit privileged
+                                                 // scheduling policies.
+  if (const int ret =
+          static_cast<int>(syscall(__NR_sched_setattr, kCurrentPid, &attrs, 0));
+      ret < 0) {
     return ErrStatus("Cannot set scheduler policy (errno: %d, %s)", errno,
                      strerror(errno));
   }
