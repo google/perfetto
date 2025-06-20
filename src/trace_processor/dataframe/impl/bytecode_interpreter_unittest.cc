@@ -2350,5 +2350,23 @@ TEST_F(BytecodeInterpreterTest, CastFilterValueList_String) {
   EXPECT_EQ(spool_.Get(list[1]), "world");
 }
 
+TEST_F(BytecodeInterpreterTest, SortedFilterUint32Eq_ManyDuplicates) {
+  std::string bytecode =
+      "SortedFilter<Uint32, EqualRange>: [col=0, val_register=Register(0), "
+      "update_register=Register(1), write_result_to=BoundModifier(0)]";
+
+  auto values = CreateFlexVectorForTesting<uint32_t>(
+      {0u, 4u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u,  5u, 5u,
+       5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 5u, 6u, 10u, 10u});
+  AddColumn(impl::Column{std::move(values), NullStorage::NonNull{}, Sorted{},
+                         HasDuplicates{}});
+
+  SetRegistersAndExecute(bytecode, CastFilterValueResult::Valid(5u),
+                         Range{0u, 25u});
+  const auto& result = GetRegister<Range>(1);
+  EXPECT_EQ(result.b, 2u);
+  EXPECT_EQ(result.e, 22u);
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::dataframe::impl::bytecode
