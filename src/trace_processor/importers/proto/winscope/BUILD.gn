@@ -26,6 +26,7 @@ source_set("full") {
     "shell_transitions_parser.h",
     "shell_transitions_tracker.cc",
     "shell_transitions_tracker.h",
+    "surfaceflinger_layer_utils.h",
     "surfaceflinger_layers_parser.cc",
     "surfaceflinger_layers_parser.h",
     "surfaceflinger_transactions_parser.cc",
