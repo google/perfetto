@@ -20,9 +20,6 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <linux/capability.h>
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE 1
-#endif
 #include <sched.h>
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -99,10 +96,10 @@ bool SchedManager::IsSupportedOnTheCurrentPlatform() const {
 }
 
 bool SchedManager::HasCapabilityToSetSchedPolicy() const {
-  __user_cap_header_struct header{};
+  struct __user_cap_header_struct header{};
   header.version = _LINUX_CAPABILITY_VERSION_3;
   header.pid = kCurrentPid;
-  __user_cap_data_struct data[_LINUX_CAPABILITY_U32S_3];
+  struct __user_cap_data_struct data[_LINUX_CAPABILITY_U32S_3];
   // Don't want to add a build dependency on a libcap(3), so use raw syscall.
   if (syscall(__NR_capget, &header, data) == -1) {
     PERFETTO_DFATAL_OR_ELOG("Failed to call capget (errno: %d, %s)", errno,
@@ -118,7 +115,7 @@ bool SchedManager::HasCapabilityToSetSchedPolicy() const {
 }
 
 StatusOr<SchedConfig> SchedManager::GetCurrentSchedConfig() const {
-  sched_attr attrs{};
+  struct sched_attr attrs{};
   if (const int ret = sched_getattr(kCurrentPid, &attrs, sizeof(attrs), 0);
       ret < 0) {
     return ErrStatus("Cannot get current scheduler info (errno: %d, %s)", errno,
@@ -137,7 +134,7 @@ StatusOr<SchedConfig> SchedManager::GetCurrentSchedConfig() const {
 }
 
 Status SchedManager::SetSchedConfig(const SchedConfig& arg) {
-  sched_attr attrs{};
+  struct sched_attr attrs{};
   attrs.size = sizeof(sched_attr);
   attrs.sched_policy = SchedPolicyToCApi(arg.policy());
   attrs.sched_priority = arg.priority();
