@@ -77,6 +77,7 @@ class MockFtraceProcfs : public FtraceProcfs {
     ON_CALL(*this, AppendToFile(_, _)).WillByDefault(Return(true));
     ON_CALL(*this, ClearFile(_)).WillByDefault(Return(true));
     ON_CALL(*this, IsFileWriteable(_)).WillByDefault(Return(true));
+    ON_CALL(*this, IsFileReadable(_)).WillByDefault(Return(true));
     EXPECT_CALL(*this, NumberOfCpus()).Times(AnyNumber());
   }
 
@@ -104,6 +105,7 @@ class MockFtraceProcfs : public FtraceProcfs {
               (const std::string& group, const std::string& name),
               (const, override));
   MOCK_METHOD(bool, IsFileWriteable, (const std::string& path), (override));
+  MOCK_METHOD(bool, IsFileReadable, (const std::string& path), (override));
 };
 
 class MockAtraceWrapper : public AtraceWrapper {
