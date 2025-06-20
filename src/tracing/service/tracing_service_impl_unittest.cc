@@ -69,6 +69,7 @@
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/common/track_event_descriptor.gen.h"
+#include "protos/perfetto/config/priority_boost/priority_boost_config.gen.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/test_event.pbzero.h"
@@ -221,6 +222,26 @@ class MockRandom : public tracing_service::Random {
   MOCK_METHOD(double, GetValue, (), (override));
 };
 
+class MockSchedStatusManager : public base::SchedManager {
+ public:
+  MockSchedStatusManager()
+      : current_priority(base::SchedConfig::CreateDefaultUserspacePolicy()) {}
+  ~MockSchedStatusManager() override = default;
+  MOCK_METHOD(bool, IsSupportedOnTheCurrentPlatform, (), (const, override));
+  MOCK_METHOD(bool, HasCapabilityToSetSchedPolicy, (), (const, override));
+  MOCK_METHOD(base::Status,
+              SetSchedConfig,
+              (const base::SchedConfig&),
+              (override));
+  MOCK_METHOD(base::StatusOr<base::SchedConfig>,
+              GetCurrentSchedConfig,
+              (),
+              (const, override));
+  base::SchedConfig current_priority;
+  bool has_capability_to_set_sched_policy = true;
+  bool is_supported_on_the_current_platform = true;
+};
+
 class TracingServiceImplTest : public testing::Test {
  public:
   TracingServiceImplTest() { InitializeSvcWithOpts({}); }
@@ -249,6 +270,26 @@ class TracingServiceImplTest : public testing::Test {
     ON_CALL(*mock_random_, GetValue).WillByDefault(Invoke([&] {
       return real_random_->GetValue();
     }));
+
+    auto mock_sched_status_manager =
+        std::make_unique<NiceMock<MockSchedStatusManager>>();
+    mock_sched_status_manager_ = mock_sched_status_manager.get();
+    deps.sched_status_manager = std::move(mock_sched_status_manager);
+    ON_CALL(*mock_sched_status_manager_, IsSupportedOnTheCurrentPlatform)
+        .WillByDefault(testing::ReturnPointee(
+            &mock_sched_status_manager_->is_supported_on_the_current_platform));
+    ON_CALL(*mock_sched_status_manager_, HasCapabilityToSetSchedPolicy)
+        .WillByDefault(testing::ReturnPointee(
+            &mock_sched_status_manager_->has_capability_to_set_sched_policy));
+    ON_CALL(*mock_sched_status_manager_, SetSchedConfig)
+        .WillByDefault(Invoke([&](const base::SchedConfig& arg) {
+          mock_sched_status_manager_->current_priority = arg;
+          return base::OkStatus();
+        }));
+    ON_CALL(*mock_sched_status_manager_, GetCurrentSchedConfig)
+        .WillByDefault(Invoke([&] {
+          return base::StatusOr(mock_sched_status_manager_->current_priority);
+        }));
 
     svc = std::make_unique<TracingServiceImpl>(
         std::move(shm_factory), &task_runner, std::move(deps), init_opts);
@@ -285,7 +326,8 @@ class TracingServiceImplTest : public testing::Test {
   tracing_service::ClockImpl real_clock_;
   MockClock* mock_clock_;  // Owned by svc;
   std::unique_ptr<tracing_service::RandomImpl> real_random_;
-  MockRandom* mock_random_;  // Owned by svc;
+  MockRandom* mock_random_;                            // Owned by svc;
+  MockSchedStatusManager* mock_sched_status_manager_;  // Owned by svc;
 
   base::TestTaskRunner task_runner;
   std::unique_ptr<TracingService> svc;
@@ -6219,6 +6261,199 @@ TEST_F(TracingServiceImplTest, SessionSemaphoreAllowedUpToLimit) {
   consumer->DisableTracing();
   consumer->WaitForTracingDisabledWithError(IsEmpty());
 }
+
+TEST_F(TracingServiceImplTest, PriorityBoostReportPlatformErrors) {
+  TraceConfig trace_config;
+  // Set any valid value to trigger platform checks
+  trace_config.mutable_priority_boost()->set_nice_value(-10);
+  {
+    mock_sched_status_manager_->is_supported_on_the_current_platform = false;
+    const std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+    consumer->Connect(svc.get());
+    consumer->EnableTracing(trace_config);
+
+    consumer->WaitForTracingDisabledWithError(
+        HasSubstr("Priority boost is not supported on the current platform"));
+  }
+  {
+    mock_sched_status_manager_->is_supported_on_the_current_platform = true;
+    mock_sched_status_manager_->has_capability_to_set_sched_policy = false;
+    const std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+    consumer->Connect(svc.get());
+    consumer->EnableTracing(trace_config);
+    consumer->WaitForTracingDisabledWithError(
+        HasSubstr("Doesn't have the capability to set sched policy"));
+  }
+}
+
+TEST_F(TracingServiceImplTest, PriorityBoostReportConfigErrors) {
+  {
+    TraceConfig trace_config;
+    // Invalid value.
+    trace_config.mutable_priority_boost()->set_nice_value(42);
+    const std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+    consumer->Connect(svc.get());
+    consumer->EnableTracing(trace_config);
+    consumer->WaitForTracingDisabledWithError(
+        HasSubstr("Invalid nice value: 42. Valid range is [-20, 19]"));
+  }
+  {
+    TraceConfig trace_config;
+    // Invalid value.
+    trace_config.mutable_priority_boost()->set_realtime_priority(123);
+    const std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+    consumer->Connect(svc.get());
+    consumer->EnableTracing(trace_config);
+    consumer->WaitForTracingDisabledWithError(
+        HasSubstr("Invalid priority: 123. Valid range is [1, 99]"));
+  }
+  {
+    TraceConfig trace_config;
+    // Values are valid but can't be set both.
+    trace_config.mutable_priority_boost()->set_realtime_priority(69);
+    trace_config.mutable_priority_boost()->set_nice_value(10);
+    const std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+    consumer->Connect(svc.get());
+    consumer->EnableTracing(trace_config);
+    consumer->WaitForTracingDisabledWithError(
+        HasSubstr("Cannot specify both 'nice_value' and 'realtime_priority' in "
+                  "trace config"));
+  }
+  {
+    TraceConfig trace_config;
+    // Both are empty values.
+    trace_config.mutable_priority_boost();
+    const std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+    consumer->Connect(svc.get());
+    consumer->EnableTracing(trace_config);
+    consumer->WaitForTracingDisabledWithError(HasSubstr(
+        "Specify either 'nice_value' or 'realtime_priority' in trace config"));
+  }
+}
+
+TEST_F(TracingServiceImplTest, PriorityBoost) {
+  TraceConfig trace_config_nice;
+  trace_config_nice.mutable_priority_boost()->set_nice_value(-10);
+  TraceConfig trace_config_realtime;
+  trace_config_realtime.mutable_priority_boost()->set_realtime_priority(69);
+  TraceConfig trace_config_nice_lower_than_default;
+  trace_config_nice_lower_than_default.mutable_priority_boost()->set_nice_value(
+      10);
+
+  const auto initial_priority =
+      base::SchedConfig::CreateDefaultUserspacePolicy();
+  const auto nice_priority = base::SchedConfig::CreateOther(-10);
+  const auto realtime_priority = base::SchedConfig::CreateFifo(69);
+
+  auto start_consumer = [&](const TraceConfig& trace_config) {
+    auto consumer = CreateMockConsumer();
+    consumer->Connect(svc.get());
+    consumer->EnableTracing(trace_config);
+    return consumer;
+  };
+
+  auto stop_consumer = [](const std::unique_ptr<MockConsumer>& consumer) {
+    consumer->DisableTracing();
+    consumer->FreeBuffers();  // sched policy updated here
+    consumer->WaitForTracingDisabled();
+  };
+
+  ASSERT_EQ(mock_sched_status_manager_->current_priority, initial_priority);
+
+  const std::unique_ptr<MockConsumer> consumer_nice =
+      start_consumer(trace_config_nice);
+
+  ASSERT_EQ(mock_sched_status_manager_->current_priority, nice_priority);
+
+  const std::unique_ptr<MockConsumer> consumer_realtime =
+      start_consumer(trace_config_realtime);
+  ASSERT_EQ(mock_sched_status_manager_->current_priority, realtime_priority);
+
+  stop_consumer(consumer_realtime);
+  ASSERT_EQ(mock_sched_status_manager_->current_priority, nice_priority);
+
+  stop_consumer(consumer_nice);
+  ASSERT_EQ(mock_sched_status_manager_->current_priority, initial_priority);
+
+  const std::unique_ptr<MockConsumer> consumer_nice_lower_than_default =
+      start_consumer(trace_config_nice_lower_than_default);
+  ASSERT_EQ(mock_sched_status_manager_->current_priority, initial_priority);
+
+  stop_consumer(consumer_nice_lower_than_default);
+  ASSERT_EQ(mock_sched_status_manager_->current_priority, initial_priority);
+}
+
+TEST_F(TracingServiceImplTest, PriorityBoostNotRequested) {
+  TraceConfig trace_config;
+
+  EXPECT_CALL(*mock_sched_status_manager_, IsSupportedOnTheCurrentPlatform())
+      .Times(0);
+  EXPECT_CALL(*mock_sched_status_manager_, HasCapabilityToSetSchedPolicy())
+      .Times(0);
+  EXPECT_CALL(*mock_sched_status_manager_, SetSchedConfig(_)).Times(0);
+  EXPECT_CALL(*mock_sched_status_manager_, GetCurrentSchedConfig()).Times(0);
+
+  const std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  consumer->EnableTracing(trace_config);
+
+  consumer->DisableTracing();
+  consumer->FreeBuffers();
+  consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, PriorityBoostDeferredStart) {
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("ds_1");
+  auto* trigger_config = trace_config.mutable_trigger_config();
+  trigger_config->set_trigger_timeout_ms(8.64e+7);
+  trigger_config->set_trigger_mode(TraceConfig::TriggerConfig::START_TRACING);
+  auto* trigger = trigger_config->add_triggers();
+  trigger->set_name("trigger_name");
+  trigger->set_stop_delay_ms(1);
+
+  trace_config.mutable_priority_boost()->set_realtime_priority(42);
+
+  const auto initial_priority =
+      base::SchedConfig::CreateDefaultUserspacePolicy();
+  const auto requested_priority = base::SchedConfig::CreateFifo(42);
+
+  ASSERT_EQ(mock_sched_status_manager_->current_priority, initial_priority);
+
+  const std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  const std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("ds_1");
+
+  // Make sure we don't get unexpected DataSourceStart() notifications yet.
+  EXPECT_CALL(*producer, StartDataSource(_, _)).Times(0);
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_1");
+
+  ASSERT_EQ(mock_sched_status_manager_->current_priority, initial_priority);
+
+  // The trace won't start until we send the trigger. since we have a
+  // START_TRACING trigger defined.
+  const std::vector<std::string> req{"trigger_name"};
+  producer->endpoint()->ActivateTriggers(req);
+  producer->WaitForDataSourceStart("ds_1");
+
+  ASSERT_EQ(mock_sched_status_manager_->current_priority, requested_priority);
+
+  auto writer = producer->CreateTraceWriter("ds_1");
+  producer->ExpectFlush(writer.get());
+  producer->WaitForDataSourceStop("ds_1");
+  consumer->FreeBuffers();
+  consumer->WaitForTracingDisabled();
+
+  ASSERT_EQ(mock_sched_status_manager_->current_priority, initial_priority);
+}
+
+// TODO(ktimofeev): priority boost cloned?
 
 TEST_F(TracingServiceImplTest, DetachAttach) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
