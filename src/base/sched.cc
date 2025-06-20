@@ -20,6 +20,8 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <linux/capability.h>
+#include <linux/sched.h>
+#include <linux/sched/types.h>
 #include <sched.h>
 #include <sys/syscall.h>
 #include <unistd.h>
