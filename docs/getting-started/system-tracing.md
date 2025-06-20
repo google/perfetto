@@ -201,7 +201,7 @@ traces manually:
   process tracks (rows) into their constituent thread tracks. Press "?" for
   further navigation controls.
 - Please also take a look at our Perfetto UI
-  [documentation page](/docs/visualization/perfetto-ui.md)  
+  [documentation page](/docs/visualization/perfetto-ui.md)
 
 ## Querying your first trace
 
@@ -210,24 +210,34 @@ is going on. You can always open the **Query (SQL)** panel.
 
 ![Perfetto UI Query SQL](/docs/images/perfetto-ui-query-sql.png)
 
-Then you will see a screen where you can input your Perfetto SQL on the top portion and execute it and the results will be shown on the bottom section.
+Then you will see a screen where you can input your Perfetto SQL on the top
+portion and execute it and the results will be shown on the bottom section.
 
 ![Perfetto UI SQL Window](/docs/images/perfetto-ui-sql-window.png)
 
-You can write and execute (Ctrl/Cmd + Enter) your PerfettoSQL query in the opened console and the results will be shown in the bottom section.
+You can write and execute (Ctrl/Cmd + Enter) your PerfettoSQL query in the
+opened console and the results will be shown in the bottom section.
 
-Perfetto SQL is a dialect of SQL implemented by SQLite, it supports executing any SQLite query and it adds extra functionalities not supported by SQLite.
+Perfetto SQL is a dialect of SQL implemented by SQLite, it supports executing
+any SQLite query and it adds extra functionalities not supported by SQLite.
 
 For more details on how to write SQL queries take a look at
 [PerfettoSQL syntax](/docs/analysis/perfetto-sql-syntax.md).
 
-There are also several Modules that consist of tables/views/functions and macros that have been already created and are made available to you in the [Perfetto Standard Library](/docs/analysis/stdlib-docs.autogen). 
+There are also several Modules that consist of tables/views/functions and macros
+that have been already created and are made available to you in the
+[Perfetto Standard Library](/docs/analysis/stdlib-docs.autogen).
 
-There is also a list of [SQL Recipes](/docs/getting-started/android-trace-analysis.md) which contains a list of some crafted SQL recipes that have proven to be useful for specific analyses or to help the user learn PerfettoSQL by example.
+There is also a list of
+[SQL Recipes](/docs/getting-started/android-trace-analysis.md) which contains a
+list of some crafted SQL recipes that have proven to be useful for specific
+analyses or to help the user learn PerfettoSQL by example.
 
-A simple example of importing a module and executing a query on the Standard library can be seen below:
+A simple example of importing a module and executing a query on the Standard
+library can be seen below:
 
 In the screenshot below we can see the result of the following query:
+
 ```
 INCLUDE PERFETTO MODULE android.garbage_collection;
 
@@ -237,9 +247,10 @@ select * from android_garbage_collection_events;
 that returns the list of all Garbage Collection events, with additional
 information for each event.
 
-To further explore the trace and the standard library, you can separately
-import each `MODULE` (no need to explicitly import `prelude`) and do the
+To further explore the trace and the standard library, you can separately import
+each `MODULE` (no need to explicitly import `prelude`) and do the
 `select * from` each table, e.g. the following query
+
 ```
 select * from process;
 ```
@@ -255,11 +266,14 @@ Learn more about recording:
 
 The trace you captured consists of multiple **Data sources**, you can open the
 interesting page from the left sidebar, some of them are listed here:
+
 - [Heap profiler](/docs/data-sources/native-heap-profiler.md)
 - [ATrace: Android system and app trace events](/docs/data-sources/atrace.md)
 
 Learn more about trace analysis:
 
-- PerfettoSQL [syntax](/docs/analysis/perfetto-sql-syntax.md) and the [standard library](/docs/analysis/stdlib-docs.autogen)
-- Python [API](/docs/analysis/trace-processor-python.md) for programmatic trace analysis
+- PerfettoSQL [syntax](/docs/analysis/perfetto-sql-syntax.md) and the
+  [standard library](/docs/analysis/stdlib-docs.autogen)
+- Python [API](/docs/analysis/trace-processor-python.md) for programmatic trace
+  analysis
 - C++ [API](/docs/analysis/trace-processor.md) for programmatic trace analysis
