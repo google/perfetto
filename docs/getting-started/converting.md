@@ -1,5 +1,11 @@
 # Converting arbitrary timestamped data to Perfetto
 
+In this guide, you'll learn how to:
+
+- Convert your own timestamped data into the Perfetto trace format.
+- Create custom tracks, slices, and counters.
+- Visualize your custom data in the Perfetto UI.
+
 If you have existing logs or timestamped data from your own systems, you don't
 need to miss out on Perfetto's powerful visualization and analysis capabilities.
 By converting your data into Perfetto's native protobuf-based trace format, you
@@ -240,7 +246,7 @@ your `trace_converter_template.py` script.
 
 </details>
 
-TODO: this looks like so.
+![Placeholder image](/docs/images/placeholder.png)
 
 ## Nested Slices (Hierarchical Activities)
 
@@ -331,7 +337,7 @@ your `trace_converter_template.py` script.
 
 </details>
 
-TODO: this looks like so.
+![Placeholder image](/docs/images/placeholder.png)
 
 ## Asynchronous Slices and Overlapping Events
 
@@ -420,7 +426,7 @@ generating unique track UUIDs.
 
 </details>
 
-TODO: this looks like so.
+![Placeholder image](/docs/images/placeholder.png)
 
 ## Counters (Values Changing Over Time)
 
@@ -495,7 +501,7 @@ your `trace_converter_template.py` script.
 
 </details>
 
-TODO: this looks like so.
+![Placeholder image](/docs/images/placeholder.png)
 
 ## Flows (Connecting Causally Related Events)
 

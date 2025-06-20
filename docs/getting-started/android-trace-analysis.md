@@ -1,8 +1,7 @@
 # Recipes: Android Trace Analysis
 
-This document provides bite-sized "recipes" for analyzing issues in Perfetto
-traces collected from Android. It covers useful PerfettoSQL queries and UI
-features to simplify debugging.
+This page will take you through some real world examples on how you can analyse
+issues with SQL and more advanced features of the Perfetto UI.
 
 ## Finding slices
 
@@ -28,8 +27,8 @@ timeline.
 
 PerfettoSQL supports multiple
 [pattern matching operators](https://sqlite.org/lang_expr.html#like) like
-`GLOB`, `LIKE`, and `REGEXP`.
-You can also use different aggregators to generate statistics on your selection.
+`GLOB`, `LIKE`, and `REGEXP`. You can also use different aggregators to generate
+statistics on your selection.
 
 ```sql
 SELECT
@@ -58,8 +57,8 @@ Demonstrates:
 
 Thread tracks show a
 [thread’s state](/docs/data-sources/cpu-scheduling.md#decoding-code-end_state-code-),
-such as if it’s running, is runnable but not running, sleeping, etc.
-A common source of performance problems is when application threads enter
+such as if it’s running, is runnable but not running, sleeping, etc. A common
+source of performance problems is when application threads enter
 “uninterruptible sleep”, i.e. call a kernel function that blocks on an
 uninterruptible condition.
 
@@ -101,10 +100,10 @@ Demonstrates:
 
 In Android Java and Kotlin, “monitor contention” is when a thread attempts to
 enter a `synchronized` section or call a `synchronized` method but another
-thread has already acquired the lock (aka monitor) used for synchronization.
-The example below demonstrates finding monitor contention slices that happened
-while an app was starting that blocked the app’s main thread, thus delaying the
-app’s startup.
+thread has already acquired the lock (aka monitor) used for synchronization. The
+example below demonstrates finding monitor contention slices that happened while
+an app was starting that blocked the app’s main thread, thus delaying the app’s
+startup.
 
 ```sql
 INCLUDE PERFETTO MODULE android.monitor_contention;
@@ -173,9 +172,8 @@ AND thread_name = 'OomAdjuster'
 AND name LIKE 'setProcessGroup %';
 ```
 
-Using debug tracks you can add this information to the timeline.
-Press “Show timeline”. In the bottom bar, press “Show debug track” and
-configure:
+Using debug tracks you can add this information to the timeline. Press “Show
+timeline”. In the bottom bar, press “Show debug track” and configure:
 
 - Track type: counter
 - ts: `ts`
@@ -217,8 +215,7 @@ AND thread_name = 'OomAdjuster'
 AND name LIKE 'setProcessGroup %';
 ```
 
-Configure a debug track:
-![](/docs/images/debug-track-setprocessgroup-dur.png)
+Configure a debug track: ![](/docs/images/debug-track-setprocessgroup-dur.png)
 
 You’ll see debug tracks with human-readable names:
 ![](/docs/images/debug-track-setprocessgroup-dur-short-result.png)

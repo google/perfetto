@@ -1,35 +1,46 @@
 # Instrumenting Android apps/platform with atrace
 
+In this guide, you'll learn how to:
+
+- Add `ATrace` instrumentation to your Android application or platform code.
+- Record and visualize `ATrace` events in the Perfetto UI.
+- Understand the difference between `ATrace` and the Perfetto Tracing SDK.
+
 In this page you will learn how to add instrumentation to code in Android apps,
-services and platform code. This will allow you to emit slices and counters
-into the trace resulting in something like the image below.
+services and platform code. This will allow you to emit slices and counters into
+the trace resulting in something like the image below.
 
 This page is mainly intended for:
 
 - Android platform engineers for instrumenting their platform services.
 - System integrators / Android partners for instrumenting their native HALs and
   Java/Kt services.
-- Native and Java/Kt app developers for instrumenting their apps (although you should consider using [androidx.tracing](https://developer.android.com/jetpack/androidx/releases/tracing), more below)
+- Native and Java/Kt app developers for instrumenting their apps (although you
+  should consider using
+  [androidx.tracing](https://developer.android.com/jetpack/androidx/releases/tracing),
+  more below)
 
 ![Atrace slices example](/docs/images/atrace_slices.png)
 
 ## Introduction
 
-Atrace is a legacy API introduced in Android 4.3 that predates Perfetto. It
-is still supported and in use and interoperates well with Perfetto.
-Under the hoods, Atrace forwards events up to the kernel ftrace ring-buffer
-and gets fetched together with the rest of scheduling data and other
-system-level trace data. Atrace is both:
+Atrace is an API introduced in Android 4.3 that predates that allows you to add
+instrumentation to your code. It is still supported and in use, and
+interoperates well with Perfetto.
+
+Under the hoods, Atrace forwards events up to the kernel ftrace ring-buffer and
+gets fetched together with the rest of scheduling data and other system-level
+trace data. Atrace is both:
 
 1. A public API, exposed both to Java/Kt code via the Android SDK and C/C++ code
-  via the NDK, that developers can use to enrich traces annotating their apps.
-2. An internal system API used to annotate several framework functions and
-  the internal implementation of core system services. It provides
-  developers with insights about what the framework is doing under the hoods.
+   via the NDK, that developers can use to enrich traces annotating their apps.
+2. An internal system API used to annotate several framework functions and the
+   internal implementation of core system services. It provides developers with
+   insights about what the framework is doing under the hoods.
 
-The main difference between the two is that the
-internal implementation allows specifying a _tag_ (also known as _category_),
-while the SDK/NDK interface implicitly uses TRACE_TAG_APP.
+The main difference between the two is that the internal implementation allows
+specifying a _tag_ (also known as _category_), while the SDK/NDK interface
+implicitly uses TRACE_TAG_APP.
 
 In both cases, Atrace allows you to manually add instrumentation around code
 wall timing and numeric values, e.g. to annotate the beginning or end of
@@ -191,7 +202,6 @@ void PlaySound(const char* path) {
 ```
 </tabs?>
 
-
 ### Counters
 
 Semantic and constraints:
@@ -291,14 +301,13 @@ void PlaySound(const char* path) {
 ### Cross-thread async slices
 
 Async slices allow to trace logical operations that might begin and end on
-different threads. They are the same concept of _track events_ in the
-Perfetto SDK.
+different threads. They are the same concept of _track events_ in the Perfetto
+SDK.
 
-Because begin/end can happen on different thread, you need to pass a _cookie_
-to each begin/end function. The cookie is just an integer number used to match
-begin/end pairs.
-The cookie is usually derived from a pointer or a unique ID that represents
-the logical operation being traced (e.g. a job id).
+Because begin/end can happen on different thread, you need to pass a _cookie_ to
+each begin/end function. The cookie is just an integer number used to match
+begin/end pairs. The cookie is usually derived from a pointer or a unique ID
+that represents the logical operation being traced (e.g. a job id).
 
 Semantic and constraints:
 
@@ -306,25 +315,25 @@ Semantic and constraints:
   might begin before the previous one has ended.
 - Cookies must be unique within a process: you cannot have a begin event for the
   same cookie before having emitted an end event for it. In other words, cookies
-  are a shared integer namespce within the process. Using a monotonic counter
-  is probably a bad idea unless you have full control of all the code in the
+  are a shared integer namespce within the process. Using a monotonic counter is
+  probably a bad idea unless you have full control of all the code in the
   process.
 - Unlike thread-scoped slices, no nesting/stacking is possible. Each slice is
-  independent of each other. This is one of the main limitations vs the equivalent
-  TrackEvent API in the Perfetto SDK, which allows nesting.
+  independent of each other. This is one of the main limitations vs the
+  equivalent TrackEvent API in the Perfetto SDK, which allows nesting.
 - Visually async slices are first grouped by tracks, as follows:
-  - SDK/NDK: the track is process-scoped is derived from the event name.
-    You cannot have async slices with different names in the same track.
+  - SDK/NDK: the track is process-scoped is derived from the event name. You
+    cannot have async slices with different names in the same track.
   - Android Tree: the `...ForTrack` functions allow to specify a track name. All
     events with the same track name end up in the same process-scoped track in
     the UI.
 - Visually, the UI lays slice withi each track using a greedy stacking
   algorithm. Each slice is placed in the uppermost lane that doesn’t overlap
   with any other slice. This sometimes generates confusion amongst users as it
-  creates a false sense of "parent/child" relationship.
-  However, unlike sync slices, the relationship is purely temporal and not
-  causal and you cannot control it (other than grouping events into tracks, if
-  you have access to the internal system API).
+  creates a false sense of "parent/child" relationship. However, unlike sync
+  slices, the relationship is purely temporal and not causal and you cannot
+  control it (other than grouping events into tracks, if you have access to the
+  internal system API).
 
 <?tabs>
 
@@ -436,7 +445,6 @@ void onButtonClicked() {
 ```
 </tabs?>
 
-
 ### Counters
 
 Semantic and constraints:
@@ -539,29 +547,30 @@ At the time of writing, there isn't a clear-cut answer to this question. Our
 team is working on providing a replacement SDK that can subsume all the atrace
 use cases, but we are not there yet. So the answer is: _depends_.
 
-| When to prefer Atrace             | When to prefer the Tracing SDK      |
-| --------------------------------- | ----------------------------------- |
-| You need something simple that  just works. | You need more advanced features (e.g. flows). |
-| You are okay with one on/off toggle for the whole app. (If you are in the Android system you can only use a limited set of tags) | You need fine-grained control over tracing categories. |
-| You are okay with events being multiplexed in the main ftace buffer. | You want control over muxing events in different buffers. |
-| Instrumentation overhead is not a big concern, your trace points are hit sporadically. | You want mininmal overhead for your instrumentation points. Your trace points are frequent (every 10ms or less) |
+| When to prefer Atrace                                                                                                           | When to prefer the Tracing SDK                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| You need something simple that just works.                                                                                      | You need more advanced features (e.g. flows).                                                                  |
+| You are okay with one on/off toggle for the whole app. (If you are in the Android system you can only se a limited set of tags) | You need fine-grained control over tracing categories.                                                         |
+| You are okay with events being multiplexed in the main ftace buffer.                                                            | You want control over muxing vents in different buffers.                                                       |
+| Instrumentation overhead is not a big concern, your trace points are hit sporadically.                                          | You want ininmal overhead for your instrumentation points. Your trace points are frequent (every 10ms or less) |
 
 #### If you are an unbundled app
 
-You should consider using [androidx.tracing](https://developer.android.com/jetpack/androidx/releases/tracing)
-from Jetpack. We work closely with the Jetpack project.
-Using androidx.tracing is going to lead to a smoother migration path once we
-improve our SDK.
-
+You should consider using
+[androidx.tracing](https://developer.android.com/jetpack/androidx/releases/racing)
+from Jetpack. We work closely with the Jetpack project. Using androidx.tracing
+is going to lead to a smoother migration path once we improve our SDK.
 
 ## Recording the trace
 
-In order to record atrace you must enable the `linux.ftrace` data source and
-add in the `ftrace_config`:
+In order to record atrace you must enable the `linux.ftrace` data source and add
+in the `ftrace_config`:
+
 - For internal system services: `atrace_categories: tag_name`
 - For apps: `atrace_apps: "com.myapp"` or `atrace_apps: "*"` for all apps.
 
-You can see the full list of atrace categories [here](https://cs.android.com/android/platform/superproject/main/+/main:frameworks/native/cmds/atrace/atrace.cpp;l=102?q=f:atrace.cpp%20k_categories).
+You can see the full list of atrace categories
+[here](https://cs.android.com/android/platform/superproject/main/+/main:frameworks/native/cmds/atrace/atrace.cpp;l=102?q=f:atrace.cpp%20k_categories).
 
 <?tabs>
 
@@ -604,4 +613,9 @@ data_sources {
 
 ## Next Steps
 
-[Collect system traces](/docs/getting-started/system-tracing)
+Now that you've learned how to instrument your code with `ATrace`, you can
+explore more advanced topics:
+
+- **Learn how to record a trace:** If you don't already have a way to collect
+  traces with Perfetto, see the
+  [Recording system traces](/docs/getting-started/system-tracing.md) guide.

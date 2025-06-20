@@ -120,14 +120,21 @@ tracing is enabled.
 
 The `TRACE_EVENT` macro records a scoped event. The event starts when the macro
 is called and ends at the end of the current scope (e.g., when the function
-returns).
+returns). This is the most common type of event and is useful for tracing the
+duration of a function.
 
 The `TRACE_EVENT_BEGIN` and `TRACE_EVENT_END` macros can be used to record
 events that don't follow function scoping. `TRACE_EVENT_BEGIN` starts an event,
-and `TRACE_EVENT_END` ends the most recent event started on the same thread.
+and `TRACE_EVENT_END` ends the most recent event started on the same thread by
+default, but can be configured to work across threads and even across processes
+(see the
+[Track Event documentation](/docs/instrumentation/track-events.md#tracks) for
+more details). This is useful for tracing operations that span multiple
+functions.
 
 The `TRACE_COUNTER` macro records the value of a counter at a specific point in
-time.
+time. This is useful for tracking things like memory usage or the number of
+items in a queue.
 
 <?tabs>
 
@@ -250,8 +257,7 @@ TAB: C++
   and stop collecting event using the
   [perfetto command line client](/docs/reference/perfetto-cli).
 
-- Learn more about
-  [system tracing](/docs/getting-started/system-tracing.md)
+- Learn more about [system tracing](/docs/getting-started/system-tracing.md)
 
 ## Next steps
 
@@ -262,3 +268,12 @@ more advanced topics:
   [Perfetto SDK documentation](/docs/instrumentation/tracing-sdk.md) provides
   more details on how to use the SDK, including how to define custom data
   sources and use different types of tracks.
+- **Dive deeper into trace analysis:** The
+  [Trace Processor documentation](/docs/analysis/trace-processor.md) explains
+  how to use the Trace Processor to analyze traces with SQL. You can also find
+  more information about the
+  [PerfettoSQL syntax](/docs/analysis/perfetto-sql-syntax.md) and the
+  [standard library](/docs/analysis/stdlib-docs.autogen).
+- **Explore other data sources:** Perfetto supports a wide range of
+  [data sources](/docs/data-sources/README.md) that you can use to collect more
+  information about your application and the system it's running on.

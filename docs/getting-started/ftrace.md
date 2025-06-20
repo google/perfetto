@@ -1,5 +1,12 @@
 # Instrumenting the Linux kernel with ftrace
 
+In this guide, you'll learn how to:
+
+- Instrument your kernel code using ftrace events.
+- Record ftrace events using `tracebox`.
+- Interpret ftrace events into tracks in `trace_processor`.
+- View the raw events and the interpreted tracks in the Perfetto UI.
+
 ## Overview
 
 Ftrace is a versatile tracing framework that provides a user-friendly interface
@@ -253,9 +260,9 @@ data_sources {
 duration_ms: 10000
 ```
 
-See the [system tracing page](/docs/getting-started/system-tracing.md) in
-order to get set up with tracebox. For this example we are going to record a
-trace from the command line using the config file we just created.
+See the [system tracing page](/docs/getting-started/system-tracing.md) in order
+to get set up with tracebox. For this example we are going to record a trace
+from the command line using the config file we just created.
 
 ```bash
 tracebox -c ticker.cfg --txt -o ticker.pftrace
@@ -415,4 +422,10 @@ track.
 
 ## Next Steps
 
-TODO: ftrace with other data sources?
+- **Learn more about collecting system traces:** The
+  [Collecting system traces](/docs/getting-started/system-tracing.md) guide
+  provides more information about how to collect system traces with Perfetto.
+- **Explore other data sources:**
+  - [Scheduling events](/docs/data-sources/cpu-scheduling.md)
+  - [System calls](/docs/data-sources/syscalls.md)
+  - [Frequency scaling](/docs/data-sources/cpu-freq.md)
