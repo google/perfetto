@@ -151,7 +151,7 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_eos_suspend.pb'),
         query=("""
-            INCLUDE PERFETTO MODULE wattson.cpu.idle_attribution;
+            INCLUDE PERFETTO MODULE wattson.tasks.idle_transitions_attribution;
             SELECT
               SUM(estimated_mw * dur) / 1000000000 as idle_transition_cost_mws,
               utid,

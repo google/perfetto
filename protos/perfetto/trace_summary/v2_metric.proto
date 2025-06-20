@@ -408,3 +408,23 @@ message TraceMetricV2Bundle {
   // Useful for knowing what the dimension names/value names are.
   repeated TraceMetricV2Spec specs = 3;
 }
+
+// Will shortly be removed in favor of `TraceMetricV2Bundle`.
+message TraceMetricV2 {
+  message MetricRow {
+    optional double value = 1;
+
+    message Dimension {
+      message Null {}
+      oneof value_oneof {
+        string string_value = 1;
+        int64 int64_value = 2;
+        double double_value = 3;
+        Null null_value = 4;
+      }
+    }
+    repeated Dimension dimension = 2;
+  }
+  repeated MetricRow row = 1;
+  optional TraceMetricV2Spec spec = 2;
+}

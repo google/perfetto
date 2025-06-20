@@ -58,13 +58,10 @@ message TraceSummarySpec {
 //
 // Next id: 4
 message TraceSummary {
-  // Was TraceMetricV2: replaced with `metric_bundles`, a more flexible way of
-  // representing the results of computing multiple, potentially correlated,
-  // metrics.
-  reserved 1;
+  // Will be shortly removed in favor of `metric_bundles`.
+  repeated TraceMetricV2 metric = 1 [deprecated = true];
 
-  // A set of TraceMetricV2Bundle instances, each of which contains
-  // the results of one or more v2 trace metrics.
+  // The v2 trace metrics computed for the trace in a "bundled" form.
   //
   // See documentation for TraceMetricV2Bundle for usage of this field.
   repeated TraceMetricV2Bundle metric_bundles = 3;

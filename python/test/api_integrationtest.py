@@ -308,6 +308,38 @@ class TestApi(unittest.TestCase):
             'SELECT IMPORT("ext.module"); SELECT test_value FROM test_table')
         self.assertEqual(next(qr_iterator).test_value, 123)
 
+  def test_add_sql_packages(self):
+    with tempfile.TemporaryDirectory() as temp_dir:
+      # Create a directory structure for the package. The root of the
+      # package is |temp_dir| and we are creating the file foo/bar.sql
+      # inside it.
+      test_package_dir = os.path.join(temp_dir, 'foo')
+      os.makedirs(test_package_dir)
+      test_module = os.path.join(test_package_dir, 'bar.sql')
+      with open(test_module, 'w') as f:
+        f.write(
+            'CREATE PERFETTO TABLE test_sql_module_foo AS SELECT 1 AS value;\n')
+
+      # Create another directory to add to the package to test that multiple
+      # packages can be added.
+      test_package_dir_2 = os.path.join(temp_dir, 'baz')
+      os.makedirs(test_package_dir_2)
+      test_module_2 = os.path.join(test_package_dir_2, 'qux.sql')
+      with open(test_module_2, 'w') as f:
+        f.write(
+            'CREATE PERFETTO TABLE test_sql_module_foo_2 AS SELECT 2 AS value;\n'
+        )
+
+      config = TraceProcessorConfig(
+          bin_path=os.environ["SHELL_PATH"],
+          add_sql_packages=[test_package_dir, test_package_dir_2],
+      )
+      with TraceProcessor(trace=io.BytesIO(b''), config=config) as tp:
+        qr_iterator = tp.query('INCLUDE PERFETTO MODULE foo.bar; '
+                               'INCLUDE PERFETTO MODULE baz.qux; '
+                               'SELECT value FROM test_sql_module_foo')
+        self.assertEqual(next(qr_iterator).value, 1)
+
   def test_trace_summary_failure(self):
     tp = create_tp(trace=example_android_trace_path())
     with self.assertRaises(TraceProcessorException):
