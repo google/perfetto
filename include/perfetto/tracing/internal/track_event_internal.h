@@ -184,7 +184,6 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
  public:
   static TrackEventInternal& GetInstance();
 
-  std::vector<const TrackEventCategoryRegistry*> GetRegistries();
   std::vector<const TrackEventCategoryRegistry*> AddRegistry(
       const TrackEventCategoryRegistry*);
   void EnableTracing(const protos::gen::TrackEventConfig& config,
@@ -328,6 +327,8 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
   static const Track kDefaultTrack;
 
  private:
+  std::vector<const TrackEventCategoryRegistry*> GetRegistries();
+
   static void ResetIncrementalState(TraceWriterBase* trace_writer,
                                     TrackEventIncrementalState* incr_state,
                                     const TrackEventTlsState& tls_state,
