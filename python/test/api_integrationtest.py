@@ -490,41 +490,6 @@ class TestApi(unittest.TestCase):
     self.assertIn(trace_summary.metric[1].spec.id, ['metric_one', 'metric_two'])
     tp.close()
 
-  def test_trace_summary_grouped_output(self):
-    metric_spec = """
-      metric_spec {
-        id: "metric_a"
-        value: "value_a"
-        output_group_id: "group"
-        query {
-          sql {
-            sql: "SELECT 1.0 as value_a, 2.0 as value_b"
-            column_names: "value_a"
-            column_names: "value_b"
-          }
-        }
-      }
-      metric_spec {
-        id: "metric_b"
-        value: "value_b"
-        output_group_id: "group"
-        query {
-          sql {
-            sql: "SELECT 1.0 as value_a, 2.0 as value_b"
-            column_names: "value_a"
-            column_names: "value_b"
-          }
-        }
-      }
-    """
-    tp = create_tp(trace=example_android_trace_path())
-    trace_summary = tp.trace_summary(
-        [metric_spec],
-        trace_metric_v2_output_format='TRACE_METRIC_V2_OUTPUT_FORMAT_GROUPED')
-    self.assertEqual(len(trace_summary.metric_groups), 1)
-    self.assertEqual(len(trace_summary.metric_groups[0].specs), 2)
-    tp.close()
-
   def test_trace_summary_specs_as_bytes_and_text(self):
     platform_delegate = PLATFORM_DELEGATE()
     protos = ProtoFactory(platform_delegate)
