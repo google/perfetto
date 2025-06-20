@@ -47,6 +47,12 @@ class PERFETTO_EXPORT_COMPONENT EventContext {
  public:
   EventContext(EventContext&&) = default;
 
+  explicit EventContext(
+      protos::pbzero::TrackEvent* event,
+      internal::TrackEventIncrementalState* incremental_state = nullptr,
+      bool /*filter_debug_annotations*/ = false)
+      : event_(event), incremental_state_(incremental_state) {}
+
   ~EventContext();
 
   internal::TrackEventIncrementalState* GetIncrementalState() const {
@@ -61,12 +67,16 @@ class PERFETTO_EXPORT_COMPONENT EventContext {
   // TODO(kraskevich): Come up with a more precise name once we have more than
   // one usecase.
   bool ShouldFilterDebugAnnotations() const {
+    if (!tls_state_)
+      return false;
     return tls_state_->filter_debug_annotations;
   }
 
   // Disclaimer: Experimental method, subject to change. Exposed publicly to
   // emit some DynamicFilter fields in Chromium only in local tracing.
   bool ShouldFilterDynamicEventNames() const {
+    if (!tls_state_)
+      return false;
     return tls_state_->filter_dynamic_event_names;
   }
 
@@ -134,9 +144,6 @@ class PERFETTO_EXPORT_COMPONENT EventContext {
                TracePacketHandle,
                internal::TrackEventIncrementalState*,
                internal::TrackEventTlsState*);
-  explicit EventContext(protos::pbzero::TrackEvent* event,
-                        internal::TrackEventIncrementalState* incremental_state)
-      : event_(event), incremental_state_(incremental_state) {}
   EventContext(const EventContext&) = delete;
 
   protos::pbzero::DebugAnnotation* AddDebugAnnotation(const char* name);
@@ -147,9 +154,6 @@ class PERFETTO_EXPORT_COMPONENT EventContext {
   TracePacketHandle trace_packet_;
   protos::pbzero::TrackEvent* event_;
   internal::TrackEventIncrementalState* incremental_state_;
-  // TODO(mohitms): Make it const-reference instead of pointer, once we
-  // are certain that it cannot be nullptr. Once we switch to client library in
-  // chrome, we can make that happen.
   internal::TrackEventTlsState* tls_state_ = nullptr;
 };
 

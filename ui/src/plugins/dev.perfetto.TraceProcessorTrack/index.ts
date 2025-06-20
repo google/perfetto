@@ -45,6 +45,7 @@ import {
   QueryFlamegraph,
 } from '../../components/query_flamegraph';
 import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
+import {escapeSearchQuery} from '../../trace_processor/query_utils';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TraceProcessorTrack';
@@ -60,6 +61,7 @@ export default class implements PerfettoPlugin {
     await this.addSlices(ctx);
     this.addAggregations(ctx);
     this.addMinimapContentProvider(ctx);
+    this.addSearchProviders(ctx);
   }
 
   private async addCounters(ctx: Trace) {
@@ -441,6 +443,68 @@ export default class implements PerfettoPlugin {
           rows.push(row);
         }
         return rows;
+      },
+    });
+  }
+
+  private addSearchProviders(ctx: Trace) {
+    ctx.search.registerSearchProvider({
+      name: 'Slices by name',
+      selectTracks(tracks) {
+        return tracks
+          .filter((t) => t.tags?.kind === SLICE_TRACK_KIND)
+          .filter((t) =>
+            t.renderer.getDataset?.()?.implements({name: STR_NULL}),
+          );
+      },
+      async getSearchFilter(searchTerm) {
+        return {
+          where: `name GLOB ${escapeSearchQuery(searchTerm)}`,
+        };
+      },
+    });
+
+    ctx.search.registerSearchProvider({
+      name: 'Slices by id',
+      selectTracks(tracks) {
+        return tracks
+          .filter((t) => t.tags?.kind === SLICE_TRACK_KIND)
+          .filter((t) => t.renderer.getDataset?.()?.implements({id: NUM_NULL}));
+      },
+      async getSearchFilter(searchTerm) {
+        // Attempt to parse the search term as an integer.
+        const id = Number(searchTerm);
+
+        // Note: Number.isInteger also returns false for NaN.
+        if (!Number.isInteger(id)) {
+          return undefined;
+        }
+
+        return {
+          where: `id = ${searchTerm}`,
+        };
+      },
+    });
+
+    ctx.search.registerSearchProvider({
+      name: 'Slice arguments',
+      selectTracks(tracks) {
+        return tracks
+          .filter((t) => t.tags?.kind === SLICE_TRACK_KIND)
+          .filter((t) =>
+            t.renderer.getDataset?.()?.implements({arg_set_id: NUM_NULL}),
+          );
+      },
+      async getSearchFilter(searchTerm) {
+        const searchLiteral = escapeSearchQuery(searchTerm);
+        return {
+          join: `args USING(arg_set_id)`,
+          where: `
+            args.string_value GLOB ${searchLiteral}
+            OR
+            args.key GLOB ${searchLiteral}
+          `,
+        };
       },
     });
   }

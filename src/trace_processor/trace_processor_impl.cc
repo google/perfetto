@@ -1023,6 +1023,13 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
                             storage->mutable_process_memory_snapshot_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_profiler_smaps_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_protolog_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_winscope_trace_rect_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_winscope_rect_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_winscope_fill_region_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_winscope_transform_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_spe_record_table());
   AddUnfinalizedStaticTable(tables,
                             storage->mutable_spurious_sched_wakeup_table());
@@ -1060,6 +1067,8 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
                             storage->mutable_inputmethod_service_table());
   AddUnfinalizedStaticTable(
       tables, storage->mutable_surfaceflinger_layers_snapshot_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_surfaceflinger_display_table());
   AddUnfinalizedStaticTable(tables,
                             storage->mutable_surfaceflinger_layer_table());
   AddUnfinalizedStaticTable(
