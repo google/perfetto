@@ -54,6 +54,7 @@
 #include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/sys_types.h"
@@ -72,6 +73,7 @@
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/protozero/static_buffer.h"
+#include "perfetto/trace_processor/status.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/tracing_service_capabilities.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
@@ -86,6 +88,7 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/system_info.pbzero.h"
 #include "protos/perfetto/common/trace_stats.pbzero.h"
+#include "protos/perfetto/config/priority_boost/priority_boost_config.gen.h"
 #include "protos/perfetto/config/trace_config.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.pbzero.h"
@@ -340,6 +343,8 @@ std::unique_ptr<TracingService> TracingService::CreateInstance(
   deps.clock = std::make_unique<tracing_service::ClockImpl>();
   uint32_t seed = static_cast<uint32_t>(deps.clock->GetWallTimeMs().count());
   deps.random = std::make_unique<tracing_service::RandomImpl>(seed);
+  deps.sched_status_manager =
+      std::unique_ptr<base::SchedManager>(base::SchedManager::GetInstance());
   return std::unique_ptr<TracingService>(new TracingServiceImpl(
       std::move(shm_factory), task_runner, std::move(deps), init_opts));
 }
@@ -355,6 +360,7 @@ TracingServiceImpl::TracingServiceImpl(
       shm_factory_(std::move(shm_factory)),
       uid_(base::GetCurrentUserId()),
       buffer_ids_(kMaxTraceBufferID),
+      sched_status_manager_(std::move(deps.sched_status_manager)),
       weak_runner_(task_runner) {
   PERFETTO_DCHECK(task_runner);
 }
@@ -934,6 +940,38 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     }
   }
 
+  std::optional<base::SchedConfig> priority_boost;
+
+  if (cfg.has_priority_boost()) {
+    if (!sched_status_manager_->IsSupportedOnTheCurrentPlatform()) {
+      return PERFETTO_SVC_ERR(
+          "Priority boost is not supported on the current platform");
+    }
+    if (!sched_status_manager_->HasCapabilityToSetSchedPolicy()) {
+      // TODO(ktimofeev): call MaybeLogUploadEvent
+      return PERFETTO_SVC_ERR(
+          "Doesn't have the capability to set sched policy");
+    }
+
+    if (!default_sched_policy_.has_value()) {
+      const base::StatusOr<base::SchedConfig>& current_policy =
+          sched_status_manager_->GetCurrentSchedConfig();
+      if (!current_policy.ok()) {
+        // TODO(ktimofeev): call MaybeLogUploadEvent
+        return PERFETTO_SVC_ERR("%s", current_policy.status().c_message());
+      }
+      default_sched_policy_ = current_policy.value();
+    }
+
+    const base::StatusOr<base::SchedConfig>& boost_policy =
+        CreateSchedPolicyFromConfig(cfg.priority_boost());
+    if (!boost_policy.ok()) {
+      // TODO(ktimofeev): call MaybeLogUploadEvent
+      return PERFETTO_SVC_ERR("%s", boost_policy.status().c_message());
+    }
+    priority_boost = boost_policy.value();
+  }
+
   const TracingSessionID tsid = ++last_tracing_session_id_;
   TracingSession* tracing_session =
       &tracing_sessions_
@@ -946,6 +984,9 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 
   if (trace_filter)
     tracing_session->trace_filter = std::move(trace_filter);
+
+  if (priority_boost)
+    tracing_session->priority_boost_policy_ = priority_boost;
 
   if (cfg.write_into_file()) {
     if (!fd ^ !cfg.output_path().empty()) {
@@ -1277,6 +1318,8 @@ void TracingServiceImpl::StartTracing(TracingSessionID tsid) {
 
   tracing_session->state = TracingSession::STARTED;
 
+  UpdateCurrentSchedPolicyIfNeeded();
+
   // We store the start of trace snapshot separately as it's important to make
   // sure we can interpret all the data in the trace and storing it in the ring
   // buffer means it could be overwritten by a later snapshot.
@@ -1382,6 +1425,57 @@ void TracingServiceImpl::StopOnDurationMsExpiry(TracingSessionID tsid) {
   // In all other cases (START_TRACING or no triggers) we flush
   // after |trace_duration_ms| unconditionally.
   FlushAndDisableTracing(tsid);
+}
+base::StatusOr<base::SchedConfig>
+TracingServiceImpl::CreateSchedPolicyFromConfig(
+    const protos::gen::PriorityBoostConfig& config) {
+  if (config.has_nice_value() && config.has_realtime_priority()) {
+    return base::ErrStatus(
+        "Cannot specify both 'nice_value' and 'realtime_priority' in trace "
+        "config");
+  }
+  if (config.has_nice_value()) {
+    RETURN_IF_ERROR(base::SchedConfig::ValidateNiceValue(config.nice_value()));
+    // Android uses 'SCHED_OTHER' as a default userspace priority, and so do we.
+    return base::SchedConfig::CreateOther(config.nice_value());
+  }
+  if (config.has_realtime_priority()) {
+    RETURN_IF_ERROR(
+        base::SchedConfig::ValidatePriority(config.realtime_priority()));
+    // Android uses 'SCHED_FIFO' as a rt-priority, and so do we.
+    return base::SchedConfig::CreateFifo(config.realtime_priority());
+  }
+  return base::ErrStatus(
+      "Specify either 'nice_value' or 'realtime_priority' in trace config");
+}
+
+void TracingServiceImpl::UpdateCurrentSchedPolicyIfNeeded() {
+  // if sched policy update is not supported just return.
+  if (!default_sched_policy_.has_value()) {
+    return;
+  }
+
+  base::SchedConfig new_policy = default_sched_policy_.value();
+  for (const auto& [_, session] : tracing_sessions_) {
+    if (session.state == TracingSession::CONFIGURED ||
+        session.state == TracingSession::STARTED) {
+      if (session.priority_boost_policy_.has_value()) {
+        new_policy =
+            std::max(new_policy, session.priority_boost_policy_.value());
+      }
+    }
+  }
+  // At this stage we've already checked that we have permission to set policy
+  // and validated the 'new_policy' value is correct. If 'SetSchedPolicy'
+  // returns an error, something is very wrong beyond our control, log the error
+  // message in the production build, crash in the debug build.
+  if (const auto status = sched_status_manager_->SetSchedConfig(new_policy);
+      !status.ok()) {
+    PERFETTO_DFATAL_OR_ELOG(
+        "Failed to update current sched policy. New policy: %s, error message: "
+        "%s",
+        new_policy.ToString().c_str(), status.message().c_str());
+  }
 }
 
 void TracingServiceImpl::StartDataSourceInstance(
@@ -2789,6 +2883,7 @@ void TracingServiceImpl::FreeBuffers(TracingSessionID tsid) {
   tracing_sessions_.erase(tsid);
   tracing_session = nullptr;
   UpdateMemoryGuardrail();
+  UpdateCurrentSchedPolicyIfNeeded();
 
   for (const auto& id_to_clone_op : pending_clones) {
     const PendingClone& clone_op = id_to_clone_op.second;

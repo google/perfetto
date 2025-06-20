@@ -755,6 +755,8 @@ class TracingServiceImpl : public TracingService {
     // This is set when the clone operation was caused by a clone trigger.
     std::optional<TriggerInfo> clone_trigger;
 
+    std::optional<base::SchedConfig> priority_boost_policy_;
+
     // NOTE: when adding new fields here consider whether that state should be
     // copied over in DoCloneSession() or not. Ask yourself: is this a
     // "runtime state" (e.g. active data sources) or a "trace (meta)data state"?
@@ -910,6 +912,11 @@ class TracingServiceImpl : public TracingService {
                                              uint64_t trigger_name_hash);
   void StopOnDurationMsExpiry(TracingSessionID);
 
+  static base::StatusOr<base::SchedConfig> CreateSchedPolicyFromConfig(
+      const protos::gen::PriorityBoostConfig& config);
+
+  void UpdateCurrentSchedPolicyIfNeeded();
+
   std::unique_ptr<tracing_service::Clock> clock_;
   std::unique_ptr<tracing_service::Random> random_;
   const InitOpts init_opts_;
@@ -945,6 +952,11 @@ class TracingServiceImpl : public TracingService {
   // Stats.
   uint64_t chunks_discarded_ = 0;
   uint64_t patches_discarded_ = 0;
+
+  std::unique_ptr<base::SchedManager> sched_status_manager_;
+  // This field having value implies that the current platform supports sched
+  // policy updates.
+  std::optional<base::SchedConfig> default_sched_policy_;
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
 
