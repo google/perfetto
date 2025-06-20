@@ -68,32 +68,28 @@ unsigned int SchedPolicyToCApi(const SchedConfig::SchedPolicy& policy) {
                  static_cast<int>(policy));
 }
 }  // namespace
-#endif
 
 std::string SchedConfig::ToString() const {
   const std::string kernel_info =
-      "kernel_policy=" + std::to_string(SchedPolicyToCApi(policy_)) +
+      ", kernel_policy=" + std::to_string(SchedPolicyToCApi(policy_)) +
       ", kernel_prio=" + std::to_string(KernelPriority());
   switch (policy_) {
     case SchedPolicy::kIdle:
       return "IDLE(" + kernel_info + ")";
     case SchedPolicy::kOther:
-      return "OTHER(nice=" + std::to_string(nice_) + ", " + kernel_info + ")";
+      return "OTHER(nice=" + std::to_string(nice_) + kernel_info + ")";
     case SchedPolicy::kBatch:
-      return "BATCH(nice=" + std::to_string(nice_) + ", " + kernel_info + ")";
+      return "BATCH(nice=" + std::to_string(nice_) + kernel_info + ")";
     case SchedPolicy::kFifo:
-      return "FIFO(priority=" + std::to_string(rt_priority_) + ", " +
-             kernel_info + ")";
+      return "FIFO(priority=" + std::to_string(rt_priority_) + kernel_info +
+             ")";
     case SchedPolicy::kRr:
-      return "RR(priority=" + std::to_string(rt_priority_) + ", " +
-             kernel_info + ")";
+      return "RR(priority=" + std::to_string(rt_priority_) + kernel_info + ")";
   }
   PERFETTO_FATAL("Can't be here (Unknown sched policy enum value %d)",
                  static_cast<int>(policy_));
 }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 bool SchedManager::IsSupportedOnTheCurrentPlatform() const {
   return true;
 }
@@ -150,6 +146,11 @@ Status SchedManager::SetSchedConfig(const SchedConfig& arg) {
   return OkStatus();
 }
 #else
+
+std::string SchedConfig::ToString() const {
+  return "";
+}
+
 bool SchedManager::IsSupportedOnTheCurrentPlatform() const {
   return false;
 }

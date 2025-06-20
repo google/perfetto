@@ -24,6 +24,8 @@
 namespace perfetto::base {
 namespace {
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 TEST(SchedConfigTest, ValidateNiceValue) {
   const Status bad_nice_1 = SchedConfig::ValidateNiceValue(-42);
   ASSERT_FALSE(bad_nice_1.ok());
@@ -125,8 +127,7 @@ RR(priority=99, kernel_policy=2, kernel_prio=0))";
   ASSERT_STREQ(actual_string.c_str(), expected_string);
 }
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) && \
-    !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#else
 TEST(SchedManagerTest, TestReportErrorWhenNotSupported) {
   SchedManager* instance = SchedManager::GetInstance();
   ASSERT_NE(instance, nullptr);
