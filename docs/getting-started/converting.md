@@ -246,7 +246,7 @@ your `trace_converter_template.py` script.
 
 </details>
 
-![Placeholder image](/docs/images/placeholder.png)
+TODO: add image here
 
 ## Nested Slices (Hierarchical Activities)
 
@@ -337,7 +337,7 @@ your `trace_converter_template.py` script.
 
 </details>
 
-![Placeholder image](/docs/images/placeholder.png)
+TODO: add image here
 
 ## Asynchronous Slices and Overlapping Events
 
@@ -426,7 +426,7 @@ generating unique track UUIDs.
 
 </details>
 
-![Placeholder image](/docs/images/placeholder.png)
+TODO: add image here
 
 ## Counters (Values Changing Over Time)
 
@@ -501,7 +501,7 @@ your `trace_converter_template.py` script.
 
 </details>
 
-![Placeholder image](/docs/images/placeholder.png)
+TODO: add image here
 
 ## Flows (Connecting Causally Related Events)
 

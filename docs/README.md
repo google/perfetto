@@ -4,9 +4,11 @@ Perfetto is an open-source suite of SDKs, daemons and tools which use
 **tracing** to help developers understand the behaviour of the complex systems
 and root-cause functional and performance issues on client / embedded systems.
 
-If you are unfamiliar with tracing or, in general, are new to the world of
-performance, we suggest reading the
-[What is Tracing?](/docs/tracing-101.md) page first.
+TIP: If you are unfamiliar with tracing or, in general, are new to the world of
+performance, we suggest reading the [What is Tracing?](/docs/tracing-101.md)
+page first.
+
+TODO: add updated diagram here.
 
 It consists of:
 
@@ -20,8 +22,8 @@ It consists of:
   sampling) context during the trace.
 - **Fully local, browser-based UI** for visualizing large amounts of complex,
   interconnected data on a timeline. Our UI works in all major browsers, doesn't
-  require any installation, works offline, and can open traces recorded
-  by other (non-Perfetto) tracing tools.
+  require any installation, works offline, and can open traces recorded by other
+  (non-Perfetto) tracing tools.
 - **Powerful, SQL-based analysis library** for programatically analyzing large
   amounts of complex, interconnected data on a timeline, even if it was not
   collected with Perfetto recording tooling.
@@ -33,10 +35,10 @@ for the Android OS and the Chrome Browser. As such, Perfetto is the offficially
 supported for collecting, analysing and visualizing:
 
 - **System traces on Android** to debug and root-cause functional and
-  performance issues in the Android platform and Android apps.
-  Perfetto is suited for debugging e.g. slow startups, dropped frames (jank),
-  animation glitches, low memory kills, App Not Responding (ANRs) and general
-  buggy behaviour.
+  performance issues in the Android platform and Android apps. Perfetto is
+  suited for debugging e.g. slow startups, dropped frames (jank), animation
+  glitches, low memory kills, App Not Responding (ANRs) and general buggy
+  behaviour.
 
 - **Java heap dumps and native heap profiles on Android** to debug and
   root-cause high memory use in both Java/Kotlin code and C++ code respectively,
@@ -80,9 +82,9 @@ explicltly unsupported.
 - **Recording traces for distributed / server systems**
 
   - Perfetto is **not** a distributed tracer in the vein of OpenTelemetry,
-    Jaeger, Datadog. Perfetto's recording tools are entirely for
-    recording client side traces, especially at the system level. Our team
-    believes that the space of distributed/server tracing is well covered by the
+    Jaeger, Datadog. Perfetto's recording tools are entirely for recording
+    client side traces, especially at the system level. Our team believes that
+    the space of distributed/server tracing is well covered by the
     aforementioned projects, unlike Android and Linux-embeded systems.
   - However, the Perfetto UI _can_ be used to visualize distributed traces if
     traces are converted to a format that Perfetto supports. In fact, this is
@@ -112,11 +114,11 @@ explicltly unsupported.
   - Instead, Perfetto's recording libraries and daemons focus on having a good
     trade-off between performance, flexibility and security of tracing.
   - For example, Perfetto supports arbitrary sized events (e.g. high res
-     screenshots), coordinating multi-process tracing, concurrent tracing
-     sessions with different configs, dynamic buffer multiplexing, arbitrarily
-     nested key-value **arguments** attached to trace events, dynamic string
-     interning, **flows** for linking trace events together and **dynamic trace
-     event names** which many other low-overhead tracing systems do not support.
+    screenshots), coordinating multi-process tracing, concurrent tracing
+    sessions with different configs, dynamic buffer multiplexing, arbitrarily
+    nested key-value **arguments** attached to trace events, dynamic string
+    interning, **flows** for linking trace events together and **dynamic trace
+    event names** which many other low-overhead tracing systems do not support.
   - However, the Perfetto UI _can_ be used to visualize traces recorded with
     non-Perfetto tools if those traces can be converted to the Perfetto protobuf
     format or some other format we support natively e.g. _Chrome JSON_,
@@ -141,7 +143,6 @@ explicltly unsupported.
 We appreicate that Perfetto has a lot of parts to it so it can be confusing to
 someone new to the project to know what is relevant to them. For this reason, we
 have a whole page dedicated to this:
-
 [How do I start using Perfetto?](/docs/getting-started/start-using-perfetto.md)
 
 ## Who uses Perfetto today?
@@ -182,8 +183,10 @@ posts, articles and videos:
   tracing into our development process from local debugging, to performance
   tests and finally in production."
 - [Microsoft: Perfetto tooling for analyzing Android, Linux, and Chromium browser performance](https://devblogs.microsoft.com/performance-diagnostics/perfetto-tooling-for-analyzing-android-linux-and-chromium-browser-performance-microsoft-performance-tools-linux-android/)
-- [Mesa 3D](https://docs.mesa3d.org/perfetto.html) embeds Perfetto in some of its drivers for GPU counter and render stage monitoring.
-- [JaneStreet's MagicTrace](https://blog.janestreet.com/magic-trace/) A tool based on Perfetto to record and visualize Intel Processor traces.
+- [Mesa 3D](https://docs.mesa3d.org/perfetto.html) embeds Perfetto in some of
+  its drivers for GPU counter and render stage monitoring.
+- [JaneStreet's MagicTrace](https://blog.janestreet.com/magic-trace/) A tool
+  based on Perfetto to record and visualize Intel Processor traces.
 
 ## Where do I find more information and get help with Perfetto?
 
@@ -192,9 +195,11 @@ For our source code and project home:
 
 For Q/A:
 
-- [Github Discussions](https://github.com/google/perfetto/discussions/categories/q-a) or our
+- [Github Discussions](https://github.com/google/perfetto/discussions/categories/q-a)
+  or our
   [public mailing list](https://groups.google.com/forum/#!forum/perfetto-dev).
-- **Googlers**: use [YAQS](https://go/perfetto-yaqs) or our [internal mailing list](http://go/perfetto-dev).
+- **Googlers**: use [YAQS](https://go/perfetto-yaqs) or our
+  [internal mailing list](http://go/perfetto-dev).
 
 For bugs affecting any part of Perfetto **except** Chrome tracing:
 
@@ -209,7 +214,10 @@ For bugs affecting Chrome Tracing:
 For chatting directly with the Perfetto team:
 
 - Use [Discord](https://discord.gg/35ShE3A)
-- **Googlers**: Thank you for contacting us. All our lines are currently busy. Your message is important to us, and an operator will get back to you as soon as possible. If your enquiry is truly urgent see [this page](http://go/perfetto-project).
+- **Googlers**: Thank you for contacting us. All our lines are currently busy.
+  Your message is important to us, and an operator will get back to you as soon
+  as possible. If your enquiry is truly urgent see
+  [this page](http://go/perfetto-project).
 
 Perfetto follows
 [Google's Open Source Community Guidelines](https://opensource.google/conduct/).

@@ -268,12 +268,9 @@ more advanced topics:
   [Perfetto SDK documentation](/docs/instrumentation/tracing-sdk.md) provides
   more details on how to use the SDK, including how to define custom data
   sources and use different types of tracks.
-- **Dive deeper into trace analysis:** The
-  [Trace Processor documentation](/docs/analysis/trace-processor.md) explains
-  how to use the Trace Processor to analyze traces with SQL. You can also find
-  more information about the
-  [PerfettoSQL syntax](/docs/analysis/perfetto-sql-syntax.md) and the
-  [standard library](/docs/analysis/stdlib-docs.autogen).
-- **Explore other data sources:** Perfetto supports a wide range of
-  [data sources](/docs/data-sources/README.md) that you can use to collect more
-  information about your application and the system it's running on.
+- **Explore other data sources:** Perfetto supports a wide range of data
+  sources that you can use to collect more information about your application
+  and the system it's running on. For example, you can collect
+  [CPU scheduling events](/docs/data-sources/cpu-scheduling.md),
+  [memory usage information](/docs/data-sources/memory-counters.md), or
+  [Android-specific events](/docs/data-sources/atrace.md).

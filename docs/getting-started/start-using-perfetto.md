@@ -476,6 +476,3 @@ situation:
 - **Engage with the community:** Ask questions on
   [Discord](https://discord.gg/35ShE3A) or our
   [public mailing list](https://groups.google.com/forum/#!forum/perfetto-dev).
-
-We encourage you to explore how Perfetto's strengths in recording,
-visualization, and analysis can be adapted to your challenges!

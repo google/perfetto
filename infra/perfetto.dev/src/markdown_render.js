@@ -20,7 +20,7 @@ const path = require("path");
 const hljs = require("highlight.js");
 
 const CS_BASE_URL =
-  "https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto";
+  "https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/";
 
 const ROOT_DIR = path.dirname(path.dirname(path.dirname(__dirname)));
 
