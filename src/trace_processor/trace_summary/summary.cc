@@ -218,10 +218,10 @@ base::StatusOr<std::vector<DimensionWithIndex>> GetDimensionsWithIndex(
 base::Status WriteDimension(
     const DimensionWithIndex& dim_with_index,
     const std::string& metric_or_bundle_name,
-    Iterator& it,
+    Iterator& query_it,
     protos::pbzero::TraceMetricV2Bundle::Row::Dimension* dimension,
     base::Hasher* hasher) {
-  const auto& dimension_value = it.Get(dim_with_index.index);
+  const auto& dimension_value = query_it.Get(dim_with_index.index);
   hasher->Update(dimension_value.type);
   if (dimension_value.is_null()) {
     // Accept null value for all dimension types.
@@ -353,16 +353,17 @@ base::Status CreateQueriesAndComputeMetrics(
     metrics_by_bundle[bundle_id].push_back(&m);
   }
   for (auto it = metrics_by_bundle.GetIterator(); it; ++it) {
-    RETURN_IF_ERROR(VerifyBundleHasConsistentSpecs(it.key(), it.value()));
+    const auto& value = it.value();
+    RETURN_IF_ERROR(VerifyBundleHasConsistentSpecs(it.key(), value));
 
     const std::string& bundle_id = it.key();
     auto* bundle = summary->add_metric_bundles();
-    for (const Metric* metric : it.value()) {
+    for (const Metric* metric : value) {
       bundle->add_specs()->AppendRawProtoBytes(metric->spec.data,
                                                metric->spec.size);
     }
 
-    const Metric* first = it.value().front();
+    const Metric* first = value.front();
     protos::pbzero::TraceMetricV2Spec::Decoder first_spec(first->spec);
 
     auto query_it = processor->ExecuteQuery(first->query);
@@ -370,7 +371,7 @@ base::Status CreateQueriesAndComputeMetrics(
                      GetDimensionsWithIndex(first_spec, query_it));
 
     std::vector<uint32_t> value_indices;
-    for (const auto* metric : it.value()) {
+    for (const auto* metric : value) {
       protos::pbzero::TraceMetricV2Spec::Decoder spec(metric->spec);
       std::string value_column_name = spec.value().ToStdString();
       std::optional<uint32_t> value_index;
@@ -392,6 +393,18 @@ base::Status CreateQueriesAndComputeMetrics(
         protos::pbzero::TraceMetricV2Spec::DimensionUniqueness::UNIQUE;
     base::FlatHashMap<uint64_t, bool> seen_dimensions;
     while (query_it.Next()) {
+      bool all_null = true;
+      for (size_t i = 0; i < value.size(); ++i) {
+        const auto& metric_value_column = query_it.Get(value_indices[i]);
+        if (!metric_value_column.is_null()) {
+          all_null = false;
+          break;
+        }
+      }
+      // If all values are null, we skip writing the row.
+      if (all_null) {
+        continue;
+      }
       auto* row = bundle->add_row();
       base::Hasher hasher;
       for (const auto& dim : dimensions_with_index) {
@@ -405,7 +418,8 @@ base::Status CreateQueriesAndComputeMetrics(
             "allowed",
             bundle_id.c_str());
       }
-      for (size_t i = 0; i < it.value().size(); ++i) {
+
+      for (size_t i = 0; i < value.size(); ++i) {
         const auto& metric_value_column = query_it.Get(value_indices[i]);
         auto* row_value = row->add_values();
         if (metric_value_column.is_null()) {

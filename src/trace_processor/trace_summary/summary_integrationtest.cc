@@ -459,10 +459,6 @@ TEST_F(TraceSummaryTest, GroupedNullValues) {
           }
         }
       }
-      row {
-        dimension { null_value {} }
-        values { null_value {} }
-      }
     }
   )"));
 }
@@ -629,6 +625,183 @@ TEST_F(TraceSummaryTest, GroupedTemplateDisabledGrouping) {
       }
     }
   )"));
+}
+TEST_F(TraceSummaryTest, GroupedAllNullValuesAreSkipped) {
+  ASSERT_OK_AND_ASSIGN(auto output, RunSummarize(
+                                         R"(
+    metric_spec {
+      id: "metric_a"
+      value: "value_a"
+      dimensions: "dim"
+      bundle_id: "group"
+      query {
+        sql {
+          sql: "SELECT 'not_null' as dim, 1.0 as value_a, 2.0 as value_b UNION ALL SELECT 'all_null' as dim, NULL as value_a, NULL as value_b"
+          column_names: "dim"
+          column_names: "value_a"
+          column_names: "value_b"
+        }
+      }
+    }
+    metric_spec {
+      id: "metric_b"
+      value: "value_b"
+      dimensions: "dim"
+      bundle_id: "group"
+      query {
+        sql {
+          sql: "SELECT 'not_null' as dim, 1.0 as value_a, 2.0 as value_b UNION ALL SELECT 'all_null' as dim, NULL as value_a, NULL as value_b"
+          column_names: "dim"
+          column_names: "value_a"
+          column_names: "value_b"
+        }
+      }
+    }
+  )"));
+  EXPECT_THAT(output, EqualsIgnoringWhitespace(R"-(
+    metric_bundles {
+      specs {
+        id: "metric_a"
+        value: "value_a"
+        dimensions: "dim"
+        bundle_id: "group"
+        query {
+          sql {
+            sql: "SELECT \'not_null\' as dim, 1.0 as value_a, 2.0 as value_b UNION ALL SELECT \'all_null\' as dim, NULL as value_a, NULL as value_b"
+            column_names: "dim"
+            column_names: "value_a"
+            column_names: "value_b"
+          }
+        }
+      }
+      specs {
+        id: "metric_b"
+        value: "value_b"
+        dimensions: "dim"
+        bundle_id: "group"
+        query {
+          sql {
+            sql: "SELECT \'not_null\' as dim, 1.0 as value_a, 2.0 as value_b UNION ALL SELECT \'all_null\' as dim, NULL as value_a, NULL as value_b"
+            column_names: "dim"
+            column_names: "value_a"
+            column_names: "value_b"
+          }
+        }
+      }
+      row {
+        dimension { string_value: "not_null" }
+        values { double_value: 1.000000 }
+        values { double_value: 2.000000 }
+      }
+    }
+  )-"));
+}
+
+TEST_F(TraceSummaryTest, GroupedOneNullValueIsNotSkipped) {
+  ASSERT_OK_AND_ASSIGN(auto output, RunSummarize(
+                                         R"(
+    metric_spec {
+      id: "metric_a"
+      value: "value_a"
+      dimensions: "dim"
+      bundle_id: "group"
+      query {
+        sql {
+          sql: "SELECT 'one_null' as dim, 1.0 as value_a, NULL as value_b"
+          column_names: "dim"
+          column_names: "value_a"
+          column_names: "value_b"
+        }
+      }
+    }
+    metric_spec {
+      id: "metric_b"
+      value: "value_b"
+      dimensions: "dim"
+      bundle_id: "group"
+      query {
+        sql {
+          sql: "SELECT 'one_null' as dim, 1.0 as value_a, NULL as value_b"
+          column_names: "dim"
+          column_names: "value_a"
+          column_names: "value_b"
+        }
+      }
+    }
+  )"));
+  EXPECT_THAT(output, EqualsIgnoringWhitespace(R"-(
+    metric_bundles {
+      specs {
+        id: "metric_a"
+        value: "value_a"
+        dimensions: "dim"
+        bundle_id: "group"
+        query {
+          sql {
+            sql: "SELECT \'one_null\' as dim, 1.0 as value_a, NULL as value_b"
+            column_names: "dim"
+            column_names: "value_a"
+            column_names: "value_b"
+          }
+        }
+      }
+      specs {
+        id: "metric_b"
+        value: "value_b"
+        dimensions: "dim"
+        bundle_id: "group"
+        query {
+          sql {
+            sql: "SELECT \'one_null\' as dim, 1.0 as value_a, NULL as value_b"
+            column_names: "dim"
+            column_names: "value_a"
+            column_names: "value_b"
+          }
+        }
+      }
+      row {
+        dimension { string_value: "one_null" }
+        values { double_value: 1.000000 }
+        values { null_value {} }
+      }
+    }
+  )-"));
+}
+
+TEST_F(TraceSummaryTest, GroupedSingleNullValueIsSkipped) {
+  ASSERT_OK_AND_ASSIGN(auto output, RunSummarize(
+                                         R"(
+    metric_spec {
+      id: "metric_a"
+      value: "value_a"
+      dimensions: "dim"
+      bundle_id: "group"
+      query {
+        sql {
+          sql: "SELECT 'one_null' as dim, NULL as value_a"
+          column_names: "dim"
+          column_names: "value_a"
+        }
+      }
+    }
+  )"));
+  EXPECT_THAT(output, EqualsIgnoringWhitespace(R"-(
+    metric_bundles {
+      specs {
+        id: "metric_a"
+        value: "value_a"
+        dimensions: "dim"
+        bundle_id: "group"
+        query {
+          sql {
+            sql: "SELECT \'one_null\' as dim, NULL as value_a"
+            column_names: "dim"
+            column_names: "value_a"
+          }
+        }
+      }
+    }
+  )-"));
 }
 
 }  // namespace
