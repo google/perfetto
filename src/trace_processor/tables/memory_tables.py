@@ -15,6 +15,7 @@
 
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import CppAccess
+from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppSelfTableId
@@ -31,7 +32,12 @@ MEMORY_SNAPSHOT_TABLE = Table(
     class_name='MemorySnapshotTable',
     sql_name='__intrinsic_memory_snapshot',
     columns=[
-        C('timestamp', CppInt64(), cpp_access=CppAccess.READ),
+        C(
+            'timestamp',
+            CppInt64(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C('track_id', CppTableId(TRACK_TABLE)),
         C('detail_level', CppString(), cpp_access=CppAccess.READ),
     ],

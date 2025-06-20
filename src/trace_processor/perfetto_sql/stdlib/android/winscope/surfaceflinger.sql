@@ -60,3 +60,37 @@ SELECT
   flags_id,
   flag
 FROM __intrinsic_surfaceflinger_transaction_flag;
+
+-- Android surfaceflinger displays (from android.surfaceflinger.layers data source).
+CREATE PERFETTO VIEW android_surfaceflinger_display (
+  -- Id
+  id LONG,
+  -- Snapshot id
+  snapshot_id LONG,
+  -- Is on
+  is_on LONG,
+  -- Is virtual
+  is_virtual LONG,
+  -- Trace rect id
+  trace_rect_id LONG,
+  -- Display id
+  display_id LONG,
+  -- Display name
+  display_name STRING
+) AS
+SELECT
+  *
+FROM __intrinsic_surfaceflinger_display;
+
+-- Android surfaceflinger input rect fill regions (from android.surfaceflinger.layers data source).
+CREATE PERFETTO VIEW android_winscope_fill_region (
+  -- Fill region id
+  id LONG,
+  -- Trace rect id
+  trace_rect_id LONG,
+  -- Rect id
+  rect_id LONG
+) AS
+SELECT
+  *
+FROM __intrinsic_winscope_fill_region;

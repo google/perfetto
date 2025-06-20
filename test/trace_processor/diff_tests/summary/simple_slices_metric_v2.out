@@ -1,5 +1,7 @@
 row {
-    value: 100.0
+    values: {
+        double_value: 100.0
+    }
     dimension {
         null_value {}
     }
@@ -8,7 +10,9 @@ row {
     }
 }
 row {
-    value: 301.0
+    values: {
+        double_value: 301.0
+    }
     dimension {
         string_value: "Thread"
     }
@@ -17,7 +21,9 @@ row {
     }
 }
 row {
-    value: 199.0
+    values: {
+        double_value: 199.0
+    }
     dimension {
         string_value: "Thread"
     }
@@ -25,7 +31,7 @@ row {
         string_value: "ThreadSlice2"
     }
 }
-spec {
+specs {
     id: "max_duration"
     value: "max_dur"
     query {
