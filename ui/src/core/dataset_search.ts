@@ -66,15 +66,6 @@ export async function searchTrackEvents(
     results = results.concat(providerResults);
   }
 
-  // We may want to search all events by id in the future, but for now in order
-  // to meet parity with the original search mechanism we avoid it.
-  // TODO(stevegolton): Revisit this decision in the future.
-  if (false) {
-    const trackGroups = buildTrackGroups(tracks);
-    const resultsById = await searchIds(trackGroups, searchTerm, engine);
-    results = results.concat(resultsById);
-  }
-
   // Remove duplicates
   const uniqueResults = new Map<string, SearchResult>();
   for (const result of results) {
@@ -96,14 +87,14 @@ export async function searchTrackEvents(
 async function searchTracksUsingProvider(
   engine: Engine,
   tracks: ReadonlyArray<Track>,
-  filterClause: FilterExpression,
+  filter: FilterExpression,
 ): Promise<SearchResult[]> {
   const trackGroups = buildTrackGroups(tracks);
 
   const results = await searchTrackGroupsWithFilter(
     engine,
     trackGroups,
-    filterClause,
+    filter,
   );
 
   return results;
@@ -185,7 +176,7 @@ function normalizeMapKey(value: SqlValue): SqlValue {
 async function searchTrackGroupsWithFilter(
   engine: Engine,
   trackGroups: Map<string, TrackGroup>,
-  filterClause: FilterExpression,
+  filter: FilterExpression,
 ): Promise<SearchResult[]> {
   let searchResults: SearchResult[] = [];
 
@@ -198,43 +189,7 @@ async function searchTrackGroupsWithFilter(
       schema: trackGroup.schema,
     });
     if (groupDataset.implements({id: NUM, ts: LONG})) {
-      const results = await searchTrackGroup(trackGroup, filterClause, engine);
-      searchResults = searchResults.concat(results);
-    }
-  }
-
-  return searchResults;
-}
-
-async function searchIds(
-  trackGroups: Map<string, TrackGroup>,
-  searchTerm: string,
-  engine: Engine,
-): Promise<SearchResult[]> {
-  // Check if the search term is can be parsed as an int.
-  const id = Number(searchTerm);
-
-  // Note: Number.isInteger also returns false for NaN.
-  if (!Number.isInteger(id)) {
-    return [];
-  }
-
-  let searchResults: SearchResult[] = [];
-
-  // Process each track group
-  for (const trackGroup of trackGroups.values()) {
-    // Only search track groups that implement the required schema
-    // The schema check ensures 'id', 'ts' columns exist.
-    const groupDataset = new SourceDataset({
-      src: trackGroup.src,
-      schema: trackGroup.schema,
-    });
-    if (groupDataset.implements({id: NUM, ts: LONG})) {
-      const results = await searchTrackGroup(
-        trackGroup,
-        {where: `id = ${id}`},
-        engine,
-      );
+      const results = await searchTrackGroup(trackGroup, filter, engine);
       searchResults = searchResults.concat(results);
     }
   }
@@ -244,7 +199,7 @@ async function searchIds(
 
 async function searchTrackGroup(
   trackGroup: TrackGroup,
-  condition: FilterExpression,
+  filter: FilterExpression,
   engine: Engine,
 ): Promise<SearchResult[]> {
   const results: SearchResult[] = [];
@@ -262,8 +217,8 @@ async function searchTrackGroup(
     SELECT
       ${selectCols.map((c) => `source.${c} AS ${c}`).join()}
     FROM (${trackGroup.src}) AS source
-    ${condition.join ? `JOIN ${condition.join}` : ''}
-    WHERE ${condition.where}
+    ${filter.join ? `JOIN ${filter.join}` : ''}
+    WHERE ${filter.where}
   `;
   const result = await engine.query(query);
 
