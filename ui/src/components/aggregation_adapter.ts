@@ -72,7 +72,7 @@ export async function ii<T extends {ts: bigint; dur: bigint; id: number}>(
     // II can't handle 0 or negative durations.
     return new SourceDataset({
       src: `
-        SELECT * FROM ${dataset.query()}
+        SELECT * FROM (${dataset.query()})
         LIMIT 0
       `,
       schema: dataset.schema,
