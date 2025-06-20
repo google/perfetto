@@ -20,6 +20,7 @@
 #include "perfetto/base/build_config.h"
 
 #include <string>
+#include <tuple>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
