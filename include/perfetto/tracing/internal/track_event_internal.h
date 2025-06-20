@@ -29,6 +29,7 @@
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
+#include <mutex>
 #include <unordered_map>
 
 namespace perfetto {
