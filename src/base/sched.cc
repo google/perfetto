@@ -162,11 +162,11 @@ bool SchedManager::HasCapabilityToSetSchedPolicy() const {
   return false;
 }
 
-Status SchedManager::SetSchedConfig(const SchedArg& arg) {
+Status SchedManager::SetSchedConfig(const SchedConfig&) {
   return ErrStatus("SetSchedConfig() not implemented on the current platform");
 }
 
-StatusOr<SchedArg> SchedManager::GetCurrentSchedConfig() const {
+StatusOr<SchedConfig> SchedManager::GetCurrentSchedConfig() const {
   return ErrStatus(
       "GetCurrentSchedConfig() not implemented on the current platform");
 }
