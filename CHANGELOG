@@ -4,6 +4,18 @@ Unreleased:
   SQL Standard library:
     *
   Trace Processor:
+    * Reworked core database engine to be more performant and better architected
+      for future imporvements.
+    * Added new "trace summarization" functionality to trace processor as a more
+      flexible replacement to old metrics system.
+    * Added support for executing all available metrics when summarizing the
+      trace with `--summary-metrics-v2 all`.
+    * Added `trace_summary()` function to the Python API to execute the
+      trace summaries and, specifically, v2 metrics.
+    * Added support to adding SQL packages to Python API. This is the
+      counterpart to the `--add-sql-package` shell option and allow loading SQL
+      packages and modules from a filesystem path. These are then available to
+      load using `INCLUDE PERFETTO MODULE` PerfettoSQL statements.
     * Improved handling of traces containing overlapping "complete" events
       (i.e. events with a duration, AKA 'X' events in the JSON format).
       While overlapping events are prohibited by the JSON spec, they do
@@ -13,14 +25,6 @@ Unreleased:
       glitches and an error stat is emitted to make the user aware.
     * Improved performance of parsing JSON by 7x. JSON traces should now load
       much faster in the Perfetto UI and the trace processor.
-    * Added `trace_summary()` function to the Python API to execute the
-      trace summaries and, specifically, v2 metrics.
-    * Added support for executing all available metrics when summarizing the
-      trace with `--summary-metrics-v2 all`.
-    * Added support to `add_sql_packages` to Python API. This is the counterpart
-      to the `--add-sql-package` shell option and allow loading SQL packages
-      and modules from a filesystem path. These are then available to load using
-      `INCLUDE PERFETTO MODULE` PerfettoSQL statements.
   UI:
     * Improved JSON loading performance. See `Trace Processor` section above.
     * Improved duration based slice aggregators - slices are now trimmed to the
