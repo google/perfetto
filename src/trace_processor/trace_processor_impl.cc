@@ -124,7 +124,6 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_proto_to_args_with_defaults.h"
 #include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
@@ -162,6 +161,10 @@
 #include "src/trace_processor/importers/etm/file_tracker.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.h"
+#endif
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_proto_to_args_with_defaults.h"
 #endif
 
 namespace perfetto::trace_processor {
@@ -1022,30 +1025,15 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
   AddUnfinalizedStaticTable(tables,
                             storage->mutable_process_memory_snapshot_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_profiler_smaps_table());
-  AddUnfinalizedStaticTable(tables, storage->mutable_protolog_table());
-  AddUnfinalizedStaticTable(tables,
-                            storage->mutable_winscope_trace_rect_table());
-  AddUnfinalizedStaticTable(tables, storage->mutable_winscope_rect_table());
-  AddUnfinalizedStaticTable(tables,
-                            storage->mutable_winscope_fill_region_table());
-  AddUnfinalizedStaticTable(tables,
-                            storage->mutable_winscope_transform_table());
+
   AddUnfinalizedStaticTable(tables, storage->mutable_spe_record_table());
   AddUnfinalizedStaticTable(tables,
                             storage->mutable_spurious_sched_wakeup_table());
-  AddUnfinalizedStaticTable(
-      tables, storage->mutable_surfaceflinger_transaction_flag_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_trace_file_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_v8_isolate_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_v8_js_function_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_v8_js_script_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_v8_wasm_script_table());
-  AddUnfinalizedStaticTable(
-      tables,
-      storage->mutable_window_manager_shell_transition_handlers_table());
-  AddUnfinalizedStaticTable(
-      tables,
-      storage->mutable_window_manager_shell_transition_participants_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_v8_js_code_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_v8_internal_code_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_v8_wasm_code_table());
@@ -1053,35 +1041,6 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
   AddUnfinalizedStaticTable(tables, storage->mutable_symbol_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_jit_code_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_jit_frame_table());
-  AddUnfinalizedStaticTable(tables,
-                            storage->mutable_android_key_events_table());
-  AddUnfinalizedStaticTable(tables,
-                            storage->mutable_android_motion_events_table());
-  AddUnfinalizedStaticTable(
-      tables, storage->mutable_android_input_event_dispatch_table());
-  AddUnfinalizedStaticTable(tables,
-                            storage->mutable_inputmethod_clients_table());
-  AddUnfinalizedStaticTable(
-      tables, storage->mutable_inputmethod_manager_service_table());
-  AddUnfinalizedStaticTable(tables,
-                            storage->mutable_inputmethod_service_table());
-  AddUnfinalizedStaticTable(
-      tables, storage->mutable_surfaceflinger_layers_snapshot_table());
-  AddUnfinalizedStaticTable(tables,
-                            storage->mutable_surfaceflinger_display_table());
-  AddUnfinalizedStaticTable(tables,
-                            storage->mutable_surfaceflinger_layer_table());
-  AddUnfinalizedStaticTable(
-      tables, storage->mutable_surfaceflinger_transactions_table());
-  AddUnfinalizedStaticTable(
-      tables, storage->mutable_surfaceflinger_transaction_table());
-  AddUnfinalizedStaticTable(tables, storage->mutable_viewcapture_table());
-  AddUnfinalizedStaticTable(tables, storage->mutable_viewcapture_view_table());
-  AddUnfinalizedStaticTable(tables, storage->mutable_windowmanager_table());
-  AddUnfinalizedStaticTable(
-      tables, storage->mutable_window_manager_shell_transition_protos_table());
-  AddUnfinalizedStaticTable(
-      tables, storage->mutable_window_manager_shell_transitions_table());
   AddUnfinalizedStaticTable(tables,
                             storage->mutable_memory_snapshot_node_table());
   AddUnfinalizedStaticTable(tables,
@@ -1116,6 +1075,55 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
                             storage->mutable_stack_profile_frame_table());
   AddUnfinalizedStaticTable(tables,
                             storage->mutable_stack_profile_callsite_table());
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
+  AddUnfinalizedStaticTable(tables, storage->mutable_protolog_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_winscope_trace_rect_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_winscope_rect_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_winscope_fill_region_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_winscope_transform_table());
+  AddUnfinalizedStaticTable(
+      tables, storage->mutable_surfaceflinger_transaction_flag_table());
+  AddUnfinalizedStaticTable(
+      tables,
+      storage->mutable_window_manager_shell_transition_handlers_table());
+  AddUnfinalizedStaticTable(
+      tables,
+      storage->mutable_window_manager_shell_transition_participants_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_android_key_events_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_android_motion_events_table());
+  AddUnfinalizedStaticTable(
+      tables, storage->mutable_android_input_event_dispatch_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_inputmethod_clients_table());
+  AddUnfinalizedStaticTable(
+      tables, storage->mutable_inputmethod_manager_service_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_inputmethod_service_table());
+  AddUnfinalizedStaticTable(
+      tables, storage->mutable_surfaceflinger_layers_snapshot_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_surfaceflinger_display_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_surfaceflinger_layer_table());
+  AddUnfinalizedStaticTable(
+      tables, storage->mutable_surfaceflinger_transactions_table());
+  AddUnfinalizedStaticTable(
+      tables, storage->mutable_surfaceflinger_transaction_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_viewcapture_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_viewcapture_view_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_windowmanager_table());
+  AddUnfinalizedStaticTable(
+      tables, storage->mutable_window_manager_shell_transition_protos_table());
+  AddUnfinalizedStaticTable(
+      tables, storage->mutable_window_manager_shell_transitions_table());
+#endif
+
   return tables;
 }
 
@@ -1149,8 +1157,11 @@ TraceProcessorImpl::CreateStaticTableFunctions(TraceProcessorContext* context,
   fns.emplace_back(std::make_unique<ExperimentalFlatSlice>(context));
   fns.emplace_back(
       std::make_unique<DfsWeightBounded>(storage->mutable_string_pool()));
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
   fns.emplace_back(std::make_unique<WinscopeProtoToArgsWithDefaults>(
       storage->mutable_string_pool(), engine, context));
+#endif
   if (config.enable_dev_features) {
     fns.emplace_back(std::make_unique<DataframeQueryPlanDecoder>(
         storage->mutable_string_pool()));

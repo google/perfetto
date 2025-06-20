@@ -25,8 +25,10 @@ perfetto_sql_source_set("android") {
     "gpu",
     "memory",
     "startup",
-    "winscope",
   ]
+  if (enable_perfetto_winscope) {
+    deps += [ "winscope" ]
+  }
   sources = [
     "anrs.sql",
     "app_process_starts.sql",

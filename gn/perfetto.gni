@@ -359,7 +359,14 @@ declare_args() {
   # this point and it requires extra libraries so we only enable it in selected
   # builds.
   enable_perfetto_etm_importer =
-      is_linux && enable_perfetto_trace_processor && perfetto_build_standalone
+      is_linux && enable_perfetto_trace_processor &&
+      perfetto_build_standalone && !is_perfetto_build_generator
+
+  # Enables Winscope features in trace_processor. These are only used by the
+  # standalone Winscope tool and Android prebuilts.
+  enable_perfetto_winscope =
+      enable_perfetto_trace_processor && perfetto_build_standalone &&
+      !is_perfetto_build_generator
 }
 
 declare_args() {
