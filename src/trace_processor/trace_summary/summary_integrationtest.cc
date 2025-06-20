@@ -628,7 +628,7 @@ TEST_F(TraceSummaryTest, GroupedTemplateDisabledGrouping) {
 }
 TEST_F(TraceSummaryTest, GroupedAllNullValuesAreSkipped) {
   ASSERT_OK_AND_ASSIGN(auto output, RunSummarize(
-                                         R"(
+                                        R"(
     metric_spec {
       id: "metric_a"
       value: "value_a"
@@ -699,7 +699,7 @@ TEST_F(TraceSummaryTest, GroupedAllNullValuesAreSkipped) {
 
 TEST_F(TraceSummaryTest, GroupedOneNullValueIsNotSkipped) {
   ASSERT_OK_AND_ASSIGN(auto output, RunSummarize(
-                                         R"(
+                                        R"(
     metric_spec {
       id: "metric_a"
       value: "value_a"
@@ -770,7 +770,7 @@ TEST_F(TraceSummaryTest, GroupedOneNullValueIsNotSkipped) {
 
 TEST_F(TraceSummaryTest, GroupedSingleNullValueIsSkipped) {
   ASSERT_OK_AND_ASSIGN(auto output, RunSummarize(
-                                         R"(
+                                        R"(
     metric_spec {
       id: "metric_a"
       value: "value_a"
