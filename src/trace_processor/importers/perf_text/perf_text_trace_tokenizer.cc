@@ -36,6 +36,7 @@
 #include "src/trace_processor/importers/perf_text/perf_text_event.h"
 #include "src/trace_processor/importers/perf_text/perf_text_sample_line_parser.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
@@ -131,9 +132,9 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
           mapping->InternDummyFrame(symbol_name, base::StringView()));
     }
     if (frames.empty()) {
-      return base::ErrStatus(
-          "Perf text parser: no frames in sample (context: '%s')",
-          std::string(first_line).c_str());
+      context_->storage->IncrementStats(
+          stats::perf_text_importer_sample_no_frames);
+      continue;
     }
 
     std::optional<CallsiteId> parent_callsite;

@@ -18,22 +18,27 @@
 name: Enforce 2 collaborator reviews for fork PRs
 
 on:
-  pull_request_review:
-    types: [submitted, edited, dismissed]
   pull_request_target:
-    types: [synchronize]
+    types: [opened, synchronize, labeled, edited, auto_merge_enabled, auto_merge_disabled]
 
 permissions:
   pull-requests: read
 
+concurrency:
+  group: enforce-reviews-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   enforce-reviews:
-    runs-on: self-hosted
+    # Deliberately run on GitHub's ubuntu-latest pool as it's faster for small
+    # job like this.
+    runs-on: ubuntu-latest
     steps:
       - name: Check if PR is from a fork
         id: fork_check
         run: |
           echo "is_fork=${{ github.event.pull_request.head.repo.full_name != github.repository }}" >> $GITHUB_ENV
+          echo "Triggered by: ${{ github.event_name }}, ${{ github.event.review.state }} by ${{ github.event.review.user.login }}"
 
       - name: Fetch approved reviews
         if: env.is_fork == 'true'
@@ -63,6 +68,5 @@ jobs:
           echo "---------------------------------------------------------------"
           echo "$REVIEWS"
           echo "---------------------------------------------------------------"
-          echo "Triggered by: ${{ github.event.review.state }} by ${{ github.event.review.user.login }}"
           exit 1
           fi

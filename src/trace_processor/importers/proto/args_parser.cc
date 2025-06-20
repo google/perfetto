@@ -16,8 +16,21 @@
 
 #include "src/trace_processor/importers/proto/args_parser.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <string>
+
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
+#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/json/json_parser.h"
 #include "src/trace_processor/importers/json/json_utils.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/interned_message_view.h"
 
 namespace perfetto::trace_processor {
 
@@ -87,13 +100,9 @@ void ArgsParser::AddBytes(const Key& key, const protozero::ConstBytes& value) {
 bool ArgsParser::AddJson(const Key& key, const protozero::ConstChars& value) {
   if (!support_json_)
     PERFETTO_FATAL("Unexpected JSON value when parsing data");
-
-  auto json_value = json::ParseJsonString(value);
-  if (!json_value)
-    return false;
-  return json::AddJsonValueToArgs(*json_value, base::StringView(key.flat_key),
-                                  base::StringView(key.key), &storage_,
-                                  &inserter_);
+  json::Iterator iterator;
+  return json::AddJsonValueToArgs(iterator, value.data, value.data + value.size,
+                                  key.flat_key, key.key, &storage_, &inserter_);
 }
 
 void ArgsParser::AddNull(const Key& key) {

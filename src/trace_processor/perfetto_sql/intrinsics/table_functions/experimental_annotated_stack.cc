@@ -22,34 +22,26 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/column_storage.h"
-#include "src/trace_processor/db/table.h"
+#include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
-namespace tables {
-
-ExperimentalAnnotatedCallstackTable::~ExperimentalAnnotatedCallstackTable() =
-    default;
-
-}  // namespace tables
 
 namespace {
 
-enum class MapType {
+enum class MapType : uint8_t {
   kArtInterp,
   kArtJit,
   kArtAot,
@@ -119,19 +111,13 @@ MapType ClassifyMap(NullTermStringView map) {
 
 }  // namespace
 
-std::string ExperimentalAnnotatedStack::TableName() {
-  return tables::ExperimentalAnnotatedCallstackTable::Name();
-}
+ExperimentalAnnotatedStack::Cursor::Cursor(TraceProcessorContext* context)
+    : context_(context), table_(context->storage->mutable_string_pool()) {}
 
-Table::Schema ExperimentalAnnotatedStack::CreateSchema() {
-  return tables::ExperimentalAnnotatedCallstackTable::ComputeStaticSchema();
-}
-
-// TODO(carlscab): Replace annotation logic with
-// src/trace_processor/util/annotated_callsites.h
-base::StatusOr<std::unique_ptr<Table>> ExperimentalAnnotatedStack::ComputeTable(
+bool ExperimentalAnnotatedStack::Cursor::Run(
     const std::vector<SqlValue>& arguments) {
-  PERFETTO_CHECK(arguments.size() == 1);
+  PERFETTO_DCHECK(arguments.size() == 1);
+  table_.Clear();
 
   using CallsiteTable = tables::StackProfileCallsiteTable;
 
@@ -139,15 +125,18 @@ base::StatusOr<std::unique_ptr<Table>> ExperimentalAnnotatedStack::ComputeTable(
   const auto& f_table = context_->storage->stack_profile_frame_table();
   const auto& m_table = context_->storage->stack_profile_mapping_table();
 
+  if (arguments[0].is_null()) {
+    return OnSuccess(&table_.dataframe());
+  }
   if (arguments[0].type != SqlValue::Type::kLong) {
-    return base::ErrStatus("invalid input callsite id");
+    return OnFailure(base::ErrStatus("invalid input callsite id"));
   }
 
   CallsiteId start_id(static_cast<uint32_t>(arguments[0].AsLong()));
   auto opt_start_ref = cs_table.FindById(start_id);
   if (!opt_start_ref) {
-    return base::ErrStatus("callsite with id %" PRIu32 " not found",
-                           start_id.value);
+    return OnFailure(base::ErrStatus("callsite with id %" PRIu32 " not found",
+                                     start_id.value));
   }
 
   // Iteratively walk the parent_id chain to construct the list of callstack
@@ -191,7 +180,7 @@ base::StatusOr<std::unique_ptr<Table>> ExperimentalAnnotatedStack::ComputeTable(
   //              and then go back to kEraseLibart.
   // Regardless of the state, managed frames get annotated with their execution
   // mode, based on the mapping.
-  enum class State { kInitial, kEraseLibart, kKeepNext };
+  enum class State : uint8_t { kInitial, kEraseLibart, kKeepNext };
   State annotation_state = State::kInitial;
 
   std::vector<StringPool::Id> annotations_reversed;
@@ -285,23 +274,33 @@ base::StatusOr<std::unique_ptr<Table>> ExperimentalAnnotatedStack::ComputeTable(
 
   // Build the dynamic table.
   PERFETTO_DCHECK(cs_rows.size() == annotations_reversed.size());
-  ColumnStorage<StringPool::Id> annotation_vals;
-  for (auto it = annotations_reversed.rbegin();
-       it != annotations_reversed.rend(); ++it) {
-    annotation_vals.Append(*it);
+  size_t row_idx = 0;
+  for (auto it = cs_rows.begin(); it != cs_rows.end(); ++it, ++row_idx) {
+    auto cs_ref = it->ToRowReference(cs_table);
+    table_.Insert(tables::ExperimentalAnnotatedCallstackTable::Row{
+        cs_ref.id(), cs_ref.depth(), cs_ref.parent_id(), cs_ref.frame_id(),
+        annotations_reversed[annotations_reversed.size() - 1 - row_idx]});
   }
-
-  // Hidden column - always the input, i.e. the callsite leaf.
-  ColumnStorage<uint32_t> start_id_vals;
-  for (uint32_t i = 0; i < cs_rows.size(); i++)
-    start_id_vals.Append(start_id.value);
-
-  return std::unique_ptr<Table>(
-      tables::ExperimentalAnnotatedCallstackTable::SelectAndExtendParent(
-          cs_table, std::move(cs_rows), std::move(annotation_vals),
-          std::move(start_id_vals)));
+  return OnSuccess(&table_.dataframe());
 }
 
+std::unique_ptr<StaticTableFunction::Cursor>
+ExperimentalAnnotatedStack::MakeCursor() {
+  return std::make_unique<Cursor>(context_);
+}
+
+dataframe::DataframeSpec ExperimentalAnnotatedStack::CreateSpec() {
+  return tables::ExperimentalAnnotatedCallstackTable::kSpec
+      .ToUntypedDataframeSpec();
+}
+
+std::string ExperimentalAnnotatedStack::TableName() {
+  return tables::ExperimentalAnnotatedCallstackTable::Name();
+}
+
+uint32_t ExperimentalAnnotatedStack::GetArgumentCount() const {
+  return 1;
+}
 uint32_t ExperimentalAnnotatedStack::EstimateRowCount() {
   return 1;
 }

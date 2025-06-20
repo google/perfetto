@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import shutil
 from typing import List, Optional
 from urllib import request, error
 
@@ -28,21 +29,31 @@ from perfetto.trace_processor.platform import PlatformDelegate
 TP_PORT = 9001
 
 
-def load_shell(bin_path: str,
-               unique_port: bool,
-               verbose: bool,
-               ingest_ftrace_in_raw: bool,
-               enable_dev_features: bool,
-               platform_delegate: PlatformDelegate,
-               load_timeout: int = 2,
-               extra_flags: Optional[List[str]] = None):
+def load_shell(
+    bin_path: Optional[str],
+    unique_port: bool,
+    verbose: bool,
+    ingest_ftrace_in_raw: bool,
+    enable_dev_features: bool,
+    platform_delegate: PlatformDelegate,
+    load_timeout: int = 2,
+    extra_flags: Optional[List[str]] = None,
+    add_sql_packages: Optional[List[str]] = None,
+):
   addr, port = platform_delegate.get_bind_addr(
       port=0 if unique_port else TP_PORT)
   url = f'{addr}:{str(port)}'
 
   shell_path = platform_delegate.get_shell_path(bin_path=bin_path)
+
+  # get Python interpreter path
+  if not getattr(sys, 'frozen', False):
+    python_executable_path = sys.executable
+  else:
+    python_executable_path = shutil.which('python')
+
   if os.name == 'nt' and not shell_path.endswith('.exe'):
-    tp_exec = [sys.executable, shell_path]
+    tp_exec = [python_executable_path, shell_path]
   else:
     tp_exec = [shell_path]
 
@@ -52,6 +63,10 @@ def load_shell(bin_path: str,
 
   if enable_dev_features:
     args.append('--dev')
+
+  if add_sql_packages:
+    for package in add_sql_packages:
+      args.extend(['--add-sql-package', package])
 
   if extra_flags:
     args.extend(extra_flags)

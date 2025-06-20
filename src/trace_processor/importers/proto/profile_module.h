@@ -67,10 +67,6 @@ class ProfileModule : public ProtoImporterModule {
   void ParseProfilePacket(int64_t ts,
                           PacketSequenceStateGeneration*,
                           protozero::ConstBytes);
-  void ParseDeobfuscationMapping(int64_t ts,
-                                 PacketSequenceStateGeneration*,
-                                 uint32_t seq_id,
-                                 protozero::ConstBytes);
   void ParseModuleSymbols(protozero::ConstBytes);
   void ParseSmapsPacket(int64_t ts, protozero::ConstBytes);
 

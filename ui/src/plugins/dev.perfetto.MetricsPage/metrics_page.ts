@@ -20,8 +20,12 @@ import {STR} from '../../trace_processor/query_result';
 import {Select} from '../../widgets/select';
 import {Spinner} from '../../widgets/spinner';
 import {VegaView} from '../../components/widgets/vega_view';
-import {assertExists} from '../../base/logging';
+import {assertExists, assertUnreachable} from '../../base/logging';
 import {Trace} from '../../public/trace';
+import {SegmentedButtons} from '../../widgets/segmented_buttons';
+import {Editor} from '../../widgets/editor';
+import {Button} from '../../widgets/button';
+import {Intent} from '../../widgets/common';
 
 type Format = 'json' | 'prototext' | 'proto';
 const FORMATS: Format[] = ['json', 'prototext', 'proto'];
@@ -35,7 +39,7 @@ async function getMetrics(engine: Engine): Promise<string[]> {
   return metrics;
 }
 
-async function getMetric(
+async function getMetricV1(
   engine: Engine,
   metric: string,
   format: Format,
@@ -48,7 +52,39 @@ async function getMetric(
   }
 }
 
-class MetricsController {
+async function getMetricV2(
+  engine: Engine,
+  metric: string,
+  format: Format,
+): Promise<string> {
+  const result = await engine.summarizeTrace(
+    [metric],
+    undefined,
+    undefined,
+    format === 'proto' ? 'proto' : 'prototext',
+  );
+  if (result.error || result.error.length > 0) {
+    throw new Error(result.error);
+  }
+  switch (format) {
+    case 'json':
+      if (!result.protoSummary) {
+        throw new Error('Error fetching Textproto trace summary');
+      }
+      return JSON.stringify(result.protoSummary, null, 2);
+    case 'prototext':
+      if (!result.textprotoSummary) {
+        throw new Error('Error fetching Textproto trace summary');
+      }
+      return result.textprotoSummary;
+    case 'proto':
+      throw new Error('Proto format not supported');
+    default:
+      assertUnreachable(format);
+  }
+}
+
+class MetricsV1Controller {
   private readonly trace: Trace;
   private readonly engine: Engine;
   private _metrics: string[];
@@ -121,7 +157,7 @@ class MetricsController {
     } else {
       this._result = 'pending';
       this._json = {};
-      getMetric(this.engine, selected, format)
+      getMetricV1(this.engine, selected, format)
         .then((result) => {
           if (this._selected === selected && this._format === format) {
             this._result = okResult(result);
@@ -141,33 +177,38 @@ class MetricsController {
 }
 
 interface MetricResultAttrs {
-  result: Result<string> | 'pending';
+  readonly result: Result<string> | 'pending' | undefined;
 }
 
 class MetricResultView implements m.ClassComponent<MetricResultAttrs> {
   view({attrs}: m.CVnode<MetricResultAttrs>) {
     const result = attrs.result;
+
+    if (result === undefined) {
+      return m('pre.metric-error', 'No metric provided');
+    }
+
     if (result === 'pending') {
       return m(Spinner);
     }
 
     if (!result.ok) {
-      return m('pre.metric-error', result.error);
+      return m('pre.metric-error', `${result.error}`);
     }
 
     return m('pre', result.value);
   }
 }
 
-interface MetricPickerAttrs {
-  controller: MetricsController;
+interface MetricV1FetcherAttrs {
+  controller: MetricsV1Controller;
 }
 
-class MetricPicker implements m.ClassComponent<MetricPickerAttrs> {
-  view({attrs}: m.CVnode<MetricPickerAttrs>) {
+class MetricV1Fetcher implements m.ClassComponent<MetricV1FetcherAttrs> {
+  view({attrs}: m.CVnode<MetricV1FetcherAttrs>) {
     const {controller} = attrs;
     return m(
-      '.metrics-page-picker',
+      '.pf-metrics-page-picker',
       m(
         Select,
         {
@@ -209,6 +250,65 @@ class MetricPicker implements m.ClassComponent<MetricPickerAttrs> {
   }
 }
 
+interface MetricV2FetcherAttrs {
+  readonly engine: Engine;
+  readonly showExample: boolean;
+  readonly onExecuteRunMetric: (result: Result<string> | 'pending') => void;
+  readonly onUpdateText: () => void;
+  readonly editorGeneration: number;
+}
+
+class MetricV2Fetcher implements m.ClassComponent<MetricV2FetcherAttrs> {
+  private text: string = '';
+
+  view({attrs}: m.CVnode<MetricV2FetcherAttrs>) {
+    if (attrs.showExample) {
+      this.text = `id: "memory_per_process"
+dimensions: "process_name"
+value: "avg_rss_and_swap"
+query: {
+  table: {
+    table_name: "memory_rss_and_swap_per_process"
+    module_name: "linux.memory.process"
+  }
+  group_by: {
+    column_names: "process_name"
+    aggregates: {
+      column_name: "rss_and_swap"
+      op: DURATION_WEIGHTED_MEAN
+      result_column_name: "avg_rss_and_swap"
+    }
+  }
+}`;
+    }
+    return m(
+      '.pf-metricsv2-page',
+      'Provide metric v2 spec in prototext format ',
+      m(Editor, {
+        generation: attrs.editorGeneration,
+        initialText: this.text,
+        onExecute: (text: string) => {
+          this.text = text;
+          getMetricV2(attrs.engine, `metric_spec: {${text}}`, 'prototext')
+            .then((result) => {
+              attrs.onExecuteRunMetric(okResult(result));
+            })
+            .catch((e) => {
+              attrs.onExecuteRunMetric(errResult(e));
+            });
+        },
+        onUpdate: (text: string) => {
+          if (text === this.text) {
+            return;
+          }
+          this.text = text;
+          attrs.onUpdateText();
+        },
+      }),
+    );
+  }
+}
+
 interface MetricVizViewAttrs {
   visualisation: MetricVisualisation;
   data: unknown;
@@ -233,29 +333,69 @@ export interface MetricsPageAttrs {
 }
 
 export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
-  private controller?: MetricsController;
+  private v1Controller?: MetricsV1Controller;
+  private v2Result?: Result<string> | 'pending';
+  private showV2MetricExample: boolean = false;
+  private mode: 'V1' | 'V2' = 'V1';
+  private fetcherGeneration: number = 0;
 
   oninit({attrs}: m.Vnode<MetricsPageAttrs>) {
-    this.controller = new MetricsController(attrs.trace);
+    this.v1Controller = new MetricsV1Controller(attrs.trace);
   }
 
-  view() {
-    const controller = assertExists(this.controller);
-    const json = controller.resultAsJson;
+  view({attrs}: m.Vnode<MetricsPageAttrs>) {
+    const v1Controller = assertExists(this.v1Controller);
+    const json = v1Controller.resultAsJson;
     return m(
       '.metrics-page',
-      m(MetricPicker, {
-        controller,
+      m(SegmentedButtons, {
+        options: [{label: 'Metric v1'}, {label: 'Metric v2'}],
+        selectedOption: this.mode === 'V1' ? 0 : 1,
+        onOptionSelected: (num) => {
+          if (num === 0) {
+            this.mode = 'V1';
+          } else {
+            this.mode = 'V2';
+          }
+        },
       }),
-      controller.format === 'json' &&
-        controller.visualisations.map((visualisation) => {
+      this.mode === 'V1' &&
+        m(MetricV1Fetcher, {
+          controller: v1Controller,
+        }),
+      this.mode === 'V2' && [
+        m(Button, {
+          label: 'Example metric',
+          intent: Intent.Primary,
+          onclick: () => {
+            this.showV2MetricExample = true;
+            this.fetcherGeneration++;
+          },
+        }),
+        m(MetricV2Fetcher, {
+          engine: attrs.trace.engine,
+          showExample: this.showV2MetricExample,
+          editorGeneration: this.fetcherGeneration,
+          onExecuteRunMetric: (result: Result<string> | 'pending') => {
+            this.v2Result = result;
+          },
+          onUpdateText: () => {
+            this.showV2MetricExample = false;
+            this.fetcherGeneration++;
+          },
+        }),
+      ],
+      v1Controller.format === 'json' &&
+        v1Controller.visualisations.map((visualisation) => {
           let data = json;
           for (const p of visualisation.path) {
             data = data[p] ?? [];
           }
           return m(MetricVizView, {visualisation, data});
         }),
-      m(MetricResultView, {result: controller.result}),
+      m(MetricResultView, {
+        result: this.mode === 'V1' ? v1Controller.result : this.v2Result,
+      }),
     );
   }
 }

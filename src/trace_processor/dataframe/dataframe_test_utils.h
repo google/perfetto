@@ -27,6 +27,7 @@
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/dataframe/cursor.h"
+#include "src/trace_processor/dataframe/cursor_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/dataframe/value_fetcher.h"
 
 namespace perfetto::trace_processor::dataframe {
@@ -70,6 +71,8 @@ struct TestRowFetcher : ValueFetcher {
     PERFETTO_CHECK(current_row_ && index < current_row_->size());
     return std::get<const char*>((*current_row_)[index]);
   }
+  static bool IteratorInit(uint32_t) { PERFETTO_FATAL("Unsupported"); }
+  static bool IteratorNext(uint32_t) { PERFETTO_FATAL("Unsupported"); }
 
  private:
   const std::vector<Value>* current_row_ = nullptr;
@@ -113,26 +116,24 @@ inline void VerifyData(
 
   // Heap allocate to avoid potential stack overflows due to large cursor
   // object.
-  auto cursor = std::make_unique<std::optional<Cursor<TestRowFetcher>>>();
+  auto cursor = std::make_unique<Cursor<TestRowFetcher>>();
   df.PrepareCursor(std::move(plan), *cursor);
 
   TestRowFetcher fetcher;
-  cursor->value().Execute(fetcher);
+  cursor->Execute(fetcher);
 
   size_t row_index = 0;
   for (const auto& row : expected) {
     ValueVerifier verifier;
-    ASSERT_FALSE(cursor->value().Eof())
-        << "Cursor finished early at row " << row_index;
-    verifier.Fetch(&cursor->value(), num_cols_selected);
+    ASSERT_FALSE(cursor->Eof()) << "Cursor finished early at row " << row_index;
+    verifier.Fetch(&*cursor, num_cols_selected);
     EXPECT_THAT(verifier.values, testing::ElementsAreArray(row))
         << "Mismatch in data for row " << row_index;
-    cursor->value().Next();
+    cursor->Next();
     row_index++;
   }
-  ASSERT_TRUE(cursor->value().Eof())
-      << "Cursor has more rows than expected. Expected " << expected.size()
-      << " rows.";
+  ASSERT_TRUE(cursor->Eof()) << "Cursor has more rows than expected. Expected "
+                             << expected.size() << " rows.";
   ASSERT_EQ(row_index, expected.size())
       << "Mismatch in number of rows processed.";
 }

@@ -32,6 +32,7 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -41,7 +42,6 @@
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
-#include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 
@@ -88,7 +88,7 @@ std::optional<std::string> HasDuplicateColumns(
   return std::nullopt;
 }
 
-std::string OpToString(int op) {
+std::optional<std::string> OpToString(int op) {
   switch (op) {
     case SQLITE_INDEX_CONSTRAINT_EQ:
       return "=";
@@ -113,8 +113,7 @@ std::string OpToString(int op) {
       // The "null" will be added below in EscapedSqliteValueAsString.
       return " is not ";
     default:
-      PERFETTO_FATAL("Operator to string conversion not implemented for %d",
-                     op);
+      return std::nullopt;
   }
 }
 
@@ -198,12 +197,17 @@ std::string SpanJoinOperatorModule::Vtab::BestIndexStrForDefinition(
       continue;
     }
 
+    // If we cannot handle the constraint, skip it.
+    std::optional<std::string> op = OpToString(
+        c.op == kSourceGeqOpCode ? SQLITE_INDEX_CONSTRAINT_GE : c.op);
+    if (!op) {
+      continue;
+    }
+
     PERFETTO_DCHECK(info->aConstraintUsage[i].argvIndex > 0);
     std::string argvIndex =
         std::to_string(info->aConstraintUsage[i].argvIndex - 1);
-    std::string op = OpToString(
-        c.op == kSourceGeqOpCode ? SQLITE_INDEX_CONSTRAINT_GE : c.op);
-    constraints += "," + argvIndex + "," + "`" + col_name + "`" + op;
+    constraints += "," + argvIndex + "," + "`" + col_name + "`" + *op;
     count++;
   }
   return std::to_string(count) + constraints;

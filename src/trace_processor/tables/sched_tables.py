@@ -14,8 +14,9 @@
 """Contains tables for relevant for sched."""
 
 from python.generators.trace_processor_table.public import Column as C
-from python.generators.trace_processor_table.public import ColumnDoc
+from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import ColumnFlag
+from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppInt32
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
@@ -27,17 +28,28 @@ from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import WrappingSqlView
 
-from src.trace_processor.tables.metadata_tables import MACHINE_TABLE, CPU_TABLE
+from src.trace_processor.tables.metadata_tables import CPU_TABLE
 
 SCHED_SLICE_TABLE = Table(
     python_module=__file__,
     class_name='SchedSliceTable',
     sql_name='__intrinsic_sched_slice',
     columns=[
-        C('ts', CppInt64(), flags=ColumnFlag.SORTED),
-        C('dur', CppInt64()),
-        C('utid', CppUint32()),
-        C('end_state', CppString()),
+        C('ts',
+          CppInt64(),
+          flags=ColumnFlag.SORTED,
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('dur',
+          CppInt64(),
+          cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('utid', CppUint32(), cpp_access=CppAccess.READ),
+        C(
+            'end_state',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
         C('priority', CppInt32()),
         C('ucpu', CppTableId(CPU_TABLE)),
     ],
@@ -123,16 +135,43 @@ THREAD_STATE_TABLE = Table(
     class_name='ThreadStateTable',
     sql_name='__intrinsic_thread_state',
     columns=[
-        C('ts', CppInt64(), flags=ColumnFlag.SORTED),
-        C('dur', CppInt64()),
-        C('utid', CppUint32()),
-        C('state', CppString()),
-        C('io_wait', CppOptional(CppUint32())),
-        C('blocked_function', CppOptional(CppString())),
-        C('waker_utid', CppOptional(CppUint32())),
+        C('ts',
+          CppInt64(),
+          flags=ColumnFlag.SORTED,
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('dur',
+          CppInt64(),
+          cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
+        C('utid', CppUint32(), cpp_access=CppAccess.READ),
+        C('state', CppString(), cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE),
+        C(
+            'io_wait',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'blocked_function',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'waker_utid',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
         C('waker_id', CppOptional(CppSelfTableId())),
-        C('irq_context', CppOptional(CppUint32())),
-        C('ucpu', CppOptional(CppTableId(CPU_TABLE))),
+        C(
+            'irq_context',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'ucpu',
+            CppOptional(CppTableId(CPU_TABLE)),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
     ],
     wrapping_sql_view=WrappingSqlView('thread_state'),
     tabledoc=TableDoc(

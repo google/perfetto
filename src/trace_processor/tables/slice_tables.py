@@ -16,13 +16,15 @@
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import ColumnFlag
-from python.generators.trace_processor_table.public import CppInt32
+from python.generators.trace_processor_table.public import CppAccess
+from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppSelfTableId
 from python.generators.trace_processor_table.public import CppString
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import SqlAccess
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import WrappingSqlView
@@ -34,20 +36,87 @@ SLICE_TABLE = Table(
     class_name='SliceTable',
     sql_name='__intrinsic_slice',
     columns=[
-        C('ts', CppInt64(), flags=ColumnFlag.SORTED),
-        C('dur', CppInt64()),
-        C('track_id', CppTableId(TRACK_TABLE)),
-        C('category', CppOptional(CppString())),
-        C('name', CppOptional(CppString())),
-        C('depth', CppUint32()),
-        C('stack_id', CppInt64()),
-        C('parent_stack_id', CppInt64()),
-        C('parent_id', CppOptional(CppSelfTableId())),
-        C('arg_set_id', CppOptional(CppUint32())),
-        C('thread_ts', CppOptional(CppInt64())),
-        C('thread_dur', CppOptional(CppInt64())),
-        C('thread_instruction_count', CppOptional(CppInt64())),
-        C('thread_instruction_delta', CppOptional(CppInt64())),
+        C(
+            'ts',
+            CppInt64(),
+            flags=ColumnFlag.SORTED,
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'dur',
+            CppInt64(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'track_id',
+            CppTableId(TRACK_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'category',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'name',
+            CppOptional(CppString()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'depth',
+            CppUint32(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C('stack_id', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
+        C(
+            'parent_stack_id',
+            CppInt64(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'parent_id',
+            CppOptional(CppSelfTableId()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'thread_ts',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'thread_dur',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'thread_instruction_count',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'thread_instruction_delta',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     wrapping_sql_view=WrappingSqlView('slice'),
     tabledoc=TableDoc(
@@ -125,8 +194,8 @@ EXPERIMENTAL_FLAT_SLICE_TABLE = Table(
     class_name='ExperimentalFlatSliceTable',
     sql_name='experimental_flat_slice',
     columns=[
-        C('ts', CppInt64()),
-        C('dur', CppInt64()),
+        C('ts', CppInt64(), cpp_access=CppAccess.READ),
+        C('dur', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
         C('track_id', CppTableId(TRACK_TABLE)),
         C('category', CppOptional(CppString())),
         C('name', CppOptional(CppString())),
@@ -172,6 +241,7 @@ ANDROID_NETWORK_PACKETS_TABLE = Table(
     class_name='AndroidNetworkPacketsTable',
     sql_name='__intrinsic_android_network_packets',
     columns=[
+        C('id', CppTableId(SLICE_TABLE), flags=ColumnFlag.SORTED),
         C('iface', CppString()),
         C('direction', CppString()),
         C('packet_transport', CppString()),
@@ -187,7 +257,8 @@ ANDROID_NETWORK_PACKETS_TABLE = Table(
         C('packet_tcp_flags', CppOptional(CppUint32())),
         C('packet_tcp_flags_str', CppOptional(CppString())),
     ],
-    parent=SLICE_TABLE)
+    add_implicit_column=False,
+)
 
 # Keep this list sorted.
 ALL_TABLES = [

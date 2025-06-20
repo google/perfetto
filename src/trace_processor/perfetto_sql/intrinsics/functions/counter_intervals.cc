@@ -16,31 +16,22 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/counter_intervals.h"
 
-#include <algorithm>
-#include <cinttypes>
+#include <cstddef>
 #include <cstdint>
-#include <iterator>
 #include <memory>
-#include <numeric>
 #include <string>
-#include <string_view>
 #include <utility>
-#include <variant>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/runtime_table.h"
+#include "src/trace_processor/dataframe/adhoc_dataframe_builder.h"
+#include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/counter.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/types/partitioned_intervals.h"
-#include "src/trace_processor/perfetto_sql/parser/function_util.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_bind.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_column.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
@@ -49,7 +40,6 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::perfetto_sql {
 namespace {
@@ -87,73 +77,73 @@ struct CounterIntervals : public SqliteFunction<CounterIntervals> {
     // Get column names of return columns.
     std::vector<std::string> ret_col_names{
         "id", "ts", "dur", "track_id", "value", "next_value", "delta_value"};
-    std::vector<RuntimeTable::BuilderColumnType> col_types{
-        RuntimeTable::kInt,         // id
-        RuntimeTable::kInt,         // ts,
-        RuntimeTable::kInt,         // dur
-        RuntimeTable::kInt,         // track_id
-        RuntimeTable::kDouble,      // value
-        RuntimeTable::kNullDouble,  // next_value
-        RuntimeTable::kNullDouble,  // delta_value
+    using CT = dataframe::AdhocDataframeBuilder::ColumnType;
+    std::vector<CT> col_types{
+        CT::kInt64,   // id
+        CT::kInt64,   // ts,
+        CT::kInt64,   // dur
+        CT::kInt64,   // track_id
+        CT::kDouble,  // value
+        CT::kDouble,  // next_value
+        CT::kDouble,  // delta_value
     };
+    dataframe::AdhocDataframeBuilder builder(ret_col_names,
+                                             GetUserData(ctx)->pool, col_types);
 
-    auto partitioned_counter = sqlite::value::Pointer<PartitionedCounter>(
+    auto* partitioned_counter = sqlite::value::Pointer<PartitionedCounter>(
         argv[2], PartitionedCounter::kName);
     if (!partitioned_counter) {
-      SQLITE_ASSIGN_OR_RETURN(
-          ctx, std::unique_ptr<RuntimeTable> ret_table,
-          RuntimeTable::Builder(GetUserData(ctx)->pool, ret_col_names)
-              .Build(0));
-      return sqlite::result::UniquePointer(ctx, std::move(ret_table), "TABLE");
+      SQLITE_ASSIGN_OR_RETURN(ctx, auto ret_table, std::move(builder).Build());
+      return sqlite::result::UniquePointer(
+          ctx, std::make_unique<dataframe::Dataframe>(std::move(ret_table)),
+          "TABLE");
     }
 
-    RuntimeTable::Builder builder(GetUserData(ctx)->pool, ret_col_names,
-                                  col_types);
-
-    uint32_t rows_count = 0;
     for (auto track_counter = partitioned_counter->partitions_map.GetIterator();
          track_counter; ++track_counter) {
       int64_t track_id = track_counter.key();
       const auto& cols = track_counter.value();
       size_t r_count = cols.id.size();
-      rows_count += r_count;
 
       // Id
-      builder.AddNonNullIntegersUnchecked(0, cols.id);
-      // Ts
-      builder.AddNonNullIntegersUnchecked(1, cols.ts);
+      for (size_t i = 0; i < r_count; i++) {
+        builder.PushNonNullUnchecked(0, cols.id[i]);
+      }
+      for (size_t i = 0; i < r_count; i++) {
+        builder.PushNonNullUnchecked(1, cols.ts[i]);
+      }
 
       // Dur
-      std::vector<int64_t> dur(r_count);
       for (size_t i = 0; i < r_count - 1; i++) {
-        dur[i] = cols.ts[i + 1] - cols.ts[i];
+        builder.PushNonNullUnchecked(2, cols.ts[i + 1] - cols.ts[i]);
       }
-      dur[r_count - 1] = trace_end - cols.ts.back();
-      builder.AddNonNullIntegersUnchecked(2, dur);
+      builder.PushNonNullUnchecked(2, trace_end - cols.ts.back());
 
       // Track id
-      builder.AddIntegers(3, track_id, static_cast<uint32_t>(r_count));
+      for (size_t i = 0; i < r_count; i++) {
+        builder.PushNonNullUnchecked(3, track_id);
+      }
       // Value
-      builder.AddNonNullDoublesUnchecked(4, cols.val);
+      for (size_t i = 0; i < r_count; i++) {
+        builder.PushNonNullUnchecked(4, cols.val[i]);
+      }
 
       // Next value
-      std::vector<double> next_vals(cols.val.begin() + 1, cols.val.end());
-      builder.AddNullDoublesUnchecked(5, next_vals);
-      builder.AddNull(5);
+      for (size_t i = 0; i < r_count - 1; i++) {
+        builder.PushNonNullUnchecked(5, cols.val[i + 1]);
+      }
+      builder.PushNull(5);
 
       // Delta value
-      std::vector<double> deltas(r_count - 1);
+      builder.PushNull(6);
       for (size_t i = 0; i < r_count - 1; i++) {
-        deltas[i] = cols.val[i + 1] - cols.val[i];
+        builder.PushNonNullUnchecked(6, cols.val[i + 1] - cols.val[i]);
       }
-      builder.AddNull(6);
-      builder.AddNullDoublesUnchecked(6, deltas);
     }
 
-    SQLITE_ASSIGN_OR_RETURN(ctx, std::unique_ptr<RuntimeTable> ret_tab,
-                            std::move(builder).Build(rows_count));
-
-    return sqlite::result::UniquePointer(ctx, std::move(ret_tab), "TABLE");
+    SQLITE_ASSIGN_OR_RETURN(ctx, auto tab, std::move(builder).Build());
+    return sqlite::result::UniquePointer(
+        ctx, std::make_unique<dataframe::Dataframe>(std::move(tab)), "TABLE");
   }
 };
 

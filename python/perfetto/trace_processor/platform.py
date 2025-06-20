@@ -19,9 +19,8 @@ from datetime import timezone
 import os
 import socket
 import stat
-import subprocess
 import tempfile
-from typing import Tuple
+from typing import Optional, Tuple
 from urllib import request
 
 from perfetto.trace_uri_resolver.path import PathUriResolver
@@ -39,10 +38,10 @@ class PlatformDelegate:
     with open(os.path.join(ws, file), 'rb') as x:
       return x.read()
 
-  def get_shell_path(self, bin_path: str) -> str:
+  def get_shell_path(self, bin_path: Optional[str]) -> str:
     if bin_path is not None:
       if not os.path.isfile(bin_path):
-        raise Exception('Path to binary is not valid')
+        raise Exception(f'Path to binary is not valid ({bin_path}).')
       return bin_path
 
     tp_path = os.path.join(tempfile.gettempdir(), 'trace_processor_python_api')

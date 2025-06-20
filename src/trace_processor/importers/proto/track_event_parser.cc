@@ -26,12 +26,15 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -58,7 +61,6 @@
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/debug_annotation_parser.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
-#include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/common/android_log_constants.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
@@ -1173,6 +1175,26 @@ class TrackEventParser::EventImporter {
         parser_->AddActiveProcess(ts_, *it);
       }
     }
+    if (event_.has_correlation_id()) {
+      base::StackString<512> id_str("tp:#%" PRIu64, event_.correlation_id());
+      inserter->AddArg(parser_->correlation_id_key_id_,
+                       Variadic::String(context_->storage->InternString(
+                           id_str.string_view())));
+    }
+    if (event_.has_correlation_id_str()) {
+      inserter->AddArg(parser_->correlation_id_key_id_,
+                       Variadic::String(storage_->InternString(
+                           base::StringView(event_.correlation_id_str()))));
+    }
+    if (event_.has_correlation_id_str_iid()) {
+      auto* decoder = sequence_state_->LookupInternedMessage<
+          protos::pbzero::InternedData::kCorrelationIdStrFieldNumber,
+          protos::pbzero::InternedString>(event_.correlation_id_str_iid());
+      inserter->AddArg(parser_->correlation_id_key_id_,
+                       Variadic::String(storage_->InternString(base::StringView(
+                           reinterpret_cast<const char*>(decoder->str().data),
+                           decoder->str().size))));
+    }
 
     ArgsParser args_writer(ts_, *inserter, *storage_, sequence_state_,
                            /*support_json=*/true);
@@ -1464,6 +1486,7 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
           context_->storage->InternString("chrome.process_type")),
       event_category_key_id_(context_->storage->InternString("event.category")),
       event_name_key_id_(context_->storage->InternString("event.name")),
+      correlation_id_key_id_(context->storage->InternString("correlation_id")),
       chrome_string_lookup_(context->storage.get()),
       active_chrome_processes_tracker_(context) {
   args_parser_.AddParsingOverrideForField(

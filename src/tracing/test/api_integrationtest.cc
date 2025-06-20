@@ -2207,14 +2207,14 @@ TEST_P(PerfettoApiTest, TrackEventCustomNamedTrack) {
   TRACE_EVENT_BEGIN("bar", "SubEvent",
                     perfetto::NamedTrack("MyCustomTrack", async_id),
                     [](perfetto::EventContext) {});
-  const auto main_thread_track = perfetto::NamedTrack(
-      "MyCustomTrack", async_id, perfetto::ThreadTrack::Current());
+  const auto main_thread_track =
+      perfetto::NamedTrack::ThreadScoped("MyCustomTrack", async_id);
   std::thread thread([&] {
     TRACE_EVENT_END("bar", perfetto::NamedTrack("MyCustomTrack", async_id));
     TRACE_EVENT_END("bar", perfetto::NamedTrack("MyCustomTrack", async_id),
                     "arg1", false, "arg2", true);
-    const auto thread_track = perfetto::NamedTrack(
-        "MyCustomTrack", async_id, perfetto::ThreadTrack::Current());
+    const auto thread_track =
+        perfetto::NamedTrack::ThreadScoped("MyCustomTrack", async_id);
     // Thread-scoped tracks will have different uuids on different thread even
     // if the id matches.
     ASSERT_NE(main_thread_track.uuid, thread_track.uuid);
@@ -3910,6 +3910,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     TRACE_EVENT_BEGIN("cat", "SlowEvent");
     TRACE_EVENT_BEGIN("cat.verbose", "DebugEvent");
     TRACE_EVENT_BEGIN("test", "TagEvent");
+    TRACE_EVENT_BEGIN("test.verbose", "VerboseTagEvent");
     TRACE_EVENT_BEGIN(TRACE_DISABLED_BY_DEFAULT("cat"), "SlowDisabledEvent");
     perfetto::DynamicCategory dyn_foo{"dynamic,foo"};
     TRACE_EVENT_BEGIN(dyn_foo, "DynamicGroupFooEvent");
@@ -4046,7 +4047,8 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
       EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
       EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("test"));
     });
-    EXPECT_THAT(slices, ElementsAre("B:test.TagEvent"));
+    EXPECT_THAT(slices, ElementsAre("B:test.TagEvent",
+                                    "B:test.verbose.VerboseTagEvent"));
   }
 
   // Enable just slow categories.
@@ -4096,6 +4098,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
                     "B:baz,bar,quux.MultiBar", "B:red,green,blue,foo.MultiFoo",
                     "B:red,green,blue,yellow.MultiNone", "B:cat.SlowEvent",
                     "B:cat.verbose.DebugEvent", "B:test.TagEvent",
+                    "B:test.verbose.VerboseTagEvent",
                     "B:disabled-by-default-cat.SlowDisabledEvent",
                     "B:$dynamic,$foo.DynamicGroupFooEvent",
                     "B:$dynamic,$bar.DynamicGroupBarEvent"));
@@ -4113,13 +4116,12 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
   }
 
   // Disable category with a pattern.
-  // TODO(crbug.com/260418655): Fix once API changes are announced.
   {
     perfetto::protos::gen::TrackEventConfig te_cfg;
     te_cfg.add_enabled_categories("*");
     te_cfg.add_disabled_categories("fo*");
     run_config(te_cfg, []() {
-      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
       EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("bar"));
     });
   }
@@ -4135,27 +4137,25 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
   }
 
   // Enable tag and disable category explicitly.
-  // TODO(crbug.com/260418655): Fix once API changes are announced.
   {
     perfetto::protos::gen::TrackEventConfig te_cfg;
     te_cfg.add_disabled_categories("slow_category");
     te_cfg.add_enabled_tags("slow");
     te_cfg.add_disabled_categories("*");
     run_config(te_cfg, []() {
-      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("slow_category"));
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("slow_category"));
     });
   }
 
   // Enable tag and disable another.
-  // TODO(crbug.com/260418655): Fix once API changes are announced.
   {
     perfetto::protos::gen::TrackEventConfig te_cfg;
     te_cfg.add_enabled_tags("tag");
-    te_cfg.add_disabled_tags("slow");
+    te_cfg.add_disabled_tags("debug");
     te_cfg.add_disabled_categories("*");
     run_config(te_cfg, []() {
       EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("test"));
-      EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("test.verbose"));
+      EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("test.verbose"));
     });
   }
 }

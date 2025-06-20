@@ -30,6 +30,7 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/uuid.h"
 #include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/dataframe/types.h"
 
 namespace perfetto::trace_processor {
 
@@ -106,7 +107,7 @@ class DataframeSharedStorage {
     base::ScopedResource<DataframeSharedStorage*, &Close, nullptr> storage_;
   };
   using DataframeHandle = Handle<dataframe::Dataframe>;
-  using IndexHandle = Handle<dataframe::Dataframe::Index>;
+  using IndexHandle = Handle<dataframe::Index>;
 
   // Checks whether a dataframe with the given key has already been created.
   //
@@ -122,6 +123,7 @@ class DataframeSharedStorage {
   // be the same dataframe which was passed in as the argument or it might be a
   // a dataframe which is already stored in the shared storage.
   DataframeHandle Insert(std::string key, dataframe::Dataframe df) {
+    PERFETTO_DCHECK(df.finalized());
     return Insert<dataframe::Dataframe>(std::move(key), std::move(df));
   }
 
@@ -129,7 +131,7 @@ class DataframeSharedStorage {
   //
   // Returns nullptr if no such index exists.
   std::optional<IndexHandle> FindIndex(const std::string& key) {
-    return Find<dataframe::Dataframe::Index>(key);
+    return Find<dataframe::Index>(key);
   }
 
   // Inserts a dataframe index into the shared storage to be associated with the
@@ -138,8 +140,8 @@ class DataframeSharedStorage {
   // Returns the index which is now owned by the shared storage. This might
   // be the same index which was passed in as the argument or it might be a
   // a index which is already stored in the shared storage.
-  IndexHandle InsertIndex(std::string key, dataframe::Dataframe::Index raw) {
-    return Insert<dataframe::Dataframe::Index>(std::move(key), std::move(raw));
+  IndexHandle InsertIndex(std::string key, dataframe::Index raw) {
+    return Insert<dataframe::Index>(std::move(key), std::move(raw));
   }
 
   static std::string MakeKeyForSqlModuleTable(const std::string& module_name,
@@ -150,7 +152,9 @@ class DataframeSharedStorage {
     return "static_table:" + table_name;
   }
   static std::string MakeUniqueKey() {
-    return "unique:" + base::Uuidv4().ToPrettyString();
+    static std::atomic<uint64_t> next_key_counter_ = 0;
+    return "unique:" + std::to_string(next_key_counter_.fetch_add(
+                           1, std::memory_order_relaxed));
   }
   static std::string MakeIndexKey(const std::string& key,
                                   const uint32_t* col_start,
@@ -165,8 +169,7 @@ class DataframeSharedStorage {
  private:
   using DataframeMap =
       base::FlatHashMap<std::string, Refcounted<dataframe::Dataframe>>;
-  using IndexMap =
-      base::FlatHashMap<std::string, Refcounted<dataframe::Dataframe::Index>>;
+  using IndexMap = base::FlatHashMap<std::string, Refcounted<dataframe::Index>>;
 
   template <typename V>
   std::optional<Handle<V>> Find(const std::string& key) {
@@ -177,7 +180,7 @@ class DataframeSharedStorage {
       return std::nullopt;
     }
     it->refcount++;
-    return Handle<V>(key, it->value.Copy(), *this);
+    return Handle<V>(key, Copy(it->value), *this);
   }
 
   template <typename V>
@@ -186,12 +189,12 @@ class DataframeSharedStorage {
     auto& map = GetMap<V>();
     if (auto* it = map.Find(key); it) {
       it->refcount++;
-      return Handle<V>(std::move(key), it->value.Copy(), *this);
+      return Handle<V>(std::move(key), Copy(it->value), *this);
     }
     auto [it, inserted] = map.Insert(key, Refcounted<V>{std::move(value)});
     PERFETTO_CHECK(inserted);
     it->refcount++;
-    return Handle<V>(std::move(key), it->value.Copy(), *this);
+    return Handle<V>(std::move(key), Copy(it->value), *this);
   }
 
   template <typename V>
@@ -206,11 +209,17 @@ class DataframeSharedStorage {
     }
   }
 
+  static dataframe::Dataframe Copy(const dataframe::Dataframe& df) {
+    return df.CopyFinalized();
+  }
+
+  static dataframe::Index Copy(const dataframe::Index& df) { return df.Copy(); }
+
   template <typename T>
   auto& GetMap() PERFETTO_EXCLUSIVE_LOCKS_REQUIRED(mutex_) {
     if constexpr (std::is_same_v<T, dataframe::Dataframe>) {
       return dataframes_;
-    } else if constexpr (std::is_same_v<T, dataframe::Dataframe::Index>) {
+    } else if constexpr (std::is_same_v<T, dataframe::Index>) {
       return indexes_;
     } else {
       static_assert(!std::is_same_v<T, T>, "Unsupported type");

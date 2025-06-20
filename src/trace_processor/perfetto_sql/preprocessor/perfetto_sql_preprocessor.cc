@@ -30,11 +30,11 @@
 #include <variant>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/perfetto_sql/preprocessor/preprocessor_grammar_interface.h"
 #include "src/trace_processor/perfetto_sql/tokenizer/sqlite_tokenizer.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -248,6 +248,27 @@ void ExecuteApply(State* state,
   auto& apply = std::get<Apply>(macro.impl);
   if (!macro.seen_variables.empty()) {
     RewriteIntrinsicMacro(frame, name, rp);
+    return;
+  }
+  // Gross hack to detect if the argument to the macro is a variable. We cannot
+  // use macro.expanded_variables because inside functions, we can have
+  // variables which are intentionally never going to be expanded by the
+  // preprocessor. That's OK to expand, as long as the entire macro argument is
+  // itself not a variable.
+  bool is_arg_variable = false;
+  for (const auto& arg : macro.args) {
+    if (!arg.sql().empty() && arg.sql()[0] == '$') {
+      is_arg_variable = true;
+      break;
+    }
+  }
+  if (is_arg_variable) {
+    state->stack.emplace_back(
+        Frame::Rewrite{frame.tokenizer, frame.rewriter, name, rp},
+        Frame::kIgnore, state,
+        SqlSource::FromTraceProcessorImplementation(
+            macro.name + "!(" +
+            base::Join(SqlSourceVectorToString(macro.args), ", ") + ")"));
     return;
   }
   state->stack.emplace_back(

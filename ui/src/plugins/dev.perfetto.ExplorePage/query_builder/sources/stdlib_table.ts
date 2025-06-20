@@ -73,11 +73,12 @@ export class StdlibTableNode implements QueryNode {
       groupByColumns: newColumnControllerRows(this.state.groupByColumns),
       filters: this.state.filters.map((f) => ({...f})),
       aggregations: this.state.aggregations.map((a) => ({...a})),
+      customTitle: this.state.customTitle,
     };
     return newState;
   }
 
-  getDetails(): m.Child {
+  coreModify(): m.Child {
     return m(
       '',
       m(Button, {
@@ -113,7 +114,7 @@ export class StdlibTableNode implements QueryNode {
   }
 
   getTitle(): string {
-    return `Table ${this.state.sqlTable?.name}`;
+    return this.state.customTitle ?? `Table ${this.state.sqlTable?.name}`;
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {

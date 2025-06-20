@@ -163,6 +163,6 @@ message ReadyThreadEtwEvent {
 
   oneof flag_enum_or_int {
     TraceFlag flag = 4;
-    TraceFlag flag_int = 6;
+    int32 flag_int = 6;
   }
 }

@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.curves.estimates;
+INCLUDE PERFETTO MODULE wattson.estimates;
 INCLUDE PERFETTO MODULE wattson.utils;
 
 DROP VIEW IF EXISTS _wattson_period_windows;
@@ -41,9 +41,10 @@ SELECT AndroidWattsonTimePeriodMetric(
       AndroidWattsonEstimateInfo(
         'period_id', period_id,
         'period_dur', period_dur,
-        'cpu_subsystem', proto
+        'cpu_subsystem', cpu_proto,
+        'gpu_subsystem', gpu_proto
       )
     )
-    FROM _estimate_cpu_subsystem_sum
+    FROM _estimate_subsystems_sum
   )
 );

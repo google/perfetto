@@ -57,9 +57,18 @@ class ProtoFactory:
         'perfetto.protos.ComputeMetricArgs')
     self.ComputeMetricResult = create_message_factory(
         'perfetto.protos.ComputeMetricResult')
+    self.TraceSummaryArgs = create_message_factory(
+        'perfetto.protos.TraceSummaryArgs')
+    self.TraceSummaryResult = create_message_factory(
+        'perfetto.protos.TraceSummaryResult')
     self.QueryArgs = create_message_factory('perfetto.protos.QueryArgs')
     self.QueryResult = create_message_factory('perfetto.protos.QueryResult')
     self.TraceMetrics = create_message_factory('perfetto.protos.TraceMetrics')
+    self.TraceSummary = create_message_factory('perfetto.protos.TraceSummary')
+    self.TraceSummarySpec = create_message_factory(
+        'perfetto.protos.TraceSummarySpec')
+    self.TraceMetricV2Spec = create_message_factory(
+        'perfetto.protos.TraceMetricV2Spec')
     self.DisableAndReadMetatraceResult = create_message_factory(
         'perfetto.protos.DisableAndReadMetatraceResult')
     self.CellsBatch = create_message_factory(

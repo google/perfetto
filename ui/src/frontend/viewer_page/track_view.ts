@@ -153,7 +153,7 @@ export class TrackView {
       TrackShell,
       {
         id: node.id,
-        title: node.title,
+        title: node.name,
         subtitle: renderer?.desc.subtitle,
         ref: node.fullPath.join('/'),
         heightPx: height,
@@ -275,14 +275,21 @@ export class TrackView {
       right: trackRect.width,
     });
 
-    const start = performance.now();
+    const maybeNewResolution = calculateResolution(
+      visibleWindow,
+      trackRect.width,
+    );
+    if (!maybeNewResolution.ok) {
+      return;
+    }
 
+    const start = performance.now();
     node.uri &&
       renderer?.render({
         trackUri: node.uri,
         visibleWindow,
         size: trackRect,
-        resolution: calculateResolution(visibleWindow, trackRect.width),
+        resolution: maybeNewResolution.value,
         ctx,
         timescale,
       });
@@ -611,14 +618,8 @@ function copyToWorkspace(trace: Trace, node: TrackNode, ws?: Workspace) {
 }
 
 function renderTrackDetailsMenu(node: TrackNode, descriptor?: Track) {
-  let parent = node.parent;
-  let fullPath: m.ChildArray = [node.title];
-  while (parent && parent instanceof TrackNode) {
-    fullPath = [parent.title, ' \u2023 ', ...fullPath];
-    parent = parent.parent;
-  }
-
-  const query = descriptor?.track.getDataset?.()?.query();
+  const fullPath = node.fullPath.join(' \u2023 ');
+  const query = descriptor?.renderer.getDataset?.()?.query();
 
   return m(
     '.pf-track__track-details-popup',
@@ -636,7 +637,7 @@ function renderTrackDetailsMenu(node: TrackNode, descriptor?: Track) {
         right: node.sortOrder ?? '0 (undefined)',
       }),
       m(TreeNode, {left: 'Path', right: fullPath}),
-      m(TreeNode, {left: 'Title', right: node.title}),
+      m(TreeNode, {left: 'Name', right: node.name}),
       descriptor &&
         m(TreeNode, {left: 'Description', right: descriptor?.description}),
       m(TreeNode, {

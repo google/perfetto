@@ -56,7 +56,6 @@ source_set("metrics") {
     ":gen_cc_all_chrome_metrics_descriptor",
     ":gen_cc_all_webview_metrics_descriptor",
     ":gen_cc_metrics_descriptor",
-    "../util",
     "../util:descriptors",
     "sql:gen_amalgamated_sql_metrics",
   ]

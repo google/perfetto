@@ -290,7 +290,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
     const track = trackNode.uri
       ? this.trace.tracks.getTrack(trackNode.uri)
       : undefined;
-    const tooltipNodes = track?.track.renderTooltip?.();
+    const tooltipNodes = track?.renderer.renderTooltip?.();
     if (!Boolean(tooltipNodes)) {
       return;
     }
@@ -404,7 +404,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
 
     if (size.width > 0 && timescale.timeSpan.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width);
-      const offset = this.trace.timeline.timestampOffset();
+      const offset = this.trace.timeline.getTimeAxisOrigin();
       for (const {type, time} of generateTicks(
         timescale.timeSpan.toTimeSpan(),
         maxMajorTicks,
@@ -542,7 +542,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
         onClick: () => {
           // If a track hasn't intercepted the click, treat this as a
           // deselection event.
-          trace.selection.clear();
+          trace.selection.clearSelection();
         },
         drag: {
           minDistance: 1,
@@ -555,6 +555,7 @@ export class TrackTreeView implements m.ClassComponent<TrackTreeViewAttrs> {
               );
             }
             this.areaDrag.update(e, timescale);
+            this.trace.raf.scheduleCanvasRedraw();
             trace.timeline.selectedSpan = this.areaDrag.timeSpan().toTimeSpan();
           },
           onDragEnd: (e) => {

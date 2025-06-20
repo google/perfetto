@@ -36,6 +36,7 @@ export enum NodeType {
 export interface QueryNodeState {
   prevNode?: QueryNode;
   sourceCols: ColumnControllerRow[];
+  customTitle?: string;
 
   filters: Filter[];
   groupByColumns: ColumnControllerRow[];
@@ -59,7 +60,7 @@ export interface QueryNode {
 
   validate(): boolean;
   getTitle(): string;
-  getDetails(): m.Child;
+  coreModify(): m.Child;
   getStateCopy(): QueryNodeState;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
 }

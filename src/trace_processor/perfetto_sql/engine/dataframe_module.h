@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_MODULE_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_MODULE_H_
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -48,12 +49,14 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
 
   struct State {
     explicit State(DataframeSharedStorage::DataframeHandle _handle)
-        : handle(std::move(_handle)) {}
+        : handle(std::move(_handle)), dataframe(&**handle) {}
+    explicit State(dataframe::Dataframe* _dataframe) : dataframe(_dataframe) {}
     struct NamedIndex {
       std::string name;
       DataframeSharedStorage::IndexHandle index;
     };
-    DataframeSharedStorage::DataframeHandle handle;
+    std::optional<DataframeSharedStorage::DataframeHandle> handle;
+    dataframe::Dataframe* dataframe;
     std::vector<NamedIndex> named_indexes;
   };
   struct Context : sqlite::ModuleStateManager<DataframeModule> {
@@ -78,7 +81,14 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     Type GetValueType(uint32_t idx) const {
       return sqlite::value::Type(sqlite_value[idx]);
     }
-    sqlite3_value** sqlite_value;
+    bool IteratorInit(uint32_t idx) {
+      return sqlite3_vtab_in_first(argv[idx], &sqlite_value[idx]) == SQLITE_OK;
+    }
+    bool IteratorNext(uint32_t idx) {
+      return sqlite3_vtab_in_next(argv[idx], &sqlite_value[idx]) == SQLITE_OK;
+    }
+    std::array<sqlite3_value*, 16> sqlite_value;
+    sqlite3_value** argv;
   };
   struct SqliteResultCallback : dataframe::CellCallback {
     void OnCell(int64_t v) const { sqlite::result::Long(ctx, v); }
@@ -94,11 +104,13 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   struct Vtab : sqlite::Module<DataframeModule>::Vtab {
     const dataframe::Dataframe* dataframe;
     sqlite::ModuleStateManager<DataframeModule>::PerVtabState* state;
+    std::string name;
+    int best_idx_num = 0;
   };
   using DfCursor = dataframe::Cursor<SqliteValueFetcher>;
   struct Cursor : sqlite::Module<DataframeModule>::Cursor {
     const dataframe::Dataframe* dataframe;
-    std::optional<DfCursor> df_cursor;
+    DfCursor df_cursor;
     const char* last_idx_str = nullptr;
   };
 

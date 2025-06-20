@@ -73,11 +73,11 @@ class PerfettoTable(TestSuite):
         """,
         out=Csv("""
         "id","name","col_type","nullable","sorted"
-        0,"id","id",0,1
-        1,"ts","int64",0,1
-        2,"track_id","uint32",0,0
-        3,"value","double",0,0
-        4,"arg_set_id","uint32",1,0
+        0,"id","id",0,0
+        1,"ts","int64",0,2
+        2,"track_id","uint32",0,3
+        3,"value","double",0,3
+        4,"arg_set_id","uint32",3,3
         """))
 
   def test_perfetto_table_info_runtime_table(self):
@@ -97,7 +97,8 @@ class PerfettoTable(TestSuite):
         """,
         out=Csv("""
         "id","name","col_type","nullable","sorted"
-        0,"c","int64",0,0
+        0,"c","uint32",0,3
+        1,"_auto_id","id",0,0
         """))
 
   def test_create_perfetto_table_nullable_column(self):
@@ -128,7 +129,7 @@ class PerfettoTable(TestSuite):
         """,
         out=Csv("""
         "sorted"
-        1
+        2
         """))
 
   def test_create_perfetto_table_id_column(self):
@@ -136,11 +137,11 @@ class PerfettoTable(TestSuite):
         trace=TextProto(''),
         query="""
         CREATE PERFETTO TABLE foo AS
-        SELECT 2 AS c
+        SELECT 0 AS c
         UNION
-        SELECT 4
+        SELECT 1
         UNION
-        SELECT 6;
+        SELECT 2;
 
         SELECT col_type FROM perfetto_table_info('foo')
         WHERE name = 'c';
@@ -615,7 +616,7 @@ class PerfettoTable(TestSuite):
         query="""
           SELECT key, int_value, real_value FROM __intrinsic_winscope_proto_to_args_with_defaults('__intrinsic_window_manager_shell_transition_protos') as tbl
           ORDER BY tbl.base64_proto_id, key
-          LIMIT 54
+          LIMIT 56
           """,
         out=Csv("""
           "key","int_value","real_value"
@@ -657,7 +658,9 @@ class PerfettoTable(TestSuite):
           "shell_abort_time_ns",0,"[NULL]"
           "start_transaction_id",5604932322346,"[NULL]"
           "starting_window_remove_time_ns",0,"[NULL]"
-          "targets","[NULL]","[NULL]"
+          "targets[0].flags",0,"[NULL]"
+          "targets[0].mode",0,"[NULL]"
+          "targets[0].window_id",11,"[NULL]"
           "type",0,"[NULL]"
           "wm_abort_time_ns",0,"[NULL]"
           "create_time_ns",76955664017,"[NULL]"
