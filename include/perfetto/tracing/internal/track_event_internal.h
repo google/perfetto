@@ -182,10 +182,16 @@ struct TrackEventIncrementalState {
 // namespaces.
 class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
  public:
-  static std::vector<const TrackEventCategoryRegistry*> GetRegistries();
-  static std::vector<const TrackEventCategoryRegistry*> AddRegistry(
+  static TrackEventInternal& GetInstance();
+
+  std::vector<const TrackEventCategoryRegistry*> GetRegistries();
+  std::vector<const TrackEventCategoryRegistry*> AddRegistry(
       const TrackEventCategoryRegistry*);
-  static void ResetRegistriesForTesting();
+  void EnableTracing(const protos::gen::TrackEventConfig& config,
+                     const DataSourceBase::SetupArgs&);
+  void DisableTracing(uint32_t internal_instance_index);
+
+  void ResetRegistriesForTesting();
 
   static bool Initialize(
       const std::vector<const TrackEventCategoryRegistry*> registries,
@@ -199,19 +205,9 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
   static void EnableRegistry(const TrackEventCategoryRegistry* registry,
                              const protos::gen::TrackEventConfig& config,
                              uint32_t internal_instance_index);
-  static void EnableTracing(const protos::gen::TrackEventConfig& config,
-                            const DataSourceBase::SetupArgs&);
-  static void OnStart(
-      const std::vector<const TrackEventCategoryRegistry*> registries,
-      const DataSourceBase::StartArgs&);
-  static void OnStop(
-      const std::vector<const TrackEventCategoryRegistry*> registries,
-      const DataSourceBase::StopArgs&);
-  static void DisableTracing(
-      const std::vector<const TrackEventCategoryRegistry*> registries,
-      uint32_t internal_instance_index);
+  static void OnStart(const DataSourceBase::StartArgs&);
+  static void OnStop(const DataSourceBase::StopArgs&);
   static void WillClearIncrementalState(
-      const std::vector<const TrackEventCategoryRegistry*> registries,
       const DataSourceBase::ClearIncrementalStateArgs&);
 
   static bool IsCategoryEnabled(const TrackEventCategoryRegistry& registry,
@@ -357,6 +353,9 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
 
   static protos::pbzero::BuiltinClock clock_;
   static bool disallow_merging_with_system_tracks_;
+
+  std::mutex mu_;
+  std::vector<const TrackEventCategoryRegistry*> registries_;
 };
 
 template <typename TraceContext>

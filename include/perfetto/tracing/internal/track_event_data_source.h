@@ -233,7 +233,7 @@ class PERFETTO_EXPORT_COMPONENT TrackEventDataSource
     auto config_raw = args.config->track_event_config_raw();
     bool ok = config_.ParseFromArray(config_raw.data(), config_raw.size());
     PERFETTO_DCHECK(ok);
-    TrackEventInternal::EnableTracing(config_, args);
+    TrackEventInternal::GetInstance().EnableTracing(config_, args);
   }
 
   void OnStart(const DataSourceBase::StartArgs& args) override;
@@ -243,14 +243,13 @@ class PERFETTO_EXPORT_COMPONENT TrackEventDataSource
     StopArgsImpl inner_stop_args{};
     uint32_t internal_instance_index = args.internal_instance_index;
     inner_stop_args.internal_instance_index = internal_instance_index;
-    auto registries = TrackEventInternal::GetRegistries();
-    inner_stop_args.async_stop_closure = [registries, internal_instance_index,
+    inner_stop_args.async_stop_closure = [internal_instance_index,
                                           outer_stop_closure] {
-      TrackEventInternal::DisableTracing(registries, internal_instance_index);
+      TrackEventInternal::GetInstance().DisableTracing(internal_instance_index);
       outer_stop_closure();
     };
 
-    TrackEventInternal::OnStop(registries, inner_stop_args);
+    TrackEventInternal::OnStop(inner_stop_args);
 
     // If inner_stop_args.HandleStopAsynchronously() hasn't been called,
     // run the async closure here.
@@ -260,8 +259,7 @@ class PERFETTO_EXPORT_COMPONENT TrackEventDataSource
 
   void WillClearIncrementalState(
       const DataSourceBase::ClearIncrementalStateArgs& args) override {
-    TrackEventInternal::WillClearIncrementalState(
-        TrackEventInternal::GetRegistries(), args);
+    TrackEventInternal::WillClearIncrementalState(args);
   }
 
   // In Chrome, startup sessions are propagated from the browser process to
@@ -317,12 +315,7 @@ class PERFETTO_EXPORT_COMPONENT TrackEventDataSource
   static bool AddRegistry(const TrackEventCategoryRegistry* registry) {
     // Registration is performed out-of-line so users don't need to depend on
     // DataSourceDescriptor C++ bindings.
-    auto registries = TrackEventInternal::AddRegistry(registry);
-    if (registries.size() == 1) {
-      return TrackEventInternal::Initialize(
-          registries,
-          [](const DataSourceDescriptor& dsd) { return Register(dsd); });
-    }
+    auto registries = TrackEventInternal::GetInstance().AddRegistry(registry);
     Trace([&](TraceContext ctx) {
       protos::gen::TrackEventConfig config;
       {
@@ -335,6 +328,11 @@ class PERFETTO_EXPORT_COMPONENT TrackEventDataSource
       TrackEventInternal::EnableRegistry(registry, config,
                                          ctx.instance_index());
     });
+    if (registries.size() == 1) {
+      return TrackEventInternal::Initialize(
+          registries,
+          [](const DataSourceDescriptor& dsd) { return Register(dsd); });
+    }
     return TrackEventInternal::Initialize(registries,
                                           [](const DataSourceDescriptor& dsd) {
                                             UpdateDescriptor(dsd);
@@ -345,7 +343,7 @@ class PERFETTO_EXPORT_COMPONENT TrackEventDataSource
   const protos::gen::TrackEventConfig& GetConfig() const { return config_; }
 
   static void ResetForTesting() {
-    TrackEventInternal::ResetRegistriesForTesting();
+    TrackEventInternal::GetInstance().ResetRegistriesForTesting();
   }
 
  private:

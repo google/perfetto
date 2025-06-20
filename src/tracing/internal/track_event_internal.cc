@@ -146,19 +146,12 @@ bool NameMatchesPatternList(const std::vector<std::string>& patterns,
   return false;
 }
 
-std::vector<const TrackEventCategoryRegistry*>&
-GetTrackEventCategoryRegistries() {
-  static base::NoDestructor<std::vector<const TrackEventCategoryRegistry*>>
-      registries;
-  return registries.ref();
-}
-
-std::mutex& GetTrackEventCategoryMutex() {
-  static std::mutex mu;
-  return mu;
-}
-
 }  // namespace
+
+TrackEventInternal& TrackEventInternal::GetInstance() {
+  static base::NoDestructor<TrackEventInternal> state;
+  return state.ref();
+}
 
 // static
 const Track TrackEventInternal::kDefaultTrack{};
@@ -166,25 +159,22 @@ const Track TrackEventInternal::kDefaultTrack{};
 // static
 std::atomic<int> TrackEventInternal::session_count_{};
 
-// static
 std::vector<const TrackEventCategoryRegistry*>
 TrackEventInternal::GetRegistries() {
-  std::unique_lock<std::mutex> lock(GetTrackEventCategoryMutex());
-  return GetTrackEventCategoryRegistries();
+  std::unique_lock<std::mutex> lock(mu_);
+  return registries_;
 }
 
-// static
 std::vector<const TrackEventCategoryRegistry*> TrackEventInternal::AddRegistry(
     const TrackEventCategoryRegistry* registry) {
-  std::unique_lock<std::mutex> lock(GetTrackEventCategoryMutex());
-  auto& registries = GetTrackEventCategoryRegistries();
-  registries.push_back(registry);
-  return registries;
+  std::unique_lock<std::mutex> lock(mu_);
+  registries_.push_back(registry);
+  return registries_;
 }
 
-// static
 void TrackEventInternal::ResetRegistriesForTesting() {
-  GetTrackEventCategoryRegistries().clear();
+  std::unique_lock<std::mutex> lock(mu_);
+  registries_.clear();
 }
 
 // static
@@ -266,16 +256,18 @@ void TrackEventInternal::EnableRegistry(
   }
 }
 
-// static
 void TrackEventInternal::EnableTracing(
     const protos::gen::TrackEventConfig& config,
     const DataSourceBase::SetupArgs& args) {
-  std::unique_lock<std::mutex> lock(GetTrackEventCategoryMutex());
-  auto registries = GetTrackEventCategoryRegistries();
-  for (const auto& registry : registries) {
-    for (size_t i = 0; i < registry->category_count(); i++) {
-      if (IsCategoryEnabled(*registry, config, *registry->GetCategory(i)))
-        registry->EnableCategoryForInstance(i, args.internal_instance_index);
+  std::vector<const TrackEventCategoryRegistry*> registries;
+  {
+    std::unique_lock<std::mutex> lock(mu_);
+    registries = registries_;
+    for (const auto& registry : registries) {
+      for (size_t i = 0; i < registry->category_count(); i++) {
+        if (IsCategoryEnabled(*registry, config, *registry->GetCategory(i)))
+          registry->EnableCategoryForInstance(i, args.internal_instance_index);
+      }
     }
   }
   TrackEventSessionObserverRegistry::GetInstance()
@@ -283,41 +275,36 @@ void TrackEventInternal::EnableTracing(
           registries, [&](TrackEventSessionObserver* o) { o->OnSetup(args); });
 }
 
-// static
-void TrackEventInternal::OnStart(
-    const std::vector<const TrackEventCategoryRegistry*> registries,
-    const DataSourceBase::StartArgs& args) {
-  session_count_.fetch_add(1);
-  TrackEventSessionObserverRegistry::GetInstance()
-      ->ForEachObserverForRegistries(
-          registries, [&](TrackEventSessionObserver* o) { o->OnStart(args); });
-}
-
-// static
-void TrackEventInternal::OnStop(
-    const std::vector<const TrackEventCategoryRegistry*> registries,
-    const DataSourceBase::StopArgs& args) {
-  TrackEventSessionObserverRegistry::GetInstance()
-      ->ForEachObserverForRegistries(
-          registries, [&](TrackEventSessionObserver* o) { o->OnStop(args); });
-}
-
-// static
-void TrackEventInternal::DisableTracing(
-    const std::vector<const TrackEventCategoryRegistry*> registries,
-    uint32_t internal_instance_index) {
-  for (const auto& registry : registries) {
+void TrackEventInternal::DisableTracing(uint32_t internal_instance_index) {
+  std::unique_lock<std::mutex> lock(mu_);
+  for (const auto& registry : registries_) {
     for (size_t i = 0; i < registry->category_count(); i++)
       registry->DisableCategoryForInstance(i, internal_instance_index);
   }
 }
 
 // static
+void TrackEventInternal::OnStart(const DataSourceBase::StartArgs& args) {
+  session_count_.fetch_add(1);
+  TrackEventSessionObserverRegistry::GetInstance()
+      ->ForEachObserverForRegistries(
+          GetInstance().GetRegistries(),
+          [&](TrackEventSessionObserver* o) { o->OnStart(args); });
+}
+
+// static
+void TrackEventInternal::OnStop(const DataSourceBase::StopArgs& args) {
+  TrackEventSessionObserverRegistry::GetInstance()
+      ->ForEachObserverForRegistries(
+          GetInstance().GetRegistries(),
+          [&](TrackEventSessionObserver* o) { o->OnStop(args); });
+}
+
+// static
 void TrackEventInternal::WillClearIncrementalState(
-    const std::vector<const TrackEventCategoryRegistry*> registries,
     const DataSourceBase::ClearIncrementalStateArgs& args) {
   TrackEventSessionObserverRegistry::GetInstance()
-      ->ForEachObserverForRegistries(registries,
+      ->ForEachObserverForRegistries(GetInstance().GetRegistries(),
                                      [&](TrackEventSessionObserver* o) {
                                        o->WillClearIncrementalState(args);
                                      });
@@ -673,7 +660,7 @@ protos::pbzero::DebugAnnotation* TrackEventInternal::AddDebugAnnotation(
 }
 
 void TrackEventDataSource::OnStart(const DataSourceBase::StartArgs& args) {
-  TrackEventInternal::OnStart(TrackEventInternal::GetRegistries(), args);
+  TrackEventInternal::OnStart(args);
 }
 
 }  // namespace internal
