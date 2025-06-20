@@ -1,8 +1,12 @@
 # Recording In-App Traces with Perfetto
 
-*In this page, you'll learn how to use the Perfetto SDK collect a trace from a
-C++ app which we instrument. You'll view the collected trace with the Perfetto
-UI and query its contents programatically with PerfettoSQL.*
+_In this page, you'll learn how to use the Perfetto SDK to collect a trace from
+a C++ app which we instrument. You'll view the collected trace with the Perfetto
+UI and query its contents programatically with PerfettoSQL._
+
+The Perfetto SDK is a C++ library that allows you to instrument your application
+to record trace events. These events can then be visualized and analyzed with
+the Perfetto UI and Trace Processor.
 
 ## Adding your first instrumentation
 
@@ -19,8 +23,8 @@ an amalgamation of the Client API designed to easy to integrate to existing
 build systems. The sources are self-contained and require only a C++17 compliant
 standard library.
 
-Copy them in your project. The next steps assume they're in the `perfetto/sdk` folder.
-Assuming your build looks like this:
+Copy them in your project. The next steps assume they're in the `perfetto/sdk`
+folder. Assuming your build looks like this:
 
 <?tabs>
 
@@ -43,27 +47,35 @@ You can add the perfetto static library like this:
 TAB: CMake
 
 ```
+# It's recommended to use a recent version of CMake.
 cmake_minimum_required(VERSION 3.13)
+
+# Name of the project.
 project(Example)
+
+# Find the thread library, which is a dependency of Perfetto.
 find_package(Threads)
 
-# Define a static library for Perfetto.
+# Add the Perfetto SDK source files to a static library.
 include_directories(perfetto/sdk)
 add_library(perfetto STATIC perfetto/sdk/perfetto.cc)
 
-# Main executable
+# Add your application's source files to an executable.
 add_executable(example example.cc)
 
-# Link the library to your main executable.
+# Link the Perfetto library and the thread library to your executable.
 target_link_libraries(example perfetto ${CMAKE_THREAD_LIBS_INIT})
 
+# Windows-specific settings.
 if (WIN32)
-  # The perfetto library contains many symbols, so it needs the big object
+  # The Perfetto library contains many symbols, so it needs the "big object"
   # format.
   target_compile_options(perfetto PRIVATE "/bigobj")
+
   # Disable legacy features in windows.h.
   add_definitions(-DWIN32_LEAN_AND_MEAN -DNOMINMAX)
-  # On Windows we should link to WinSock2.
+
+  # On Windows, we need to link to the WinSock2 library.
   target_link_libraries(example ws2_32)
 endif (WIN32)
 
@@ -105,6 +117,17 @@ int main(int argc, char** argv) {
 
 You can now add instrumentation points to your code. They will emit events when
 tracing is enabled.
+
+The `TRACE_EVENT` macro records a scoped event. The event starts when the macro
+is called and ends at the end of the current scope (e.g., when the function
+returns).
+
+The `TRACE_EVENT_BEGIN` and `TRACE_EVENT_END` macros can be used to record
+events that don't follow function scoping. `TRACE_EVENT_BEGIN` starts an event,
+and `TRACE_EVENT_END` ends the most recent event started on the same thread.
+
+The `TRACE_COUNTER` macro records the value of a counter at a specific point in
+time.
 
 <?tabs>
 
@@ -208,7 +231,7 @@ how long each execution took and its `player_number` annotation.
 
 If you want to inspect your app events alongside system events, you can:
 
-* Change your app code to connect to the perfetto central tracing service
+- Change your app code to connect to the perfetto central tracing service
   instead of logging inside the process.
 
 <?tabs>
@@ -223,15 +246,19 @@ TAB: C++
 
 </tabs?>
 
-* Remove the code start and stop collecting events from your app. You can start
-  and stop collecting event using the [perfetto command line
-  client](/docs/reference/perfetto-cli).
+- Remove the code start and stop collecting events from your app. You can start
+  and stop collecting event using the
+  [perfetto command line client](/docs/reference/perfetto-cli).
 
-* Learn more about [system tracing](/docs/getting-started/recording/system-tracing.md)
-
+- Learn more about
+  [system tracing](/docs/getting-started/system-tracing.md)
 
 ## Next steps
 
-* SDK: [more](/docs/getting-started/instrumentation/sdk.md) instrumentation points.
-* Learn more about SQL trace analysis with [trace
-  processor](/docs/analysis/trace-processor.md).
+Now that you've recorded and analyzed your first in-app trace, you can explore
+more advanced topics:
+
+- **Learn more about the Perfetto SDK:** The
+  [Perfetto SDK documentation](/docs/instrumentation/tracing-sdk.md) provides
+  more details on how to use the SDK, including how to define custom data
+  sources and use different types of tracks.

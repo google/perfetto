@@ -604,6 +604,4 @@ data_sources {
 
 ## Next Steps
 
-[Collect system traces](/docs/getting-started/recording/system-tracing)
-
-[Collect App+System traces](/docs/learning-more/trace-recording/app-and-system-tracing)
+[Collect system traces](/docs/getting-started/system-tracing)

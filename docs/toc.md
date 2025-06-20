@@ -6,32 +6,31 @@
 
   - [Tutorials](#)
 
-    - [Trace Recording](#)
+    - [End-to-end Perfetto Tracing](#)
 
-      - [System Tracing](getting-started/recording/system-tracing.md)
-      - [In-App Tracing](getting-started/recording/in-app-tracing.md)
-      - [Memory Profiling](getting-started/recording/memory-profiling.md)
-      - [CPU Profiling](getting-started/recording/cpu-profiling.md)
-      - [Chrome Tracing](getting-started/recording/chrome-tracing.md)
+      - [System Tracing](getting-started/system-tracing.md)
+      - [In-App Tracing](getting-started/in-app-tracing.md)
+      - [Memory Profiling](getting-started/memory-profiling.md)
+      - [CPU Profiling](getting-started/cpu-profiling.md)
+      - [Chrome Tracing](getting-started/chrome-tracing.md)
 
-    - [Trace Instrumentation](#)
+    - [Instrumentation without Perfetto](#)
 
-      - [Perfetto SDK](getting-started/instrumentation/sdk.md)
-      - [Android atrace](getting-started/instrumentation/atrace.md)
-      - [Linux ftrace](getting-started/instrumentation/ftrace.md)
+      - [Android atrace](getting-started/atrace.md)
+      - [Linux ftrace](getting-started/ftrace.md)
 
-    - [Trace Analysis & Viz](#)
+    - [Non-Perfetto data analysis](#)
 
-      - [Other trace formats](getting-started/analysis/other-formats.md)
-      - [Converting to Perfetto](getting-started/analysis/converting.md)
+      - [Other trace formats](getting-started/other-formats.md)
+      - [Converting to Perfetto](getting-started/converting.md)
 
   - [Recipes](#)
 
-    - [Android: Trace Analysis](getting-started/recipes/android-trace-analysis.md)
+    - [Analysing Android traces](getting-started/android-trace-analysis.md)
 
   - [Case Studies](#)
 
-    - [Android: Debugging memory usage](case-studies/memory.md)
+    - [Debugging Android memory usage](case-studies/memory.md)
 
 - [Learning more](#)
 
@@ -42,11 +41,15 @@
     - [Service model](concepts/service-model.md)
     - [Clock synchronization](concepts/clock-sync.md)
 
-  - [More Trace Recording](#)
+  - [Trace Recording](#)
 
-    - [App + System Tracing](learning-more/trace-recording/app-and-system-tracing.md)
-    - [System Tracing on Android](learning-more/trace-recording/android.md)
-    - [Tracing in Background](learning-more/trace-recording/tracing-in-background.md)
+    - [Tracing in Background](learning-more/tracing-in-background.md)
+    - [Advanced Android tracing](learning-more/android.md)
+
+  - [Trace Instrumentation](#)
+
+    - [Tracing SDK](instrumentation/tracing-sdk.md)
+    - [Track Event](instrumentation/track-events.md)
 
   - [Trace Analysis](#)
 

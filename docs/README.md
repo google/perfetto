@@ -67,11 +67,10 @@ Other usecases Perfetto is commonly used for include:
   Even if the traces/profiles were not collected with Perfetto's recording
   tools, they can still be be visualized with the Perfetto UI and analyzed with
   our SQL-based query engine.
-
 - **Analysing and visualizing arbitrary "trace-like" data**. The Perfetto
-  analysis and visualization tools can be used on any "trace-like" data as long
-  as it can be converted to the Perfetto protobuf format; the possibilities are
-  only limited by creativity!
+  analysis and visualization tools can be used on any "trace-like" data (e.g.
+  data with a timestamp and some payload) as long as it can be converted to the
+  Perfetto protobuf format; the possibilities are only limited by creativity!
 
 ## Why would you **not** use Perfetto?
 
@@ -141,7 +140,8 @@ explicltly unsupported.
 
 We appreicate that Perfetto has a lot of parts to it so it can be confusing to
 someone new to the project to know what is relevant to them. For this reason, we
-have a whole page dedicated to this: see
+have a whole page dedicated to this:
+
 [How do I start using Perfetto?](/docs/getting-started/start-using-perfetto.md)
 
 ## Who uses Perfetto today?

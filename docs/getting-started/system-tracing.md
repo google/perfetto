@@ -45,7 +45,8 @@ TAB: Android (Perfetto UI)
     otherwise. For example, for the _ABD+Websocket_ transport the success
     message will look like on the screenshot above.
 
-   NOTE: you may need to allow USB debugging on the device.
+   NOTE: you may need to enable developer options and allow USB debugging on the
+   device.
 
 5. On the **Recording Settings** page, we can leave at in the default settings:
 
@@ -145,7 +146,8 @@ Due to Perfetto's [service-based architecture](/docs/concepts/service-model.md),
 in order to capture a trace, the `traced` (session daemon) and `traced_probes`
 (probes and ftrace-interop daemon) need to be running. As per Perfetto v16, the
 `tracebox` binary bundles together all the binaries you need in a single
-executable (a bit like `toybox` or `busybox`).
+statically linked executable (a bit like `toybox` or `busybox`), which makes it
+easy to copy and run on different machines.
 
 You can download the `tracebox` binary from GitHub:
 ```bash
@@ -221,7 +223,7 @@ For more details on how to write SQL queries take a look at
 
 There are also several Modules that consist of tables/views/functions and macros that have been already created and are made available to you in the [Perfetto Standard Library](/docs/analysis/stdlib-docs.autogen). 
 
-There is also a list of [SQL Recipes](/docs/getting-started/recipes/android-trace-analysis.md) which contains a list of some crafted SQL recipes that have proven to be useful for specific analyses or to help the user learn PerfettoSQL by example.
+There is also a list of [SQL Recipes](/docs/getting-started/android-trace-analysis.md) which contains a list of some crafted SQL recipes that have proven to be useful for specific analyses or to help the user learn PerfettoSQL by example.
 
 A simple example of importing a module and executing a query on the Standard library can be seen below:
 

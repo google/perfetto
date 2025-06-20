@@ -10,7 +10,7 @@ NOTE: If you are unfamiliar with the word "tracing" or in general, are new to
 the world of performance, we suggest reading the
 [What is Tracing?](/docs/tracing-101.md) page first. If you are not quite sure
 what Perfetto is and why it's useful, check out the
-[What is Perfetto?](/docs/tracing-101.md) page first.
+[Perfetto homepage](/docs/README.md) first.
 
 Our docs make use of the terms "Tutorials", "Recipes" and "Case Studies":
 
@@ -29,14 +29,26 @@ Our docs make use of the terms "Tutorials", "Recipes" and "Case Studies":
 Based on what technology you are interested in, please choose one of the
 following sections to go next:
 
-- [Android App/Platform developers](#android-app-amp-platform-developers)
-- [Linux kernel developers](#linux-kernel-developer)
-- [C/C++ program developers](#c-c-developer-non-android-)
-- [Chromium developers](#chromium-developers)
-- [Anyone with custom "trace-like" data to analyse/visualize](#anyone-with-quot-trace-like-quot-data-to-analyse-visualize)
-- [Anyone not listed above](#anyone-not-listed-above)
+```mermaid
+graph TD
+    A[Start here] --> B{What is your role?};
+    B --> C["<a href='#android-developers'>Android App/Platform Developer</a>"];
+    B --> D["<a href='#linux-kernel-developers'>Linux Kernel Developer</a>"];
+    B --> E["<a href='#c-cpp-developers'>C/C++ Developer (non-Android)</a>"];
+    B --> F["<a href='#chromium-developers'>Chromium Developer</a>"];
+    B --> G["<a href='#trace-like-data'>I have trace-like data</a>"];
+    B --> H["<a href='#not-listed'>None of the above</a>"];
+```
 
-## Android App & Platform Developers
+## {#android-developers} Android App & Platform Developers
+
+```mermaid
+graph TD
+    A[Android App & Platform Developers] --> B{What is your goal?};
+    B --> C["<a href='#android-understanding-system-behavior'>Understand system behavior / debug functional issues</a>"];
+    B --> D["<a href='#android-optimizing-performance'>Optimize performance / address latency</a>"];
+    B --> E["<a href='#android-diagnosing-memory-issues'>Diagnose memory issues</a>"];
+```
 
 Perfetto is the **default tracing system** on Android. It provides a powerful
 way to understand the intricate workings of the Android OS and applications,
@@ -111,7 +123,7 @@ Perfetto makes available for comprehensive system analysis and debugging.
 
 </tabs?>
 
-### Understanding System Behavior & Debugging Functional Issues
+### {#android-understanding-system-behavior} Understanding System Behavior & Debugging Functional Issues
 
 When you need to understand how different parts of the system interact, debug a
 complex functional bug, or see the sequence of events leading to an unexpected
@@ -125,7 +137,7 @@ state, Perfetto provides powerful insights.
   these traces.
 
   - **Tutorial**:
-    [Recording and Analyzing System Traces](/docs/getting-started/recording/system-tracing.md)
+    [Recording and Analyzing System Traces](/docs/getting-started/system-tracing.md)
   - **Reference**:
     [CPU Scheduling Data Source](/docs/data-sources/cpu-scheduling.md) (Often
     key for understanding interactions and component state)
@@ -138,7 +150,7 @@ state, Perfetto provides powerful insights.
   durations.
 
   - **Tutorial**:
-    [Instrumenting Android code with atrace](/docs/getting-started/instrumentation/atrace.md)
+    [Instrumenting Android code with atrace](/docs/getting-started/atrace.md)
   - **Reference**: [ATrace Data Source](/docs/data-sources/atrace.md)
 
 - **How can I use existing diagnostic files like bugreports or logcat with
@@ -147,13 +159,13 @@ state, Perfetto provides powerful insights.
   - Android `bugreport.zip` files often contain Perfetto traces. The Perfetto UI
     can open these directly, automatically extracting and loading the traces.
     - **Tutorial**:
-      [Visualizing Android bugreports and other formats (TODO for specific bugreport section)](/docs/getting-started/analysis/other-formats.md)
-  - You can visualize `adb logcat` output alongside trace data. Perfetto can
-    also be configured to include logcat directly into new traces.
-    - **Tutorial**:
-      [Visualizing adb logcat and other formats (TODO for specific logcat section)](/docs/getting-started/analysis/other-formats.md)
+      [Visualizing Android bugreports and other formats](/docs/getting-started/other-formats.md#bugreport-format)
+    - You can visualize `adb logcat` output alongside trace data. Perfetto can
+      also be configured to include logcat directly into new traces.
+      - **Tutorial**:
+        [Visualizing adb logcat and other formats](/docs/getting-started/other-formats.md#logcat-format)
 
-### Optimizing Performance & Addressing Latency
+### {#android-optimizing-performance} Optimizing Performance & Addressing Latency
 
 When a component is slow, exhibits jank, or critical operations take too long,
 Perfetto provides the tools to investigate. This can involve direct CPU/GPU
@@ -181,7 +193,7 @@ section below.
   Starting points includes:
 
   - **Tutorial**:
-    [Recording and Analyzing System Traces](/docs/getting-started/recording/system-tracing.md)
+    [Recording and Analyzing System Traces](/docs/getting-started/system-tracing.md)
   - **Reference**:
     [CPU Scheduling Data Source](/docs/data-sources/cpu-scheduling.md)
 
@@ -191,7 +203,7 @@ section below.
   pinpointing which stage missed its deadline.
 
   - **Tutorial**:
-    [Recording and Analyzing System Traces](/docs/getting-started/recording/system-tracing.md)
+    [Recording and Analyzing System Traces](/docs/getting-started/system-tracing.md)
   - **Reference**:
     [FrameTimeline Data Source](/docs/data-sources/frametimeline.md)
 
@@ -201,11 +213,11 @@ section below.
   functions responsible. Perfetto can capture these profiles or visualize
   profiles collected from `simpleperf`.
   - **Tutorial**:
-    [Recording performance counters and CPU profiling with Perfetto](/docs/getting-started/recording/cpu-profiling.md)
+    [Recording performance counters and CPU profiling with Perfetto](/docs/getting-started/cpu-profiling.md)
   - **Tutorial**:
-    [Visualizing simpleperf files (TODO)](/docs/getting-started/analysis/other-formats.md)
+    [Visualizing simpleperf files](/docs/getting-started/other-formats.md#firefox-json-format)
 
-### Diagnosing Memory Issues
+### {#android-diagnosing-memory-issues} Diagnosing Memory Issues
 
 High memory usage can lead to poor performance, increased garbage collection
 pauses (for Java/Kotlin), and even apps or services being killed by the Low
@@ -224,7 +236,7 @@ Perfetto also provides specific tools to investigate and attribute memory usage:
   helping you find memory leaks or unexpectedly large objects.
 
   - **Tutorial**:
-    [Recording Memory Profiles (Java/JVM Heap Dumps)](/docs/getting-started/recording/memory-profiling.md)
+    [Recording Memory Profiles (Java/JVM Heap Dumps)](/docs/getting-started/memory-profiling.md)
   - **Reference**:
     [Java Heap Dumps Data Source](/docs/data-sources/java-heap-profiler.md)
 
@@ -235,7 +247,7 @@ Perfetto also provides specific tools to investigate and attribute memory usage:
   deallocations).
 
   - **Tutorial**:
-    [Recording Memory Profiles (Native Heap Profiling)](/docs/getting-started/recording/memory-profiling.md)
+    [Recording Memory Profiles (Native Heap Profiling)](/docs/getting-started/memory-profiling.md)
   - **Reference**:
     [Native Heap Profiler Data Source](/docs/data-sources/native-heap-profiler.md)
 
@@ -245,11 +257,11 @@ Perfetto also provides specific tools to investigate and attribute memory usage:
   component and others, polled periodically. They can also capture critical
   kernel memory events, providing context on overall system memory pressure.
   - **Tutorial**:
-    [Recording and Analyzing System Traces](/docs/getting-started/recording/system-tracing.md)
+    [Recording and Analyzing System Traces](/docs/getting-started/system-tracing.md)
   - **Reference**:
     [Memory Counters and Events Data Source](/docs/data-sources/memory-counters.md)
 
-## Linux Kernel Developer
+## {#linux-kernel-developers} Linux Kernel Developer
 
 Perfetto offers deep integration with the Linux kernel, providing powerful tools
 for kernel developers to understand system behavior, debug issues, and optimize
@@ -278,7 +290,7 @@ Here's how Perfetto can assist Linux kernel development and debugging:
   initially analyzing these traces.
 
   - **Tutorial**:
-    [Recording System Traces on Linux](/docs/getting-started/recording/system-tracing.md)
+    [Recording System Traces on Linux](/docs/getting-started/system-tracing.md)
     (Focus on Linux-specific ftrace configuration)
   - **Reference**:
     [CPU Scheduling Data Source](/docs/data-sources/cpu-scheduling.md)
@@ -293,7 +305,7 @@ Here's how Perfetto can assist Linux kernel development and debugging:
   instrumentation alongside standard kernel events for targeted debugging.
 
   - **Tutorial**:
-    [Instrumenting the Linux kernel with ftrace](/docs/getting-started/instrumentation/ftrace.md)
+    [Instrumenting the Linux kernel with ftrace](/docs/getting-started/ftrace.md)
   - **Reference**:
     [Kernel Tracepoint Documentation](https://www.kernel.org/doc/Documentation/trace/tracepoints.txt)
     (External link to kernel.org)
@@ -305,11 +317,11 @@ Here's how Perfetto can assist Linux kernel development and debugging:
   consuming excessive CPU cycles. Perfetto can also visualize profiles captured
   with the standalone `perf` tool.
   - **Tutorial**:
-    [Recording performance counters and CPU profiling with Perfetto](/docs/getting-started/recording/cpu-profiling.md)
+    [Recording performance counters and CPU profiling with Perfetto](/docs/getting-started/cpu-profiling.md)
   - **Guide**:
-    [Visualizing perf files (TODO)](/docs/getting-started/analysis/other-formats.md)
+    [Visualizing perf files](/docs/getting-started/other-formats.md#firefox-json-format)
 
-## C/C++ Developer (non-Android)
+## {#c-cpp-developers} C/C++ Developer (non-Android)
 
 If you're developing C/C++ applications on Linux, macOS, or Windows, Perfetto's
 [Tracing SDK](/docs/instrumentation/tracing-sdk.md) allows you to instrument
@@ -328,9 +340,9 @@ Here’s how Perfetto can help:
   traces can be collected and viewed with the Perfetto UI.
 
   - **Tutorial**:
-    [Instrumenting code with the Perfetto SDK](/docs/getting-started/instrumentation/sdk.md)
+    [Instrumenting code with the Perfetto SDK](/docs/instrumentation/tracing-sdk.md)
   - **Tutorial**:
-    [Recording In-App Traces with Perfetto](/docs/getting-started/recording/in-app-tracing.md)
+    [Recording In-App Traces with Perfetto](/docs/getting-started/in-app-tracing.md)
     (Covers collecting traces from SDK-instrumented apps)
   - **Reference**:
     [Perfetto Tracing SDK Details](/docs/instrumentation/tracing-sdk.md)
@@ -341,7 +353,7 @@ Here’s how Perfetto can help:
   consuming the most CPU cycles, guiding your optimization efforts.
 
   - **Tutorial**:
-    [Recording performance counters and CPU profiling with Perfetto](/docs/getting-started/recording/cpu-profiling.md)
+    [Recording performance counters and CPU profiling with Perfetto](/docs/getting-started/cpu-profiling.md)
 
 - **(Linux-specific) How can I investigate native memory usage in my C/C++
   application?** On Linux, Perfetto's native heap profiler can track
@@ -350,11 +362,11 @@ Here’s how Perfetto can help:
   understanding memory churn, or finding opportunities to reduce your
   application's memory footprint.
   - **Tutorial**:
-    [Recording Memory Profiles (Native Heap Profiling)](/docs/getting-started/recording/memory-profiling.md)
+    [Recording Memory Profiles (Native Heap Profiling)](/docs/getting-started/memory-profiling.md)
   - **Reference**:
     [Native Heap Profiler Data Source](/docs/data-sources/native-heap-profiler.md)
 
-## Chromium Developers
+## {#chromium-developers} Chromium Developers
 
 Perfetto underpins the chrome://tracing system for the Chromium browser and its
 related projects (Angle, Skia, V8). While the Chromium project has its own
@@ -365,13 +377,13 @@ If you're looking to capture traces from Chrome, our tutorial provides a
 straightforward way to get started using the Perfetto UI:
 
 - **Tutorial**:
-  [Recording traces on Chrome](/docs/getting-started/recording/chrome-tracing.md)
+  [Recording traces on Chrome](/docs/getting-started/chrome-tracing.md)
 
 For a general introduction to practical trace analysis in Chrome,
 [this Perf-Planet blog post](https://calendar.perfplanet.com/2023/digging-chrome-traces-introduction-example/)
 is also a helpful resource.
 
-## Anyone with "trace-like" data to analyse/visualize
+## {#trace-like-data} Anyone with "trace-like" data to analyse/visualize
 
 Perfetto's powerful UI and Trace Processor are not limited to traces recorded by
 Perfetto itself. If you have existing traces from other systems or custom
@@ -385,7 +397,7 @@ analysis.
   capabilities on data you may already have.
 
   - **Guide**:
-    [Visualizing external trace formats with Perfetto](/docs/getting-started/analysis/other-formats.md)
+    [Visualizing external trace formats with Perfetto](/docs/getting-started/other-formats.md)
     (Lists supported formats and how to open them)
 
 - **I have my own custom logging or timestamped data. How can I view it in
@@ -396,11 +408,11 @@ analysis.
   slices, counters, or flow events on a timeline. Once converted, you can use
   the full power of the Perfetto UI and Trace Processor.
   - **Guide**:
-    [Converting arbitrary timestamped data to Perfetto](/docs/getting-started/analysis/converting.md)
+    [Converting arbitrary timestamped data to Perfetto](/docs/getting-started/converting.md)
   - **Reference**:
     [TrackEvent protobuf definition for synthetic traces](/docs/reference/synthetic-track-event.md)
 
-## Anyone not listed above
+## {#not-listed} Anyone not listed above
 
 If your specific role or use case wasn't directly covered by the categories
 above, don't worry! Perfetto is a versatile suite of tools, and its core
@@ -415,10 +427,10 @@ Perfetto excels in several key areas:
 
     - **Think creatively:** Could your problem be understood by instrumenting
       your C/C++ code to log events on a timeline? Our
-      [SDK tutorial](/docs/getting-started/instrumentation/sdk.md) shows how.
+      [SDK tutorial](/docs/instrumentation/tracing-sdk.md) shows how.
     - Are you working with an existing system that produces timestamped data? It
       might be convertible to a format Perfetto understands. See our
-      [guide on converting custom data](/docs/getting-started/analysis/converting.md).
+      [guide on converting custom data](/docs/getting-started/converting.md).
 
 2.  **Powerful Timeline Visualization (No Code Required):** The
     [Perfetto UI](/docs/visualization/perfetto-ui.md) is designed to intuitively
@@ -430,7 +442,7 @@ Perfetto excels in several key areas:
     understand what your system is doing.
 
     - **Explore diverse data:** Perfetto can open various
-      [external trace formats](/docs/getting-started/analysis/other-formats.md)
+      [external trace formats](/docs/getting-started/other-formats.md)
       directly in the UI.
     - **Discover UI features:** The Perfetto UI also has features like
       [Debug Tracks](/docs/analysis/debug-tracks.md) that allow for

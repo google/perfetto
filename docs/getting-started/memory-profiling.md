@@ -1,5 +1,11 @@
 # Recording memory profiles with Perfetto
 
+In this guide, you'll learn how to:
+
+- Record native and Java heap profiles with Perfetto.
+- Visualize and analyze heap profiles in the Perfetto UI.
+- Understand the different memory profiling modes and when to use them.
+
 The memory use of a process plays a key role in the performance of processes and
 impact on overall system stability. Understanding where and how your process is
 using memory can give significant insight to understand why your process may be
@@ -15,44 +21,41 @@ memory:
   typically owns both managed memory on the Java heap and native memory due to
   the underlying use of native regex libraries.
 
-- Java/Kt Apps: a good portion of the memory footprint of an
-  app lives in the managed heap (in the case of Android, managed by ART's
-  garbage collector). This is where evevery `new X()` object lives.
+- Java/KT Apps: a good portion of the memory footprint of an app lives in the
+  managed heap (in the case of Android, managed by ART's garbage collector).
+  This is where evevery `new X()` object lives.
 
 Perfetto offers two complementary techniques for debugging the above:
 
-- [**heap profiling**](#native-c-c-rust-heap-profling) for native code:
-  this is based on sampling callstacks when a
-  malloc/free happens and showing aggregated flamegraphs to break down memory
-  usage by call site.
+- [**heap profiling**](#native-c-c-rust-heap-profling) for native code: this is
+  based on sampling callstacks when a malloc/free happens and showing aggregated
+  flamegraphs to break down memory usage by call site.
 
-- [**heap dumps**](#java-managed-heap-dumps) for Java/managed code:
-  this is based on creating heap retention
-  graphs that show retention dependencies between objects (but no call-sites).
+- [**heap dumps**](#java-managed-heap-dumps) for Java/managed code: this is
+  based on creating heap retention graphs that show retention dependencies
+  between objects (but no call-sites).
 
 ## Native (C/C++/Rust) Heap Profling
 
 Native languages like C/C++/Rust commonly allocate and deallocate memmory at the
-lowest level by using the libc family of `malloc`/`free` functions. Native
-heap profiling works by _intercepting_ calls to these functions and injecting
-code which keeps track of the callstack of memory allocated but not freed.
-This allows to keep track of the "code origin" of each allocation.
-malloc/free can be perf-hotspots in heap-heavy processes: in order to mitigate
-the overhead of the memory profiler we support
-[sampling](/docs/design-docs/heapprofd-sampling) to trade-off accuracy and
-overhead.
+lowest level by using the libc family of `malloc`/`free` functions. Native heap
+profiling works by _intercepting_ calls to these functions and injecting code
+which keeps track of the callstack of memory allocated but not freed. This
+allows to keep track of the "code origin" of each allocation. malloc/free can be
+perf-hotspots in heap-heavy processes: in order to mitigate the overhead of the
+memory profiler we support [sampling](/docs/design-docs/heapprofd-sampling) to
+trade-off accuracy and overhead.
 
 NOTE: native heap profiling with Perfetto only works on Android and Linux; this
 is due to the techniques we use to intercept malloc and free only working on
 these operating systems.
 
-Heap profiling has a technical limitation: it is NOT retroactive.
-Heap profiling is only able to observe and report
-**allocations made after the trace started recording**. It is not able to
-provide any insight for allocations that happened before recording the trace.
-You can, of course, get a whole view by making sure to start trace recording
-before even launching the app/process. You need to be able to reproduce the
-memory leak/bloat.
+Heap profiling has a technical limitation: it is NOT retroactive. Heap profiling
+is only able to observe and report **allocations made after the trace started
+recording**. It is not able to provide any insight for allocations that happened
+before recording the trace. You can, of course, get a whole view by making sure
+to start trace recording before even launching the app/process. You need to be
+able to reproduce the memory leak/bloat.
 
 If your question is _"why is this process so big right now?"_ you cannot use
 heap profiling to answer questions about what happened in the past. However our
@@ -72,10 +75,11 @@ implementation.
 #### Prerequisites
 
 * A device running Android 10+.
-* A _Profileable_ or _Debuggable_ app. If you are running on a _"user"_ build of
-  Android (as opposed to _"userdebug"_ or _"eng"_), your app needs to be marked
-  as profileable or debuggable in its manifest.
-  See the [heapprofd documentation][hdocs] for more details.
+* A [_Profileable_ or _Debuggable_](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-instrumentation#profileable-apps)
+  app. If you are running on a _"user"_ build of Android (as opposed to
+  _"userdebug"_ or _"eng"_), your app needs to be marked as profileable or
+  debuggable in its manifest. See the [heapprofd documentation][hdocs] for more
+  details.
 
 [hdocs]: /docs/data-sources/native-heap-profiler.md#heapprofd-targets
 
@@ -104,13 +108,14 @@ implementation.
 #### Prerequisites
 
 * [ADB](https://developer.android.com/studio/command-line/adb) installed.
-* _Windows users_: Make sure that the downloaded adb.exe is in the PATH.  
+* _Windows users_: Make sure that the downloaded adb.exe is in the PATH.
   `set PATH=%PATH%;%USERPROFILE%\Downloads\platform-tools`
 * A device running Android 10+.
-* A _Profileable_ or _Debuggable_ app. If you are running on a _"user"_ build of
-  Android (as opposed to _"userdebug"_ or _"eng"_), your app needs to be marked
-  as profileable or debuggable in its manifest.
-  See the [heapprofd documentation][hdocs] for more details.
+* A [_Profileable_ or _Debuggable_](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-instrumentation#profileable-apps)
+  app. If you are running on a _"user"_ build of Android (as opposed to
+  _"userdebug"_ or _"eng"_), your app needs to be marked as profileable or
+  debuggable in its manifest. See the [heapprofd documentation][hdocs] for more
+  details.
 
 [hdocs]: /docs/data-sources/native-heap-profiler.md#heapprofd-targets
 
@@ -234,17 +239,17 @@ You can also change the aggregation to the following modes:
 
 ![Heap Profiling modes](/docs/images/heapprof-modes.png)
 
-* **Unreleased Malloc Size**: the default mode and aggregates callstacks by
+- **Unreleased Malloc Size**: the default mode and aggregates callstacks by
   SUM(non-freed memory bytes).
-* **Unreleased Malloc Count**: aggregates un-freed allocations by count,
+- **Unreleased Malloc Count**: aggregates un-freed allocations by count,
   ignoring the size of each allocation. This can be useful to spot leaks of
   small size, where each object is small, but a large number of them accumulates
   over time.
-* **Total Malloc Size**: aggregates callstack by bytes allocated via malloc(),
+- **Total Malloc Size**: aggregates callstack by bytes allocated via malloc(),
   whether they have been freed or not. This is helpful to investigate heap
   churn, code paths that create a lot of pressure on the allocator, even though
   they release memory in the end.
-* **Total Malloc Count**: like the above, but aggregates by number of calls to
+- **Total Malloc Count**: like the above, but aggregates by number of calls to
   `malloc()` and ignores the size of each allocation.
 
 ## Java/Managed Heap Dumps
@@ -283,9 +288,10 @@ implementation.
 #### Prerequisites
 
 * A device running Android 10+.
-* A _Profileable_ or _Debuggable_ app. If you are running on a _"user"_ build of
-  Android (as opposed to _"userdebug"_ or _"eng"_), your app needs to be marked
-  as profileable or debuggable in its manifest.
+* A [_Profileable_ or _Debuggable_](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-instrumentation#profileable-apps)
+  app. If you are running on a _"user"_ build of Android (as opposed to
+  _"userdebug"_ or _"eng"_), your app needs to be marked as profileable or
+  debuggable in its manifest.
 
 #### Instructions
 - Open https://ui.perfetto.dev/#!/record
@@ -312,12 +318,13 @@ implementation.
 #### Prerequisites
 
 * [ADB](https://developer.android.com/studio/command-line/adb) installed.
-* _Windows users_: Make sure that the downloaded adb.exe is in the PATH.  
+* _Windows users_: Make sure that the downloaded adb.exe is in the PATH.
   `set PATH=%PATH%;%USERPROFILE%\Downloads\platform-tools`
 * A device running Android 10+.
-* A _Profileable_ or _Debuggable_ app. If you are running on a _"user"_ build of
-  Android (as opposed to _"userdebug"_ or _"eng"_), your app needs to be marked
-  as profileable or debuggable in its manifest.
+* A [_Profileable_ or _Debuggable_](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-instrumentation#profileable-apps)
+  app. If you are running on a _"user"_ build of Android (as opposed to
+  _"userdebug"_ or _"eng"_), your app needs to be marked as profileable or
+  debuggable in its manifest.
 
 #### Instructions
 
@@ -362,18 +369,17 @@ The UI will show a flattened version of the heap graph, in the shape of a
 flamegraph. The flamegraph aggregates together summing objects of the same type
 that share the same reachability path. Two flattening strategies are possible:
 
-* **Shortest path**: this is the default option when selecting `Object Size`
-  in the flamegraph header. This arranges objects based on heuristics that
-  minimize the distance between them.
+- **Shortest path**: this is the default option when selecting `Object Size` in
+  the flamegraph header. This arranges objects based on heuristics that minimize
+  the distance between them.
 
-* **Dominator tree**: when selecting `Dominated Size`, it uses the dominator
+- **Dominator tree**: when selecting `Dominated Size`, it uses the dominator
   tree algorithm to flatten the graph.
 
 You can learn more about them in the
 [Debugging memory usage](/docs/case-studies/memory#java-hprof) case study
 
 ![Sample heap dump in the UI](/docs/images/jheapprof-dump.png)
-
 
 ## Other types of memory
 
@@ -384,8 +390,8 @@ There are other, more subtle, ways a process can use memory:
 
 - Native processes using custom allocators. This eventually decays in the mmap
   case above. However in this case we support instrumenting your custom
-  allocator and offering heap profiling capabilities to it.
-  See [heapprofd's Custom Allocator API](/docs/instrumentation/heapprofd-api).
+  allocator and offering heap profiling capabilities to it. See
+  [heapprofd's Custom Allocator API](/docs/instrumentation/heapprofd-api).
 
 - dmabuf: this typically happens with apps that exchange buffers directly with
   hardware blocks (e.g. Camera apps). We support tracking of dmabuf allocations
@@ -394,6 +400,12 @@ There are other, more subtle, ways a process can use memory:
 
 ## Next steps
 
-Learn more about memory debugging in the
-[Memory Usage on Android Guide](/docs/case-studies/memory.md) and more about the
-[heapprofd data-source](/docs/data-sources/native-heap-profiler.md)
+Now that you've recorded and analyzed your first memory profile, you can explore
+more advanced topics:
+
+- **Learn more about memory debugging:** The
+  [Memory Usage on Android Guide](/docs/case-studies/memory.md) provides a deep
+  dive into debugging memory issues on Android.
+- **Explore the heapprofd data source:** The
+  [heapprofd data source documentation](/docs/data-sources/native-heap-profiler.md)
+  provides more details on the native heap profiler.

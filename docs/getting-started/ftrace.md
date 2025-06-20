@@ -253,7 +253,7 @@ data_sources {
 duration_ms: 10000
 ```
 
-See the [system tracing page](/docs/getting-started/recording/system-tracing) in
+See the [system tracing page](/docs/getting-started/system-tracing.md) in
 order to get set up with tracebox. For this example we are going to record a
 trace from the command line using the config file we just created.
 

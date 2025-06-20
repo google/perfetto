@@ -156,4 +156,13 @@ traces at the same time so you can have the best of both worlds!
 
 ## Next Steps
 
-TODO: point people to Perfetto docs
+Now that you have a better understanding of tracing and profiling, you can use
+Perfetto to:
+
+- **Record a trace** of your application and system to understand its behavior.
+- **Analyze a trace** to identify performance bottlenecks.
+- **Visualize a trace** to see a timeline of events.
+
+To learn how to do this, head to our
+[How do I start using Perfetto?](/docs/getting-started/start-using-perfetto.md)
+page.

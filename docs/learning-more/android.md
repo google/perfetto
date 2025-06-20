@@ -2,7 +2,7 @@
 
 This page explains dives deeper into record system traces on Android building on
 the introduction in the
-[System Tracing Tutorial](/docs/getting-started/recording/system-tracing.md).
+[System Tracing Tutorial](/docs/getting-started/system-tracing.md).
 
 ## Starting the tracing services
 
@@ -21,7 +21,7 @@ adb shell setprop persist.traced.enable 1
 If you are running a version of Android older than P, the only supported way to
 trace with Perfetto is with the `record_android_trace` script as described in
 the
-[System Tracing Tutorial](/docs/getting-started/recording/system-tracing.md).
+[System Tracing Tutorial](/docs/getting-started/system-tracing.md).
 
 ## Recording using the on-device /system/bin/perfetto command
 

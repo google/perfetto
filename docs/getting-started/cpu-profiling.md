@@ -1,5 +1,11 @@
 # Recording performance counters and CPU profiling with Perfetto
 
+In this guide, you'll learn how to:
+
+- Record CPU profiles and performance counters with Perfetto.
+- Collect callstack profiles to identify performance bottlenecks.
+- Visualize and analyze CPU profiles in the Perfetto UI.
+
 On linux and android, perfetto can record per-cpu [perf
 counters](https://perfwiki.github.io/main/), for example hardware events such
 as executed instructions or cache misses. Additionally, perfetto can be
@@ -265,9 +271,10 @@ Prerequisites:
   host machine.
 - A device running Android 15+, connected to the host machine using USB with
   ADB authorised.
-- A _Profileable_ or _Debuggable_ app. If you are running on a "user" build of
-  Android (as opposed to "userdebug" or "eng"), your app needs to be marked
-  as profileable or debuggable in its manifest.
+- A [_Profileable_ or _Debuggable_](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-instrumentation#profileable-apps)
+  app. If you are running on a "user" build of Android (as opposed to
+  "userdebug" or "eng"), your app needs to be marked as profileable or
+  debuggable in its manifest.
 
 For android, the `tools/cpu_profile` helper python script simplifies
 construction of the trace config, and has additional options for
@@ -367,10 +374,12 @@ show dynamic flamegraph views of the selected callstacks.
 
 The sample data can also be queried from the
 [`perf_sample`](/docs/analysis/sql-tables.autogen#perf_sample) table via SQL.
+
 ### Alternatives
 
 The perfetto profiling implementation is built for continuous (streaming)
 collection, and is therefore less optimised for short, high-frequency
 profiling. If all you need are aggregated flamegraphs, consider `simpleperf` on
-Android and `perf` on Linux.
+Android and `perf` on Linux. These tools are more mature and have a simpler user
+interface for this use case.
 
