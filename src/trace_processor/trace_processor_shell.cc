@@ -1367,10 +1367,10 @@ base::Status IncludeSqlPackage(std::string root, bool allow_override) {
 
   // Get package name
   size_t last_slash = root.rfind('/');
-  if ((last_slash == std::string::npos) ||
-      (root.find('.') != std::string::npos))
-    return base::ErrStatus("Package path must point to the directory: %s",
+  if (last_slash == std::string::npos) {
+    return base::ErrStatus("Package path must point to a directory: %s",
                            root.c_str());
+  }
 
   std::string package_name = root.substr(last_slash + 1);
 
@@ -1378,13 +1378,22 @@ base::Status IncludeSqlPackage(std::string root, bool allow_override) {
   RETURN_IF_ERROR(base::ListFilesRecursive(root, paths));
   sql_modules::NameToPackage modules;
   for (const auto& path : paths) {
-    if (base::GetFileExtension(path) != ".sql")
+    if (base::GetFileExtension(path) != ".sql") {
       continue;
+    }
+
+    std::string path_no_extension = path.substr(0, path.rfind('.'));
+    if (path_no_extension.find('.') != std::string_view::npos) {
+      PERFETTO_ELOG("Skipping module %s as it contains a dot in its path.",
+                    path_no_extension.c_str());
+      continue;
+    }
 
     std::string filename = root + "/" + path;
     std::string file_contents;
-    if (!base::ReadFile(filename, &file_contents))
+    if (!base::ReadFile(filename, &file_contents)) {
       return base::ErrStatus("Cannot read file %s", filename.c_str());
+    }
 
     std::string import_key =
         package_name + "." + sql_modules::GetIncludeKey(path);
