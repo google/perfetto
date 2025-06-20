@@ -104,6 +104,7 @@ action("gen_buildflags") {
     "PERFETTO_LLVM_DEMANGLE=$enable_perfetto_llvm_demangle",
     "PERFETTO_SYSTEM_CONSUMER=$enable_perfetto_system_consumer",
     "PERFETTO_THREAD_SAFETY_ANNOTATIONS=$perfetto_thread_safety_annotations",
+    "PERFETTO_ENABLE_WINSCOPE=$enable_perfetto_winscope",
   ]
 
   rel_out_path = rebase_path(gen_header_path, "$root_build_dir")
