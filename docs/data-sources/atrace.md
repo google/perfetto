@@ -1,16 +1,16 @@
 # ATrace: Android system and app trace events
 
-On Android, native and managed apps can inject custom slices and counter trace
-points into the trace. This is possible through the following:
+ATrace is the standard way to add custom trace points to Android applications
+and services. These trace points can be visualized as slices and counters in the
+Perfetto UI.
 
-* Java/Kotlin apps (SDK): `android.os.Trace`.
-  See https://developer.android.com/reference/android/os/Trace.
+The ATrace API is exposed through the following surfaces:
 
-* Native processes (NDK): `ATrace_beginSection() / ATrace_setCounter()` defined
-  in `<trace.h>`. See https://developer.android.com/ndk/reference/group/tracing.
-
-* Android internal processes: `ATRACE_BEGIN()/ATRACE_INT()` defined in
-  [`libcutils/trace.h`][libcutils].
+*   **Java/Kotlin apps (SDK):** [`android.os.Trace`](https://developer.android.com/reference/android/os/Trace)
+*   **Native processes (NDK):** [`ATrace_beginSection()`](https://developer.android.com/ndk/reference/group/tracing)
+    and `ATrace_setCounter()`
+*   **Android internal processes:** `ATRACE_BEGIN()` and `ATRACE_INT()` in
+    [`libcutils/trace.h`](https://cs.android.com/android/platform/superproject/main/+/main:system/core/libcutils/include/cutils/trace.h?q=f:trace%20libcutils)
 
 This API has been available since Android 4.3 (API level 18) and predates
 Perfetto. All these annotations, which internally are all routed through the
@@ -120,3 +120,4 @@ data_sources {
   }
 }
 ```
+

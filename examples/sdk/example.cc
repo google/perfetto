@@ -51,6 +51,10 @@ std::unique_ptr<perfetto::TracingSession> StartTracing() {
   cfg.add_buffers()->set_size_kb(1024);
   auto* ds_cfg = cfg.add_data_sources()->mutable_config();
   ds_cfg->set_name("track_event");
+  perfetto::protos::gen::TrackEventConfig te_cfg;
+  te_cfg.add_disabled_categories("*");
+  te_cfg.add_enabled_categories("rendering");
+  ds_cfg->set_track_event_config_raw(te_cfg.SerializeAsString());
 
   auto tracing_session = perfetto::Tracing::NewTrace();
   tracing_session->Setup(cfg);
@@ -108,8 +112,18 @@ int main(int, const char**) {
   desc.mutable_process()->set_process_name("Example");
   perfetto::TrackEvent::SetTrackDescriptor(process_track, desc);
 
+  TRACE_EVENT_INSTANT("rendering", "Event1");
+
+  // Sleep to simulate a long computation.
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
   // Simulate some work that emits trace events.
   DrawGame();
+
+  // Sleep to simulate a long computation.
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+  TRACE_EVENT_INSTANT("rendering", "Event2");
 
   StopTracing(std::move(tracing_session));
   return 0;

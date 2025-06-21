@@ -133,7 +133,7 @@ function updateNav() {
 
   // First identify all the top-level nav entries (Quickstart, Data Sources,
   // ...) and make them compressible.
-  const toplevelSections = document.querySelectorAll(".docs .nav > ul > li");
+  const toplevelSections = document.querySelectorAll('.docs .nav > ul > li > ul > li');
   const toplevelLinks = [];
   for (const sec of toplevelSections) {
     const childMenu = sec.querySelector("ul");
@@ -186,10 +186,16 @@ function updateNav() {
       if (toplevelLinks.indexOf(x) < 0) {
         x.removeAttribute("href");
       }
-    } else if (url.pathname === curFileName && !found) {
-      x.classList.add("selected");
-      doAfterLoadEvent(() => x.scrollIntoViewIfNeeded());
-      found = true; // Highlight only the first occurrence.
+    } else if ((url.pathname === curFileName || url.pathname + 'index.html' === curFileName) && !found) {
+      x.classList.add('selected');
+      doAfterLoadEvent(() =>
+        x.scrollIntoViewIfNeeded({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'center',
+        }),
+      );
+      found = true;  // Highlight only the first occurrence.
     }
   }
 }
@@ -296,7 +302,34 @@ function setupSearch() {
   });
 }
 
-window.addEventListener("DOMContentLoaded", () => {
+function setupTabs() {
+  const tabs = document.body.querySelectorAll('.tab-box');
+  for (const tab of tabs) {
+    const tabButtons = tab.querySelectorAll('.tab-button');
+    const tabContents = tab.querySelectorAll('.tab-content');
+    if (tabButtons.length !== tabContents.length || tabButtons.length === 0) {
+      continue;
+    }
+    let active = undefined;
+    const updateSelected = (newActive) => {
+      if (active !== undefined) {
+        tabButtons[active].classList.remove('tab-button-selected');
+        tabContents[active].classList.remove('tab-content-selected');
+      }
+      tabButtons[newActive].classList.add('tab-button-selected');
+      tabContents[newActive].classList.add('tab-content-selected');
+      active = newActive;
+    };
+    for (let i = 0; i < tabButtons.length; ++i) {
+      tabButtons[i].addEventListener('click', (e) => {
+        updateSelected(i);
+      });
+    }
+    updateSelected(0);
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
   updateNav();
   updateTOC();
 });
@@ -319,6 +352,7 @@ window.addEventListener("load", () => {
 
   updateTOC();
   setupSearch();
+  setupTabs();
 
   // Enable animations only after the load event. This is to prevent glitches
   // when switching pages.
@@ -356,7 +390,8 @@ const redirectMap = {
   // stdlib docs is not a perfect replacement but is good enough until we write
   // a proper, Android specific query codelab page.
   // TODO(lalitm): switch to that page when it's ready.
-  "/docs/analysis/common-queries": "/docs/analysis/stdlib-docs",
+  '/docs/analysis/common-queries': '/docs/analysis/stdlib-docs',
+  '/docs/contributing/perfetto-in-the-press': '/docs/#who-uses-perfetto-',
 };
 
 if (location.pathname in redirectMap) {
