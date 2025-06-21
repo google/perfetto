@@ -18,15 +18,14 @@ traces.
 ## The Basics: Perfetto's Trace Format
 
 A Perfetto trace file (`.pftrace` or `.perfetto-trace`) is a sequence of
-[TracePacket](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/trace/trace_packet.proto)
-messages, wrapped in a root
-[Trace](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/trace/trace.proto)
-message. Each `TracePacket` can contain various types of data.
+[TracePacket](/protos/perfetto/trace/trace_packet.proto) messages, wrapped in a
+root [Trace](/protos/perfetto/trace/trace.proto) message. Each `TracePacket` can
+contain various types of data.
 
 For generating traces from custom data, the most common and flexible payload to
 use within a `TracePacket` is the
-[TrackEvent](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/trace/track_event/track_event.proto).
-`TrackEvent` allows you to define:
+[TrackEvent](/protos/perfetto/trace/track_event/track_event.proto). `TrackEvent`
+allows you to define:
 
 - **Tracks**: A single sequence of events (slices or counter) over time.
   Corresponds to a single "swim-lane" in the Perfetto UI.
@@ -85,7 +84,7 @@ inside the `populate_packets` function.
 #!/usr/bin/env python3
 import uuid
 
-from perfetto.trace_builder import TraceProtoBuilder
+from perfetto.trace_builder.proto_builder import TraceProtoBuilder
 from perfetto.protos.perfetto.trace.perfetto_trace_pb2 import TrackEvent, TrackDescriptor, ProcessDescriptor, ThreadDescriptor
 
 def populate_packets(builder: TraceProtoBuilder):
@@ -197,7 +196,7 @@ your `trace_converter_template.py` script.
     TRUSTED_PACKET_SEQUENCE_ID = 1001 # Choose any unique integer
 
     # Define a unique UUID for your custom track (generate a 64-bit random number)
-    CUSTOM_TRACK_UUID = 1234567890ABCDEF # Example UUID
+    CUSTOM_TRACK_UUID = 12345678 # Example UUID
 
     # 1. Define the Custom Track
     # This packet describes the track on which your events will be displayed.
@@ -246,7 +245,10 @@ your `trace_converter_template.py` script.
 
 </details>
 
-TODO: add image here
+After running the script, opening the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+
+![Basic Timeline Slices](/docs/images/converting-basic-slices.png)
 
 ## Nested Slices (Hierarchical Activities)
 
@@ -292,7 +294,7 @@ your `trace_converter_template.py` script.
     TRUSTED_PACKET_SEQUENCE_ID = 2002 # Using a new ID for this example
 
     # Define a unique UUID for this example's custom track
-    NESTED_SLICE_TRACK_UUID = 9876543210FEDCBA # Example UUID
+    NESTED_SLICE_TRACK_UUID = 987654321 # Example UUID
 
     # 1. Define the Custom Track for Nested Slices
     # Emit this once at the beginning.
@@ -337,7 +339,10 @@ your `trace_converter_template.py` script.
 
 </details>
 
-TODO: add image here
+After running the script, opening the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+
+![Nested Slices](/docs/images/converting-nested.png)
 
 ## Asynchronous Slices and Overlapping Events
 
@@ -378,9 +383,7 @@ to encourage the UI to group them. We'll use helper functions to define tracks
 and add events.
 
 Copy the following Python code into the `populate_packets(builder)` function in
-your `trace_converter_template.py` script. Ensure necessary protobuf classes
-like `TrackEvent`, `TrackDescriptor` are imported. You'll also need `uuid` for
-generating unique track UUIDs.
+your `trace_converter_template.py` script:
 
 <details>
 <summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
@@ -426,7 +429,10 @@ generating unique track UUIDs.
 
 </details>
 
-TODO: add image here
+After running the script, opening the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+
+![Asynchronous Slices](/docs/images/converting-async-slices.png)
 
 ## Counters (Values Changing Over Time)
 
@@ -483,7 +489,7 @@ your `trace_converter_template.py` script.
         packet.timestamp = ts
         packet.track_event.type = TrackEvent.TYPE_COUNTER
         packet.track_event.track_uuid = OUTSTANDING_REQUESTS_TRACK_UUID
-        packet.track_event.counter_value = float(value)
+        packet.track_event.counter_value = value
         packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
 
     # 2. Emit counter values over time
@@ -501,7 +507,10 @@ your `trace_converter_template.py` script.
 
 </details>
 
-TODO: add image here
+After running the script, opening the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+
+![Counters](/docs/images/converting-counters.png)
 
 ## Flows (Connecting Causally Related Events)
 
@@ -607,7 +616,10 @@ your `trace_converter_template.py` script.
 
 </details>
 
-TODO: this looks like so.
+After running the script, opening the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+
+![Flows](/docs/images/converting-flows.png)
 
 ## Grouping Tracks with Hierarchies
 
@@ -715,7 +727,10 @@ your `trace_converter_template.py` script.
 
 </details>
 
-TODO: this looks like so.
+After running the script, opening the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+
+![Grouping Tracks with Hierarchies](/docs/images/converting-track-groups.png)
 
 ## Track Hierarchies for Waterfall / Trace Views
 
@@ -822,7 +837,10 @@ your `trace_converter_template.py` script.
 
 </details>
 
-TODO: this looks like so.
+After running the script, opening the generated `my_custom_trace.pftrace` in the
+[Perfetto UI](https://ui.perfetto.dev) will display the following output:
+
+![Track Hierarchies for Waterfall / Trace Views](/docs/images/converting-waterfall.png)
 
 ## Next Steps
 
@@ -842,7 +860,6 @@ you can:
 - **Visualize your trace:** Open your generated `.pftrace` file in the
   [Perfetto UI](https://ui.perfetto.dev) to explore your data on an interactive
   timeline.
-- **Analyze with SQL:** Use the
-  [Trace Processor](/docs/analysis/index.md) to query your custom
-  trace data. Your custom tracks and events will populate standard tables like
-  `slice`, `track`, `counter`, etc.
+- **Analyze with SQL:** Use the [Trace Processor](/docs/analysis/index.md) to
+  query your custom trace data. Your custom tracks and events will populate
+  standard tables like `slice`, `track`, `counter`, etc.

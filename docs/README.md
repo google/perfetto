@@ -8,8 +8,6 @@ Perfetto is an open-source suite of SDKs, daemons and tools which use
 **tracing** to help developers understand the behaviour of the complex systems
 and root-cause functional and performance issues on client / embedded systems.
 
-TODO: add updated diagram here.
-
 It consists of:
 
 - **High-performance tracing daemons** for capturing tracing information from
