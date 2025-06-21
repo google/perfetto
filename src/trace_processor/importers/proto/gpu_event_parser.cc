@@ -457,6 +457,7 @@ void GpuEventParser::ParseGpuRenderStageEvent(
         render_pass_name.has_value()
             ? context_->storage->InternString(render_pass_name.value().c_str())
             : kNullStringId;
+
     auto command_buffer_name = FindDebugName(VK_OBJECT_TYPE_COMMAND_BUFFER,
                                              event.command_buffer_handle());
     auto command_buffer_name_id = command_buffer_name.has_value()
@@ -490,6 +491,15 @@ void GpuEventParser::ParseGpuRenderStageEvent(
               }
             }
           }
+
+          if (event.render_pass_handle()) {
+            base::StackString<512> id_str("rp:#%" PRIu64,
+                                          event.render_pass_handle());
+            inserter->AddArg(context_->storage->InternString("correlation_id"),
+                             Variadic::String(context_->storage->InternString(
+                                 id_str.string_view())));
+          }
+
           for (auto it = event.extra_data(); it; ++it) {
             protos::pbzero::GpuRenderStageEvent_ExtraData_Decoder datum(*it);
             StringId name_id = context_->storage->InternString(datum.name());
