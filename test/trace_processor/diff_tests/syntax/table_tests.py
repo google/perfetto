@@ -468,10 +468,12 @@ class PerfettoTable(TestSuite):
         "background_blur_scale","background_blur_scale","[NULL]","[NULL]",0.000000
         "barrier_layer","barrier_layer","[NULL]","[NULL]","[NULL]"
         "blur_regions","blur_regions","[NULL]","[NULL]","[NULL]"
+        "border_settings","border_settings","[NULL]","[NULL]","[NULL]"
         "bounds.bottom","bounds.bottom","[NULL]","[NULL]",24000.000000
         "bounds.left","bounds.left","[NULL]","[NULL]",-10800.000000
         "bounds.right","bounds.right","[NULL]","[NULL]",10800.000000
         "bounds.top","bounds.top","[NULL]","[NULL]",-24000.000000
+        "box_shadow_settings","box_shadow_settings","[NULL]","[NULL]","[NULL]"
         "buffer_transform","buffer_transform","[NULL]","[NULL]","[NULL]"
         "children","children[0]",4,"[NULL]","[NULL]"
         "children","children[1]",35,"[NULL]","[NULL]"
