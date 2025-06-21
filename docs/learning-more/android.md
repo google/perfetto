@@ -1,38 +1,52 @@
-# System Tracing on Android
+# Advanced System Tracing on Android
 
-This page explains dives deeper into record system traces on Android building on
-the introduction in the
-[System Tracing Tutorial](/docs/getting-started/system-tracing.md).
+This guide dives deeper into recording system traces on Android, building on the
+concepts introduced in the
+[System Tracing](/docs/getting-started/system-tracing.md) guide.
 
-## Starting the tracing services
+Before you continue, you should be familiar with the basics of recording a
+system trace using either the
+[Perfetto UI](/docs/getting-started/system-tracing.md#android-perfetto-ui) or
+the
+[`record_android_trace`](/docs/getting-started/system-tracing.md#android-command-line)
+script.
 
-Perfetto is based on [platform services](/docs/concepts/service-model.md) that
-are available since Android 9 (P) but are enabled by default only since Android
-11 (R).
+This guide covers the lower-level details that these tools abstract away,
+including:
 
-On Android 9 (P) and 10 (Q) you need to do the following to ensure that the
-tracing services are enabled before getting started:
+- Enabling the Perfetto tracing services on older Android versions.
+- Using the on-device `/system/bin/perfetto` binary directly.
+- Writing and using a full trace config for advanced customization.
+
+## Prerequisites: Enabling Tracing Services
+
+Perfetto's tracing daemons (`traced`) are built into Android, but they are only
+enabled by default on **Android 11 (R) and newer**.
+
+If you are using **Android 9 (P)** or **Android 10 (Q)**, you must first enable
+the tracing services by running the following command:
 
 ```bash
 # Needed only on Android 9 (P) and 10 (Q) on non-Pixel phones.
 adb shell setprop persist.traced.enable 1
 ```
 
-If you are running a version of Android older than P, the only supported way to
-trace with Perfetto is with the `record_android_trace` script as described in
-the
-[System Tracing Tutorial](/docs/getting-started/system-tracing.md).
+NOTE: If you are using a version of Android older than 9 (P), the on-device
+tools will not work. You must use the
+[`record_android_trace`](/docs/getting-started/system-tracing.md#android-command-line)
+script.
 
 ## Recording using the on-device /system/bin/perfetto command
 
-The `record_android_trace` in the `System Tracing Tutorial` is really just a
-wrapper around the `/system/bin/perfetto` binary which lives on device.
-
-`/system/bin/perfetto` can be used directly without the script:
+The `record_android_trace` script is a wrapper around the on-device
+`/system/bin/perfetto` binary. For most use cases, the script is recommended,
+but you can also invoke the binary directly for more control.
 
 ```bash
+# Example of invoking the on-device binary directly.
 adb shell perfetto \
   # The path to the output file on device.
+  # Time to record the trace.
   -o /data/misc/perfetto-traces/trace_file.perfetto-trace \
   # Time to record the trace.
   -t 20s \
@@ -40,37 +54,45 @@ adb shell perfetto \
   sched freq idle am wm gfx view binder_driver hal dalvik input res memory
 ```
 
-Caveats when using directly the `adb shell perfetto` workflow:
+However, there are several caveats to be aware of when using
+`adb shell perfetto` directly:
 
-- Ctrl+C, which normally causes a graceful termination of the trace, is not
-  propagated by ADB when using `adb shell perfetto` but only when using an
-  interactive PTY-based session via `adb shell`.
-- On non-rooted devices before Android 12, the config can only be passed as
-  `cat config | adb shell perfetto -c -` (-: stdin) because of over-restrictive
-  SELinux rules. Since Android 12 `/data/misc/perfetto-configs` can be used for
-  storing configs.
-- On devices before Android 10, adb cannot directly pull
-  `/data/misc/perfetto-traces`. Use
-  `adb shell cat /data/misc/perfetto-traces/trace > trace` to work around.
-- When capturing longer traces, e.g. in the context of benchmarks or CI, use
-  `PID=$(perfetto --background)` and then `kill $PID` to stop.
+- **Stopping the trace**: `Ctrl+C` does not work reliably with
+  `adb shell perfetto`. It is only propagated correctly when using an
+  interactive PTY-based session (i.e., running `adb shell` first, then
+  `perfetto` inside the shell). For long-running traces, it is safer to use the
+  `--background` flag and `kill` the process by its PID. See the
+  [Tracing in the Background](/docs/learning-more/tracing-in-background.md)
+  guide for more.
 
-## Recording using the full trace config
+- **Passing trace configs**: On non-rooted devices before Android 12, SELinux
+  rules prevent the `perfetto` process from reading config files from
+  world-writable locations like `/data/local/tmp`. The recommended workaround is
+  to pipe the config via standard input:
+  `cat config.pbtx | adb shell perfetto -c -`. Since Android 12, you can place
+  configs in `/data/misc/perfetto-configs` and pass the path directly.
 
-The short syntax allows to enable only a subset of the data sources; for full
-control of the trace config, pass the full trace config in input.
+- **Pulling trace files**: On devices before Android 10, `adb pull` may not be
+  able to access the trace file directly due to permissions. The workaround is
+  to use `adb shell cat`:
+  `adb shell cat /data/misc/perfetto-traces/trace > trace.pftrace`.
 
-See the [_Trace configuration_ page](/docs/concepts/config.md) and the examples
-in each data source doc page for detailed instructions about how to configure
-all the various knobs of Perfetto.
+## Using a Full Trace Config
 
-If you are running on a Mac or Linux host, or are using a bash-based terminal on
-Windows, you can use the following:
+For full control over the tracing process, you can provide a complete trace
+config file instead of using command-line flags. This allows you to enable
+multiple data sources and fine-tune their settings.
+
+See the [Trace Configuration](/docs/concepts/config.md) page for a detailed
+guide on writing trace configs.
 
 WARNING: The below command does not work on Android P because the `--txt` option
 was introduced in Q. The binary protobuf format should be used instead; the
 details of this can be found on the
 [_Trace configuration_ page](https://perfetto.dev/docs/concepts/config#pbtx-vs-binary-format).
+
+If you are running on a Mac or Linux host, or are using a bash-based terminal on
+Windows, you can use the following:
 
 ```bash
 cat<<EOF>config.pbtx

@@ -6,10 +6,6 @@ In this guide, you'll learn how to:
 - Record and visualize `ATrace` events in the Perfetto UI.
 - Understand the difference between `ATrace` and the Perfetto Tracing SDK.
 
-In this page you will learn how to add instrumentation to code in Android apps,
-services and platform code. This will allow you to emit slices and counters into
-the trace resulting in something like the image below.
-
 This page is mainly intended for:
 
 - Android platform engineers for instrumenting their platform services.
@@ -22,8 +18,6 @@ This page is mainly intended for:
 
 ![Atrace slices example](/docs/images/atrace_slices.png)
 
-## Introduction
-
 Atrace is an API introduced in Android 4.3 that predates that allows you to add
 instrumentation to your code. It is still supported and in use, and
 interoperates well with Perfetto.
@@ -34,11 +28,11 @@ trace data. Atrace is both:
 
 1. A public API, exposed both to Java/Kt code via the Android SDK and C/C++ code
    via the NDK, that developers can use to enrich traces annotating their apps.
-2. An internal system API used to annotate several framework functions and the
-   internal implementation of core system services. It provides developers with
-   insights about what the framework is doing under the hoods.
+2. A private platform API used to annotate several framework functions and the
+   implementation of core system services. It provides developers with insights
+   about what the framework is doing under the hoods.
 
-The main difference between the two is that the internal implementation allows
+The main difference between the two is that the private platform API allows
 specifying a _tag_ (also known as _category_), while the SDK/NDK interface
 implicitly uses TRACE_TAG_APP.
 
@@ -46,24 +40,23 @@ In both cases, Atrace allows you to manually add instrumentation around code
 wall timing and numeric values, e.g. to annotate the beginning or end of
 functions, logical user journeys, state changes.
 
-## Instrumenting code
-
-### Thread-scoped synchronous slices
+## Thread-scoped synchronous slices
 
 Slices are used to create rectangles around the execution of code and visually
 form a pseudo-callstack.
 
 Semantic and constraints:
 
-- Slices are emitted with begin/end APIs.
-- Begin/end MUST be balanced and must happen on the same thread.
-- Slices are visualized in a thread-scoped track (as in the picture above).
-- See [Cross-thread async slices](#cross-thread-async-slices) below for
-  cross-thread use-cases.
+- **API**: Slices are emitted with begin/end APIs.
+- **Balancing**: Begin/end MUST be balanced and must happen on the same thread.
+- **Visualization**: Slices are visualized in a thread-scoped track (as in the
+  picture above).
+- **Cross-thread**: See [Cross-thread async slices](#cross-thread-async-slices)
+  below for cross-thread use-cases.
 
 <?tabs>
 
-TAB: Java (internal)
+TAB: Java (platform private)
 
 Refer to [frameworks/base/core/java/android/os/Trace.java](https://cs.android.com/android/platform/superproject/main/+/main:frameworks/base/core/java/android/os/Trace.java?q=frameworks%2Fbase%2Fcore%2Fjava%2Fandroid%2Fos%2FTrace.java)
 
@@ -99,7 +92,7 @@ public void playSound(String path) {
 }
 ```
 
-TAB: C/C++ (internal)
+TAB: C/C++ (platform private)
 
 ```c++
 // ATRACE_TAG is the category that will be used in this translation unit.
@@ -202,19 +195,19 @@ void PlaySound(const char* path) {
 ```
 </tabs?>
 
-### Counters
+## Counters
 
 Semantic and constraints:
 
-- Counters can be emitted from any thread and are visualized in a process-scoped
-  track named after the counter name (the string argument).
-- Each new counter name automatically yields a new track in the UI.
-- Counter events from different threads within the a process are folded into the
-  same process-scoped track.
+- **Threading**: Counters can be emitted from any thread.
+- **Visualization**: Counters are visualized in a process-scoped track named
+  after the counter name (the string argument). Each new counter name
+  automatically yields a new track in the UI. Counter events from different
+  threads within a process are folded into the same process-scoped track.
 
 <?tabs>
 
-TAB: Java (internal)
+TAB: Java (platform private)
 
 Refer to [frameworks/base/core/java/android/os/Trace.java](https://cs.android.com/android/platform/superproject/main/+/main:frameworks/base/core/java/android/os/Trace.java?q=frameworks%2Fbase%2Fcore%2Fjava%2Fandroid%2Fos%2FTrace.java)
 
@@ -233,7 +226,7 @@ public void playSound(String path) {
 }
 ```
 
-TAB: C/C++ (internal)
+TAB: C/C++ (platform private)
 
 ```c++
 // ATRACE_TAG is the category that will be used in this translation unit.
@@ -298,7 +291,7 @@ void PlaySound(const char* path) {
 ```
 </tabs?>
 
-### Cross-thread async slices
+## Cross-thread async slices
 
 Async slices allow to trace logical operations that might begin and end on
 different threads. They are the same concept of _track events_ in the Perfetto
@@ -311,33 +304,30 @@ that represents the logical operation being traced (e.g. a job id).
 
 Semantic and constraints:
 
-- Because of their async nature, slices can overlap temporally: one operation
-  might begin before the previous one has ended.
-- Cookies must be unique within a process: you cannot have a begin event for the
-  same cookie before having emitted an end event for it. In other words, cookies
-  are a shared integer namespce within the process. Using a monotonic counter is
-  probably a bad idea unless you have full control of all the code in the
-  process.
-- Unlike thread-scoped slices, no nesting/stacking is possible. Each slice is
-  independent of each other. This is one of the main limitations vs the
-  equivalent TrackEvent API in the Perfetto SDK, which allows nesting.
-- Visually async slices are first grouped by tracks, as follows:
-  - SDK/NDK: the track is process-scoped is derived from the event name. You
-    cannot have async slices with different names in the same track.
-  - Android Tree: the `...ForTrack` functions allow to specify a track name. All
-    events with the same track name end up in the same process-scoped track in
-    the UI.
-- Visually, the UI lays slice withi each track using a greedy stacking
-  algorithm. Each slice is placed in the uppermost lane that doesn’t overlap
-  with any other slice. This sometimes generates confusion amongst users as it
-  creates a false sense of "parent/child" relationship. However, unlike sync
-  slices, the relationship is purely temporal and not causal and you cannot
+- **Overlapping**: Because of their async nature, slices can overlap temporally:
+  one operation might begin before the previous one has ended.
+- **Cookies**: Cookies must be unique within a process. You cannot have a begin
+  event for the same cookie before having emitted an end event for it. In other
+  words, cookies are a shared integer namespace within the process. Using a
+  monotonic counter is probably a bad idea unless you have full control of all
+  the code in the process.
+- **Nesting and Tracks**: Unlike thread-scoped slices, nesting/stacking is only
+  possible when using the private platform API. The `...ForTrack` functions
+  allow you to specify a track name, and all events with the same track name
+  will be grouped in the same process-scoped track in the UI. Within a track,
+  nesting is controlled by the `cookie` parameter. The SDK/NDK API does not
+  support nesting, and the track is derived from the event name.
+- **Stacking**: Visually, the UI lays slice within each track using a greedy
+  stacking algorithm. Each slice is placed in the uppermost lane that doesn’t
+  overlap with any other slice. This sometimes generates confusion amongst users
+  as it creates a false sense of "parent/child" relationship. However, unlike
+  sync slices, the relationship is purely temporal and not causal and you cannot
   control it (other than grouping events into tracks, if you have access to the
-  internal system API).
+  private platform API).
 
 <?tabs>
 
-TAB: Java (internal)
+TAB: Java (platform private)
 
 Refer to [frameworks/base/core/java/android/os/Trace.java](https://cs.android.com/android/platform/superproject/main/+/main:frameworks/base/core/java/android/os/Trace.java?q=frameworks%2Fbase%2Fcore%2Fjava%2Fandroid%2Fos%2FTrace.java)
 
@@ -364,7 +354,7 @@ public class AudioRecordActivity extends Activity {
 }
 ```
 
-TAB: C/C++ (internal)
+TAB: C/C++ (platform private)
 
 ```c++
 // ATRACE_TAG is the category that will be used in this translation unit.
@@ -445,102 +435,6 @@ void onButtonClicked() {
 ```
 </tabs?>
 
-### Counters
-
-Semantic and constraints:
-
-- Counters can be emitted from any thread and are visualized in a process-scoped
-  track named after the counter name (the string argument).
-- Each new counter name automatically yields a new track in the UI.
-- Counter events from different threads within the a process are folded into the
-  same process-scoped track.
-
-<?tabs>
-
-TAB: Java (internal)
-
-Refer to [frameworks/base/core/java/android/os/Trace.java](https://cs.android.com/android/platform/superproject/main/+/main:frameworks/base/core/java/android/os/Trace.java?q=frameworks%2Fbase%2Fcore%2Fjava%2Fandroid%2Fos%2FTrace.java)
-
-```java
-import android.os.Trace;
-import static android.os.Trace.TRACE_TAG_AUDIO;
-
-public void playSound(String path) {
-  SoundDevice dev = openAudioDevice();
-  for(...) {
-    sendAudioBuffer(dev, ...)
-    ...
-    // Log buffer usage statistics in the trace.
-    Trace.setCounter(TRACE_TAG_AUDIO, "SndBufferUsage", dev->buffer.used_bytes)
-  }
-}
-```
-
-TAB: C/C++ (internal)
-
-```c++
-// ATRACE_TAG is the category that will be used in this translation unit.
-// Pick one of the categories defined in Android's
-// system/core/libcutils/include/cutils/trace.h
-#define ATRACE_TAG ATRACE_TAG_AUDIO
-
-#include <cutils/trace.h>
-
-void PlaySound(const char* path) {
-  struct snd_dev* dev = OpenAudioDevice();
-
-  for(...) {
-    SendAudioBuffer(dev, ...)
-
-    // Log buffer usage statistics in the trace.
-    ATRACE_INT("SndBufferUsage", dev->buffer.used_bytes);
-  }
-}
-```
-
-TAB: Java (SDK)
-
-Refer to the [SDK reference documentation for os.trace](https://developer.android.com/reference/android/os/Trace).
-
-```java
-// You cannot choose a tag/category when using the SDK API.
-// Implicitly all calls use the ATRACE_TAG_APP tag.
-import android.os.Trace;
-
-public void playSound(String path) {
-  SoundDevice dev = openAudioDevice();
-
-  for(...) {
-    sendAudioBuffer(dev, ...)
-
-    // Log buffer usage statistics in the trace.
-    Trace.setCounter("SndBufferUsage", dev->buffer.used_bytes)
-  }
-}
-```
-
-TAB: C/C++ (NDK)
-
-Refer to the [NDK reference documentation for Tracing](https://developer.android.com/ndk/reference/group/tracing).
-
-```c++
-// You cannot choose a tag/category when using the NDK API.
-// Implicitly all calls use the ATRACE_TAG_APP tag.
-#include <android/trace.h>
-
-void PlaySound(const char* path) {
-  struct snd_dev* dev = OpenAudioDevice();
-
-  for(...) {
-    SendAudioBuffer(dev, ...)
-
-    // Log buffer usage statistics in the trace.
-    ATrace_setCounter("SndBufferUsage", dev->buffer.used_bytes)
-  }
-}
-```
-</tabs?>
-
 ## Should I use Atrace or the Perfetto Tracing SDK?
 
 At the time of writing, there isn't a clear-cut answer to this question. Our
@@ -566,7 +460,7 @@ is going to lead to a smoother migration path once we improve our SDK.
 In order to record atrace you must enable the `linux.ftrace` data source and add
 in the `ftrace_config`:
 
-- For internal system services: `atrace_categories: tag_name`
+- For platform private system services: `atrace_categories: tag_name`
 - For apps: `atrace_apps: "com.myapp"` or `atrace_apps: "*"` for all apps.
 
 You can see the full list of atrace categories
@@ -608,14 +502,26 @@ data_sources {
   }
 }
 ```
-
 </tabs?>
 
 ## Next Steps
 
-Now that you've learned how to instrument your code with `ATrace`, you can
-explore more advanced topics:
+Now that you've learned how to instrument your code with `ATrace`, here are some
+other documents you might find useful:
 
-- **Learn how to record a trace:** If you don't already have a way to collect
-  traces with Perfetto, see the
-  [Recording system traces](/docs/getting-started/system-tracing.md) guide.
+### Recording traces
+
+- **[Recording system traces](/docs/getting-started/system-tracing.md)**: Learn
+  more about recording traces on Android.
+
+### Other Android data sources
+
+- **[Scheduling data](/docs/data-sources/cpu-scheduling.md)**: See which threads
+  are running on which CPU.
+- **[CPU frequency](/docs/data-sources/cpu-freq.md)**: See how fast each CPU is
+  running.
+
+### Analyzing traces
+
+- **[Perfetto UI](/docs/visualization/perfetto-ui.md)**: Learn about all the
+  features of the trace viewer.

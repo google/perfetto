@@ -7,6 +7,19 @@ In this guide, you'll learn how to:
 - Interpret ftrace events into tracks in `trace_processor`.
 - View the raw events and the interpreted tracks in the Perfetto UI.
 
+**Who is this guide for?**
+
+This guide is intended for **kernel and systems developers** who want to add
+custom instrumentation to the Linux kernel and integrate it with Perfetto. It
+assumes you are comfortable with:
+
+- Building and installing Linux kernel modules.
+- C/C++ programming.
+- Basic command-line usage.
+
+A checkout of the Perfetto source code is required for the second half of this
+guide, where we modify Perfetto's internals.
+
 ## Overview
 
 Ftrace is a versatile tracing framework that provides a user-friendly interface
@@ -24,22 +37,18 @@ these and convert them into tracks which can be visualized using the Perfetto
 UI. A good example of this is the scheduling and thread state tracks, which are
 generated from sched\_\* ftrace events emitted by the scheduler.
 
-On this page, you'll learn how to instrument your kernel code using ftrace
-events, record those events using `tracebox`, interpret those events into tracks
-in `trace_processor`, and finally view the raw events and the interpreted tracks
-in the Perfetto UI.
+This guide is split into two parts:
 
-The general process looks like this:
+- **Part 1:** You will learn how to add a custom ftrace event to a kernel
+  module, record a trace containing this event, and view the raw event data in
+  the Perfetto UI.
+- **Part 2:** For advanced users, this part covers how to add first-class
+  support for your custom event to Perfetto itself. This involves modifying the
+  Perfetto source code to parse the event and visualize it as a dedicated track
+  in the UI.
 
-- Instrument your kernel code by adding tracepoints at strategically interesting
-  places.
-- Configure traced_probes with the format of your ftrace event, so that it can
-  encode all the argument data properly in the trace's proto file.
-- Configure trace_processor to interpret these events as appropriate, generally
-  creating slice and/or counter tracks from the events.
-- Configure the Perfetto UI to display these tracks and how to group them.
-
-## Instrumenting the kernel
+## Part 1: Instrumenting the Kernel and Recording Traces
+### Step 1: Create the Kernel Module
 
 For this example we are going to create a kernel module called `ticker` which
 contains a tracepoint called `ticker_tick` which is called every second with an
@@ -100,6 +109,8 @@ module_init(ticker_init);
 module_exit(ticker_exit);
 ```
 
+### Step 2: Define the Tracepoint Header
+
 It's important that the header files lives in: `trace/events/` and not at the
 root of the directory.
 
@@ -158,6 +169,8 @@ clean:
 .PHONY: all clean
 ```
 
+### Step 3: Build and Load the Module
+
 Your directory structure should look like this:
 
 ```
@@ -183,6 +196,8 @@ Note: You can always uninstall the kernel module with `rmmod`.
 ```bash
 sudo rmmod ticker
 ```
+
+### Step 4: Verify the Tracepoint
 
 In order to check that ftrace has picked up the new tracepoint, list the
 contents of the event directory. If the dir exists you should be good to go.
@@ -231,7 +246,7 @@ general.
 - https://lwn.net/Articles/381064/
 - https://lwn.net/Articles/383362/
 
-## Recording a Trace
+### Step 5: Record a Trace with `tracebox`
 
 In order to record our ticker events, we are going to record a system trace
 using `tracebox`. First we need to create a recording config file that's
@@ -274,7 +289,7 @@ did above manually).
 This will create a perfetto trace at `ticker.pftrace` in the current directory.
 You should be able to view this trace immediately.
 
-## Viewing our trace
+### Step 6: View the Trace
 
 We can now explore the recorded trace in the Perfetto UI. Navigate to
 https://ui.perfetto.dev and drag-n-drop your file into the window (or press
@@ -285,9 +300,10 @@ plotted on the tracks.
 ![Raw ticker events](https://storage.googleapis.com/perfetto-misc/ticker-raw.gif)
 
 Alternatively, you can explore the trace contents issuing SQL queries through
-the [trace processor](/docs/analysis/trace-processor).
+the [Trace Processor](/docs/analysis/index.md).
 
-## Tuning tracepoints into tracks
+## Part 2: Integrating Custom Events with Perfetto
+### Step 1: Add the Event to Perfetto
 
 Raw events are all well and good, but it would be handy if we could convert
 these into tracks. In this tutorial we are going to create a counter track
@@ -350,6 +366,8 @@ tools/gen_all out/YOUR_BUILD_DIRECTORY
 This will update `src/traced/probes/ftrace/event_info.cc` and
 `protos/perfetto/trace/perfetto_trace.proto`.
 
+### Step 2: Parse the Event in Trace Processor
+
 Now we can add some special handling to `ftrace_parser.cc` to process our events
 and turn them into a counter track. Find the large switch-case in the
 `ParseFtraceEvent` function and add a new case for our new ftrace event type. In
@@ -395,6 +413,8 @@ ftrace_parser.h
 
 Build perfetto and run the trace again. You should now see a ticker track in the
 tracks table and ticker counter samples in the counter table.
+
+### Step 3: Visualize the Track in the UI
 
 In order to acutally see this track in the UI we need to tell the UI about it by
 modifying the file

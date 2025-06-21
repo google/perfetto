@@ -1,8 +1,11 @@
 # Recording In-App Traces with Perfetto
 
-_In this page, you'll learn how to use the Perfetto SDK to collect a trace from
-a C++ app which we instrument. You'll view the collected trace with the Perfetto
-UI and query its contents programatically with PerfettoSQL._
+In this guide, you'll learn how to:
+
+- Use the Perfetto SDK to add custom trace points to a C++ application.
+- Record a trace containing your custom events.
+- Visualize the trace in the Perfetto UI.
+- Programmatically analyze the trace using PerfettoSQL.
 
 The Perfetto SDK is a C++ library that allows you to instrument your application
 to record trace events. These events can then be visualized and analyzed with
@@ -168,19 +171,37 @@ You can start collecting events with:
 TAB: C++
 
 ```
+  // Create a trace configuration object. This is used to define the buffers,
+  // data sources, and other settings for the trace.
   perfetto::TraceConfig cfg;
-  cfg.add_buffers()->set_size_kb(1024);
+
+  // Add a buffer to the config. Traces are written to this buffer in memory.
+  cfg.add_buffers()->set_size_kb(1024);  // 1 MB
+
+  // Add a data source to the config. This specifies what kind of data to
+  // collect. In this case, we're collecting track events.
   auto* ds_cfg = cfg.add_data_sources()->mutable_config();
   ds_cfg->set_name("track_event");
+
+  // Configure the track event data source. We can specify which categories of
+  // events to enable or disable.
   perfetto::protos::gen::TrackEventConfig te_cfg;
-  te_cfg.add_disabled_categories("*");
-  te_cfg.add_enabled_categories("rendering");
+  te_cfg.add_disabled_categories("*");         // Disable all categories by default.
+  te_cfg.add_enabled_categories("rendering");  // Enable our "rendering" category.
   ds_cfg->set_track_event_config_raw(te_cfg.SerializeAsString());
 
-  std::unique_ptr<perfetto::TracingSession> tracing_session = perfetto::Tracing::NewTrace();
+  // Create a new tracing session.
+  std::unique_ptr<perfetto::TracingSession> tracing_session =
+      perfetto::Tracing::NewTrace();
+
+  // Set up the tracing session with the configuration.
   tracing_session->Setup(cfg);
+
+  // Start tracing. This will block until the trace is stopped.
   tracing_session->StartBlocking();
-  // Keep tracing_session alive
+
+  // The tracing_session object must be kept alive for the duration of the
+  // trace.
 
   // ...
 ```
@@ -194,13 +215,17 @@ And you can stop and save them into a file with:
 TAB: C++
 
 ```
+  // Stop the tracing session. This will block until all tracing data has been
+  // flushed.
   tracing_session->StopBlocking();
+
+  // Read the trace data from the session.
   std::vector<char> trace_data(tracing_session->ReadTraceBlocking());
 
-  // Write the result into a file.
+  // Write the trace data to a file.
   std::ofstream output;
   output.open("example.pftrace", std::ios::out | std::ios::binary);
-  output.write(&trace_data[0], std::streamsize(trace_data.size()));
+  output.write(trace_data.data(), std::streamsize(trace_data.size()));
   output.close();
 ```
 
@@ -234,43 +259,80 @@ how long each execution took and its `player_number` annotation.
 
 ![SQL query example](/docs/images/sql_draw_player.png)
 
-## Combined in-app and system tracing
+## Combined In-App and System Tracing
 
-If you want to inspect your app events alongside system events, you can:
+While in-app tracing is useful for understanding your application's behavior in
+isolation, its real power comes from combining it with a system-wide trace. This
+allows you to see how your app's events correlate with system events like CPU
+scheduling, memory usage, and I/O, providing a complete picture of your app's
+performance in the context of the entire system.
 
-- Change your app code to connect to the perfetto central tracing service
-  instead of logging inside the process.
+To enable combined tracing, you need to change your application to connect to
+the system-wide tracing service and then use the standard system tracing tools
+to record a trace.
 
-<?tabs>
+1.  **Modify your application code**:
 
-TAB: C++
+    - Change the initialization to connect to the system backend
+      (`kSystemBackend`). This tells the Perfetto SDK to send trace events to
+      the central system tracing service instead of collecting them within the
+      app.
+    - Remove all the code related to managing the tracing session
+      (`perfetto::Tracing::NewTrace()`, `tracing_session->Setup()`,
+      `tracing_session->StartBlocking()`, etc.). Your application now only acts
+      as a producer of trace data, and the system tracing service will control
+      when tracing starts and stops.
 
-```
-  perfetto::TracingInitArgs args;
-  args.backends |= perfetto::kSystemBackend;
-  perfetto::Tracing::Initialize(args);
-```
+    Your `main` function should now look like this:
 
-</tabs?>
+    ```cpp
+    #include <perfetto.h>
 
-- Remove the code start and stop collecting events from your app. You can start
-  and stop collecting event using the
-  [perfetto command line client](/docs/reference/perfetto-cli).
+    // Define your categories as before.
+    PERFETTO_DEFINE_CATEGORIES(
+        perfetto::Category("rendering")
+            .SetDescription("Events from the graphics subsystem"),
+        perfetto::Category("network")
+            .SetDescription("Network upload and download statistics"));
 
-- Learn more about [system tracing](/docs/getting-started/system-tracing.md)
+    PERFETTO_TRACK_EVENT_STATIC_STORAGE();
+
+    int main(int argc, char** argv) {
+      // Connect to the system tracing service.
+      perfetto::TracingInitArgs args;
+      args.backends |= perfetto::kSystemBackend;
+      perfetto::Tracing::Initialize(args);
+
+      // Register your track event data source.
+      perfetto::TrackEvent::Register();
+
+      // Your application logic goes here.
+      // The TRACE_EVENT macros will now write to the system trace buffer
+      // when tracing is enabled externally.
+      // ...
+    }
+    ```
+
+2.  **Record a system trace**:
+
+    With your application running, you can now record a combined trace using the
+    methods described in the
+    [Recording system traces](/docs/getting-started/system-tracing.md) guide.
+
+    When you configure your trace, you need to enable the `track_event` data
+    source in addition to any system data sources you want to collect (e.g.,
+    `linux.ftrace`). This will ensure that your application's custom events are
+    included in the trace.
+
+    When you open the resulting trace file in the Perfetto UI, you will see your
+    application's custom tracks alongside the system-level tracks.
 
 ## Next steps
 
-Now that you've recorded and analyzed your first in-app trace, you can explore
-more advanced topics:
+Now that you've recorded your first in-app trace, you can learn more about
+instrumenting your code:
 
-- **Learn more about the Perfetto SDK:** The
-  [Perfetto SDK documentation](/docs/instrumentation/tracing-sdk.md) provides
-  more details on how to use the SDK, including how to define custom data
-  sources and use different types of tracks.
-- **Explore other data sources:** Perfetto supports a wide range of data
-  sources that you can use to collect more information about your application
-  and the system it's running on. For example, you can collect
-  [CPU scheduling events](/docs/data-sources/cpu-scheduling.md),
-  [memory usage information](/docs/data-sources/memory-counters.md), or
-  [Android-specific events](/docs/data-sources/atrace.md).
+- **[Tracing SDK](/docs/instrumentation/tracing-sdk.md)**: A deep dive into the
+  SDK's features.
+- **[Track Events](/docs/instrumentation/track-events.md)**: Learn more about
+  the different types of track events and how to use them.

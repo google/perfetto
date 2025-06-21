@@ -12,14 +12,15 @@ you are using and what you are trying to accomplish, this page will guide you
 through our documentation and help you solve problems with Perfetto as quickly
 as possible.
 
-Our docs make use of the terms "Tutorials", "Recipes" and "Case Studies":
+Our docs make use of the terms "Tutorials", "Cookbooks" and "Case Studies":
 
 - **Tutorials** are guides which explain how to get started using Perfetto
   tools. They are focused on teaching you the tools themselves and _not_ so much
   on how the tools can be used to solve real world problems.
-- **Recipes** are small, bite-sized guides which give you a quick idea on how to
-  solve a concrete problem with Perfetto. They will have snippets of code you
-  can copy-paste or a sequence of instructions you can follow.
+- **Cookbooks** are pages containing small, bite-sized guides (recipes) which
+  give you a quick idea on how to solve a concrete problem with Perfetto. They
+  will have snippets of code you can copy-paste or a sequence of instructions
+  you can follow.
 - **Case Studies** are detailed, opinionated guides which take you step-by-step
   how you can debug and root-cause a "vertical" problem using Perfetto. They
   focus more on helping you solve the problem and and less on teaching you
@@ -448,14 +449,12 @@ Perfetto excels in several key areas:
 
 3.  **In-depth Programmatic Trace Analysis:** For going beyond visual
     inspection, automating analysis, or extracting custom metrics, Perfetto's
-    [Trace Processor](/docs/analysis/trace-processor.md) engine allows you to
+    [Trace Processor](/docs/analysis/index.md) engine allows you to
     query traces using SQL. This powerful backend can be accessed
     programmatically.
     - **Automate your insights:** If you have recurring analysis tasks or want
       to extract specific metrics from any trace (Perfetto-native or converted),
-      the [Python API](/docs/analysis/trace-processor-python.md) or
-      [C++/Shell access](/docs/analysis/trace-processor.md) to the Trace
-      Processor are invaluable.
+      the [Trace Processor](/docs/analysis/index.md) is invaluable.
 
 For further inspiration on how Perfetto's flexible architecture has been adapted
 for a wide range of complex diagnostic scenarios, see:

@@ -14,16 +14,17 @@ running slower than you expect or just help make your program more efficient.
 When it comes to apps and memory, there are mainly two ways a process can use
 memory:
 
-- Native C/C++/Rust processes: typically allocate memory via libc's malloc/free
-  (or wrappers on top of it like C++'s new/delete). Note that native allocations
-  are still possible (and quite frequent) when using Java APIs that are backed
-  by JNI counterparts. A canonical example is `java.util.regex.Pattern` which
-  typically owns both managed memory on the Java heap and native memory due to
-  the underlying use of native regex libraries.
+- **Native C/C++/Rust processes**: typically allocate memory via libc's
+  malloc/free (or wrappers on top of it like C++'s new/delete). Note that native
+  allocations are still possible (and quite frequent) when using Java APIs that
+  are backed by JNI counterparts. A canonical example is
+  `java.util.regex.Pattern` which typically owns both **managed memory** on the
+  Java heap and **native memory** due to the underlying use of native regex
+  libraries.
 
-- Java/KT Apps: a good portion of the memory footprint of an app lives in the
-  managed heap (in the case of Android, managed by ART's garbage collector).
-  This is where evevery `new X()` object lives.
+- **Java/KT Apps**: a good portion of the memory footprint of an app lives in
+  the **managed heap** (in the case of Android, managed by ART's garbage
+  collector). This is where every `new X()` object lives.
 
 Perfetto offers two complementary techniques for debugging the above:
 
@@ -37,7 +38,7 @@ Perfetto offers two complementary techniques for debugging the above:
 
 ## Native (C/C++/Rust) Heap Profling
 
-Native languages like C/C++/Rust commonly allocate and deallocate memmory at the
+Native languages like C/C++/Rust commonly allocate and deallocate memory at the
 lowest level by using the libc family of `malloc`/`free` functions. Native heap
 profiling works by _intercepting_ calls to these functions and injecting code
 which keeps track of the callstack of memory allocated but not freed. This
@@ -50,12 +51,11 @@ NOTE: native heap profiling with Perfetto only works on Android and Linux; this
 is due to the techniques we use to intercept malloc and free only working on
 these operating systems.
 
-Heap profiling has a technical limitation: it is NOT retroactive. Heap profiling
-is only able to observe and report **allocations made after the trace started
-recording**. It is not able to provide any insight for allocations that happened
-before recording the trace. You can, of course, get a whole view by making sure
-to start trace recording before even launching the app/process. You need to be
-able to reproduce the memory leak/bloat.
+A very important point to note is that heap profiling is **not retroactive**. It
+can only report allocations that happen _after_ tracing has started. It cannot
+provide any insight into allocations that occurred before the trace began. If
+you need to analyze memory usage from the start of a process, you must begin
+tracing before the process is launched.
 
 If your question is _"why is this process so big right now?"_ you cannot use
 heap profiling to answer questions about what happened in the past. However our
@@ -273,7 +273,7 @@ were allocated. This can make it harder to reason about memory usage, especially
 when the same type of object is allocated from multiple locations in the code.
 
 NOTE: Java heap dumps with Perfetto only works on Android. This is due to the
-deep integration with the JVM (Android Runtime - ART) required to effficiently
+deep integration with the JVM (Android Runtime - ART) required to efficiently
 capture a heap dump without impacting the performance of the process.
 
 ### Collecting your first heap dump
@@ -383,20 +383,26 @@ You can learn more about them in the
 
 ## Other types of memory
 
-There are other, more subtle, ways a process can use memory:
+Besides the standard native and Java heaps, memory can be allocated in other
+ways that are not profiled by default. Here are some common examples:
 
-- Directly invoking mmap() / passing tmpfs file descriptors around. We don't
-  have a good solution to profile these.
+- **Direct `mmap()` calls**: Applications can directly request memory from the
+  kernel using `mmap()`. This is often done for large allocations or to map
+  files into memory. Perfetto does not currently have a way to automatically
+  profile these allocations.
 
-- Native processes using custom allocators. This eventually decays in the mmap
-  case above. However in this case we support instrumenting your custom
-  allocator and offering heap profiling capabilities to it. See
-  [heapprofd's Custom Allocator API](/docs/instrumentation/heapprofd-api).
+- **Custom allocators**: Some applications use their own memory allocators for
+  performance reasons. These allocators often get their memory from the system
+  using `mmap()` and then manage it internally. While Perfetto can't
+  automatically profile these, you can instrument your custom allocator using
+  the [heapprofd Custom Allocator API](/docs/instrumentation/heapprofd-api) to
+  enable heap profiling.
 
-- dmabuf: this typically happens with apps that exchange buffers directly with
-  hardware blocks (e.g. Camera apps). We support tracking of dmabuf allocations
-  in the timeline recorder enabling the `dmabuf_heap/dma_heap_stat` ftrace
-  event.
+- **DMA buffers (`dmabuf`)**: These are special buffers used for sharing memory
+  between different hardware components (e.g., the CPU, GPU, and camera). This
+  is common in graphics-intensive applications. You can track `dmabuf`
+  allocations by enabling the `dmabuf_heap/dma_heap_stat` ftrace events in your
+  trace configuration.
 
 ## Next steps
 

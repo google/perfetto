@@ -1,37 +1,42 @@
 # Tracing in Background
 
-This document describes run perfetto in the background and terminate tracing and
-collect the trace file later.
+This document describes how to run Perfetto in the background, allowing you to
+disconnect from the device and collect the trace file later.
 
 ## Use Case
 
-Let's say you want to start recording a long running trace on an Android device
-or a Linux server, then terminate your adb/ssh shell and come back some time
-later to terminate the tracing session and collect the trace file, this page
-shows you how to do this and make sure the trace stays in tact.
+Let's say you want to start recording a long-running trace on an Android device
+or a Linux server, then terminate your adb/ssh shell and come back later to stop
+the tracing session and collect the trace file. This page shows you how to do
+this while ensuring the trace remains intact.
 
-In order to run the tracing in the background, run `perfetto` / `tracebox` with
-the `--background-wait` argument, which will daemonize perfetto and print the
-pid of the daemonized process.
+To run tracing in the background, use the `--background-wait` argument with the
+`perfetto` command. This will daemonize Perfetto (i.e., run it as a background
+process) and print its process ID (PID).
 
-Note: It's recommended to use `--background-wait` rather than `--background` as
-the former wait for all data sources to be started before exiting.
+NOTE: It's recommended to use `--background-wait` rather than `--background`, as
+the former waits for all data sources to be started before exiting. This ensures
+that no data is lost at the beginning of the trace.
 
 ## Usage
 
 Start recording a trace using `tracebox` or `perfetto`.
 
 ```bash
-perfetto -c config.cfg --txt -o trace --background-wait
+perfetto -c config.cfg --txt -o trace.pftrace --background-wait
 ```
 
 This will print the pid of the background perfetto process to stdout.
 
-When we want to kill the process we need to send a `SIGINT` or `SIGTERM` to the
-process pointed to by the returned pid. However, `kill` doesn't wait for the
-trace file to be written properly so we need to manually wait for the trace file
-to be closed to avoid taking an incomplete copy of it, which we can achieve with
-various inotify tools (which are platform dependent).
+When you are ready to stop tracing, you need to send a `SIGINT` or `SIGTERM`
+signal to the background Perfetto process. However, simply killing the process
+creates a race condition: the `kill` command returns immediately, but Perfetto
+may still be writing the final parts of the trace file to disk.
+
+If you collect the file too soon, it may be incomplete. To prevent this, you
+must wait for the `close_write` event on the trace file, which confirms that
+Perfetto has finished writing and closed the file. You can achieve this using
+platform-specific `inotify` tools.
 
 <?tabs>
 
@@ -40,7 +45,7 @@ TAB: Linux
 On Debian Linux we can use `inotifywait` from the `inotify-tools` package.
 
 ```bash
-kill <pid> && inotifywait -e close_write ticker.pftrace
+kill <pid> && inotifywait -e close_write trace.pftrace
 ```
 
 TAB: Android
@@ -48,7 +53,7 @@ TAB: Android
 On Android we can use `inotifyd` from toybox.
 
 ```sh
-kill <pid> && inotifyd - ticker.pftrace:w | head -n0
+kill <pid> && inotifyd - trace.pftrace:w | head -n0
 ```
 
 </tabs?>

@@ -1,4 +1,4 @@
-# Recipes: Android Trace Analysis
+# Cookbook: Analysing Android Traces
 
 This page will take you through some real world examples on how you can analyse
 issues with SQL and more advanced features of the Perfetto UI.
@@ -8,8 +8,9 @@ issues with SQL and more advanced features of the Perfetto UI.
 Demonstrates:
 
 - Querying slices.
-- `GLOB` and similar operators.
-- Common aggregators: `COUNT`, `SUM`, `PERCENTILE`.
+- GLOB and similar operators.
+- Common aggregators: COUNT, SUM, PERCENTILE.
+- JOIN tables.
 
 Slices seen in Perfetto’s timeline UI can also be queried with PerfettoSQL.
 Press “Query (SQL)” in the sidebar and enter this query:
@@ -47,6 +48,39 @@ GROUP BY name
 ORDER BY count_slice DESC
 LIMIT 10;
 ```
+
+You can join information across multiple tables to surface more information in
+query results or to narrow down your search.
+
+```sql
+SELECT
+  s.id AS id,
+  s.ts AS ts,
+  s.track_id AS track_id,
+  s.slice_id AS slice_id,
+  s.dur AS dur,
+  s.name AS slice,
+  p.name AS process,
+  t.name AS thread
+FROM slice s
+JOIN thread_track tt ON s.track_id = tt.id
+JOIN thread t on tt.utid = t.utid
+JOIN process p on t.upid = p.upid
+WHERE s.name LIKE '%interesting_slice%'
+-- Only look for slices in your app's process
+AND p.name = 'com.example.myapp'
+-- Only look for slices on your app's main thread
+AND t.is_main_thread
+ORDER BY dur DESC;
+```
+
+After running the query in the SQL view, click “Show timeline” in the sidebar
+and the query results will appear in the bottom bar. Queries that include the
+slice columns id, ts, dur, track_id, and slice_id can link to slices in the
+Timeline view for easy navigation. Click the value under id and the timeline
+will jump straight to that slice.
+
+![](/docs/images/analysis-cookbook-unint-sleep.png)
 
 ## Find top causes for uninterruptible sleep
 

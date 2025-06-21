@@ -24,13 +24,13 @@
       - [Supported trace formats](getting-started/other-formats.md)
       - [Converting to Perfetto](getting-started/converting.md)
 
-  - [Recipes](#)
+  - [Cookbooks](#)
 
-    - [Analysing Android traces](getting-started/android-trace-analysis.md)
+    - [Analysing Android Traces](getting-started/android-trace-analysis.md)
 
   - [Case Studies](#)
 
-    - [Understanding Android memory usage](case-studies/memory.md)
+    - [Android Memory Usage](case-studies/memory.md)
 
 - [Learning more](#)
 
@@ -44,7 +44,7 @@
   - [Trace Recording](#)
 
     - [Tracing in Background](learning-more/tracing-in-background.md)
-    - [Advanced Android tracing](learning-more/android.md)
+    - [More Android tracing](learning-more/android.md)
 
   - [Trace Instrumentation](#)
 
@@ -53,10 +53,11 @@
 
   - [Trace Analysis](#)
 
+    - [Overview](analysis/index.md)
+    - [Trace Processor (C++)](analysis/trace-processor.md)
+    - [Trace Processor (Python)](analysis/trace-processor-python.md)
     - [PerfettoSQL Syntax](analysis/perfetto-sql-syntax.md)
     - [PerfettoSQL Standard Library](analysis/stdlib-docs.autogen)
-    - [Trace Processor (Python)](analysis/trace-processor-python.md)
-    - [Trace Processor (C++)](analysis/trace-processor.md)
     - [Trace Summarization](analysis/trace-summary.md)
 
   - [Trace Visualization](#)
@@ -130,7 +131,7 @@
 
     - [Single Trace Analysis](#)
 
-      - [Trace-based Metrics](analysis/metrics.md)
+      - [Legacy (v1) Metrics](analysis/metrics.md)
 
     - [Multi Trace Analysis](#)
 

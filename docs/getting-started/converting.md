@@ -843,8 +843,6 @@ you can:
   [Perfetto UI](https://ui.perfetto.dev) to explore your data on an interactive
   timeline.
 - **Analyze with SQL:** Use the
-  [Trace Processor](/docs/analysis/trace-processor.md) (either via the
-  [shell](/docs/analysis/trace-processor.md) or the
-  [Python API](/docs/analysis/trace-processor-python.md)) to query your custom
+  [Trace Processor](/docs/analysis/index.md) to query your custom
   trace data. Your custom tracks and events will populate standard tables like
   `slice`, `track`, `counter`, etc.

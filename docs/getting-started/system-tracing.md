@@ -1,5 +1,11 @@
 # Recording system traces with Perfetto
 
+In this guide, you'll learn how to:
+
+- Record a system-wide trace on Android and Linux.
+- Visualize the trace in the Perfetto UI.
+- Programmatically analyze the trace using PerfettoSQL.
+
 A powerful use of Perfetto is to collect tracing information from many different
 processes and data sources on a single machine and combine them all into a
 single trace. This allows debugging a wide range of performance and functional
@@ -27,8 +33,9 @@ TAB: Android (Perfetto UI)
 **Prerequisites**
 
 - Any Android device running R+ (if using an older version of Android, please
-  see the _Android (command line)_ tab instead)
-- A desktop/laptop with the Android device connected via a USB cable
+  see the _Android (command line)_ tab instead).
+- A desktop/laptop with the Android device connected via a USB cable.
+- Developer options and USB debugging must be enabled on the device.
 
 **Instructions**
 
@@ -45,23 +52,18 @@ TAB: Android (Perfetto UI)
     otherwise. For example, for the _ABD+Websocket_ transport the success
     message will look like on the screenshot above.
 
-   NOTE: you may need to enable developer options and allow USB debugging on the
-   device.
+5. On the **Recording Settings** page, you can leave the default settings for
+   this guide. These settings control how the trace is recorded:
 
-5. On the **Recording Settings** page, we can leave at in the default settings:
-
-   - The **Recording Mode** option corresponds to the way in which the trace
-     should be collected: "Stop when full" stops tracing when the tracing buffer
-     is full, "Ring buffer" will overwrite the oldest data when the tracing
-     buffer is full and "Long trace" will periodically flush the in-memory
-     contents of the trace to a file allowing for multi-minute or even
-     multi-hour long traces to be collected.
-   - The **In-memory buffer size** option decides how much memory should be used
-     on device to temporarily stage the contents of the trace before it is
-     written to disk.
-   - The **Max duration** option decides the maximum amount of the time the
-     trace will continue for before stopping: you also can stop it any time
-     manually using the "Stop Recording" button as you'll see later.
+   - **Recording Mode**: This setting determines how the trace is collected.
+     - **Stop when full**: Stops tracing when the in-memory buffer is full.
+     - **Ring buffer**: Overwrites the oldest data when the buffer is full.
+     - **Long trace**: Periodically saves the trace from memory to a file,
+       allowing for very long traces.
+   - **In-memory buffer size**: Sets the amount of memory on the device used to
+     store trace data before it's written to a file.
+   - **Max duration**: Sets a time limit for the trace. You can also stop it
+     manually at any time.
 
 6. Now we can configure the exact types of tracing information we want to
    collect in the **Probes** sections. Feel free to explore the tabs and the
@@ -69,22 +71,16 @@ TAB: Android (Perfetto UI)
    why it might be useful. For the purposes of this guide, we will want to
    enable the following probes:
 
-   - In the **CPU** tab, enable the **Scheduling details** and **CPU frequency
-     and idle states** options: this information allows us to understand what
-     process/thread is running on each CPU over time and also what frequency the
-     CPU was running at all times; this is very useful contextual information
-     when investigating traces.
-   - In the **Android Apps and Svcs** tab, enable the **Atrace Userspace
-     annotations** and **Event log (logcat)** options. Under the Atrace
-     userspace annotations, further enable the "System server", "View system"
-     and "Input categories (press Ctrl/Cmd while clicking to perform
-     multi-select).
-
-     - Userspace Annotations provide context on what systems and apps are doing
-       using tracing markers that developers have added through the
-       `android.os.Trace` APIs.
-     - Logcat adds `android.os.Log` messages into the trace file allowing
-       analysing logging on the same timeline as other tracing data sources.
+   - **CPU**:
+     - **Scheduling details**: See what process/thread is running on each CPU
+       over time.
+     - **CPU frequency and idle states**: See the frequency each CPU was
+       running at.
+   - **Android Apps and Svcs**:
+     - **Atrace userspace annotations**: Get context on what systems and apps
+       are doing. Enable the "System server", "View system" and "Input"
+       categories (press Ctrl/Cmd while clicking to multi-select).
+     - **Event log (logcat)**: Include `logcat` messages in the trace.
 
 7. Click the green "Start Recording" button and, while the trace is recording,
    take some action on the Android device (e.g. opening an app, unlocking the
@@ -181,8 +177,9 @@ visualizer: the Perfetto UI.
 
 NOTE: The Perfetto UI runs fully locally, in-browser using JavaScript +
 WebAssembly. The trace file is **not** uploaded anywhere by default, unless you
-explicitly click on the 'Share' link. The 'Share' link is available only to
-Googlers.
+explicitly click on the 'Share' link.
+
+NOTE: The 'Share' link is available only to Googlers.
 
 The recording instructions above should all have caused the trace to
 automatically open in the browser. However, if they did not work for any reasons
@@ -203,77 +200,104 @@ traces manually:
 - Please also take a look at our Perfetto UI
   [documentation page](/docs/visualization/perfetto-ui.md)
 
-## Querying your first trace
+## Querying Your First Trace
 
-The trace you captured looks very complex, it could be hard to understand what
-is going on. You can always open the **Query (SQL)** panel.
+While the Perfetto UI is excellent for visual inspection, you often need
+programmatic access to the data within a trace. This is useful for finding
+specific events, performing statistical analysis, or automating checks for
+performance regressions.
 
-![Perfetto UI Query SQL](/docs/images/perfetto-ui-query-sql.png)
+Perfetto provides a powerful SQL-based query engine for this purpose. You can
+access this engine in three main ways:
 
-Then you will see a screen where you can input your Perfetto SQL on the top
-portion and execute it and the results will be shown on the bottom section.
+- **Perfetto UI**: The "Query (SQL)" tab in the UI provides an interactive way
+  to run queries.
+- **Trace Processor Python API**: For scripting and data analysis, you can use
+  the Python API to query traces.
+- **Trace Processor Shell**: A command-line interface is available for running
+  queries directly.
 
-![Perfetto UI SQL Window](/docs/images/perfetto-ui-sql-window.png)
+This guide focuses on using the "Query (SQL)" tab in the Perfetto UI.
 
-You can write and execute (Ctrl/Cmd + Enter) your PerfettoSQL query in the
-opened console and the results will be shown in the bottom section.
+### Using the Query Tab in the Perfetto UI
 
-Perfetto SQL is a dialect of SQL implemented by SQLite, it supports executing
-any SQLite query and it adds extra functionalities not supported by SQLite.
+1.  In the Perfetto UI, click on the "Query (SQL)" tab in the left-hand menu.
 
-For more details on how to write SQL queries take a look at
-[PerfettoSQL syntax](/docs/analysis/perfetto-sql-syntax.md).
+    ![Perfetto UI Query SQL](/docs/images/perfetto-ui-query-sql.png)
 
-There are also several Modules that consist of tables/views/functions and macros
-that have been already created and are made available to you in the
-[Perfetto Standard Library](/docs/analysis/stdlib-docs.autogen).
+2.  This will open a two-part window. You can write your PerfettoSQL query in
+    the top section and view the results in the bottom section.
 
-There is also a list of
-[SQL Recipes](/docs/getting-started/android-trace-analysis.md) which contains a
-list of some crafted SQL recipes that have proven to be useful for specific
-analyses or to help the user learn PerfettoSQL by example.
+    ![Perfetto UI SQL Window](/docs/images/perfetto-ui-sql-window.png)
 
-A simple example of importing a module and executing a query on the Standard
-library can be seen below:
+3.  You can now execute queries. For example, to see all the processes captured
+    in the trace, run the following query (you can use Ctrl/Cmd + Enter as a
+    shortcut):
 
-In the screenshot below we can see the result of the following query:
+    ```sql
+    SELECT * FROM process;
+    ```
 
-```
+### Understanding PerfettoSQL
+
+PerfettoSQL is a dialect of SQL based on SQLite. It supports standard SQLite
+syntax and adds extra functions and tables specific to trace data.
+
+To simplify common analysis tasks, Perfetto also provides a
+[Standard Library](/docs/analysis/stdlib-docs.autogen) of pre-built modules. You
+can import these modules to use their tables, views, and functions.
+
+For example, to analyze garbage collection events in an Android trace, you can
+import the `android.garbage_collection` module:
+
+```sql
 INCLUDE PERFETTO MODULE android.garbage_collection;
 
-select * from android_garbage_collection_events;
+SELECT * FROM android_garbage_collection_events;
 ```
 
-that returns the list of all Garbage Collection events, with additional
-information for each event.
-
-To further explore the trace and the standard library, you can separately import
-each `MODULE` (no need to explicitly import `prelude`) and do the
-`select * from` each table, e.g. the following query
-
-```
-select * from process;
-```
-
-returns the list of all processes captured by the trace.
-
-Alternatively, you can explore the trace contents issuing SQL queries through
-the [trace processor](/docs/analysis/trace-processor).
+This query will return a list of all garbage collection events with additional
+information for each one.
 
 ## Next steps
 
-Learn more about recording:
+Now that you've recorded and analyzed your first system trace, you can explore
+more topics:
 
-The trace you captured consists of multiple **Data sources**, you can open the
-interesting page from the left sidebar, some of them are listed here:
+### More data sources
 
-- [Heap profiler](/docs/data-sources/native-heap-profiler.md)
-- [ATrace: Android system and app trace events](/docs/data-sources/atrace.md)
+A system trace can include data from many different parts of the system. Learn
+more about some of the most common data sources:
 
-Learn more about trace analysis:
+- **[Scheduling events](/docs/data-sources/cpu-scheduling.md)**: Get detailed
+  information about which threads are running on which CPUs.
+- **[CPU Frequency](/docs/data-sources/cpu-freq.md)**: See how the CPU frequency
+  changes over time.
+- **[System Calls](/docs/data-sources/syscalls.md)**: Trace the entry and exit
+  of system calls.
 
-- PerfettoSQL [syntax](/docs/analysis/perfetto-sql-syntax.md) and the
-  [standard library](/docs/analysis/stdlib-docs.autogen)
-- Python [API](/docs/analysis/trace-processor-python.md) for programmatic trace
-  analysis
-- C++ [API](/docs/analysis/trace-processor.md) for programmatic trace analysis
+For Android developers, it's also common to include:
+
+- **[ATrace](/docs/data-sources/atrace.md)**: Events from Android apps and
+  services.
+- **[Logcat](/docs/data-sources/android-log.md)**: Logcat messages.
+
+### More about trace recording
+
+- **[Trace Configuration](/docs/concepts/config.md)**: Get a deeper
+  understanding of how to configure traces.
+- **[Tracing in the Background](/docs/learning-more/tracing-in-background.md)**:
+  Learn how to record traces over a long period of time.
+
+### More about trace analysis
+
+To get the most out of the Perfetto UI, check out the detailed
+**[Perfetto UI documentation](/docs/visualization/perfetto-ui.md)**.
+
+To learn more about programmatic analysis, see:
+
+- **[Trace Analysis with SQL](/docs/analysis/index.md)**: Learn how to analyze
+  traces using the Trace Processor and PerfettoSQL.
+- **[Android Analysis Cookbooks](/docs/getting-started/android-trace-analysis.md)**:
+  A collection of useful queries and visualization tips for working with Android
+  traces.

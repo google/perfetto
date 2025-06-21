@@ -6,9 +6,9 @@ In this guide, you'll learn how to:
 - Collect callstack profiles to identify performance bottlenecks.
 - Visualize and analyze CPU profiles in the Perfetto UI.
 
-On linux and android, perfetto can record per-cpu [perf
-counters](https://perfwiki.github.io/main/), for example hardware events such
-as executed instructions or cache misses. Additionally, perfetto can be
+On linux and android, perfetto can record per-cpu
+[perf counters](https://perfwiki.github.io/main/), for example hardware events
+such as executed instructions or cache misses. Additionally, perfetto can be
 configured to sample callstacks of running processes based on these performance
 counters. Both modes are analogous to the `perf record` command from the perf
 tool, and use the same system call (`perf_event_open`).
@@ -20,41 +20,37 @@ If you're only interested in the profiling (i.e. flamegraphs), skip to
 
 The recording is defined using the usual perfetto config protobuf, and can be
 freely combined with other data sources such as ftrace. This allows for hybrid
-traces with a single timeline showing both the sampled counter values as well
-as other traced data, e.g. process scheduling.
+traces with a single timeline showing both the sampled counter values as well as
+other traced data, e.g. process scheduling.
 
 The data source configuration
 ([PerfEventConfig](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/config/profiling/perf_event_config.proto?q=PerfEventConfig))
-defines:
-- What primary event is being counted, known as the "timebase" or the "group
-  leader". This event will be counted separately on each CPU
-  (thread/process-scoped counting is not supported). See
-  [Timebase](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/common/perf_events.proto?q=Timebase)
-  for options.
-- How often that counter is sampled, either as a counting `period` (a sample
-  after every N increments), or a `frequency` (the kernel will continuously
-  adjust the counting period to approximately emit that many samples per
+defines the following:
+
+- **[Timebase](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/common/perf_events.proto?q=Timebase)
+  (or group leader)**: The primary event being counted. This event is counted
+  separately on each CPU.
+- **Sampling period/frequency**: How often the counter is sampled. This can be a
+  fixed `period` (e.g., every 1000 events) or a `frequency` (e.g., 100 times per
   second).
-- Any additional counters to record, known as "followers". Whenever the leader
-  is sampled, these counters have their values snapshotted at the same time.
-  See
-  [FollowerEvent](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/common/perf_events.proto?q=FollowerEvent)
-  for options.
+- **[Followers](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/common/perf_events.proto?q=FollowerEvent)**:
+  Any additional counters to record. These counters are snapshotted at the same
+  time as the timebase event.
 
 One tracing configuration can define multiple "linux.perf" data sources for
-separate sampling groups. But note that you need to be careful not to exceed
-the PMU capacity of the platform if counting hardware events. Otherwise the
-kernel will multiplex (repeatedly switch in and out) the event groups, leading
-to undercounting (see [this perfwiki
-page](https://perfwiki.github.io/main/tutorial/#multiplexing-and-scaling-events)
+separate sampling groups. But note that you need to be careful not to exceed the
+PMU capacity of the platform if counting hardware events. Otherwise the kernel
+will multiplex (repeatedly switch in and out) the event groups, leading to
+undercounting (see
+[this perfwiki page](https://perfwiki.github.io/main/tutorial/#multiplexing-and-scaling-events)
 for more info).
 
 ### Example config
 
 This config defines one group of three counters per CPU. A timer event
-(`SW_CPU_CLOCK`) is used as the leader, providing a steady rate of samples.
-Each sample additionally includes the counts of cpu cycles (`HW_CPU_CYCLES`)
-and executed instructions (`HW_INSTRUCTIONS`) since the beginning of tracing.
+(`SW_CPU_CLOCK`) is used as the leader, providing a steady rate of samples. Each
+sample additionally includes the counts of cpu cycles (`HW_CPU_CYCLES`) and
+executed instructions (`HW_INSTRUCTIONS`) since the beginning of tracing.
 
 ```protobuf
 duration_ms: 10000
@@ -109,6 +105,7 @@ as counting rates by default.
 ![Perf counter trace in the UI](/docs/images/perf-counter-ui.png)
 
 The counter data can be queried as follows:
+
 ```sql
 select ts, cpu, name, value
 from counter c join perf_counter_track pct on (c.track_id = pct.id)
@@ -173,7 +170,6 @@ Open the `/tmp/trace.pb` file in the [Perfetto UI](https://ui.perfetto.dev).
 
 </tabs?>
 
-
 ## Collecting a callstack profile
 
 The counter recording can also be configured to include a callstack (list of
@@ -190,8 +186,8 @@ field in the data source config. Note that the sampling will still be performed
 per-cpu, but you can set the
 [`scope`](https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/config/profiling/perf_event_config.proto?q=%22optional%20Scope%20scope%20%3D%201;%22)
 field to have the profiler unwind callstacks only for matching processes (which
-in turn can help prevent the profiler from being overloaded by unwinding
-runtime costs).
+in turn can help prevent the profiler from being overloaded by unwinding runtime
+costs).
 
 ### Example config
 
@@ -200,13 +196,12 @@ The following is an example of a config for periodic sampling based on time
 process with the given name is running.
 
 By changing the `timebase`, you can instead capture callstacks on other events,
-for example you could see the callstacks of when the process wakes other
-threads up by setting "sched/sched\_waking" as a `tracepoint` timebase.
+for example you could see the callstacks of when the process wakes other threads
+up by setting "sched/sched_waking" as a `tracepoint` timebase.
 
 Android note: the example uses "com.android.settings" as an example, but for
-successful callstack sampling the app has to be declared as either [profileable
-or
-debuggable](https://developer.android.com/guide/topics/manifest/profileable-element)
+successful callstack sampling the app has to be declared as either
+[profileable or debuggable](https://developer.android.com/guide/topics/manifest/profileable-element)
 in the manifest (or you must be on a debuggable build of the android OS).
 
 ```protobuf
@@ -378,8 +373,31 @@ The sample data can also be queried from the
 ### Alternatives
 
 The perfetto profiling implementation is built for continuous (streaming)
-collection, and is therefore less optimised for short, high-frequency
-profiling. If all you need are aggregated flamegraphs, consider `simpleperf` on
-Android and `perf` on Linux. These tools are more mature and have a simpler user
-interface for this use case.
+collection, and is therefore less optimised for short, high-frequency profiling.
+If all you need are aggregated flamegraphs, consider `simpleperf` on Android and
+`perf` on Linux. These tools are more mature and have a simpler user interface
+for this use case.
 
+## Next steps
+
+Now that you've recorded your first CPU profile, you can explore more advanced
+topics:
+
+### More about trace analysis
+
+- **[Perfetto UI](/docs/visualization/perfetto-ui.md)**: Learn about all the
+  features of the trace viewer.
+- **[Trace Analysis with SQL](/docs/analysis/index.md)**: Learn how to analyze
+  traces using the Trace Processor and PerfettoSQL.
+
+### Combining with other data sources
+
+You can also include other data sources on the same timeline as CPU sampling to
+get a more complete picture of your system's performance.
+
+- **[Scheduling events](/docs/data-sources/cpu-scheduling.md)**: Get detailed
+  information about which threads are running on which CPUs.
+- **[CPU Frequency](/docs/data-sources/cpu-freq.md)**: See how the CPU frequency
+  changes over time.
+- **[System Calls](/docs/data-sources/syscalls.md)**: Trace the entry and exit
+  of system calls.
