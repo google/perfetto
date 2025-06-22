@@ -130,22 +130,3 @@ ts                   dur                  cpu                  utid
      261187012430995                72396                    7                 2791
 ...
 ```
-
-## Next steps
-
-There are several options for exploring more of the trace analysis features
-Perfetto provides:
-<!-- 
-- The [trace conversion quickstart](/docs/quickstart/traceconv.md) gives an
-  overview on how to convert Perfetto traces to legacy formats to integrate with
-  existing tooling.
-- The [Trace Processor documentation](/docs/analysis/trace-processor.md) gives
-  more information about how to work with trace processor including details on
-  how to write queries and how tables in trace processor are organized.
-- The [metrics documentation](/docs/analysis/metrics.md) gives a more in-depth
-  look into metrics including a short walkthrough on how to build an
-  experimental metric from scratch.
-- The [SQL table reference](/docs/analysis/sql-tables.autogen) gives a
-  comprehensive guide to the all the available tables in trace processor.
-- The [common tasks](/docs/contributing/common-tasks.md) page gives a list of
-  steps on how new metrics can be added to the trace processor. -->

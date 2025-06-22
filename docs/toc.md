@@ -6,7 +6,7 @@
 
   - [Tutorials](#)
 
-    - [End-to-end Tracing](#)
+    - [Full-Stack Perfetto](#)
 
       - [System Tracing](getting-started/system-tracing.md)
       - [In-App Tracing](getting-started/in-app-tracing.md)
@@ -19,7 +19,7 @@
       - [Android atrace](getting-started/atrace.md)
       - [Linux ftrace](getting-started/ftrace.md)
 
-    - [Ad-hoc Trace Analysis](#)
+    - [Non-Perfetto Trace Analysis](#)
 
       - [Supported trace formats](getting-started/other-formats.md)
       - [Converting to Perfetto](getting-started/converting.md)
@@ -53,11 +53,15 @@
 
   - [Trace Analysis](#)
 
-    - [Overview](analysis/index.md)
-    - [Trace Processor (C++)](analysis/trace-processor.md)
-    - [Trace Processor (Python)](analysis/trace-processor-python.md)
-    - [PerfettoSQL Syntax](analysis/perfetto-sql-syntax.md)
-    - [PerfettoSQL Standard Library](analysis/stdlib-docs.autogen)
+    - [Getting Started](analysis/index.md)
+    - [Trace Processor](#)
+      - [Trace Processor (C++)](analysis/trace-processor.md)
+      - [Trace Processor (Python)](analysis/trace-processor-python.md)
+    - [PerfettoSQL](#)
+      - [Standard Library](analysis/stdlib-docs.autogen)
+      - [Syntax](analysis/perfetto-sql-syntax.md)
+      - [Style Guide](analysis/style-guide.md)
+      - [Backwards Compatibility](analysis/perfetto-sql-backcompat.md)
     - [Trace Summarization](analysis/trace-summary.md)
 
   - [Trace Visualization](#)
@@ -75,6 +79,8 @@
 
       - [Getting started](contributing/ui-getting-started.md)
       - [Plugins](contributing/ui-plugins.md)
+
+  - [FAQ](faq.md)
 
 - [Diving deep](#)
 
@@ -115,6 +121,10 @@
 
       - [Boot Tracing](case-studies/android-boot-tracing.md)
       - [Android Version Notes](reference/android-version-notes.md)
+
+    - [Linux](#)
+
+      - [Tracing across reboots](data-sources/previous-boot-trace.md)
 
     - [Command Line Reference](#)
 
@@ -175,5 +185,6 @@
 
   - [Team documentation](#)
 
+    - [SDK release process](contributing/sdk-releasing.md)
     - [UI release process](visualization/perfetto-ui-release-process.md)
     - [Chrome branches](contributing/chrome-branches.md)
