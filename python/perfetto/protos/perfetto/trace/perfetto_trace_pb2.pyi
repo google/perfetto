@@ -15398,8 +15398,10 @@ class TracingServiceState(_message.Message):
     def __init__(self, producers: _Optional[_Iterable[_Union[TracingServiceState.Producer, _Mapping]]] = ..., data_sources: _Optional[_Iterable[_Union[TracingServiceState.DataSource, _Mapping]]] = ..., tracing_sessions: _Optional[_Iterable[_Union[TracingServiceState.TracingSession, _Mapping]]] = ..., supports_tracing_sessions: bool = ..., num_sessions: _Optional[int] = ..., num_sessions_started: _Optional[int] = ..., tracing_service_version: _Optional[str] = ...) -> None: ...
 
 class TrackDescriptor(_message.Message):
-    __slots__ = ["atrace_name", "child_ordering", "chrome_process", "chrome_thread", "counter", "disallow_merging_with_system_tracks", "name", "parent_uuid", "process", "sibling_order_rank", "static_name", "thread", "uuid"]
+    __slots__ = ["atrace_name", "child_ordering", "chrome_process", "chrome_thread", "counter", "disallow_merging_with_system_tracks", "name", "parent_uuid", "process", "sibling_merge_behavior", "sibling_merge_key", "sibling_order_rank", "static_name", "thread", "uuid"]
     class ChildTracksOrdering(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = []
+    class SiblingMergeBehavior(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     ATRACE_NAME_FIELD_NUMBER: _ClassVar[int]
     CHILD_ORDERING_FIELD_NUMBER: _ClassVar[int]
@@ -15413,6 +15415,13 @@ class TrackDescriptor(_message.Message):
     NAME_FIELD_NUMBER: _ClassVar[int]
     PARENT_UUID_FIELD_NUMBER: _ClassVar[int]
     PROCESS_FIELD_NUMBER: _ClassVar[int]
+    SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY: TrackDescriptor.SiblingMergeBehavior
+    SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME: TrackDescriptor.SiblingMergeBehavior
+    SIBLING_MERGE_BEHAVIOR_FIELD_NUMBER: _ClassVar[int]
+    SIBLING_MERGE_BEHAVIOR_LEGACY: TrackDescriptor.SiblingMergeBehavior
+    SIBLING_MERGE_BEHAVIOR_NONE: TrackDescriptor.SiblingMergeBehavior
+    SIBLING_MERGE_BEHAVIOR_UNSPECIFIED: TrackDescriptor.SiblingMergeBehavior
+    SIBLING_MERGE_KEY_FIELD_NUMBER: _ClassVar[int]
     SIBLING_ORDER_RANK_FIELD_NUMBER: _ClassVar[int]
     STATIC_NAME_FIELD_NUMBER: _ClassVar[int]
     THREAD_FIELD_NUMBER: _ClassVar[int]
@@ -15427,11 +15436,13 @@ class TrackDescriptor(_message.Message):
     name: str
     parent_uuid: int
     process: ProcessDescriptor
+    sibling_merge_behavior: TrackDescriptor.SiblingMergeBehavior
+    sibling_merge_key: str
     sibling_order_rank: int
     static_name: str
     thread: ThreadDescriptor
     uuid: int
-    def __init__(self, uuid: _Optional[int] = ..., parent_uuid: _Optional[int] = ..., name: _Optional[str] = ..., static_name: _Optional[str] = ..., atrace_name: _Optional[str] = ..., process: _Optional[_Union[ProcessDescriptor, _Mapping]] = ..., chrome_process: _Optional[_Union[ChromeProcessDescriptor, _Mapping]] = ..., thread: _Optional[_Union[ThreadDescriptor, _Mapping]] = ..., chrome_thread: _Optional[_Union[ChromeThreadDescriptor, _Mapping]] = ..., counter: _Optional[_Union[CounterDescriptor, _Mapping]] = ..., disallow_merging_with_system_tracks: bool = ..., child_ordering: _Optional[_Union[TrackDescriptor.ChildTracksOrdering, str]] = ..., sibling_order_rank: _Optional[int] = ...) -> None: ...
+    def __init__(self, uuid: _Optional[int] = ..., parent_uuid: _Optional[int] = ..., name: _Optional[str] = ..., static_name: _Optional[str] = ..., atrace_name: _Optional[str] = ..., process: _Optional[_Union[ProcessDescriptor, _Mapping]] = ..., chrome_process: _Optional[_Union[ChromeProcessDescriptor, _Mapping]] = ..., thread: _Optional[_Union[ThreadDescriptor, _Mapping]] = ..., chrome_thread: _Optional[_Union[ChromeThreadDescriptor, _Mapping]] = ..., counter: _Optional[_Union[CounterDescriptor, _Mapping]] = ..., disallow_merging_with_system_tracks: bool = ..., child_ordering: _Optional[_Union[TrackDescriptor.ChildTracksOrdering, str]] = ..., sibling_order_rank: _Optional[int] = ..., sibling_merge_behavior: _Optional[_Union[TrackDescriptor.SiblingMergeBehavior, str]] = ..., sibling_merge_key: _Optional[str] = ...) -> None: ...
 
 class TrackEvent(_message.Message):
     __slots__ = ["categories", "category_iids", "cc_scheduler_state", "chrome_active_processes", "chrome_application_state_info", "chrome_content_settings_event_info", "chrome_frame_reporter", "chrome_histogram_sample", "chrome_keyed_service", "chrome_latency_info", "chrome_legacy_ipc", "chrome_message_pump", "chrome_mojo_event_info", "chrome_renderer_scheduler_state", "chrome_user_event", "chrome_window_handle_event_info", "correlation_id", "correlation_id_str", "correlation_id_str_iid", "counter_value", "debug_annotations", "double_counter_value", "extra_counter_track_uuids", "extra_counter_values", "extra_double_counter_track_uuids", "extra_double_counter_values", "flow_ids", "flow_ids_old", "legacy_event", "log_message", "name", "name_iid", "screenshot", "source_location", "source_location_iid", "task_execution", "terminating_flow_ids", "terminating_flow_ids_old", "thread_instruction_count_absolute", "thread_instruction_count_delta", "thread_time_absolute_us", "thread_time_delta_us", "timestamp_absolute_us", "timestamp_delta_us", "track_uuid", "type"]
