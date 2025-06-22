@@ -238,27 +238,6 @@ This guide focuses on using the "Query (SQL)" tab in the Perfetto UI.
     SELECT * FROM process;
     ```
 
-### Understanding PerfettoSQL
-
-PerfettoSQL is a dialect of SQL based on SQLite. It supports standard SQLite
-syntax and adds extra functions and tables specific to trace data.
-
-To simplify common analysis tasks, Perfetto also provides a
-[Standard Library](/docs/analysis/stdlib-docs.autogen) of pre-built modules. You
-can import these modules to use their tables, views, and functions.
-
-For example, to analyze garbage collection events in an Android trace, you can
-import the `android.garbage_collection` module:
-
-```sql
-INCLUDE PERFETTO MODULE android.garbage_collection;
-
-SELECT * FROM android_garbage_collection_events;
-```
-
-This query will return a list of all garbage collection events with additional
-information for each one.
-
 ## Next steps
 
 Now that you've recorded and analyzed your first system trace, you can explore
