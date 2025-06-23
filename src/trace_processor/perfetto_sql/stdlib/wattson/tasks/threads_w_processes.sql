@@ -23,7 +23,8 @@ SELECT
   ts,
   dur,
   cpu,
-  idle
+  idle,
+  _auto_id AS group_id
 FROM _adjusted_deep_idle
 WHERE
   idle = -1 AND dur > 0;
