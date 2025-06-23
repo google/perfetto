@@ -25,7 +25,10 @@
 #include <unistd.h>
 #endif
 
-#include "perfetto/ext/base/status_macros.h"
+#include <optional>
+
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 
 namespace perfetto::base {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
@@ -93,6 +96,48 @@ std::string SchedConfig::ToString() const {
 }
 unsigned int SchedConfig::KernelPolicy() const {
   return SchedPolicyToCApi(policy_);
+}
+
+std::optional<LinuxProcSelfStatSchedInfo> ReadProcSelfStatSchedInfo() {
+  std::string stat;
+  if (!ReadFile("/proc/self/stat", &stat)) {
+    return std::nullopt;
+  }
+  // The stat file is a single line split into space-separated fields as "pid
+  // (comm) state ppid ...". However because the command name can contain any
+  // characters (including parentheses and spaces), we need to skip past it
+  // before parsing the rest of the fields. To do that, we look for the last
+  // instance of ") " (parentheses followed by space) and parse forward from
+  // that point.
+  // (Copied from 'src/tracing/track.cc')
+  // TODO(ktimofeev): extract this logic to some place in 'base/'
+  size_t comm_end = stat.rfind(") ");
+  if (comm_end == std::string::npos) {
+    return std::nullopt;
+  }
+  stat = stat.substr(comm_end + strlen(") "));
+  // Now we need to subtract two from each index in the stat array
+  constexpr int kOneIndexOffset =
+      1 /* starts from one */ + 2 /* skips pid and proc name*/;
+  const auto& parts = SplitString(stat, " ");
+  if (parts.size() <=
+      LinuxProcSelfStatSchedInfo::kPolicyIdx - kOneIndexOffset) {
+    return std::nullopt;
+  }
+  const auto priority = StringToInt32(
+      parts[LinuxProcSelfStatSchedInfo::kPriorityIdx - kOneIndexOffset]);
+  const auto nice = StringToInt32(
+      parts[LinuxProcSelfStatSchedInfo::kNiceIdx - kOneIndexOffset]);
+  const auto rt_priority = StringToUInt32(
+      parts[LinuxProcSelfStatSchedInfo::kRtPriorityIdx - kOneIndexOffset]);
+  const auto policy = StringToUInt32(
+      parts[LinuxProcSelfStatSchedInfo::kPolicyIdx - kOneIndexOffset]);
+  if (!priority.has_value() || !nice.has_value() || !rt_priority.has_value() ||
+      !policy.has_value()) {
+    return std::nullopt;
+  }
+  return LinuxProcSelfStatSchedInfo{priority.value(), nice.value(),
+                                    rt_priority.value(), policy.value()};
 }
 
 SchedManagerInterface::~SchedManagerInterface() = default;
@@ -200,6 +245,10 @@ unsigned int SchedConfig::KernelPolicy() const {
 
 std::string SchedConfig::ToString() const {
   return "";
+}
+
+std::optional<LinuxProcSelfStatSchedInfo> ReadProcSelfStatSchedInfo() {
+  return std::nullopt;
 }
 
 bool SchedManager::IsSupportedOnTheCurrentPlatform() const {

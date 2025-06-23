@@ -165,6 +165,30 @@ struct SchedConfig {
   constexpr static int kKernelMaxPrio = kKernelMaxRtPrio + kNiceWidth;
 };
 
+struct LinuxProcSelfStatSchedInfo {
+  // See description of the '/proc/self/stat' file format here:
+  // https://www.man7.org/linux/man-pages/man5/proc_pid_stat.5.html
+
+  // All indexes in the split line start from 1.
+  static constexpr int kPriorityIdx = 18;
+  int priority;
+  static constexpr int kNiceIdx = 19;
+  int nice;
+  static constexpr int kRtPriorityIdx = 40;
+  unsigned int rt_priority;
+  static constexpr int kPolicyIdx = 41;
+  unsigned int policy;
+
+  std::string ToString() const {
+    return "LinuxProcSelfStatSchedInfo(priority=" + std::to_string(priority) +
+           ", nice=" + std::to_string(nice) +
+           ", rt_priority=" + std::to_string(rt_priority) +
+           ", policy=" + std::to_string(policy) + ")";
+  }
+};
+
+std::optional<LinuxProcSelfStatSchedInfo> ReadProcSelfStatSchedInfo();
+
 class SchedManagerInterface {
  public:
   virtual ~SchedManagerInterface();

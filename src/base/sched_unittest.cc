@@ -20,6 +20,8 @@
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/string_utils.h"
 
+#include <sched.h>
+
 #include "test/gtest_and_gmock.h"
 #include "test/status_matchers.h"
 
@@ -135,84 +137,27 @@ TEST(SchedManagerTest, TestHasCapabilityToSetSchedPolicy) {
   ASSERT_EQ(is_root, instance.HasCapabilityToSetSchedPolicy());
 }
 
-struct KernelSchedInfo {
-  unsigned int policy;
-  unsigned int prio;
-};
-
-bool CheckPathReadable(const std::string& path) {
-  bool ok = access(path.c_str(), R_OK) == 0;
-  if (!ok) {
-    PERFETTO_PLOG("Failed to read %s", path.c_str());
-  } else {
-    PERFETTO_DLOG("access R_OK %s", path.c_str());
-  }
-  return ok;
-}
-
-KernelSchedInfo GetSelfKernelSchedInfo() {
-  std::string content;
-  PERFETTO_DCHECK(ReadFile("/proc/self/sched", &content));
-  const std::vector<std::string> lines = SplitString(content, "\n");
-  std::string policy, prio;
-  for (const auto& line : lines) {
-    if (StartsWith(line, "policy")) {
-      auto parts = SplitString(line, ":");
-      PERFETTO_DCHECK(parts.size() == 2);
-      policy = TrimWhitespace(parts[1]);
-    } else if (StartsWith(line, "prio")) {
-      auto parts = SplitString(line, ":");
-      PERFETTO_DCHECK(parts.size() == 2);
-      prio = TrimWhitespace(parts[1]);
-    }
-  }
-  PERFETTO_DCHECK(!policy.empty() && !prio.empty());
-  auto policy_int = StringToUInt32(policy);
-  PERFETTO_DCHECK(policy_int.has_value());
-  auto prio_int = StringToUInt32(prio);
-  PERFETTO_DCHECK(prio_int.has_value());
-  return KernelSchedInfo{policy_int.value(), prio_int.value()};
-}
-
-/*void AssertEQToKernelSchedInfoIfAvailable(const SchedConfig& config) {
-  if (CheckPathReadable("/proc/self/sched")) {
-    const auto kernel_info = GetSelfKernelSchedInfo();
-    ASSERT_EQ(config.KernelPriority(), kernel_info.prio);
-    ASSERT_EQ(config.KernelPolicy(), kernel_info.policy);
-  }
-}*/
-
 TEST(SchedManagerTest, TestGetAndSetSchedConfig) {
-  // Logging to debug /proc/self/... readability
-  PERFETTO_DCHECK(CheckPathReadable("/proc/mounts"));
-  std::string mounts;
-  PERFETTO_DCHECK(ReadFile("/proc/mounts", &mounts));
-  PERFETTO_DLOG("mounts:\n%s", mounts.c_str());
-
-  PERFETTO_DCHECK(CheckPathReadable("/proc"));
-  PERFETTO_DCHECK(CheckPathReadable("/proc/self"));
-  PERFETTO_DCHECK(CheckPathReadable("/proc/self/cmdline"));
-  PERFETTO_DCHECK(CheckPathReadable("/proc/self/stat"));
-  PERFETTO_DCHECK(CheckPathReadable("/proc/self/sched"));
-
   // Root is required to set the higher priority for the process, but not
   // required to set the lower priority.
   // We don't want all other tests to continue running in this process with
   // reduced priority, so we fork and check try to lower the priority in a
   // child process.
+
+  LinuxProcSelfStatSchedInfo info = ReadProcSelfStatSchedInfo().value();
+  if (!(static_cast<int>(info.policy) == SCHED_OTHER && info.nice == 0)) {
+    GTEST_SKIP() << "Skipping test because the current sched policy for the "
+                    "test process '"
+                 << info.ToString() << "' is not what we expect";
+  }
+
   SchedManager& instance = SchedManager::GetInstance();
   const auto current = instance.GetCurrentSchedConfig();
   ASSERT_OK(current);
-  const SchedConfig initial = current.value();
-  const auto kernel_info = GetSelfKernelSchedInfo();
-  ASSERT_EQ(initial.KernelPriority(), kernel_info.prio);
-  ASSERT_EQ(initial.KernelPolicy(), kernel_info.policy);
 
-  if (initial != SchedConfig::CreateDefaultUserspacePolicy()) {
-    GTEST_SKIP() << "Skipping test because the current sched policy for the "
-                    "test process '"
-                 << initial.ToString() << "' is not what we expect";
-  }
+  const SchedConfig initial = current.value();
+  ASSERT_EQ(initial.policy(), SchedConfig::SchedPolicy::kOther);
+  ASSERT_EQ(initial.nice(), 0);
 
   // Inspired by UnixSocketTest#SharedMemory test.
   Pipe pipe = Pipe::Create();
@@ -227,10 +172,12 @@ TEST(SchedManagerTest, TestGetAndSetSchedConfig) {
     const auto new_current = instance.GetCurrentSchedConfig();
     ASSERT_OK(new_current);
     ASSERT_EQ(new_current.value(), new_value);
+    ASSERT_STREQ(new_current->ToString().c_str(),
+                 "OTHER(nice=1, kernel_policy=0, kernel_prio=121)");
 
-    const auto new_kernel_info = GetSelfKernelSchedInfo();
-    ASSERT_EQ(new_current.value().KernelPriority(), new_kernel_info.prio);
-    ASSERT_EQ(new_current.value().KernelPolicy(), new_kernel_info.policy);
+    const auto new_proc_info = ReadProcSelfStatSchedInfo().value();
+    ASSERT_EQ(static_cast<int>(new_proc_info.policy), SCHED_OTHER);
+    ASSERT_EQ(new_proc_info.nice, 1);
 
     // IDLE is the lowest possible priority, try to set it.
     const auto new_idle = SchedConfig::CreateIdle();
@@ -239,12 +186,11 @@ TEST(SchedManagerTest, TestGetAndSetSchedConfig) {
     const auto new_current_idle = instance.GetCurrentSchedConfig();
     ASSERT_OK(new_current_idle);
     ASSERT_EQ(new_current_idle.value(), new_idle);
+    ASSERT_STREQ(new_current_idle->ToString().c_str(),
+                 "IDLE(kernel_policy=5, kernel_prio=120)");
 
-    const auto new_current_idle_kernel_info = GetSelfKernelSchedInfo();
-    ASSERT_EQ(new_current_idle.value().KernelPriority(),
-              new_current_idle_kernel_info.prio);
-    ASSERT_EQ(new_current_idle.value().KernelPolicy(),
-              new_current_idle_kernel_info.policy);
+    const auto new_current_idle_proc_info = ReadProcSelfStatSchedInfo().value();
+    ASSERT_EQ(static_cast<int>(new_current_idle_proc_info.policy), SCHED_IDLE);
 
     // We can't change the priority to the initial value because it is higher
     // than the current one. We can end the test here.
