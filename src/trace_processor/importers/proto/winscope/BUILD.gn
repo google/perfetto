@@ -36,6 +36,7 @@ source_set("full") {
     "viewcapture_args_parser.h",
     "viewcapture_parser.cc",
     "viewcapture_parser.h",
+    "winscope_context.h",
     "winscope_module.cc",
     "winscope_module.h",
   ]

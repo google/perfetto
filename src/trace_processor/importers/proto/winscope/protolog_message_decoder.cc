@@ -28,7 +28,6 @@ namespace perfetto::trace_processor {
 
 ProtoLogMessageDecoder::ProtoLogMessageDecoder(TraceProcessorContext* context)
     : context_(context) {}
-ProtoLogMessageDecoder::~ProtoLogMessageDecoder() = default;
 
 std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
     uint64_t message_id,
