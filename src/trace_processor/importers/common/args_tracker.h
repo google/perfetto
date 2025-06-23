@@ -34,12 +34,9 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/trace_proto_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
+#include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
-#include "src/trace_processor/tables/winscope_tables_py.h"
-#endif
 
 namespace perfetto::trace_processor {
 
@@ -144,47 +141,6 @@ class ArgsTracker {
     return AddArgsTo(context_->storage->mutable_flow_table(), id);
   }
 
-  BoundInserter AddArgsTo(tables::MemorySnapshotNodeTable::Id id) {
-    return AddArgsTo(context_->storage->mutable_memory_snapshot_node_table(),
-                     id);
-  }
-
-  BoundInserter AddArgsTo(MetadataId id) {
-    auto* table = context_->storage->mutable_metadata_table();
-    uint32_t row = table->FindById(id)->ToRowNumber().row_number();
-    return BoundInserter(this, &table->dataframe(),
-                         tables::MetadataTable::ColumnIndex::int_value, row);
-  }
-
-  BoundInserter AddArgsTo(TrackId id) {
-    auto* table = context_->storage->mutable_track_table();
-    uint32_t row = table->FindById(id)->ToRowNumber().row_number();
-    return BoundInserter(this, &table->dataframe(),
-                         tables::TrackTable::ColumnIndex::source_arg_set_id,
-                         row);
-  }
-
-  BoundInserter AddArgsTo(VulkanAllocId id) {
-    return AddArgsTo(
-        context_->storage->mutable_vulkan_memory_allocations_table(), id);
-  }
-
-  BoundInserter AddArgsTo(UniquePid id) {
-    auto* table = context_->storage->mutable_process_table();
-    return BoundInserter(this, &table->dataframe(),
-                         tables::ProcessTable::ColumnIndex::arg_set_id, id);
-  }
-
-  BoundInserter AddArgsTo(tables::ExperimentalProtoPathTable::Id id) {
-    return AddArgsTo(context_->storage->mutable_experimental_proto_path_table(),
-                     id);
-  }
-
-  BoundInserter AddArgsTo(tables::CpuTable::Id id) {
-    return AddArgsTo(context_->storage->mutable_cpu_table(), id);
-  }
-
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
   BoundInserter AddArgsTo(tables::InputMethodClientsTable::Id id) {
     return AddArgsTo(context_->storage->mutable_inputmethod_clients_table(),
                      id);
@@ -198,6 +154,11 @@ class ArgsTracker {
   BoundInserter AddArgsTo(tables::InputMethodManagerServiceTable::Id id) {
     return AddArgsTo(
         context_->storage->mutable_inputmethod_manager_service_table(), id);
+  }
+
+  BoundInserter AddArgsTo(tables::MemorySnapshotNodeTable::Id id) {
+    return AddArgsTo(context_->storage->mutable_memory_snapshot_node_table(),
+                     id);
   }
 
   BoundInserter AddArgsTo(tables::SurfaceFlingerLayersSnapshotTable::Id id) {
@@ -251,7 +212,41 @@ class ArgsTracker {
     return AddArgsTo(
         context_->storage->mutable_android_input_event_dispatch_table(), id);
   }
-#endif
+
+  BoundInserter AddArgsTo(MetadataId id) {
+    auto* table = context_->storage->mutable_metadata_table();
+    uint32_t row = table->FindById(id)->ToRowNumber().row_number();
+    return BoundInserter(this, &table->dataframe(),
+                         tables::MetadataTable::ColumnIndex::int_value, row);
+  }
+
+  BoundInserter AddArgsTo(TrackId id) {
+    auto* table = context_->storage->mutable_track_table();
+    uint32_t row = table->FindById(id)->ToRowNumber().row_number();
+    return BoundInserter(this, &table->dataframe(),
+                         tables::TrackTable::ColumnIndex::source_arg_set_id,
+                         row);
+  }
+
+  BoundInserter AddArgsTo(VulkanAllocId id) {
+    return AddArgsTo(
+        context_->storage->mutable_vulkan_memory_allocations_table(), id);
+  }
+
+  BoundInserter AddArgsTo(UniquePid id) {
+    auto* table = context_->storage->mutable_process_table();
+    return BoundInserter(this, &table->dataframe(),
+                         tables::ProcessTable::ColumnIndex::arg_set_id, id);
+  }
+
+  BoundInserter AddArgsTo(tables::ExperimentalProtoPathTable::Id id) {
+    return AddArgsTo(context_->storage->mutable_experimental_proto_path_table(),
+                     id);
+  }
+
+  BoundInserter AddArgsTo(tables::CpuTable::Id id) {
+    return AddArgsTo(context_->storage->mutable_cpu_table(), id);
+  }
 
   // Returns a CompactArgSet which contains the args inserted into this
   // ArgsTracker. Requires that every arg in this tracker was inserted for the

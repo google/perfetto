@@ -374,6 +374,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_proto_importer_module",
+        ":src_trace_processor_importers_proto_winscope_full",
         ":src_trace_processor_importers_syscalls_full",
         ":src_trace_processor_importers_systrace_full",
         ":src_trace_processor_importers_systrace_systrace_line",
@@ -425,6 +426,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_stdlib",
         ":src_trace_processor_util_trace_blob_view_reader",
         ":src_trace_processor_util_trace_type",
+        ":src_trace_processor_util_winscope_proto_mapping",
         ":src_trace_processor_util_zip_reader",
     ],
     hdrs = [
@@ -462,6 +464,7 @@ perfetto_cc_library(
                ":protos_perfetto_config_zero",
                ":protos_perfetto_perfetto_sql_zero",
                ":protos_perfetto_trace_android_winscope_common_zero",
+               ":protos_perfetto_trace_android_winscope_extensions_zero",
                ":protos_perfetto_trace_android_winscope_regular_zero",
                ":protos_perfetto_trace_android_zero",
                ":protos_perfetto_trace_chrome_zero",
@@ -497,6 +500,7 @@ perfetto_cc_library(
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
+               ":src_trace_processor_importers_proto_winscope_gen_cc_winscope_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
@@ -2235,6 +2239,44 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/importers/proto/winscope:full
+perfetto_filegroup(
+    name = "src_trace_processor_importers_proto_winscope_full",
+    srcs = [
+        "src/trace_processor/importers/proto/winscope/android_input_event_parser.cc",
+        "src/trace_processor/importers/proto/winscope/android_input_event_parser.h",
+        "src/trace_processor/importers/proto/winscope/protolog_message_decoder.cc",
+        "src/trace_processor/importers/proto/winscope/protolog_message_decoder.h",
+        "src/trace_processor/importers/proto/winscope/protolog_parser.cc",
+        "src/trace_processor/importers/proto/winscope/protolog_parser.h",
+        "src/trace_processor/importers/proto/winscope/shell_transitions_parser.cc",
+        "src/trace_processor/importers/proto/winscope/shell_transitions_parser.h",
+        "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.cc",
+        "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.h",
+        "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.cc",
+        "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.h",
+        "src/trace_processor/importers/proto/winscope/surfaceflinger_transactions_parser.cc",
+        "src/trace_processor/importers/proto/winscope/surfaceflinger_transactions_parser.h",
+        "src/trace_processor/importers/proto/winscope/viewcapture_args_parser.cc",
+        "src/trace_processor/importers/proto/winscope/viewcapture_args_parser.h",
+        "src/trace_processor/importers/proto/winscope/viewcapture_parser.cc",
+        "src/trace_processor/importers/proto/winscope/viewcapture_parser.h",
+        "src/trace_processor/importers/proto/winscope/winscope_module.cc",
+        "src/trace_processor/importers/proto/winscope/winscope_module.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/proto/winscope:gen_cc_winscope_descriptor
+perfetto_cc_proto_descriptor(
+    name = "src_trace_processor_importers_proto_winscope_gen_cc_winscope_descriptor",
+    deps = [
+        ":protos_perfetto_trace_android_winscope_descriptor",
+    ],
+    outs = [
+        "src/trace_processor/importers/proto/winscope/winscope.descriptor.h",
+    ],
+)
+
 # GN target: //src/trace_processor/importers/proto:full
 perfetto_filegroup(
     name = "src_trace_processor_importers_proto_full",
@@ -2888,6 +2930,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/flamegraph_construction_algorithms.h",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.cc",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.h",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_proto_to_args_with_defaults.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_proto_to_args_with_defaults.h",
     ],
 )
 
@@ -3057,6 +3101,19 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/startup/startups_minsdk29.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/startup/startups_minsdk33.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/startup/time_to_display.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/stdlib/android/winscope:winscope
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_android_winscope_winscope",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/android/winscope/inputmethod.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/winscope/rect.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/winscope/surfaceflinger.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/winscope/transitions.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/winscope/viewcapture.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/winscope/windowmanager.sql",
     ],
 )
 
@@ -3397,6 +3454,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_android_memory_heap_profile_heap_profile",
         ":src_trace_processor_perfetto_sql_stdlib_android_memory_memory",
         ":src_trace_processor_perfetto_sql_stdlib_android_startup_startup",
+        ":src_trace_processor_perfetto_sql_stdlib_android_winscope_winscope",
         ":src_trace_processor_perfetto_sql_stdlib_appleos_appleos",
         ":src_trace_processor_perfetto_sql_stdlib_appleos_instruments_instruments",
         ":src_trace_processor_perfetto_sql_stdlib_callstacks_callstacks",
@@ -3574,6 +3632,7 @@ perfetto_cc_tp_tables(
         "src/trace_processor/tables/trace_proto_tables.py",
         "src/trace_processor/tables/track_tables.py",
         "src/trace_processor/tables/v8_tables.py",
+        "src/trace_processor/tables/winscope_tables.py",
     ],
     outs = [
         "src/trace_processor/tables/android_tables_py.h",
@@ -3590,6 +3649,7 @@ perfetto_cc_tp_tables(
         "src/trace_processor/tables/trace_proto_tables_py.h",
         "src/trace_processor/tables/track_tables_py.h",
         "src/trace_processor/tables/v8_tables_py.h",
+        "src/trace_processor/tables/winscope_tables_py.h",
     ],
 )
 
@@ -3782,6 +3842,14 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/util/trace_type.cc",
         "src/trace_processor/util/trace_type.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:winscope_proto_mapping
+perfetto_filegroup(
+    name = "src_trace_processor_util_winscope_proto_mapping",
+    srcs = [
+        "src/trace_processor/util/winscope_proto_mapping.h",
     ],
 )
 
@@ -6059,6 +6127,15 @@ perfetto_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/trace/android:winscope_extensions_zero
+perfetto_cc_protozero_library(
+    name = "protos_perfetto_trace_android_winscope_extensions_zero",
+    deps = [
+        ":protos_perfetto_trace_android_winscope_common_zero",
+        ":protos_perfetto_trace_android_winscope_extensions_protos",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/android:winscope_source_set
 perfetto_proto_library(
     name = "protos_perfetto_trace_android_winscope_protos",
@@ -7262,6 +7339,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_proto_importer_module",
+        ":src_trace_processor_importers_proto_winscope_full",
         ":src_trace_processor_importers_syscalls_full",
         ":src_trace_processor_importers_systrace_full",
         ":src_trace_processor_importers_systrace_systrace_line",
@@ -7312,6 +7390,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_stdlib",
         ":src_trace_processor_util_trace_blob_view_reader",
         ":src_trace_processor_util_trace_type",
+        ":src_trace_processor_util_winscope_proto_mapping",
         ":src_trace_processor_util_zip_reader",
     ],
     hdrs = [
@@ -7350,6 +7429,7 @@ perfetto_cc_library(
                ":protos_perfetto_config_zero",
                ":protos_perfetto_perfetto_sql_zero",
                ":protos_perfetto_trace_android_winscope_common_zero",
+               ":protos_perfetto_trace_android_winscope_extensions_zero",
                ":protos_perfetto_trace_android_winscope_regular_zero",
                ":protos_perfetto_trace_android_zero",
                ":protos_perfetto_trace_chrome_zero",
@@ -7384,6 +7464,7 @@ perfetto_cc_library(
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
+               ":src_trace_processor_importers_proto_winscope_gen_cc_winscope_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
@@ -7468,6 +7549,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_proto_importer_module",
+        ":src_trace_processor_importers_proto_winscope_full",
         ":src_trace_processor_importers_syscalls_full",
         ":src_trace_processor_importers_systrace_full",
         ":src_trace_processor_importers_systrace_systrace_line",
@@ -7521,6 +7603,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_stdlib",
         ":src_trace_processor_util_trace_blob_view_reader",
         ":src_trace_processor_util_trace_type",
+        ":src_trace_processor_util_winscope_proto_mapping",
         ":src_trace_processor_util_zip_reader",
         "src/trace_processor/trace_processor_shell.cc",
     ],
@@ -7545,6 +7628,7 @@ perfetto_cc_binary(
                ":protos_perfetto_config_zero",
                ":protos_perfetto_perfetto_sql_zero",
                ":protos_perfetto_trace_android_winscope_common_zero",
+               ":protos_perfetto_trace_android_winscope_extensions_zero",
                ":protos_perfetto_trace_android_winscope_regular_zero",
                ":protos_perfetto_trace_android_zero",
                ":protos_perfetto_trace_chrome_zero",
@@ -7581,6 +7665,7 @@ perfetto_cc_binary(
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
+               ":src_trace_processor_importers_proto_winscope_gen_cc_winscope_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
@@ -7666,6 +7751,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_proto_minimal",
         ":src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":src_trace_processor_importers_proto_proto_importer_module",
+        ":src_trace_processor_importers_proto_winscope_full",
         ":src_trace_processor_importers_syscalls_full",
         ":src_trace_processor_importers_systrace_full",
         ":src_trace_processor_importers_systrace_systrace_line",
@@ -7716,6 +7802,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_stdlib",
         ":src_trace_processor_util_trace_blob_view_reader",
         ":src_trace_processor_util_trace_type",
+        ":src_trace_processor_util_winscope_proto_mapping",
         ":src_trace_processor_util_zip_reader",
         ":src_traceconv_lib",
         ":src_traceconv_main",
@@ -7743,6 +7830,7 @@ perfetto_cc_binary(
                ":protos_perfetto_config_zero",
                ":protos_perfetto_perfetto_sql_zero",
                ":protos_perfetto_trace_android_winscope_common_zero",
+               ":protos_perfetto_trace_android_winscope_extensions_zero",
                ":protos_perfetto_trace_android_winscope_regular_zero",
                ":protos_perfetto_trace_android_zero",
                ":protos_perfetto_trace_chrome_zero",
@@ -7778,6 +7866,7 @@ perfetto_cc_binary(
                ":src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
+               ":src_trace_processor_importers_proto_winscope_gen_cc_winscope_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",

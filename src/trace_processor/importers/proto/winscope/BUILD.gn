@@ -14,8 +14,6 @@
 
 import("../../../../../gn/perfetto_cc_proto_descriptor.gni")
 
-assert(enable_perfetto_winscope)
-
 source_set("full") {
   sources = [
     "android_input_event_parser.cc",
