@@ -41,13 +41,9 @@ source_set("table_functions") {
     "flamegraph_construction_algorithms.h",
     "table_info.cc",
     "table_info.h",
+    "winscope_proto_to_args_with_defaults.cc",
+    "winscope_proto_to_args_with_defaults.h",
   ]
-  if (enable_perfetto_winscope) {
-    sources += [
-      "winscope_proto_to_args_with_defaults.cc",
-      "winscope_proto_to_args_with_defaults.h",
-    ]
-  }
   deps = [
     ":tables",
     "../../../../../gn:default_deps",
@@ -69,11 +65,9 @@ source_set("table_functions") {
     "../../../types",
     "../../../util:descriptors",
     "../../../util:proto_to_args_parser",
+    "../../../util:winscope_proto_mapping",
     "../../engine",
   ]
-  if (enable_perfetto_winscope) {
-    deps += [ "../../../util:winscope_proto_mapping" ]
-  }
   public_deps = [ ":interface" ]
 }
 

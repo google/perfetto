@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Path, DataPath
-from python.generators.diff_tests.testing import Csv, TextProto
+from python.generators.diff_tests.testing import Path, DataPath, Metric
+from python.generators.diff_tests.testing import Csv, Json, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 

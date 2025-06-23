@@ -216,11 +216,8 @@ source_set("full") {
     "../ftrace:full",
     "../generic_kernel:full",
     "../syscalls:full",
+    "winscope:full",
   ]
-
-  if (enable_perfetto_winscope) {
-    deps += [ "winscope:full" ]
-  }
 }
 
 source_set("proto_importer_module") {
