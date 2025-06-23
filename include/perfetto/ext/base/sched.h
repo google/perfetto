@@ -120,6 +120,8 @@ struct SchedConfig {
                    static_cast<int>(policy_));
   }
 
+  unsigned int KernelPolicy() const;
+
   static Status ValidateNiceValue(const int nice) {
     if (nice >= kMinNice && nice <= kMaxNice) {
       return OkStatus();

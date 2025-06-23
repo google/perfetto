@@ -91,6 +91,9 @@ std::string SchedConfig::ToString() const {
   PERFETTO_FATAL("Can't be here (Unknown sched policy enum value %d)",
                  static_cast<int>(policy_));
 }
+unsigned int SchedConfig::KernelPolicy() const {
+  return SchedPolicyToCApi(policy_);
+}
 
 SchedManagerInterface::~SchedManagerInterface() = default;
 
@@ -190,6 +193,10 @@ Status SchedManager::SetSchedConfig(const SchedConfig& arg) {
   return OkStatus();
 }
 #else
+
+unsigned int SchedConfig::KernelPolicy() const {
+  return 0;
+}
 
 std::string SchedConfig::ToString() const {
   return "";

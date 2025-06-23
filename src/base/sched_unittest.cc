@@ -136,6 +136,35 @@ TEST(SchedManagerTest, TestHasCapabilityToSetSchedPolicy) {
   ASSERT_EQ(is_root, instance.HasCapabilityToSetSchedPolicy());
 }
 
+struct KernelSchedInfo {
+  unsigned int policy;
+  unsigned int prio;
+};
+
+KernelSchedInfo GetSelfKernelSchedInfo() {
+  std::string content;
+  PERFETTO_DCHECK(ReadFile("/proc/self/sched", &content));
+  const std::vector<std::string> lines = SplitString(content, "\n");
+  std::string policy, prio;
+  for (const auto& line : lines) {
+    if (StartsWith(line, "policy")) {
+      auto parts = SplitString(line, ":");
+      PERFETTO_DCHECK(parts.size() == 2);
+      policy = TrimWhitespace(parts[1]);
+    } else if (StartsWith(line, "prio")) {
+      auto parts = SplitString(line, ":");
+      PERFETTO_DCHECK(parts.size() == 2);
+      prio = TrimWhitespace(parts[1]);
+    }
+  }
+  PERFETTO_DCHECK(!policy.empty() && !prio.empty());
+  auto policy_int = StringToUInt32(policy);
+  PERFETTO_DCHECK(policy_int.has_value());
+  auto prio_int = StringToUInt32(prio);
+  PERFETTO_DCHECK(prio_int.has_value());
+  return KernelSchedInfo{policy_int.value(), prio_int.value()};
+}
+
 TEST(SchedManagerTest, TestGetAndSetSchedConfig) {
   // Root is required to set the higher priority for the process, but not
   // required to set the lower priority.
@@ -146,6 +175,10 @@ TEST(SchedManagerTest, TestGetAndSetSchedConfig) {
   const auto current = instance.GetCurrentSchedConfig();
   ASSERT_OK(current);
   const SchedConfig initial = current.value();
+  const auto kernel_info = GetSelfKernelSchedInfo();
+  ASSERT_EQ(initial.KernelPriority(), kernel_info.prio);
+  ASSERT_EQ(initial.KernelPolicy(), kernel_info.policy);
+
   if (initial != SchedConfig::CreateDefaultUserspacePolicy()) {
     GTEST_SKIP() << "Skipping test because the current sched policy for the "
                     "test process '"
@@ -165,6 +198,25 @@ TEST(SchedManagerTest, TestGetAndSetSchedConfig) {
     const auto new_current = instance.GetCurrentSchedConfig();
     ASSERT_OK(new_current);
     ASSERT_EQ(new_current.value(), new_value);
+
+    const auto new_kernel_info = GetSelfKernelSchedInfo();
+    ASSERT_EQ(new_current.value().KernelPriority(), new_kernel_info.prio);
+    ASSERT_EQ(new_current.value().KernelPolicy(), new_kernel_info.policy);
+
+    // IDLE is the lowest possible priority, try to set it.
+    const auto new_idle = SchedConfig::CreateIdle();
+    ASSERT_LT(new_idle, new_value);
+    ASSERT_OK(instance.SetSchedConfig(new_idle));
+    const auto new_current_idle = instance.GetCurrentSchedConfig();
+    ASSERT_OK(new_current_idle);
+    ASSERT_EQ(new_current_idle.value(), new_idle);
+
+    const auto new_current_idle_kernel_info = GetSelfKernelSchedInfo();
+    ASSERT_EQ(new_current_idle.value().KernelPriority(),
+              new_current_idle_kernel_info.prio);
+    ASSERT_EQ(new_current_idle.value().KernelPolicy(),
+              new_current_idle_kernel_info.policy);
+
     // We can't change the priority to the initial value because it is higher
     // than the current one. We can end the test here.
     exit(HasFailure());
