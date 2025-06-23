@@ -101,6 +101,7 @@ export class TraceContext implements Disposable {
       traceInfo,
       this.appCtx.timestampFormat,
       this.appCtx.durationPrecision,
+      this.appCtx.timezoneOverride,
     );
 
     this.scrollHelper = new ScrollHelper(
