@@ -15,7 +15,61 @@ NOTE: The API is only compatible with Python3.
 
 The main entry point to the API is the `TraceProcessor` class.
 
-### Initializing TraceProcessor
+## Example Usage
+
+The following examples demonstrate basic usage of the Python API.
+
+### Querying Slices
+
+This example shows how to query for slices and print their names.
+
+```python
+from perfetto.trace_processor import TraceProcessor
+tp = TraceProcessor(trace='trace.perfetto-trace')
+
+qr_it = tp.query('SELECT name FROM slice')
+for row in qr_it:
+  print(row.name)
+```
+
+**Output**
+
+```
+eglSwapBuffersWithDamageKHR
+onMessageReceived
+queueBuffer
+bufferLoad
+query
+...
+```
+
+### Querying as a Pandas DataFrame
+
+For more advanced analysis, you can convert query results to a Pandas DataFrame.
+
+```python
+from perfetto.trace_processor import TraceProcessor
+tp = TraceProcessor(trace='trace.perfetto-trace')
+
+qr_it = tp.query('SELECT ts, name FROM slice')
+qr_df = qr_it.as_pandas_dataframe()
+print(qr_df.to_string())
+```
+
+**Output**
+
+```
+ts                   name
+-------------------- ---------------------------
+     261187017446933 eglSwapBuffersWithDamageKHR
+     261187017518340 onMessageReceived
+     261187020825163 queueBuffer
+     261187021345235 bufferLoad
+     261187121345235 query
+     ...
+```
+
+## Initialization
 
 `TraceProcessor` can be initialized in a few ways depending on where the trace
 is and whether you want to connect to an existing `trace_processor` instance or

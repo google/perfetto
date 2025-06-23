@@ -1,7 +1,7 @@
-# Quickstart: Trace conversion
+# Converting from Perfetto to other trace formats
 
-_This quickstart demonstrates how Perfetto traces can be converted into other
-trace formats using the `traceconv` tool._
+Perfetto's native protobuf based format can be converted to other trace formats.
+This doc is a quick guide to how that works.
 
 ![](/docs/images/traceconv-summary.png)
 

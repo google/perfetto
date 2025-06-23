@@ -63,6 +63,7 @@
       - [Style Guide](analysis/style-guide.md)
       - [Backwards Compatibility](analysis/perfetto-sql-backcompat.md)
     - [Trace Summarization](analysis/trace-summary.md)
+    - [Converting from Perfetto](quickstart/traceconv.md)
 
   - [Trace Visualization](#)
 
