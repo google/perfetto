@@ -342,16 +342,16 @@ std::unique_ptr<TracingService> TracingService::CreateInstance(
   deps.clock = std::make_unique<tracing_service::ClockImpl>();
   uint32_t seed = static_cast<uint32_t>(deps.clock->GetWallTimeMs().count());
   deps.random = std::make_unique<tracing_service::RandomImpl>(seed);
-  deps.sched_status_manager =
-      std::unique_ptr<base::SchedManager>(base::SchedManager::GetInstance());
-  return std::unique_ptr<TracingService>(new TracingServiceImpl(
-      std::move(shm_factory), task_runner, std::move(deps), init_opts));
+  return std::make_unique<TracingServiceImpl>(
+      std::move(shm_factory), task_runner, std::move(deps),
+      base::SchedManager::GetInstance(), init_opts);
 }
 
 TracingServiceImpl::TracingServiceImpl(
     std::unique_ptr<SharedMemory::Factory> shm_factory,
     base::TaskRunner* task_runner,
     tracing_service::Dependencies deps,
+    base::SchedManagerInterface& sched_manager,
     InitOpts init_opts)
     : clock_(std::move(deps.clock)),
       random_(std::move(deps.random)),
@@ -359,7 +359,7 @@ TracingServiceImpl::TracingServiceImpl(
       shm_factory_(std::move(shm_factory)),
       uid_(base::GetCurrentUserId()),
       buffer_ids_(kMaxTraceBufferID),
-      sched_status_manager_(std::move(deps.sched_status_manager)),
+      sched_manager_(sched_manager),
       weak_runner_(task_runner) {
   PERFETTO_DCHECK(task_runner);
 }
@@ -942,11 +942,11 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   std::optional<base::SchedConfig> priority_boost;
 
   if (cfg.has_priority_boost()) {
-    if (!sched_status_manager_->IsSupportedOnTheCurrentPlatform()) {
+    if (!sched_manager_.IsSupportedOnTheCurrentPlatform()) {
       return PERFETTO_SVC_ERR(
           "Priority boost is not supported on the current platform");
     }
-    if (!sched_status_manager_->HasCapabilityToSetSchedPolicy()) {
+    if (!sched_manager_.HasCapabilityToSetSchedPolicy()) {
       // TODO(ktimofeev): call MaybeLogUploadEvent
       return PERFETTO_SVC_ERR(
           "Doesn't have the capability to set sched policy");
@@ -954,7 +954,7 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 
     if (!default_sched_policy_.has_value()) {
       const base::StatusOr<base::SchedConfig>& current_policy =
-          sched_status_manager_->GetCurrentSchedConfig();
+          sched_manager_.GetCurrentSchedConfig();
       if (!current_policy.ok()) {
         // TODO(ktimofeev): call MaybeLogUploadEvent
         return PERFETTO_SVC_ERR("%s", current_policy.status().c_message());
@@ -1468,7 +1468,7 @@ void TracingServiceImpl::UpdateCurrentSchedPolicyIfNeeded() {
   // and validated the 'new_policy' value is correct. If 'SetSchedPolicy'
   // returns an error, something is very wrong beyond our control, log the error
   // message in the production build, crash in the debug build.
-  if (const auto status = sched_status_manager_->SetSchedConfig(new_policy);
+  if (const auto status = sched_manager_.SetSchedConfig(new_policy);
       !status.ok()) {
     PERFETTO_DFATAL_OR_ELOG(
         "Failed to update current sched policy. New policy: %s, error message: "

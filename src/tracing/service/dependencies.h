@@ -30,7 +30,6 @@ namespace perfetto::tracing_service {
 struct Dependencies {
   std::unique_ptr<Clock> clock;
   std::unique_ptr<Random> random;
-  std::unique_ptr<base::SchedManager> sched_status_manager;
 };
 
 }  // namespace perfetto::tracing_service

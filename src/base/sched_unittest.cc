@@ -130,11 +130,10 @@ RR(priority=99, kernel_policy=2, kernel_prio=0))";
 }
 
 TEST(SchedManagerTest, TestHasCapabilityToSetSchedPolicy) {
-  SchedManager* instance = SchedManager::GetInstance();
-  ASSERT_NE(instance, nullptr);
+  SchedManager& instance = SchedManager::GetInstance();
   const bool is_root = geteuid() == 0;
   // Assert we don't crash and return the correct value.
-  ASSERT_EQ(is_root, instance->HasCapabilityToSetSchedPolicy());
+  ASSERT_EQ(is_root, instance.HasCapabilityToSetSchedPolicy());
 }
 
 TEST(SchedManagerTest, TestGetAndSetSchedConfig) {
@@ -143,9 +142,8 @@ TEST(SchedManagerTest, TestGetAndSetSchedConfig) {
   // We don't want all other tests to continue running in this process with
   // reduced priority, so we fork and check try to lower the priority in a
   // child process.
-  SchedManager* instance = SchedManager::GetInstance();
-  ASSERT_NE(instance, nullptr);
-  const auto current = instance->GetCurrentSchedConfig();
+  SchedManager& instance = SchedManager::GetInstance();
+  const auto current = instance.GetCurrentSchedConfig();
   ASSERT_OK(current);
   const SchedConfig initial = current.value();
   if (initial != SchedConfig::CreateDefaultUserspacePolicy()) {
@@ -163,8 +161,8 @@ TEST(SchedManagerTest, TestGetAndSetSchedConfig) {
     // Child process.
     const SchedConfig new_value = SchedConfig::CreateOther(1);
     ASSERT_LT(new_value, initial);
-    ASSERT_OK(instance->SetSchedConfig(new_value));
-    const auto new_current = instance->GetCurrentSchedConfig();
+    ASSERT_OK(instance.SetSchedConfig(new_value));
+    const auto new_current = instance.GetCurrentSchedConfig();
     ASSERT_OK(new_current);
     ASSERT_EQ(new_current.value(), new_value);
     // We can't change the priority to the initial value because it is higher
@@ -182,18 +180,17 @@ TEST(SchedManagerTest, TestGetAndSetSchedConfig) {
 
 #else
 TEST(SchedManagerTest, TestReportErrorWhenNotSupported) {
-  SchedManager* instance = SchedManager::GetInstance();
-  ASSERT_NE(instance, nullptr);
-  ASSERT_FALSE(instance->IsSupportedOnTheCurrentPlatform());
-  ASSERT_FALSE(instance->HasCapabilityToSetSchedPolicy());
+  SchedManager& instance = SchedManager::GetInstance();
+  ASSERT_FALSE(instance.IsSupportedOnTheCurrentPlatform());
+  ASSERT_FALSE(instance.HasCapabilityToSetSchedPolicy());
 
-  const StatusOr config = instance->GetCurrentSchedConfig();
+  const StatusOr config = instance.GetCurrentSchedConfig();
   ASSERT_FALSE(config.ok());
   ASSERT_STREQ(
       config.status().c_message(),
       "GetCurrentSchedConfig() not implemented on the current platform");
 
-  const Status status = instance->SetSchedConfig(SchedConfig::CreateOther(0));
+  const Status status = instance.SetSchedConfig(SchedConfig::CreateOther(0));
   ASSERT_FALSE(status.ok());
   ASSERT_STREQ(status.c_message(),
                "SetSchedConfig() not implemented on the current platform");

@@ -24,6 +24,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/status_or.h"
 
 namespace perfetto::base {
@@ -162,17 +163,36 @@ struct SchedConfig {
   constexpr static int kKernelMaxPrio = kKernelMaxRtPrio + kNiceWidth;
 };
 
-class SchedManager {
+class SchedManagerInterface {
  public:
-  static SchedManager* GetInstance() {
-    static auto instance = new SchedManager();
-    return instance;
+  virtual ~SchedManagerInterface();
+  virtual bool IsSupportedOnTheCurrentPlatform() const = 0;
+  virtual bool HasCapabilityToSetSchedPolicy() const = 0;
+  virtual Status SetSchedConfig(const SchedConfig& arg) = 0;
+  virtual StatusOr<SchedConfig> GetCurrentSchedConfig() const = 0;
+};
+
+class SchedManager final : public SchedManagerInterface {
+  // Make it a friend to allow to invoke private constructor when creating a
+  // static instance.
+  friend class NoDestructor<SchedManager>;
+
+  SchedManager() = default;
+
+ public:
+  static SchedManager& GetInstance() {
+    static NoDestructor<SchedManager> instance;
+    return instance.ref();
   }
-  virtual bool IsSupportedOnTheCurrentPlatform() const;
-  virtual bool HasCapabilityToSetSchedPolicy() const;
-  virtual Status SetSchedConfig(const SchedConfig& arg);
-  virtual StatusOr<SchedConfig> GetCurrentSchedConfig() const;
-  virtual ~SchedManager() = default;
+  SchedManager(const SchedManager&) = delete;
+  SchedManager& operator=(const SchedManager&) = delete;
+  SchedManager(SchedManager&&) = delete;
+  SchedManager& operator=(SchedManager&&) = delete;
+
+  bool IsSupportedOnTheCurrentPlatform() const override;
+  bool HasCapabilityToSetSchedPolicy() const override;
+  Status SetSchedConfig(const SchedConfig& arg) override;
+  StatusOr<SchedConfig> GetCurrentSchedConfig() const override;
 };
 }  // namespace perfetto::base
 

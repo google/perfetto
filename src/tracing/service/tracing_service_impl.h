@@ -321,6 +321,7 @@ class TracingServiceImpl : public TracingService {
   explicit TracingServiceImpl(std::unique_ptr<SharedMemory::Factory>,
                               base::TaskRunner*,
                               tracing_service::Dependencies,
+                              base::SchedManagerInterface&,
                               InitOpts = {});
   ~TracingServiceImpl() override;
 
@@ -953,7 +954,7 @@ class TracingServiceImpl : public TracingService {
   uint64_t chunks_discarded_ = 0;
   uint64_t patches_discarded_ = 0;
 
-  std::unique_ptr<base::SchedManager> sched_status_manager_;
+  base::SchedManagerInterface& sched_manager_;
   // This field having value implies that the current platform supports sched
   // policy updates.
   std::optional<base::SchedConfig> default_sched_policy_;

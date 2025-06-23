@@ -92,6 +92,8 @@ std::string SchedConfig::ToString() const {
                  static_cast<int>(policy_));
 }
 
+SchedManagerInterface::~SchedManagerInterface() = default;
+
 bool SchedManager::IsSupportedOnTheCurrentPlatform() const {
   return true;
 }
