@@ -122,6 +122,7 @@ export class UiMainPerTrace implements m.ClassComponent {
             values: [
               {format: TF.Timecode, name: 'Timecode'},
               {format: TF.UTC, name: 'Realtime (UTC)'},
+              {format: TF.CustomTimezone, name: 'Custom Timezone'},
               {format: TF.TraceTz, name: `Realtime (Trace TZ - ${timeZone})`},
               {format: TF.Seconds, name: 'Seconds'},
               {format: TF.Milliseconds, name: 'Milliseconds'},

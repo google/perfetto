@@ -23,6 +23,7 @@ export enum TimestampFormat {
   Milliseconds = 'milliseconds',
   Microseconds = 'microseconds',
   UTC = 'utc',
+  CustomTimezone = 'customTimezone',
   TraceTz = 'traceTz',
 }
 
@@ -64,4 +65,5 @@ export interface Timeline {
   // These control how timestamps and durations are formatted throughout the UI
   timestampFormat: TimestampFormat;
   durationPrecision: DurationPrecision;
+  customTimezoneOffset: number;
 }
