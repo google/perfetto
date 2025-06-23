@@ -323,8 +323,8 @@ declare_args() {
   # Disabled in chromium due to some fuzzer related build failure (b/363347029).
   enable_perfetto_trace_processor_mac_instruments =
       enable_perfetto_trace_processor &&
-      (perfetto_build_standalone || perfetto_build_with_android ||
-       is_perfetto_build_generator)
+      (perfetto_build_standalone || perfetto_build_with_android) &&
+      !is_perfetto_build_generator
 
   # Enables httpd RPC support in the trace processor.
   # Further per-OS conditionals are applied in gn/BUILD.gn.
@@ -359,7 +359,14 @@ declare_args() {
   # this point and it requires extra libraries so we only enable it in selected
   # builds.
   enable_perfetto_etm_importer =
-      is_linux && enable_perfetto_trace_processor && perfetto_build_standalone
+      is_linux && enable_perfetto_trace_processor &&
+      perfetto_build_standalone && !is_perfetto_build_generator
+
+  # Enables Winscope features in trace_processor. These are used by the
+  # standalone Winscope tool, Android prebuilts, and trace extractor metrics.
+  enable_perfetto_winscope =
+      enable_perfetto_trace_processor &&
+      (perfetto_build_standalone || is_perfetto_build_generator)
 }
 
 declare_args() {

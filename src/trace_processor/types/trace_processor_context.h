@@ -159,17 +159,20 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> i2c_tracker;                            // I2CTracker
   std::unique_ptr<Destructible> perf_data_tracker;                      // PerfDataTracker
   std::unique_ptr<Destructible> content_analyzer;                       // ProtoContentAnalyzer
-  std::unique_ptr<Destructible> shell_transitions_tracker;              // ShellTransitionsTracker
   std::unique_ptr<Destructible> protolog_messages_tracker;              // ProtoLogMessagesTracker
   std::unique_ptr<Destructible> ftrace_sched_tracker;                   // FtraceSchedEventTracker
   std::unique_ptr<Destructible> v8_tracker;                             // V8Tracker
   std::unique_ptr<Destructible> jit_tracker;                            // JitTracker
-  std::unique_ptr<Destructible> protolog_message_decoder;               // ProtoLogMessageDecoder
   std::unique_ptr<Destructible> instruments_row_data_tracker;           // RowDataTracker
   std::unique_ptr<Destructible> perf_tracker;                           // PerfTracker
   std::unique_ptr<Destructible> etm_tracker;                            // EtmTracker
   std::unique_ptr<Destructible> elf_tracker;                            // ElfTracker
   std::unique_ptr<Destructible> file_tracker;                           // FileTracker
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
+  std::unique_ptr<Destructible> shell_transitions_tracker;              // ShellTransitionsTracker
+  std::unique_ptr<Destructible> protolog_message_decoder;               // ProtoLogMessageDecoder
+#endif
   // clang-format on
 
   std::unique_ptr<ProtoTraceParser> proto_trace_parser;

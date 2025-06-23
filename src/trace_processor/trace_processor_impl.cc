@@ -164,6 +164,10 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.h"
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_proto_to_args_with_defaults.h"
+#endif
+
 namespace perfetto::trace_processor {
 namespace {
 
@@ -1149,8 +1153,12 @@ TraceProcessorImpl::CreateStaticTableFunctions(TraceProcessorContext* context,
   fns.emplace_back(std::make_unique<ExperimentalFlatSlice>(context));
   fns.emplace_back(
       std::make_unique<DfsWeightBounded>(storage->mutable_string_pool()));
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
   fns.emplace_back(std::make_unique<WinscopeProtoToArgsWithDefaults>(
       storage->mutable_string_pool(), engine, context));
+#endif
+
   if (config.enable_dev_features) {
     fns.emplace_back(std::make_unique<DataframeQueryPlanDecoder>(
         storage->mutable_string_pool()));
