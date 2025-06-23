@@ -177,6 +177,11 @@ KernelSchedInfo GetSelfKernelSchedInfo() {
 
 TEST(SchedManagerTest, TestGetAndSetSchedConfig) {
   // Logging to debug /proc/self/... readability
+  PERFETTO_DCHECK(CheckPathReadable("/proc/mounts"));
+  std::string mounts;
+  PERFETTO_DCHECK(ReadFile("/proc/mounts", &mounts));
+  PERFETTO_DLOG("mounts:\n%s", mounts.c_str());
+
   PERFETTO_DCHECK(CheckPathReadable("/proc"));
   PERFETTO_DCHECK(CheckPathReadable("/proc/self"));
   PERFETTO_DCHECK(CheckPathReadable("/proc/self/cmdline"));
