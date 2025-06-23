@@ -15,6 +15,19 @@
 
 INCLUDE PERFETTO MODULE android.process_metadata;
 
+INCLUDE PERFETTO MODULE wattson.cpu.idle;
+
+-- Get slices only where there is transition from deep idle to active
+CREATE PERFETTO TABLE _idle_exits AS
+SELECT
+  ts,
+  dur,
+  cpu,
+  idle
+FROM _adjusted_deep_idle
+WHERE
+  idle = -1 AND dur > 0;
+
 -- Establish relationships between thread/process/package
 CREATE PERFETTO TABLE _sched_w_thread_process_package_summary AS
 SELECT

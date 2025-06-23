@@ -31,17 +31,6 @@ SELECT
   upid
 FROM _sched_w_thread_process_package_summary;
 
--- Get slices only where there is transition from deep idle to active
-CREATE PERFETTO TABLE _idle_exits AS
-SELECT
-  ts,
-  dur,
-  cpu,
-  idle
-FROM _adjusted_deep_idle
-WHERE
-  idle = -1 AND dur > 0;
-
 -- Gets the slices where the CPU transitions from deep idle to active, and the
 -- associated thread that causes the idle exit
 CREATE PERFETTO TABLE _idle_w_threads AS
