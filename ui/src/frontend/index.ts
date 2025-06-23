@@ -169,7 +169,8 @@ function main() {
   const timezoneOverrideSetting = settingsManager.register({
     id: 'timezoneOverride',
     name: 'Timezone Override',
-    description: 'What timezone to use for displaying timestamps.',
+    description:
+      "When 'Timestamp Format' is set to 'CustomTimezone', this setting controls which timezone is used.",
     schema: z.enum(Object.keys(timezoneOffsetMap) as [string, ...string[]]),
     defaultValue: '(UTC+00:00) London, Dublin, Lisbon, Casablanca', // UTC by default.
   });
