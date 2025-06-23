@@ -41,6 +41,26 @@ constexpr uint32_t kMinPollIntervalMs = 10;
 constexpr uint32_t kDefaultPollIntervalMs = 1000;
 constexpr uint32_t kInvalidUid = 0xffffffff;
 constexpr size_t kMaxNumResults = 4096;
+
+void MaybeAppendUid(int32_t uid,
+                    std::vector<uint64_t>& cluster_deltas_ms,
+                    protozero::PackedVarInt& uid_list,
+                    protozero::PackedVarInt& total_time_ms_list) {
+  bool write = false;
+  for (uint64_t value : cluster_deltas_ms) {
+    if (value != 0) {
+      write = true;
+    }
+  }
+
+  if (write) {
+    uid_list.Append(uid);
+    for (uint64_t value : cluster_deltas_ms) {
+      total_time_ms_list.Append(value);
+    }
+  }
+}
+
 }  // namespace
 
 // static
@@ -140,8 +160,7 @@ void AndroidCpuPerUidDataSource::WriteCpuPerUid() {
   if (previous_times_.size() == 0) {
     first_time = true;
     packet->set_sequence_flags(
-        protos::pbzero::TracePacket::SEQ_INCREMENTAL_STATE_CLEARED |
-        protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
+        protos::pbzero::TracePacket::SEQ_INCREMENTAL_STATE_CLEARED);
   } else {
     first_time = false;
     packet->set_sequence_flags(
@@ -150,8 +169,8 @@ void AndroidCpuPerUidDataSource::WriteCpuPerUid() {
 
   auto* proto = packet->set_cpu_per_uid_data();
 
-  protozero::PackedVarInt uid;
-  protozero::PackedVarInt total_time_ms;
+  protozero::PackedVarInt uid_list;
+  protozero::PackedVarInt total_time_ms_list;
   std::vector<uint64_t> cluster_deltas_ms;
   uint32_t first_uid = kInvalidUid;
   uint32_t current_uid = kInvalidUid;
@@ -162,18 +181,26 @@ void AndroidCpuPerUidDataSource::WriteCpuPerUid() {
       first_uid = time.uid;
     }
 
+    // Determine the number of clusters from the first UID. They should all be
+    // the same.
     if (time.uid == first_uid) {
       cluster_deltas_ms.push_back(0L);
     }
 
     if (time.uid != current_uid) {
       if (current_uid != kInvalidUid) {
-        MaybeAppendUid(current_uid, cluster_deltas_ms, uid, total_time_ms);
+        MaybeAppendUid(current_uid, cluster_deltas_ms, uid_list,
+                       total_time_ms_list);
       }
       current_uid = time.uid;
-      for (uint32_t i = 0; i < cluster_deltas_ms.size(); i++) {
-        cluster_deltas_ms[i] = 0L;
+      for (uint64_t& val : cluster_deltas_ms) {
+        val = 0;
       }
+    }
+
+    if (time.cluster >= cluster_deltas_ms.size()) {
+      // Data is corrupted
+      continue;
     }
 
     uint64_t key = ((uint64_t(current_uid)) << 32) | time.cluster;
@@ -186,33 +213,13 @@ void AndroidCpuPerUidDataSource::WriteCpuPerUid() {
       previous_times_.Insert(key, time.total_time_ms);
     }
   }
-  MaybeAppendUid(current_uid, cluster_deltas_ms, uid, total_time_ms);
+  MaybeAppendUid(current_uid, cluster_deltas_ms, uid_list, total_time_ms_list);
 
   if (first_time) {
-    proto->set_cluster_count(uint32_t(cluster_deltas_ms.size()));
+    proto->set_cluster_count(cluster_deltas_ms.size());
   }
-  proto->set_uid(uid);
-  proto->set_total_time_ms(total_time_ms);
-}
-
-void AndroidCpuPerUidDataSource::MaybeAppendUid(
-    uint32_t uid,
-    std::vector<uint64_t>& cluster_deltas_ms,
-    protozero::PackedVarInt& uid_list,
-    protozero::PackedVarInt& total_time_ms_list) {
-  bool write = false;
-  for (uint32_t cluster = 0; cluster < cluster_deltas_ms.size(); cluster++) {
-    if (cluster_deltas_ms[cluster] != 0) {
-      write = true;
-    }
-  }
-
-  if (write) {
-    uid_list.Append(uid);
-    for (uint32_t cluster = 0; cluster < cluster_deltas_ms.size(); cluster++) {
-      total_time_ms_list.Append(cluster_deltas_ms[cluster]);
-    }
-  }
+  proto->set_uid(uid_list);
+  proto->set_total_time_ms(total_time_ms_list);
 }
 
 void AndroidCpuPerUidDataSource::Flush(FlushRequestID,
