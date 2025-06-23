@@ -407,9 +407,24 @@ SYMBOL_TABLE = Table(
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
-        C('name', CppString(), cpp_access=CppAccess.READ),
-        C('source_file', CppOptional(CppString()), cpp_access=CppAccess.READ),
-        C('line_number', CppOptional(CppUint32()), cpp_access=CppAccess.READ),
+        C(
+            'name',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'source_file',
+            CppOptional(CppString()),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'line_number',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''

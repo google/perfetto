@@ -181,37 +181,27 @@ class TraceProcessor:
     return TraceProcessor.QueryResultIterator(response.column_names,
                                               response.batch)
 
-  def metric(self, metrics: List[str]):
-    """Returns the metrics data corresponding to the passed in trace metric.
-    Raises TraceProcessorException if the response returns with an error.
-
-    Args:
-      metrics: A list of valid metrics as defined in TraceMetrics
-
-    Returns:
-      The metrics data as a proto message
-    """
-    response = self.http.compute_metric(metrics)
-    if response.error:
-      raise TraceProcessorException(response.error)
-
-    metrics = self.protos.TraceMetrics()
-    metrics.ParseFromString(response.metrics)
-    return metrics
-
   def trace_summary(self,
                     specs: List[Union[str, bytes]],
                     metric_ids: Optional[List[str]] = None,
                     metadata_query_id: Optional[str] = None):
-    """Returns the trace summary data corresponding to the passed in metric
-    IDs and specs. Raises TraceProcessorException if the response returns with
-    an error.
+    """Computes a structuted summary of the trace.
+
+    This function allows you to create a structured summary of the trace
+    data output in as a structured protobuf message, allowing consumption by
+    other tools for charting or bulk analysis.
+
+    This function is the replacement for the `metric` function, which is now
+    deprecated (but without any plans to remove it).
+
+    Raises TraceProcessorException if there was an error computing the summary.
 
     Args:
-      specs: A list of textproto (as str) or binary proto (as bytes) specs to be
-        used for the summary
-      metric_ids: Optional list of metric IDs as defined in TraceMetrics. 
-        If `None` all metrics will be executed.
+      specs: a list of `TraceSummarySpec` protos either as a textproto or in
+        binary format. Please see the definition of the `TraceSummarySpec`
+        proto for more details on how to construct these.
+      metric_ids: Optional list of metric IDs to compute in the summary.
+        If `None`, all metrics in the specs will be computed.
       metadata_query_id: Optional query ID for metadata
 
     Returns:
@@ -241,6 +231,28 @@ class TraceProcessor:
       raise TraceProcessorException(response.error)
 
     return response.metatrace
+
+  def metric(self, metrics: List[str]):
+    """Returns the metrics data corresponding to the passed in trace metric.
+    Raises TraceProcessorException if the response returns with an error.
+
+    Note: this function is deprecated but there are no plans to remove it.
+    Consider using `trace_summary` instead, which is an indirect replacement,
+    providing much of the same functionality but in a more flexible way.
+
+    Args:
+      metrics: A list of valid metrics as defined in TraceMetrics
+
+    Returns:
+      The metrics data as a proto message
+    """
+    response = self.http.compute_metric(metrics)
+    if response.error:
+      raise TraceProcessorException(response.error)
+
+    metrics = self.protos.TraceMetrics()
+    metrics.ParseFromString(response.metrics)
+    return metrics
 
   def _create_tp_http(self, addr: str) -> TraceProcessorHttp:
     if addr:
