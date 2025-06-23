@@ -25,7 +25,6 @@
 
 namespace perfetto::base {
 namespace {
-
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 TEST(SchedConfigTest, ValidateNiceValue) {
@@ -175,6 +174,14 @@ KernelSchedInfo GetSelfKernelSchedInfo() {
   return KernelSchedInfo{policy_int.value(), prio_int.value()};
 }
 
+/*void AssertEQToKernelSchedInfoIfAvailable(const SchedConfig& config) {
+  if (CheckPathReadable("/proc/self/sched")) {
+    const auto kernel_info = GetSelfKernelSchedInfo();
+    ASSERT_EQ(config.KernelPriority(), kernel_info.prio);
+    ASSERT_EQ(config.KernelPolicy(), kernel_info.policy);
+  }
+}*/
+
 TEST(SchedManagerTest, TestGetAndSetSchedConfig) {
   // Logging to debug /proc/self/... readability
   PERFETTO_DCHECK(CheckPathReadable("/proc/mounts"));
@@ -185,6 +192,7 @@ TEST(SchedManagerTest, TestGetAndSetSchedConfig) {
   PERFETTO_DCHECK(CheckPathReadable("/proc"));
   PERFETTO_DCHECK(CheckPathReadable("/proc/self"));
   PERFETTO_DCHECK(CheckPathReadable("/proc/self/cmdline"));
+  PERFETTO_DCHECK(CheckPathReadable("/proc/self/stat"));
   PERFETTO_DCHECK(CheckPathReadable("/proc/self/sched"));
 
   // Root is required to set the higher priority for the process, but not
