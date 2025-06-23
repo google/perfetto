@@ -137,8 +137,8 @@
 
     - [PerfettoSQL](#)
 
-      - [PerfettoSQL Prelude tables](analysis/sql-tables.autogen)
-      - [PerfettoSQL Built-ins](analysis/builtin.md)
+      - [Prelude tables](analysis/sql-tables.autogen)
+      - [Built-ins](analysis/builtin.md)
       - [Stats Table Reference](analysis/sql-stats.autogen)
 
     - [Single Trace Analysis](#)
@@ -161,32 +161,21 @@
     - [Testing](contributing/testing.md)
     - [Developer tools](contributing/developer-tools.md)
 
-  - [Design documents](#)
-
-    - [Recording](#)
-
-      - [API and ABI surface](design-docs/api-and-abi.md)
-      - [Life of a tracing session](design-docs/life-of-a-tracing-session.md)
-      - [ProtoZero](design-docs/protozero.md)
-      - [Security model](design-docs/security-model.md)
-      - [Statsd Checkpoint Atoms](design-docs/checkpoint-atoms.md)
-
-    - [Trace analysis](#)
-
-      - [Batch Trace Processor](design-docs/batch-trace-processor.md)
-
-    - [Heap profiling](#)
-
-      - [Heapprofd design](design-docs/heapprofd-design.md)
-      - [Heapprofd wire protocol](design-docs/heapprofd-wire-protocol.md)
-      - [Heapprofd sampling](design-docs/heapprofd-sampling.md)
-
-    - [Infra](#)
-
-      - [Perfetto CI](design-docs/continuous-integration.md)
 
   - [Team documentation](#)
 
     - [SDK release process](contributing/sdk-releasing.md)
     - [UI release process](visualization/perfetto-ui-release-process.md)
     - [Chrome branches](contributing/chrome-branches.md)
+
+    - [Design documents](#)
+        - [API and ABI surface](design-docs/api-and-abi.md)
+        - [Life of a tracing session](design-docs/life-of-a-tracing-session.md)
+        - [ProtoZero](design-docs/protozero.md)
+        - [Security model](design-docs/security-model.md)
+        - [Statsd Checkpoint Atoms](design-docs/checkpoint-atoms.md)
+        - [Batch Trace Processor](design-docs/batch-trace-processor.md)
+        - [Heapprofd design](design-docs/heapprofd-design.md)
+        - [Heapprofd wire protocol](design-docs/heapprofd-wire-protocol.md)
+        - [Heapprofd sampling](design-docs/heapprofd-sampling.md)
+        - [Perfetto CI](design-docs/continuous-integration.md)
