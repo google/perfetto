@@ -449,15 +449,14 @@ export class TimeSpan {
  *
  * @param date The original JavaScript `Date` object to format.
  * @param options An optional configuration object.
- * @param {number} [options.tzOffsetMins=0] - The timezone offset in minutes
- * from UTC. For example, -420 for UTC-7 or 330 for UTC+5:30. Defaults to 0
- * (UTC).
- * @param {boolean} [options.printDate=true] - Whether to include the date part
+ * @param {number} [options.tzOffsetMins] - The timezone offset in minutes from
+ * UTC. For example, -420 for UTC-7 or 330 for UTC+5:30. Defaults to 0 (UTC).
+ * @param {boolean} [options.printDate] - Whether to include the date part
  * (`YYYY-MM-DD`).
- * @param {boolean} [options.printTime=true] - Whether to include the time part
+ * @param {boolean} [options.printTime] - Whether to include the time part
  * (`HH:mm:ss.SSS`).
- * @param {boolean} [options.printTimezone=true] - Whether to include the
- * timezone offset.
+ * @param {boolean} [options.printTimezone] - Whether to include the timezone
+ * offset.
  *
  * @returns A formatted string representing the date and time in the specified
  * timezone.
