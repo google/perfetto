@@ -47,7 +47,7 @@ import {
 import {featureFlags} from '../core/feature_flags';
 import {trackMatchesFilter} from '../core/track_manager';
 import {renderStatusBar} from './statusbar';
-import {formatTimezone} from '../base/time';
+import {formatTimezone, timezoneOffsetMap} from '../base/time';
 
 const showStatusBarFlag = featureFlags.register({
   id: 'Enable status bar',
@@ -122,7 +122,7 @@ export class UiMainPerTrace implements m.ClassComponent {
             values: [
               {format: TF.Timecode, name: 'Timecode'},
               {format: TF.UTC, name: 'Realtime (UTC)'},
-              {format: TF.CustomTimezone, name: 'Custom Timezone'},
+
               {format: TF.TraceTz, name: `Realtime (Trace TZ - ${timeZone})`},
               {format: TF.Seconds, name: 'Seconds'},
               {format: TF.Milliseconds, name: 'Milliseconds'},
@@ -132,10 +132,23 @@ export class UiMainPerTrace implements m.ClassComponent {
                 format: TF.TraceNsLocale,
                 name: 'Trace nanoseconds (with locale-specific formatting)',
               },
+              {format: TF.CustomTimezone, name: 'Custom Timezone'},
             ],
             getName: (x) => x.name,
           });
-          result && (trace.timeline.timestampFormat = result.format);
+          if (!result) return;
+
+          if (result.format === TF.CustomTimezone) {
+            const result = await app.omnibox.prompt('Select format...', {
+              values: Object.entries(timezoneOffsetMap),
+              getName: ([key]) => key,
+            });
+
+            if (!result) return;
+            trace.timeline.timezoneOverride.set(result[0]);
+          }
+
+          trace.timeline.timestampFormat = result.format;
         },
       },
       {

@@ -87,7 +87,7 @@ export class TimelineImpl implements Timeline {
     private readonly traceInfo: TraceInfo,
     private readonly _timestampFormat: Setting<TimestampFormat>,
     private readonly _durationPrecision: Setting<DurationPrecision>,
-    private readonly _timezoneOverride: Setting<string>,
+    readonly timezoneOverride: Setting<string>,
   ) {
     this._visibleWindow = HighPrecisionTimeSpan.fromTime(
       traceInfo.start,
@@ -209,7 +209,7 @@ export class TimelineImpl implements Timeline {
         return getTraceMidnightInTimezone(
           this.traceInfo.start,
           this.traceInfo.unixOffset,
-          timezoneOffsetMap[this._timezoneOverride.get()],
+          timezoneOffsetMap[this.timezoneOverride.get()],
         );
       case TimestampFormat.TraceTz:
         return getTraceMidnightInTimezone(
@@ -244,7 +244,7 @@ export class TimelineImpl implements Timeline {
   }
 
   get customTimezoneOffset(): number {
-    return timezoneOffsetMap[this._timezoneOverride.get()];
+    return timezoneOffsetMap[this.timezoneOverride.get()];
   }
 }
 
