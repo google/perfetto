@@ -57,12 +57,9 @@
 #include "src/trace_processor/tables/trace_proto_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/tables/v8_tables_py.h"
+#include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/variadic.h"
-
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
-#include "src/trace_processor/tables/winscope_tables_py.h"
-#endif
 
 namespace perfetto::trace_processor {
 namespace etm {
@@ -420,6 +417,29 @@ class TraceStorage {
     return &android_dumpstate_table_;
   }
 
+  const tables::AndroidKeyEventsTable& android_key_events_table() const {
+    return android_key_events_table_;
+  }
+  tables::AndroidKeyEventsTable* mutable_android_key_events_table() {
+    return &android_key_events_table_;
+  }
+
+  const tables::AndroidMotionEventsTable& android_motion_events_table() const {
+    return android_motion_events_table_;
+  }
+  tables::AndroidMotionEventsTable* mutable_android_motion_events_table() {
+    return &android_motion_events_table_;
+  }
+
+  const tables::AndroidInputEventDispatchTable&
+  android_input_event_dispatch_table() const {
+    return android_input_event_dispatch_table_;
+  }
+  tables::AndroidInputEventDispatchTable*
+  mutable_android_input_event_dispatch_table() {
+    return &android_input_event_dispatch_table_;
+  }
+
   const StatsMap& stats() const { return stats_; }
 
   const tables::MetadataTable& metadata_table() const {
@@ -730,56 +750,6 @@ class TraceStorage {
     return &spe_record_table_;
   }
 
-  const tables::ExperimentalProtoPathTable& experimental_proto_path_table()
-      const {
-    return experimental_proto_path_table_;
-  }
-  tables::ExperimentalProtoPathTable* mutable_experimental_proto_path_table() {
-    return &experimental_proto_path_table_;
-  }
-
-  const tables::ExperimentalProtoContentTable&
-  experimental_proto_content_table() const {
-    return experimental_proto_content_table_;
-  }
-  tables::ExperimentalProtoContentTable*
-  mutable_experimental_proto_content_table() {
-    return &experimental_proto_content_table_;
-  }
-
-  const tables::ExpMissingChromeProcTable&
-  experimental_missing_chrome_processes_table() const {
-    return experimental_missing_chrome_processes_table_;
-  }
-  tables::ExpMissingChromeProcTable*
-  mutable_experimental_missing_chrome_processes_table() {
-    return &experimental_missing_chrome_processes_table_;
-  }
-
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
-  const tables::AndroidKeyEventsTable& android_key_events_table() const {
-    return android_key_events_table_;
-  }
-  tables::AndroidKeyEventsTable* mutable_android_key_events_table() {
-    return &android_key_events_table_;
-  }
-
-  const tables::AndroidMotionEventsTable& android_motion_events_table() const {
-    return android_motion_events_table_;
-  }
-  tables::AndroidMotionEventsTable* mutable_android_motion_events_table() {
-    return &android_motion_events_table_;
-  }
-
-  const tables::AndroidInputEventDispatchTable&
-  android_input_event_dispatch_table() const {
-    return android_input_event_dispatch_table_;
-  }
-  tables::AndroidInputEventDispatchTable*
-  mutable_android_input_event_dispatch_table() {
-    return &android_input_event_dispatch_table_;
-  }
-
   const tables::InputMethodClientsTable& inputmethod_clients_table() const {
     return inputmethod_clients_table_;
   }
@@ -952,7 +922,32 @@ class TraceStorage {
   tables::WinscopeTransformTable* mutable_winscope_transform_table() {
     return &winscope_transform_table_;
   }
-#endif
+
+  const tables::ExperimentalProtoPathTable& experimental_proto_path_table()
+      const {
+    return experimental_proto_path_table_;
+  }
+  tables::ExperimentalProtoPathTable* mutable_experimental_proto_path_table() {
+    return &experimental_proto_path_table_;
+  }
+
+  const tables::ExperimentalProtoContentTable&
+  experimental_proto_content_table() const {
+    return experimental_proto_content_table_;
+  }
+  tables::ExperimentalProtoContentTable*
+  mutable_experimental_proto_content_table() {
+    return &experimental_proto_content_table_;
+  }
+
+  const tables::ExpMissingChromeProcTable&
+  experimental_missing_chrome_processes_table() const {
+    return experimental_missing_chrome_processes_table_;
+  }
+  tables::ExpMissingChromeProcTable*
+  mutable_experimental_missing_chrome_processes_table() {
+    return &experimental_missing_chrome_processes_table_;
+  }
 
   const StringPool& string_pool() const { return string_pool_; }
   StringPool* mutable_string_pool() { return &string_pool_; }
@@ -1180,7 +1175,6 @@ class TraceStorage {
   tables::MmapRecordTable mmap_record_table_{&string_pool_};
   tables::SpeRecordTable spe_record_table_{&string_pool_};
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
   // Winscope tables
   tables::InputMethodClientsTable inputmethod_clients_table_{&string_pool_};
   tables::InputMethodManagerServiceTable inputmethod_manager_service_table_{
@@ -1215,7 +1209,6 @@ class TraceStorage {
   tables::WinscopeRectTable winscope_rect_table_{&string_pool_};
   tables::WinscopeFillRegionTable winscope_fill_region_table_{&string_pool_};
   tables::WinscopeTransformTable winscope_transform_table_{&string_pool_};
-#endif
 
   tables::ExperimentalProtoPathTable experimental_proto_path_table_{
       &string_pool_};

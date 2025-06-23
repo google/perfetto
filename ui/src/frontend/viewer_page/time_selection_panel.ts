@@ -264,6 +264,7 @@ export class TimeSelectionPanel {
     const fmt = this.trace.timeline.timestampFormat;
     switch (fmt) {
       case TimestampFormat.UTC:
+      case TimestampFormat.CustomTimezone:
       case TimestampFormat.TraceTz:
       case TimestampFormat.Timecode:
         const THIN_SPACE = '\u2009';

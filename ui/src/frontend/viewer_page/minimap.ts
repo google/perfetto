@@ -268,6 +268,7 @@ function renderTimestamp(
     case TimestampFormat.UTC:
     case TimestampFormat.TraceTz:
     case TimestampFormat.Timecode:
+    case TimestampFormat.CustomTimezone:
       renderTimecode(ctx, time, x, y, minWidth);
       break;
     case TimestampFormat.TraceNs:
