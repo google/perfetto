@@ -23,6 +23,7 @@ data through **PerfettoSQL**, a dialect of SQL that allows you to query the
 contents of your traces as if they were a database.
 
 The Trace Processor is responsible for:
+
 - **Parsing traces**: Ingesting a wide variety of trace formats, including
   Perfetto, ftrace, and Chrome JSON.
 - **Structuring data**: Massaging the raw trace data into a structured format.
@@ -38,16 +39,17 @@ different analysis needs. The typical workflow progresses from broad,
 interactive exploration to narrow, automated analysis.
 
 1.  **Interactive Exploration**: Start by exploring your trace interactively
-    using the `trace_processor` shell. This is ideal for ad-hoc investigations,
-    debugging, and getting a feel for the data in your trace.
+    using the Perfetto UI or the `trace_processor` shell. This is ideal for
+    ad-hoc investigations, debugging, and getting a feel for the data in your
+    trace.
 
 2.  **Programmatic Analysis**: Once you have a better understanding of your
     trace, you can automate your queries and build more complex analysis
     pipelines using the Trace Processor libraries for Python and C++.
 
-3.  **Large-Scale Analysis**: For building robust, automated analysis
-    pipelines, Trace Summarization is the recommended approach. It allows you to
-    define a stable, structured output for your analysis, making it perfect for
+3.  **Large-Scale Analysis**: For building robust, automated analysis pipelines,
+    Trace Summarization is the recommended approach. It allows you to define a
+    stable, structured output for your analysis, making it perfect for
     performance monitoring and regression detection at scale.
 
 ## Where to Go Next

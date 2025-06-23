@@ -370,6 +370,54 @@ show dynamic flamegraph views of the selected callstacks.
 The sample data can also be queried from the
 [`perf_sample`](/docs/analysis/sql-tables.autogen#perf_sample) table via SQL.
 
+### Querying traces
+
+As well as visualizing traces on a timeline, Perfetto has support for querying
+traces using SQL. The easiest way to do this is using the query engine available
+directly in the UI.
+
+1.  In the Perfetto UI, click on the "Query (SQL)" tab in the left-hand menu.
+
+    ![Perfetto UI Query SQL](/docs/images/perfetto-ui-query-sql.png)
+
+2.  This will open a two-part window. You can write your PerfettoSQL query in
+    the top section and view the results in the bottom section.
+
+    ![Perfetto UI SQL Window](/docs/images/perfetto-ui-sql-window.png)
+
+3.  You can then execute queries Ctrl/Cmd + Enter:
+
+For example, by running:
+
+```
+INCLUDE PERFETTO MODULE linux.perf.samples;
+
+SELECT
+  -- The id of the callstack. A callstack in this context
+  -- is a unique set of frames up to the root.
+  id,
+  -- The id of the parent callstack for this callstack.
+  parent_id,
+  -- The function name of the frame for this callstack.
+  name,
+  -- The name of the mapping containing the frame. This
+  -- can be a native binary, library, JAR or APK.
+  mapping_name,
+  -- The name of the file containing the function.
+  source_file,
+  -- The line number in the file the function is located at.
+  line_number,
+  -- The number of samples with this function as the leaf
+  -- frame.
+  self_count,
+  -- The number of samples with this function appearing
+  -- anywhere on the callstack.
+  cumulative_count
+FROM linux_perf_samples_summary_tree;
+```
+
+you can see the summary tree of all the callstacks captured in the trace.
+
 ### Alternatives
 
 The perfetto profiling implementation is built for continuous (streaming)
@@ -387,8 +435,8 @@ topics:
 
 - **[Perfetto UI](/docs/visualization/perfetto-ui.md)**: Learn about all the
   features of the trace viewer.
-- **[Trace Analysis with SQL](/docs/analysis/getting-started.md)**: Learn how to analyze
-  traces using the Trace Processor and PerfettoSQL.
+- **[Trace Analysis with SQL](/docs/analysis/getting-started.md)**: Learn how to
+  analyze traces using the Trace Processor and PerfettoSQL.
 
 ### Combining with other data sources
 
