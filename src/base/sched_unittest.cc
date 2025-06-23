@@ -141,6 +141,16 @@ struct KernelSchedInfo {
   unsigned int prio;
 };
 
+bool CheckPathReadable(const std::string& path) {
+  bool ok = access(path.c_str(), R_OK) == 0;
+  if (!ok) {
+    PERFETTO_PLOG("Failed to read %s", path.c_str());
+  } else {
+    PERFETTO_DLOG("access R_OK %s", path.c_str());
+  }
+  return ok;
+}
+
 KernelSchedInfo GetSelfKernelSchedInfo() {
   std::string content;
   PERFETTO_DCHECK(ReadFile("/proc/self/sched", &content));
@@ -166,6 +176,12 @@ KernelSchedInfo GetSelfKernelSchedInfo() {
 }
 
 TEST(SchedManagerTest, TestGetAndSetSchedConfig) {
+  // Logging to debug /proc/self/... readability
+  PERFETTO_DCHECK(CheckPathReadable("/proc"));
+  PERFETTO_DCHECK(CheckPathReadable("/proc/self"));
+  PERFETTO_DCHECK(CheckPathReadable("/proc/self/cmdline"));
+  PERFETTO_DCHECK(CheckPathReadable("/proc/self/sched"));
+
   // Root is required to set the higher priority for the process, but not
   // required to set the lower priority.
   // We don't want all other tests to continue running in this process with
