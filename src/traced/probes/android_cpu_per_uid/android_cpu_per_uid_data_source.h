@@ -54,10 +54,6 @@ class AndroidCpuPerUidDataSource : public ProbesDataSource {
 
   void Tick();
   void WriteCpuPerUid();
-  void MaybeAppendUid(uint32_t uid,
-                      std::vector<uint64_t>& cluster_deltas_ms,
-                      protozero::PackedVarInt& uid_list,
-                      protozero::PackedVarInt& total_time_ms_list);
 
   base::WeakPtr<AndroidCpuPerUidDataSource> GetWeakPtr() const;
 

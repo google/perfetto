@@ -42,7 +42,7 @@ constexpr uint32_t kDefaultPollIntervalMs = 1000;
 constexpr uint32_t kInvalidUid = 0xffffffff;
 constexpr size_t kMaxNumResults = 4096;
 
-void MaybeAppendUid(int32_t uid,
+void MaybeAppendUid(uint32_t uid,
                     std::vector<uint64_t>& cluster_deltas_ms,
                     protozero::PackedVarInt& uid_list,
                     protozero::PackedVarInt& total_time_ms_list) {
@@ -216,7 +216,7 @@ void AndroidCpuPerUidDataSource::WriteCpuPerUid() {
   MaybeAppendUid(current_uid, cluster_deltas_ms, uid_list, total_time_ms_list);
 
   if (first_time) {
-    proto->set_cluster_count(cluster_deltas_ms.size());
+    proto->set_cluster_count(uint32_t(cluster_deltas_ms.size()));
   }
   proto->set_uid(uid_list);
   proto->set_total_time_ms(total_time_ms_list);
