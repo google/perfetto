@@ -387,7 +387,7 @@ topics:
 
 - **[Perfetto UI](/docs/visualization/perfetto-ui.md)**: Learn about all the
   features of the trace viewer.
-- **[Trace Analysis with SQL](/docs/analysis/index.md)**: Learn how to analyze
+- **[Trace Analysis with SQL](/docs/analysis/getting-started.md)**: Learn how to analyze
   traces using the Trace Processor and PerfettoSQL.
 
 ### Combining with other data sources

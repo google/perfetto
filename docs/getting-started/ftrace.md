@@ -300,7 +300,7 @@ plotted on the tracks.
 ![Raw ticker events](https://storage.googleapis.com/perfetto-misc/ticker-raw.gif)
 
 Alternatively, you can explore the trace contents issuing SQL queries through
-the [Trace Processor](/docs/analysis/index.md).
+the [Trace Processor](/docs/analysis/getting-started.md).
 
 ## Part 2: Integrating Custom Events with Perfetto
 ### Step 1: Add the Event to Perfetto

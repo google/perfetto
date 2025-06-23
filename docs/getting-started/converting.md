@@ -860,6 +860,6 @@ you can:
 - **Visualize your trace:** Open your generated `.pftrace` file in the
   [Perfetto UI](https://ui.perfetto.dev) to explore your data on an interactive
   timeline.
-- **Analyze with SQL:** Use the [Trace Processor](/docs/analysis/index.md) to
+- **Analyze with SQL:** Use the [Trace Processor](/docs/analysis/getting-started.md) to
   query your custom trace data. Your custom tracks and events will populate
   standard tables like `slice`, `track`, `counter`, etc.

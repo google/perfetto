@@ -242,9 +242,22 @@ points:
 
 ## Analysing your first app trace
 
-You can also write SQL queries to understand more about the trace.
+As well as visualizing traces on a timeline, Perfetto has support for querying
+traces using SQL. The easiest way to do this is using the query engine available
+directly in the UI.
 
-By going into the `Query (SQL)` pane and pasting the following query:
+1.  In the Perfetto UI, click on the "Query (SQL)" tab in the left-hand menu.
+
+    ![Perfetto UI Query SQL](/docs/images/perfetto-ui-query-sql.png)
+
+2.  This will open a two-part window. You can write your PerfettoSQL query in
+    the top section and view the results in the bottom section.
+
+    ![Perfetto UI SQL Window](/docs/images/perfetto-ui-sql-window.png)
+
+3.  You can then execute queries Ctrl/Cmd + Enter:
+
+For example, by running:
 
 ```
 SELECT
@@ -258,6 +271,15 @@ you can see how many times the `DrawPlayer` instrumentation point has been hit,
 how long each execution took and its `player_number` annotation.
 
 ![SQL query example](/docs/images/sql_draw_player.png)
+
+The framerate counter is available in the `counter` table:
+
+```sql
+SELECT ts AS timestamp_ns, value AS frame_rate
+FROM counter
+JOIN track ON track.id = counter.track_id
+WHERE name = 'Framerate';
+```
 
 ## Combined In-App and System Tracing
 

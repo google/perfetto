@@ -202,24 +202,9 @@ traces manually:
 
 ## Querying Your First Trace
 
-While the Perfetto UI is excellent for visual inspection, you often need
-programmatic access to the data within a trace. This is useful for finding
-specific events, performing statistical analysis, or automating checks for
-performance regressions.
-
-Perfetto provides a powerful SQL-based query engine for this purpose. You can
-access this engine in three main ways:
-
-- **Perfetto UI**: The "Query (SQL)" tab in the UI provides an interactive way
-  to run queries.
-- **Trace Processor Python API**: For scripting and data analysis, you can use
-  the Python API to query traces.
-- **Trace Processor Shell**: A command-line interface is available for running
-  queries directly.
-
-This guide focuses on using the "Query (SQL)" tab in the Perfetto UI.
-
-### Using the Query Tab in the Perfetto UI
+As well as visualizing traces on a timeline, Perfetto has support for querying
+traces using SQL. The easiest way to do this is using the query engine available
+directly in the UI.
 
 1.  In the Perfetto UI, click on the "Query (SQL)" tab in the left-hand menu.
 
@@ -234,9 +219,43 @@ This guide focuses on using the "Query (SQL)" tab in the Perfetto UI.
     in the trace, run the following query (you can use Ctrl/Cmd + Enter as a
     shortcut):
 
-    ```sql
-    SELECT * FROM process;
-    ```
+For example, to query the CPU scheduling information we recorded you can use:
+
+```sql
+INCLUDE PERFETTO MODULE sched.with_context;
+
+SELECT *
+FROM sched_with_thread_process
+LIMIT 100;
+```
+
+For the CPU frequency information, you can do:
+
+```sql
+INCLUDE PERFETTO MODULE linux.cpu.frequency;
+
+SELECT *
+FROM cpu_frequency_counters
+LIMIT 100;
+```
+
+For Android traces, to query the `atrace` slices, you can do:
+
+```sql
+INCLUDE PERFETTO MODULE slices.with_context;
+
+SELECT *
+FROM thread_or_process_slice
+LIMIT 100;
+```
+
+And atrace counters are available by doing:
+
+```sql
+SELECT *
+FROM counter
+LIMIT 100;
+```
 
 ## Next steps
 
@@ -275,8 +294,8 @@ To get the most out of the Perfetto UI, check out the detailed
 
 To learn more about programmatic analysis, see:
 
-- **[Trace Analysis with SQL](/docs/analysis/index.md)**: Learn how to analyze
-  traces using the Trace Processor and PerfettoSQL.
+- **[Trace Analysis with SQL](/docs/analysis/getting-started.md)**: Learn how to
+  analyze traces using the Trace Processor and PerfettoSQL.
 - **[Android Analysis Cookbooks](/docs/getting-started/android-trace-analysis.md)**:
   A collection of useful queries and visualization tips for working with Android
   traces.

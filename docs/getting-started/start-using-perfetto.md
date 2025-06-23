@@ -449,12 +449,12 @@ Perfetto excels in several key areas:
 
 3.  **In-depth Programmatic Trace Analysis:** For going beyond visual
     inspection, automating analysis, or extracting custom metrics, Perfetto's
-    [Trace Processor](/docs/analysis/index.md) engine allows you to
+    [Trace Processor](/docs/analysis/getting-started.md) engine allows you to
     query traces using SQL. This powerful backend can be accessed
     programmatically.
     - **Automate your insights:** If you have recurring analysis tasks or want
       to extract specific metrics from any trace (Perfetto-native or converted),
-      the [Trace Processor](/docs/analysis/index.md) is invaluable.
+      the [Trace Processor](/docs/analysis/getting-started.md) is invaluable.
 
 For further inspiration on how Perfetto's flexible architecture has been adapted
 for a wide range of complex diagnostic scenarios, see:

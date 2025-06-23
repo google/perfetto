@@ -12,7 +12,6 @@
       - [In-App Tracing](getting-started/in-app-tracing.md)
       - [Memory Profiling](getting-started/memory-profiling.md)
       - [CPU Profiling](getting-started/cpu-profiling.md)
-      - [Chrome Tracing](getting-started/chrome-tracing.md)
 
     - [Adding Tracepoints](#)
 
@@ -45,6 +44,7 @@
 
     - [Tracing in Background](learning-more/tracing-in-background.md)
     - [More Android tracing](learning-more/android.md)
+    - [Chrome Tracing](getting-started/chrome-tracing.md)
 
   - [Trace Instrumentation](#)
 
@@ -53,7 +53,7 @@
 
   - [Trace Analysis](#)
 
-    - [Getting Started](analysis/index.md)
+    - [Getting Started](analysis/getting-started.md)
     - [Trace Processor](#)
       - [Trace Processor (C++)](analysis/trace-processor.md)
       - [Trace Processor (Python)](analysis/trace-processor-python.md)
