@@ -54,14 +54,15 @@
   - [Trace Analysis](#)
 
     - [Getting Started](analysis/getting-started.md)
-    - [Trace Processor](#)
-      - [Trace Processor (C++)](analysis/trace-processor.md)
-      - [Trace Processor (Python)](analysis/trace-processor-python.md)
     - [PerfettoSQL](#)
+      - [Getting Started](analysis/perfetto-sql-getting-started.md)
       - [Standard Library](analysis/stdlib-docs.autogen)
       - [Syntax](analysis/perfetto-sql-syntax.md)
       - [Style Guide](analysis/style-guide.md)
       - [Backwards Compatibility](analysis/perfetto-sql-backcompat.md)
+    - [Trace Processor](#)
+      - [Trace Processor (C++)](analysis/trace-processor.md)
+      - [Trace Processor (Python)](analysis/trace-processor-python.md)
     - [Trace Summarization](analysis/trace-summary.md)
     - [Converting from Perfetto](quickstart/traceconv.md)
 

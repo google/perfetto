@@ -5,21 +5,24 @@ provides an overview of the different tools and concepts you can use to extract
 meaningful information from traces, guiding you from interactive exploration to
 large-scale automated analysis.
 
-## Why Trace Processing?
+## The Challenge: Making Sense of Raw Traces
 
 Events in a trace are optimized for fast, low-overhead recording. Therefore,
 traces need significant data processing to extract meaningful information from
 them. This is compounded by the number of legacy formats which are still in use
 and need to be supported in trace analysis tools.
 
-## The Trace Processor: The Heart of Perfetto Analysis
+## The Solution: The Trace Processor and PerfettoSQL
 
 At the heart of all trace analysis in Perfetto is the **Trace Processor**, a C++
 library that solves this complexity. It does the heavy lifting of parsing,
 structuring, and querying trace data.
 
-The Trace Processor abstracts away the underlying trace format by:
+The Trace Processor abstracts away the underlying trace format and exposes the
+data through **PerfettoSQL**, a dialect of SQL that allows you to query the
+contents of your traces as if they were a database.
 
+The Trace Processor is responsible for:
 - **Parsing traces**: Ingesting a wide variety of trace formats, including
   Perfetto, ftrace, and Chrome JSON.
 - **Structuring data**: Massaging the raw trace data into a structured format.
@@ -47,37 +50,15 @@ interactive exploration to narrow, automated analysis.
     define a stable, structured output for your analysis, making it perfect for
     performance monitoring and regression detection at scale.
 
-## Getting Started with Trace Analysis
+## Where to Go Next
 
-You can interact with the Trace Processor in several ways, depending on your
-needs.
+### Learn the Language: PerfettoSQL
 
-### Interactive Analysis: The `trace_processor` Shell
+Before diving into the tools, it's helpful to have a foundational understanding
+of PerfettoSQL.
 
-For quick, interactive exploration, the `trace_processor` shell is the best
-starting point. It's a command-line tool that lets you load a trace and query it
-using SQL.
-
-- **[Trace Processor (C++)](trace-processor.md)**: Learn how to use the
-  interactive shell and the underlying C++ library.
-
-### Programmatic Analysis: Python and C++
-
-For more complex or automated analysis, you can use the Trace Processor's
-libraries.
-
-- **[Trace Processor (Python)](trace-processor-python.md)**: Leverage the Python
-  API to combine trace analysis with the rich data science and visualization
-  ecosystem.
-- **[Trace Processor (C++)](trace-processor.md)**: Integrate trace analysis
-  directly into your C++ applications for high-performance, low-level access.
-
-### The Language of Analysis: PerfettoSQL
-
-**PerfettoSQL** is the foundation of trace analysis in Perfetto. It is a dialect
-of SQL that allows you to query the contents of your traces as if they were a
-database.
-
+- **[Getting Started with PerfettoSQL](perfetto-sql-getting-started.md)**: Learn
+  the core concepts of PerfettoSQL and how to write queries.
 - **[PerfettoSQL Syntax](perfetto-sql-syntax.md)**: Learn about the SQL syntax
   supported by Perfetto, including special features for creating functions,
   tables, and views.
@@ -85,13 +66,21 @@ database.
   available in the standard library for analyzing common scenarios like CPU
   usage, memory, and power.
 
-### Large-Scale Analysis: Trace Summarization
+### Explore the Tools
 
-**Trace Summarization** builds on top of the PerfettoSQL language, bridging the
-gap between ad-hoc SQL analysis and the world of structured, automated data
-extraction. It is the key to turning your interactive SQL queries into a
-reliable source of structured data for performance monitoring and regression
-detection.
+Once you're comfortable with the basics of PerfettoSQL, you can explore the
+different ways to use the Trace Processor.
+
+- **[Trace Processor (C++)](trace-processor.md)**: Learn how to use the
+  interactive shell and the underlying C++ library.
+- **[Trace Processor (Python)](trace-processor-python.md)**: Leverage the Python
+  API to combine trace analysis with the rich data science and visualization
+  ecosystem.
+
+### Automate Your Analysis
+
+For large-scale or automated analysis, Trace Summarization is the recommended
+approach.
 
 - **[Trace Summarization](trace-summary.md)**: Learn how to define and run
   summaries to generate consistent, structured protobuf outputs from your

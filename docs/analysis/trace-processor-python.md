@@ -138,9 +138,8 @@ loaded trace.
 ### Query
 
 The `query()` function takes an SQL query as input and returns an iterator over
-the result rows. See the
-[PerfettoSQL Standard Library](/docs/analysis/stdlib-docs.autogen) for a full
-list of available tables and views.
+the result rows. For more information on how to write queries, see the
+[Getting Started with PerfettoSQL](perfetto-sql-getting-started.md) guide.
 
 ```python
 from perfetto.trace_processor import TraceProcessor
