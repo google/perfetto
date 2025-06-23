@@ -252,6 +252,48 @@ You can also change the aggregation to the following modes:
 - **Total Malloc Count**: like the above, but aggregates by number of calls to
   `malloc()` and ignores the size of each allocation.
 
+### Querying your first heap profile
+
+As well as visualizing traces on a timeline, Perfetto has support for querying
+traces using SQL. The easiest way to do this is using the query engine available
+directly in the UI.
+
+1.  In the Perfetto UI, click on the "Query (SQL)" tab in the left-hand menu.
+
+    ![Perfetto UI Query SQL](/docs/images/perfetto-ui-query-sql.png)
+
+2.  This will open a two-part window. You can write your PerfettoSQL query in
+    the top section and view the results in the bottom section.
+
+    ![Perfetto UI SQL Window](/docs/images/perfetto-ui-sql-window.png)
+
+3.  You can then execute queries Ctrl/Cmd + Enter:
+
+For example, by running:
+
+```
+INCLUDE PERFETTO MODULE android.memory.heap_graph.heap_graph_class_aggregation;
+
+SELECT
+  -- Class name (deobfuscated if available)
+  type_name,
+  -- Count of class instances
+  obj_count,
+  -- Size of class instances
+  size_bytes,
+  -- Native size of class instances
+  native_size_bytes,
+  -- Count of reachable class instances
+  reachable_obj_count,
+  -- Size of reachable class instances
+  reachable_size_bytes,
+  -- Native size of reachable class instances
+  reachable_native_size_bytes
+FROM android_heap_graph_class_aggregation;
+```
+
+you can see a summary of the reachable aggregate object sizes and object counts.
+
 ## Java/Managed Heap Dumps
 
 Java—and managed languages built on top of it, like Kotlin—use a runtime
@@ -380,6 +422,61 @@ You can learn more about them in the
 [Debugging memory usage](/docs/case-studies/memory#java-hprof) case study
 
 ![Sample heap dump in the UI](/docs/images/jheapprof-dump.png)
+
+### Querying your first heap profile
+
+As well as visualizing traces on a timeline, Perfetto has support for querying
+traces using SQL. The easiest way to do this is using the query engine available
+directly in the UI.
+
+1.  In the Perfetto UI, click on the "Query (SQL)" tab in the left-hand menu.
+
+    ![Perfetto UI Query SQL](/docs/images/perfetto-ui-query-sql.png)
+
+2.  This will open a two-part window. You can write your PerfettoSQL query in
+    the top section and view the results in the bottom section.
+
+    ![Perfetto UI SQL Window](/docs/images/perfetto-ui-sql-window.png)
+
+3.  You can then execute queries Ctrl/Cmd + Enter:
+
+For example, by running:
+
+```
+INCLUDE PERFETTO MODULE android.memory.heap_profile.summary_tree;
+
+SELECT
+  -- The id of the callstack. A callstack in this context
+  -- is a unique set of frames up to the root.
+  id,
+  -- The id of the parent callstack for this callstack.
+  parent_id,
+  -- The function name of the frame for this callstack.
+  name,
+  -- The name of the mapping containing the frame. This
+  -- can be a native binary, library, JAR or APK.
+  mapping_name,
+  -- The name of the file containing the function.
+  source_file,
+  -- The line number in the file the function is located at.
+  line_number,
+  -- The amount of memory allocated and *not freed* with this
+  -- function as the leaf frame.
+  self_size,
+  -- The amount of memory allocated and *not freed* with this
+  -- function appearing anywhere on the callstack.
+  cumulative_size,
+  -- The amount of memory allocated with this function as the leaf
+  -- frame. This may include memory which was later freed.
+  self_alloc_size,
+  -- The amount of memory allocated with this function appearing
+  -- anywhere on the callstack. This may include memory which was
+  -- later freed.
+  cumulative_alloc_size
+FROM android_heap_profile_summary_tree;
+```
+
+you can see the memory allocated by every unique callstack in the trace.
 
 ## Other types of memory
 

@@ -240,7 +240,7 @@ points:
 
 ![Track event example](/docs/images/track_event_draw_game.png)
 
-## Analysing your first app trace
+## Querying your first app trace
 
 As well as visualizing traces on a timeline, Perfetto has support for querying
 traces using SQL. The easiest way to do this is using the query engine available

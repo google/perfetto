@@ -200,7 +200,7 @@ traces manually:
 - Please also take a look at our Perfetto UI
   [documentation page](/docs/visualization/perfetto-ui.md)
 
-## Querying Your First Trace
+## Querying your first trace
 
 As well as visualizing traces on a timeline, Perfetto has support for querying
 traces using SQL. The easiest way to do this is using the query engine available
