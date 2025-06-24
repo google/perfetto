@@ -600,10 +600,10 @@ you might be hitting some pathological fragmentation problem in the allocator.
 
 ## Convert to pprof
 
-You can use [traceconv](/docs/quickstart/traceconv.md) to convert the heap dumps
+<!-- You can use [traceconv](/docs/quickstart/traceconv.md) to convert the heap dumps
 in a trace into the [pprof](https://github.com/google/pprof) format. These can
 then be viewed using the pprof CLI or a UI (e.g. Speedscope, or Google-internal
-pprof/).
+pprof/). -->
 
 ```bash
 tools/traceconv profile /tmp/profile
@@ -651,33 +651,22 @@ We can see all the functions are "malloc" and "realloc", which is not terribly
 informative. Usually we are interested in the _cumulative_ bytes allocated in
 a function (otherwise, we will always only see malloc / realloc). Chasing the
 parent_id of a callsite (not shown in this table) recursively is very hard in
-SQL.
-
-There is an **experimental** table that surfaces this information. The **API is
-subject to change**.
+SQL. However, we have a helper table in the standard library which does this
+for you.
 
 ```sql
-select
+INCLUDE PERFETTO MODULE android.memory.heap_profile.summary_tree;
+
+SELECT
+  -- The function name of the frame for this callstack.
   name,
-  map_name,
+  -- The name of the mapping containing the frame. This
+  -- can be a native binary, library, JAR or APK.
+  mapping_name AS map_name,
+  -- The amount of memory allocated and *not freed* with this
+  -- function appearing anywhere on the callstack.
   cumulative_size
-from experimental_flamegraph(
-  -- The type of the profile from which the flamegraph is being generated.
-  -- Always 'native' for native heap profiles.
-  'native',
-  -- The timestamp of the heap profile.
-  8300973884377,
-  -- Timestamp constraints: not relevant and always null for native heap
-  -- profiles.
-  NULL,
-  -- The upid of the heap profile.
-  1,
-  -- The upid group: not relevant and always null for native heap profiles.
-  NULL,
-  -- A regex for focusing on a particular node in the heapgraph: for advanced
-  -- use only.
-  NULL
-)
+FROM android_heap_profile_summary_tree;
 order by abs(cumulative_size) desc;
 ```
 

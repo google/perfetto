@@ -32,7 +32,7 @@ def _summary_desc(s: str) -> str:
 
 
 def _long_type_to_table(s: str):
-  pattern = '(?:[A-Z]*)\(([a-z_]*).([a-z_]*)\)'
+  pattern = r'(?:[A-Z]*)\(([a-z_]*).([a-z_]*)\)'
   m = re.match(pattern, s)
   if not m:
     return (None, None)
