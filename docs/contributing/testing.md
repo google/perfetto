@@ -1,4 +1,4 @@
-# Running tests
+# Testing
 
 The testing strategy for Perfetto is rather complex due to the wide variety
 of build configurations and embedding targets.
@@ -16,8 +16,9 @@ integration (Linux/Android only).
 Benchmarks tracking the performance of: (i) trace writing, (ii) trace readback
 and (iii) ftrace raw pipe -> protobuf translation.
 
-Running tests on Linux / MacOS
-------------------------------
+## Running tests
+
+### On Linux / MacOS
 
 ```bash
 tools/ninja -C out/default perfetto_{unittests,integrationtests,benchmarks}
@@ -26,32 +27,33 @@ out/default/perfetto_unittests --gtest_help
 
 `perfetto_integrationtests` requires that the ftrace debugfs directory is
 is readable/writable by the current user on Linux:
+
 ```bash
 sudo chown  -R $USER /sys/kernel/debug/tracing
 ```
 
-Running tests on Android
-------------------------
-1A) Connect a device through `adb`  
-1B) Start the build-in emulator (supported on Linux and MacOS):
+### On Android
+
+1.  Connect a device through `adb`
+2.  Start the build-in emulator (supported on Linux and MacOS):
 
 ```bash
 tools/install-build-deps --android
 tools/run_android_emulator &
 ```
 
-2) Run the tests (either on the emulator or physical device):  
+3. Run the tests (either on the emulator or physical device):
 
 ```bash
 tools/run_android_test out/default perfetto_unittests
 ```
 
-Continuous testing
-------------------
+## Continuous testing
+
 Perfetto is tested in a variety of locations:
 
 **Perfetto CI**: https://ci.perfetto.dev/  
-Builds and runs perfetto_{unittests,integrationtests,benchmarks} from the
+Builds and runs perfetto\_{unittests,integrationtests,benchmarks} from the
 standalone checkout. Benchmarks are ran in a reduced form for smoke testing.
 See [this doc](/docs/design-docs/continuous-integration.md) for more details.
 
@@ -61,22 +63,22 @@ runs only `perfetto_integrationtests`
 **Android presubmits (TreeHugger)**:  
 Runs before submission of every AOSP CL of `external/perfetto`.
 
-**Android CTS** (Android test suite used run to ensure API compatibility):   
+**Android CTS** (Android test suite used run to ensure API compatibility):  
 Rolling runs internally.
 
 Note that Perfetto CI uses the standalone build system and the others build as
 part of the Android tree.
 
-Unit tests
-----------
+## Unit tests
+
 Unit tests exist for most of the code in Perfetto on the class level. They
 ensure that each class broadly works as expected.
 
 Unit tests are currently ran on ci.perfetto.dev and build.chromium.org.
 Running unit tests on APCT and Treehugger is WIP.
 
-Integration tests
------------------
+## Integration tests
+
 Integration tests ensure that subsystems (importantly ftrace and the IPC layer)
 and Perfetto as a whole is working correctly end-to-end.
 
@@ -93,8 +95,8 @@ Starting up the daemons in the test itself and then testing against them.
 This is how standalone builds are tested. This is the only supported way to
 run integration tests on Linux and MacOS.
 
-Trace Processor diff tests
------------------
+## Trace Processor diff tests
+
 Trace processor is mainly tested using so called "diff tests".
 
 For these tests, trace processor parses a known trace and executes a query
@@ -106,6 +108,7 @@ query, the metric name is used and the expected output string contains
 the expected result of computing the metric.
 
 These tests (for both queries and metrics) can be run as follows:
+
 ```bash
 tools/ninja -C <out directory>
 tools/diff_test_trace_processor.py <out directory>/trace_processor_shell
@@ -119,13 +122,12 @@ column is named `suppress_query_output`, even if it has output, this will
 be ignored (for example,
 `SELECT RUN_METRIC('metric file') as suppress_query_output`)
 
-UI pixel diff tests
------------------
+## UI pixel diff tests
+
 The pixel tests are used to ensure core user journeys work by verifying they
 are the same pixel to pixel against a golden screenshot. They use a headless
 chrome to load the webpage and take a screenshot and compare pixel by pixel a
 golden screenshot. You can run these tests by using `ui/run-integrationtests`.
-
 
 These test fail when a certain number of pixels are different. If these tests
 fail, you'll need to investigate the diff and determine if its intentional. If
@@ -148,8 +150,8 @@ by using a link ending with `ui-test-artifacts/index.html`. Report located on
 that page contains changed screenshots as well as a command to accept the
 changes if these are desirable.
 
-Android CTS tests
------------------
+## Android CTS tests
+
 CTS tests ensure that any vendors who modify Android remain compliant with the
 platform API.
 
@@ -172,8 +174,8 @@ Finally, the following command should be run:
 adb shell /data/local/tmp/CtsPerfettoTestCases64
 ```
 
-{#chromium} Chromium waterfall
-------------------
+## {#chromium} Chromium waterfall
+
 Perfetto is constantly rolled into chromium's //third_party/perfetto via
 [this autoroller](https://autoroll.skia.org/r/perfetto-chromium-autoroll).
 

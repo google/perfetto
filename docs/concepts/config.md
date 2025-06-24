@@ -4,12 +4,12 @@ Unlike many always-on logging systems (e.g. Linux's rsyslog, Android's logcat),
 in Perfetto all tracing data sources are idle by default and record data only
 when instructed to do so.
 
-Data sources record data only when one (or more) tracing sessions are active. A
-tracing session is started by invoking the `perfetto` cmdline client and passing
-a config (see QuickStart guide for
+<!--
+Data sources record data only when one (or more) tracing sessions are active.
+A tracing session is started by invoking the `perfetto` cmdline client and
+passing a config (see QuickStart guide for
 [Android](/docs/quickstart/android-tracing.md),
-[Linux](/docs/quickstart/linux-tracing.md), or
-[Chrome on desktop](/docs/quickstart/chrome-tracing.md)).
+[Linux](/docs/quickstart/linux-tracing.md), or [Chrome on desktop](/docs/quickstart/chrome-tracing.md)). -->
 
 A simple trace config looks like this:
 
