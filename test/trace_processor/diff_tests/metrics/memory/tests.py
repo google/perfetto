@@ -231,6 +231,12 @@ class MemoryMetrics(TestSuite):
         }
         """))
 
+  def test_android_bitmap_metric(self):
+    return DiffTestBlueprint(
+        trace=DataPath('bitmap_counters.pb'),
+        query=Metric('android_bitmap_metric'),
+        out=Path('android_bitmap_metric.out'))
+
   def test_android_lmk_oom(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""

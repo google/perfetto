@@ -2524,6 +2524,7 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/android/android_auto_multiuser.sql",
         "src/trace_processor/metrics/sql/android/android_batt.sql",
         "src/trace_processor/metrics/sql/android/android_binder.sql",
+        "src/trace_processor/metrics/sql/android/android_bitmap_metric.sql",
         "src/trace_processor/metrics/sql/android/android_blocking_calls_cuj_metric.sql",
         "src/trace_processor/metrics/sql/android/android_blocking_calls_cuj_per_frame_metric.sql",
         "src/trace_processor/metrics/sql/android/android_blocking_calls_unagg.sql",
@@ -5769,6 +5770,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/metrics/android/ad_services_metric.proto",
         "protos/perfetto/metrics/android/android_anomaly_metric.proto",
+        "protos/perfetto/metrics/android/android_bitmap_metric.proto",
         "protos/perfetto/metrics/android/android_blocking_call.proto",
         "protos/perfetto/metrics/android/android_blocking_call_per_frame.proto",
         "protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto",

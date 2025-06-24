@@ -30,6 +30,7 @@ import "protos/perfetto/metrics/android/android_frame_timeline_metric.proto";
 import "protos/perfetto/metrics/android/anr_metric.proto";
 import "protos/perfetto/metrics/android/batt_metric.proto";
 import "protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto";
+import "protos/perfetto/metrics/android/android_bitmap_metric.proto";
 import "protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto";
 import "protos/perfetto/metrics/android/android_blocking_calls_cuj_per_frame_metric.proto";
 import "protos/perfetto/metrics/android/android_blocking_calls_unagg.proto";
@@ -374,6 +375,9 @@ message TraceMetrics {
   // Android Wattson thread attribution during atrace app windows.
   optional AndroidWattsonTasksAttributionMetric wattson_atrace_apps_threads =
       80;
+
+  // Android Bitmap memory and count metrics.
+  optional AndroidBitmapMetric android_bitmap_metric = 81;
 
   // Android
   // Demo extensions.
