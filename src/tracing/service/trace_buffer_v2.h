@@ -211,7 +211,7 @@ class BufIterator {
   // implement the "DeleteNextChunksFor()" while overwriting.
   bool NextChunk();
   bool NextChunkInSequence();
-  bool NextChunkInBuffer(bool first_call_from_ctor = false);
+  bool NextChunkInBuffer();
   std::optional<Frag> NextFragmentInChunk();
   void SkipCurrentSequence();
   bool EraseCurrentChunkAndMoveNext();
