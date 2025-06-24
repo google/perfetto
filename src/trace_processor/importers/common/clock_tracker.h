@@ -22,13 +22,16 @@
 #include <array>
 #include <cinttypes>
 #include <cstdint>
+#include <list>
 #include <map>
 #include <optional>
+#include <queue>
 #include <random>
 #include <set>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
@@ -388,6 +391,10 @@ class ClockTracker {
   bool trace_time_clock_id_used_for_conversion_ = false;
   base::FlatHashMap<ClockId, int64_t> clock_offsets_;
   std::optional<int64_t> timezone_offset_;
+
+  // A queue of paths to explore. Stored as a field to reduce allocations
+  // on every call to FindPath().
+  std::deque<ClockPath> queue_find_path_cache_;
 };
 
 }  // namespace trace_processor
