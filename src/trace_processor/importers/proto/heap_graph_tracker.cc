@@ -401,6 +401,7 @@ void HeapGraphTracker::AddObject(uint32_t seq_id,
   uint32_t reference_set_id =
       storage_->heap_graph_reference_table().row_count();
   bool any_references = false;
+  bool any_native_references = false;
 
   ObjectTable::Id owner_id = owner_row_ref.id();
   for (size_t i = 0; i < obj.referred_objects.size(); ++i) {
@@ -425,8 +426,26 @@ void HeapGraphTracker::AddObject(uint32_t seq_id,
     }
     any_references = true;
   }
-  if (any_references) {
+  for (size_t i = 0; i < obj.runtime_internal_objects.size(); ++i) {
+    uint64_t owned_object_id = obj.runtime_internal_objects[i];
+    // This is true for unset reference fields.
+    std::optional<ObjectTable::RowReference> owned_row_ref;
+    if (owned_object_id != 0)
+      owned_row_ref = GetOrInsertObject(&sequence_state, owned_object_id);
+
+    storage_->mutable_heap_graph_reference_table()->Insert(
+        {reference_set_id,
+         owner_id,
+         owned_row_ref ? std::make_optional(owned_row_ref->id()) : std::nullopt,
+         storage_->InternString("runtimeInternalObjects"),
+         {},
+         /*deobfuscated_field_name=*/std::nullopt});
+    any_native_references = true;
+  }
+  if (any_references || any_native_references) {
     owner_row_ref.set_reference_set_id(reference_set_id);
+  }
+  if (any_references) {
     if (obj.field_name_ids.empty()) {
       sequence_state.deferred_reference_objects_for_type_[type_id].push_back(
           owner_row_ref.ToRowNumber());
