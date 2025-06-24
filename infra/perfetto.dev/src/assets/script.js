@@ -391,6 +391,7 @@ const redirectMap = {
   '/docs/analysis/pivot-tables': '/docs/visualization/perfetto-ui#pivot-tables',
   '/docs/contributing/embedding': '/docs/analysis/trace-processor#embedding',
   '/docs/contributing/perfetto-in-the-press': '/docs/#who-uses-perfetto',
+  '/docs/contributing/ui-development': '/docs/contributing/ui-getting-started',
   '/docs/quickstart/android-tracing': '/docs/getting-started/system-tracing',
   '/docs/quickstart/callstack-sampling': '/docs/getting-started/cpu-profiling',
   '/docs/quickstart/chrome-tracing': '/docs/getting-started/chrome-tracing',

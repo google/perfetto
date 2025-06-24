@@ -364,6 +364,7 @@ removed_renamed_moved_files = [
   "analysis/pivot-tables.md",
   "contributing/embedding.md",
   "contributing/perfetto-in-the-press.md",
+  "contributing/ui-development.md",
   "quickstart/android-tracing.md",
   "quickstart/callstack-sampling.md",
   "quickstart/chrome-tracing.md",
