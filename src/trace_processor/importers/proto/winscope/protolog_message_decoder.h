@@ -25,7 +25,6 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
-#include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
@@ -57,19 +56,9 @@ struct TrackedMessage {
   std::optional<std::string> location;
 };
 
-class ProtoLogMessageDecoder : public Destructible {
+class ProtoLogMessageDecoder {
  public:
-  explicit ProtoLogMessageDecoder(TraceProcessorContext* context);
-  virtual ~ProtoLogMessageDecoder() override;
-
-  static ProtoLogMessageDecoder* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->protolog_message_decoder) {
-      context->protolog_message_decoder.reset(
-          new ProtoLogMessageDecoder(context));
-    }
-    return static_cast<ProtoLogMessageDecoder*>(
-        context->protolog_message_decoder.get());
-  }
+  explicit ProtoLogMessageDecoder(TraceProcessorContext*);
 
   std::optional<DecodedMessage> Decode(
       uint64_t message_id,
