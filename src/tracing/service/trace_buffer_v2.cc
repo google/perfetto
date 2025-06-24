@@ -48,6 +48,8 @@ constexpr uint8_t kLastPacketContinuesOnNextChunk =
 constexpr uint8_t kChunkNeedsPatching =
     SharedMemoryABI::ChunkHeader::kChunkNeedsPatching;
 
+constexpr uint8_t kChunkComplete = 0x80;
+
 // Compares two ChunkID(s) in a wrapping 32-bit ID space.
 // Returns:
 //   -1 if a comes before b in modular (wrapping) order.
@@ -177,6 +179,7 @@ bool BufIterator::NextChunkInBuffer(bool first_iteration) {
         seq->last_chunk_id_consumed.has_value() &&
         first_chunk_of_seq->chunk_id != *seq->last_chunk_id_consumed + 1;
     bool needs_patching = next_chunk->flags & kChunkNeedsPatching;
+
     if (chunk_id_gap || needs_patching) {
       PERFETTO_DCHECK(!read_only_iterator_);
       seq->skip_in_generation = buf_->read_generation_;
@@ -191,17 +194,11 @@ bool BufIterator::NextChunkInBuffer(bool first_iteration) {
 }
 
 bool BufIterator::NextChunkInSequence() {
-  // TODO if the chunk needs patching (and is still unpatched), return false.
-
   PERFETTO_DCHECK(valid());
   PERFETTO_DCHECK(seq_);
 
-  // We should never end up in a state where NextChunkInSequence() is called and
-  // skip is true. At the time of writing, any `skip = true` is always followed
-  // by a move in buffer order.
-  PERFETTO_DCHECK(seq_->skip_in_generation != buf_->read_generation_);
-  // if (seq_->skip_in_generation == buf_->read_generation_)
-  // return false;
+  if (seq_->skip_in_generation == buf_->read_generation_)
+    return false;
 
   auto& chunk_list = seq_->chunks;
 
@@ -352,7 +349,9 @@ bool BufIterator::EraseCurrentChunkAndMoveNext() {
   // We should not erase an unconsumed chunk. The cases of ABI violation should
   // forcefully clear the payload_avail.
   PERFETTO_DCHECK(chunk_->payload_avail == 0);
-  if (!chunk_->is_padding()) {
+  if (!(chunk_->flags & kChunkComplete)) {
+    seq_->skip_in_generation = buf_->read_generation_;
+  } else if (!chunk_->is_padding()) {
     size_t chunk_off = buf_->OffsetOf(chunk_);
     TRACE_BUFFER_DLOG("EraseChunk(%zu)", chunk_off);
     const uint32_t outer_size = chunk_->outer_size();
@@ -693,6 +692,8 @@ void TraceBufferV2::CopyChunkUntrusted(
       chunk_flags &= ~kLastPacketContinuesOnNextChunk;
       chunk_flags &= ~kChunkNeedsPatching;
     }
+  } else {
+    chunk_flags |= kChunkComplete;
   }
 
   // Compute the SUM(frags.size).
@@ -750,7 +751,6 @@ void TraceBufferV2::CopyChunkUntrusted(
   }  // for (fragments)
   PERFETTO_CHECK(all_frags_size <= size);
 
-
   // Make space in the buffer for the chunk we are about to copy.
 
   // TODO if the chunk is incomplete, copy the original size, ignore the payload
@@ -776,7 +776,6 @@ void TraceBufferV2::CopyChunkUntrusted(
     return;
   }
 
-
   auto seq_key = MkProducerAndWriterID(producer_id_trusted, writer_id);
   auto seq_it = sequences_.find(seq_key);
   if (seq_it == sequences_.end()) {
@@ -787,9 +786,13 @@ void TraceBufferV2::CopyChunkUntrusted(
     seq_it = it_and_inserted.first;
   }
   SequenceState& seq = seq_it->second;
+  if (seq.last_chunk_id_consumed.has_value() &&
+      ChunkIdCompare(chunk_id, *seq.last_chunk_id_consumed) <= 0) {
+    // TODO discuss this with daniele.
+    return;
+  }
 
   // HANDLE recommit case
-
 
   // If there isn't enough room from the given write position: write a padding
   // record to clear the end of the buffer, wrap and start at offset 0.
@@ -806,6 +809,43 @@ void TraceBufferV2::CopyChunkUntrusted(
   if (!DeleteNextChunksFor(tbchunk_outer_size))
     return DiscardWrite();
 
+  // Find the insert poisition in the SequenceState's chunk list. We iterate the
+  // list in reverse order as in the majority of cases chunks arrive naturally
+  // in order. SMB scraping is really the only thing that might commit chunks
+  // slightly out of order.
+  auto& chunk_list = seq.chunks;
+  auto insert_pos = chunk_list.rbegin();
+  bool recommit = false;
+  for (; insert_pos != chunk_list.rend(); ++insert_pos) {
+    TBChunk* other_chunk = GetTBChunkAt(*insert_pos);
+    int cmp = ChunkIdCompare(chunk_id, other_chunk->chunk_id);
+    if (cmp > 0)
+      break;
+    if (cmp == 0) {
+      // The producer is trying to re-commit a previously copied chunk. This
+      // can happen when the service does SMB scraping (the same chunk could
+      // be scraped more than once), and later the producer does a commit.
+      // We allow recommit only if the new chunk is larger than the existing.
+      if (other_chunk->payload_size > all_frags_size ||
+          (other_chunk->flags & chunk_flags) != other_chunk->flags) {
+        // Overridden chunks should never change size, since the page layout is
+        // fixed per writer. The payload should never decrease and flags can be
+        // added but not removed.
+        stats_.set_abi_violations(stats_.abi_violations() + 1);
+        PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
+        return;
+      }
+
+      // TODO maybe remove
+      if (all_frags_size == other_chunk->payload_size) {
+        TRACE_BUFFER_DLOG("  skipping recommit of identical chunk");
+        return;
+      }
+
+      recommit = true;
+      break;
+    }
+  }
 
   TBChunk* tbchunk = CreateTBChunk(wr_, all_frags_size);
   tbchunk->payload_avail = all_frags_size;
@@ -820,20 +860,25 @@ void TraceBufferV2::CopyChunkUntrusted(
   wptr += all_frags_size;
   PERFETTO_DCHECK(static_cast<size_t>(wptr - payload_begin) == all_frags_size);
 
-  // Insert the chunk in-order in the linked list.
-  // TODO handle re-commit of same chunk id.
-  auto& chunk_list = seq.chunks;
-  auto insert_pos = chunk_list.rbegin();
-  while (insert_pos != chunk_list.rend() &&
-         ChunkIdCompare(chunk_id, GetTBChunkAt(*insert_pos)->chunk_id) < 0) {
-    ++insert_pos;
-  }
-  if (insert_pos != chunk_list.rbegin()) {
-    stats_.set_chunks_committed_out_of_order(
-        stats_.chunks_committed_out_of_order() + 1);
-  }
   PERFETTO_DCHECK(wr_ == OffsetOf(tbchunk));
-  chunk_list.InsertBefore(insert_pos, wr_);
+
+  if (recommit) {
+    PERFETTO_DCHECK(insert_pos != chunk_list.rend());
+    TBChunk* other_chunk = GetTBChunkAt(*insert_pos);
+    // TODO reason on this.
+    auto payload_read = other_chunk->payload_size - other_chunk->payload_avail;
+    tbchunk->payload_avail -= payload_read;
+    tbchunk->flags |= other_chunk->flags;
+    *insert_pos = wr_;  // Point the list entry to offset of the new chunk.
+    // Clear (zero-fill) the old chunk.
+    CreateTBChunk(OffsetOf(other_chunk), other_chunk->payload_size);
+  } else {
+    if (insert_pos != chunk_list.rbegin()) {
+      stats_.set_chunks_committed_out_of_order(
+          stats_.chunks_committed_out_of_order() + 1);
+    }
+    chunk_list.InsertAfter(insert_pos, wr_);
+  }
 
   TRACE_BUFFER_DLOG(" END OF CopyChunkUntrusted(%zu) @ wr=%zu", size, wr_);
 

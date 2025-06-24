@@ -260,7 +260,7 @@ class CircularQueue {
     new (Get(pos.pos_)) T(std::move(value));
   }
 
-  void InsertBefore(ReverseIterator pos, T value) {
+  void InsertAfter(ReverseIterator pos, T value) {
     InsertBefore(pos.base(), std::move(value));
   }
 
