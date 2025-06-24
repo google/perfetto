@@ -86,7 +86,7 @@ TEST(SplitProcStatStringTest, MissingParensStrings) {
 }
 
 TEST(SplitProcStatStringTest, GarbageInGarbageOut) {
-  // Test we don't crash on incorrect output.
+  // Test we don't crash on incorrect input.
   constexpr char kNoSpaceAfterPid[] = "12(3 cat) R 5 6";
   const auto res = SplitProcStatString(kNoSpaceAfterPid);
   ASSERT_TRUE(res.has_value());
