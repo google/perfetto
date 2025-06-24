@@ -48,6 +48,9 @@ v51.0 - 2025-06-24:
       touch devices.
     * Removed the Viz page; it was an experiment which did not go anywhere.
   SDK:
+    * Changed the implementation of TrackEvent to only have a single data source
+      for multiple namespace; categories will be exported correctly only on
+      recent perfetto tracing services that support UpdateDataSource.
     * Changed the priority of TrackEvent enabled/disabled category and tags.
       The new logic ranks (in this order)
       specific > pattern > single char "*" wildcard,
@@ -176,9 +179,6 @@ v49.0 - 2025-01-06:
     * Hide 'Open with legacy UI' by default.
   SDK:
     * Added `NamedTrack`, it allows creating arbitrarily named tracks.
-    * There's now a single TrackEvent data source for multiple namespace;
-      categories will be exported correctly only on recent perfetto tracing
-      services that support UpdateDataSource.
 
 
 v48.1 - 2024-10-14:
