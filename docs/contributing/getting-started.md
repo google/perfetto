@@ -103,7 +103,7 @@ You might want to contribute to the UI, Trace Processor, SDK or various data imp
 - If you want to add a new table/view/function to Perfetto SQL standard library you need to first undestand [the Perfetto SQL syntax](/docs/analysis/perfetto-sql-syntax.md), and then read the details of updating the standard library at [common tasks page](common-tasks).
 - If you want to add a support of a new file type into Perfetto, you need to add a new `importer` to Trace Processor C++ code.
 
-## Communication
+## {#community} Communication
 
 ### Contact
 
