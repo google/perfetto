@@ -134,9 +134,9 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
     if (!parse_error) {
       // grep-friendly: runtime_internal_object_id
       parse_error = ForEachVarInt<
-          protos::pbzero::HeapGraphObject::kRuntimeInternalObjectId>(
+          protos::pbzero::HeapGraphObject::kRuntimeInternalObjectIdFieldNumber>(
           object, [&obj](uint64_t value) {
-            obj.native_referred_objects.push_back(value);
+            obj.runtime_internal_objects.push_back(value);
           });
     }
 
