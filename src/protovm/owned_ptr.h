@@ -35,7 +35,10 @@ class OwnedPtr {
  public:
   using pointer = T*;
   OwnedPtr(const OwnedPtr&) = delete;
-  OwnedPtr(OwnedPtr&&) = default;
+  OwnedPtr(OwnedPtr&& other) {
+    p_ = other.p_;
+    other.p_ = nullptr;
+  }
   OwnedPtr(T* p) noexcept : p_(p) {}  // NOLINT: explicit
   ~OwnedPtr() noexcept { reset(); }
   OwnedPtr& operator=(const OwnedPtr&) = delete;
