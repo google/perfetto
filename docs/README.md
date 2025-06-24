@@ -148,7 +148,7 @@ someone new to the project to know what is relevant to them. For this reason, we
 have a whole page dedicated to this:
 [How do I start using Perfetto?](/docs/getting-started/start-using-perfetto.md)
 
-## Who uses Perfetto today?
+## {#who-uses-perfetto} Who uses Perfetto today?
 
 Perfetto is the **default tracing system** for the **Android operating system**
 and the **Chromium browser**. As such, Perfetto is utilized extensively by these

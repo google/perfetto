@@ -165,7 +165,7 @@ tables.
 
 _Answer_: Add the test to the `parser/core_tables` folder.
 
-## Embedding
+## {#embedding} Embedding
 
 ### Building
 

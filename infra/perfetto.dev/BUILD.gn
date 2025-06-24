@@ -361,7 +361,15 @@ foreach(source, mdfiles) {
 # src/assets/script.js
 removed_renamed_moved_files = [
   "analysis/common-queries.md",
+  "analysis/pivot-tables.md",
+  "contributing/embedding.md",
   "contributing/perfetto-in-the-press.md",
+  "quickstart/android-tracing.md",
+  "quickstart/callstack-sampling.md",
+  "quickstart/chrome-tracing.md",
+  "quickstart/heap-profiling.md",
+  "quickstart/linux-tracing.md",
+  "quickstart/trace-analysis.md",
 ]
 
 foreach(source, removed_renamed_moved_files) {

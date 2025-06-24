@@ -387,11 +387,16 @@ if (fragment in legacyRedirectMap) {
 // Pages which have been been removed/renamed/moved and need to be redirected
 // to their new home.
 const redirectMap = {
-  // stdlib docs is not a perfect replacement but is good enough until we write
-  // a proper, Android specific query codelab page.
-  // TODO(lalitm): switch to that page when it's ready.
-  '/docs/analysis/common-queries': '/docs/analysis/stdlib-docs',
-  '/docs/contributing/perfetto-in-the-press': '/docs/#who-uses-perfetto-',
+  '/docs/analysis/common-queries': '/docs/getting-started/android-trace-analysis',
+  '/docs/analysis/pivot-tables': '/docs/visualization/perfetto-ui#pivot-tables',
+  '/docs/contributing/embedding': '/docs/analysis/trace-processor#embedding',
+  '/docs/contributing/perfetto-in-the-press': '/docs/#who-uses-perfetto',
+  '/docs/quickstart/android-tracing': '/docs/getting-started/system-tracing',
+  '/docs/quickstart/callstack-sampling': '/docs/getting-started/cpu-profiling',
+  '/docs/quickstart/chrome-tracing': '/docs/getting-started/chrome-tracing',
+  '/docs/quickstart/heap-profiling': '/docs/getting-started/memory-profiling',
+  '/docs/quickstart/linux-tracing': '/docs/getting-started/system-tracing',
+  '/docs/quickstart/trace-analysis': '/docs/analysis/getting-started',
 };
 
 if (location.pathname in redirectMap) {
