@@ -26,6 +26,8 @@ It consists of:
   amounts of complex, interconnected data on a timeline, even if it was not
   collected with Perfetto recording tooling.
 
+![](images/perfetto-stack.svg)
+
 ## Why would you use Perfetto?
 
 Perfetto was designed from the ground up to act as the default tracing system

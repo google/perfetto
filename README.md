@@ -7,7 +7,7 @@ root-cause functional and performance issues on client and embedded systems.
 It is a production-grade tool that is the default tracing system for the
 **Android operating system** and the **Chromium browser**.
 
-![Perfetto UI Screenshot](docs/images/track-events.png)
+![](docs/images/perfetto-stack.svg)
 
 ## Core Components
 
