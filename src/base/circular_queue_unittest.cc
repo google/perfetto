@@ -232,7 +232,7 @@ TEST(CircularQueueTest, InsertBefore) {
   ASSERT_THAT(queue, ElementsAre(0, 10, 20, 30, 40, 50, 60));
 
   // I know you don't believe me, so here's the proof.
-  std::vector<int> v{10,20};
+  std::vector<int> v{10, 20};
   v.emplace(v.rbegin().base(), 40);
   ASSERT_THAT(v, ElementsAre(10, 20, 40));
   for (auto it = v.rbegin(); it != v.rend(); ++it) {

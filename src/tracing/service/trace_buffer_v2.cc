@@ -85,7 +85,8 @@ BufIterator::BufIterator() : buf_(nullptr) {}
 
 BufIterator::BufIterator(TraceBufferV2* buf, size_t limit)
     : buf_(buf), limit_(limit) {
-  NextChunkInBuffer(/*first_call_from_ctor=*/true);
+  if (buf_->used_size_ > 0)
+    NextChunkInBuffer();
 }
 
 // static
@@ -103,49 +104,60 @@ void BufIterator::SetChunk(SequenceState* seq, TBChunk* chunk) {
   PERFETTO_DCHECK(seq->chunks.at(seq_idx_) == buf_->OffsetOf(chunk));
 }
 
-bool BufIterator::NextChunkInBuffer(bool first_iteration) {
-  PERFETTO_DCHECK(buf_->wr_ < buf_->size_ || buf_->size_ == 0);
+bool BufIterator::NextChunkInBuffer() {
+  PERFETTO_DCHECK(buf_->used_size_ > 0);
+  PERFETTO_DCHECK(buf_->wr_ < buf_->size_);
 
+  // There are 3 cases here:
+  // Case 1: wr_ hasn't wrapped once, so wr_ == used_size_.
+  //         we want to start reading at 0, and stop at used_size_.
+  // Case 2: wr_ wrapped at least once and is somewhere in the middle of
+  //         the buffer. The data immediately after wr_ is the oldest data
+  //         where we want to start from. We want to start @ wr_, wrap over
+  //         at used_size_ and stop once we reach again wr_.
+  // Case 3: (edge case) wr_ wrapped (one or more time) and is precisely at
+  //         offset 0. Proceed as case 2 (start at 0, wrap, end at 0).
+
+  TBChunk* cur_chunk = nullptr;
   size_t off;
-  if (first_iteration) {
-    if (buf_->used_size_ == 0)
-      return false;
-    off = buf_->wr_;
+  if (target_chunk_ == nullptr) {
+    // target_chunk_ is nullptr the first time we initialize from the ctor.
+    if (buf_->wr_ < buf_->used_size_) {
+      off = buf_->wr_;
+    } else {
+      off = 0;
+      if (limit_ > 0)
+        return false;
+    }
   } else {
-    off = buf_->OffsetOf(target_chunk_);
+    cur_chunk = target_chunk_;
+    off = buf_->OffsetOf(cur_chunk);
   }
 
-  // buf_->wr_ can be:
-  // - Somewhere in the middle of the buffer, with a full buffer. The data
-  //   starting @ wr_ is the oldest data (where the read should start).
-  // - At 0, if the last write ended precisely @ size_ and it wrapped.
-  // - At used_size_, if we haven't wrapped once, so wr_ points at the end
-  //   of the last chunk written. The read shoudl start at 0 in that case.
-
-  const size_t wrap_off = buf_->wr_ == 0 ? buf_->used_size_ : buf_->wr_;
   for (;;) {
-    if (!first_iteration) {
-      PERFETTO_DCHECK(buf_->GetTBChunkAt(off)->exists);
-      off += buf_->GetTBChunkAt(off)->outer_size();
-      if (off == wrap_off)
+    if (cur_chunk) {
+      PERFETTO_DCHECK(cur_chunk->exists);
+      off += cur_chunk->outer_size();
+      if (limit_ && off >= limit_)
         return false;
+      if (off == buf_->used_size_) {
+        if (buf_->wr_ == buf_->used_size_) {
+          return false;  // Case 1.
+        }
+        off = 0;
+      }
+      if (off == buf_->wr_)
+        return false;  // Case 2-3
     }
-    first_iteration = false;
-    if (off >= buf_->used_size_) {
-      if (limit_)
-        return false;
-      off = 0;
-    } else if (limit_ && off >= limit_) {
-      return false;
-    }
-    TBChunk* next_chunk = buf_->GetTBChunkAt(off);
-    PERFETTO_DCHECK(next_chunk->exists);
-    if (next_chunk->is_padding())
+
+    cur_chunk = buf_->GetTBChunkAt(off);
+    PERFETTO_DCHECK(cur_chunk->exists);
+    if (cur_chunk->is_padding()) {
       continue;
+    }
 
-    SequenceState* seq = buf_->GetSeqForChunk(next_chunk);
+    SequenceState* seq = buf_->GetSeqForChunk(cur_chunk);
     PERFETTO_DCHECK(seq);  // A non-padding chunk must be part of a sequence.
-
     if (seq->skip_in_generation == buf_->read_generation_) {
       // If we hit this, it means that we tried to read this chunk while
       // trying to reassmble a fragmented packet started in a prior chunk, but
@@ -178,7 +190,7 @@ bool BufIterator::NextChunkInBuffer(bool first_iteration) {
     bool chunk_id_gap =
         seq->last_chunk_id_consumed.has_value() &&
         first_chunk_of_seq->chunk_id != *seq->last_chunk_id_consumed + 1;
-    bool needs_patching = next_chunk->flags & kChunkNeedsPatching;
+    bool needs_patching = cur_chunk->flags & kChunkNeedsPatching;
 
     if (chunk_id_gap || needs_patching) {
       PERFETTO_DCHECK(!read_only_iterator_);
@@ -186,7 +198,7 @@ bool BufIterator::NextChunkInBuffer(bool first_iteration) {
       continue;
     }
 
-    target_chunk_ = next_chunk;
+    target_chunk_ = cur_chunk;
     seq_idx_ = 0;
     SetChunk(seq, first_chunk_of_seq);
     return true;
@@ -569,6 +581,8 @@ bool TraceBufferV2::ReadNextTracePacket(
           // BeginRead() session will be skipped. TODO explain this is to avoid
           // marking future chunks as data losses or loops.
           frag.seq->skip_in_generation = read_generation_;
+
+          // TODO make thid rd_iter_.InterruptSequence and hanlde the rest above uniformly
           if (!rd_iter_.NextChunkInBuffer()) {
             TRACE_BUFFER_DLOG("  ReadNextTracePacket -> false (reassembly)");
             return false;
