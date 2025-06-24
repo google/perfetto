@@ -20,9 +20,9 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
-#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/thread_utils.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::base {
@@ -106,25 +106,20 @@ TEST(ParseProcessStatTest, ReadSelfStat) {
   ASSERT_EQ(parts[0], std::to_string(getpid()));
 }
 
-class ScopedProcessName {
+class ScopedThreadName {
  public:
-  explicit ScopedProcessName(const std::string& name) {
-    static constexpr size_t kNameLen = 16;  // From `man pthread_getname_np`.
-    char old_buf[kNameLen];
-    pthread_getname_np(pthread_self(), old_buf, kNameLen);
-    old_name_ = old_buf;
-    pthread_setname_np(pthread_self(), name.c_str());
+  explicit ScopedThreadName(const std::string& name) {
+    GetThreadName(old_name_);
+    MaybeSetThreadName(name);
   }
-  ~ScopedProcessName() {
-    pthread_setname_np(pthread_self(), old_name_.c_str());
-  }
+  ~ScopedThreadName() { MaybeSetThreadName(old_name_); }
 
  private:
   std::string old_name_;
 };
 
 TEST(ParseProcessStatTest, ParseSelfThreadNameWithSpaces) {
-  ScopedProcessName scoped_thread_name(") )(ab");
+  ScopedThreadName scoped_thread_name(") )(ab");
   std::string stat;
   const StackString<256> tid_path("/proc/self/task/%d/stat", gettid());
   ASSERT_TRUE(ReadFile(tid_path.ToStdString(), &stat));
@@ -137,7 +132,7 @@ TEST(ParseProcessStatTest, ParseSelfThreadNameWithSpaces) {
 TEST(ParseProcessStatTest, StatState) {
   // Try to trick the parser into reading state Z by making the stat line start:
   // <pid> () Z ) ...
-  ScopedProcessName scoped_thread_name(") Z");
+  ScopedThreadName scoped_thread_name(") Z");
 
   const auto res = ReadProcSelfStatFile();
   ASSERT_TRUE(res.has_value());
