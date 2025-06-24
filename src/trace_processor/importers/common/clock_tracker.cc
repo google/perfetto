@@ -202,6 +202,7 @@ ClockTracker::ClockPath ClockTracker::FindPath(ClockId src, ClockId target) {
   // the full path to reach that node.
   // We assume the graph is acyclic, if it isn't the ClockPath::kMaxLen will
   // stop the search anyways.
+  queue_find_path_cache_.clear();
   queue_find_path_cache_.emplace_back(src);
 
   while (!queue_find_path_cache_.empty()) {

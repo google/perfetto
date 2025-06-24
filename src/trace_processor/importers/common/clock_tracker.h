@@ -394,7 +394,7 @@ class ClockTracker {
 
   // A queue of paths to explore. Stored as a field to reduce allocations
   // on every call to FindPath().
-  std::deque<ClockPath> queue_find_path_cache_;
+  base::CircularQueue<ClockPath> queue_find_path_cache_;
 };
 
 }  // namespace trace_processor
