@@ -30,11 +30,11 @@ import {VitalTimestampTrack} from './tracks';
 import {TrackNode} from '../../public/workspace';
 import {AppImpl} from '../../core/app_impl';
 import {isLynxBackgroundScriptThreadGroup} from '../../lynx_perf/track_utils';
-import {ThreadSortOrder} from '../lynx.ThreadGroups';
 import {NUM} from '../../trace_processor/query_result';
 import {traceEventWithSpecificArgValue} from '../../lynx_perf/trace_utils';
 import {getArgs} from '../../components/sql_utils/args';
 import {asArgSetId} from '../../components/sql_utils/core_types';
+import {ThreadSortOrder} from '../../lynx_perf/thread_order';
 
 export default class VitalTimestampPlugin implements PerfettoPlugin {
   static readonly id = LYNX_VITAL_TIMESTAMP_PLUGIN_ID;

@@ -19,20 +19,7 @@
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {STR} from '../../trace_processor/query_result';
-
-/**
- * Define thread priority for sorting.
- * Lower sort order means higher display priority.
- * Main thread: -25, Lynx background thread thread: -20, other Lynx thread: -15, others: 20.
- */
-export enum ThreadSortOrder {
-  PERFORMANCE_ISSUES = -1000,
-  VITAL_TIMESTAMP = -30,
-  MAIN_THREAD = -25,
-  LYNX_BACKGROUND_THREAD = -20,
-  LYNX_THREAD = -15,
-  OTHER_THREAD = 20,
-}
+import {ThreadSortOrder} from '../../lynx_perf/thread_order';
 
 /**
  * Perfetto plugin to adjust thread group display order:

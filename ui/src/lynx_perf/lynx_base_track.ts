@@ -262,6 +262,25 @@ export abstract class LynxBaseTrack<T extends BaseSlice[]>
     return undefined;
   }
 
+  protected drawRectSlice(
+    renderCtx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    color: string,
+  ) {
+    renderCtx.fillStyle = color;
+    renderCtx.beginPath();
+    renderCtx.moveTo(x, y + height);
+    renderCtx.lineTo(x, y);
+    renderCtx.lineTo(x + width, y);
+    renderCtx.lineTo(x + width, y + height);
+    renderCtx.lineTo(x, y + height);
+    renderCtx.fill();
+    renderCtx.closePath();
+  }
+
   getTitleFont(): string {
     // 12px keep same with ui/src/components/tracks/base_slice_trace.ts titleSizePx
     return `12px Roboto Condensed`;

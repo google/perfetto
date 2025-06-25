@@ -76,6 +76,12 @@ class LynxPerfGlobals {
       draft.traceIdToJSBName.set(traceId, name);
     });
   }
+
+  setTraceIdToScrollName(traceId: number, name: string) {
+    this._store.edit((draft) => {
+      draft.traceIdToScrollName.set(traceId, name);
+    });
+  }
 }
 
 export const lynxPerfGlobals = new LynxPerfGlobals();

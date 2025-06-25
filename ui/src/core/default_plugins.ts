@@ -92,4 +92,5 @@ export const defaultPlugins = [
   'lynx.VitalTimestamp',
   'lynx.NativeModule',
   'lynx.FrameJank',
+  'lynx.ScrollDetect',
 ];

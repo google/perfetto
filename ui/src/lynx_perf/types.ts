@@ -21,6 +21,7 @@ export interface LynxState {
   vitalTimestampLine: VitalTimestampLine[];
   selectedTimestamp: number;
   traceIdToJSBName: Map<number, string>;
+  traceIdToScrollName: Map<number, string>;
   trackUriToThreadMap: Map<string, SliceThreadState>;
   frameDurationMap: Map<number, FrameSlice>;
 }

@@ -66,8 +66,13 @@ DEPS_ALLOWLIST = [
     (
         '/*plugins/*',
         [
-            '/base/*', '/public/*', '/trace_processor/*', '/widgets/*',
-            '/components/*'
+            '/base/*',
+            '/public/*',
+            '/trace_processor/*',
+            '/widgets/*',
+            '/components/*',
+            '/lynx_perf/*',
+            '/core/*',
         ],
     ),
 
@@ -139,7 +144,7 @@ DEPS_ALLOWLIST = [
         '/plugins/lynx.perf/*', '/plugins/lynx.element/*',
         '/plugins/lynx.vitalTimestamp/*', '/plugins/lynx.nativemodule/*',
         '/plugins/lynx.frameJank/*'
-    ], ['/lynx_perf/*', '/plugins/lynx.ThreadGroups/index', '/core/*']),
+    ], ['/lynx_perf/*', '/core/*']),
     ('/metrics_chart/*', ['/metrics_chart/*', '/components/colorizer']),
     ('/metrics_chart/*', ['/metrics_chart/*', '/core/*', '/components/*']),
     ('/lynx_perf/*', [
