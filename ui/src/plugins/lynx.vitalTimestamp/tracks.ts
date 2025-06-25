@@ -138,10 +138,10 @@ export class VitalTimestampTrack extends LynxBaseTrack<VitalTimestamp[]> {
     const instanceIdToTimingFlagsMap = new Map();
     const pipelineIdSet = new Set();
     const instanceIdSet = new Set();
-    paintEndSlices.forEach(async (slice) => {
+    for (const slice of paintEndSlices) {
       // Currently, same pipelineId may have multiple paintEnd, skip the same pipelineId later
       if (!slice.pipelineId || pipelineIdSet.has(slice.pipelineId)) {
-        return;
+        continue;
       }
       let timingFlags: string[] = [];
       if (slice.timingFlags) {
@@ -173,14 +173,14 @@ export class VitalTimestampTrack extends LynxBaseTrack<VitalTimestamp[]> {
           pipelineId: slice.pipelineId,
         });
         pipelineIdSet.add(slice.pipelineId);
-        return;
+        continue;
       }
       // find the pipeline that may match the FCP
       if (
         slice.timingFlags ||
         (slice.instanceId && instanceIdSet.has(slice.instanceId))
       ) {
-        return;
+        continue;
       }
       const traceResults = await traceEventWithSpecificArgValue(
         this.trace.engine,
@@ -199,7 +199,7 @@ export class VitalTimestampTrack extends LynxBaseTrack<VitalTimestamp[]> {
         pipelineIdSet.add(slice.pipelineId);
         instanceIdSet.add(slice.instanceId);
       }
-    });
+    }
     const timestampLine = markers.map((marker) => ({
       name: marker.name,
       ts: marker.ts,
