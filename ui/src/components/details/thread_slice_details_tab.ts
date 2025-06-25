@@ -46,6 +46,10 @@ import {eventLoggerState} from '../../event_logger';
 import {sourceMapState} from '../../source_map/source_map_state';
 import {getDescription} from '../../description/get_description';
 import {DescriptionSection} from '../../description/description_section';
+import {
+  NATIVEMODULE_CALL,
+  DEPRECATED_NATIVEMODULE_CALL,
+} from '../../lynx_perf/constants';
 
 interface ContextMenuItem {
   name: string;
@@ -409,7 +413,11 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
       const args = this.sliceDetails.args ?? [];
       const dur = this.sliceDetails.dur;
       let eventName = name;
-      if (name === 'CallJSB' || name === 'InvokeCallback') {
+      if (
+        name === NATIVEMODULE_CALL ||
+        name === DEPRECATED_NATIVEMODULE_CALL ||
+        name === 'InvokeCallback'
+      ) {
         let firstArg = '';
         let module = '';
         let method = '';

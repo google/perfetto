@@ -21,7 +21,11 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {LynxNativeModuleTrack} from './tracks';
 import {TrackNode} from '../../public/workspace';
 import {AppImpl} from '../../core/app_impl';
-import {LYNX_NATIVE_MODULE_ID} from '../../lynx_perf/constants';
+import {
+  LYNX_NATIVE_MODULE_ID,
+  NATIVEMODULE_CALL,
+  DEPRECATED_NATIVEMODULE_CALL,
+} from '../../lynx_perf/constants';
 import {
   getBackgroundScriptThreadTrackNode,
   isLynxBackgroundScriptThreadGroup,
@@ -96,7 +100,7 @@ export default class LynxNativeModule implements PerfettoPlugin {
    */
   private async containValidNativeModule(ctx: Trace) {
     const queryRes = await ctx.engine.query(
-      `select arg_set_id as argSetId from slice where slice.name='CallJSB'`,
+      `select arg_set_id as argSetId from slice where slice.name='${NATIVEMODULE_CALL}' or slice.name='${DEPRECATED_NATIVEMODULE_CALL}'`,
     );
     const it = queryRes.iter({
       argSetId: NUM,

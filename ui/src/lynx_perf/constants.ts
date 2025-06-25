@@ -61,7 +61,8 @@ export const INSTANCE_ID = 'instance_id';
 export const TIMING_FLAGS = 'timing_flags';
 export const PIPELINE_ID = 'pipeline_id';
 // NativeModule Timing
-export const NATIVEMODULE_CALL = 'CallJSB';
+export const NATIVEMODULE_CALL = 'InvokeNativeModule';
+export const DEPRECATED_NATIVEMODULE_CALL = 'CallJSB';
 export const NATIVEMODULE_FUNC_CALL_START = 'JSBTiming::jsb_func_call_start';
 export const NATIVEMODULE_CONVERT_PARAMS_END =
   'JSBTiming::jsb_func_convert_params_end';

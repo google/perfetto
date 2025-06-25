@@ -39,6 +39,7 @@ import {
   NATIVEMODULE_FUNC_CALL_START,
   NATIVEMODULE_NETWORK_REQUEST,
   NATIVEMODULE_TIMING_FLUSH,
+  DEPRECATED_NATIVEMODULE_CALL,
   SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
 } from '../../lynx_perf/constants';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
@@ -106,7 +107,7 @@ export class LynxNativeModuleTrack extends LynxBaseTrack<NativeModuleItem[]> {
       
       from slice 
       inner join args on args.arg_set_id = slice.arg_set_id
-      where (slice.name='${NATIVEMODULE_FUNC_CALL_START}' or slice.name='${NATIVEMODULE_CALL}' or slice.name='${NATIVEMODULE_NETWORK_REQUEST}' 
+      where (slice.name='${NATIVEMODULE_FUNC_CALL_START}' or slice.name='${NATIVEMODULE_CALL}' or slice.name='${DEPRECATED_NATIVEMODULE_CALL}' or slice.name='${NATIVEMODULE_NETWORK_REQUEST}' 
       or slice.name='${NATIVEMODULE_TIMING_FLUSH}') order by ts ASC
       `,
     );

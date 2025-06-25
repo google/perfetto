@@ -21,6 +21,7 @@ import {
   LYNX_BACKGROUND_THREAD_NAME,
   NATIVEMODULE_CALL,
   NATIVEMODULE_NETWORK_REQUEST,
+  DEPRECATED_NATIVEMODULE_CALL,
 } from '../../lynx_perf/constants';
 
 export function isSyncNativeModule(flows: Flow[]) {
@@ -33,5 +34,9 @@ export function isSyncNativeModule(flows: Flow[]) {
 }
 
 export function isNativeModuleCall(name: string) {
-  return name === NATIVEMODULE_CALL || name === NATIVEMODULE_NETWORK_REQUEST;
+  return (
+    name === NATIVEMODULE_CALL ||
+    name === DEPRECATED_NATIVEMODULE_CALL ||
+    name === NATIVEMODULE_NETWORK_REQUEST
+  );
 }
