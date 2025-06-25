@@ -167,12 +167,17 @@ void AssertGraphPresent(std::vector<protos::gen::TracePacket> packets) {
 
   size_t objects = 0;
   size_t roots = 0;
+  size_t runtime_internal_references = 0;
   for (const auto& packet : packets) {
     objects += static_cast<size_t>(packet.heap_graph().objects_size());
     roots += static_cast<size_t>(packet.heap_graph().roots_size());
+    for (const auto& obj : packet.heap_graph().objects()) {
+      runtime_internal_references += obj.runtime_internal_object_id_size();
+    }
   }
   ASSERT_GT(objects, 0u);
   ASSERT_GT(roots, 0u);
+  ASSERT_GT(runtime_internal_references, 0u);
 }
 
 void AssertNoProfileContents(std::vector<protos::gen::TracePacket> packets) {
