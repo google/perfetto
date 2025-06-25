@@ -137,7 +137,8 @@ export default class FrameJankPlugin implements PerfettoPlugin {
           slice.name as name,
           drawFrame.name as drawFrameName,
           drawFrame.ts as drawFrameTs,
-          drawFrame.dur as drawFrameDur 
+          drawFrame.dur as drawFrameDur,
+          slice.track_id as trackId
         from slice 
         inner join slice as drawFrame
         where slice.track_id=${mainThread.trackId} 
@@ -153,6 +154,7 @@ export default class FrameJankPlugin implements PerfettoPlugin {
         id: NUM,
         dur: NUM,
         name: STR,
+        trackId: NUM,
         drawFrameName: STR,
         drawFrameTs: NUM,
         drawFrameDur: NUM,
@@ -185,7 +187,11 @@ export default class FrameJankPlugin implements PerfettoPlugin {
         } else {
           oldDur = it.dur;
         }
-        frameDurationMap.set(it.ts, {dur: oldDur, id: it.id});
+        frameDurationMap.set(it.ts, {
+          dur: oldDur,
+          id: it.id,
+          trackId: it.trackId,
+        });
         preDoFrameBeginTs = it.ts;
         preDoFrameEndTs = it.ts + it.dur;
       }

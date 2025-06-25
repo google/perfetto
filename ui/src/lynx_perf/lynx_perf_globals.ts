@@ -67,7 +67,9 @@ class LynxPerfGlobals {
 
   updateFrameDurationMap(frameDurationMap: Map<number, FrameSlice>) {
     this._store.edit((draft) => {
-      draft.frameDurationMap = frameDurationMap;
+      frameDurationMap.forEach((value, key) => {
+        draft.frameDurationMap.set(key, value);
+      });
     });
   }
 

@@ -38,6 +38,7 @@ import {UNEXPECTED_PINK} from '../colorizer';
 import {BUCKETS_PER_PIXEL, CacheKey} from './timeline_cache';
 import {renderDoFrameTag} from '../../lynx_perf/frame/render_doframe_mark';
 import {isMainThreadTrack} from '../../lynx_perf/track_utils';
+import {trackContainFrameTag} from '../../lynx_perf/frame/frame_tag_track';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -183,7 +184,7 @@ export abstract class BaseSliceTrack<
 > implements TrackRenderer
 {
   protected readonly sliceLayout: SliceLayout;
-  protected isMainThreadTrack: boolean;
+  protected isFrameTrack: boolean;
   protected frameLayoutHeight: number;
   protected trackUuid = uuidv4Sql();
 
@@ -302,9 +303,9 @@ export abstract class BaseSliceTrack<
 
     this.trash = new AsyncDisposableStack();
 
-    this.isMainThreadTrack = isMainThreadTrack(this.uri);
-    this.frameLayoutHeight =
-      FRAME_TAG_RADIUS * 2 * Number(this.isMainThreadTrack);
+    this.isFrameTrack =
+      isMainThreadTrack(this.uri) && trackContainFrameTag(this.uri);
+    this.frameLayoutHeight = FRAME_TAG_RADIUS * 2 * Number(this.isFrameTrack);
 
     this.sliceLayout = {
       padding: sliceLayout.padding ?? 3,
@@ -424,9 +425,10 @@ export abstract class BaseSliceTrack<
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
 
-    this.isMainThreadTrack = isMainThreadTrack(this.uri);
-    this.frameLayoutHeight =
-      FRAME_TAG_RADIUS * 2 * Number(this.isMainThreadTrack);
+    this.isFrameTrack =
+      isMainThreadTrack(this.uri) && trackContainFrameTag(this.uri);
+    // this.isMainThreadTrack = isMainThreadTrack(this.uri);
+    this.frameLayoutHeight = FRAME_TAG_RADIUS * 2 * Number(this.isFrameTrack);
 
     // In any case, draw whatever we have (which might be stale/incomplete).
     let charWidth = this.charWidth;
@@ -464,12 +466,13 @@ export abstract class BaseSliceTrack<
     const rowSpacing = this.sliceLayout.rowGap;
 
     // 0 pass: draw Frame tag if need
-    if (this.isMainThreadTrack) {
+    if (this.isFrameTrack) {
       renderDoFrameTag(
         ctx,
         timescale,
         padding / 2 + FRAME_TAG_RADIUS,
         FRAME_TAG_RADIUS,
+        this.uri,
       );
     }
 

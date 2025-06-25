@@ -29,30 +29,37 @@ export function renderDoFrameTag(
   timescale: TimeScale,
   y: number,
   radius: number,
+  uri: string,
 ) {
-  // Iterate through all recorded frame durations
-  for (const [key, value] of lynxPerfGlobals.state.frameDurationMap) {
-    // Convert timestamp to canvas x-coordinate
+  const trackMap = lynxPerfGlobals.state.trackUriToThreadMap.get(uri);
+  if (!trackMap) {
+    return;
+  }
+  const targetTrackId = trackMap.trackId;
+  const frameDurationMap = lynxPerfGlobals.state.frameDurationMap;
+  // Set color based on frame duration performance:
+  // - Red: Very slow frames (≥2x threshold)
+  // - Orange: Slow frames (≥threshold but <2x threshold)
+  // - Green: Good frames (<threshold)
+  for (const [key, value] of frameDurationMap) {
+    if (value.trackId !== targetTrackId) {
+      continue;
+    }
+
     const x = timescale.timeToPx(Time.fromRaw(BigInt(key)));
 
-    // Set color based on frame duration performance:
-    // - Red: Very slow frames (≥2x threshold)
-    // - Orange: Slow frames (≥threshold but <2x threshold)
-    // - Green: Good frames (<threshold)
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, 2 * Math.PI);
+    ctx.closePath();
+
     ctx.fillStyle =
       value.dur >= DROP_FRAME_THRESHOLD * 2
         ? 'rgb(180, 0, 0)'
         : value.dur >= DROP_FRAME_THRESHOLD
-          ? 'rgb(180, 125,0)'
+          ? 'rgb(180, 125, 0)'
           : 'rgb(0, 125, 0)';
-
-    // Draw circular marker
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, 2 * Math.PI);
     ctx.fill();
-    ctx.closePath();
 
-    // Label the marker with 'F'
     ctx.font = '10px Roboto Condensed';
     ctx.fillStyle = 'white';
     ctx.textBaseline = 'middle';

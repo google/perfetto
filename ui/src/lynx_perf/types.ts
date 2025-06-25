@@ -40,6 +40,7 @@ export interface SliceThreadState {
 export interface FrameSlice {
   dur: number;
   id: number;
+  trackId: number;
 }
 
 export enum IssueRank {
