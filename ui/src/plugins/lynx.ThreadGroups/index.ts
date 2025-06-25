@@ -18,6 +18,7 @@
 
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
+import {STR} from '../../trace_processor/query_result';
 
 /**
  * Define thread priority for sorting.
@@ -38,10 +39,20 @@ enum ThreadSortOrder {
  */
 export default class LynxThreadGroupPlugin implements PerfettoPlugin {
   static readonly id = 'lynx.ThreadGroup';
+  private isLinuxTrace = true;
   /**
    * On trace load, reorders process/thread groups, setting proper sortOrder for each thread.
    */
   async onTraceLoad(ctx: Trace): Promise<void> {
+    const result = await ctx.engine.query(
+      `select str_value from metadata where name = 'system_name'`,
+    );
+    if (result.numRows() !== 0) {
+      const name = result.firstRow({str_value: STR}).str_value;
+      if (name !== 'Linux') {
+        this.isLinuxTrace = false;
+      }
+    }
     const children = ctx.workspace.children.slice();
     ctx.workspace.clear();
     // Filter out process groups
@@ -68,8 +79,8 @@ export default class LynxThreadGroupPlugin implements PerfettoPlugin {
       // Assign sortOrder for each thread
       for (let i = 0; i < sortedThread.length; i++) {
         const thread = sortedThread[i];
-        // The first (lowest TID) thread is treated as main thread
-        if (i === 0) {
+        // For non-Linux traces, designate the first (lowest TID) thread as the main thread
+        if (i === 0 && !this.isLinuxTrace) {
           thread.sortOrder = ThreadSortOrder.MAIN_THREAD;
         } else {
           const tids = thread.title.split(' ');
