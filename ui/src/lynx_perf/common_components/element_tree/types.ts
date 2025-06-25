@@ -44,9 +44,11 @@ export interface LynxElement {
 }
 
 export interface ElementTreeViewState {
-  currentSelectedElement: LynxElement | undefined;
   treeHeight: number;
   treeWidth: number;
+  expandedKeys: string[];
+  autoExpandParent: boolean;
+  selectedKeys: string[];
 }
 
 export interface ElementTreeViewProps {
