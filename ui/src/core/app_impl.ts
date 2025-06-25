@@ -114,7 +114,7 @@ export class AppContext {
       self.location.search.indexOf('testing=1') >= 0;
     this.sidebarMgr = new SidebarManagerImpl({
       disabled: this.embeddedMode,
-      hidden: this.initialRouteArgs.hideSidebar,
+      hidden: this.initialRouteArgs.hideSidebar || this.initialRouteArgs.hide,
     });
     this.analytics = initAnalytics(this.testingMode, this.embeddedMode);
     this.pluginMgr = new PluginManagerImpl({
