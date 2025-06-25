@@ -138,6 +138,7 @@ DEPS_ALLOWLIST = [
     ('/plugins/lynx.description/*', '/description/*'),
     (['/plugins/lynx.perf/*', '/plugins/lynx.element/*'],
      ['/frontend/lynx_perf/*', '/plugins/lynx.ThreadGroups/index', '/core/*']),
+    ('/metrics_chart/*', ['/metrics_chart/*', '/components/colorizer']),
 ]
 
 
