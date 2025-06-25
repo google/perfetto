@@ -27,3 +27,10 @@ export const KEEP_TRACE_URL_ON_ROUTE_ARGS = featureFlags.register({
   description: 'Keep Trace Url On Route Args for shared trace',
   defaultValue: true,
 });
+
+export const HIDE_ERROR_ICON_ON_TOPBAR_FLAG = featureFlags.register({
+  id: 'hideErrorIconOnTopbar',
+  name: 'Hide error icon on Topbar',
+  description: 'Hide trace error icon on Topbar.',
+  defaultValue: true,
+});

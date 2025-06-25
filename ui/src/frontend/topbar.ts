@@ -20,6 +20,7 @@ import {assertFalse} from '../base/logging';
 import {OmniboxMode} from '../core/omnibox_manager';
 import {AppImpl} from '../core/app_impl';
 import {TraceImpl, TraceImplAttrs} from '../core/trace_impl';
+import {HIDE_ERROR_ICON_ON_TOPBAR_FLAG} from '../lynx_features_flags';
 
 class Progress implements m.ClassComponent<TraceImplAttrs> {
   view({attrs}: m.CVnode<TraceImplAttrs>): m.Children {
@@ -38,7 +39,9 @@ class TraceErrorIcon implements m.ClassComponent<TraceImplAttrs> {
 
   view({attrs}: m.CVnode<TraceImplAttrs>) {
     const trace = attrs.trace;
-    if (AppImpl.instance.embeddedMode) return;
+    if (AppImpl.instance.embeddedMode || HIDE_ERROR_ICON_ON_TOPBAR_FLAG.get()) {
+      return;
+    }
 
     const mode = AppImpl.instance.omnibox.mode;
     const totErrors = trace.traceInfo.importErrors + trace.loadingErrors.length;
