@@ -17,17 +17,19 @@
 // LICENSE file in the root directory of this source tree.
 
 import m from 'mithril';
-import {Duration, duration, Time, time} from '../../base/time';
+
+import {TimelineFetcher} from '../components/tracks/track_helper';
+import {BaseSlice} from './types';
+import {Point2D} from '../base/geom';
+import {Trace} from '../public/trace';
 import {
   TrackMouseEvent,
   TrackRenderContext,
   TrackRenderer,
-} from '../../public/track';
-import {Point2D} from '../../base/geom';
-import {BaseSlice} from './types';
-import {Trace} from '../../public/trace';
-import {TimelineFetcher} from '../../components/tracks/track_helper';
-import {ColorScheme} from '../../base/color_scheme';
+} from '../public/track';
+import {duration, Duration, time, Time} from '../base/time';
+import {TrackEventDetails} from '../public/selection';
+import {ColorScheme} from '../base/color_scheme';
 
 export const CHEVRON_WIDTH_PX = 10;
 
@@ -241,5 +243,25 @@ export abstract class LynxBaseTrack<T extends BaseSlice[]>
     renderCtx.lineWidth = THICKNESS;
     renderCtx.strokeRect(x, y - THICKNESS / 2, width, height + THICKNESS);
     renderCtx.closePath();
+  }
+
+  getTitleFont(): string {
+    return `12px Roboto Condensed`;
+  }
+
+  async getSelectionDetails(
+    id: number,
+  ): Promise<TrackEventDetails | undefined> {
+    const data = this.fetcher.data;
+    if (data === undefined) return undefined;
+    for (let i = 0; i < data.length; i++) {
+      if (id == data[i].id) {
+        return {
+          ts: Time.fromRaw(BigInt(data[i].ts)),
+          dur: Duration.fromRaw(BigInt(0)),
+        };
+      }
+    }
+    return undefined;
   }
 }

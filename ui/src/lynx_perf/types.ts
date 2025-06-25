@@ -16,10 +16,43 @@
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
 
-import {LynxState} from './types';
+export interface LynxState {
+  issues: IssueSummary[];
+  vitalTimestampLine: VitalTimestampLine[];
+  selectedTimestamp: number;
+}
 
-export function createEmptyLynxState(): LynxState {
-  return {
-    issues: [],
-  };
+export enum IssueRank {
+  MINOR,
+  MODERATE,
+  CRITICAL,
+}
+
+export interface IssueSummary extends BaseSlice {
+  id: number;
+  ts: number;
+  issueRank: IssueRank;
+  trackUri: string;
+}
+
+export interface BaseSlice {
+  id: number;
+  ts: number;
+  dur?: number;
+  description?: string;
+  highlighted?: boolean;
+  argSetId?: number;
+}
+
+export interface VitalTimestamp extends BaseSlice {
+  name: string[];
+  trackId: number;
+  instanceId?: number;
+  pipelineId: string;
+  widthPx?: number;
+}
+
+export interface VitalTimestampLine {
+  name: string[];
+  ts: number;
 }

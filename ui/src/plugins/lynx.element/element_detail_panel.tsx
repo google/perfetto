@@ -41,8 +41,8 @@ import {
   constructElementDetail,
   constructElementDetailWithinDepth,
 } from './utils';
-import {TableColumnTitle} from '../../frontend/lynx_perf/common_components/table_column_title';
 import {lynxConfigState} from '../../lynx_features_flags/config';
+import {TableColumnTitle} from '../../lynx_perf/common_components/table_column_title';
 
 export class ElementDetailView implements m.ClassComponent<ElementDetailAttr> {
   oncreate(vnode: m.CVnodeDOM<ElementDetailAttr>) {

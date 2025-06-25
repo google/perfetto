@@ -16,27 +16,13 @@
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
 
-export interface LynxState {
-  issues: IssueSummary[];
-}
+import {LynxIssueTrack} from '../../lynx_perf/base_issue_track';
+import {ElementDetailsPanel} from '../../plugins/lynx.element/details';
+import {TrackEventDetailsPanel} from '../../public/details_panel';
+import {TrackEventSelection} from '../../public/selection';
 
-export enum IssueRank {
-  MINOR,
-  MODERATE,
-  CRITICAL,
-}
-
-export interface IssueSummary extends BaseSlice {
-  id: number;
-  ts: number;
-  issueRank: IssueRank;
-  trackUri: string;
-}
-
-export interface BaseSlice {
-  id: number;
-  ts: number;
-  dur?: number;
-  description?: string;
-  highlighted?: boolean;
+export class LynxElementIssueTrack extends LynxIssueTrack {
+  detailsPanel?(_: TrackEventSelection): TrackEventDetailsPanel {
+    return new ElementDetailsPanel();
+  }
 }

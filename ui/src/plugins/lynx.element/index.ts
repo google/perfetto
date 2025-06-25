@@ -18,8 +18,6 @@
 
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
-import {lynxPerfGlobals} from '../../frontend/lynx_perf/lynx_perf_globals';
-import {LYNX_PERF_ELEMENT_PLUGIN_ID} from '../../frontend/lynx_perf/constants';
 import {NUM, STR} from '../../trace_processor/query_result';
 import {
   findDeeplyNestedNodesRecursively,
@@ -30,10 +28,13 @@ import {
 import {LynxElement} from './types';
 import ElementManager from './element_manager';
 import {Engine} from '../../trace_processor/engine';
-import {LynxElementTrack} from './element_track';
-import {IssueSummary, IssueRank} from '../../frontend/lynx_perf/types';
 import {getArgs} from '../../components/sql_utils/args';
 import {asArgSetId} from '../../components/sql_utils/core_types';
+import {IssueRank, IssueSummary} from '../../lynx_perf/types';
+import {LynxElementIssueTrack} from './element_issue_track';
+import {LYNX_PERF_ELEMENT_PLUGIN_ID} from '../../lynx_perf/constants';
+import LynxPerf from '../lynx.perf';
+import {lynxPerfGlobals} from '../../lynx_perf/lynx_perf_globals';
 
 /**
  * Lynx Element Performance Analysis Plugin
@@ -42,6 +43,7 @@ import {asArgSetId} from '../../components/sql_utils/core_types';
  */
 export default class LynxElementPlugin implements PerfettoPlugin {
   static readonly id = LYNX_PERF_ELEMENT_PLUGIN_ID;
+  static readonly dependencies = [LynxPerf];
   /**
    * Tracks problematic element nodes by instance_id
    * Key: instance_id
@@ -96,24 +98,16 @@ export default class LynxElementPlugin implements PerfettoPlugin {
    * guarantee those tracks will have been added yet.
    */
   async onTraceLoad(ctx: Trace): Promise<void> {
-    // TODO: reset issue status in perf track when v49.x.
-    lynxPerfGlobals.resetIssueStatus();
-
     await this.getScreenSize(ctx);
     const domIssues = await this.getIssueData(ctx.engine);
     if (domIssues.length > 0) {
       lynxPerfGlobals.appendPerformanceIssue(domIssues);
-      const timeout = ctx.commands.hasCommand('lynx.PerformanceIssues#update')
-        ? 0
-        : 500;
-      setTimeout(() => {
-        ctx.commands.runCommand('lynx.PerformanceIssues#update');
-      }, timeout);
+      ctx.commands.runCommand('lynx.PerformanceIssues#update');
     }
 
     ctx.tracks.registerTrack({
       uri: LYNX_PERF_ELEMENT_PLUGIN_ID,
-      track: new LynxElementTrack(),
+      track: new LynxElementIssueTrack(),
       title: 'Lynx Element Issues',
     });
   }

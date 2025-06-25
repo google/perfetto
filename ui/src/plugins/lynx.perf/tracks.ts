@@ -19,16 +19,13 @@
 import {Duration, duration, Time, time} from '../../base/time';
 import {TrackRenderContext} from '../../public/track';
 import {TrackEventDetails} from '../../public/selection';
-import {lynxPerfGlobals} from '../../frontend/lynx_perf/lynx_perf_globals';
-import {
-  CHEVRON_WIDTH_PX,
-  LynxBaseTrack,
-} from '../../frontend/lynx_perf/lynx_base_track';
-import {IssueRank, IssueSummary} from '../../frontend/lynx_perf/types';
 import {makeColorScheme} from '../../components/colorizer';
 import {HSLColor} from '../../base/color';
-import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/lynx_perf/constants';
 import {AppImpl} from '../../core/app_impl';
+import {IssueRank, IssueSummary} from '../../lynx_perf/types';
+import {CHEVRON_WIDTH_PX, LynxBaseTrack} from '../../lynx_perf/lynx_base_track';
+import {lynxPerfGlobals} from '../../lynx_perf/lynx_perf_globals';
+import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../lynx_perf/constants';
 
 const MINOR_PERFORMANCE_ISSUE_COLOR = makeColorScheme(
   new HSLColor([45, 100, 51]),
@@ -39,6 +36,7 @@ const MODERATE_PERFORMANCE_ISSUE_COLOR = makeColorScheme(
 const CRITICAL_PERFORMANCE_ISSUE_COLOR = makeColorScheme(
   new HSLColor([4, 90, 58]),
 );
+
 export class LynxPerfTrack extends LynxBaseTrack<IssueSummary[]> {
   getHeight(): number {
     return (

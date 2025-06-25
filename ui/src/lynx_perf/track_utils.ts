@@ -16,30 +16,12 @@
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
 
-import {createStore} from '../../base/store';
-import {createEmptyLynxState} from './empty_state';
-import {IssueSummary, LynxState} from './types';
+import {TrackNode} from '../public/workspace';
+import {LYNX_BACKGROUND_THREAD_NAME} from './constants';
 
-class LynxPerfGlobals {
-  private _store = createStore<LynxState>(createEmptyLynxState());
-
-  appendPerformanceIssue(issues: IssueSummary[]) {
-    this._store.edit((draft) => {
-      issues.forEach((item) => {
-        draft.issues.push(item);
-      });
-    });
-  }
-
-  get state(): LynxState {
-    return this._store.state;
-  }
-
-  resetIssueStatus() {
-    this._store.edit((draft) => {
-      Object.assign(draft, createEmptyLynxState());
-    });
-  }
+export function isLynxBackgroundScriptThreadGroup(item: TrackNode) {
+  return (
+    item.hasChildren &&
+    item.children.some((item) => item.title.includes(LYNX_BACKGROUND_THREAD_NAME))
+  );
 }
-
-export const lynxPerfGlobals = new LynxPerfGlobals();

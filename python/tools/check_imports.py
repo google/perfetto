@@ -137,8 +137,10 @@ DEPS_ALLOWLIST = [
     ('/description/*', ['/widgets/*', '/components/*']),
     ('/plugins/lynx.description/*', '/description/*'),
     (['/plugins/lynx.perf/*', '/plugins/lynx.element/*'],
-     ['/frontend/lynx_perf/*', '/plugins/lynx.ThreadGroups/index', '/core/*']),
+     ['/lynx_perf/*', '/plugins/lynx.ThreadGroups/index', '/core/*']),
     ('/metrics_chart/*', ['/metrics_chart/*', '/components/colorizer']),
+    ('/metrics_chart/*', ['/metrics_chart/*', '/core/*', '/components/*']),
+    ('/lynx_perf/*', ['/public/*', '/components/*'])
 ]
 
 

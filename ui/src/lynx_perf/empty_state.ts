@@ -16,12 +16,12 @@
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
 
-import {TrackNode} from '../../public/workspace';
-import {LYNX_BACKGROUND_THREAD_NAME} from './constants';
+import {LynxState} from './types';
 
-export function isLynxBackgroundScriptThreadGroup(item: TrackNode) {
-  return (
-    item.hasChildren &&
-    item.children.some((item) => item.title.includes(LYNX_BACKGROUND_THREAD_NAME))
-  );
+export function createEmptyLynxState(): LynxState {
+  return {
+    issues: [],
+    vitalTimestampLine: [],
+    selectedTimestamp: -1,
+  };
 }
