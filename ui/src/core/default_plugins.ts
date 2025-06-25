@@ -84,4 +84,5 @@ export const defaultPlugins = [
   'perfetto.GlobalGroups',
   'perfetto.SettingsPage',
   'perfetto.TrackUtils',
+  'lynx.ThreadGroup',
 ];
