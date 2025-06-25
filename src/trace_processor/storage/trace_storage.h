@@ -289,6 +289,36 @@ class TraceStorage {
     return stats_[key].value;
   }
 
+  void SetInstanceUrl(std::string instance_id, std::string url) {
+    instance_id_to_url_[instance_id] = url;
+  }
+
+  std::optional<std::string> GetInstanceUrl(const std::string& instance_id) {
+    auto it = instance_id_to_url_.find(instance_id);
+    if (it == instance_id_to_url_.end()) {
+      return std::nullopt;
+    }
+    return it->second;
+  }
+
+  void AddPipelineFlag(const std::string& pipeline_id,
+                       std::string timing_flag) {
+    auto it = pipeline_id_to_flag_.find(pipeline_id);
+    if (it != pipeline_id_to_flag_.end()) {
+      pipeline_id_to_flag_[pipeline_id] = it->second + ", " + timing_flag;
+    } else {
+      pipeline_id_to_flag_[pipeline_id] = timing_flag;
+    }
+  }
+
+  std::optional<std::string> GetPipelineFlags(const std::string& pipeline_id) {
+    auto it = pipeline_id_to_flag_.find(pipeline_id);
+    if (it == pipeline_id_to_flag_.end()) {
+      return std::nullopt;
+    }
+    return it->second;
+  }
+
   class ScopedStatsTracer {
    public:
     ScopedStatsTracer(TraceStorage* storage, size_t key)
@@ -1162,6 +1192,9 @@ class TraceStorage {
   // The below array allow us to map between enums and their string
   // representations.
   std::array<StringId, Variadic::kMaxType + 1> variadic_type_ids_;
+
+  std::map<std::string, std::string> instance_id_to_url_;
+  std::map<std::string, std::string> pipeline_id_to_flag_;
 };
 
 }  // namespace perfetto::trace_processor

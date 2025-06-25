@@ -469,6 +469,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     return ModuleResult::Handled();
   }
 
+  HandleExtraArgsValues(event);
+
   context_->sorter->PushTrackEventPacket(timestamp, std::move(data),
                                          context_->machine_id());
   return ModuleResult::Handled();
@@ -594,6 +596,48 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
 #else
   base::ignore_result(event, legacy, state);
 #endif
+  return base::OkStatus();
+}
+
+// TODO(suguannan.906): This is not a reasonable implementation. We should
+// optimize this once a better solution is identified.
+base::Status TrackEventTokenizer::HandleExtraArgsValues(
+    const protos::pbzero::TrackEvent::Decoder& event) {
+  std::string pipeline_id = "";
+  std::string timing_flag = "";
+  std::string instance_id = "";
+  std::string url = "";
+  for (auto it = event.debug_annotations(); it; ++it) {
+    protos::pbzero::DebugAnnotation::Decoder annotation(*it);
+    if (annotation.has_name()) {
+      const std::string& debug_name = annotation.name().ToStdString();
+      if (debug_name == "pipeline_id") {
+        pipeline_id = annotation.string_value().ToStdString();
+      } else if (debug_name == "timing_flag") {
+        timing_flag = annotation.string_value().ToStdString();
+      } else if (debug_name == "instance_id_" || debug_name == "instance_id") {
+        if (annotation.has_string_value()) {
+          instance_id = annotation.string_value().ToStdString();
+        } else if (annotation.has_uint_value()) {
+          instance_id = std::to_string(annotation.uint_value());
+        } else if (annotation.has_int_value()) {
+          instance_id = std::to_string(annotation.int_value());
+        }
+      } else if (debug_name == "url") {
+        url = annotation.string_value().ToStdString();
+      }
+      if (!pipeline_id.empty() && !timing_flag.empty()) {
+        context_->storage->AddPipelineFlag(pipeline_id, timing_flag);
+        pipeline_id = "";
+        timing_flag = "";
+      }
+      if (!instance_id.empty() && !url.empty()) {
+        context_->storage->SetInstanceUrl(instance_id, url);
+        instance_id = "";
+        url = "";
+      }
+    }
+  }
   return base::OkStatus();
 }
 
