@@ -3151,7 +3151,7 @@ filegroup {
         "protos/perfetto/trace/ftrace/vmscan.proto",
         "protos/perfetto/trace/ftrace/workqueue.proto",
         "protos/perfetto/trace/generic_kernel/generic_power.proto",
-        "protos/perfetto/trace/generic_kernel/generic_task_state.proto",
+        "protos/perfetto/trace/generic_kernel/generic_task.proto",
         "protos/perfetto/trace/gpu/gpu_counter_event.proto",
         "protos/perfetto/trace/gpu/gpu_log.proto",
         "protos/perfetto/trace/gpu/gpu_render_stage_event.proto",
@@ -7629,7 +7629,7 @@ genrule {
         "protos/perfetto/trace/ftrace/vmscan.proto",
         "protos/perfetto/trace/ftrace/workqueue.proto",
         "protos/perfetto/trace/generic_kernel/generic_power.proto",
-        "protos/perfetto/trace/generic_kernel/generic_task_state.proto",
+        "protos/perfetto/trace/generic_kernel/generic_task.proto",
         "protos/perfetto/trace/gpu/gpu_counter_event.proto",
         "protos/perfetto/trace/gpu/gpu_log.proto",
         "protos/perfetto/trace/gpu/gpu_render_stage_event.proto",
@@ -8833,7 +8833,7 @@ filegroup {
     name: "perfetto_protos_perfetto_trace_generic_kernel_cpp",
     srcs: [
         "protos/perfetto/trace/generic_kernel/generic_power.proto",
-        "protos/perfetto/trace/generic_kernel/generic_task_state.proto",
+        "protos/perfetto/trace/generic_kernel/generic_task.proto",
     ],
 }
 
@@ -8850,7 +8850,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_generic_kernel_cpp)",
     out: [
         "external/perfetto/protos/perfetto/trace/generic_kernel/generic_power.gen.cc",
-        "external/perfetto/protos/perfetto/trace/generic_kernel/generic_task_state.gen.cc",
+        "external/perfetto/protos/perfetto/trace/generic_kernel/generic_task.gen.cc",
     ],
 }
 
@@ -8867,7 +8867,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_generic_kernel_cpp)",
     out: [
         "external/perfetto/protos/perfetto/trace/generic_kernel/generic_power.gen.h",
-        "external/perfetto/protos/perfetto/trace/generic_kernel/generic_task_state.gen.h",
+        "external/perfetto/protos/perfetto/trace/generic_kernel/generic_task.gen.h",
     ],
     export_include_dirs: [
         ".",
@@ -8880,7 +8880,7 @@ filegroup {
     name: "perfetto_protos_perfetto_trace_generic_kernel_lite",
     srcs: [
         "protos/perfetto/trace/generic_kernel/generic_power.proto",
-        "protos/perfetto/trace/generic_kernel/generic_task_state.proto",
+        "protos/perfetto/trace/generic_kernel/generic_task.proto",
     ],
 }
 
@@ -8896,7 +8896,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_generic_kernel_lite)",
     out: [
         "external/perfetto/protos/perfetto/trace/generic_kernel/generic_power.pb.cc",
-        "external/perfetto/protos/perfetto/trace/generic_kernel/generic_task_state.pb.cc",
+        "external/perfetto/protos/perfetto/trace/generic_kernel/generic_task.pb.cc",
     ],
 }
 
@@ -8912,7 +8912,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_generic_kernel_lite)",
     out: [
         "external/perfetto/protos/perfetto/trace/generic_kernel/generic_power.pb.h",
-        "external/perfetto/protos/perfetto/trace/generic_kernel/generic_task_state.pb.h",
+        "external/perfetto/protos/perfetto/trace/generic_kernel/generic_task.pb.h",
     ],
     export_include_dirs: [
         ".",
@@ -8925,7 +8925,7 @@ filegroup {
     name: "perfetto_protos_perfetto_trace_generic_kernel_zero",
     srcs: [
         "protos/perfetto/trace/generic_kernel/generic_power.proto",
-        "protos/perfetto/trace/generic_kernel/generic_task_state.proto",
+        "protos/perfetto/trace/generic_kernel/generic_task.proto",
     ],
 }
 
@@ -8942,7 +8942,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_generic_kernel_zero)",
     out: [
         "external/perfetto/protos/perfetto/trace/generic_kernel/generic_power.pbzero.cc",
-        "external/perfetto/protos/perfetto/trace/generic_kernel/generic_task_state.pbzero.cc",
+        "external/perfetto/protos/perfetto/trace/generic_kernel/generic_task.pbzero.cc",
     ],
 }
 
@@ -8959,7 +8959,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_generic_kernel_zero)",
     out: [
         "external/perfetto/protos/perfetto/trace/generic_kernel/generic_power.pbzero.h",
-        "external/perfetto/protos/perfetto/trace/generic_kernel/generic_task_state.pbzero.h",
+        "external/perfetto/protos/perfetto/trace/generic_kernel/generic_task.pbzero.h",
     ],
     export_include_dirs: [
         ".",
@@ -16595,7 +16595,7 @@ java_library {
         "protos/perfetto/trace/ftrace/vmscan.proto",
         "protos/perfetto/trace/ftrace/workqueue.proto",
         "protos/perfetto/trace/generic_kernel/generic_power.proto",
-        "protos/perfetto/trace/generic_kernel/generic_task_state.proto",
+        "protos/perfetto/trace/generic_kernel/generic_task.proto",
         "protos/perfetto/trace/gpu/gpu_counter_event.proto",
         "protos/perfetto/trace/gpu/gpu_log.proto",
         "protos/perfetto/trace/gpu/gpu_render_stage_event.proto",
