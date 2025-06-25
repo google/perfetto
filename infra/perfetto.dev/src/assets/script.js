@@ -124,6 +124,23 @@ function onScroll(forceHighlight) {
   }
 }
 
+function scrollIntoViewIfNeeded(element, container, margin = 100) {
+  const containerTop = container.scrollTop;
+  const containerBottom = containerTop + container.clientHeight;
+
+  const elementTop = element.offsetTop;
+  const elementBottom = elementTop + element.offsetHeight;
+  if (elementTop < containerTop) {
+    container.scrollTo({
+      top: elementTop - margin,
+    });
+  } else if (elementBottom > containerBottom) {
+    container.scrollTo({
+      top: elementBottom - container.clientHeight + margin,
+    });
+  }
+}
+
 // This function needs to be idempotent as it is called more than once (on every
 // resize).
 function updateNav() {
@@ -174,6 +191,7 @@ function updateNav() {
     };
   }
 
+  const nav = document.querySelector(".docs .nav");
   const exps = document.querySelectorAll(".docs .nav ul a");
   let found = false;
   for (const x of exps) {
@@ -188,13 +206,9 @@ function updateNav() {
       }
     } else if ((url.pathname === curFileName || url.pathname + 'index.html' === curFileName) && !found) {
       x.classList.add('selected');
-      doAfterLoadEvent(() =>
-        x.scrollIntoViewIfNeeded({
-          behavior: 'smooth',
-          block: 'center',
-          inline: 'center',
-        }),
-      );
+      if (!onloadFired) {
+        scrollIntoViewIfNeeded(x, nav);
+      }
       found = true;  // Highlight only the first occurrence.
     }
   }
@@ -322,6 +336,7 @@ function setupTabs() {
     };
     for (let i = 0; i < tabButtons.length; ++i) {
       tabButtons[i].addEventListener('click', (e) => {
+        e.preventDefault();
         updateSelected(i);
       });
     }
