@@ -452,10 +452,12 @@ FtraceTokenizer::HandleFtraceClockSnapshot(
   if (decoder.has_ftrace_timestamp() && decoder.has_boot_timestamp() &&
       latest_ftrace_clock_snapshot_ts_ != decoder.ftrace_timestamp()) {
     PERFETTO_DCHECK(clock_id != BuiltinClock::BUILTIN_CLOCK_BOOTTIME);
+    int64_t ftrace_timestamp = decoder.ftrace_timestamp();
     context_->clock_tracker->AddSnapshot(
-        {ClockTracker::ClockTimestamp(clock_id, decoder.ftrace_timestamp()),
+        {ClockTracker::ClockTimestamp(clock_id, ftrace_timestamp),
          ClockTracker::ClockTimestamp(BuiltinClock::BUILTIN_CLOCK_BOOTTIME,
                                       decoder.boot_timestamp())});
+    latest_ftrace_clock_snapshot_ts_ = ftrace_timestamp;
   }
   return clock_id;
 }
