@@ -33,6 +33,7 @@ import {LynxElement} from '../../lynx_perf/common_components/element_tree/types'
 import {ElementTreeView} from '../../lynx_perf/common_components/element_tree/element_tree_view';
 import {SliceDetails} from '../../components/sql_utils/slice';
 import {SliceRef} from '../../components/widgets/slice';
+import {CRUCIAL_TIMING_KEYS} from '../../lynx_perf/constants';
 
 export interface VitalTimestampDetailAttr {
   pipelineStagesDetail?: PipelineStage[];
@@ -182,9 +183,21 @@ export class DetailViewPanel extends Component<
    */
   render() {
     const {pipelineStagesDetail, sliceDetail} = this.props;
-    if (!pipelineStagesDetail || !sliceDetail) {
+    if (
+      !pipelineStagesDetail ||
+      pipelineStagesDetail.length <= 0 ||
+      !sliceDetail
+    ) {
       return <div></div>;
     }
+    const firstPipelineStage = pipelineStagesDetail[0].name;
+    const lastPipelineStage =
+      pipelineStagesDetail[pipelineStagesDetail.length - 1].name;
+    const pipelineDuration = (
+      pipelineStagesDetail[pipelineStagesDetail.length - 1].dur +
+      pipelineStagesDetail[pipelineStagesDetail.length - 1].ts -
+      pipelineStagesDetail[0].ts
+    ).toFixed(2);
 
     // stage detail
     const stagDetailDataSource = pipelineStagesDetail;
@@ -198,6 +211,9 @@ export class DetailViewPanel extends Component<
         title: <TableColumnTitle title="Duration(ms)" />,
         dataIndex: 'dur',
         key: 'dur',
+        render: (value: number, record: PipelineStage) => (
+          <div>{CRUCIAL_TIMING_KEYS.includes(record.name) ? 'NA' : value}</div>
+        ),
       },
       {
         title: <TableColumnTitle title="Start slice" />,
@@ -275,6 +291,9 @@ export class DetailViewPanel extends Component<
           <h1 className="detail-title" style={{marginBottom: 10}}>
             Pipeline Detail
           </h1>
+          <p className="detail-text">
+            {`The duration of the pipeline from '${firstPipelineStage}' to '${lastPipelineStage}' is ${pipelineDuration} milliseconds`}
+          </p>
           <Table
             bordered
             rowClassName="table-content-text"
