@@ -72,7 +72,7 @@ class CodeFormatterBase:
       return args.filelist
 
     # Case 3 (most common): the user passed nothing and wants to format only
-    # the changed files from the upstream branch (origin/main if unspecified).
+    # the changed files from the upstream branch (origin/develop/v50.x if unspecified).
     upstream_branch = args.upstream
     if upstream_branch is None or upstream_branch == '':
       try:
@@ -82,7 +82,8 @@ class CodeFormatterBase:
         res = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL)
         upstream_branch = res.strip()
       except subprocess.CalledProcessError:
-        upstream_branch = 'origin/main'
+        # Fallback to origin/develop/v50.x if upstream branch is not found
+        upstream_branch = 'origin/develop/v50.x'
     cmd = ['git', 'diff', '--name-only', '--diff-filter=crd', upstream_branch]
     return subprocess.check_output(cmd, text=True).strip().splitlines()
 
