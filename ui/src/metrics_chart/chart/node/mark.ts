@@ -155,7 +155,6 @@ export class MarkNode extends BaseNode<TMarkNodeData> {
 
   updateColor(ctx: CanvasRenderingContext2D): void {
     if (this.pos && !(this.track || this.group).triangle.isCollapse) {
-      ctx.clearRect(this.pos.x, this.pos.y, this.pos.width, this.pos.height);
       this.drawCore(ctx);
     }
   }
