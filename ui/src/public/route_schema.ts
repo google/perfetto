@@ -66,6 +66,11 @@ export const ROUTE_SCHEMA = z
     query: z.string().optional().catch(undefined),
     visStart: z.string().optional().catch(undefined),
     visEnd: z.string().optional().catch(undefined),
+
+    /**
+     * If true, hides the sidebar.
+     */
+    hide: z.boolean().optional().catch(undefined),
   })
 
   // Allow arbitrary values to pass through, these may be forwarded to plugins.
