@@ -1401,6 +1401,28 @@ class TrackEventParser::EventImporter {
         }
       }
     }
+
+    // flow id
+    {
+      if (event_.has_flow_ids_old() || event_.has_flow_ids()) {
+        auto it =
+            event_.has_flow_ids() ? event_.flow_ids() : event_.flow_ids_old();
+        FlowId flow_id = *it;
+        auto key = parser_->args_parser_.EnterDictionary("flowId");
+        args_writer.AddUnsignedInteger(key.key(),
+                                       static_cast<uint64_t>(flow_id));
+      }
+      if (event_.has_terminating_flow_ids_old() ||
+          event_.has_terminating_flow_ids()) {
+        auto it = event_.has_terminating_flow_ids()
+                      ? event_.terminating_flow_ids()
+                      : event_.terminating_flow_ids_old();
+        FlowId flow_id = *it;
+        auto key = parser_->args_parser_.EnterDictionary("terminateFlowId");
+        args_writer.AddUnsignedInteger(key.key(),
+                                       static_cast<uint64_t>(flow_id));
+      }
+    }
   }
 
   TraceProcessorContext* context_;
