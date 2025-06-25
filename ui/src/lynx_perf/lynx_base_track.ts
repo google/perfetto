@@ -158,7 +158,7 @@ export abstract class LynxBaseTrack<T extends BaseSlice[]>
       this.hoverPos = undefined;
     } else {
       if (slice) {
-        this.hoverTooltip = slice.description;
+        this.hoverTooltip = slice.tooltip;
       }
     }
   }
@@ -245,10 +245,6 @@ export abstract class LynxBaseTrack<T extends BaseSlice[]>
     renderCtx.closePath();
   }
 
-  getTitleFont(): string {
-    return `12px Roboto Condensed`;
-  }
-
   async getSelectionDetails(
     id: number,
   ): Promise<TrackEventDetails | undefined> {
@@ -263,5 +259,10 @@ export abstract class LynxBaseTrack<T extends BaseSlice[]>
       }
     }
     return undefined;
+  }
+
+  getTitleFont(): string {
+    // 12px keep same with ui/src/components/tracks/base_slice_trace.ts titleSizePx
+    return `12px Roboto Condensed`;
   }
 }

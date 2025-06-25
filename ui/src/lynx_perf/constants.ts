@@ -20,6 +20,7 @@ export const LYNX_ISSUES_PLUGIN_ID = 'lynx.Perf';
 export const LYNX_PERF_ELEMENT_PLUGIN_ID = 'lynx.Element';
 export const LYNX_ISSUE_TYPE_DOM = 'dom';
 export const LYNX_VITAL_TIMESTAMP_PLUGIN_ID = 'lynx.VitalTimestamp';
+export const LYNX_NATIVE_MODULE_ID = 'lynx.NativeModule';
 
 export const LYNX_BACKGROUND_THREAD_NAME = 'Lynx_JS';
 
@@ -49,3 +50,20 @@ export const TIMING_MARK_FRAMEWORK_PREFIX = 'Timing::MarkFrameWorkTiming.';
 export const INSTANCE_ID = 'instance_id';
 export const TIMING_FLAGS = 'timing_flags';
 export const PIPELINE_ID = 'pipeline_id';
+// NativeModule Timing
+export const NATIVEMODULE_CALL = 'CallJSB';
+export const NATIVEMODULE_FUNC_CALL_START = 'JSBTiming::jsb_func_call_start';
+export const NATIVEMODULE_CONVERT_PARAMS_END =
+  'JSBTiming::jsb_func_convert_params_end';
+export const NATIVEMODULE_THREAD_SWITCH_START =
+  'JSBTiming::jsb_callback_thread_switch_start';
+export const NATIVEMODULE_THREAD_SWITCH_END =
+  'JSBTiming::jsb_callback_thread_switch_end';
+export const NATIVEMODULE_CALLBACK_CONVERT_PARAMS_END =
+  'JSBTiming::jsb_callback_convert_params_end';
+export const NATIVEMODULE_CALLBACK_INVOKE_END =
+  'JSBTiming::jsb_callback_invoke_end';
+export const NATIVEMODULE_PLATFORM_METHOD_END =
+  'JSBTiming::jsb_func_platform_method_end';
+export const NATIVEMODULE_TIMING_FLUSH = 'JSBTiming::Flush';
+export const NATIVEMODULE_NETWORK_REQUEST = 'Network::SendNetworkRequest';

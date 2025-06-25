@@ -16,13 +16,32 @@
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
 
-import {LynxState} from './types';
+import {BaseSlice} from '../../lynx_perf/types';
 
-export function createEmptyLynxState(): LynxState {
-  return {
-    issues: [],
-    vitalTimestampLine: [],
-    selectedTimestamp: -1,
-    traceIdToJSBName: new Map(),
-  };
+export interface NativeModuleItem extends BaseSlice {
+  name: string;
+  depth: number;
+  flowId: number;
+  sections: NativeModuleSection[] | undefined;
 }
+
+export interface NativeModuleSection {
+  beginTs: number;
+  endTs: number;
+  name: string;
+  thread: string | Record<string, number>;
+  description: string;
+}
+
+export interface DepthRange {
+  leftTs: number;
+  rightTs: number;
+}
+
+export const SECTION_COLOR = [
+  '#005bb5', // Sky Blue Selected
+  '#e65c00', // Orange Selected
+  '#00cc60', // Spring Green Selected
+  '#e60072', // Rose Red Selected
+  '#6600cc', // Purple Selected
+];

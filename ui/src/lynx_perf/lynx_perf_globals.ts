@@ -52,6 +52,12 @@ class LynxPerfGlobals {
       draft.selectedTimestamp = timestamp;
     });
   }
+
+  addTraceIdToJSBName(traceId: number, name: string) {
+    this._store.edit((draft) => {
+      draft.traceIdToJSBName.set(traceId, name);
+    });
+  }
 }
 
 export const lynxPerfGlobals = new LynxPerfGlobals();

@@ -16,13 +16,12 @@
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
 
-import {LynxState} from './types';
-
-export function createEmptyLynxState(): LynxState {
-  return {
-    issues: [],
-    vitalTimestampLine: [],
-    selectedTimestamp: -1,
-    traceIdToJSBName: new Map(),
-  };
+export function stringToJsonObject(jsonStr: string) {
+  try {
+    const parsed = JSON.parse(jsonStr);
+    if (typeof parsed === 'object' && parsed !== null) {
+      return parsed;
+    }
+  } catch (e) {}
+  return undefined;
 }

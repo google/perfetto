@@ -16,13 +16,22 @@
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
 
-import {LynxState} from './types';
+import {Flow} from '../../core/flow_types';
+import {
+  LYNX_BACKGROUND_THREAD_NAME,
+  NATIVEMODULE_CALL,
+  NATIVEMODULE_NETWORK_REQUEST,
+} from '../../lynx_perf/constants';
 
-export function createEmptyLynxState(): LynxState {
-  return {
-    issues: [],
-    vitalTimestampLine: [],
-    selectedTimestamp: -1,
-    traceIdToJSBName: new Map(),
-  };
+export function isSyncNativeModule(flows: Flow[]) {
+  for (const flow of flows) {
+    if (!flow.begin.threadName.includes(LYNX_BACKGROUND_THREAD_NAME)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function isNativeModuleCall(name: string) {
+  return name === NATIVEMODULE_CALL || name === NATIVEMODULE_NETWORK_REQUEST;
 }

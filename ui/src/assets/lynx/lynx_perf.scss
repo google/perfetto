@@ -55,3 +55,27 @@
   font-size: 16px;
   font-weight: 400;
 }
+
+.dynamic-grid-layout {
+  display: grid;
+  gap: $pf-responsive-gutter;
+  grid-template-columns: 30% 1fr;
+  margin: $pf-responsive-gutter;
+
+  align-items: start;
+
+  & > .pf-grid-layout-column {
+    display: flex;
+    flex-direction: column;
+    gap: $pf-responsive-gutter;
+  }
+  td {
+    word-break: break-all;
+  }
+}
+
+@media (max-width: 1000px) {
+  .dynamic-grid-layout {
+    grid-template-columns: 1fr;
+  }
+}

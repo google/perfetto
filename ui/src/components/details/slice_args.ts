@@ -28,6 +28,8 @@ import {Trace} from '../../public/trace';
 import {extensions} from '../extensions';
 import {sourceMapState} from '../../source_map/source_map_state';
 import {raf} from '../../core/raf_scheduler';
+import {stringToJsonObject} from '../../lynx_perf/string_utils';
+import {message} from 'antd';
 
 // Renders slice arguments (key/value pairs) as a subtree.
 export function renderArguments(trace: Trace, args: Arg[]): m.Children {
@@ -123,9 +125,36 @@ function renderArgValue({value, displayValue, key}: Arg): m.Children {
     return renderWebLink(value);
   } else if (key === 'args.originSource') {
     return renderSourceFile(displayValue);
-  } else {
-    return `${value}`;
   }
+  if (typeof value === 'string' && value) {
+    const parsedJson = stringToJsonObject(value);
+    if (parsedJson != undefined) {
+      return m(
+        'div',
+        m('pre', {style: {backgroundColor: 'transparent'}}, [
+          JSON.stringify(parsedJson, null, 2),
+          m(
+            'div',
+            {},
+            m(MenuItem, {
+              icon: Icons.Copy,
+              label: ``,
+              onclick: () => {
+                navigator.clipboard.writeText(
+                  JSON.stringify(parsedJson, null, 2),
+                );
+                message.open({
+                  type: 'success',
+                  content: 'Copy successful.',
+                });
+              },
+            }),
+          ),
+        ]),
+      );
+    }
+  }
+  return `${value}`;
 }
 
 function renderSummary(children: ArgNode<Arg>[]): m.Children {

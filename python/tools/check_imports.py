@@ -128,7 +128,9 @@ DEPS_ALLOWLIST = [
     ('/frontend/*', ['/lynx_features_flags/*', '/source_map/*']),
     ('/lynx_features_flags/*', '/core/*'),
     ('/core/load_trace', '/lynx_features_flags/index'),
-    ('/components/details/*', ['/event_logger/index', '/source_map/*']),
+    ('/components/details/*',
+     ['/event_logger/index', '/source_map/*', '/description/*',
+      '/lynx_perf/*']),
     ('/source_map/*', ['/core/*', '/widgets/*']),
     ('/plugins/lynx.sourcefile/index', ['/source_map/*']),
     ('/plugins/lynx.sourcemap/*',
@@ -137,8 +139,10 @@ DEPS_ALLOWLIST = [
     ('/description/*', ['/widgets/*', '/components/*']),
     ('/plugins/lynx.description/*', '/description/*'),
     ([
-        '/plugins/lynx.perf/*', '/plugins/lynx.element/*',
-        '/plugins/lynx.vitalTimestamp/*'
+        '/plugins/lynx.perf/*',
+        '/plugins/lynx.element/*',
+        '/plugins/lynx.vitalTimestamp/*',
+        '/plugins/lynx.nativemodule/*',
     ], ['/lynx_perf/*', '/plugins/lynx.ThreadGroups/index', '/core/*']),
     ('/metrics_chart/*', ['/metrics_chart/*', '/components/colorizer']),
     ('/metrics_chart/*', ['/metrics_chart/*', '/core/*', '/components/*']),

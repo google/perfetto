@@ -55,3 +55,14 @@ export function customTopTrack(currentTrack: TrackNode) {
     currentTrack.uri === LYNX_VITAL_TIMESTAMP_PLUGIN_ID
   );
 }
+
+export function getBackgroundScriptThreadTrackNode(
+  item: TrackNode,
+): TrackNode | undefined {
+  if (item.hasChildren) {
+    return item.children.find((value) =>
+      value.title.includes(LYNX_BACKGROUND_THREAD_NAME),
+    );
+  }
+  return undefined;
+}

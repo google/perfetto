@@ -20,6 +20,7 @@ export interface LynxState {
   issues: IssueSummary[];
   vitalTimestampLine: VitalTimestampLine[];
   selectedTimestamp: number;
+  traceIdToJSBName: Map<number, string>;
 }
 
 export enum IssueRank {
@@ -39,7 +40,7 @@ export interface BaseSlice {
   id: number;
   ts: number;
   dur?: number;
-  description?: string;
+  tooltip?: string;
   highlighted?: boolean;
   argSetId?: number;
 }

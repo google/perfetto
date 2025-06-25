@@ -16,13 +16,22 @@
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
 
-import {LynxState} from './types';
+import {NativeModuleSection} from './types';
 
-export function createEmptyLynxState(): LynxState {
-  return {
-    issues: [],
-    vitalTimestampLine: [],
-    selectedTimestamp: -1,
-    traceIdToJSBName: new Map(),
-  };
+class NativeModuleDataManager {
+  private nativeModuleItemsMap: Map<number, NativeModuleSection[]>; // traceId -> NativeModuleSection
+
+  constructor() {
+    this.nativeModuleItemsMap = new Map();
+  }
+
+  setNativeModuleSections(traceId: number, sections: NativeModuleSection[]) {
+    this.nativeModuleItemsMap.set(traceId, sections);
+  }
+
+  getNativeModuleSections(traceId: number): NativeModuleSection[] | undefined {
+    return this.nativeModuleItemsMap.get(traceId);
+  }
 }
+
+export default new NativeModuleDataManager();

@@ -160,7 +160,7 @@ export default class LynxElementPlugin implements PerfettoPlugin {
             data.push({
               id: it.id,
               ts: proceedSliceTs?.ts ?? it.ts,
-              description: `Performance issue detected in the Element tree, click for more details`,
+              tooltip: `Performance issue detected in the Element tree, click for more details`,
               trackUri: LYNX_PERF_ELEMENT_PLUGIN_ID,
               issueRank: IssueRank.MODERATE,
             });
