@@ -42,6 +42,7 @@ import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
 import {extensions} from '../extensions';
 import {TraceImpl} from '../../core/trace_impl';
+import {eventLoggerState} from '../../event_logger';
 
 interface ContextMenuItem {
   name: string;
@@ -231,6 +232,8 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     }
 
     this.sliceDetails = details;
+
+    this.onDetailsPanelLoaded();
   }
 
   render() {
@@ -385,5 +388,54 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     } else {
       return undefined;
     }
+  }
+
+  private logThreadSliceDetails() {
+    if (this.sliceDetails) {
+      const name = this.sliceDetails.name;
+      const args = this.sliceDetails.args ?? [];
+      const dur = this.sliceDetails.dur;
+      let eventName = name;
+      if (name === 'CallJSB' || name === 'InvokeCallback') {
+        let firstArg = '';
+        let module = '';
+        let method = '';
+        args.forEach((value) => {
+          if (
+            value.key === 'debug.first_arg' ||
+            value.key === 'args.first_arg'
+          ) {
+            firstArg = value.displayValue;
+          } else if (
+            value.key === 'debug.module_name' ||
+            value.key === 'args.module_name'
+          ) {
+            module = value.displayValue;
+          } else if (
+            value.key === 'debug.method_name' ||
+            value.key === 'args.method_name'
+          ) {
+            method = value.displayValue;
+          }
+        });
+        if (module) {
+          eventName += '.' + module;
+        }
+        if (method) {
+          eventName += '.' + method;
+        }
+        if (firstArg) {
+          eventName += '.' + firstArg;
+        }
+      }
+      eventLoggerState.state.eventLogger.logEvent('trace_event_click', {
+        event_name: eventName,
+        event_dur: Number(dur),
+      });
+    }
+  }
+
+  private onDetailsPanelLoaded() {
+    this.logThreadSliceDetails();
   }
 }
