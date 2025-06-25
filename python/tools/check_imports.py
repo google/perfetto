@@ -131,6 +131,8 @@ DEPS_ALLOWLIST = [
     ('/components/details/*', ['/event_logger/index', '/source_map/*']),
     ('/source_map/*', ['/core/*', '/widgets/*']),
     ('/plugins/lynx.sourcefile/index', ['/source_map/*']),
+    ('/plugins/lynx.sourcemap/*',
+     ['/source_map/*', '/frontend/trace_converter', '/core/*']),
 ]
 
 

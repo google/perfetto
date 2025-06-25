@@ -1,0 +1,45 @@
+.upload_source_map_group {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  min-height: 20px;
+}
+
+.source-map-list-item {
+  display: flex;
+  align-items: center;
+  min-height: 20px;
+}
+
+.upload-file-group {
+  display: flex;
+  align-items: center;
+}
+
+.upload-label {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+}
+
+.upload-text {
+  display: inline-block;
+  white-space: nowrap;
+  overflow-x: auto;
+  max-width: 100%;
+  min-height: 18px;
+  font-size: 14px;
+  background: #f5f5f7;
+  border-radius: 4px;
+  padding: 4px 10px;
+  margin-left: 0;
+  cursor: pointer;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.upload-text::-webkit-scrollbar {
+  display: none;
+}
+
+@import "../../../node_modules/construct-ui/src/components/list/index.scss";

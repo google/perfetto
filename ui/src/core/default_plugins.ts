@@ -85,4 +85,5 @@ export const defaultPlugins = [
   'lynx.ThreadGroup',
   'lynx.RouterArgs',
   'lynx.Sourcefile',
+  'lynx.SourceMap',
 ];
