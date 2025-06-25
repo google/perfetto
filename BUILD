@@ -242,6 +242,7 @@ perfetto_cc_library(
         ":protos_perfetto_trace_ftrace_zero",
         ":protos_perfetto_trace_gpu_zero",
         ":protos_perfetto_trace_interned_data_zero",
+        ":protos_perfetto_trace_js_profile_zero",
         ":protos_perfetto_trace_minimal_zero",
         ":protos_perfetto_trace_non_minimal_zero",
         ":protos_perfetto_trace_perfetto_zero",
@@ -485,6 +486,7 @@ perfetto_cc_library(
                ":protos_perfetto_trace_ftrace_zero",
                ":protos_perfetto_trace_gpu_zero",
                ":protos_perfetto_trace_interned_data_zero",
+               ":protos_perfetto_trace_js_profile_zero",
                ":protos_perfetto_trace_minimal_zero",
                ":protos_perfetto_trace_non_minimal_zero",
                ":protos_perfetto_trace_perfetto_zero",
@@ -576,6 +578,7 @@ perfetto_cc_library(
         ":protos_perfetto_trace_ftrace_zero",
         ":protos_perfetto_trace_gpu_zero",
         ":protos_perfetto_trace_interned_data_zero",
+        ":protos_perfetto_trace_js_profile_zero",
         ":protos_perfetto_trace_minimal_zero",
         ":protos_perfetto_trace_non_minimal_zero",
         ":protos_perfetto_trace_perfetto_zero",
@@ -646,6 +649,7 @@ perfetto_cc_binary(
         ":protos_perfetto_trace_ftrace_zero",
         ":protos_perfetto_trace_gpu_zero",
         ":protos_perfetto_trace_interned_data_zero",
+        ":protos_perfetto_trace_js_profile_zero",
         ":protos_perfetto_trace_minimal_zero",
         ":protos_perfetto_trace_non_minimal_zero",
         ":protos_perfetto_trace_perfetto_zero",
@@ -772,6 +776,7 @@ perfetto_cc_library(
         ":protos_perfetto_trace_ftrace_zero",
         ":protos_perfetto_trace_gpu_zero",
         ":protos_perfetto_trace_interned_data_zero",
+        ":protos_perfetto_trace_js_profile_zero",
         ":protos_perfetto_trace_minimal_zero",
         ":protos_perfetto_trace_non_minimal_zero",
         ":protos_perfetto_trace_perfetto_zero",
@@ -2464,6 +2469,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/chrome_system_probes_parser.h",
         "src/trace_processor/importers/proto/default_modules.cc",
         "src/trace_processor/importers/proto/default_modules.h",
+        "src/trace_processor/importers/proto/js_profile_module.cc",
+        "src/trace_processor/importers/proto/js_profile_module.h",
         "src/trace_processor/importers/proto/memory_tracker_snapshot_module.cc",
         "src/trace_processor/importers/proto/memory_tracker_snapshot_module.h",
         "src/trace_processor/importers/proto/memory_tracker_snapshot_parser.cc",
@@ -3685,6 +3692,7 @@ perfetto_cc_tp_tables(
         "src/trace_processor/tables/profiler_tables_py.h",
         "src/trace_processor/tables/sched_tables_py.h",
         "src/trace_processor/tables/slice_tables_py.h",
+        "src/trace_processor/tables/source_map_tables_py.h",
         "src/trace_processor/tables/trace_proto_tables_py.h",
         "src/trace_processor/tables/track_tables_py.h",
         "src/trace_processor/tables/v8_tables_py.h",
@@ -4793,6 +4801,7 @@ perfetto_proto_library(
         ":protos_perfetto_trace_ftrace_protos",
         ":protos_perfetto_trace_gpu_protos",
         ":protos_perfetto_trace_interned_data_protos",
+        ":protos_perfetto_trace_js_profile_protos",
         ":protos_perfetto_trace_minimal_protos",
         ":protos_perfetto_trace_non_minimal_protos",
         ":protos_perfetto_trace_perfetto_protos",
@@ -6344,6 +6353,29 @@ perfetto_cc_protozero_library(
     ],
 )
 
+# GN target: //protos/perfetto/trace/js_profile:source_set
+perfetto_proto_library(
+    name = "protos_perfetto_trace_js_profile_protos",
+    srcs = [
+        "protos/perfetto/trace/js_profile/js_profile.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+        ":protos_perfetto_common_protos",
+    ],
+)
+
+# GN target: //protos/perfetto/trace/js_profile:zero
+perfetto_cc_protozero_library(
+    name = "protos_perfetto_trace_js_profile_zero",
+    deps = [
+        ":protos_perfetto_common_zero",
+        ":protos_perfetto_trace_js_profile_protos",
+    ],
+)
+
 # GN target: //protos/perfetto/trace:minimal_source_set
 perfetto_proto_library(
     name = "protos_perfetto_trace_minimal_protos",
@@ -6436,6 +6468,7 @@ perfetto_proto_library(
         ":protos_perfetto_trace_ftrace_protos",
         ":protos_perfetto_trace_gpu_protos",
         ":protos_perfetto_trace_interned_data_protos",
+        ":protos_perfetto_trace_js_profile_protos",
         ":protos_perfetto_trace_minimal_protos",
         ":protos_perfetto_trace_perfetto_protos",
         ":protos_perfetto_trace_power_protos",
@@ -6479,6 +6512,7 @@ perfetto_cc_protozero_library(
         ":protos_perfetto_trace_ftrace_zero",
         ":protos_perfetto_trace_gpu_zero",
         ":protos_perfetto_trace_interned_data_zero",
+        ":protos_perfetto_trace_js_profile_zero",
         ":protos_perfetto_trace_minimal_zero",
         ":protos_perfetto_trace_non_minimal_protos",
         ":protos_perfetto_trace_perfetto_zero",
@@ -6643,6 +6677,7 @@ perfetto_proto_library(
         ":protos_perfetto_trace_ftrace_protos",
         ":protos_perfetto_trace_gpu_protos",
         ":protos_perfetto_trace_interned_data_protos",
+        ":protos_perfetto_trace_js_profile_protos",
         ":protos_perfetto_trace_minimal_protos",
         ":protos_perfetto_trace_non_minimal_protos",
         ":protos_perfetto_trace_perfetto_protos",
@@ -7059,6 +7094,7 @@ perfetto_cc_library(
         ":protos_perfetto_trace_ftrace_zero",
         ":protos_perfetto_trace_gpu_zero",
         ":protos_perfetto_trace_interned_data_zero",
+        ":protos_perfetto_trace_js_profile_zero",
         ":protos_perfetto_trace_minimal_zero",
         ":protos_perfetto_trace_non_minimal_zero",
         ":protos_perfetto_trace_perfetto_zero",
@@ -7155,6 +7191,7 @@ perfetto_cc_binary(
         ":protos_perfetto_trace_ftrace_zero",
         ":protos_perfetto_trace_gpu_zero",
         ":protos_perfetto_trace_interned_data_zero",
+        ":protos_perfetto_trace_js_profile_zero",
         ":protos_perfetto_trace_minimal_zero",
         ":protos_perfetto_trace_non_minimal_zero",
         ":protos_perfetto_trace_perfetto_zero",
@@ -7338,6 +7375,7 @@ perfetto_cc_library(
                ":protos_perfetto_trace_ftrace_zero",
                ":protos_perfetto_trace_gpu_zero",
                ":protos_perfetto_trace_interned_data_zero",
+               ":protos_perfetto_trace_js_profile_zero",
                ":protos_perfetto_trace_minimal_zero",
                ":protos_perfetto_trace_non_minimal_zero",
                ":protos_perfetto_trace_perfetto_zero",
@@ -7551,6 +7589,7 @@ perfetto_cc_binary(
                ":protos_perfetto_trace_ftrace_zero",
                ":protos_perfetto_trace_gpu_zero",
                ":protos_perfetto_trace_interned_data_zero",
+               ":protos_perfetto_trace_js_profile_zero",
                ":protos_perfetto_trace_minimal_zero",
                ":protos_perfetto_trace_non_minimal_zero",
                ":protos_perfetto_trace_perfetto_zero",
@@ -7767,6 +7806,7 @@ perfetto_cc_binary(
                ":protos_perfetto_trace_ftrace_zero",
                ":protos_perfetto_trace_gpu_zero",
                ":protos_perfetto_trace_interned_data_zero",
+               ":protos_perfetto_trace_js_profile_zero",
                ":protos_perfetto_trace_minimal_zero",
                ":protos_perfetto_trace_non_minimal_zero",
                ":protos_perfetto_trace_perfetto_zero",

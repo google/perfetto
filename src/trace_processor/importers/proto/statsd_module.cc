@@ -131,6 +131,17 @@ ModuleResult StatsdModule::TokenizePacket(
   if (field_id != TracePacket::kStatsdAtomFieldNumber) {
     return ModuleResult::Ignored();
   }
+  /**
+   * In v26.0 version, Lynx add JSProfile proto using 84 field id which
+   * conflicts with StatsdAtom. The following code is used to handle the
+   * conflict.
+   */
+  protozero::ProtoDecoder proto_decoder(decoder.statsd_atom());
+  auto field = proto_decoder.FindField(4);
+  if (field.valid()) {
+    return ModuleResult::Ignored();
+  }
+
   const auto& atoms_wrapper = StatsdAtom::Decoder(decoder.statsd_atom());
   auto it_timestamps = atoms_wrapper.timestamp_nanos();
   for (auto it = atoms_wrapper.atom(); it; ++it) {

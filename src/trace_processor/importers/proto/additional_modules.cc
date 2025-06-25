@@ -27,6 +27,7 @@
 #include "src/trace_processor/importers/proto/content_analyzer.h"
 #include "src/trace_processor/importers/proto/graphics_event_module.h"
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
+#include "src/trace_processor/importers/proto/js_profile_module.h"
 #include "src/trace_processor/importers/proto/metadata_module.h"
 #include "src/trace_processor/importers/proto/multi_machine_trace_manager.h"
 #include "src/trace_processor/importers/proto/network_trace_module.h"
@@ -61,6 +62,8 @@ void RegisterAdditionalModules(TraceProcessorContext* context) {
   context->modules.emplace_back(new PixelModemModule(context));
   context->modules.emplace_back(new ProfileModule(context));
   context->modules.emplace_back(new AppWakelockModule(context));
+
+  context->modules.emplace_back(new JSProfileModule(context));
 
   // Ftrace/Etw modules are special, because it has one extra method for parsing
   // ftrace/etw packets. So we need to store a pointer to it separately.

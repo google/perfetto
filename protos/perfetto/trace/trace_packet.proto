@@ -84,6 +84,7 @@ import "protos/perfetto/trace/trace_uuid.proto";
 import "protos/perfetto/trace/trigger.proto";
 import "protos/perfetto/trace/test_event.proto";
 import "protos/perfetto/trace/ui_state.proto";
+import "protos/perfetto/trace/js_profile/js_profile.proto";
 
 package perfetto.protos;
 
@@ -253,6 +254,9 @@ message TracePacket {
     KernelWakelockData kernel_wakelock_data = 115;
 
     AppWakelockBundle app_wakelock_bundle = 116;
+
+    // Lynx javascript profile package
+    JSProfilePacket js_profile_packet = 899;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
