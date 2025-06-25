@@ -80,16 +80,16 @@ export async function traceEventWithSpecificArgValue(
   engine: Engine,
   traceNames: string[],
   argValue: string,
+  endTs: number,
 ) {
   const traceNameList = traceNames.map((timing) => `'${timing}'`).join(',');
   const queryRes = await engine.query(
     `select 
     slice.name as name, 
-    slice.arg_set_id as argSetId,
-    args.string_value as stringValue
+    args.display_value as value
     from slice 
     inner join args on args.arg_set_id = slice.arg_set_id
-    where slice.name in (${traceNameList}) and stringValue='${argValue}'`,
+    where slice.name in (${traceNameList}) and slice.ts < ${endTs} and value='${argValue}' limit 1`,
   );
   return queryRes.numRows() > 0;
 }

@@ -28,20 +28,28 @@ import {
   TIMING_LOAD_BUNDLE_START,
   SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
 } from '../../lynx_perf/constants';
-import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
+import {NUM, STR} from '../../trace_processor/query_result';
 import {VitalTimestamp} from '../../lynx_perf/types';
 import {Button} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
 import {LynxBaseTrack} from '../../lynx_perf/lynx_base_track';
 import {lynxPerfGlobals} from '../../lynx_perf/lynx_perf_globals';
 import {traceEventWithSpecificArgValue} from '../../lynx_perf/trace_utils';
-import {getArgs} from '../../components/sql_utils/args';
-import {asArgSetId} from '../../components/sql_utils/core_types';
 import {AppImpl} from '../../core/app_impl';
 import {getColorForSlice} from '../../components/colorizer';
 import {TrackEventSelection} from '../../public/selection';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {VitalTimestampDetailsPanel} from './details';
+
+interface PaintEndSlice {
+  name: string;
+  ts: number;
+  id: number;
+  trackId: number;
+  instanceId: string;
+  pipelineId: string;
+  timingFlags: string;
+}
 
 /**
  * Vital Timestamp Track
@@ -74,107 +82,124 @@ export class VitalTimestampTrack extends LynxBaseTrack<VitalTimestamp[]> {
     end: time,
     _resolution: duration,
   ): Promise<VitalTimestamp[]> {
+    const paintEndQuery = TIMING_PAINT_END.map((name) => `'${name}'`).join(',');
     const result = await this.trace.engine.query(`
-      select ts, id, name, dur, track_id as trackId, arg_set_id as argSetId from slice where ts>=${start} and ts+dur <=${end}`);
+      select ts, slice.id as id, name, dur, track_id as trackId, args.key as argKey, args.display_value as argValue
+        from slice 
+        left join args on args.arg_set_id = slice.arg_set_id
+        where ts>=${start} and ts+dur <=${end} AND  slice.name in (${paintEndQuery})`);
     const it = result.iter({
       name: STR,
       id: NUM,
       ts: NUM,
       dur: NUM,
       trackId: NUM,
-      argSetId: NUM_NULL,
+      argKey: STR,
+      argValue: STR,
     });
-    const markers: VitalTimestamp[] = [];
-    const instanceIdToTimingMap = new Map();
-    const pipelineIdSet = new Set();
-
+    const paintEndSliceMap: Map<number, PaintEndSlice> = new Map();
     for (; it.valid(); it.next()) {
-      const ts = it.ts;
-      const name = it.name;
-
-      const drawEndFlag = TIMING_PAINT_END.some(
-        (item) => name.indexOf(item) !== -1,
-      );
-      if (drawEndFlag !== true) {
-        continue;
+      if (!paintEndSliceMap.has(it.id)) {
+        paintEndSliceMap.set(it.id, {
+          id: it.id,
+          name: it.name,
+          ts: it.ts,
+          trackId: it.trackId,
+          instanceId: '',
+          pipelineId: '',
+          timingFlags: '',
+        });
       }
-
-      const args = await getArgs(
-        this.trace.engine,
-        asArgSetId(it.argSetId ?? -1),
-      );
-      const pipelineIdArg = args.find(
-        (value) =>
-          value.key === `debug.${PIPELINE_ID}` ||
-          value.key === `args.${PIPELINE_ID}`,
-      );
-
-      // Currently, same pipelineId may have multiple drawEndFlag, skip the same pipelineId later
-      if (!pipelineIdArg || pipelineIdSet.has(pipelineIdArg.value as string)) {
-        continue;
+      const paintEndSlice = paintEndSliceMap.get(it.id) as PaintEndSlice;
+      if (
+        it.argKey === `debug.${PIPELINE_ID}` ||
+        it.argKey === `args.${PIPELINE_ID}`
+      ) {
+        paintEndSlice.pipelineId = it.argValue;
       }
-      const instanceIdArg = args.find(
-        (value) =>
-          value.key === `debug.${INSTANCE_ID}` ||
-          value.key === `args.${INSTANCE_ID}`,
-      );
-      const timingFlagsArg = args.find(
-        (value) =>
-          value.key === `debug.${TIMING_FLAGS}` ||
-          value.key === `args.${TIMING_FLAGS}`,
-      );
-
+      if (
+        it.argKey === `debug.${INSTANCE_ID}` ||
+        it.argKey === `args.${INSTANCE_ID}`
+      ) {
+        paintEndSlice.instanceId = it.argValue;
+      }
+      if (
+        it.argKey === `debug.${TIMING_FLAGS}` ||
+        it.argKey === `args.${TIMING_FLAGS}`
+      ) {
+        // remove duplicate timing_flag
+        paintEndSlice.timingFlags = [...new Set(it.argValue.split(','))].join(
+          ',',
+        );
+      }
+    }
+    const paintEndSlices = Array.from(paintEndSliceMap.values());
+    const markers: VitalTimestamp[] = [];
+    const instanceIdToTimingFlagsMap = new Map();
+    const pipelineIdSet = new Set();
+    const instanceIdSet = new Set();
+    paintEndSlices.forEach(async (slice) => {
+      // Currently, same pipelineId may have multiple paintEnd, skip the same pipelineId later
+      if (!slice.pipelineId || pipelineIdSet.has(slice.pipelineId)) {
+        return;
+      }
       let timingFlags: string[] = [];
-      if (timingFlagsArg) {
-        timingFlags = (timingFlagsArg.value as string).split(',');
-        timingFlags = [...new Set(timingFlags)];
+      if (slice.timingFlags) {
+        timingFlags = slice.timingFlags.split(',');
       }
-      let prevDrawEndTiming = new Map();
-      if (instanceIdArg) {
-        const instanceId = instanceIdArg.value as number;
-        if (!instanceIdToTimingMap.has(instanceId)) {
-          instanceIdToTimingMap.set(instanceId, new Map());
+      let prevInstanceTimingFlagSet = new Set();
+      if (slice.instanceId) {
+        if (!instanceIdToTimingFlagsMap.has(slice.instanceId)) {
+          instanceIdToTimingFlagsMap.set(slice.instanceId, new Set());
         }
-        prevDrawEndTiming = instanceIdToTimingMap.get(instanceId);
+        prevInstanceTimingFlagSet = instanceIdToTimingFlagsMap.get(
+          slice.instanceId,
+        );
       }
 
       // for specific lynxview, only show the flag that has not been showed.
       const filteredTimingFlags = timingFlags.filter(
-        (flag) => !prevDrawEndTiming.has(flag),
+        (flag) => !prevInstanceTimingFlagSet.has(flag),
       );
-
       timingFlags.forEach((flag) => {
-        prevDrawEndTiming.set(flag, ts);
+        prevInstanceTimingFlagSet.add(flag);
       });
       if (filteredTimingFlags.length > 0) {
         markers.push({
           name: filteredTimingFlags,
-          ts,
-          id: it.id,
-          trackId: it.trackId,
-          pipelineId: pipelineIdArg.value as string,
+          ts: slice.ts,
+          id: slice.id,
+          trackId: slice.trackId,
+          pipelineId: slice.pipelineId,
         });
-        continue;
+        pipelineIdSet.add(slice.pipelineId);
+        return;
       }
-
       // find the pipeline that may match the FCP
+      if (
+        slice.timingFlags ||
+        (slice.instanceId && instanceIdSet.has(slice.instanceId))
+      ) {
+        return;
+      }
       const traceResults = await traceEventWithSpecificArgValue(
         this.trace.engine,
         TIMING_LOAD_BUNDLE_START,
-        pipelineIdArg.value as string,
+        slice.pipelineId,
+        slice.ts,
       );
       if (traceResults) {
         markers.push({
           name: ['Lynx FCP'],
-          ts,
-          id: it.id,
-          trackId: it.trackId,
-          pipelineId: pipelineIdArg.value as string,
+          ts: slice.ts,
+          id: slice.id,
+          trackId: slice.trackId,
+          pipelineId: slice.pipelineId,
         });
-        pipelineIdSet.add(pipelineIdArg.value as string);
-        continue;
+        pipelineIdSet.add(slice.pipelineId);
+        instanceIdSet.add(slice.instanceId);
       }
-    }
+    });
     const timestampLine = markers.map((marker) => ({
       name: marker.name,
       ts: marker.ts,

@@ -50,6 +50,7 @@ export default class VitalTimestampPlugin implements PerfettoPlugin {
     }
     const it = result.iter({
       argSetId: NUM,
+      ts: NUM,
     });
     let containValidPipeline = false;
     for (; it.valid(); it.next()) {
@@ -80,6 +81,7 @@ export default class VitalTimestampPlugin implements PerfettoPlugin {
           ctx.engine,
           TIMING_LOAD_BUNDLE_START,
           pipelineIdArg.value as string,
+          it.ts,
         );
         if (traceResults) {
           containValidPipeline = true;
