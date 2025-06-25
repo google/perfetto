@@ -182,9 +182,13 @@ TrackEventTracker::GetDescriptorTrackImpl(
 
   // Before trying to resolve anything, ensure that the hierarchy of tracks is
   // well defined.
-  if (!IsTrackHierarchyValid(uuid)) {
-    return std::nullopt;
-  }
+  // TODO(suguannan.906): Currently, Lynx SDK might not write the ProcessTrack's
+  // UUID, causing IsTrackHierarchyValid to return false. Temporarily commenting
+  // out IsTrackHierarchyValid. Re-enable this check after upgrading Lynx SDK to
+  // a newer version. if
+  // (!IsTrackHierarchyValid(uuid)) {
+  //   return std::nullopt;
+  // }
 
   // Resolve process and thread id for tracks produced from within a pid
   // namespace.
