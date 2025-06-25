@@ -16,7 +16,7 @@
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
 
-import {NUM} from '../trace_processor/query_result';
+import {NUM, NUM_NULL} from '../trace_processor/query_result';
 import {Engine} from '../trace_processor/engine';
 import {BaseSlice} from './types';
 
@@ -42,7 +42,7 @@ export async function findPrecedingIdenticalFlowIdSlice(
       ts: NUM,
       id: NUM,
       dur: NUM,
-      argSetId: NUM,
+      argSetId: NUM_NULL,
     });
   }
   return undefined;

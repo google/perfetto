@@ -62,7 +62,7 @@ export interface BaseSlice {
   dur?: number;
   tooltip?: string;
   highlighted?: boolean;
-  argSetId?: number;
+  argSetId?: number | null;
 }
 
 export interface VitalTimestamp extends BaseSlice {

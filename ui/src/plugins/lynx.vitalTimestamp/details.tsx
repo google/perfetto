@@ -322,7 +322,7 @@ export class VitalTimestampDetailsPanel implements TrackEventDetailsPanel {
         id: NUM,
       }).id,
     );
-    if (relatedSlice === undefined || relatedSlice.argSetId === undefined) {
+    if (relatedSlice == null || relatedSlice.argSetId == null) {
       return undefined;
     }
     const args = await getArgs(
