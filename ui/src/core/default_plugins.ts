@@ -89,4 +89,5 @@ export const defaultPlugins = [
   'lynx.Description',
   'lynx.Perf',
   'lynx.Element',
+  'lynx.VitalTimestamp',
 ];

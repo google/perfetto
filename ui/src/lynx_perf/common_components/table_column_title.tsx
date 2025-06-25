@@ -18,7 +18,6 @@
 
 import {Component} from 'react';
 
-
 interface TableColumnTitleProps {
   title: string;
 }

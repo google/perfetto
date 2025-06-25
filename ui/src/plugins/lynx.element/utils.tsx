@@ -16,9 +16,9 @@
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
 
+import {LynxElement} from '../../lynx_perf/common_components/element_tree/types';
 import ElementManager from './element_manager';
-import {LynxElement, LynxElementAbbr} from './types';
-import {ReactNode} from 'react';
+import {LynxElementAbbr} from './types';
 
 const DENSITY_THRESHOLDD = 1500;
 const DESCENDANTS_THRESHOLD = 20;
@@ -199,57 +199,3 @@ export function findNonRenderingNodesRecursively(
   return nodesList;
 }
 
-export function constructElementDetail(current: LynxElement): string {
-  return `<${current.name}${getIdDetail(current)}${getAttributesDetail(current)} />`;
-}
-
-export function constructElementDetailWithinDepth(
-  current: LynxElement,
-  depth: number,
-): ReactNode {
-  const MAX_DEPTH = 2;
-  const idDetail = getIdDetail(current);
-  const attributeDetail = getAttributesDetail(current);
-  const currentElementDetail = `<${current.name}${idDetail}${attributeDetail}>`;
-  const currentElementLine = (
-    <div style={{paddingLeft: `${depth * 20}px`}}>{currentElementDetail}</div>
-  );
-  if (
-    idDetail ||
-    attributeDetail ||
-    depth === MAX_DEPTH ||
-    current.children.length <= 0
-  ) {
-    return currentElementLine;
-  }
-  return (
-    <>
-      {currentElementLine}
-      {constructElementDetailWithinDepth(current.children[0], depth + 1)}
-    </>
-  );
-}
-
-function getIdDetail(current: LynxElement) {
-  if (current.class && current.class.length > 0) {
-    let res = ' class="';
-    for (let i = 0; i < current.class.length; i++) {
-      if (i > 0) res += ' ';
-      res += current.class[i];
-    }
-    res += '"';
-    return res;
-  }
-  return '';
-}
-
-function getAttributesDetail(current: LynxElement) {
-  if (current.attributes && Object.keys(current.attributes).length > 0) {
-    let res = '';
-    Object.entries(current.attributes).forEach(([key, value]) => {
-      res += ` ${key}="${value}"`;
-    });
-    return res;
-  }
-  return '';
-}

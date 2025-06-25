@@ -16,42 +16,27 @@
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
 
-// common
+import {useEffect, useRef} from 'react';
+import m from 'mithril';
 
-// antd table header row
-.table-header-text {
-  font-family: "Roboto Condensed", sans-serif;
-  font-weight: 700;
-  font-size: 14px;
-  color: rgb(18, 18, 18);
-}
+// @ts-ignore
+const MithrilReactWrapper = ({component, ...props}) => {
+  const containerRef = useRef(null);
 
-// antd table text row
-.table-content-text {
-  font-family: "Roboto Condensed", sans-serif;
-  font-weight: 400;
-  font-size: 14px;
-  color: rgb(18, 18, 18);
-}
+  useEffect(() => {
+    if (containerRef.current != null) {
+      m.mount(containerRef.current, {
+        view: () => m(component, props),
+      });
+    }
+    return () => {
+      if (containerRef.current != null) {
+        m.mount(containerRef.current, null);
+      }
+    };
+  }, [component, props]);
 
-// perfetto-style detail box
-.detail-box-container {
-  border-radius: 2px;
-  border: 1px solid rgba(0, 0, 0, 0.2);
-  padding: 6px;
-  margin: 8px;
-}
+  return <div ref={containerRef}></div>;
+};
 
-.detail-text {
-  font-family: "Roboto Condensed", sans-serif;
-  color: rgb(18, 18, 18);
-  font-weight: 400;
-  font-size: 14px;
-}
-
-.detail-title {
-  font-family: "Roboto Condensed", sans-serif;
-  color: rgb(55, 71, 79);
-  font-size: 16px;
-  font-weight: 400;
-}
+export default MithrilReactWrapper;

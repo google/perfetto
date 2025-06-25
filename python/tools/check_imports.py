@@ -136,11 +136,14 @@ DEPS_ALLOWLIST = [
     ('/components/details/thread_slice_details_tab', '/description/*'),
     ('/description/*', ['/widgets/*', '/components/*']),
     ('/plugins/lynx.description/*', '/description/*'),
-    (['/plugins/lynx.perf/*', '/plugins/lynx.element/*'],
-     ['/lynx_perf/*', '/plugins/lynx.ThreadGroups/index', '/core/*']),
+    ([
+        '/plugins/lynx.perf/*', '/plugins/lynx.element/*',
+        '/plugins/lynx.vitalTimestamp/*'
+    ], ['/lynx_perf/*', '/plugins/lynx.ThreadGroups/index', '/core/*']),
     ('/metrics_chart/*', ['/metrics_chart/*', '/components/colorizer']),
     ('/metrics_chart/*', ['/metrics_chart/*', '/core/*', '/components/*']),
-    ('/lynx_perf/*', ['/public/*', '/components/*'])
+    ('/lynx_perf/*',
+     ['/public/*', '/components/*', '/core/*', '/trace_processor/*'])
 ]
 
 

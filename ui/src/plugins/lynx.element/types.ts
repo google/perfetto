@@ -17,32 +17,7 @@
 // LICENSE file in the root directory of this source tree.
 
 import {ReactNode} from 'react';
-export interface LynxElement {
-  width: number;
-  height: number;
-  left: number;
-  top: number;
-  name: string;
-  id: number;
-  class?: string[];
-  inlineStyle?: Record<string, string>;
-  attributes?: Record<string, string>;
-  children: LynxElement[];
-
-  descendantCount: number;
-  wrapDescendantCount: number;
-  overNoRenderingRatio: number;
-  parent?: LynxElement;
-  depth: number;
-  lynxLeft: number;
-  lynxTop: number;
-
-  // extension
-  rootElement?: LynxElement;
-  invisible: boolean;
-  deeplyNested: boolean;
-  hasExcessiveNonRenderingElements: boolean;
-}
+import {LynxElement} from '../../lynx_perf/common_components/element_tree/types';
 
 export interface LynxElementAbbr {
   i: number; // id
@@ -77,16 +52,4 @@ export interface IssuseElements {
     key: string;
     render?: (value: unknown, record: LynxElement) => ReactNode;
   }>;
-}
-
-export interface ElementTreeViewState {
-  currentSelectedElement: LynxElement | undefined;
-  treeHeight: number;
-  treeWidth: number;
-}
-
-export interface ElementTreeViewProps {
-  selectedElement: LynxElement | undefined;
-  rootElement: LynxElement | undefined;
-  closeDialog: () => void;
 }

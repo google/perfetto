@@ -16,9 +16,8 @@
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
 
-import {Duration, duration, Time, time} from '../../base/time';
+import {duration, Time, time} from '../../base/time';
 import {TrackRenderContext} from '../../public/track';
-import {TrackEventDetails} from '../../public/selection';
 import {makeColorScheme} from '../../components/colorizer';
 import {HSLColor} from '../../base/color';
 import {AppImpl} from '../../core/app_impl';
@@ -102,21 +101,5 @@ export class LynxPerfTrack extends LynxBaseTrack<IssueSummary[]> {
 
   changeTrackUri() {
     this.uri = (this.selectedSlice as IssueSummary)?.trackUri;
-  }
-
-  async getSelectionDetails(
-    id: number,
-  ): Promise<TrackEventDetails | undefined> {
-    const data = this.fetcher.data;
-    if (data === undefined) return undefined;
-    for (let i = 0; i < data.length; i++) {
-      if (id == data[i].id) {
-        return {
-          ts: Time.fromRaw(BigInt(data[i].ts)),
-          dur: Duration.fromRaw(BigInt(0)),
-        };
-      }
-    }
-    return undefined;
   }
 }

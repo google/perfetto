@@ -16,7 +16,7 @@
 // Licensed under the Apache License Version 2.0 that can be found in the
 // LICENSE file in the root directory of this source tree.
 
-import {LynxElement} from './types';
+import {LynxElement} from '../../lynx_perf/common_components/element_tree/types';
 
 class ElementManager {
   private screenWidth: number = 0;

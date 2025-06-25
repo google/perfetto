@@ -20,8 +20,8 @@ import m from 'mithril';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
 import {ElementDetailView} from './element_detail_panel';
-import {LynxElement} from './types';
 import ElementManager from './element_manager';
+import {LynxElement} from '../../lynx_perf/common_components/element_tree/types';
 
 export class ElementDetailsPanel implements TrackEventDetailsPanel {
   private elementTreeDetails: LynxElement[] | undefined;

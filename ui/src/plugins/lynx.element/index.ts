@@ -25,7 +25,6 @@ import {
   findNonRenderingNodesRecursively,
   reConstructElementTree,
 } from './utils';
-import {LynxElement} from './types';
 import ElementManager from './element_manager';
 import {Engine} from '../../trace_processor/engine';
 import {getArgs} from '../../components/sql_utils/args';
@@ -35,6 +34,8 @@ import {LynxElementIssueTrack} from './element_issue_track';
 import {LYNX_PERF_ELEMENT_PLUGIN_ID} from '../../lynx_perf/constants';
 import LynxPerf from '../lynx.perf';
 import {lynxPerfGlobals} from '../../lynx_perf/lynx_perf_globals';
+import {findPrecedingIdenticalFlowIdSlice} from '../../lynx_perf/trace_utils';
+import {LynxElement} from '../../lynx_perf/common_components/element_tree/types';
 
 /**
  * Lynx Element Performance Analysis Plugin
@@ -141,7 +142,10 @@ export default class LynxElementPlugin implements PerfettoPlugin {
       if (!this.issueNodesMap.has(instanceId)) {
         this.issueNodesMap.set(instanceId, new Set());
       }
-      const proceedSliceTs = await this.findPrecedingSliceTs(engine, it.id);
+      const proceedSliceTs = await findPrecedingIdenticalFlowIdSlice(
+        engine,
+        it.id,
+      );
       args.forEach((arg) => {
         if (arg.key === 'debug.content' || arg.key === 'args.content') {
           const content = arg.value as string;
@@ -155,7 +159,7 @@ export default class LynxElementPlugin implements PerfettoPlugin {
             ElementManager.setTraceIssueElements(it.id, issueElements);
             data.push({
               id: it.id,
-              ts: proceedSliceTs > 0 ? proceedSliceTs : it.ts,
+              ts: proceedSliceTs?.ts ?? it.ts,
               description: `Performance issue detected in the Element tree, click for more details`,
               trackUri: LYNX_PERF_ELEMENT_PLUGIN_ID,
               issueRank: IssueRank.MODERATE,
@@ -165,33 +169,6 @@ export default class LynxElementPlugin implements PerfettoPlugin {
       });
     }
     return data;
-  }
-
-  /**
-   * Finds timestamp of preceding slice in execution flow
-   * @param engine - Trace processor engine
-   * @param sliceId - ID of current slice
-   * @returns Timestamp of preceding slice or -1 if not found
-   */
-  async findPrecedingSliceTs(engine: Engine, sliceId: number) {
-    const query = `
-    -- Include slices.flow to initialise indexes on 'flow.slice_in' and 'flow.slice_out'.
-    INCLUDE PERFETTO MODULE slices.flow;
-
-    select
-      t1.ts as beginTs,
-      t1.id as id
-    from preceding_flow(${sliceId}) f
-    join slice t1 on f.slice_out = t1.slice_id
-    `;
-    const result = await engine.query(query);
-    if (result.numRows() > 0) {
-      return result.firstRow({
-        beginTs: NUM,
-        id: NUM,
-      }).beginTs;
-    }
-    return -1;
   }
 
   /**

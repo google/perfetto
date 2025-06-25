@@ -27,6 +27,7 @@ import {STR} from '../../trace_processor/query_result';
  */
 export enum ThreadSortOrder {
   PERFORMANCE_ISSUES = -1000,
+  VITAL_TIMESTAMP = -30,
   MAIN_THREAD = -25,
   LYNX_BACKGROUND_THREAD = -20,
   LYNX_THREAD = -15,

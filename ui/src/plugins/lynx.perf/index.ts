@@ -64,13 +64,19 @@ export default class LynxPerf implements PerfettoPlugin {
         if (workspace && workspace.children.length > 0) {
           for (const item of workspace.children) {
             // Skip if issues track already exists
-            if (item.children?.some((child) => child.uri === LYNX_ISSUES_PLUGIN_ID)) {
+            if (
+              item.children?.some(
+                (child) => child.uri === LYNX_ISSUES_PLUGIN_ID,
+              )
+            ) {
               break;
             }
 
             // Attach to Lynx background threads when issues exist
-            if (isLynxBackgroundScriptThreadGroup(item) &&
-                lynxPerfGlobals.state.issues.length > 0) {
+            if (
+              isLynxBackgroundScriptThreadGroup(item) &&
+              lynxPerfGlobals.state.issues.length > 0
+            ) {
               const track = new TrackNode({
                 title: `${TRACK_TITLE} (count: ${lynxPerfGlobals.state.issues.length})`,
                 uri: LYNX_ISSUES_PLUGIN_ID,

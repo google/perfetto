@@ -18,31 +18,15 @@
 
 import m from 'mithril';
 import {createRoot} from 'react-dom/client';
-import {
-  Table,
-  Modal,
-  Tree,
-  TreeDataNode,
-  TreeProps,
-  Tooltip,
-  ConfigProvider,
-} from 'antd';
+import {Table, Tooltip} from 'antd';
 import Icon, {QuestionCircleOutlined} from '@ant-design/icons';
-import {Component, createRef, RefObject} from 'react';
-import {
-  ElementDetailAttr,
-  ElementState,
-  ElementTreeViewProps,
-  ElementTreeViewState,
-  IssuseElements,
-  LynxElement,
-} from './types';
-import {
-  constructElementDetail,
-  constructElementDetailWithinDepth,
-} from './utils';
+import {Component} from 'react';
 import {lynxConfigState} from '../../lynx_features_flags/config';
 import {TableColumnTitle} from '../../lynx_perf/common_components/table_column_title';
+import {ElementDetailAttr, ElementState, IssuseElements} from './types';
+import {ElementTreeView} from '../../lynx_perf/common_components/element_tree/element_tree_view';
+import {LynxElement} from '../../lynx_perf/common_components/element_tree/types';
+import {constructElementDetailWithinDepth} from '../../lynx_perf/common_components/element_tree/utils';
 
 export class ElementDetailView implements m.ClassComponent<ElementDetailAttr> {
   oncreate(vnode: m.CVnodeDOM<ElementDetailAttr>) {
@@ -164,16 +148,17 @@ export class DetailViewPanel extends Component<
             Although the element is not visible to users, it still consumes
             rendering resources. Apply a lazy-loading mechanism to load the
             element on-demand.
-            {
-              lynxConfigState.state.lynxLazyLoadingUrl &&
+            {lynxConfigState.state.lynxLazyLoadingUrl && (
               <>
                 For implementation guidance, see{' '}
-                <a href={lynxConfigState.state.lynxLazyLoadingUrl} target="_blank">
+                <a
+                  href={lynxConfigState.state.lynxLazyLoadingUrl}
+                  target="_blank">
                   Lazy Loading Documentation
                 </a>
                 .
               </>
-            }
+            )}
           </>
         ),
         dataSource: invisibleDataSource,
@@ -272,8 +257,7 @@ export class DetailViewPanel extends Component<
 
   private renderElementRow() {
     return (
-      // @ts-ignore
-      value: unknown,
+      _value: unknown,
       record: LynxElement,
     ) => (
       <a
@@ -288,170 +272,5 @@ export class DetailViewPanel extends Component<
 
   closeDialog = () => {
     this.setState({showDialog: false});
-  };
-}
-
-class ElementTreeView extends Component<
-  ElementTreeViewProps,
-  ElementTreeViewState
-> {
-  private treeData: TreeDataNode[];
-  private containerRef: RefObject<HTMLDivElement | null>;
-  constructor(props: ElementTreeViewProps) {
-    super(props);
-    this.state = {
-      currentSelectedElement: props.selectedElement,
-      treeHeight: window.innerHeight - 100,
-      treeWidth: window.innerWidth - 200,
-    };
-    this.treeData = [];
-    if (props.rootElement) {
-      this.treeData = this.constructTreeData(props.rootElement);
-    }
-    this.containerRef = createRef();
-  }
-
-  updateTreeSize = () => {
-    this.setState({
-      treeHeight: window.innerHeight - 100,
-      treeWidth: window.innerWidth - 200,
-    });
-  };
-
-  constructTreeData = (rootElement: LynxElement) => {
-    function constructTreeDataRecursively(
-      current: LynxElement,
-    ): TreeDataNode | undefined {
-      const currentTree: TreeDataNode = {
-        title: constructElementDetail(current),
-        key: current.id.toString(),
-        children: [],
-      };
-      for (let i = 0; i < current.children.length; i++) {
-        const child = constructTreeDataRecursively(current.children[i]);
-        if (child) {
-          currentTree.children?.push(child);
-        }
-      }
-      return currentTree;
-    }
-
-    const treeData: TreeDataNode[] = [];
-    const rootTree = constructTreeDataRecursively(rootElement);
-    if (!rootTree) {
-      return treeData;
-    }
-    treeData.push(rootTree);
-    return treeData;
-  };
-
-  componentDidMount() {
-    const treeElement = this.containerRef.current?.querySelector(
-      `.ant-tree-node-selected`,
-    );
-    if (treeElement) {
-      treeElement.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      });
-    }
-    window.addEventListener('resize', this.updateTreeSize);
-  }
-
-  componentWillUnmount() {
-    window.removeEventListener('resize', this.updateTreeSize);
-  }
-
-  render() {
-    if (
-      !this.props.rootElement ||
-      !this.props.selectedElement ||
-      !this.state.currentSelectedElement
-    ) {
-      return <div></div>;
-    }
-
-    const defaultSelectedKeys = [
-      this.state.currentSelectedElement.id.toString(),
-    ];
-
-    return (
-      <Modal
-        open={true}
-        centered={true}
-        closable={true}
-        height={this.state.treeHeight}
-        width={this.state.treeWidth}
-        onCancel={() => {
-          this.props.closeDialog();
-        }}
-        style={{
-          pointerEvents: 'auto',
-          borderRadius: 6,
-          background: 'white',
-        }}
-        modalRender={() => (
-          <div
-            ref={this.containerRef}
-            style={{
-              overflow: 'auto',
-              maxHeight: this.state.treeHeight,
-              width: this.state.treeWidth,
-              borderRadius: 6,
-            }}>
-            <ConfigProvider
-              theme={{
-                components: {
-                  Tree: {
-                    nodeSelectedBg: '#6BACDE',
-                  },
-                },
-              }}>
-              <Tree
-                style={{
-                  fontSize: 14,
-                  fontFamily: 'Roboto Condensed',
-                  color: '#121212',
-                }}
-                defaultSelectedKeys={defaultSelectedKeys}
-                defaultExpandedKeys={defaultSelectedKeys}
-                treeData={this.treeData}
-                defaultExpandParent={true}
-                autoExpandParent={true}
-                onSelect={this.onSelect}
-              />
-            </ConfigProvider>
-          </div>
-        )}
-      />
-    );
-  }
-
-  onSelect: TreeProps['onSelect'] = (selectedKeys) => {
-    if (selectedKeys.length > 0) {
-      const selectKey = selectedKeys[0] as string;
-      // traversal the rootElement, select the element node according to id.
-      this.traversalTreeAndSelectElementNode(selectKey, this.props.rootElement);
-    }
-  };
-
-  traversalTreeAndSelectElementNode = (
-    selectKey: string,
-    currentElement: LynxElement | undefined,
-  ) => {
-    if (!currentElement) {
-      return;
-    }
-    if (currentElement.id.toString() === selectKey) {
-      this.setState({
-        currentSelectedElement: currentElement,
-      });
-      return;
-    }
-    if (currentElement.children.length > 0) {
-      for (const child of currentElement.children) {
-        this.traversalTreeAndSelectElementNode(selectKey, child);
-      }
-    }
   };
 }
