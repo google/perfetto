@@ -24,6 +24,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/hash.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/storage/stats.h"
@@ -148,6 +150,21 @@ std::optional<SliceId> SliceTracker::StartSlice(
     TrackId track_id,
     SetArgsCallback args_callback,
     std::function<SliceId()> inserter) {
+  const auto start_ts =
+      context_->metadata_tracker->GetMetadata(metadata::tracing_started_ns)
+          .value_or(SqlValue::Long(0))
+          .AsLong();
+
+  const auto end_ts =
+      context_->metadata_tracker->GetMetadata(metadata::tracing_disabled_ns)
+          .value_or(SqlValue::Long(INT64_MAX))
+          .AsLong();
+  // At this stage all events timestamp should be greater than
+  // tracing_started_ns and be less than tracing_disabled_ns.
+  if (timestamp < start_ts || timestamp > end_ts) {
+    return std::nullopt;
+  }
+
   auto& track_info = stacks_[track_id];
   auto& stack = track_info.slice_stack;
 
