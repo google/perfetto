@@ -345,15 +345,18 @@ export class LynxNativeModuleTrack extends LynxBaseTrack<NativeModuleItem[]> {
         selectedPosition.yPx = y;
         selectedPosition.durPx = xDur;
       } else {
-        const color = this.colorSchema.base.cssString;
-        ctx.ctx.fillStyle = color;
+        ctx.ctx.fillStyle = lynxPerfGlobals.shouldShowSlice(slice.id)
+          ? this.colorSchema.base.cssString
+          : this.colorSchema.disabled.cssString;
         ctx.ctx.fillRect(xPx, y, xDur, SLICE_HEIGHT);
       }
 
       // Pass 2: draw the titles
       const textColor = selected
         ? this.colorSchema.textVariant
-        : this.colorSchema.textBase;
+        : lynxPerfGlobals.shouldShowSlice(slice.id)
+          ? this.colorSchema.textBase
+          : this.colorSchema.textDisabled;
       ctx.ctx.fillStyle = textColor.cssString;
       const title = cropText(slice.name, charWidth, xDur);
       const rectXCenter = xPx + xDur / 2;

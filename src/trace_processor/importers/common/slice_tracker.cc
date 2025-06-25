@@ -207,6 +207,23 @@ std::optional<SliceId> SliceTracker::StartSlice(
   }
   StackPush(track_id, ref);
 
+  // Current slice is nested under a stack of slices.
+  // Here, we traverse the stack to find the ancestor slice that contains the
+  // `instance_id` parameter, and then assign that `instance_id` to the current
+  // slice.
+  std::string instance_id = "";
+  for (int i = static_cast<int>(depth) - 1; i >= 0; i--) {
+    std::optional<std::string> opt_instance_id =
+        context_->storage->GetInstanceIdForSlice(
+            stack[static_cast<size_t>(i)].row.row_number());
+    if (opt_instance_id) {
+      instance_id = opt_instance_id.value();
+      context_->storage->SetInstanceIdForSlice(ref.ToRowNumber().row_number(),
+                                               instance_id);
+      break;
+    }
+  }
+
   // Post fill all the relevant columns. All the other columns should have
   // been filled by the inserter.
   ref.set_depth(static_cast<uint32_t>(depth));
@@ -217,6 +234,7 @@ std::optional<SliceId> SliceTracker::StartSlice(
 
   if (args_callback) {
     auto bound_inserter = stack.back().args_tracker.AddArgsTo(id);
+    bound_inserter.SetInstanceId(instance_id);
     args_callback(&bound_inserter);
   }
   return id;

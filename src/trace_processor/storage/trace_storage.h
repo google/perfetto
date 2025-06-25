@@ -48,6 +48,7 @@
 #include "src/trace_processor/tables/counter_tables_py.h"
 #include "src/trace_processor/tables/etm_tables_py.h"
 #include "src/trace_processor/tables/flow_tables_py.h"
+#include "src/trace_processor/tables/instance_id_tables_py.h"
 #include "src/trace_processor/tables/jit_tables_py.h"
 #include "src/trace_processor/tables/memory_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
@@ -302,6 +303,28 @@ class TraceStorage {
     return it->second;
   }
 
+  void SetInstanceIdForSlice(uint32_t slice, std::string instance_id) {
+    if (slice_to_instace_id_.find(slice) == slice_to_instace_id_.end() &&
+        instance_id != "-1") {
+      slice_to_instace_id_[slice] = instance_id;
+
+      // inert one row to instance_id_slice_table
+      tables::InstanceIdSliceTable::Row row(
+          slice, InternString(base::StringView(instance_id)));
+      mutable_instance_id_slice_table()->Insert(row);
+    }
+  }
+
+  std::optional<std::string> GetInstanceIdForSlice(uint32_t slice) {
+    auto it = slice_to_instace_id_.find(slice);
+    if (it == slice_to_instace_id_.end()) {
+      return std::nullopt;
+    }
+    return it->second;
+  }
+
+  void ClearInstanceIdForSlice() { slice_to_instace_id_.clear(); }
+
   void AddPipelineFlag(const std::string& pipeline_id,
                        std::string timing_flag) {
     auto it = pipeline_id_to_flag_.find(pipeline_id);
@@ -378,6 +401,7 @@ class TraceStorage {
     counter_table_.ShrinkToFit();
     slice_table_.ShrinkToFit();
     ftrace_event_table_.ShrinkToFit();
+    instance_id_slice_table_.ShrinkToFit();
     sched_slice_table_.ShrinkToFit();
     thread_state_table_.ShrinkToFit();
     arg_table_.ShrinkToFit();
@@ -424,6 +448,13 @@ class TraceStorage {
 
   const tables::SliceTable& slice_table() const { return slice_table_; }
   tables::SliceTable* mutable_slice_table() { return &slice_table_; }
+
+  const tables::InstanceIdSliceTable& instance_id_slice_table() const {
+    return instance_id_slice_table_;
+  }
+  tables::InstanceIdSliceTable* mutable_instance_id_slice_table() {
+    return &instance_id_slice_table_;
+  }
 
   const tables::SpuriousSchedWakeupTable& spurious_sched_wakeup_table() const {
     return spurious_sched_wakeup_table_;
@@ -1062,6 +1093,9 @@ class TraceStorage {
   // Slices coming from userspace events (e.g. Chromium TRACE_EVENT macros).
   tables::SliceTable slice_table_{&string_pool_};
 
+  // Lynx: Slices with instance_id
+  tables::InstanceIdSliceTable instance_id_slice_table_{&string_pool_};
+
   // Flow events from userspace events (e.g. Chromium TRACE_EVENT macros).
   tables::FlowTable flow_table_{&string_pool_};
 
@@ -1206,6 +1240,8 @@ class TraceStorage {
 
   std::map<std::string, std::string> instance_id_to_url_;
   std::map<std::string, std::string> pipeline_id_to_flag_;
+
+  std::map<uint32_t, std::string> slice_to_instace_id_;
 };
 
 }  // namespace perfetto::trace_processor

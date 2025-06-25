@@ -39,6 +39,7 @@ import {BUCKETS_PER_PIXEL, CacheKey} from './timeline_cache';
 import {renderDoFrameTag} from '../../lynx_perf/frame/render_doframe_mark';
 import {isMainThreadTrack} from '../../lynx_perf/track_utils';
 import {trackContainFrameTag} from '../../lynx_perf/frame/frame_tag_track';
+import {lynxPerfGlobals} from '../../lynx_perf/lynx_perf_globals';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -538,7 +539,9 @@ export abstract class BaseSliceTrack<
     for (const slice of vizSlicesByColor) {
       const color = slice.isHighlighted
         ? slice.colorScheme.variant.cssString
-        : slice.colorScheme.base.cssString;
+        : lynxPerfGlobals.shouldShowSlice(slice.id)
+          ? slice.colorScheme.base.cssString
+          : slice.colorScheme.disabled.cssString;
       if (color !== lastColor) {
         lastColor = color;
         ctx.fillStyle = color;
@@ -621,7 +624,9 @@ export abstract class BaseSliceTrack<
       // Change the title color dynamically depending on contrast.
       const textColor = slice.isHighlighted
         ? slice.colorScheme.textVariant
-        : slice.colorScheme.textBase;
+        : lynxPerfGlobals.shouldShowSlice(slice.id)
+          ? slice.colorScheme.textBase
+          : slice.colorScheme.textDisabled;
       ctx.fillStyle = textColor.cssString;
       const title = cropText(slice.title, charWidth, slice.w);
       const rectXCenter = slice.x + slice.w / 2;

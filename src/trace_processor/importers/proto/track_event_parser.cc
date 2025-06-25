@@ -1192,7 +1192,7 @@ class TrackEventParser::EventImporter {
         log_errors(parser.Parse(*it, args_writer));
       }
 
-      AddExtraArgs(args_writer);
+      AddExtraArgs(args_writer, inserter->GetRow(), inserter->GetInstanceId());
     }
 
     if (legacy_passthrough_utid_) {
@@ -1346,13 +1346,16 @@ class TrackEventParser::EventImporter {
 
   // TODO(suguannan.906): This is not a reasonable implementation. We should
   // optimize this once a better solution is identified.
-  void AddExtraArgs(ArgsParser& args_writer) {
+  void AddExtraArgs(ArgsParser& args_writer,
+                    uint32_t row_id,
+                    std::string instance_id) {
     static const char* BindPipelineIDWithTimingFlag =
         "Timing::BindPipelineIDWithTimingFlag";
     static const char* LynxLoadTemplate = "LynxLoadTemplate";
     NullTermStringView name = storage_->GetString(name_id_);
     bool is_timing_flag_event = false;
     bool is_load_template_event = false;
+    bool has_instance_id_parameter = false;
     if (!name.empty() &&
         strcmp(name.c_str(), BindPipelineIDWithTimingFlag) == 0) {
       is_timing_flag_event = true;
@@ -1360,7 +1363,6 @@ class TrackEventParser::EventImporter {
       is_load_template_event = true;
     }
 
-    std::string pipeline_id = "";
     std::string timing_flag = "";
     for (auto it = event_.debug_annotations(); it; ++it) {
       protos::pbzero::DebugAnnotation::Decoder annotation(*it);
@@ -1385,10 +1387,18 @@ class TrackEventParser::EventImporter {
             std::string id = "";
             if (annotation.has_string_value()) {
               id = annotation.string_value().ToStdString();
+              if (id != "-1") {
+                has_instance_id_parameter = true;
+                context_->storage->SetInstanceIdForSlice(row_id, id);
+              }
             } else if (annotation.has_uint_value()) {
               id = std::to_string(annotation.uint_value());
             } else if (annotation.has_int_value()) {
               id = std::to_string(annotation.int_value());
+              if (id != "-1") {
+                has_instance_id_parameter = true;
+                context_->storage->SetInstanceIdForSlice(row_id, id);
+              }
             }
             if (!id.empty()) {
               auto url = context_->storage->GetInstanceUrl(id);
@@ -1400,6 +1410,11 @@ class TrackEventParser::EventImporter {
           }
         }
       }
+    }
+
+    if (!has_instance_id_parameter && instance_id.size() > 0) {
+      auto debug_key = parser_->args_parser_.EnterDictionary("instance_id");
+      args_writer.AddString(debug_key.key(), instance_id);
     }
 
     // flow id

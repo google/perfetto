@@ -18,6 +18,7 @@ import {Dataset} from '../../trace_processor/dataset';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
 import {queryFrameRenderingAggregation} from '../../lynx_perf/frame/query_aggregation_frame';
+import {lynxPerfGlobals} from '../../lynx_perf/lynx_perf_globals';
 
 export class SliceSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'slice_aggregation';
@@ -51,6 +52,13 @@ export class SliceSelectionAggregator implements AreaSelectionAggregator {
       });
     }
 
+    let filterSlicesWhereQuery = '';
+    if (lynxPerfGlobals.state.filteredTraceSet.size > 0) {
+      filterSlicesWhereQuery = `
+        and id not in (${Array.from(lynxPerfGlobals.state.filteredTraceSet).join(',')})
+      `;
+    }
+
     await engine.query(`
       create or replace perfetto table ${this.id} as
       ${frameTagQuery}
@@ -63,6 +71,7 @@ export class SliceSelectionAggregator implements AreaSelectionAggregator {
       where
         ts + dur > ${area.start}
         and ts < ${area.end}
+        ${filterSlicesWhereQuery}
       group by name
     `);
 

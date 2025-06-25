@@ -1123,6 +1123,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->mutable_trace_file_table());
 
   RegisterStaticTable(storage->mutable_slice_table());
+  RegisterStaticTable(storage->mutable_instance_id_slice_table());
   RegisterStaticTable(storage->mutable_flow_table());
   RegisterStaticTable(storage->mutable_sched_slice_table());
   RegisterStaticTable(storage->mutable_spurious_sched_wakeup_table());

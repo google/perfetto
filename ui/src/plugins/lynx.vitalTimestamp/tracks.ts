@@ -40,6 +40,7 @@ import {getColorForSlice} from '../../components/colorizer';
 import {TrackEventSelection} from '../../public/selection';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {VitalTimestampDetailsPanel} from './details';
+import {featureFlags} from '../../core/feature_flags';
 
 interface PaintEndSlice {
   name: string;
@@ -203,6 +204,7 @@ export class VitalTimestampTrack extends LynxBaseTrack<VitalTimestamp[]> {
     const timestampLine = markers.map((marker) => ({
       name: marker.name,
       ts: marker.ts,
+      id: marker.id,
     }));
     lynxPerfGlobals.updateVitalTimestampLine(timestampLine);
     return markers;
@@ -267,9 +269,13 @@ export class VitalTimestampTrack extends LynxBaseTrack<VitalTimestamp[]> {
     const colorSchema = getColorForSlice(markerName);
 
     // draw floating popup
-    renderCtx.fillStyle = selected
+
+    const color = selected
       ? colorSchema.variant.cssString
-      : colorSchema.base.cssString;
+      : lynxPerfGlobals.shouldShowSlice(marker.id)
+        ? colorSchema.base.cssString
+        : colorSchema.disabled.cssString;
+    renderCtx.fillStyle = color;
     renderCtx.beginPath();
     renderCtx.moveTo(x + padding, y);
     renderCtx.lineTo(x + width + padding, y);
@@ -385,6 +391,14 @@ export class VitalTimestampTrack extends LynxBaseTrack<VitalTimestamp[]> {
    * Returns close button for track header
    */
   getTrackShellButtons(): m.Children {
+    if (
+      featureFlags
+        .allFlags()
+        .find((flag) => flag.id === 'defaultWorkspaceEditable')
+        ?.get()
+    ) {
+      return null;
+    }
     return m(Button, {
       onclick: () => {
         this.trace.workspace

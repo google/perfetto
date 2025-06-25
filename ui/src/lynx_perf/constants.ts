@@ -88,3 +88,12 @@ export const PARAMETER_TAG = 'tag';
 export const PARAMETER_SCENE = 'scene';
 export const START_FLUENCY_TRACE = 'StartFluencyTrace';
 export const STOP_FLUENCY_TRACE = 'StopFluencyTrace';
+
+// Instance Id
+export const LYNX_LOAD_BUNDLE = ['LynxLoadTemplate'];
+
+// Focus LynxView
+export const COMMAND_FOCUS_LYNX_VIEW = 'focusLynxView';
+export const COMMAND_QUERY_LYNX_VIEW = 'queryLynxView';
+export const PARAMETER_FOCUS_LYNX_VIEWS = 'focus_lynxviews';
+export const NO_INSTANCE_ID = 'Traces without instanceId';

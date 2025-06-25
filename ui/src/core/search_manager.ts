@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {lynxPerfGlobals} from '../lynx_perf/lynx_perf_globals';
 import {AsyncLimiter} from '../base/async_limiter';
 import {sqliteString} from '../base/string_utils';
 import {Time} from '../base/time';
@@ -205,6 +206,10 @@ export class SearchManagerImpl {
       utids.push(it.utid);
     }
 
+    let filterSlicesWhereQuery = '';
+    if (lynxPerfGlobals.state.filteredTraceSet.size > 0) {
+      filterSlicesWhereQuery = ` and sliceId not in (${Array.from(lynxPerfGlobals.state.filteredTraceSet).join(',')})`;
+    }
     const res = await engine.query(`
       select
         id as sliceId,
@@ -223,11 +228,11 @@ export class SearchManagerImpl {
           track_id as sourceId,
           0 as utid
           from slice
-          where slice.name glob ${searchLiteral}
+          where (slice.name glob ${searchLiteral}
             or (
               0 != CAST(${sqliteString(search)} AS INT) and
               sliceId = CAST(${sqliteString(search)} AS INT)
-            )
+    )) ${filterSlicesWhereQuery}
         union
         select
           slice_id as sliceId,
@@ -237,7 +242,7 @@ export class SearchManagerImpl {
           0 as utid
         from slice
         join args using(arg_set_id)
-        where string_value glob ${searchLiteral} or key glob ${searchLiteral}
+        where (string_value glob ${searchLiteral} or key glob ${searchLiteral}) ${filterSlicesWhereQuery}
       )
       union all
       select

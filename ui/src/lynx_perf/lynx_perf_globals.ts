@@ -22,12 +22,19 @@ import {
   FrameSlice,
   IssueSummary,
   LynxState,
+  LynxViewInstance,
   SliceThreadState,
   VitalTimestampLine,
 } from './types';
 
 class LynxPerfGlobals {
   private _store = createStore<LynxState>(createEmptyLynxState());
+
+  reset() {
+    this._store.edit((draft) => {
+      Object.assign(draft, createEmptyLynxState());
+    });
+  }
 
   appendPerformanceIssue(issues: IssueSummary[]) {
     this._store.edit((draft) => {
@@ -82,6 +89,43 @@ class LynxPerfGlobals {
   setTraceIdToScrollName(traceId: number, name: string) {
     this._store.edit((draft) => {
       draft.traceIdToScrollName.set(traceId, name);
+    });
+  }
+
+  updateFilteredTraceSet(set: Set<number>) {
+    this._store.edit((draft) => {
+      draft.filteredTraceSet = set;
+    });
+  }
+
+  updateLynxViewInstances(instances: LynxViewInstance[]) {
+    this._store.edit((draft) => {
+      draft.lynxviewInstances = instances;
+    });
+  }
+
+  updateSelectedLynxViewInstances(instances: LynxViewInstance[]) {
+    this._store.edit((draft) => {
+      draft.selectedLynxviewInstances = instances;
+    });
+  }
+
+  shouldShowSlice(sliceId: number) {
+    return (
+      this._store.state.filteredTraceSet.size <= 0 ||
+      !this._store.state.filteredTraceSet.has(sliceId)
+    );
+  }
+
+  setHighlightNoInstanceIdTrace(showOtherTrace: boolean) {
+    this._store.edit((draft) => {
+      draft.highlightNoInstanceIdTrace = showOtherTrace;
+    });
+  }
+
+  toggleRightSidebar() {
+    this._store.edit((draft) => {
+      draft.showRightSidebar = !draft.showRightSidebar;
     });
   }
 }

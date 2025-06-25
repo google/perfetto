@@ -82,6 +82,14 @@ class ArgsTracker {
                                                              row_, key)];
     }
 
+    void SetInstanceId(const std::string& instance_id) {
+      instance_id_ = instance_id;
+    }
+
+    std::string GetInstanceId() { return instance_id_; }
+
+    uint32_t GetRow() { return row_; }
+
    protected:
     BoundInserter(ArgsTracker* args_tracker,
                   ColumnLegacy* arg_set_id_column,
@@ -93,6 +101,7 @@ class ArgsTracker {
     ArgsTracker* args_tracker_ = nullptr;
     ColumnLegacy* arg_set_id_column_ = nullptr;
     uint32_t row_ = 0;
+    std::string instance_id_ = "";
   };
 
   explicit ArgsTracker(TraceProcessorContext*);

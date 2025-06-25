@@ -20,6 +20,7 @@ import {TimeScale} from '../../base/time_scale';
 import {Time} from '../../base/time';
 import {lynxPerfGlobals} from '../lynx_perf_globals';
 import {DROP_FRAME_THRESHOLD} from '../constants';
+import {UNEXPECTED_PINK} from '../../components/colorizer';
 
 /**
  * Renders frame performance markers on the timeline canvas
@@ -52,12 +53,16 @@ export function renderDoFrameTag(
     ctx.arc(x, y, radius, 0, 2 * Math.PI);
     ctx.closePath();
 
-    ctx.fillStyle =
-      value.dur >= DROP_FRAME_THRESHOLD * 2
-        ? 'rgb(180, 0, 0)'
-        : value.dur >= DROP_FRAME_THRESHOLD
-          ? 'rgb(180, 125, 0)'
-          : 'rgb(0, 125, 0)';
+    if (lynxPerfGlobals.state.filteredTraceSet.has(value.id) !== undefined) {
+      ctx.fillStyle = UNEXPECTED_PINK.disabled.cssString;
+    } else {
+      ctx.fillStyle =
+        value.dur >= DROP_FRAME_THRESHOLD * 2
+          ? 'rgb(180, 0, 0)'
+          : value.dur >= DROP_FRAME_THRESHOLD
+            ? 'rgb(180, 125, 0)'
+            : 'rgb(0, 125, 0)';
+    }
     ctx.fill();
 
     ctx.font = '10px Roboto Condensed';

@@ -232,10 +232,16 @@ async function loadTraceIntoEngine(
     if (app.initialRouteArgs.eventName) {
       url += `&eventName=${app.initialRouteArgs.eventName}`;
     }
+    if (app.initialRouteArgs.focus_lynxviews) {
+      url += `&focus_lynxviews=${app.initialRouteArgs.focus_lynxviews}`;
+    }
     Router.navigate(url);
   } else {
     const cacheUuid = traceDetails.cached ? traceDetails.uuid : '';
-    Router.navigate(`#!/viewer?local_cache_key=${cacheUuid}`);
+    const lynxviews = app.initialRouteArgs.focus_lynxviews
+      ? `&focus_lynxviews=${app.initialRouteArgs.focus_lynxviews}`
+      : '';
+    Router.navigate(`#!/viewer?local_cache_key=${cacheUuid}${lynxviews}`);
   }
 
   // Make sure the helper views are available before we start adding tracks.

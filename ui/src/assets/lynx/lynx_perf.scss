@@ -90,3 +90,23 @@
 .custom-scroll-li {
   margin-bottom: 0;
 }
+
+// Focus Mode
+.focus-mode {
+  justify-self: center;
+  height: 100px;
+}
+
+.select-scroll-container {
+  white-space: normal;
+  overflow-wrap: break-word;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.ant-select-item-option-state {
+  display: none !important;
+}
+
+.ant-select-item-option-selected {
+  font-weight: normal !important;
+}

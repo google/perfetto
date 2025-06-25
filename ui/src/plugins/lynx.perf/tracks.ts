@@ -69,7 +69,9 @@ export class LynxPerfTrack extends LynxBaseTrack<IssueSummary[]> {
       }
       ctx.ctx.fillStyle = highlighted
         ? colorSchema.variant.cssString
-        : colorSchema.base.cssString;
+        : lynxPerfGlobals.shouldShowSlice(data[i].id)
+          ? colorSchema.base.cssString
+          : colorSchema.disabled.cssString;
       const xPx = ctx.timescale.timeToPx(posX);
       const yPx = SLICE_LAYOUT_FIT_CONTENT_DEFAULTS.padding;
       const height = SLICE_LAYOUT_FIT_CONTENT_DEFAULTS.sliceHeight;

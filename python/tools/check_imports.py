@@ -34,7 +34,10 @@ NODE_MODULES = '%node_modules%'  # placeholder to depend on any node module.
 # [a,b] -> [c,d] is equivalent to allowing a>c, a>d, b>c, b>d.
 DEPS_ALLOWLIST = [
     # Everything can depend on base/, protos and NPM packages.
-    ('*', ['/base/*', '/protos/index', '/gen/perfetto_version', NODE_MODULES]),
+    ('*', [
+        '/base/*', '/protos/index', '/gen/perfetto_version', NODE_MODULES,
+        '/lynx_perf/*'
+    ]),
 
     # Integration tests can depend on everything.
     ('/test/*', '*'),
@@ -58,6 +61,7 @@ DEPS_ALLOWLIST = [
             '/gen/perfetto_version',
         ],
     ),
+    ('/components/lynx_perf/*', "/frontend/*"),
 
     # /public (interfaces + lib) can depend only on a restricted surface.
     ('/public/*', ['/base/*', '/trace_processor/*', '/widgets/*']),
@@ -75,6 +79,11 @@ DEPS_ALLOWLIST = [
             '/core/*',
         ],
     ),
+    ('/lynx_perf/*', [
+        '/base/*',
+        '/trace_processor/*',
+        '/widgets/*',
+    ]),
 
     # /components can depend on the 'base' packages & public
     (

@@ -1,0 +1,98 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Copyright 2025 The Lynx Authors. All rights reserved.
+// Licensed under the Apache License Version 2.0 that can be found in the
+// LICENSE file in the root directory of this source tree.
+
+.right-sidebar {
+  --sidebar-timing: 0.3s;
+  grid-area: right-sidebar;
+  z-index: 4;
+  background-color: #e6e6e6;
+  overflow: hidden;
+  width: var(--right-sidebar-width);
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  transition:
+    margin-right var(--anim-easing) var(--sidebar-timing),
+    visibility linear var(--sidebar-timing);
+
+  &.hide-right-sidebar {
+    visibility: hidden;
+    margin-right: calc(var(--right-sidebar-width) * -1);
+  }
+}
+
+.show-right-sidebar {
+  visibility: visible;
+  margin-right: 0;
+}
+
+.rightbar-title-container {
+  position: relative;
+  height: var(--topbar-height);
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0 40px;
+  box-sizing: border-box;
+}
+.rightbar-title-container h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.rightbar-close-container {
+  position: absolute;
+  top: 0px;
+  right: 0px;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.rightbar-close-container:hover {
+  color: #1890ff;
+}
+
+.rightbar-lynxview-container {
+  border-radius: 10px;
+  align-self: center;
+  align-items: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  margin-left: 5px;
+  margin-right: 5px;
+  margin-top: 10px;
+  margin-bottom: 20px;
+  padding-top: 15px;
+  padding-bottom: 30px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+.rightbar-container {
+  display: flex;
+  width: 350px;
+  margin: 0 auto;
+}
+
+.rightbar-buttons {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 10px;
+}

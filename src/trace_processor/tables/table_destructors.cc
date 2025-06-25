@@ -18,6 +18,7 @@
 #include "src/trace_processor/tables/counter_tables_py.h"
 #include "src/trace_processor/tables/etm_tables_py.h"
 #include "src/trace_processor/tables/flow_tables_py.h"
+#include "src/trace_processor/tables/instance_id_tables_py.h"
 #include "src/trace_processor/tables/jit_tables_py.h"
 #include "src/trace_processor/tables/macros_internal.h"
 #include "src/trace_processor/tables/memory_tables_py.h"
@@ -106,6 +107,7 @@ ThreadStateTable::~ThreadStateTable() = default;
 
 // slice_tables_py.h
 SliceTable::~SliceTable() = default;
+InstanceIdSliceTable::~InstanceIdSliceTable() = default;
 FlowTable::~FlowTable() = default;
 ExperimentalFlatSliceTable::~ExperimentalFlatSliceTable() = default;
 AndroidNetworkPacketsTable::~AndroidNetworkPacketsTable() = default;

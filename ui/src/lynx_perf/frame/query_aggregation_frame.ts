@@ -46,7 +46,12 @@ export function queryFrameRenderingAggregation(area: AreaSelection) {
     const frameDurationArray = Array.from(
       lynxPerfGlobals.state.frameDurationMap.entries(),
     )
-      .filter(([ts, _duration]) => ts >= area.start && ts <= area.end)
+      .filter(
+        ([ts, duration]) =>
+          ts >= area.start &&
+          ts <= area.end &&
+          lynxPerfGlobals.shouldShowSlice(duration.id),
+      )
       .map(([_ts, duration]) => duration.dur);
 
     // Categorize frames by performance:

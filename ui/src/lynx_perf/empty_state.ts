@@ -27,5 +27,10 @@ export function createEmptyLynxState(): LynxState {
     traceIdToScrollName: new Map(),
     trackUriToThreadMap: new Map(),
     frameDurationMap: new Map(),
+    highlightNoInstanceIdTrace: true,
+    lynxviewInstances: [],
+    selectedLynxviewInstances: [],
+    filteredTraceSet: new Set(),
+    showRightSidebar: false,
   };
 }

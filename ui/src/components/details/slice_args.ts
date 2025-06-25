@@ -30,6 +30,7 @@ import {sourceMapState} from '../../source_map/source_map_state';
 import {raf} from '../../core/raf_scheduler';
 import {stringToJsonObject} from '../../lynx_perf/string_utils';
 import {message} from 'antd';
+import {lynxPerfGlobals} from '../../lynx_perf/lynx_perf_globals';
 
 // Renders slice arguments (key/value pairs) as a subtree.
 export function renderArguments(trace: Trace, args: Arg[]): m.Children {
@@ -116,6 +117,20 @@ function renderArgKey(trace: Trace, key: string, value?: Arg): m.Children {
           extensions.addVisualizedArgTracks(trace, fullKey);
         },
       }),
+      lynxPerfGlobals.state.lynxviewInstances.length > 0 &&
+        (fullKey === 'debug.instance_id' || fullKey === 'args.instance_id') &&
+        displayValue != null &&
+        displayValue.length > 0 &&
+        m(MenuItem, {
+          label: 'Focus LynxView',
+          icon: 'filter',
+          onclick: () => {
+            // popupModalForSelectLynxviewInstance();
+            if (!lynxPerfGlobals.state.showRightSidebar) {
+              lynxPerfGlobals.toggleRightSidebar();
+            }
+          },
+        }),
     );
   }
 }

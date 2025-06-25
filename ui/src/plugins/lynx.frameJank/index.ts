@@ -22,6 +22,7 @@ import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {FrameSlice, SliceThreadState} from '../../lynx_perf/types';
 import {LYNX_FRAME_JANK_PLUGIN_ID} from '../../lynx_perf/constants';
 import {lynxPerfGlobals} from '../../lynx_perf/lynx_perf_globals';
+import TraceProcessTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 
 /**
  * Plugin for analyzing and tracking frame jank in Android applications
@@ -33,7 +34,7 @@ import {lynxPerfGlobals} from '../../lynx_perf/lynx_perf_globals';
  */
 export default class FrameJankPlugin implements PerfettoPlugin {
   static readonly id = LYNX_FRAME_JANK_PLUGIN_ID;
-
+  static readonly dependencies = [TraceProcessTrackPlugin];
   /**
    * This hook is called as the trace is loading. At this point the trace is
    * loaded into trace processor and it's ready to process queries. This hook

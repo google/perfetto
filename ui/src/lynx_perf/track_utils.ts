@@ -68,6 +68,47 @@ export function getBackgroundScriptThreadTrackNode(
   return undefined;
 }
 
+export function getMainScriptThreadTrackNode(
+  item: TrackNode,
+): TrackNode | undefined {
+  if (item.hasChildren) {
+    const mainThreadTrack = item.children.find((value) => {
+      if (value.children.length <= 0) {
+        return false;
+      }
+      const trackNode = value.children[0];
+      const sliceThread = lynxPerfGlobals.state.trackUriToThreadMap.get(
+        trackNode.uri ?? '',
+      );
+      return (
+        sliceThread && sliceThread.isMainThread && !sliceThread.isKernelThread
+      );
+    });
+    if (mainThreadTrack) {
+      return mainThreadTrack;
+    }
+    // Find the thread with the smallest tid for non Linux Trace
+    let minTid = Number.MAX_SAFE_INTEGER;
+    let minTrackNode: TrackNode | undefined;
+    for (let i = 0; i < item.children.length; i++) {
+      const trackNode = item.children[i];
+      if (trackNode.children.length <= 0) {
+        continue;
+      }
+      const trackChildNode = trackNode.children[0];
+      const sliceThread = lynxPerfGlobals.state.trackUriToThreadMap.get(
+        trackChildNode.uri ?? '',
+      );
+      if (sliceThread && sliceThread.tid < minTid) {
+        minTid = sliceThread.tid;
+        minTrackNode = trackNode;
+      }
+    }
+    return minTrackNode;
+  }
+  return undefined;
+}
+
 /**
  * Checks if the given track URI belongs to the main thread
  */

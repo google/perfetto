@@ -24,6 +24,13 @@ export interface LynxState {
   traceIdToScrollName: Map<number, string>;
   trackUriToThreadMap: Map<string, SliceThreadState>;
   frameDurationMap: Map<number, FrameSlice>;
+
+  highlightNoInstanceIdTrace: boolean;
+  lynxviewInstances: LynxViewInstance[];
+  selectedLynxviewInstances: LynxViewInstance[];
+  filteredTraceSet: Set<number>;
+
+  showRightSidebar: boolean;
 }
 
 export interface SliceThreadState {
@@ -76,4 +83,10 @@ export interface VitalTimestamp extends BaseSlice {
 export interface VitalTimestampLine {
   name: string[];
   ts: number;
+  id: number;
+}
+
+export interface LynxViewInstance {
+  url: string;
+  instanceId: string;
 }

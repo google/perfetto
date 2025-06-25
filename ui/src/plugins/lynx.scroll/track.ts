@@ -211,7 +211,9 @@ export class LynxScrollTrack extends LynxBaseTrack<ScrollSection[]> {
       const colorSchema = getColorForSlice(section.name);
       const color = selected
         ? colorSchema.variant.cssString
-        : colorSchema.base.cssString;
+        : lynxPerfGlobals.shouldShowSlice(section.id)
+          ? colorSchema.base.cssString
+          : colorSchema.disabled.cssString;
 
       this.drawRectSlice(ctx.ctx, x, y, width, this.sliceHeight, color);
       renderCtx.fillStyle = 'white';

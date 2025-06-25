@@ -17,6 +17,7 @@
 @import "fonts";
 
 :root {
+  --right-sidebar-width: 350px;
   --sidebar-width: 230px;
   --topbar-height: 44px;
   --monospace-font: "Roboto Mono", monospace;
@@ -101,11 +102,11 @@ table {
 body > main {
   display: grid;
   grid-template-areas:
-    "sidebar topbar"
-    "sidebar alerts"
-    "sidebar page";
+    "sidebar topbar right-sidebar"
+    "sidebar alerts right-sidebar"
+    "sidebar page right-sidebar";
   grid-template-rows: auto auto 1fr;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto 1fr auto;
   color: #121212;
   overflow: hidden;
 }
