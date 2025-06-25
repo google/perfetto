@@ -93,4 +93,5 @@ export const defaultPlugins = [
   'lynx.NativeModule',
   'lynx.FrameJank',
   'lynx.ScrollDetect',
+  'lynx.FocusMode',
 ];
