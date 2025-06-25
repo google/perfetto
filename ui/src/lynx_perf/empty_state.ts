@@ -24,5 +24,7 @@ export function createEmptyLynxState(): LynxState {
     vitalTimestampLine: [],
     selectedTimestamp: -1,
     traceIdToJSBName: new Map(),
+    trackUriToThreadMap: new Map(),
+    frameDurationMap: new Map(),
   };
 }

@@ -23,6 +23,7 @@ import {
   LYNX_BACKGROUND_THREAD_NAME,
   LYNX_VITAL_TIMESTAMP_PLUGIN_ID,
 } from './constants';
+import {lynxPerfGlobals} from './lynx_perf_globals';
 
 export function isLynxBackgroundScriptThreadGroup(item: TrackNode) {
   return (
@@ -65,4 +66,17 @@ export function getBackgroundScriptThreadTrackNode(
     );
   }
   return undefined;
+}
+
+/**
+ * Checks if the given track URI belongs to the main thread
+ */
+export function isMainThreadTrack(trackUri: string): boolean {
+  const sliceThread = lynxPerfGlobals.state.trackUriToThreadMap.get(trackUri);
+  return (
+    (sliceThread !== undefined &&
+      sliceThread.isMainThread &&
+      !sliceThread.isKernelThread) ||
+    false
+  );
 }

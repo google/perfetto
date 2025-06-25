@@ -75,11 +75,8 @@ DEPS_ALLOWLIST = [
     (
         '/components/*',
         [
-            '/base/*',
-            '/trace_processor/*',
-            '/widgets/*',
-            '/public/*',
-            '/components/*',
+            '/base/*', '/trace_processor/*', '/widgets/*', '/public/*',
+            '/components/*', '/lynx_perf/*'
         ],
     ),
 
@@ -139,15 +136,18 @@ DEPS_ALLOWLIST = [
     ('/description/*', ['/widgets/*', '/components/*']),
     ('/plugins/lynx.description/*', '/description/*'),
     ([
-        '/plugins/lynx.perf/*',
-        '/plugins/lynx.element/*',
-        '/plugins/lynx.vitalTimestamp/*',
-        '/plugins/lynx.nativemodule/*',
+        '/plugins/lynx.perf/*', '/plugins/lynx.element/*',
+        '/plugins/lynx.vitalTimestamp/*', '/plugins/lynx.nativemodule/*',
+        '/plugins/lynx.frameJank/*'
     ], ['/lynx_perf/*', '/plugins/lynx.ThreadGroups/index', '/core/*']),
     ('/metrics_chart/*', ['/metrics_chart/*', '/components/colorizer']),
     ('/metrics_chart/*', ['/metrics_chart/*', '/core/*', '/components/*']),
-    ('/lynx_perf/*',
-     ['/public/*', '/components/*', '/core/*', '/trace_processor/*'])
+    ('/lynx_perf/*', [
+        '/public/*', '/components/*', '/core/*', '/trace_processor/*',
+        '/lynx_perf/*'
+    ]),
+    ('/plugins/dev.perfetto.GenericAggregations/slice_selection_aggregator',
+     '/lynx_perf/frame/query_aggregation_frame'),
 ]
 
 

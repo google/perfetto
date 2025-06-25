@@ -23,6 +23,7 @@ export const LYNX_VITAL_TIMESTAMP_PLUGIN_ID = 'lynx.VitalTimestamp';
 export const LYNX_NATIVE_MODULE_ID = 'lynx.NativeModule';
 
 export const LYNX_BACKGROUND_THREAD_NAME = 'Lynx_JS';
+export const LYNX_FRAME_JANK_PLUGIN_ID = 'lynx.FrameJank';
 
 export const SLICE_LAYOUT_FIT_CONTENT_DEFAULTS = Object.freeze({
   padding: 3,
@@ -67,3 +68,5 @@ export const NATIVEMODULE_PLATFORM_METHOD_END =
   'JSBTiming::jsb_func_platform_method_end';
 export const NATIVEMODULE_TIMING_FLUSH = 'JSBTiming::Flush';
 export const NATIVEMODULE_NETWORK_REQUEST = 'Network::SendNetworkRequest';
+// Frame Jank
+export const DROP_FRAME_THRESHOLD = 16666666;

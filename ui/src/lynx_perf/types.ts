@@ -21,6 +21,24 @@ export interface LynxState {
   vitalTimestampLine: VitalTimestampLine[];
   selectedTimestamp: number;
   traceIdToJSBName: Map<number, string>;
+  trackUriToThreadMap: Map<string, SliceThreadState>;
+  frameDurationMap: Map<number, FrameSlice>;
+}
+
+export interface SliceThreadState {
+  utid: number;
+  upid: number;
+  tid: number;
+  trackName: string;
+  trackId: number;
+  isMainThread: boolean;
+  isKernelThread: boolean;
+  threadName: string;
+}
+
+export interface FrameSlice {
+  dur: number;
+  id: number;
 }
 
 export enum IssueRank {

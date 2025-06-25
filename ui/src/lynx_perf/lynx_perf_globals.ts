@@ -18,7 +18,13 @@
 
 import {createStore} from '../base/store';
 import {createEmptyLynxState} from './empty_state';
-import {IssueSummary, LynxState, VitalTimestampLine} from './types';
+import {
+  FrameSlice,
+  IssueSummary,
+  LynxState,
+  SliceThreadState,
+  VitalTimestampLine,
+} from './types';
 
 class LynxPerfGlobals {
   private _store = createStore<LynxState>(createEmptyLynxState());
@@ -50,6 +56,18 @@ class LynxPerfGlobals {
   updateSelectedTimestamp(timestamp: number) {
     this._store.edit((draft) => {
       draft.selectedTimestamp = timestamp;
+    });
+  }
+
+  updateSliceThreadMap(sliceThreadMap: Map<string, SliceThreadState>) {
+    this._store.edit((draft) => {
+      draft.trackUriToThreadMap = sliceThreadMap;
+    });
+  }
+
+  updateFrameDurationMap(frameDurationMap: Map<number, FrameSlice>) {
+    this._store.edit((draft) => {
+      draft.frameDurationMap = frameDurationMap;
     });
   }
 
