@@ -135,6 +135,7 @@ export abstract class LynxBaseTrack<T extends BaseSlice[]>
     const {x, y} = event;
     this.hoverPos = {x, y};
     this.updateHoveredSlice(this.findSlice(event));
+    this.trace.raf.scheduleFullRedraw();
   }
 
   onMouseOut(): void {
