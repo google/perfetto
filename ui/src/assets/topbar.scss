@@ -329,3 +329,16 @@
     }
   }
 }
+
+.lynx-menu {
+  position: absolute;
+  right: 40px;
+  display: flex;
+  align-items: center;
+}
+
+.hide-right-sidebar {
+  .query-mode {
+    padding-right: 48px;
+  }
+}

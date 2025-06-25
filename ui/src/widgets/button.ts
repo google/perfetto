@@ -59,6 +59,7 @@ interface CommonAttrs extends HTMLButtonAttrs {
   //   on toolbars.
   // Defaults to Filled.
   variant?: ButtonVariant;
+  onCreate?: (dom: HTMLButtonElement) => void;
 }
 
 interface IconButtonAttrs extends CommonAttrs {
@@ -76,6 +77,11 @@ interface LabelButtonAttrs extends CommonAttrs {
 export type ButtonAttrs = LabelButtonAttrs | IconButtonAttrs;
 
 export class Button implements m.ClassComponent<ButtonAttrs> {
+  oncreate({dom, attrs}: m.CVnodeDOM<ButtonAttrs>) {
+    if (attrs.onCreate) {
+      attrs.onCreate(dom as HTMLButtonElement);
+    }
+  }
   view({attrs}: m.CVnode<ButtonAttrs>) {
     const {
       icon,
@@ -87,6 +93,8 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       iconFilled,
       intent = Intent.None,
       variant = ButtonVariant.Minimal,
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      onCreate,
       ...htmlAttrs
     } = attrs;
 

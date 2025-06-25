@@ -88,6 +88,7 @@ perfetto_proto_library("non_minimal_@TYPE@") {
     "ftrace:@TYPE@",
     "gpu:@TYPE@",
     "interned_data:@TYPE@",
+    "js_profile:@TYPE@",
     "perfetto:@TYPE@",
     "power:@TYPE@",
     "profiling:@TYPE@",

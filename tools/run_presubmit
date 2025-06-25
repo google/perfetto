@@ -98,6 +98,17 @@ def get_merge_base() -> Optional[str]:
     # No tracking branch, continue to fallback
     pass
 
+  # Fallback to origin/develop/v50.x
+  try:
+    # Check if origin/develop/v50.x exists
+    _ = run_command(
+        ['git', 'show-ref', '--verify', 'refs/remotes/origin/develop/v50.x'],
+        check=True)
+    return 'origin/develop/v50.x'
+  except subprocess.CalledProcessError:
+    # origin/develop/v50.x doesn't exist, continue to fallback
+    pass
+
   # Fallback to origin/main
   try:
     # Check if origin/main exists

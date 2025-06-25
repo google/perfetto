@@ -25,9 +25,12 @@ export interface MultiSelectOption {
   // The ID is used to indentify this option, and is used in callbacks.
   id: string;
   // This is the name displayed and used for searching.
-  name: string;
+  name?: string;
   // Whether the option is selected or not.
   checked: boolean;
+
+  disabled?: boolean;
+  children?: m.Children;
 }
 
 export interface MultiSelectDiff {
@@ -42,14 +45,16 @@ export interface MultiSelectAttrs {
   showNumSelected?: boolean;
   fixedSize?: boolean;
   readonly showSelectAllButton?: boolean;
+  showSearchBox?: boolean;
 }
 
 export type PopupMultiSelectAttrs = MultiSelectAttrs & {
   intent?: Intent;
   compact?: boolean;
   icon?: string;
-  label: string;
+  label?: string;
   popupPosition?: PopupPosition;
+  trigger?: m.Vnode<{}, {}>;
 };
 
 // A component which shows a list of items with checkboxes, allowing the user to
@@ -63,17 +68,19 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
   private searchText: string = '';
 
   view({attrs}: m.CVnode<MultiSelectAttrs>) {
-    const {options, fixedSize = true} = attrs;
+    const {options, fixedSize = true, showSearchBox = true} = attrs;
 
     const filteredItems = options.filter(({name}) => {
-      return name.toLowerCase().includes(this.searchText.toLowerCase());
+      return name
+        ? name.toLowerCase().includes(this.searchText.toLowerCase())
+        : true;
     });
 
     return m(
       fixedSize
         ? '.pf-multiselect-panel.pf-multi-select-fixed-size'
         : '.pf-multiselect-panel',
-      this.renderSearchBox(),
+      showSearchBox === true ? this.renderSearchBox() : null,
       this.renderListOfItems(attrs, filteredItems),
     );
   }
@@ -202,11 +209,13 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
     const {onChange = () => {}} = attrs;
 
     return options.map((item) => {
-      const {checked, name, id} = item;
+      const {checked, name, id, children, disabled = false} = item;
       return m(Checkbox, {
         label: name,
         key: id, // Prevents transitions jumping between items when searching
         checked,
+        disabled,
+        children,
         className: 'pf-multiselect-item',
         onchange: () => {
           onChange([{id, checked: !checked}]);
@@ -224,15 +233,19 @@ export class PopupMultiSelect
   view({attrs}: m.CVnode<PopupMultiSelectAttrs>) {
     const {icon, popupPosition = PopupPosition.Auto, intent, compact} = attrs;
 
+    const trigger =
+      attrs.trigger ??
+      m(Button, {
+        label: this.labelText(attrs),
+        icon,
+        intent,
+        compact,
+      });
+
     return m(
       Popup,
       {
-        trigger: m(Button, {
-          label: this.labelText(attrs),
-          icon,
-          intent,
-          compact,
-        }),
+        trigger,
         position: popupPosition,
       },
       m(MultiSelect, attrs as MultiSelectAttrs),
@@ -246,7 +259,7 @@ export class PopupMultiSelect
       const numSelected = options.filter(({checked}) => checked).length;
       return `${label} (${numSelected} selected)`;
     } else {
-      return label;
+      return label ?? '';
     }
   }
 }

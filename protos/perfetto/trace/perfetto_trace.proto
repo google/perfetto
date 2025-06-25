@@ -14002,6 +14002,30 @@ message InternedData {
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto
 
+// Begin of protos/perfetto/trace/js_profile/js_profile.proto
+
+message JSProfilePacket {
+  // The runtime profile data in JSON format.
+  // Format reference:
+  // https://chromedevtools.github.io/devtools-protocol/tot/Profiler/#type-Profile
+  // Note: Profile data may be split across multiple TracePacket.
+  required string runtime_profile = 1;
+
+  // Unique identifier for the profile.
+  // Profiles with the same profile_id can be part of the same profiling
+  // session.
+  required int32 profile_id = 2;
+
+  // Indicates whether the profile with the corresponding profile_id has
+  // finished. When is_done is true, it signifies the end of the profile data
+  // collection for the given profile_id.
+  required bool is_done = 3;
+
+  // Identifies the track of the event. See TrackEvent::track_uuid.
+  required uint64 track_id = 4;
+}
+// End of protos/perfetto/trace/js_profile/js_profile.proto
+
 // Begin of protos/perfetto/trace/memory_graph.proto
 
 // Message definitions for app-reported memory breakdowns. At the moment, this
@@ -16239,6 +16263,9 @@ message TracePacket {
     KernelWakelockData kernel_wakelock_data = 115;
 
     AppWakelockBundle app_wakelock_bundle = 116;
+
+    // Lynx javascript profile package
+    JSProfilePacket js_profile_packet = 899;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

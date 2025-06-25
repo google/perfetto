@@ -1,0 +1,88 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Copyright 2025 The Lynx Authors. All rights reserved.
+// Licensed under the Apache License Version 2.0 that can be found in the
+// LICENSE file in the root directory of this source tree.
+
+@import "../../../node_modules/construct-ui/src/components/drawer/index.scss";
+
+.drawer-content {
+  height: 100%;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: row;
+  .source-file-handle {
+    background-color: hsl(215, 1%, 95%);
+    border-bottom: none;
+    cursor: col-resize;
+    // Disable user selection since this handle is draggable to resize the
+    // bottom panels.
+    user-select: none;
+    min-width: 15px;
+    height: 100%;
+  }
+}
+
+.cui-drawer-right .cui-drawer-content,
+.cui-drawer-left .cui-drawer-content {
+  max-width: 100%;
+  padding: 2px;
+}
+
+.source-popup {
+  min-width: 350px;
+  max-width: 620px;
+}
+
+.source-popup-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 350px;
+  max-width: 600px;
+
+  text {
+    &::-webkit-scrollbar {
+      display: none;
+    }
+    height: 100%;
+  }
+
+  .source-popup-callout {
+    display: flex;
+    flex-direction: column;
+    min-width: 350px;
+    max-width: 600px;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .source-popup-callout > ol,
+  ul {
+    color: #f54c4c;
+    margin-bottom: 2px;
+    width: 100%;
+  }
+}
+
+.open_new_trace_button_group {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-around;
+  width: 100%;
+  border-top: solid 1px $pf-colour-thin-border;
+}

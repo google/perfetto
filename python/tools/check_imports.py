@@ -34,7 +34,10 @@ NODE_MODULES = '%node_modules%'  # placeholder to depend on any node module.
 # [a,b] -> [c,d] is equivalent to allowing a>c, a>d, b>c, b>d.
 DEPS_ALLOWLIST = [
     # Everything can depend on base/, protos and NPM packages.
-    ('*', ['/base/*', '/protos/index', '/gen/perfetto_version', NODE_MODULES]),
+    ('*', [
+        '/base/*', '/protos/index', '/gen/perfetto_version', NODE_MODULES,
+        '/lynx_perf/*'
+    ]),
 
     # Integration tests can depend on everything.
     ('/test/*', '*'),
@@ -58,6 +61,7 @@ DEPS_ALLOWLIST = [
             '/gen/perfetto_version',
         ],
     ),
+    ('/components/lynx_perf/*', "/frontend/*"),
 
     # /public (interfaces + lib) can depend only on a restricted surface.
     ('/public/*', ['/base/*', '/trace_processor/*', '/widgets/*']),
@@ -66,20 +70,27 @@ DEPS_ALLOWLIST = [
     (
         '/*plugins/*',
         [
-            '/base/*', '/public/*', '/trace_processor/*', '/widgets/*',
-            '/components/*'
+            '/base/*',
+            '/public/*',
+            '/trace_processor/*',
+            '/widgets/*',
+            '/components/*',
+            '/lynx_perf/*',
+            '/core/*',
         ],
     ),
+    ('/lynx_perf/*', [
+        '/base/*',
+        '/trace_processor/*',
+        '/widgets/*',
+    ]),
 
     # /components can depend on the 'base' packages & public
     (
         '/components/*',
         [
-            '/base/*',
-            '/trace_processor/*',
-            '/widgets/*',
-            '/public/*',
-            '/components/*',
+            '/base/*', '/trace_processor/*', '/widgets/*', '/public/*',
+            '/components/*', '/lynx_perf/*'
         ],
     ),
 
@@ -125,6 +136,32 @@ DEPS_ALLOWLIST = [
     ('/public/lib/extensions', '/frontend/*'),
     ('/bigtrace/index', ['/core/live_reload', '/core/raf_scheduler']),
     ('/plugins/dev.perfetto.HeapProfile/*', '/frontend/trace_converter'),
+    ('/frontend/*', ['/lynx_features_flags/*', '/source_map/*']),
+    ('/lynx_features_flags/*', '/core/*'),
+    ('/core/load_trace', '/lynx_features_flags/index'),
+    ('/components/details/*',
+     ['/event_logger/index', '/source_map/*', '/description/*',
+      '/lynx_perf/*']),
+    ('/source_map/*', ['/core/*', '/widgets/*']),
+    ('/plugins/lynx.sourcefile/index', ['/source_map/*']),
+    ('/plugins/lynx.sourcemap/*',
+     ['/source_map/*', '/frontend/trace_converter', '/core/*']),
+    ('/components/details/thread_slice_details_tab', '/description/*'),
+    ('/description/*', ['/widgets/*', '/components/*']),
+    ('/plugins/lynx.description/*', '/description/*'),
+    ([
+        '/plugins/lynx.perf/*', '/plugins/lynx.element/*',
+        '/plugins/lynx.vitalTimestamp/*', '/plugins/lynx.nativemodule/*',
+        '/plugins/lynx.frameJank/*'
+    ], ['/lynx_perf/*', '/core/*']),
+    ('/metrics_chart/*', ['/metrics_chart/*', '/components/colorizer']),
+    ('/metrics_chart/*', ['/metrics_chart/*', '/core/*', '/components/*']),
+    ('/lynx_perf/*', [
+        '/public/*', '/components/*', '/core/*', '/trace_processor/*',
+        '/lynx_perf/*'
+    ]),
+    ('/plugins/dev.perfetto.GenericAggregations/slice_selection_aggregator',
+     '/lynx_perf/frame/query_aggregation_frame'),
 ]
 
 

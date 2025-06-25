@@ -7,6 +7,7 @@
   "author": "Perfetto Team",
   "license": "Apache-2.0",
   "dependencies": {
+    "@ant-design/icons": "^5.5.2",
     "@codemirror/autocomplete": "^6.16.3",
     "@codemirror/commands": "^6.6.0",
     "@codemirror/lint": "^6.8.1",
@@ -26,8 +27,11 @@
     "@types/pngjs": "^6.0.5",
     "@types/uuid": "^10.0.0",
     "@types/w3c-web-usb": "^1.0.10",
+    "antd": "^5.22.5",
     "codemirror": "6.0.1",
     "color-convert": "^2.0.1",
+    "construct-ui": "^0.3.4",
+    "d3": "7.9.0",
     "devtools-protocol": "0.0.1319565",
     "esbuild": "^0.21.5",
     "events": "^3.3.0",
@@ -40,6 +44,8 @@
     "pako": "^2.1.0",
     "protobufjs": "^7.3.2",
     "protobufjs-cli": "^1.1.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "util": "^0.12.5",
     "uuid": "^10.0.0",
     "vega": "^5.30.0",
@@ -47,12 +53,17 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@babel/core": "^7.26.0",
     "@eslint/eslintrc": "^3.1.0",
     "@eslint/js": "^9.6.0",
     "@playwright/test": "^1.47.0",
+    "@rollup/plugin-babel": "^6.0.4",
     "@rollup/plugin-commonjs": "^26.0.1",
     "@rollup/plugin-node-resolve": "^15.2.3",
+    "@types/d3": "7.4.3",
     "@types/jest": "^29.5.12",
+    "@types/react": "^19.0.1",
+    "@types/react-dom": "^19.0.2",
     "@typescript-eslint/eslint-plugin": "^7.14.1",
     "@typescript-eslint/parser": "^7.14.1",
     "dingusjs": "^0.0.3",
@@ -69,6 +80,7 @@
     "prettier": "^3.3.2",
     "puppeteer": "^22.12.1",
     "rollup": "^2.79.1",
+    "rollup-plugin-gzip": "^4.0.1",
     "rollup-plugin-re": "^1.0.7",
     "rollup-plugin-sourcemaps": "^0.6.3",
     "rollup-plugin-uglify": "^6.0.4",
@@ -79,6 +91,6 @@
   "scripts": {
     "build": "node build.js",
     "test": "node build.js --run-unittests",
-    "lint": "npx eslint . --ext .js,.ts"
+    "lint": "npx eslint . --ext .js,.ts,.tsx"
   }
 }

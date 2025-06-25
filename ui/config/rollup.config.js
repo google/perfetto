@@ -18,11 +18,13 @@ const nodeResolve = require('@rollup/plugin-node-resolve');
 const path = require('path');
 const replace = require('rollup-plugin-re');
 const sourcemaps = require('rollup-plugin-sourcemaps');
+const gzipPlugin = require('rollup-plugin-gzip').default;
+import babel from '@rollup/plugin-babel';
 
 const ROOT_DIR = path.dirname(path.dirname(__dirname)); // The repo root.
 const OUT_SYMLINK = path.join(ROOT_DIR, 'ui/out');
 
-function defBundle(tsRoot, bundle, distDir) {
+function defBundle(tsRoot, bundle, distDir, needGzip = false) {
   return {
     input: `${OUT_SYMLINK}/${tsRoot}/${bundle}/index.js`,
     output: {
@@ -43,6 +45,13 @@ function defBundle(tsRoot, bundle, distDir) {
         strictRequires: true,
       }),
 
+      babel({
+        babelHelpers: 'bundled',
+        exclude: 'node_modules/**',
+        presets: ['@babel/preset-react'],
+        extensions: ['.ts', '.tsx']
+      }),
+
       replace({
         patterns: [
           // Protobufjs's inquire() uses eval but that's not really needed in
@@ -58,7 +67,7 @@ function defBundle(tsRoot, bundle, distDir) {
 
       // Translate source maps to point back to the .ts sources.
       sourcemaps(),
-    ].concat(maybeUglify()),
+    ].concat(maybeUglify(), maybeGZIP(needGzip)),
     onwarn: function (warning, warn) {
       if (warning.code === 'CIRCULAR_DEPENDENCY') {
         // Ignore circular dependency warnings coming from third party code.
@@ -108,6 +117,12 @@ function maybeUglify() {
   return [uglify(opts)];
 }
 
+function maybeGZIP(needGzip = false) {
+  const gzipEnv = process.env['GZIP_JS'];
+  if (!gzipEnv || !needGzip) return [];
+  return [gzipPlugin()];
+}
+
 const maybeBigtrace = process.env['ENABLE_BIGTRACE']
   ? [defBundle('tsc/bigtrace', 'bigtrace', 'dist_version/bigtrace')]
   : [];
@@ -117,7 +132,7 @@ const maybeOpenPerfettoTrace = process.env['ENABLE_OPEN_PERFETTO_TRACE']
   : [];
 
 module.exports = [
-  defBundle('tsc', 'frontend', 'dist_version'),
+  defBundle('tsc', 'frontend', 'dist_version', true),
   defBundle('tsc', 'engine', 'dist_version'),
   defBundle('tsc', 'traceconv', 'dist_version'),
   defBundle('tsc', 'chrome_extension', 'chrome_extension'),

@@ -25,7 +25,7 @@ export function downloadUrl(fileName: string, url: string) {
 }
 
 // Initiate download of |data| a file with a given name.
-export function downloadData(fileName: string, ...data: Uint8Array[]) {
+export function downloadData(fileName: string, ...data: ArrayBufferLike[]) {
   const blob = new Blob(data, {type: 'application/octet-stream'});
   const url = URL.createObjectURL(blob);
   downloadUrl(fileName, url);

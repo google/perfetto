@@ -1,0 +1,157 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Copyright 2025 The Lynx Authors. All rights reserved.
+// Licensed under the Apache License Version 2.0 that can be found in the
+// LICENSE file in the root directory of this source tree.
+
+import m from 'mithril';
+import {createRoot, Root} from 'react-dom/client';
+import {Component} from 'react';
+import {ConfigProvider, Table} from 'antd';
+import {NativeModuleSection} from './types';
+import {SECTION_COLOR} from './types';
+import {TableColumnTitle} from '../../lynx_perf/common_components/table_column_title';
+import {SliceDetails} from '../../components/sql_utils/slice';
+
+export interface NativeModuleDetailAttr {
+  sectionDetail: NativeModuleSection[] | undefined;
+  sliceDetail: SliceDetails | undefined;
+}
+
+export class NativeModuleDetailView
+  implements m.ClassComponent<NativeModuleDetailAttr>
+{
+  private root: Root | undefined;
+  oncreate(vnode: m.CVnodeDOM<NativeModuleDetailAttr>) {
+    this.root = createRoot(vnode.dom);
+    this.root.render(
+      <DetailViewPanel
+        sectionDetail={vnode.attrs.sectionDetail}
+        sliceDetail={vnode.attrs.sliceDetail}
+      />,
+    );
+  }
+
+  view() {
+    return m('.pf-section');
+  }
+}
+export class DetailViewPanel extends Component<NativeModuleDetailAttr> {
+  constructor(props: NativeModuleDetailAttr) {
+    super(props);
+    this.state = {};
+  }
+
+  private formatToMs(time: number) {
+    return (time / 1000000).toFixed(2);
+  }
+
+  private getThreadDescription(section: NativeModuleSection) {
+    if (typeof section.thread === 'string') {
+      return section.thread;
+    }
+    return Object.entries(section.thread)
+      .map(([key, value]) => `${key}: ${this.formatToMs(value)}ms`)
+      .join('\n');
+  }
+
+  render() {
+    const {sectionDetail, sliceDetail} = this.props;
+    if (!sectionDetail || !sliceDetail) {
+      return <div></div>;
+    }
+
+    // stage detail
+    const stagDetailDataSource = sectionDetail.map((item) => ({
+      duration: this.formatToMs(item.endTs - item.beginTs),
+      name: item.name,
+      description: item.description,
+      thread: this.getThreadDescription(item),
+    }));
+    const stagDetailColumns = [
+      {
+        title: <TableColumnTitle title="Stage" />,
+        dataIndex: 'name',
+        key: 'name',
+        width: 150,
+        render: (value: string, _record: unknown, index: number) => (
+          <div style={{display: 'flex', alignItems: 'center'}}>
+            <div
+              style={{
+                width: 10,
+                height: 15,
+                backgroundColor: SECTION_COLOR[index],
+                marginRight: 5,
+                flexShrink: 0,
+              }}></div>
+            <div>{value}</div>
+          </div>
+        ),
+      },
+      {
+        title: <TableColumnTitle title="Duration(ms)" />,
+        dataIndex: 'duration',
+        key: 'duration',
+      },
+      {
+        title: <TableColumnTitle title="Running thread" />,
+        dataIndex: 'thread',
+        key: 'thread',
+        width: 120,
+        render: (value: string) => (
+          <div>
+            {value.split('\n').map((line, index) => (
+              <div key={index}>
+                {line}
+                <br />
+              </div>
+            ))}
+          </div>
+        ),
+      },
+      {
+        title: <TableColumnTitle title="Description" />,
+        dataIndex: 'description',
+        key: 'description',
+      },
+    ];
+
+    return (
+      <div>
+        <h1 className="detail-title" style={{margin: 6}}>
+          Stages
+        </h1>
+        <p className="detail-text" style={{marginLeft: 6}}>
+          {`A single NativeModule call primarily goes through the following five key stages, which may be executed across multiple threads. For more detailed information, you can click the 'Original Slice' button in the upper right corner.`}
+        </p>
+        <ConfigProvider
+          theme={{
+            token: {
+              colorBgContainer: '#ECEFF1',
+            },
+          }}>
+          <Table
+            bordered
+            rowClassName="table-content-text"
+            size="small"
+            dataSource={stagDetailDataSource}
+            columns={stagDetailColumns}
+            pagination={false}
+          />
+        </ConfigProvider>
+      </div>
+    );
+  }
+}

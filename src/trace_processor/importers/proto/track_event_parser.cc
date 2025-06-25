@@ -1191,6 +1191,8 @@ class TrackEventParser::EventImporter {
       for (auto it = event_.debug_annotations(); it; ++it) {
         log_errors(parser.Parse(*it, args_writer));
       }
+
+      AddExtraArgs(args_writer, inserter->GetRow(), inserter->GetInstanceId());
     }
 
     if (legacy_passthrough_utid_) {
@@ -1340,6 +1342,102 @@ class TrackEventParser::EventImporter {
     inserter->AddArg(parser_->histogram_name_key_id_,
                      Variadic::String(storage_->InternString(decoder->name())));
     return base::OkStatus();
+  }
+
+  // TODO(suguannan.906): This is not a reasonable implementation. We should
+  // optimize this once a better solution is identified.
+  void AddExtraArgs(ArgsParser& args_writer,
+                    uint32_t row_id,
+                    std::string instance_id) {
+    static const char* BindPipelineIDWithTimingFlag =
+        "Timing::BindPipelineIDWithTimingFlag";
+    static const char* LynxLoadTemplate = "LynxLoadTemplate";
+    NullTermStringView name = storage_->GetString(name_id_);
+    bool is_timing_flag_event = false;
+    bool is_load_template_event = false;
+    bool has_instance_id_parameter = false;
+    if (!name.empty() &&
+        strcmp(name.c_str(), BindPipelineIDWithTimingFlag) == 0) {
+      is_timing_flag_event = true;
+    } else if (!name.empty() && strcmp(name.c_str(), LynxLoadTemplate) == 0) {
+      is_load_template_event = true;
+    }
+
+    std::string timing_flag = "";
+    for (auto it = event_.debug_annotations(); it; ++it) {
+      protos::pbzero::DebugAnnotation::Decoder annotation(*it);
+      if (!is_timing_flag_event) {
+        if (annotation.has_name()) {
+          auto name = annotation.name().ToStdString();
+          if (name == "pipeline_id" && annotation.has_string_value()) {
+            const std::string& id = annotation.string_value().ToStdString();
+            auto flags = context_->storage->GetPipelineFlags(id);
+            if (flags) {
+              auto debug_key =
+                  parser_->args_parser_.EnterDictionary("timing_flags");
+              args_writer.AddString(debug_key.key(), *flags);
+            }
+          }
+        }
+      }
+      if (!is_load_template_event) {
+        if (annotation.has_name()) {
+          auto name = annotation.name().ToStdString();
+          if ((name == "instance_id" || name == "instance_id_")) {
+            std::string id = "";
+            if (annotation.has_string_value()) {
+              id = annotation.string_value().ToStdString();
+              if (id != "-1") {
+                has_instance_id_parameter = true;
+                context_->storage->SetInstanceIdForSlice(row_id, id);
+              }
+            } else if (annotation.has_uint_value()) {
+              id = std::to_string(annotation.uint_value());
+            } else if (annotation.has_int_value()) {
+              id = std::to_string(annotation.int_value());
+              if (id != "-1") {
+                has_instance_id_parameter = true;
+                context_->storage->SetInstanceIdForSlice(row_id, id);
+              }
+            }
+            if (!id.empty()) {
+              auto url = context_->storage->GetInstanceUrl(id);
+              if (url) {
+                auto debug_key = parser_->args_parser_.EnterDictionary("url");
+                args_writer.AddString(debug_key.key(), *url);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (!has_instance_id_parameter && instance_id.size() > 0) {
+      auto debug_key = parser_->args_parser_.EnterDictionary("instance_id");
+      args_writer.AddString(debug_key.key(), instance_id);
+    }
+
+    // flow id
+    {
+      if (event_.has_flow_ids_old() || event_.has_flow_ids()) {
+        auto it =
+            event_.has_flow_ids() ? event_.flow_ids() : event_.flow_ids_old();
+        FlowId flow_id = *it;
+        auto key = parser_->args_parser_.EnterDictionary("flowId");
+        args_writer.AddUnsignedInteger(key.key(),
+                                       static_cast<uint64_t>(flow_id));
+      }
+      if (event_.has_terminating_flow_ids_old() ||
+          event_.has_terminating_flow_ids()) {
+        auto it = event_.has_terminating_flow_ids()
+                      ? event_.terminating_flow_ids()
+                      : event_.terminating_flow_ids_old();
+        FlowId flow_id = *it;
+        auto key = parser_->args_parser_.EnterDictionary("terminateFlowId");
+        args_writer.AddUnsignedInteger(key.key(),
+                                       static_cast<uint64_t>(flow_id));
+      }
+    }
   }
 
   TraceProcessorContext* context_;

@@ -41,6 +41,7 @@
     position: relative;
     // Default padding set to some sensible value that works for most content
     padding: 4px;
+    min-width: fit-content;
   }
 }
 

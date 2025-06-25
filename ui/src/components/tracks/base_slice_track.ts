@@ -36,6 +36,10 @@ import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
 import {UNEXPECTED_PINK} from '../colorizer';
 import {BUCKETS_PER_PIXEL, CacheKey} from './timeline_cache';
+import {renderDoFrameTag} from '../../lynx_perf/frame/render_doframe_mark';
+import {isMainThreadTrack} from '../../lynx_perf/track_utils';
+import {trackContainFrameTag} from '../../lynx_perf/frame/frame_tag_track';
+import {lynxPerfGlobals} from '../../lynx_perf/lynx_perf_globals';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -46,6 +50,7 @@ export const SLICE_FLAGS_INSTANT = 2;
 const SLICE_MIN_WIDTH_FOR_TEXT_PX = 5;
 const SLICE_MIN_WIDTH_PX = 1 / BUCKETS_PER_PIXEL;
 const SLICE_MIN_WIDTH_FADED_PX = 0.1;
+const FRAME_TAG_RADIUS = 6;
 
 const CHEVRON_WIDTH_PX = 10;
 const DEFAULT_SLICE_COLOR = UNEXPECTED_PINK;
@@ -180,6 +185,8 @@ export abstract class BaseSliceTrack<
 > implements TrackRenderer
 {
   protected readonly sliceLayout: SliceLayout;
+  protected isFrameTrack: boolean;
+  protected frameLayoutHeight: number;
   protected trackUuid = uuidv4Sql();
 
   // This is the over-skirted cached bounds:
@@ -296,6 +303,10 @@ export abstract class BaseSliceTrack<
     this.extraSqlColumns = allCols.filter((key) => !baseCols.includes(key));
 
     this.trash = new AsyncDisposableStack();
+
+    this.isFrameTrack =
+      isMainThreadTrack(this.uri) && trackContainFrameTag(this.uri);
+    this.frameLayoutHeight = FRAME_TAG_RADIUS * 2 * Number(this.isFrameTrack);
 
     this.sliceLayout = {
       padding: sliceLayout.padding ?? 3,
@@ -415,6 +426,11 @@ export abstract class BaseSliceTrack<
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
 
+    this.isFrameTrack =
+      isMainThreadTrack(this.uri) && trackContainFrameTag(this.uri);
+    // this.isMainThreadTrack = isMainThreadTrack(this.uri);
+    this.frameLayoutHeight = FRAME_TAG_RADIUS * 2 * Number(this.isFrameTrack);
+
     // In any case, draw whatever we have (which might be stale/incomplete).
     let charWidth = this.charWidth;
     if (charWidth < 0) {
@@ -449,6 +465,17 @@ export abstract class BaseSliceTrack<
     const sliceHeight = this.sliceLayout.sliceHeight;
     const padding = this.sliceLayout.padding;
     const rowSpacing = this.sliceLayout.rowGap;
+
+    // 0 pass: draw Frame tag if need
+    if (this.isFrameTrack) {
+      renderDoFrameTag(
+        ctx,
+        timescale,
+        padding / 2 + FRAME_TAG_RADIUS,
+        FRAME_TAG_RADIUS,
+        this.uri,
+      );
+    }
 
     // First pass: compute geometry of slices.
 
@@ -512,12 +539,17 @@ export abstract class BaseSliceTrack<
     for (const slice of vizSlicesByColor) {
       const color = slice.isHighlighted
         ? slice.colorScheme.variant.cssString
-        : slice.colorScheme.base.cssString;
+        : lynxPerfGlobals.shouldShowSlice(slice.id)
+          ? slice.colorScheme.base.cssString
+          : slice.colorScheme.disabled.cssString;
       if (color !== lastColor) {
         lastColor = color;
         ctx.fillStyle = color;
       }
-      const y = padding + slice.depth * (sliceHeight + rowSpacing);
+      const y =
+        padding +
+        slice.depth * (sliceHeight + rowSpacing) +
+        this.frameLayoutHeight;
       if (slice.flags & SLICE_FLAGS_INSTANT) {
         this.drawChevron(ctx, slice.x, y, sliceHeight);
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
@@ -568,7 +600,10 @@ export abstract class BaseSliceTrack<
         continue;
       }
 
-      const y = padding + slice.depth * (sliceHeight + rowSpacing);
+      const y =
+        padding +
+        slice.depth * (sliceHeight + rowSpacing) +
+        this.frameLayoutHeight;
       const x = slice.x + (sliceDrawWidth - lightSectionDrawWidth);
       ctx.fillRect(x, y, lightSectionDrawWidth, sliceHeight);
     }
@@ -589,11 +624,16 @@ export abstract class BaseSliceTrack<
       // Change the title color dynamically depending on contrast.
       const textColor = slice.isHighlighted
         ? slice.colorScheme.textVariant
-        : slice.colorScheme.textBase;
+        : lynxPerfGlobals.shouldShowSlice(slice.id)
+          ? slice.colorScheme.textBase
+          : slice.colorScheme.textDisabled;
       ctx.fillStyle = textColor.cssString;
       const title = cropText(slice.title, charWidth, slice.w);
       const rectXCenter = slice.x + slice.w / 2;
-      const y = padding + slice.depth * (sliceHeight + rowSpacing);
+      const y =
+        padding +
+        slice.depth * (sliceHeight + rowSpacing) +
+        this.frameLayoutHeight;
       const yDiv = slice.subTitle ? 3 : 2;
       const yMidPoint = Math.floor(y + sliceHeight / yDiv) + 0.5;
       ctx.fillText(title, rectXCenter, yMidPoint);
@@ -612,7 +652,10 @@ export abstract class BaseSliceTrack<
       }
       const rectXCenter = slice.x + slice.w / 2;
       const subTitle = cropText(slice.subTitle, charWidth, slice.w);
-      const y = padding + slice.depth * (sliceHeight + rowSpacing);
+      const y =
+        padding +
+        slice.depth * (sliceHeight + rowSpacing) +
+        this.frameLayoutHeight;
       const yMidPoint = Math.ceil(y + (sliceHeight * 2) / 3) + 1.5;
       ctx.fillText(subTitle, rectXCenter, yMidPoint);
     }
@@ -626,7 +669,10 @@ export abstract class BaseSliceTrack<
       // Draw a thicker border around the selected slice (or chevron).
       const slice = discoveredSelection;
       const color = slice.colorScheme;
-      const y = padding + slice.depth * (sliceHeight + rowSpacing);
+      const y =
+        padding +
+        slice.depth * (sliceHeight + rowSpacing) +
+        this.frameLayoutHeight;
       ctx.strokeStyle = color.base.setHSL({s: 100, l: 10}).cssString;
       ctx.beginPath();
       const THICKNESS = 3;
@@ -787,7 +833,7 @@ export abstract class BaseSliceTrack<
   private findSlice({x, y, timescale}: TrackMouseEvent): undefined | SliceT {
     const trackHeight = this.computedTrackHeight;
     const sliceHeight = this.sliceLayout.sliceHeight;
-    const padding = this.sliceLayout.padding;
+    const padding = this.sliceLayout.padding + this.frameLayoutHeight;
     const rowGap = this.sliceLayout.rowGap;
 
     // Need at least a draw pass to resolve the slice layout.
@@ -898,7 +944,8 @@ export abstract class BaseSliceTrack<
     const {padding = 2, sliceHeight = 12, rowGap = 0} = this.sliceLayout;
 
     // Compute the track height.
-    const trackHeight = 2 * padding + rows * (sliceHeight + rowGap);
+    const trackHeight =
+      2 * padding + rows * (sliceHeight + rowGap) + this.frameLayoutHeight;
 
     // Compute the slice height.
     this.computedTrackHeight = trackHeight;

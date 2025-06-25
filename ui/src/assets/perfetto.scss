@@ -19,6 +19,7 @@
 @import "query_page";
 @import "metrics_page";
 @import "sidebar";
+@import "right_sidebar";
 @import "topbar";
 @import "record";
 @import "modal";
@@ -73,3 +74,7 @@
 // Auto generated imports
 @import "../gen/all_plugins";
 @import "../gen/all_core_plugins";
+
+// Lynx
+@import "lynx/drawer";
+@import "lynx/lynx_perf";

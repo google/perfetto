@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import {indentWithTab} from '@codemirror/commands';
-import {Transaction} from '@codemirror/state';
-import {oneDark} from '@codemirror/theme-one-dark';
+import {EditorState, Transaction} from '@codemirror/state';
 import {keymap} from '@codemirror/view';
+
 import {basicSetup, EditorView} from 'codemirror';
 import m from 'mithril';
 import {assertExists, assertUnreachable} from '../base/logging';
@@ -40,6 +40,9 @@ export interface EditorAttrs {
 
   // Callback for every change to the text.
   onUpdate?: (text: string) => void;
+
+  line?: number;
+  readonly?: boolean;
 }
 
 export class Editor implements m.ClassComponent<EditorAttrs> {
@@ -98,14 +101,20 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
       }
     })();
 
+    const FontSizeTheme = EditorView.theme({
+      '&': {
+        fontSize: '11pt',
+      },
+    });
+
+    const extensions = [keymap.of(keymaps), basicSetup, FontSizeTheme, lang];
+    if (attrs.readonly) {
+      extensions.push(EditorState.readOnly.of(true));
+    }
+
     this.editorView = new EditorView({
       doc: attrs.initialText ?? '',
-      extensions: removeFalsyValues([
-        keymap.of(keymaps),
-        oneDark,
-        basicSetup,
-        lang,
-      ]),
+      extensions: removeFalsyValues(extensions),
       parent: dom,
       dispatch,
     });
@@ -123,6 +132,17 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
         () => {},
       ),
     );
+
+    if (attrs.line !== undefined) {
+      const line = this.editorView.state.doc.line(attrs.line);
+      this.editorView.dispatch({
+        // Set selection to that entire line.
+        selection: {head: line.from, anchor: line.to},
+        // effects: EditorView.editable.of(false),
+        // Ensure the selection is shown in viewport
+        scrollIntoView: true,
+      });
+    }
   }
 
   onupdate({attrs}: m.CVnodeDOM<EditorAttrs>): void {
@@ -135,6 +155,16 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
           changes: {from: 0, to: state.doc.length, insert: initialText},
         }),
       );
+      if (attrs.line !== undefined) {
+        const line = editorView.state.doc.line(attrs.line);
+        editorView.dispatch({
+          // Set selection to that entire line.
+          selection: {head: line.from, anchor: line.to},
+          // effects: EditorView.editable.of(false),
+          // Ensure the selection is shown in viewport
+          scrollIntoView: true,
+        });
+      }
       this.generation = generation;
     }
   }

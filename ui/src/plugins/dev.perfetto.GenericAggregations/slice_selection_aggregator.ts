@@ -17,6 +17,8 @@ import {AreaSelection, AreaSelectionAggregator} from '../../public/selection';
 import {Dataset} from '../../trace_processor/dataset';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
+import {queryFrameRenderingAggregation} from '../../lynx_perf/frame/query_aggregation_frame';
+import {lynxPerfGlobals} from '../../lynx_perf/lynx_perf_globals';
 
 export class SliceSelectionAggregator implements AreaSelectionAggregator {
   readonly id = 'slice_aggregation';
@@ -35,8 +37,31 @@ export class SliceSelectionAggregator implements AreaSelectionAggregator {
   ) {
     if (!dataset) return false;
 
+    let frameTagQuery = '';
+    const frames = queryFrameRenderingAggregation(area);
+    if (frames.length > 0) {
+      frames.forEach((frame) => {
+        frameTagQuery += `
+          select
+          '${frame.name}' as name,
+          ${frame.totalDuration} as total_dur,
+          ${frame.averageDuration} as avg_dur,
+          ${frame.occurrences} as occurrences
+          union all
+        `;
+      });
+    }
+
+    let filterSlicesWhereQuery = '';
+    if (lynxPerfGlobals.state.filteredTraceSet.size > 0) {
+      filterSlicesWhereQuery = `
+        and id not in (${Array.from(lynxPerfGlobals.state.filteredTraceSet).join(',')})
+      `;
+    }
+
     await engine.query(`
       create or replace perfetto table ${this.id} as
+      ${frameTagQuery}
       select
         name,
         sum(dur) AS total_dur,
@@ -46,6 +71,7 @@ export class SliceSelectionAggregator implements AreaSelectionAggregator {
       where
         ts + dur > ${area.start}
         and ts < ${area.end}
+        ${filterSlicesWhereQuery}
       group by name
     `);
 

@@ -18,6 +18,7 @@
 #include "src/trace_processor/tables/counter_tables_py.h"
 #include "src/trace_processor/tables/etm_tables_py.h"
 #include "src/trace_processor/tables/flow_tables_py.h"
+#include "src/trace_processor/tables/instance_id_tables_py.h"
 #include "src/trace_processor/tables/jit_tables_py.h"
 #include "src/trace_processor/tables/macros_internal.h"
 #include "src/trace_processor/tables/memory_tables_py.h"
@@ -26,6 +27,7 @@
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/tables/sched_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
+#include "src/trace_processor/tables/source_map_tables_py.h"
 #include "src/trace_processor/tables/trace_proto_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/tables/v8_tables_py.h"
@@ -105,6 +107,7 @@ ThreadStateTable::~ThreadStateTable() = default;
 
 // slice_tables_py.h
 SliceTable::~SliceTable() = default;
+InstanceIdSliceTable::~InstanceIdSliceTable() = default;
 FlowTable::~FlowTable() = default;
 ExperimentalFlatSliceTable::~ExperimentalFlatSliceTable() = default;
 AndroidNetworkPacketsTable::~AndroidNetworkPacketsTable() = default;
@@ -152,6 +155,7 @@ WindowManagerShellTransitionHandlersTable::
 WindowManagerShellTransitionProtosTable::
     ~WindowManagerShellTransitionProtosTable() = default;
 
+SourceFileTable::~SourceFileTable() = default;
 }  // namespace tables
 
 }  // namespace perfetto::trace_processor

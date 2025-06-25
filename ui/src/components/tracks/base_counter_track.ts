@@ -30,6 +30,8 @@ import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {Trace} from '../../public/trace';
+import {lynxPerfGlobals} from '../../lynx_perf/lynx_perf_globals';
+import {UNEXPECTED_PINK} from '../colorizer';
 
 function roundAway(n: number): number {
   const exp = Math.ceil(Math.log10(Math.max(Math.abs(n), 1)));
@@ -519,8 +521,12 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     const expCapped = Math.min(exp - 3, 9);
     const hue = (180 - Math.floor(expCapped * (180 / 6)) + 360) % 360;
 
-    ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
-    ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
+    ctx.fillStyle = lynxPerfGlobals.state.highlightNoInstanceIdTrace
+      ? `hsl(${hue}, 45%, 75%)`
+      : UNEXPECTED_PINK.disabled.cssString;
+    ctx.strokeStyle = lynxPerfGlobals.state.highlightNoInstanceIdTrace
+      ? `hsl(${hue}, 45%, 45%)`
+      : UNEXPECTED_PINK.disabled.cssString;
 
     const calculateX = (ts: time) => {
       return Math.floor(timescale.timeToPx(ts));

@@ -283,7 +283,7 @@ export class TraceImpl implements Trace {
       if (src.type === 'ARRAY_BUFFER') {
         return new Blob([src.buffer]);
       } else if (src.type === 'FILE') {
-        return src.file;
+        return new Blob([await src.file.arrayBuffer()]);
       } else if (src.type === 'URL') {
         return await fetchWithProgress(src.url, (progressPercent: number) =>
           this.omnibox.showStatusMessage(

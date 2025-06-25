@@ -47,6 +47,16 @@ export enum PopupPosition {
 
 type OnChangeCallback = (shouldOpen: boolean) => void;
 
+/**
+ * Specifies how the popover is triggered: by click or by hover.
+ */
+export enum PopoverInteraction {
+  // Popover will show when the trigger element is clicked
+  CLICK = 'click',
+  // Popover will show when the trigger element is hovered
+  HOVER = 'hover',
+}
+
 export interface PopupAttrs {
   // Which side of the trigger to place to popup.
   // Defaults to "Auto"
@@ -96,6 +106,20 @@ export interface PopupAttrs {
   // of the popup.
   // If position is not *-end or *-start, this setting has no effect.
   edgeOffset?: number;
+
+  /**
+   * Determines how the popover is triggered.
+   * - If set to PopoverInteraction.CLICK, the popover opens on click.
+   * - If set to PopoverInteraction.HOVER, the popover opens on mouse hover.
+   */
+  interactionType?: PopoverInteraction;
+
+  /**
+   * If true, the popover will automatically close when the mouse leaves the popover area.
+   * Only relevant when interactionType is set to PopoverInteraction.HOVER.
+   * Optional property.
+   */
+  closeOnMouseLeave?: boolean;
 }
 
 // A popup is a portal whose position is dynamically updated so that it floats
@@ -110,6 +134,8 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
   private onChange: OnChangeCallback = () => {};
   private closeOnEscape?: boolean;
   private closeOnOutsideClick?: boolean;
+  private interactionType: PopoverInteraction = PopoverInteraction.CLICK;
+  private closeOnMouseLeave = true;
 
   private static readonly TRIGGER_REF = 'trigger';
   private static readonly POPUP_REF = 'popup';
@@ -125,11 +151,16 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       onChange = () => {},
       closeOnEscape = true,
       closeOnOutsideClick = true,
+      interactionType = PopoverInteraction.CLICK,
+      closeOnMouseLeave = true,
     } = attrs;
 
     this.onChange = onChange;
     this.closeOnEscape = closeOnEscape;
     this.closeOnOutsideClick = closeOnOutsideClick;
+
+    this.interactionType = interactionType;
+    this.closeOnMouseLeave = closeOnMouseLeave;
 
     return [
       this.renderTrigger(trigger, isOpen),
@@ -145,10 +176,9 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     trigger.attrs = {
       ...trigger.attrs,
       ref: Popup.TRIGGER_REF,
-      onclick: (e: MouseEvent) => {
-        this.togglePopup();
-        e.preventDefault();
-      },
+      onclick: (e: MouseEvent) => this.handlePopoverClick(e),
+      onmouseenter: (e: MouseEvent) => this.handleTriggerMouseEnter(e),
+      onmouseleave: (e: MouseEvent) => this.handleTriggerMouseLeave(e),
       active: isOpen,
     };
     return trigger;
@@ -358,5 +388,28 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
   private togglePopup() {
     this.isOpen = !this.isOpen;
     this.onChange(this.isOpen);
+  }
+
+  private handlePopoverClick(e: MouseEvent) {
+    this.togglePopup();
+    e.preventDefault();
+  }
+
+  private handleTriggerMouseLeave = (e: MouseEvent) => {
+    if (
+      this.closeOnMouseLeave &&
+      this.isOpen &&
+      this.interactionType === PopoverInteraction.HOVER
+    ) {
+      this.togglePopup();
+      e.preventDefault();
+    }
+  };
+
+  private handleTriggerMouseEnter(e: MouseEvent) {
+    if (!this.isOpen && this.interactionType === PopoverInteraction.HOVER) {
+      this.togglePopup();
+      e.preventDefault();
+    }
   }
 }

@@ -26,7 +26,8 @@ type Args =
   | JobCompletedArgs
   | DownloadFileArgs
   | OpenTraceInLegacyArgs
-  | ErrorArgs;
+  | ErrorArgs
+  | ForwardJsonTraceArgs;
 
 interface UpdateStatusArgs {
   kind: 'updateStatus';
@@ -53,6 +54,11 @@ interface ErrorArgs {
   error: ErrorDetails;
 }
 
+interface ForwardJsonTraceArgs {
+  kind: 'forwardJsonTrace';
+  buffer: Uint8Array;
+}
+
 type OpenTraceInLegacyCallback = (
   name: string,
   data: ArrayBuffer | string,
@@ -62,13 +68,15 @@ type OpenTraceInLegacyCallback = (
 async function makeWorkerAndPost(
   msg: unknown,
   openTraceInLegacy?: OpenTraceInLegacyCallback,
+  needUpdateStatus: boolean = true,
 ) {
   const promise = defer<void>();
 
   function handleOnMessage(msg: MessageEvent): void {
     const args: Args = msg.data;
     if (args.kind === 'updateStatus') {
-      AppImpl.instance.omnibox.showStatusMessage(args.status);
+      needUpdateStatus &&
+        AppImpl.instance.omnibox.showStatusMessage(args.status);
     } else if (args.kind === 'jobCompleted') {
       promise.resolve();
     } else if (args.kind === 'downloadFile') {
@@ -78,6 +86,9 @@ async function makeWorkerAndPost(
       openTraceInLegacy?.('trace.json', str, 0);
     } else if (args.kind === 'error') {
       maybeShowErrorDialog(args.error);
+    } else if (args.kind === 'forwardJsonTrace') {
+      const str = utf8Decode(args.buffer);
+      openTraceInLegacy?.('', str, 0);
     } else {
       throw new Error(`Unhandled message ${JSON.stringify(args)}`);
     }
@@ -131,4 +142,28 @@ export function convertTraceToPprofAndDownload(
     pid,
     ts,
   });
+}
+
+type convertToJsonCallback = (data: string) => void;
+
+export function convertTraceToJsonOnly(
+  trace: Blob,
+  callback: convertToJsonCallback,
+): Promise<void> {
+  return makeWorkerAndPost(
+    {
+      kind: 'ConvertTraceToJsonOnly',
+      trace,
+      format: 'json',
+    },
+    (_, data, __) => {
+      if (data instanceof ArrayBuffer) {
+        const str = new TextDecoder('utf-8').decode(data);
+        callback(str);
+      } else {
+        callback(data);
+      }
+    },
+    false,
+  );
 }

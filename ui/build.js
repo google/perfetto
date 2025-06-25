@@ -79,6 +79,7 @@ const GEN_IMPORTS_SCRIPT = pjoin(ROOT_DIR, 'tools/gen_ui_imports');
 
 const cfg = {
   minifyJs: '',
+  gzipJs: '',
   watch: false,
   verbose: false,
   debug: false,
@@ -159,6 +160,7 @@ async function main() {
     help: 'filter Jest tests by regex, e.g. \'chrome_render\'',
   });
   parser.add_argument('--no-override-gn-args', {action: 'store_true'});
+  parser.add_argument('--gzip-js', {action: 'store_true'});
 
   const args = parser.parse_args();
   const clean = !args.no_build;
@@ -182,6 +184,9 @@ async function main() {
   cfg.noOverrideGnArgs = !!args.no_override_gn_args;
   if (args.minify_js) {
     cfg.minifyJs = args.minify_js;
+  }
+  if (args.gzip_js) {
+    cfg.gzipJs = args.gzip_js;
   }
   if (args.bigtrace) {
     cfg.outBigtraceDistDir = ensureDir(pjoin(cfg.outDistDir, 'bigtrace'));
@@ -289,6 +294,7 @@ async function main() {
     // - Notifies the HTTP live reload clients.
     // - Regenerates the ServiceWorker file map.
     scanDir(cfg.outDistRootDir);
+    generateDescriptions();
   }
 
   // We should enter the loop only in watch mode, where tsc and rollup are
@@ -558,6 +564,9 @@ function bundleJs(cfgName) {
   }
   if (cfg.minifyJs) {
     args.push('--environment', `MINIFY_JS:${cfg.minifyJs}`);
+  }
+  if (cfg.gzipJs) {
+    args.push('--environment', `GZIP_JS:${cfg.gzipJs}`);
   }
   args.push(...(cfg.verbose ? [] : ['--silent']));
   if (cfg.watch) {
@@ -889,6 +898,33 @@ function mklink(src, dst) {
     }
   }
   fs.symlinkSync(src, dst);
+}
+
+function generateDescriptions() {
+  const dstFile = 'description.json';
+  const desPath = pjoin(ROOT_DIR, 'ui/src/assets/description.json');
+  if (!fs.existsSync(desPath)) {
+    return;
+  }
+  const internalDesPath = pjoin(ROOT_DIR, 'ui/src/assets/internal_description.json'); 
+  if (!fs.existsSync(internalDesPath)) {
+    copyAssets(desPath, dstFile);
+  } else {
+    const content = fs.readFileSync(desPath);
+    const internalContent = fs.readFileSync(internalDesPath);
+    const desc = JSON.parse(content ?? '[]');
+    const resultMap = new Map();
+    for (const item of desc) {
+      resultMap.set(item.name, item);
+    }
+    const internalDesc = JSON.parse(internalContent ?? '[]');
+    for (const item of internalDesc) {
+      resultMap.set(item.name, item);
+    }
+    const desDir = pjoin(cfg.outDistDir, 'assets');
+    ensureDir(desDir);
+    fs.writeFileSync(pjoin(desDir, dstFile), JSON.stringify(Array.from(resultMap.values())));
+  }
 }
 
 main();

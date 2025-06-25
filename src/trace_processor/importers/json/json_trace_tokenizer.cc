@@ -519,6 +519,8 @@ base::Status JsonTraceTokenizer::ParseInternal(const char* start,
       return HandleSystemTraceEvent(start, end, out);
     case TracePosition::kInsideTraceEventsArray:
       return HandleTraceEvent(start, end, out);
+    case TracePosition::kInsideSourceFilesArray:
+      return HandleSourceFiles(start, end, out);
     case TracePosition::kEof: {
       return start == end
                  ? base::OkStatus()
@@ -726,6 +728,18 @@ base::Status JsonTraceTokenizer::HandleDictionaryKey(const char* start,
     return ParseInternal(next, end, out);
   }
 
+  if (key == "sourceFiles") {
+    // Skip the [ character opening the array.
+    if (*next != '[') {
+      return base::ErrStatus(
+          "Failure parsing JSON: sourceFiles is not an array.");
+    }
+    next++;
+
+    position_ = TracePosition::kInsideSourceFilesArray;
+    return ParseInternal(next, end, out);
+  }
+
   // If we don't know the key for this JSON value just skip it.
   switch (SkipOneJsonValue(next, end, &next)) {
     case SkipValueRes::kFatalError:
@@ -784,6 +798,43 @@ base::Status JsonTraceTokenizer::NotifyEndOfFile() {
                   format_ == TraceFormat::kOnlyTraceEvents)
              ? base::OkStatus()
              : base::ErrStatus("JSON trace file is incomplete");
+}
+
+base::Status JsonTraceTokenizer::HandleSourceFiles(const char* start,
+                                                   const char* end,
+                                                   const char** out) {
+  const char* next = start;
+  while (next < end) {
+    base::StringView unparsed;
+    switch (ReadOneJsonDict(next, end, &unparsed, &next)) {
+      case ReadDictRes::kEndOfArray: {
+        position_ = TracePosition::kDictionaryKey;
+        return ParseInternal(next, end, out);
+      }
+      case ReadDictRes::kEndOfTrace:
+        position_ = TracePosition::kEof;
+        return SetOutAndReturn(next, out);
+      case ReadDictRes::kNeedsMoreData:
+        return SetOutAndReturn(next, out);
+      case ReadDictRes::kFoundDict:
+        break;
+    }
+
+    std::optional<std::string> opt_file;
+    std::optional<std::string> opt_content;
+    RETURN_IF_ERROR(ExtractValueForJsonKey(unparsed, "file", &opt_file));
+    RETURN_IF_ERROR(ExtractValueForJsonKey(unparsed, "content", &opt_content));
+
+    if (opt_file.has_value() && opt_content.has_value()) {
+      context_->storage->mutable_source_file_table()->Insert({
+          // file
+          context_->storage->InternString(opt_file.value()),
+          // content
+          context_->storage->InternString(opt_content.value()),
+      });
+    }
+  }
+  return SetOutAndReturn(next, out);
 }
 
 }  // namespace perfetto::trace_processor

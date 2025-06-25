@@ -48,6 +48,7 @@ import {SerializedAppState} from './state_serialization_schema';
 import {TraceSource} from './trace_source';
 import {Router} from '../core/router';
 import {TraceInfoImpl} from './trace_info_impl';
+import {KEEP_TRACE_URL_ON_ROUTE_ARGS} from '../lynx_features_flags';
 
 const ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG = featureFlags.register({
   id: 'enableChromeReliableRangeZoom',
@@ -220,8 +221,28 @@ async function loadTraceIntoEngine(
 
   trace.timeline.updateVisibleTime(visibleTimeSpan);
 
-  const cacheUuid = traceDetails.cached ? traceDetails.uuid : '';
-  Router.navigate(`#!/viewer?local_cache_key=${cacheUuid}`);
+  if (KEEP_TRACE_URL_ON_ROUTE_ARGS.get() && traceSource.type === 'URL') {
+    let url = `#!/viewer?url=${traceSource.url}`;
+    if (app.initialRouteArgs.hide) {
+      url += `&hide=${app.initialRouteArgs.hide}`;
+    }
+    if (app.initialRouteArgs.sliceId) {
+      url += `&sliceId=${app.initialRouteArgs.sliceId}`;
+    }
+    if (app.initialRouteArgs.eventName) {
+      url += `&eventName=${app.initialRouteArgs.eventName}`;
+    }
+    if (app.initialRouteArgs.focus_lynxviews) {
+      url += `&focus_lynxviews=${app.initialRouteArgs.focus_lynxviews}`;
+    }
+    Router.navigate(url);
+  } else {
+    const cacheUuid = traceDetails.cached ? traceDetails.uuid : '';
+    const lynxviews = app.initialRouteArgs.focus_lynxviews
+      ? `&focus_lynxviews=${app.initialRouteArgs.focus_lynxviews}`
+      : '';
+    Router.navigate(`#!/viewer?local_cache_key=${cacheUuid}${lynxviews}`);
+  }
 
   // Make sure the helper views are available before we start adding tracks.
   await includeSummaryTables(trace);

@@ -1,0 +1,112 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Copyright 2025 The Lynx Authors. All rights reserved.
+// Licensed under the Apache License Version 2.0 that can be found in the
+// LICENSE file in the root directory of this source tree.
+
+// common
+
+// antd table header row
+.table-header-text {
+  font-family: "Roboto Condensed", sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: rgb(18, 18, 18);
+}
+
+// antd table text row
+.table-content-text {
+  font-family: "Roboto Condensed", sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  color: rgb(18, 18, 18);
+}
+
+// perfetto-style detail box
+.detail-box-container {
+  border-radius: 2px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  padding: 6px;
+  margin: 8px;
+}
+
+.detail-text {
+  font-family: "Roboto Condensed", sans-serif;
+  color: rgb(18, 18, 18);
+  font-weight: 400;
+  font-size: 14px;
+}
+
+.detail-title {
+  font-family: "Roboto Condensed", sans-serif;
+  color: rgb(55, 71, 79);
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.dynamic-grid-layout {
+  display: grid;
+  gap: $pf-responsive-gutter;
+  grid-template-columns: 30% 1fr;
+  margin: $pf-responsive-gutter;
+
+  align-items: start;
+
+  & > .pf-grid-layout-column {
+    display: flex;
+    flex-direction: column;
+    gap: $pf-responsive-gutter;
+  }
+  td {
+    word-break: break-all;
+  }
+}
+
+@media (max-width: 1000px) {
+  .dynamic-grid-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+// scroll
+.custom-scroll-ul {
+  margin-top: 0px;
+  margin-bottom: 6px;
+  padding-left: 20px;
+}
+
+.custom-scroll-li {
+  margin-bottom: 0;
+}
+
+// Focus Mode
+.focus-mode {
+  justify-self: center;
+  height: 100px;
+}
+
+.select-scroll-container {
+  white-space: normal;
+  overflow-wrap: break-word;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.ant-select-item-option-state {
+  display: none !important;
+}
+
+.ant-select-item-option-selected {
+  font-weight: normal !important;
+}

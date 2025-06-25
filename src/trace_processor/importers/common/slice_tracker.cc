@@ -24,6 +24,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/hash.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/storage/stats.h"
@@ -148,6 +150,21 @@ std::optional<SliceId> SliceTracker::StartSlice(
     TrackId track_id,
     SetArgsCallback args_callback,
     std::function<SliceId()> inserter) {
+  const auto start_ts =
+      context_->metadata_tracker->GetMetadata(metadata::tracing_started_ns)
+          .value_or(SqlValue::Long(0))
+          .AsLong();
+
+  const auto end_ts =
+      context_->metadata_tracker->GetMetadata(metadata::tracing_disabled_ns)
+          .value_or(SqlValue::Long(INT64_MAX))
+          .AsLong();
+  // At this stage all events timestamp should be greater than
+  // tracing_started_ns and be less than tracing_disabled_ns.
+  if (timestamp < start_ts || timestamp > end_ts) {
+    return std::nullopt;
+  }
+
   auto& track_info = stacks_[track_id];
   auto& stack = track_info.slice_stack;
 
@@ -190,6 +207,23 @@ std::optional<SliceId> SliceTracker::StartSlice(
   }
   StackPush(track_id, ref);
 
+  // Current slice is nested under a stack of slices.
+  // Here, we traverse the stack to find the ancestor slice that contains the
+  // `instance_id` parameter, and then assign that `instance_id` to the current
+  // slice.
+  std::string instance_id = "";
+  for (int i = static_cast<int>(depth) - 1; i >= 0; i--) {
+    std::optional<std::string> opt_instance_id =
+        context_->storage->GetInstanceIdForSlice(
+            stack[static_cast<size_t>(i)].row.row_number());
+    if (opt_instance_id) {
+      instance_id = opt_instance_id.value();
+      context_->storage->SetInstanceIdForSlice(ref.ToRowNumber().row_number(),
+                                               instance_id);
+      break;
+    }
+  }
+
   // Post fill all the relevant columns. All the other columns should have
   // been filled by the inserter.
   ref.set_depth(static_cast<uint32_t>(depth));
@@ -200,6 +234,7 @@ std::optional<SliceId> SliceTracker::StartSlice(
 
   if (args_callback) {
     auto bound_inserter = stack.back().args_tracker.AddArgsTo(id);
+    bound_inserter.SetInstanceId(instance_id);
     args_callback(&bound_inserter);
   }
   return id;
@@ -359,6 +394,14 @@ void SliceTracker::MaybeCloseStack(int64_t ts,
     int64_t end_ts = start_ts + dur;
     if (dur == kPendingDuration) {
       incomplete_descendent = true;
+      continue;
+    }
+
+    auto category =
+        context_->storage->GetString(ref.category().value_or(kNullStringId))
+            .c_str();
+    if (strcmp(category, "jsprofile") == 0 && incomplete_descendent) {
+      ref.set_dur(ts - ref.ts());
       continue;
     }
 

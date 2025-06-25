@@ -42,6 +42,14 @@ import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {TrackEventSelection} from '../../public/selection';
 import {extensions} from '../extensions';
 import {TraceImpl} from '../../core/trace_impl';
+import {eventLoggerState} from '../../event_logger';
+import {sourceMapState} from '../../source_map/source_map_state';
+import {getDescription} from '../../description/get_description';
+import {DescriptionSection} from '../../description/description_section';
+import {
+  NATIVEMODULE_CALL,
+  DEPRECATED_NATIVEMODULE_CALL,
+} from '../../lynx_perf/constants';
 
 interface ContextMenuItem {
   name: string;
@@ -231,6 +239,8 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     }
 
     this.sliceDetails = details;
+
+    this.onDetailsPanelLoaded();
   }
 
   render() {
@@ -256,6 +266,15 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   private renderRhs(trace: Trace, slice: SliceDetails): m.Children {
     const precFlows = this.renderPrecedingFlows(slice);
     const followingFlows = this.renderFollowingFlows(slice);
+    if (
+      sourceMapState.state.currentSourceFile !== undefined &&
+      slice.category !== 'jsprofile' &&
+      slice.category !== 'jsprofile_decoded'
+    ) {
+      sourceMapState.edit((draft) => {
+        draft.currentSourceFile = undefined;
+      });
+    }
     const args =
       hasArgs(slice.args) &&
       m(
@@ -263,9 +282,10 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         {title: 'Arguments'},
         m(Tree, renderArguments(trace, slice.args)),
       );
+    const description = this.renderDescription();
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    if (precFlows ?? followingFlows ?? args) {
-      return m(GridLayoutColumn, precFlows, followingFlows, args);
+    if (description ?? precFlows ?? followingFlows ?? args) {
+      return m(GridLayoutColumn, precFlows, followingFlows, args, description);
     } else {
       return undefined;
     }
@@ -385,5 +405,74 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     } else {
       return undefined;
     }
+  }
+
+  private logThreadSliceDetails() {
+    if (this.sliceDetails) {
+      const name = this.sliceDetails.name;
+      const args = this.sliceDetails.args ?? [];
+      const dur = this.sliceDetails.dur;
+      let eventName = name;
+      if (
+        name === NATIVEMODULE_CALL ||
+        name === DEPRECATED_NATIVEMODULE_CALL ||
+        name === 'InvokeCallback'
+      ) {
+        let firstArg = '';
+        let module = '';
+        let method = '';
+        args.forEach((value) => {
+          if (
+            value.key === 'debug.first_arg' ||
+            value.key === 'args.first_arg'
+          ) {
+            firstArg = value.displayValue;
+          } else if (
+            value.key === 'debug.module_name' ||
+            value.key === 'args.module_name'
+          ) {
+            module = value.displayValue;
+          } else if (
+            value.key === 'debug.method_name' ||
+            value.key === 'args.method_name'
+          ) {
+            method = value.displayValue;
+          }
+        });
+        if (module) {
+          eventName += '.' + module;
+        }
+        if (method) {
+          eventName += '.' + method;
+        }
+        if (firstArg) {
+          eventName += '.' + firstArg;
+        }
+      }
+      eventLoggerState.state.eventLogger.logEvent('trace_event_click', {
+        event_name: eventName,
+        event_dur: Number(dur),
+      });
+    }
+  }
+
+  private onDetailsPanelLoaded() {
+    this.logThreadSliceDetails();
+  }
+
+  private renderDescription() {
+    const description = getDescription(
+      this.sliceDetails?.name,
+      this.sliceDetails?.args,
+    );
+
+    if (description && description.length > 0) {
+      return m(
+        Section,
+        {title: 'Description'},
+        m(DescriptionSection, {description}),
+      );
+    }
+    return undefined;
   }
 }

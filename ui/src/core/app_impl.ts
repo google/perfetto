@@ -44,6 +44,8 @@ import {
 } from './settings_manager';
 import {SettingsManager} from '../public/settings';
 import {LocalStorage} from './local_storage';
+import {changeURLParam} from '../lynx_perf/url_utils';
+import {lynxPerfGlobals} from '../lynx_perf/lynx_perf_globals';
 
 // The args that frontend/index.ts passes when calling AppImpl.initialize().
 // This is to deal with injections that would otherwise cause circular deps.
@@ -114,7 +116,7 @@ export class AppContext {
       self.location.search.indexOf('testing=1') >= 0;
     this.sidebarMgr = new SidebarManagerImpl({
       disabled: this.embeddedMode,
-      hidden: this.initialRouteArgs.hideSidebar,
+      hidden: this.initialRouteArgs.hideSidebar || this.initialRouteArgs.hide,
     });
     this.analytics = initAnalytics(this.testingMode, this.embeddedMode);
     this.pluginMgr = new PluginManagerImpl({
@@ -269,6 +271,8 @@ export class AppImpl implements App {
   }
 
   openTraceFromFile(file: File): void {
+    changeURLParam('focus_other_slices', '');
+    changeURLParam('focus_lynxviews', '');
     this.openTrace({type: 'FILE', file});
   }
 
@@ -313,6 +317,7 @@ export class AppImpl implements App {
       this.appCtx.closeCurrentTrace();
       this.appCtx.isLoadingTrace = true;
       try {
+        lynxPerfGlobals.reset();
         // loadTrace() in trace_loader.ts will do the following:
         // - Create a new engine.
         // - Pump the data from the TraceSource into the engine.
