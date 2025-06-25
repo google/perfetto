@@ -44,6 +44,8 @@ import {extensions} from '../extensions';
 import {TraceImpl} from '../../core/trace_impl';
 import {eventLoggerState} from '../../event_logger';
 import {sourceMapState} from '../../source_map/source_map_state';
+import {getDescription} from '../../description/get_description';
+import {DescriptionSection} from '../../description/description_section';
 
 interface ContextMenuItem {
   name: string;
@@ -276,9 +278,10 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
         {title: 'Arguments'},
         m(Tree, renderArguments(trace, slice.args)),
       );
+    const description = this.renderDescription();
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    if (precFlows ?? followingFlows ?? args) {
-      return m(GridLayoutColumn, precFlows, followingFlows, args);
+    if (description ?? precFlows ?? followingFlows ?? args) {
+      return m(GridLayoutColumn, precFlows, followingFlows, args, description);
     } else {
       return undefined;
     }
@@ -447,5 +450,21 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
 
   private onDetailsPanelLoaded() {
     this.logThreadSliceDetails();
+  }
+
+  private renderDescription() {
+    const description = getDescription(
+      this.sliceDetails?.name,
+      this.sliceDetails?.args,
+    );
+
+    if (description && description.length > 0) {
+      return m(
+        Section,
+        {title: 'Description'},
+        m(DescriptionSection, {description}),
+      );
+    }
+    return undefined;
   }
 }

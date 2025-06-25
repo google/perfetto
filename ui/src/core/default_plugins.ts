@@ -86,4 +86,5 @@ export const defaultPlugins = [
   'lynx.RouterArgs',
   'lynx.Sourcefile',
   'lynx.SourceMap',
+  'lynx.Description',
 ];
