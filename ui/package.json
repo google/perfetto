@@ -26,6 +26,10 @@
     "@types/pngjs": "^6.0.5",
     "@types/uuid": "^10.0.0",
     "@types/w3c-web-usb": "^1.0.10",
+    "antd": "^5.22.5",
+    "@ant-design/icons": "^5.5.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "codemirror": "6.0.1",
     "color-convert": "^2.0.1",
     "construct-ui": "^0.3.4",
@@ -48,6 +52,10 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@rollup/plugin-babel": "^6.0.4",
+    "@types/react": "^19.0.1",
+    "@types/react-dom": "^19.0.2",
     "@eslint/eslintrc": "^3.1.0",
     "@eslint/js": "^9.6.0",
     "@playwright/test": "^1.47.0",
@@ -80,6 +88,6 @@
   "scripts": {
     "build": "node build.js",
     "test": "node build.js --run-unittests",
-    "lint": "npx eslint . --ext .js,.ts"
+    "lint": "npx eslint . --ext .js,.ts,.tsx"
   }
 }

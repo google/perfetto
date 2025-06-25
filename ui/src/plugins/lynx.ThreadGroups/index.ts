@@ -25,7 +25,8 @@ import {STR} from '../../trace_processor/query_result';
  * Lower sort order means higher display priority.
  * Main thread: -25, Lynx background thread thread: -20, other Lynx thread: -15, others: 20.
  */
-enum ThreadSortOrder {
+export enum ThreadSortOrder {
+  PERFORMANCE_ISSUES = -1000,
   MAIN_THREAD = -25,
   LYNX_BACKGROUND_THREAD = -20,
   LYNX_THREAD = -15,

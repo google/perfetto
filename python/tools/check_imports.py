@@ -136,6 +136,8 @@ DEPS_ALLOWLIST = [
     ('/components/details/thread_slice_details_tab', '/description/*'),
     ('/description/*', ['/widgets/*', '/components/*']),
     ('/plugins/lynx.description/*', '/description/*'),
+    (['/plugins/lynx.perf/*', '/plugins/lynx.element/*'],
+     ['/frontend/lynx_perf/*', '/plugins/lynx.ThreadGroups/index', '/core/*']),
 ]
 
 

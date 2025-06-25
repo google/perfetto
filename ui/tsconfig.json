@@ -10,6 +10,9 @@
     "./out"
   ],
   "compilerOptions": {
+    "jsx": "react-jsx",
+    // FIXME: remove the 'skipLibCheck' config when the issue 'https://github.com/react-component/picker/issues/764' is fixed
+    "skipLibCheck": true,             
     "outDir": "./out/tsc",
     "lib": [
       "dom",                               // Need to be explicitly mentioned now since we're overriding default included libs.

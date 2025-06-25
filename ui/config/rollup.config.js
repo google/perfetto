@@ -18,6 +18,7 @@ const nodeResolve = require('@rollup/plugin-node-resolve');
 const path = require('path');
 const replace = require('rollup-plugin-re');
 const sourcemaps = require('rollup-plugin-sourcemaps');
+import babel from '@rollup/plugin-babel';
 
 const ROOT_DIR = path.dirname(path.dirname(__dirname)); // The repo root.
 const OUT_SYMLINK = path.join(ROOT_DIR, 'ui/out');
@@ -41,6 +42,13 @@ function defBundle(tsRoot, bundle, distDir) {
 
       commonjs({
         strictRequires: true,
+      }),
+
+      babel({
+        babelHelpers: 'bundled',
+        exclude: 'node_modules/**',
+        presets: ['@babel/preset-react'],
+        extensions: ['.ts', '.tsx']
       }),
 
       replace({
