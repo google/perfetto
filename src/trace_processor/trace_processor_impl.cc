@@ -164,6 +164,10 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.h"
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_proto_to_args_with_defaults.h"
+#endif
+
 namespace perfetto::trace_processor {
 namespace {
 
@@ -1023,6 +1027,13 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
                             storage->mutable_process_memory_snapshot_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_profiler_smaps_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_protolog_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_winscope_trace_rect_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_winscope_rect_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_winscope_fill_region_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_winscope_transform_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_spe_record_table());
   AddUnfinalizedStaticTable(tables,
                             storage->mutable_spurious_sched_wakeup_table());
@@ -1060,6 +1071,8 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
                             storage->mutable_inputmethod_service_table());
   AddUnfinalizedStaticTable(
       tables, storage->mutable_surfaceflinger_layers_snapshot_table());
+  AddUnfinalizedStaticTable(tables,
+                            storage->mutable_surfaceflinger_display_table());
   AddUnfinalizedStaticTable(tables,
                             storage->mutable_surfaceflinger_layer_table());
   AddUnfinalizedStaticTable(
@@ -1140,8 +1153,12 @@ TraceProcessorImpl::CreateStaticTableFunctions(TraceProcessorContext* context,
   fns.emplace_back(std::make_unique<ExperimentalFlatSlice>(context));
   fns.emplace_back(
       std::make_unique<DfsWeightBounded>(storage->mutable_string_pool()));
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
   fns.emplace_back(std::make_unique<WinscopeProtoToArgsWithDefaults>(
       storage->mutable_string_pool(), engine, context));
+#endif
+
   if (config.enable_dev_features) {
     fns.emplace_back(std::make_unique<DataframeQueryPlanDecoder>(
         storage->mutable_string_pool()));
