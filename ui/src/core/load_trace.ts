@@ -226,6 +226,12 @@ async function loadTraceIntoEngine(
     if (app.initialRouteArgs.hide) {
       url += `&hide=${app.initialRouteArgs.hide}`;
     }
+    if (app.initialRouteArgs.sliceId) {
+      url += `&sliceId=${app.initialRouteArgs.sliceId}`;
+    }
+    if (app.initialRouteArgs.eventName) {
+      url += `&eventName=${app.initialRouteArgs.eventName}`;
+    }
     Router.navigate(url);
   } else {
     const cacheUuid = traceDetails.cached ? traceDetails.uuid : '';

@@ -71,6 +71,18 @@ export const ROUTE_SCHEMA = z
      * If true, hides the sidebar.
      */
     hide: z.boolean().optional().catch(undefined),
+
+    /**
+     * If provided in route args, after loading the trace,
+     * the page will automatically scroll to the slice with this sliceId.
+     */
+    sliceId: z.string().optional().catch(undefined),
+
+    /**
+     * If provided in route args, after loading the trace,
+     * the page will automatically scroll to the slice with this eventName.
+     */
+    eventName: z.string().optional().catch(undefined),
   })
 
   // Allow arbitrary values to pass through, these may be forwarded to plugins.
