@@ -26,6 +26,7 @@
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/tables/sched_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
+#include "src/trace_processor/tables/source_map_tables_py.h"
 #include "src/trace_processor/tables/trace_proto_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/tables/v8_tables_py.h"
@@ -152,6 +153,7 @@ WindowManagerShellTransitionHandlersTable::
 WindowManagerShellTransitionProtosTable::
     ~WindowManagerShellTransitionProtosTable() = default;
 
+SourceFileTable::~SourceFileTable() = default;
 }  // namespace tables
 
 }  // namespace perfetto::trace_processor

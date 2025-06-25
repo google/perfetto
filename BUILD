@@ -3675,6 +3675,7 @@ perfetto_cc_tp_tables(
         "src/trace_processor/tables/profiler_tables.py",
         "src/trace_processor/tables/sched_tables.py",
         "src/trace_processor/tables/slice_tables.py",
+        "src/trace_processor/tables/source_map_tables.py",
         "src/trace_processor/tables/trace_proto_tables.py",
         "src/trace_processor/tables/track_tables.py",
         "src/trace_processor/tables/v8_tables.py",

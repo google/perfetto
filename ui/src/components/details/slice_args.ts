@@ -26,6 +26,8 @@ import {assertExists} from '../../base/logging';
 import {getSqlTableDescription} from '../widgets/sql/table/sql_table_registry';
 import {Trace} from '../../public/trace';
 import {extensions} from '../extensions';
+import {sourceMapState} from '../../source_map/source_map_state';
+import {raf} from '../../core/raf_scheduler';
 
 // Renders slice arguments (key/value pairs) as a subtree.
 export function renderArguments(trace: Trace, args: Arg[]): m.Children {
@@ -116,9 +118,11 @@ function renderArgKey(trace: Trace, key: string, value?: Arg): m.Children {
   }
 }
 
-function renderArgValue({value}: Arg): m.Children {
+function renderArgValue({value, displayValue, key}: Arg): m.Children {
   if (isWebLink(value)) {
     return renderWebLink(value);
+  } else if (key === 'args.originSource') {
+    return renderSourceFile(displayValue);
   } else {
     return `${value}`;
   }
@@ -158,4 +162,29 @@ function isWebLink(value: unknown): value is string {
 
 function renderWebLink(url: string): m.Children {
   return m(Anchor, {href: url, target: '_blank', icon: 'open_in_new'}, url);
+}
+
+function renderSourceFile(value: string): m.Children {
+  if (
+    sourceMapState.state.sourceFileDrawerVisible &&
+    sourceMapState.state.currentSourceFile !== value
+  ) {
+    sourceMapState.edit((draft) => {
+      draft.currentSourceFile = value;
+    });
+    raf.scheduleFullRedraw();
+  }
+  return m(
+    Anchor,
+    {
+      icon: 'visibility',
+      onclick: () => {
+        sourceMapState.edit((draft) => {
+          draft.currentSourceFile = value;
+        });
+        raf.scheduleFullRedraw();
+      },
+    },
+    value,
+  );
 }

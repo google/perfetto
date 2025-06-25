@@ -132,6 +132,9 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
     // This indicates where are inside the traceEvents array.
     kInsideTraceEventsArray,
 
+    // This indicates where are inside the sourceFiles array.
+    kInsideSourceFilesArray,
+
     // This indicates we cannot parse any more data in the trace.
     kEof,
   };
@@ -153,6 +156,10 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
   base::Status HandleSystemTraceEvent(const char* start,
                                       const char* end,
                                       const char** out);
+
+  base::Status HandleSourceFiles(const char* start,
+                                 const char* end,
+                                 const char** out);
 
   TraceProcessorContext* const context_;
 

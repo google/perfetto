@@ -43,6 +43,7 @@ import {TrackEventSelection} from '../../public/selection';
 import {extensions} from '../extensions';
 import {TraceImpl} from '../../core/trace_impl';
 import {eventLoggerState} from '../../event_logger';
+import {sourceMapState} from '../../source_map/source_map_state';
 
 interface ContextMenuItem {
   name: string;
@@ -259,6 +260,15 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
   private renderRhs(trace: Trace, slice: SliceDetails): m.Children {
     const precFlows = this.renderPrecedingFlows(slice);
     const followingFlows = this.renderFollowingFlows(slice);
+    if (
+      sourceMapState.state.currentSourceFile !== undefined &&
+      slice.category !== 'jsprofile' &&
+      slice.category !== 'jsprofile_decoded'
+    ) {
+      sourceMapState.edit((draft) => {
+        draft.currentSourceFile = undefined;
+      });
+    }
     const args =
       hasArgs(slice.args) &&
       m(

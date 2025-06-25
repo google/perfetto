@@ -21,6 +21,7 @@ import {OmniboxMode} from '../core/omnibox_manager';
 import {AppImpl} from '../core/app_impl';
 import {TraceImpl, TraceImplAttrs} from '../core/trace_impl';
 import {HIDE_ERROR_ICON_ON_TOPBAR_FLAG} from '../lynx_features_flags';
+import {sourceMapState} from '../source_map/source_map_state';
 
 class Progress implements m.ClassComponent<TraceImplAttrs> {
   view({attrs}: m.CVnode<TraceImplAttrs>): m.Children {
@@ -96,6 +97,7 @@ export class Topbar implements m.ClassComponent<TopbarAttrs> {
       },
       omnibox,
       attrs.trace && m(Progress, {trace: attrs.trace}),
+      sourceMapState.state.sourceMapDecodePopup?.render(),
       attrs.trace && m(TraceErrorIcon, {trace: attrs.trace}),
     );
   }

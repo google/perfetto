@@ -31,7 +31,8 @@ type Format = 'json' | 'systrace';
 type Args =
   | ConvertTraceAndDownloadArgs
   | ConvertTraceAndOpenInLegacyArgs
-  | ConvertTraceToPprofArgs;
+  | ConvertTraceToPprofArgs
+  | ConvertTraceToJsonOnly;
 
 function updateStatus(status: string) {
   selfWorker.postMessage({
@@ -222,6 +223,42 @@ async function ConvertTraceToPprof(trace: Blob, pid: number, ts: time) {
   }
 }
 
+interface ConvertTraceToJsonOnly {
+  kind: 'ConvertTraceToJsonOnly';
+  trace: Blob;
+}
+
+function isConvertTraceToJsonOnly(msg: Args): msg is ConvertTraceToJsonOnly {
+  if (msg.kind !== 'ConvertTraceToJsonOnly') {
+    return false;
+  }
+  return true;
+}
+
+async function ConvertTraceToJsonOnly(trace: Blob) {
+  const outPath = '/trace.json';
+  const args: string[] = ['json'];
+  args.push('/fs/trace.proto', outPath);
+  try {
+    const module = await runTraceconv(trace, args);
+    const fsNode = module.FS.lookupPath(outPath).node;
+    const data = fsNode.contents.buffer;
+    const size = fsNode.usedBytes;
+    const buffer = new Uint8Array(data, 0, size);
+    forwardJsonTrace(buffer);
+    module.FS.unlink(outPath);
+  } finally {
+    notifyJobCompleted();
+  }
+}
+
+function forwardJsonTrace(buffer: Uint8Array) {
+  selfWorker.postMessage({
+    kind: 'forwardJsonTrace',
+    buffer,
+  });
+}
+
 selfWorker.onmessage = (msg: MessageEvent) => {
   self.addEventListener('error', (e) => reportError(e));
   self.addEventListener('unhandledrejection', (e) => reportError(e));
@@ -233,6 +270,8 @@ selfWorker.onmessage = (msg: MessageEvent) => {
     ConvertTraceAndOpenInLegacy(args.trace, args.truncate);
   } else if (isConvertTraceToPprof(args)) {
     ConvertTraceToPprof(args.trace, args.pid, args.ts);
+  } else if (isConvertTraceToJsonOnly(args)) {
+    ConvertTraceToJsonOnly(args.trace);
   } else {
     throw new Error(`Unknown method call ${JSON.stringify(args)}`);
   }

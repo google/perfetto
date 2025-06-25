@@ -28,6 +28,7 @@
     "@types/w3c-web-usb": "^1.0.10",
     "codemirror": "6.0.1",
     "color-convert": "^2.0.1",
+    "construct-ui": "^0.3.4",
     "devtools-protocol": "0.0.1319565",
     "esbuild": "^0.21.5",
     "events": "^3.3.0",

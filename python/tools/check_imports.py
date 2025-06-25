@@ -125,10 +125,12 @@ DEPS_ALLOWLIST = [
     ('/public/lib/extensions', '/frontend/*'),
     ('/bigtrace/index', ['/core/live_reload', '/core/raf_scheduler']),
     ('/plugins/dev.perfetto.HeapProfile/*', '/frontend/trace_converter'),
+    ('/frontend/*', ['/lynx_features_flags/*', '/source_map/*']),
     ('/lynx_features_flags/*', '/core/*'),
     ('/core/load_trace', '/lynx_features_flags/index'),
-    ('/components/details/thread_slice_details_tab', '/event_logger/index'),
-    ('/frontend/*', ['/lynx_features_flags/*']),
+    ('/components/details/*', ['/event_logger/index', '/source_map/*']),
+    ('/source_map/*', ['/core/*', '/widgets/*']),
+    ('/plugins/lynx.sourcefile/index', ['/source_map/*']),
 ]
 
 

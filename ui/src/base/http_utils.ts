@@ -20,15 +20,22 @@ export function fetchWithTimeout(
   timeoutMs: number,
 ) {
   return new Promise<Response>((resolve, reject) => {
-    const timer = setTimeout(
-      () =>
-        reject(new Error(`fetch(${input}) timed out after ${timeoutMs} ms`)),
-      timeoutMs,
-    );
+    let timer = undefined;
+    if (timeoutMs > 0) {
+      timer = setTimeout(
+        () =>
+          reject(new Error(`fetch(${input}) timed out after ${timeoutMs} ms`)),
+        timeoutMs,
+      );
+    }
     fetch(input, init)
       .then((response) => resolve(response))
       .catch((err) => reject(err))
-      .finally(() => clearTimeout(timer));
+      .finally(() => {
+        if (timer !== undefined) {
+          clearTimeout(timer);
+        }
+      });
   });
 }
 

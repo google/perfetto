@@ -27,6 +27,7 @@ import {TrackTreeView} from './track_tree_view';
 import {KeyboardNavigationHandler} from './wasd_navigation_handler';
 import {trackMatchesFilter} from '../../core/track_manager';
 import {TraceImpl} from '../../core/trace_impl';
+import {SourceFileDrawer} from '../../source_map/source_file_drawer';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -93,6 +94,7 @@ class ViewerPage implements m.ClassComponent<ViewerPageAttrs> {
             trackFilter: (track) => trackMatchesFilter(trace, track),
           }),
         ],
+        m(SourceFileDrawer),
       ),
     );
   }

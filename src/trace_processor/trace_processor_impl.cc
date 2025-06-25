@@ -1220,6 +1220,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(
       storage->mutable_experimental_missing_chrome_processes_table());
 
+  RegisterStaticTable(storage->mutable_source_file_table());
+
   // Tables dynamically generated at query time.
   engine_->RegisterStaticTableFunction(
       std::make_unique<ExperimentalFlamegraph>(&context_));

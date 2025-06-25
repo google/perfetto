@@ -55,6 +55,7 @@
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/tables/sched_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
+#include "src/trace_processor/tables/source_map_tables_py.h"
 #include "src/trace_processor/tables/trace_proto_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/tables/v8_tables_py.h"
@@ -1007,6 +1008,13 @@ class TraceStorage {
     return static_cast<Variadic::Type>(idx);
   }
 
+  const tables::SourceFileTable& source_file_table() const {
+    return source_file_table_;
+  }
+  tables::SourceFileTable* mutable_source_file_table() {
+    return &source_file_table_;
+  }
+
  private:
   using StringHash = uint64_t;
 
@@ -1188,6 +1196,9 @@ class TraceStorage {
 
   tables::ExpMissingChromeProcTable
       experimental_missing_chrome_processes_table_{&string_pool_};
+
+  // Source File Table from js profile
+  tables::SourceFileTable source_file_table_{&string_pool_};
 
   // The below array allow us to map between enums and their string
   // representations.

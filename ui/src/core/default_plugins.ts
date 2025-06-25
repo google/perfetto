@@ -84,4 +84,5 @@ export const defaultPlugins = [
   'perfetto.TrackUtils',
   'lynx.ThreadGroup',
   'lynx.RouterArgs',
+  'lynx.Sourcefile',
 ];
