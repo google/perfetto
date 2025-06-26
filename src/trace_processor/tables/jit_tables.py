@@ -18,6 +18,8 @@ for any serious business just yet""
 """
 
 from python.generators.trace_processor_table.public import Alias
+from python.generators.trace_processor_table.public import CppAccess
+from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
@@ -27,20 +29,34 @@ from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
-from python.generators.trace_processor_table.public import WrappingSqlView
-from .profiler_tables import STACK_PROFILE_FRAME_TABLE
+
+from src.trace_processor.tables.profiler_tables import STACK_PROFILE_FRAME_TABLE
 
 JIT_CODE_TABLE = Table(
     python_module=__file__,
     class_name='JitCodeTable',
     sql_name='__intrinsic_jit_code',
     columns=[
-        C('create_ts', CppInt64(), ColumnFlag.SORTED),
-        C('estimated_delete_ts', CppOptional(CppInt64())),
-        C('utid', CppUint32()),
-        C('start_address', CppInt64()),
-        C('size', CppInt64()),
-        C('function_name', CppString()),
+        C(
+            'create_ts',
+            CppInt64(),
+            flags=ColumnFlag.SORTED,
+            cpp_access=CppAccess.READ,
+        ),
+        C(
+            'estimated_delete_ts',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C('utid', CppUint32(), cpp_access=CppAccess.READ),
+        C('start_address', CppInt64(), cpp_access=CppAccess.READ),
+        C('size', CppInt64(), cpp_access=CppAccess.READ),
+        C(
+            'function_name',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C('native_code_base64', CppOptional(CppString())),
         C('jit_code_id', Alias('id')),
     ],
@@ -71,8 +87,17 @@ JIT_FRAME_TABLE = Table(
     class_name='JitFrameTable',
     sql_name='__intrinsic_jit_frame',
     columns=[
-        C('jit_code_id', CppTableId(JIT_CODE_TABLE)),
-        C('frame_id', CppTableId(STACK_PROFILE_FRAME_TABLE)),
+        C(
+            'jit_code_id',
+            CppTableId(JIT_CODE_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'frame_id',
+            CppTableId(STACK_PROFILE_FRAME_TABLE),
+            cpp_access=CppAccess.READ,
+        ),
     ],
     tabledoc=TableDoc(
         doc="""

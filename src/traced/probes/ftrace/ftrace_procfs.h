@@ -71,8 +71,16 @@ class FtraceProcfs {
   // enable file is writeable.
   bool IsEventAccessible(const std::string& group, const std::string& name);
 
+  // Returns true if the event under the given |group| and |name| exists and its
+  // format is readable.
+  bool IsEventFormatReadable(const std::string& group, const std::string& name);
+
   // Disable all events by writing to the global enable file.
   bool DisableAllEvents();
+
+  // Returns true if the generic "set_event" interface (that can be used as a
+  // falback by EnableEvent) is writable.
+  bool IsGenericSetEventWritable();
 
   // Read the format for event with the given |group| and |name|.
   // virtual for testing.
@@ -91,6 +99,8 @@ class FtraceProcfs {
   bool ClearFunctionFilters();
   bool AppendFunctionGraphFilters(const std::vector<std::string>& filters);
   bool ClearFunctionGraphFilters();
+  bool SetMaxGraphDepth(uint32_t depth);
+  bool ClearMaxGraphDepth();
 
   // Get all triggers for event with the given |group| and |name|.
   std::vector<std::string> ReadEventTriggers(const std::string& group,
@@ -134,6 +144,9 @@ class FtraceProcfs {
   // This size is *per cpu* so for the total size you have to multiply
   // by the number of CPUs.
   bool SetCpuBufferSizeInPages(size_t pages);
+
+  // Returns the current per-cpu buffer size in pages.
+  size_t GetCpuBufferSizeInPages();
 
   // Returns the number of CPUs.
   // This will match the number of tracing/per_cpu/cpuXX directories.
@@ -195,6 +208,7 @@ class FtraceProcfs {
   virtual bool AppendToFile(const std::string& path, const std::string& str);
   virtual bool ClearFile(const std::string& path);
   virtual bool IsFileWriteable(const std::string& path);
+  virtual bool IsFileReadable(const std::string& path);
   virtual char ReadOneCharFromFile(const std::string& path);
   virtual std::string ReadFileIntoString(const std::string& path) const;
 

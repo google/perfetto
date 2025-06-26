@@ -211,9 +211,22 @@ bool FtraceProcfs::IsEventAccessible(const std::string& group,
   return IsFileWriteable(path);
 }
 
+bool FtraceProcfs::IsEventFormatReadable(const std::string& group,
+                                         const std::string& name) {
+  std::string path = root_ + "events/" + group + "/" + name + "/format";
+
+  return IsFileReadable(path);
+}
+
 bool FtraceProcfs::DisableAllEvents() {
   std::string path = root_ + "events/enable";
   return WriteToFile(path, "0");
+}
+
+bool FtraceProcfs::IsGenericSetEventWritable() {
+  std::string path = root_ + "set_event";
+
+  return IsFileWriteable(path);
 }
 
 std::string FtraceProcfs::ReadEventFormat(const std::string& group,
@@ -259,6 +272,16 @@ bool FtraceProcfs::AppendFunctionFilters(
 bool FtraceProcfs::ClearFunctionFilters() {
   std::string path = root_ + "set_ftrace_filter";
   return ClearFile(path);
+}
+
+bool FtraceProcfs::SetMaxGraphDepth(uint32_t depth) {
+  std::string path = root_ + "max_graph_depth";
+  return WriteNumberToFile(path, depth);
+}
+
+bool FtraceProcfs::ClearMaxGraphDepth() {
+  std::string path = root_ + "max_graph_depth";
+  return WriteNumberToFile(path, 0);
 }
 
 bool FtraceProcfs::AppendFunctionGraphFilters(
@@ -463,6 +486,30 @@ bool FtraceProcfs::SetCpuBufferSizeInPages(size_t pages) {
   return WriteNumberToFile(path, pages * (base::GetSysPageSize() / 1024ul));
 }
 
+// This returns the rounded up pages of the cpu buffer size.
+// In case of any error, this returns 1.
+size_t FtraceProcfs::GetCpuBufferSizeInPages() {
+  std::string path = root_ + "buffer_size_kb";
+  auto str = ReadFileIntoString(path);
+
+  if (str.size() == 0) {
+    PERFETTO_ELOG("Failed to read per-cpu buffer size.");
+    return 1;
+  }
+
+  // For the root instance, before starting tracing, the buffer_size_kb
+  // returns something like "7 (expanded: 1408)". We also cut off the
+  // last newline('\n').
+  std::size_t found = str.find_first_not_of("0123456789");
+  if (found != std::string::npos) {
+    str.resize(found);
+  }
+
+  uint32_t page_in_kb = base::GetSysPageSize() / 1024ul;
+  std::optional<uint32_t> size_kb = base::StringToUInt32(str);
+  return (size_kb.value_or(1) + page_in_kb - 1) / page_in_kb;
+}
+
 bool FtraceProcfs::GetTracingOn() {
   std::string path = root_ + "tracing_on";
   char tracing_on = ReadOneCharFromFile(path);
@@ -607,6 +654,10 @@ bool FtraceProcfs::ClearFile(const std::string& path) {
 
 bool FtraceProcfs::IsFileWriteable(const std::string& path) {
   return access(path.c_str(), W_OK) == 0;
+}
+
+bool FtraceProcfs::IsFileReadable(const std::string& path) {
+  return access(path.c_str(), R_OK) == 0;
 }
 
 std::string FtraceProcfs::ReadFileIntoString(const std::string& path) const {

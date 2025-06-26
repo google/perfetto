@@ -127,20 +127,6 @@ class TranslatedArgs(TestSuite):
         "slice_begin"
         """))
 
-  def test_slice_name_2(self):
-    return DiffTestBlueprint(
-        trace=Path('slice_name_negative_timestamp.textproto'),
-        query="""
-        SELECT name FROM slice ORDER BY name;
-        """,
-        out=Csv("""
-        "name"
-        "mapped_name1"
-        "mapped_name2"
-        "raw_name3"
-        "slice_begin"
-        """))
-
   def test_process_track_name(self):
     return DiffTestBlueprint(
         trace=Path('process_track_name.textproto'),

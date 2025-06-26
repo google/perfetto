@@ -1,10 +1,17 @@
 #ifndef SRC_TRACE_PROCESSOR_DATAFRAME_SPECS_H_
 #define SRC_TRACE_PROCESSOR_DATAFRAME_SPECS_H_
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <tuple>
+#include <type_traits>
+#include <variant>
+#include <vector>
 
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/type_set.h"
 
 namespace perfetto::trace_processor::dataframe {
@@ -71,8 +78,11 @@ struct IsNotNull {};
 // Filters only cells which are NULL.
 struct IsNull {};
 
+// Filters only cells which are part of the provided list of values.
+struct In {};
+
 // TypeSet of all possible operations for filter conditions.
-using Op = TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex, IsNotNull, IsNull>;
+using Op = TypeSet<Eq, Ne, Lt, Le, Gt, Ge, Glob, Regex, IsNotNull, IsNull, In>;
 
 // -----------------------------------------------------------------------------
 // Sort State Types
@@ -114,12 +124,40 @@ struct NonNull {};
 // containing data for non-NULL values.
 struct SparseNull {};
 
+// Represents a column that contains NULL values with the storage only
+// containing data for non-NULL values while still needing to access the
+// non-null values in O(1) time at any time.
+struct SparseNullWithPopcountAlways {};
+
+// Represents a column that contains NULL values with the storage only
+// containing data for non-NULL values while still needing to access the
+// non-null values in O(1) time only until the dataframe is finalized.
+struct SparseNullWithPopcountUntilFinalization {};
+
 // Represents a column that contains NULL values with the storage containing
 // data for all values (with undefined values at positions that would be NULL).
 struct DenseNull {};
 
 // TypeSet of all possible column nullability states.
-using Nullability = TypeSet<NonNull, SparseNull, DenseNull>;
+using Nullability = TypeSet<NonNull,
+                            SparseNull,
+                            SparseNullWithPopcountAlways,
+                            SparseNullWithPopcountUntilFinalization,
+                            DenseNull>;
+
+// -----------------------------------------------------------------------------
+// Duplicate State Types
+// -----------------------------------------------------------------------------
+
+// Represents a column that is known to have no duplicate values.
+struct NoDuplicates {};
+
+// Represents a column that may or does contain duplicate values.
+// This should be the default/conservative assumption.
+struct HasDuplicates {};
+
+// TypeSet of all possible column duplicate states.
+using DuplicateState = TypeSet<NoDuplicates, HasDuplicates>;
 
 // -----------------------------------------------------------------------------
 // Filter Specifications
@@ -180,6 +218,92 @@ struct LimitSpec {
   std::optional<uint32_t> limit;
   std::optional<uint32_t> offset;
 };
+
+// -----------------------------------------------------------------------------
+// Dataframe and Column Specifications
+// -----------------------------------------------------------------------------
+
+// Defines the properties of a column in the dataframe.
+struct ColumnSpec {
+  StorageType type;
+  Nullability nullability;
+  SortState sort_state;
+  DuplicateState duplicate_state;
+};
+
+// Defines the properties of the dataframe.
+struct DataframeSpec {
+  std::vector<std::string> column_names;
+  std::vector<ColumnSpec> column_specs;
+};
+
+// Same as ColumnSpec but for cases where the spec is known at compile time.
+template <typename T, typename N, typename S, typename D>
+struct TypedColumnSpec {
+ public:
+  using type = T;
+  using null_storage_type = N;
+  using sort_state = S;
+  using duplicate_state = D;
+  ColumnSpec spec;
+
+  // Inferred properties from the above.
+  using mutate_variant = std::variant<std::monostate,
+                                      uint32_t,
+                                      int32_t,
+                                      int64_t,
+                                      double,
+                                      StringPool::Id>;
+  using non_null_mutate_type =
+      StorageType::VariantTypeAtIndex<T, mutate_variant>;
+  using mutate_type = std::conditional_t<std::is_same_v<N, NonNull>,
+                                         non_null_mutate_type,
+                                         std::optional<non_null_mutate_type>>;
+};
+
+// Same as Spec but for cases where the spec is known at compile time.
+template <typename... C>
+struct TypedDataframeSpec {
+  static constexpr uint32_t kColumnCount = sizeof...(C);
+  using columns = std::tuple<C...>;
+  using mutate_types = std::tuple<typename C::mutate_type...>;
+
+  template <size_t I>
+  using column_spec = typename std::tuple_element_t<I, columns>;
+
+  static_assert(kColumnCount > 0,
+                "TypedSpec must have at least one column type");
+
+  // Converts the typed spec to a untyped DataframeSpec.
+  DataframeSpec ToUntypedDataframeSpec() const {
+    DataframeSpec spec;
+    spec.column_names.reserve(kColumnCount);
+    spec.column_specs.reserve(kColumnCount);
+    for (size_t i = 0; i < kColumnCount; ++i) {
+      spec.column_names.push_back(column_names[i]);
+      spec.column_specs.push_back(column_specs[i]);
+    }
+    return spec;
+  }
+
+  std::array<const char*, kColumnCount> column_names;
+  std::array<ColumnSpec, kColumnCount> column_specs;
+};
+
+template <typename... C>
+static constexpr TypedDataframeSpec<C...> CreateTypedDataframeSpec(
+    std::array<const char*, sizeof...(C)> _column_names,
+    C... _columns) {
+  return TypedDataframeSpec<C...>{_column_names, {_columns.spec...}};
+}
+
+template <typename T, typename N, typename S, typename D = HasDuplicates>
+static constexpr TypedColumnSpec<T, N, S, D> CreateTypedColumnSpec(T,
+                                                                   N,
+                                                                   S,
+                                                                   D = D{}) {
+  return TypedColumnSpec<T, N, S, D>{ColumnSpec{T{}, N{}, S{}, D{}}};
+}
 
 }  // namespace perfetto::trace_processor::dataframe
 

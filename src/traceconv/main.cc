@@ -186,11 +186,12 @@ int Main(int argc, char** argv) {
 
   std::string format(positional_args[0]);
 
-  if ((format != "profile" && format != "hprof") &&
+  if ((format != "profile" && format != "hprof" &&
+       format != "java_heap_profile") &&
       (pid != 0 || !timestamps.empty())) {
     PERFETTO_ELOG(
-        "--pid and --timestamps are supported only for profile "
-        "formats.");
+        "--pid and --timestamps are supported only for profile, hprof, "
+        "and java_heap_profile formats.");
     return 1;
   }
   if (perf_profile && format != "profile") {

@@ -79,17 +79,16 @@ export default class implements PerfettoPlugin {
       utid: NUM,
     });
 
-    const group = new TrackNode({title: 'Chrome Tasks', isSummary: true});
+    const group = new TrackNode({name: 'Chrome Tasks', isSummary: true});
     for (; it.valid(); it.next()) {
       const utid = it.utid;
       const uri = `org.chromium.ChromeTasks#thread.${utid}`;
-      const title = `${it.threadName} ${it.tid}`;
+      const name = `${it.threadName} ${it.tid}`;
       ctx.tracks.registerTrack({
         uri,
-        track: createChromeTasksThreadTrack(ctx, uri, asUtid(utid)),
-        title,
+        renderer: createChromeTasksThreadTrack(ctx, uri, asUtid(utid)),
       });
-      const track = new TrackNode({uri, title});
+      const track = new TrackNode({uri, name});
       group.addChildInOrder(track);
       ctx.workspace.addChildInOrder(group);
     }

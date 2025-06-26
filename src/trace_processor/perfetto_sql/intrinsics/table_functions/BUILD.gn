@@ -23,6 +23,8 @@ source_set("table_functions") {
     "ancestor.h",
     "connected_flow.cc",
     "connected_flow.h",
+    "dataframe_query_plan_decoder.cc",
+    "dataframe_query_plan_decoder.h",
     "descendant.cc",
     "descendant.h",
     "dfs_weight_bounded.cc",
@@ -39,9 +41,13 @@ source_set("table_functions") {
     "flamegraph_construction_algorithms.h",
     "table_info.cc",
     "table_info.h",
-    "winscope_proto_to_args_with_defaults.cc",
-    "winscope_proto_to_args_with_defaults.h",
   ]
+  if (enable_perfetto_winscope) {
+    sources += [
+      "winscope_proto_to_args_with_defaults.cc",
+      "winscope_proto_to_args_with_defaults.h",
+    ]
+  }
   deps = [
     ":tables",
     "../../../../../gn:default_deps",
@@ -51,6 +57,8 @@ source_set("table_functions") {
     "../../../../base",
     "../../../../protozero",
     "../../../containers",
+    "../../../dataframe",
+    "../../../dataframe",
     "../../../db",
     "../../../db/column",
     "../../../importers/proto:full",
@@ -59,12 +67,13 @@ source_set("table_functions") {
     "../../../storage",
     "../../../tables",
     "../../../types",
-    "../../../util",
     "../../../util:descriptors",
     "../../../util:proto_to_args_parser",
-    "../../../util:winscope_proto_mapping",
     "../../engine",
   ]
+  if (enable_perfetto_winscope) {
+    deps += [ "../../../util:winscope_proto_mapping" ]
+  }
   public_deps = [ ":interface" ]
 }
 
@@ -77,6 +86,7 @@ source_set("interface") {
     "../../../../../gn:default_deps",
     "../../../../../include/perfetto/trace_processor:basic_types",
     "../../../../base",
+    "../../../dataframe",
     "../../../db",
   ]
 }
@@ -103,6 +113,7 @@ source_set("unittests") {
     "../../../../../gn:sqlite",
     "../../../../base:test_support",
     "../../../containers",
+    "../../../dataframe",
     "../../../db",
     "../../../db/column",
     "../../../importers/common",

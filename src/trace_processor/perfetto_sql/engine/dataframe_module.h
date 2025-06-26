@@ -17,16 +17,20 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_MODULE_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_DATAFRAME_MODULE_H_
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/dataframe/cursor.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
+#include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -44,9 +48,16 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   static constexpr bool kDoesSupportTransactions = true;
 
   struct State {
-    explicit State(std::shared_ptr<const dataframe::Dataframe> _dataframe)
-        : dataframe(std::move(_dataframe)) {}
-    std::shared_ptr<const dataframe::Dataframe> dataframe;
+    explicit State(DataframeSharedStorage::DataframeHandle _handle)
+        : handle(std::move(_handle)), dataframe(&**handle) {}
+    explicit State(dataframe::Dataframe* _dataframe) : dataframe(_dataframe) {}
+    struct NamedIndex {
+      std::string name;
+      DataframeSharedStorage::IndexHandle index;
+    };
+    std::optional<DataframeSharedStorage::DataframeHandle> handle;
+    dataframe::Dataframe* dataframe;
+    std::vector<NamedIndex> named_indexes;
   };
   struct Context : sqlite::ModuleStateManager<DataframeModule> {
     std::unique_ptr<State> temporary_create_state;
@@ -70,7 +81,14 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     Type GetValueType(uint32_t idx) const {
       return sqlite::value::Type(sqlite_value[idx]);
     }
-    sqlite3_value** sqlite_value;
+    bool IteratorInit(uint32_t idx) {
+      return sqlite3_vtab_in_first(argv[idx], &sqlite_value[idx]) == SQLITE_OK;
+    }
+    bool IteratorNext(uint32_t idx) {
+      return sqlite3_vtab_in_next(argv[idx], &sqlite_value[idx]) == SQLITE_OK;
+    }
+    std::array<sqlite3_value*, 16> sqlite_value;
+    sqlite3_value** argv;
   };
   struct SqliteResultCallback : dataframe::CellCallback {
     void OnCell(int64_t v) const { sqlite::result::Long(ctx, v); }
@@ -86,11 +104,13 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
   struct Vtab : sqlite::Module<DataframeModule>::Vtab {
     const dataframe::Dataframe* dataframe;
     sqlite::ModuleStateManager<DataframeModule>::PerVtabState* state;
+    std::string name;
+    int best_idx_num = 0;
   };
   using DfCursor = dataframe::Cursor<SqliteValueFetcher>;
   struct Cursor : sqlite::Module<DataframeModule>::Cursor {
     const dataframe::Dataframe* dataframe;
-    std::optional<DfCursor> df_cursor;
+    DfCursor df_cursor;
     const char* last_idx_str = nullptr;
   };
 

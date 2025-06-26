@@ -28,18 +28,14 @@
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/module_state_manager.h"
 
 namespace perfetto::trace_processor {
 
-enum class TableComputation {
+enum class TableComputation : uint8_t {
   // Table is statically defined.
   kStatic,
-
-  // Table is defined as a function.
-  kTableFunction,
 
   // Table is defined in runtime.
   kRuntime
@@ -50,7 +46,6 @@ struct DbSqliteModule : public sqlite::Module<DbSqliteModule> {
   struct State {
     State(Table*, Table::Schema);
     explicit State(std::unique_ptr<RuntimeTable>);
-    explicit State(std::unique_ptr<StaticTableFunction>);
 
     TableComputation computation;
     Table::Schema schema;
@@ -61,9 +56,6 @@ struct DbSqliteModule : public sqlite::Module<DbSqliteModule> {
 
     // Only valid when computation == TableComputation::kRuntime.
     std::unique_ptr<RuntimeTable> runtime_table;
-
-    // Only valid when computation == TableComputation::kTableFunction.
-    std::unique_ptr<StaticTableFunction> static_table_function;
 
    private:
     State(TableComputation, Table::Schema);
@@ -77,16 +69,12 @@ struct DbSqliteModule : public sqlite::Module<DbSqliteModule> {
     std::string table_name;
   };
   struct Cursor : public sqlite::Module<DbSqliteModule>::Cursor {
-    enum class Mode {
+    enum class Mode : uint8_t {
       kSingleRow,
       kTable,
     };
 
     const Table* upstream_table = nullptr;
-
-    // Only valid for |db_sqlite_table_->computation_| ==
-    // TableComputation::kDynamic.
-    std::unique_ptr<Table> dynamic_table;
 
     // Only valid for Mode::kSingleRow.
     std::optional<uint32_t> single_row;
@@ -96,22 +84,11 @@ struct DbSqliteModule : public sqlite::Module<DbSqliteModule> {
 
     bool eof = true;
 
-    // Stores a sorted version of |db_table| sorted on a repeated equals
-    // constraint. This allows speeding up repeated subqueries in joins
-    // significantly.
-    std::optional<Table> sorted_cache_table;
-
-    // Stores the count of repeated equality queries to decide whether it is
-    // wortwhile to sort |db_table| to create |sorted_cache_table|.
-    uint32_t repeated_cache_count = 0;
-
     Mode mode = Mode::kSingleRow;
 
     int last_idx_num = -1;
 
     Query query;
-
-    std::vector<SqlValue> table_function_arguments;
   };
   struct QueryCost {
     double cost;

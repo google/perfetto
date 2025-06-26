@@ -24,6 +24,7 @@
 #include <type_traits>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/dataframe/impl/slab.h"
 
@@ -57,12 +58,24 @@ namespace perfetto::trace_processor::dataframe::impl {
 template <typename T, uint64_t kAlignment = std::max<uint64_t>(alignof(T), 64)>
 class FlexVector {
  public:
+  static_assert(std::is_trivially_destructible_v<T>,
+                "FlexVector elements must be trivially destructible");
   static_assert(std::is_trivially_copyable_v<T>,
                 "FlexVector elements must be trivially copyable");
   static_assert(alignof(T) <= kAlignment,
                 "Alignment must be at least as strict as element alignment");
   static_assert(internal::IsPowerOfTwo(kAlignment),
                 "Alignment must be a power of two");
+
+  using value_type = T;
+  using size_type = uint64_t;
+  using difference_type = std::ptrdiff_t;
+  using reference = T&;
+  using const_reference = const T&;
+  using pointer = T*;
+  using const_pointer = const T*;
+  using iterator = T*;
+  using const_iterator = const T*;
 
   // Default constructor creates an empty vector.
   FlexVector() = default;
@@ -71,7 +84,7 @@ class FlexVector {
   //
   // capacity: Initial capacity (number of elements).
   static FlexVector<T, kAlignment> CreateWithCapacity(uint64_t capacity) {
-    return FlexVector(capacity == 0 ? 0 : NextPowerOfTwo(capacity), 0);
+    return FlexVector(base::AlignUp(capacity, kAlignment), 0);
   }
 
   // Allocates a new FlexVector with the specified initial size. The values
@@ -80,26 +93,37 @@ class FlexVector {
   //
   // size: Initial size (number of elements).
   static FlexVector<T, kAlignment> CreateWithSize(uint64_t size) {
-    return FlexVector(size == 0 ? 0 : NextPowerOfTwo(size), size);
+    return FlexVector(base::AlignUp(size, kAlignment), size);
   }
 
-  // Adds an element to the end of the vector, automatically resizing if needed.
-  //
-  // value: The value to append.
+  // Adds `value` to the end of the vector.
   PERFETTO_ALWAYS_INLINE void push_back(T value) {
-    PERFETTO_DCHECK(internal::IsPowerOfTwo(capacity()));
+    PERFETTO_DCHECK(capacity() % kAlignment == 0);
     PERFETTO_DCHECK(size_ <= capacity());
     if (PERFETTO_UNLIKELY(size_ == capacity())) {
-      // Grow by doubling, at least to capacity 64
-      uint64_t new_capacity = std::max<uint64_t>(capacity() * 2, 64ul);
-      Slab<T, kAlignment> new_slab = Slab<T, kAlignment>::Alloc(new_capacity);
-      if (slab_.size() > 0) {
-        // Copy from the original slab data
-        memcpy(new_slab.data(), slab_.data(), size_ * sizeof(T));
-      }
-      slab_ = std::move(new_slab);
+      IncreaseCapacity();
     }
     slab_[size_++] = value;
+  }
+
+  // Adds `count` elements of `value` to the end of the vector.
+  PERFETTO_ALWAYS_INLINE void push_back_multiple(T value, uint64_t count) {
+    PERFETTO_DCHECK(capacity() % kAlignment == 0);
+    PERFETTO_DCHECK(size_ <= capacity());
+    while (PERFETTO_UNLIKELY(size_ + count > capacity())) {
+      IncreaseCapacity();
+    }
+    uint64_t end = size_ + count;
+    for (; size_ < end; ++size_) {
+      slab_[size_] = value;
+    }
+  }
+
+  // Removes the last element from the vector. Should not be called on an
+  // empty vector.
+  PERFETTO_ALWAYS_INLINE void pop_back() {
+    PERFETTO_DCHECK(size_ > 0);
+    --size_;
   }
 
   // Provides indexed access to elements with bounds checking in debug mode.
@@ -111,6 +135,22 @@ class FlexVector {
   PERFETTO_ALWAYS_INLINE const T& operator[](uint64_t i) const {
     PERFETTO_DCHECK(i < size_);
     return slab_.data()[i];
+  }
+
+  // Clears the vector, resetting its size to zero.
+  void clear() { size_ = 0; }
+
+  // Shrinks the memory allocated by the vector to be as small as possible while
+  // still maintaining the invariants of the class.
+  void shrink_to_fit() {
+    if (size_ == 0) {
+      slab_ = Slab<T, kAlignment>::Alloc(0);
+    } else {
+      Slab<T, kAlignment> new_slab =
+          Slab<T, kAlignment>::Alloc(base::AlignUp(size_, kAlignment));
+      memcpy(new_slab.data(), slab_.data(), size_ * sizeof(T));
+      slab_ = std::move(new_slab);
+    }
   }
 
   // Access to the underlying data and size.
@@ -134,17 +174,6 @@ class FlexVector {
     return slab_.data()[size_ - 1];
   }
 
-  static constexpr uint64_t NextPowerOfTwo(uint64_t x) {
-    uint64_t n = x - 1;
-    n |= n >> 1;
-    n |= n >> 2;
-    n |= n >> 4;
-    n |= n >> 8;
-    n |= n >> 16;
-    n |= n >> 32;
-    return n + 1;
-  }
-
   // Returns the current capacity (maximum size without reallocation).
   PERFETTO_ALWAYS_INLINE uint64_t capacity() const { return slab_.size(); }
 
@@ -152,6 +181,17 @@ class FlexVector {
   // Constructor used by Alloc.
   explicit FlexVector(uint64_t capacity, uint64_t size)
       : slab_(Slab<T, kAlignment>::Alloc(capacity)), size_(size) {}
+
+  PERFETTO_NO_INLINE void IncreaseCapacity() {
+    // Grow by doubling, at least to alignment capacity.
+    uint64_t new_capacity = std::max<uint64_t>(capacity() * 2, kAlignment);
+    Slab<T, kAlignment> new_slab = Slab<T, kAlignment>::Alloc(new_capacity);
+    if (slab_.size() > 0) {
+      // Copy from the original slab data
+      memcpy(new_slab.data(), slab_.data(), size_ * sizeof(T));
+    }
+    slab_ = std::move(new_slab);
+  }
 
   // The underlying memory slab.
   Slab<T, kAlignment> slab_;

@@ -34,8 +34,9 @@ template("wasm_lib") {
   # If the name is foo the target_name must be foo_wasm.
   assert(invoker.name + "_wasm" == target_name)
   _lib_name = invoker.name
+  _is_memory64 = defined(invoker.is_memory64) && invoker.is_memory64
   if (is_wasm) {
-    _exports = "['ccall', 'callMain', 'addFunction', 'FS']"
+    _exports = "['ccall', 'callMain', 'addFunction', 'FS', 'HEAPU8']"
     _target_ldflags = [
       "-s",
       "WASM=1",
@@ -48,15 +49,13 @@ template("wasm_lib") {
       "-s",
       "INITIAL_MEMORY=33554432",
       "-s",
-      "MAXIMUM_MEMORY=4GB",
-      "-s",
       "ALLOW_MEMORY_GROWTH=1",
       "-s",
       "ALLOW_TABLE_GROWTH=1",
       "-s",
       "WASM_ASYNC_COMPILATION=0",
       "-s",
-      "EXTRA_EXPORTED_RUNTIME_METHODS=" + _exports,
+      "EXPORTED_RUNTIME_METHODS=" + _exports,
 
       # This forces the MEMFS filesystem library to always use typed arrays
       # instead of building strings/arrays when appending to a file. This allows
@@ -116,7 +115,20 @@ template("wasm_lib") {
 
     executable("${_lib_name}.js") {
       forward_variables_from(invoker, _vars_to_forward)
-      ldflags = _target_ldflags
+      if (_is_memory64) {
+        ldflags = _target_ldflags + [
+                    "-s",
+                    "MEMORY64=1",
+                    "-s",
+                    "MAXIMUM_MEMORY=16GB",
+                    "-mwasm64",
+                  ]
+      } else {
+        ldflags = _target_ldflags + [
+                    "-s",
+                    "MAXIMUM_MEMORY=4GB",
+                  ]
+      }
       output_extension = ""
     }
 
@@ -135,7 +147,6 @@ template("wasm_lib") {
       args = [ "--noop" ]
       script = "//gn/standalone/build_tool_wrapper.py"
     }
-
     copy("${_lib_name}.d.ts") {
       sources = [ "//gn/standalone/wasm_typescript_declaration.d.ts" ]
       outputs = [ "$root_out_dir/$_lib_name.d.ts" ]
@@ -145,10 +156,15 @@ template("wasm_lib") {
   }
 
   group(target_name) {
+    if (_is_memory64) {
+      _wasm_32_or_64_toolchain = wasm_memory64_toolchain
+    } else {
+      _wasm_32_or_64_toolchain = wasm_toolchain
+    }
     deps = [
-      ":${_lib_name}.d.ts($wasm_toolchain)",
-      ":${_lib_name}.js($wasm_toolchain)",
-      ":${_lib_name}.wasm($wasm_toolchain)",
+      ":${_lib_name}.d.ts($_wasm_32_or_64_toolchain)",
+      ":${_lib_name}.js($_wasm_32_or_64_toolchain)",
+      ":${_lib_name}.wasm($_wasm_32_or_64_toolchain)",
     ]
   }
 }  # template

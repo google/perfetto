@@ -76,20 +76,22 @@ export default class implements PerfettoPlugin {
       const upid = it.upid;
       const uri = makeUriForProc(upid);
       trackUris.push(uri);
-      const title = `Process Callstacks`;
       trace.tracks.registerTrack({
         uri,
-        title,
         tags: {
           kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
           upid,
         },
-        track: createProcessPerfSamplesProfileTrack(trace, uri, upid),
+        renderer: createProcessPerfSamplesProfileTrack(trace, uri, upid),
       });
       const group = trace.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
         .getGroupForProcess(upid);
-      const track = new TrackNode({uri, title, sortOrder: -40});
+      const track = new TrackNode({
+        uri,
+        name: 'Process Callstacks',
+        sortOrder: -40,
+      });
       group?.addChildInOrder(track);
     }
 
@@ -137,25 +139,24 @@ export default class implements PerfettoPlugin {
       const uri = `${getThreadUriPrefix(upid, utid)}_perf_samples_profile`;
       trace.tracks.registerTrack({
         uri,
-        title,
         tags: {
           kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
           utid,
           upid: upid ?? undefined,
         },
-        track: createThreadPerfSamplesProfileTrack(trace, uri, utid),
+        renderer: createThreadPerfSamplesProfileTrack(trace, uri, utid),
       });
       const group = trace.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
         .getGroupForThread(utid);
-      const track = new TrackNode({uri, title, sortOrder: -50});
+      const track = new TrackNode({uri, name: title, sortOrder: -50});
       group?.addChildInOrder(track);
     }
   }
 
   private async addPerfCounterTracks(trace: Trace) {
     const perfCountersGroup = new TrackNode({
-      title: 'Perf Counters',
+      name: 'Perf Counters',
       isSummary: true,
     });
 
@@ -184,13 +185,12 @@ export default class implements PerfettoPlugin {
 
       trace.tracks.registerTrack({
         uri,
-        title,
         tags: {
           kind: COUNTER_TRACK_KIND,
           trackIds: [trackId],
           cpu,
         },
-        track: new TraceProcessorCounterTrack(
+        renderer: new TraceProcessorCounterTrack(
           trace,
           uri,
           {
@@ -203,7 +203,7 @@ export default class implements PerfettoPlugin {
       });
       const trackNode = new TrackNode({
         uri,
-        title,
+        name: title,
       });
       perfCountersGroup.addChildLast(trackNode);
     }
@@ -304,7 +304,14 @@ function computePerfSampleFlamegraph(
   const metrics = metricsFromTableOrSubquery(
     `
       (
-        select id, parent_id as parentId, name, self_count
+        select
+          id,
+          parent_id as parentId,
+          name,
+          mapping_name,
+          source_file,
+          cast(line_number AS text) as line_number,
+          self_count
         from _callstacks_for_callsites!((
           select p.callsite_id
           from perf_sample p
@@ -326,6 +333,19 @@ function computePerfSampleFlamegraph(
       },
     ],
     'include perfetto module linux.perf.samples',
+    [{name: 'mapping_name', displayName: 'Mapping'}],
+    [
+      {
+        name: 'source_file',
+        displayName: 'Source File',
+        mergeAggregation: 'ONE_OR_NULL',
+      },
+      {
+        name: 'line_number',
+        displayName: 'Line Number',
+        mergeAggregation: 'ONE_OR_NULL',
+      },
+    ],
   );
   return new QueryFlamegraph(trace, metrics, {
     state: Flamegraph.createDefaultState(metrics),

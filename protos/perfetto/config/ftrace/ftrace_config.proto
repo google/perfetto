@@ -18,7 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// Next id: 33
+// Next id: 34
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
@@ -216,11 +216,14 @@ message FtraceConfig {
   // * Introduced in: Android U.
   repeated string function_graph_roots = 21;
 
-  // If true, does not clear ftrace buffers before the start of the program.
+  // If true, does not clear kernel ftrace buffers when starting the trace.
   // This makes sense only if this is the first ftrace data source instance
   // created after the daemon has been started. Can be useful for gathering boot
   // traces, if ftrace has been separately configured (e.g. via kernel
   // commandline).
+  // NB: when configuring the pre-perfetto ftrace, prefer to set
+  // "/sys/kernel/tracing/trace_clock" to "boot" if your trace will contain
+  // anything besides ftrace. Otherwise timestamps might be skewed.
   optional bool preserve_ftrace_buffer = 23;
 
   // If true, overrides the default timestamp clock and uses a raw hardware
@@ -266,4 +269,15 @@ message FtraceConfig {
 
   // Previously drain_buffer_percent, perfetto v43-v47.
   reserved 26;
+
+  // If |enable_function_graph| is true, only trace the specified
+  // number of calls down the stack. Sets the max_graph_depth value
+  // in sys/kernel/tracing/
+  //
+  // Only respected for the first tracing session that enables
+  // function_graph tracing.
+  //
+  // Introduced in: perfetto v51.
+  // Supported on: Android 25Q3+.
+  optional uint32 function_graph_max_depth = 33;
 }

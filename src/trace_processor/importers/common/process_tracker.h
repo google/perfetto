@@ -40,6 +40,7 @@ enum class ThreadNamePriority {
   kOther = 0,
   kFtrace = 1,
   kEtwTrace = 1,
+  kGenericKernelTask = 1,
   kProcessTree = 2,
   kTrackDescriptorThreadType = 3,
   kTrackDescriptor = 4,
@@ -67,24 +68,24 @@ class ProcessTracker {
 
   // Called when a task_newtask is observed. This force the tracker to start
   // a new UTID for the thread, which is needed for TID-recycling resolution.
-  UniqueTid StartNewThread(std::optional<int64_t> timestamp, uint32_t tid);
+  UniqueTid StartNewThread(std::optional<int64_t> timestamp, int64_t tid);
 
   // Returns whether a thread is considered alive by the process tracker.
   bool IsThreadAlive(UniqueTid utid);
 
   // Called when sched_process_exit is observed. This forces the tracker to
   // end the thread lifetime for the utid associated with the given tid.
-  void EndThread(int64_t timestamp, uint32_t tid);
+  void EndThread(int64_t timestamp, int64_t tid);
 
   // Returns the thread utid or std::nullopt if it doesn't exist.
-  std::optional<UniqueTid> GetThreadOrNull(uint32_t tid);
+  std::optional<UniqueTid> GetThreadOrNull(int64_t tid);
 
   // Returns the thread utid (or creates a new entry if not present)
-  UniqueTid GetOrCreateThread(uint32_t tid);
+  UniqueTid GetOrCreateThread(int64_t tid);
 
   // Assigns the given name to the thread if the new name has a higher priority
   // than the existing one. Returns the utid of the thread.
-  virtual UniqueTid UpdateThreadName(uint32_t tid,
+  virtual UniqueTid UpdateThreadName(int64_t tid,
                                      StringId thread_name_id,
                                      ThreadNamePriority priority);
 
@@ -97,14 +98,14 @@ class ProcessTracker {
   // Called when a thread is seen the process tree. Retrieves the matching utid
   // for the tid and the matching upid for the tgid and stores both.
   // Virtual for testing.
-  virtual UniqueTid UpdateThread(uint32_t tid, uint32_t pid);
+  virtual UniqueTid UpdateThread(int64_t tid, int64_t pid);
 
   // Associates trusted_pid with track UUID.
-  void UpdateTrustedPid(uint32_t trusted_pid, uint64_t uuid);
+  void UpdateTrustedPid(int64_t trusted_pid, uint64_t uuid);
 
   // Returns the trusted_pid associated with the track UUID, or std::nullopt if
   // not found.
-  std::optional<uint32_t> GetTrustedPid(uint64_t uuid);
+  std::optional<int64_t> GetTrustedPid(uint64_t uuid);
 
   // Performs namespace-local to root-level resolution of thread or process id,
   // given tid (can be root-level or namespace-local, but we don't know
@@ -112,22 +113,22 @@ class ProcessTracker {
   // Returns the root-level thread id for tid on successful resolution;
   // otherwise, returns std::nullopt on resolution failure, or the thread of
   // tid isn't running in a pid namespace.
-  std::optional<uint32_t> ResolveNamespacedTid(uint32_t root_level_pid,
-                                               uint32_t tid);
+  std::optional<int64_t> ResolveNamespacedTid(int64_t root_level_pid,
+                                              int64_t tid);
 
   // Called when a task_newtask without the CLONE_THREAD flag is observed.
   // This force the tracker to start both a new UTID and a new UPID.
   UniquePid StartNewProcess(std::optional<int64_t> timestamp,
-                            std::optional<uint32_t> parent_tid,
-                            uint32_t pid,
+                            std::optional<int64_t> parent_tid,
+                            int64_t pid,
                             StringId main_thread_name,
                             ThreadNamePriority priority);
 
   // Called when a process is seen in a process tree. Retrieves the UniquePid
   // for that pid or assigns a new one.
   // Virtual for testing.
-  virtual UniquePid SetProcessMetadata(uint32_t pid,
-                                       std::optional<uint32_t> ppid,
+  virtual UniquePid SetProcessMetadata(int64_t pid,
+                                       std::optional<int64_t> ppid,
                                        base::StringView name,
                                        base::StringView cmdline);
 
@@ -144,14 +145,14 @@ class ProcessTracker {
 
   // Called on a task rename event to set the thread name and possibly process
   // name (if the tid provided is the main thread of the process).
-  void UpdateThreadNameAndMaybeProcessName(uint32_t tid,
+  void UpdateThreadNameAndMaybeProcessName(int64_t tid,
                                            StringId thread_name,
                                            ThreadNamePriority priority);
 
   // Called when a process is seen in a process tree. Retrieves the UniquePid
   // for that pid or assigns a new one.
   // Virtual for testing.
-  virtual UniquePid GetOrCreateProcess(uint32_t pid);
+  virtual UniquePid GetOrCreateProcess(int64_t pid);
 
   // Returns the upid for a given pid.
   std::optional<UniquePid> UpidForPidForTesting(uint32_t pid) {
@@ -161,7 +162,7 @@ class ProcessTracker {
 
   // Returns the bounds of a range that includes all UniqueTids that have the
   // requested tid.
-  UniqueThreadBounds UtidsForTidForTesting(uint32_t tid) {
+  UniqueThreadBounds UtidsForTidForTesting(int64_t tid) {
     const auto& deque = tids_[tid];
     return std::make_pair(deque.begin(), deque.end());
   }
@@ -186,13 +187,13 @@ class ProcessTracker {
   void NotifyEndOfFile();
 
   // Tracks the namespace-local pids for a process running in a pid namespace.
-  void UpdateNamespacedProcess(uint32_t pid, std::vector<uint32_t> nspid);
+  void UpdateNamespacedProcess(int64_t pid, std::vector<int64_t> nspid);
 
   // Tracks the namespace-local thread ids for a thread running in a pid
   // namespace.
-  void UpdateNamespacedThread(uint32_t pid,
-                              uint32_t tid,
-                              std::vector<uint32_t> nstid);
+  void UpdateNamespacedThread(int64_t pid,
+                              int64_t tid,
+                              std::vector<int64_t> nstid);
 
   // The UniqueTid of the swapper thread, is 0 for the default machine and is
   // > 0 for remote machines.
@@ -202,8 +203,8 @@ class ProcessTracker {
   // Returns the utid of a thread having |tid| and |pid| as the parent process.
   // pid == std::nullopt matches all processes.
   // Returns std::nullopt if such a thread doesn't exist.
-  std::optional<uint32_t> GetThreadOrNull(uint32_t tid,
-                                          std::optional<uint32_t> pid);
+  std::optional<uint32_t> GetThreadOrNull(int64_t tid,
+                                          std::optional<int64_t> pid);
 
   // Called whenever we discover that the passed thread belongs to the passed
   // process. The |pending_assocs_| vector is scanned to see if there are any
@@ -224,10 +225,10 @@ class ProcessTracker {
   // simultaneously. This is no longer the case so this should be removed
   // (though it seems like there are subtle things which break in Chrome if this
   // changes).
-  base::FlatHashMap<uint32_t /* tid */, std::vector<UniqueTid>> tids_;
+  base::FlatHashMap<int64_t /* tid */, std::vector<UniqueTid>> tids_;
 
   // Mapping of the most recently seen pid to the associated upid.
-  base::FlatHashMap<uint32_t /* pid (aka tgid) */, UniquePid> pids_;
+  base::FlatHashMap<int64_t /* pid (aka tgid) */, UniquePid> pids_;
 
   // Pending thread associations. The meaning of a pair<ThreadA, ThreadB> in
   // this vector is: we know that A and B belong to the same process, but we
@@ -244,23 +245,23 @@ class ProcessTracker {
   std::vector<ThreadNamePriority> thread_name_priorities_;
 
   // A mapping from track UUIDs to trusted pids.
-  std::unordered_map<uint64_t, uint32_t> trusted_pids_;
+  std::unordered_map<uint64_t, int64_t> trusted_pids_;
 
   struct NamespacedThread {
-    uint32_t pid;                 // Root-level pid.
-    uint32_t tid;                 // Root-level tid.
-    std::vector<uint32_t> nstid;  // Namespace-local tids.
+    int64_t pid;                 // Root-level pid.
+    int64_t tid;                 // Root-level tid.
+    std::vector<int64_t> nstid;  // Namespace-local tids.
   };
   // Keeps track of pid-namespaced threads, keyed by root-level thread ids.
-  std::unordered_map<uint32_t /* tid */, NamespacedThread> namespaced_threads_;
+  std::unordered_map<int64_t /* tid */, NamespacedThread> namespaced_threads_;
 
   struct NamespacedProcess {
-    uint32_t pid;                          // Root-level pid.
-    std::vector<uint32_t> nspid;           // Namespace-local pids.
-    std::unordered_set<uint32_t> threads;  // Root-level thread IDs.
+    int64_t pid;                          // Root-level pid.
+    std::vector<int64_t> nspid;           // Namespace-local pids.
+    std::unordered_set<int64_t> threads;  // Root-level thread IDs.
   };
   // Keeps track pid-namespaced processes, keyed by root-level pids.
-  std::unordered_map<uint32_t /* pid (aka tgid) */, NamespacedProcess>
+  std::unordered_map<int64_t /* pid (aka tgid) */, NamespacedProcess>
       namespaced_processes_;
 
   UniquePid swapper_upid_ = 0;

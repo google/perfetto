@@ -67,6 +67,6 @@ export default class implements PerfettoPlugin {
   }
 }
 
-function makeGroupNode(title: string, collapsed = true) {
-  return new TrackNode({title, isSummary: true, collapsed});
+function makeGroupNode(name: string, collapsed = true) {
+  return new TrackNode({name, isSummary: true, collapsed});
 }

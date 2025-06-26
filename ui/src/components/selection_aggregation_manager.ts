@@ -15,16 +15,18 @@
 import {AsyncLimiter} from '../base/async_limiter';
 import {isString} from '../base/object_utils';
 import {AggregateData, Column, ColumnDef, Sorting} from '../public/aggregation';
-import {AreaSelection, AreaSelectionAggregator} from '../public/selection';
-import {Track} from '../public/track';
-import {Dataset, UnionDataset} from '../trace_processor/dataset';
+import {
+  Aggregation,
+  AreaSelection,
+  AreaSelectionAggregator,
+} from '../public/selection';
 import {Engine} from '../trace_processor/engine';
 import {NUM} from '../trace_processor/query_result';
 
 export class SelectionAggregationManager {
   private readonly limiter = new AsyncLimiter();
   private _sorting?: Sorting;
-  private _currentArea: AreaSelection | undefined = undefined;
+  private _currentArea: AreaSelection | undefined;
   private _aggregatedData?: AggregateData;
 
   constructor(
@@ -36,14 +38,19 @@ export class SelectionAggregationManager {
     return this._aggregatedData;
   }
 
-  aggregateArea(area: AreaSelection) {
+  aggregateArea(area: AreaSelection): boolean {
+    const aggregation = this.aggregator.probe(area);
+    if (!aggregation) return false;
+
     this.limiter.schedule(async () => {
       this._currentArea = area;
       this._aggregatedData = undefined;
 
-      const data = await this.runAggregator(area);
+      const data = await this.runAggregator(aggregation);
       this._aggregatedData = data;
     });
+
+    return true;
   }
 
   clear() {
@@ -87,19 +94,12 @@ export class SelectionAggregationManager {
   }
 
   private async runAggregator(
-    area: AreaSelection,
+    aggregation: Aggregation,
   ): Promise<AggregateData | undefined> {
     const aggr = this.aggregator;
-    const dataset = this.createDatasetForAggregator(aggr, area.tracks);
-    const viewExists = await aggr.createAggregateView(
-      this.engine,
-      area,
-      dataset,
-    );
 
-    if (!viewExists) {
-      return undefined;
-    }
+    // This initializes the tables for this aggregation.
+    const aggregationData = await aggregation.prepareData(this.engine);
 
     const defs = aggr.getColumnDefinitions();
     const colIds = defs.map((col) => col.columnId);
@@ -110,22 +110,21 @@ export class SelectionAggregationManager {
     if (sorting) {
       sortClause = `${sorting.column} ${sorting.direction}`;
     }
-    const query = `select ${colIds} from ${aggr.id} order by ${sortClause}`;
+    const query = `select ${colIds} from ${aggregationData.tableName} order by ${sortClause}`;
     const result = await this.engine.query(query);
 
     const numRows = result.numRows();
     const columns = defs.map((def) => columnFromColumnDef(def, numRows));
     const columnSums = await Promise.all(
-      defs.map((def) => this.getSum(aggr.id, def)),
+      defs.map((def) => this.getSum(aggregationData.tableName, def)),
     );
-    const extraData = await aggr.getExtra(this.engine, area);
-    const extra = extraData ? extraData : undefined;
+    const barChartData = aggregationData.barChartData;
     const data: AggregateData = {
       tabName: aggr.getTabName(),
       columns,
       columnSums,
       strings: [],
-      extra,
+      barChart: barChartData,
     };
 
     const stringIndexes = new Map<string, number>();
@@ -163,26 +162,6 @@ export class SelectionAggregationManager {
     }
 
     return data;
-  }
-
-  private createDatasetForAggregator(
-    aggr: AreaSelectionAggregator,
-    tracks: ReadonlyArray<Track>,
-  ): Dataset | undefined {
-    const filteredDatasets = tracks
-      .filter(
-        (td) =>
-          aggr.trackKind === undefined || aggr.trackKind === td.tags?.kind,
-      )
-      .map((td) => td.track.getDataset?.())
-      .filter((dataset) => dataset !== undefined)
-      .filter(
-        (dataset) =>
-          aggr.schema === undefined || dataset.implements(aggr.schema),
-      );
-
-    if (filteredDatasets.length === 0) return undefined;
-    return new UnionDataset(filteredDatasets).optimize();
   }
 
   private async getSum(tableName: string, def: ColumnDef): Promise<string> {

@@ -29,6 +29,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -36,7 +37,6 @@
 #include "src/trace_processor/importers/archive/archive_entry.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/status_macros.h"
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
@@ -257,6 +257,18 @@ base::StatusOr<TarTraceReader::ParseResult> TarTraceReader::ParseMetadata() {
   if (!size.ok()) {
     return base::ErrStatus("Failed to parse size field: %s",
                            size.status().message().c_str());
+  }
+
+  // Ensure the size fits within `size_t` to prevent issues on 32-bit platforms
+  // (e.g., in-browser environments) where `size_t` is smaller than `uint64_t`.
+  // `metadata_->size` is a `uint64_t`, but passing it to methods like
+  // `buffer_.SliceOff` (which take `size_t`) may cause overflow if it exceeds
+  // the max representable `size_t` value.
+  const uint64_t max_size = std::numeric_limits<size_t>::max();
+  if (std::greater<>()(size.value(), max_size)) {
+    // Return this specific message to ensure it is captured by the error
+    // dialog.
+    return base::ErrStatus("out of memory");
   }
 
   metadata_.emplace();

@@ -21,6 +21,7 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <vector>
 
 #include "perfetto/ext/base/string_view.h"
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
@@ -31,8 +32,7 @@
 #include "src/trace_processor/util/profiler_util.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 using ::testing::UnorderedElementsAre;
@@ -81,7 +81,7 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
   tracker.AddInternedLocationName(kSeqId, kLocation,
                                   context.storage->InternString("location"));
 
-  enum Fields : uint64_t { kReferent = 1, kThunk, kThis0, kNext };
+  enum Fields : uint8_t { kReferent = 1, kThunk, kThis0, kNext };
 
   tracker.AddInternedFieldName(kSeqId, kReferent,
                                "java.lang.ref.Reference.referent");
@@ -91,7 +91,7 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
       "libcore.util.NativeAllocationRegistry$CleanerThunk.this$0");
   tracker.AddInternedFieldName(kSeqId, kNext, "sun.misc.Cleaner.next");
 
-  enum Types : uint64_t {
+  enum Types : uint8_t {
     kTypeBitmap = 1,
     kTypeCleaner,
     kTypeCleanerThunk,
@@ -131,7 +131,7 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
       /*classloader_id=*/0, /*no_fields=*/false,
       protos::pbzero::HeapGraphType::KIND_NORMAL);
 
-  enum Objects : uint64_t {
+  enum Objects : uint8_t {
     kObjBitmap = 1,
     kObjCleaner,
     kObjThunk,
@@ -300,21 +300,25 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   root.object_ids.emplace_back(1);
   tracker.AddRoot(kSeqId, kPid, kTimestamp, root);
 
-  tracker.FinalizeProfile(kSeqId);
+  tracker.FinalizeAllProfiles();
   std::unique_ptr<tables::ExperimentalFlamegraphTable> flame =
       tracker.BuildFlamegraph(kPid, kTimestamp);
   ASSERT_NE(flame, nullptr);
 
-  auto cumulative_sizes = flame->cumulative_size().ToVectorForTesting();
+  std::vector<int64_t> cumulative_sizes;
+  std::vector<int64_t> cumulative_counts;
+  std::vector<int64_t> sizes;
+  std::vector<int64_t> counts;
+  for (auto it = flame->IterateRows(); it; ++it) {
+    cumulative_sizes.push_back(it.cumulative_size());
+    cumulative_counts.push_back(it.cumulative_count());
+    sizes.push_back(it.size());
+    counts.push_back(it.count());
+  }
+
   EXPECT_THAT(cumulative_sizes, UnorderedElementsAre(15, 4, 14, 5));
-
-  auto cumulative_counts = flame->cumulative_count().ToVectorForTesting();
   EXPECT_THAT(cumulative_counts, UnorderedElementsAre(5, 4, 1, 1));
-
-  auto sizes = flame->size().ToVectorForTesting();
   EXPECT_THAT(sizes, UnorderedElementsAre(1, 5, 4, 5));
-
-  auto counts = flame->count().ToVectorForTesting();
   EXPECT_THAT(counts, UnorderedElementsAre(1, 2, 1, 1));
 }
 
@@ -413,21 +417,25 @@ TEST(HeapGraphTrackerTest, BuildFlamegraphWeakReferences) {
   root.object_ids.emplace_back(1);
   tracker.AddRoot(kSeqId, kPid, kTimestamp, root);
 
-  tracker.FinalizeProfile(kSeqId);
+  tracker.FinalizeAllProfiles();
   std::unique_ptr<tables::ExperimentalFlamegraphTable> flame =
       tracker.BuildFlamegraph(kPid, kTimestamp);
   ASSERT_NE(flame, nullptr);
 
-  auto cumulative_sizes = flame->cumulative_size().ToVectorForTesting();
+  std::vector<int64_t> cumulative_sizes;
+  std::vector<int64_t> cumulative_counts;
+  std::vector<int64_t> sizes;
+  std::vector<int64_t> counts;
+  for (auto it = flame->IterateRows(); it; ++it) {
+    cumulative_sizes.push_back(it.cumulative_size());
+    cumulative_counts.push_back(it.cumulative_count());
+    sizes.push_back(it.size());
+    counts.push_back(it.count());
+  }
+
   EXPECT_THAT(cumulative_sizes, UnorderedElementsAre(4, 4 + 1));
-
-  auto cumulative_counts = flame->cumulative_count().ToVectorForTesting();
   EXPECT_THAT(cumulative_counts, UnorderedElementsAre(1, 1 + 1));
-
-  auto sizes = flame->size().ToVectorForTesting();
   EXPECT_THAT(sizes, UnorderedElementsAre(1, 4));
-
-  auto counts = flame->count().ToVectorForTesting();
   EXPECT_THAT(counts, UnorderedElementsAre(1, 1));
 }
 
@@ -478,5 +486,4 @@ TEST(HeapGraphTrackerTest, NumberOfArray) {
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

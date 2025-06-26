@@ -27,6 +27,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
@@ -36,7 +37,6 @@
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
 namespace trace_processor {

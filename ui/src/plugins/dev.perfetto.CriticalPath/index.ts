@@ -25,6 +25,7 @@ import {
   CRITICAL_PATH_LITE_CMD,
 } from '../../public/exposed_commands';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
+import {NUM} from '../../trace_processor/query_result';
 
 const criticalPathSliceColumns = {
   ts: 'ts',
@@ -110,16 +111,43 @@ async function getThreadInfoForUtidOrSelection(
   trace: Trace,
   utid?: Utid,
 ): Promise<ThreadInfo | undefined> {
-  if (utid === undefined) {
-    const selection = trace.selection.selection;
-    if (selection.kind === 'track_event') {
-      if (selection.utid !== undefined) {
-        utid = asUtid(selection.utid);
-      }
-    }
+  const resolvedUtid = utid ?? (await getUtid(trace));
+  if (resolvedUtid === undefined) return undefined;
+  return await getThreadInfo(trace.engine, resolvedUtid);
+}
+
+/**
+ * Get the utid for the current selection. We either grab the utid from the
+ * track tags, or we look it up from the dataset.
+ *
+ * Returns undefined if the selection doesn't really have a utid.
+ */
+async function getUtid(trace: Trace): Promise<Utid | undefined> {
+  // No utid passed, look up the utid from the selected track.
+  const selection = trace.selection.selection;
+  if (selection.kind !== 'track_event') return undefined;
+
+  const trackUri = selection.trackUri;
+  const track = trace.tracks.getTrack(trackUri);
+  if (track === undefined) return undefined;
+
+  if (
+    track.tags &&
+    'utid' in track.tags &&
+    typeof track.tags.utid === 'number'
+  ) {
+    return asUtid(track.tags.utid);
   }
-  if (utid === undefined) return undefined;
-  return getThreadInfo(trace.engine, utid);
+
+  const dataset = track.renderer.getDataset?.();
+  if (dataset === undefined) return undefined;
+  if (!dataset.implements({utid: NUM})) return undefined;
+
+  const result = await trace.engine.query(`
+    SELECT utid FROM (${dataset.query()}) WHERE id = ${selection.eventId}
+  `);
+  const firstRow = result.firstRow({utid: NUM});
+  return asUtid(firstRow?.utid);
 }
 
 export default class implements PerfettoPlugin {

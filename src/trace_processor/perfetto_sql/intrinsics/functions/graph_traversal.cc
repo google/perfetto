@@ -27,8 +27,11 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/circular_queue.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/tables_py.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/array.h"
@@ -36,12 +39,8 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor {
-namespace tables {
-TreeTable::~TreeTable() = default;
-}  // namespace tables
 
 namespace {
 
@@ -67,7 +66,10 @@ struct Dfs : public SqliteAggregateFunction<Dfs> {
     auto* graph = sqlite::value::Pointer<perfetto_sql::Graph>(argv[0], "GRAPH");
     auto table = std::make_unique<tables::TreeTable>(GetUserData(ctx));
     if (!graph) {
-      return sqlite::result::UniquePointer(ctx, std::move(table), "TABLE");
+      return sqlite::result::UniquePointer(
+          ctx,
+          std::make_unique<dataframe::Dataframe>(std::move(table->dataframe())),
+          "TABLE");
     }
     PERFETTO_DCHECK(!graph->empty());
 
@@ -77,7 +79,10 @@ struct Dfs : public SqliteAggregateFunction<Dfs> {
     auto* start_ids =
         sqlite::value::Pointer<perfetto_sql::IntArray>(argv[1], "ARRAY<LONG>");
     if (!start_ids) {
-      return sqlite::result::UniquePointer(ctx, std::move(table), "TABLE");
+      return sqlite::result::UniquePointer(
+          ctx,
+          std::make_unique<dataframe::Dataframe>(std::move(table->dataframe())),
+          "TABLE");
     }
     PERFETTO_DCHECK(!start_ids->empty());
 
@@ -102,7 +107,10 @@ struct Dfs : public SqliteAggregateFunction<Dfs> {
         stack.emplace_back(State{*it, state.id});
       }
     }
-    return sqlite::result::UniquePointer(ctx, std::move(table), "TABLE");
+    return sqlite::result::UniquePointer(
+        ctx,
+        std::make_unique<dataframe::Dataframe>(std::move(table->dataframe())),
+        "TABLE");
   }
 };
 
@@ -121,9 +129,12 @@ struct Bfs : public SqliteAggregateFunction<Bfs> {
     PERFETTO_DCHECK(argc == kArgCount);
 
     auto* graph = sqlite::value::Pointer<perfetto_sql::Graph>(argv[0], "GRAPH");
-    auto table = std::make_unique<tables::TreeTable>(GetUserData(ctx));
+    tables::TreeTable data(GetUserData(ctx));
     if (!graph) {
-      return sqlite::result::UniquePointer(ctx, std::move(table), "TABLE");
+      return sqlite::result::UniquePointer(
+          ctx,
+          std::make_unique<dataframe::Dataframe>(std::move(data.dataframe())),
+          "TABLE");
     }
     PERFETTO_DCHECK(!graph->empty());
 
@@ -133,7 +144,10 @@ struct Bfs : public SqliteAggregateFunction<Bfs> {
     auto* start_ids =
         sqlite::value::Pointer<perfetto_sql::IntArray>(argv[1], "ARRAY<LONG>");
     if (!start_ids) {
-      return sqlite::result::UniquePointer(ctx, std::move(table), "TABLE");
+      return sqlite::result::UniquePointer(
+          ctx,
+          std::make_unique<dataframe::Dataframe>(std::move(data.dataframe())),
+          "TABLE");
     }
     PERFETTO_DCHECK(!start_ids->empty());
 
@@ -150,7 +164,7 @@ struct Bfs : public SqliteAggregateFunction<Bfs> {
     while (!queue.empty()) {
       State state = queue.front();
       queue.pop_front();
-      table->Insert({state.id, state.parent_id});
+      data.Insert({state.id, state.parent_id});
 
       auto& node = (*graph)[state.id];
       for (uint32_t n : node.outgoing_edges) {
@@ -161,7 +175,10 @@ struct Bfs : public SqliteAggregateFunction<Bfs> {
         queue.emplace_back(State{n, state.id});
       }
     }
-    return sqlite::result::UniquePointer(ctx, std::move(table), "TABLE");
+    return sqlite::result::UniquePointer(
+        ctx,
+        std::make_unique<dataframe::Dataframe>(std::move(data.dataframe())),
+        "TABLE");
   }
 };
 

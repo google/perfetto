@@ -21,6 +21,7 @@
 #include <cerrno>
 #include <chrono>
 #include <cinttypes>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -48,6 +49,7 @@
 #include "perfetto/ext/base/getopt.h"  // IWYU pragma: keep
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/scoped_mmap.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -69,7 +71,6 @@
 #include "src/trace_processor/read_trace_internal.h"
 #include "src/trace_processor/rpc/stdiod.h"
 #include "src/trace_processor/util/sql_modules.h"
-#include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
@@ -795,7 +796,8 @@ Trace summarization:
                                       should be computed and returned as part of
                                       the trace summary. The spec for every metric
                                       must exist in one of the files passed to
-                                      --summary-spec.
+                                      --summary-spec. Specify `all` to execute all
+                                      available v2 metrics.
   --summary-metadata-query ID         Specifies that the given query id should be
                                       used to populate the `metadata` field of the
                                       trace summary. The spec for the query must
@@ -1365,10 +1367,10 @@ base::Status IncludeSqlPackage(std::string root, bool allow_override) {
 
   // Get package name
   size_t last_slash = root.rfind('/');
-  if ((last_slash == std::string::npos) ||
-      (root.find('.') != std::string::npos))
-    return base::ErrStatus("Package path must point to the directory: %s",
+  if (last_slash == std::string::npos) {
+    return base::ErrStatus("Package path must point to a directory: %s",
                            root.c_str());
+  }
 
   std::string package_name = root.substr(last_slash + 1);
 
@@ -1376,13 +1378,22 @@ base::Status IncludeSqlPackage(std::string root, bool allow_override) {
   RETURN_IF_ERROR(base::ListFilesRecursive(root, paths));
   sql_modules::NameToPackage modules;
   for (const auto& path : paths) {
-    if (base::GetFileExtension(path) != ".sql")
+    if (base::GetFileExtension(path) != ".sql") {
       continue;
+    }
+
+    std::string path_no_extension = path.substr(0, path.rfind('.'));
+    if (path_no_extension.find('.') != std::string_view::npos) {
+      PERFETTO_ELOG("Skipping module %s as it contains a dot in its path.",
+                    path_no_extension.c_str());
+      continue;
+    }
 
     std::string filename = root + "/" + path;
     std::string file_contents;
-    if (!base::ReadFile(filename, &file_contents))
+    if (!base::ReadFile(filename, &file_contents)) {
       return base::ErrStatus("Cannot read file %s", filename.c_str());
+    }
 
     std::string import_key =
         package_name + "." + sql_modules::GetIncludeKey(path);
@@ -1915,8 +1926,16 @@ base::Status TraceProcessorMain(int argc, char** argv) {
     }
 
     TraceSummaryComputationSpec computation_config;
-    computation_config.v2_metric_ids =
-        base::SplitString(options.summary_metrics_v2, ",");
+
+    if (options.summary_metrics_v2.empty()) {
+      computation_config.v2_metric_ids = std::vector<std::string>();
+    } else if (base::CaseInsensitiveEqual(options.summary_metrics_v2, "all")) {
+      computation_config.v2_metric_ids = std::nullopt;
+    } else {
+      computation_config.v2_metric_ids =
+          base::SplitString(options.summary_metrics_v2, ",");
+    }
+
     computation_config.metadata_query_id =
         options.summary_metadata_query.empty()
             ? std::nullopt
@@ -1986,7 +2005,8 @@ base::Status TraceProcessorMain(int argc, char** argv) {
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
-    RunHttpRPCServer(std::move(tp), options.listen_ip, options.port_number);
+    RunHttpRPCServer(std::move(tp), !options.trace_file_path.empty(),
+                     options.listen_ip, options.port_number);
     PERFETTO_FATAL("Should never return");
 #else
     PERFETTO_FATAL("HTTP not available");
@@ -1994,7 +2014,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   }
 
   if (options.enable_stdiod) {
-    return RunStdioRpcServer(std::move(tp));
+    return RunStdioRpcServer(std::move(tp), !options.trace_file_path.empty());
   }
 
   if (options.launch_shell) {

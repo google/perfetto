@@ -21,6 +21,7 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -28,6 +29,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/ext/trace_processor/rpc/query_result_serializer.h"
@@ -38,10 +40,10 @@
 #include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/tp_metatrace.h"
-#include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
+#include "protos/perfetto/trace_summary/file.pbzero.h"
 
 namespace perfetto::trace_processor {
 
@@ -97,13 +99,16 @@ void Response::Send(Rpc::RpcResponseFunction send_fn) {
 
 }  // namespace
 
-Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance)
-    : trace_processor_(std::move(preloaded_instance)) {
-  if (!trace_processor_)
+Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance,
+         bool has_preloaded_eof)
+    : trace_processor_(std::move(preloaded_instance)),
+      eof_(trace_processor_ ? has_preloaded_eof : false) {
+  if (!trace_processor_) {
     ResetTraceProcessorInternal(Config());
+  }
 }
 
-Rpc::Rpc() : Rpc(nullptr) {}
+Rpc::Rpc() : Rpc(nullptr, false) {}
 Rpc::~Rpc() = default;
 
 void Rpc::ResetTraceProcessorInternal(const Config& config) {
@@ -136,7 +141,6 @@ void Rpc::OnRpcRequest(const void* data, size_t len) {
 }
 
 namespace {
-
 using ProtoEnum = protos::pbzero::MetatraceCategories;
 TraceProcessor::MetatraceCategories MetatraceCategoriesToPublicEnum(
     ProtoEnum categories) {
@@ -281,6 +285,18 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       } else {
         protozero::ConstBytes args = req.compute_metric_args();
         ComputeMetricInternal(args.data, args.size, result);
+      }
+      resp.Send(rpc_response_fn_);
+      break;
+    }
+    case RpcProto::TPM_SUMMARIZE_TRACE: {
+      Response resp(tx_seq_id_++, req_type);
+      auto* result = resp->set_trace_summary_result();
+      if (!req.has_trace_summary_args()) {
+        result->set_error(kErrFieldNotSet);
+      } else {
+        protozero::ConstBytes args = req.trace_summary_args();
+        ComputeTraceSummaryInternal(args.data, args.size, result);
       }
       resp.Send(rpc_response_fn_);
       break;
@@ -531,6 +547,12 @@ std::vector<uint8_t> Rpc::ComputeMetric(const uint8_t* args, size_t len) {
   return result.SerializeAsArray();
 }
 
+std::vector<uint8_t> Rpc::ComputeTraceSummary(const uint8_t* args, size_t len) {
+  protozero::HeapBuffered<protos::pbzero::TraceSummaryResult> result;
+  ComputeTraceSummaryInternal(args, len, result.get());
+  return result.SerializeAsArray();
+}
+
 void Rpc::ComputeMetricInternal(const uint8_t* data,
                                 size_t len,
                                 protos::pbzero::ComputeMetricResult* result) {
@@ -585,6 +607,87 @@ void Rpc::ComputeMetricInternal(const uint8_t* data,
       } else {
         result->set_error(status.message());
       }
+      break;
+    }
+  }
+}
+
+void Rpc::ComputeTraceSummaryInternal(
+    const uint8_t* data,
+    size_t len,
+    protos::pbzero::TraceSummaryResult* result) {
+  protos::pbzero::TraceSummaryArgs::Decoder args(data, len);
+  if (!args.has_proto_specs() && !args.has_textproto_specs()) {
+    result->set_error("TraceSummary missing trace_summary_spec");
+    return;
+  }
+  if (!args.has_output_format()) {
+    result->set_error("TraceSummary missing format");
+    return;
+  }
+
+  auto comp_spec = args.computation_spec();
+  protos::pbzero::TraceSummaryArgs::ComputationSpec::Decoder comp_spec_decoder(
+      comp_spec.data, comp_spec.size);
+
+  TraceSummaryComputationSpec computation_spec;
+
+  if (comp_spec_decoder.has_run_all_metrics() &&
+      comp_spec_decoder.run_all_metrics() == true) {
+    computation_spec.v2_metric_ids = std::nullopt;
+  } else {
+    computation_spec.v2_metric_ids = std::vector<std::string>();
+    for (auto it = comp_spec_decoder.metric_ids(); it; ++it) {
+      computation_spec.v2_metric_ids->push_back(it->as_std_string());
+    }
+  }
+
+  if (comp_spec_decoder.has_metadata_query_id()) {
+    computation_spec.metadata_query_id =
+        comp_spec_decoder.metadata_query_id().ToStdString();
+  }
+
+  std::vector<TraceSummarySpecBytes> summary_specs;
+  for (auto it = args.proto_specs(); it; ++it) {
+    TraceSummarySpecBytes spec;
+    spec.ptr = it->data();
+    spec.size = it->size();
+    spec.format = TraceSummarySpecBytes::Format::kBinaryProto;
+    summary_specs.push_back(spec);
+  }
+  for (auto it = args.textproto_specs(); it; ++it) {
+    TraceSummarySpecBytes spec;
+    spec.ptr = it->data();
+    spec.size = it->size();
+    spec.format = TraceSummarySpecBytes::Format::kTextProto;
+    summary_specs.push_back(spec);
+  }
+  TraceSummaryOutputSpec output_spec;
+  switch (args.output_format()) {
+    case protos::pbzero::TraceSummaryArgs::BINARY_PROTOBUF:
+      output_spec.format = TraceSummaryOutputSpec::Format::kBinaryProto;
+      break;
+    case protos::pbzero::TraceSummaryArgs::TEXTPROTO:
+      output_spec.format = TraceSummaryOutputSpec::Format::kTextProto;
+      break;
+    default:
+      PERFETTO_FATAL("Unknown format");
+  }
+  std::vector<uint8_t> output;
+  base::Status status = trace_processor_->Summarize(
+      computation_spec, summary_specs, &output, output_spec);
+  if (!status.ok()) {
+    result->set_error(status.message());
+    return;
+  }
+  switch (output_spec.format) {
+    case TraceSummaryOutputSpec::Format::kBinaryProto: {
+      result->set_proto_summary(output.data(), output.size());
+      break;
+    }
+    case TraceSummaryOutputSpec::Format::kTextProto: {
+      std::string textproto_output(output.begin(), output.end());
+      result->set_textproto_summary(textproto_output);
       break;
     }
   }

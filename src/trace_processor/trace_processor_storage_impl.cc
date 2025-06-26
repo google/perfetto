@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -48,7 +49,6 @@
 #include "src/trace_processor/trace_reader_registry.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
-#include "src/trace_processor/util/status_macros.h"
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
@@ -72,6 +72,10 @@ base::Status TraceProcessorStorageImpl::Parse(TraceBlobView blob) {
   if (unrecoverable_parse_error_)
     return base::ErrStatus(
         "Failed unrecoverably while parsing in a previous Parse call");
+  if (eof_) {
+    return base::ErrStatus("Parse() called after NotifyEndOfFile()");
+  }
+
   if (!parser_) {
     auto parser = std::make_unique<ForwardingTraceParser>(
         &context_, context_.trace_file_tracker->AddFile());
@@ -115,6 +119,7 @@ base::Status TraceProcessorStorageImpl::NotifyEndOfFile() {
   if (unrecoverable_parse_error_) {
     return base::ErrStatus("Unrecoverable parsing error already occurred");
   }
+  eof_ = true;
   Flush();
   RETURN_IF_ERROR(parser_->NotifyEndOfFile());
   // NotifyEndOfFile might have pushed packets to the sorter.
@@ -145,9 +150,12 @@ void TraceProcessorStorageImpl::DestroyContext() {
   // kernel version (inside system_info_tracker) to know how to textualise
   // sched_switch.prev_state bitflags.
   context.system_info_tracker = std::move(context_.system_info_tracker);
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
   // "__intrinsic_winscope_proto_to_args_with_defaults" requires proto
   // descriptors.
   context.descriptor_pool_ = std::move(context_.descriptor_pool_);
+#endif
 
   context_ = std::move(context);
 

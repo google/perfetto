@@ -40,6 +40,7 @@ enum TraceType {
   kInstrumentsXmlTraceType,
   kGeckoTraceType,
   kArtMethodTraceType,
+  kArtHprofTraceType,
   kPerfTextTraceType,
   kTarTraceType,
 };

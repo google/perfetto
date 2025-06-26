@@ -180,9 +180,6 @@ class Table {
   // Returns an error if index doesn't exist.
   base::Status DropIndex(const std::string& name);
 
-  // Sorts the table using the specified order by constraints.
-  Table Sort(const std::vector<Order>&) const;
-
   // Returns an iterator over the rows in this table.
   Iterator IterateRows() const { return Iterator(this); }
 

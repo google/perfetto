@@ -652,6 +652,16 @@ message AppWakelocksConfig {
 
 // End of protos/perfetto/config/android/app_wakelock_config.proto
 
+// Begin of protos/perfetto/config/android/cpu_per_uid_config.proto
+
+// Data source that records CPU per UID data.
+message CpuPerUidConfig {
+  // Record at this frequency.
+  optional uint32 poll_ms = 1;
+}
+
+// End of protos/perfetto/config/android/cpu_per_uid_config.proto
+
 // Begin of protos/perfetto/config/android/kernel_wakelocks_config.proto
 
 // Data source that records kernel (and native) wakelock data.
@@ -922,6 +932,9 @@ message ChromeConfig {
   // If |json_agent_label_filter| is not empty, only data pertaining to
   // the specified tracing agent label (e.g. "traceEvents") will be returned.
   optional string json_agent_label_filter = 5;
+
+  //  When enabled, event names should not contain package names.
+  optional bool event_package_name_filter_enabled = 6;
 }
 
 // End of protos/perfetto/config/chrome/chrome_config.proto
@@ -993,9 +1006,18 @@ message EtwConfig {
 }
 // End of protos/perfetto/config/etw/etw_config.proto
 
+// Begin of protos/perfetto/config/ftrace/frozen_ftrace_config.proto
+
+message FrozenFtraceConfig {
+  // The instance name which stores the previous boot ftrace data. Required.
+  optional string instance_name = 1;
+}
+
+// End of protos/perfetto/config/ftrace/frozen_ftrace_config.proto
+
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 33
+// Next id: 34
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
@@ -1193,11 +1215,14 @@ message FtraceConfig {
   // * Introduced in: Android U.
   repeated string function_graph_roots = 21;
 
-  // If true, does not clear ftrace buffers before the start of the program.
+  // If true, does not clear kernel ftrace buffers when starting the trace.
   // This makes sense only if this is the first ftrace data source instance
   // created after the daemon has been started. Can be useful for gathering boot
   // traces, if ftrace has been separately configured (e.g. via kernel
   // commandline).
+  // NB: when configuring the pre-perfetto ftrace, prefer to set
+  // "/sys/kernel/tracing/trace_clock" to "boot" if your trace will contain
+  // anything besides ftrace. Otherwise timestamps might be skewed.
   optional bool preserve_ftrace_buffer = 23;
 
   // If true, overrides the default timestamp clock and uses a raw hardware
@@ -1243,6 +1268,17 @@ message FtraceConfig {
 
   // Previously drain_buffer_percent, perfetto v43-v47.
   reserved 26;
+
+  // If |enable_function_graph| is true, only trace the specified
+  // number of calls down the stack. Sets the max_graph_depth value
+  // in sys/kernel/tracing/
+  //
+  // Only respected for the first tracing session that enables
+  // function_graph tracing.
+  //
+  // Introduced in: perfetto v51.
+  // Supported on: Android 25Q3+.
+  optional uint32 function_graph_max_depth = 33;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto
@@ -3773,7 +3809,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 136
+// Next id: 138
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -3895,6 +3931,8 @@ message DataSourceConfig {
   optional StatsdTracingConfig statsd_tracing_config = 117 [lazy = true];
   // Data source name: linux.system_info
   optional SystemInfoConfig system_info_config = 119;
+  // Data source name: linux.frozen_ftrace
+  optional FrozenFtraceConfig frozen_ftrace_config = 136 [lazy = true];
 
   // Chrome is special as it doesn't use the perfetto IPC layer. We want to
   // avoid proto serialization and de-serialization there because that would
@@ -3965,6 +4003,9 @@ message DataSourceConfig {
 
   // Data source name: android.app_wakelocks
   optional AppWakelocksConfig app_wakelocks_config = 135 [lazy = true];
+
+  // Data source name: android.cpu_per_uid
+  optional CpuPerUidConfig cpu_per_uid_config = 137 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
@@ -5321,6 +5362,32 @@ message AndroidCameraSessionStats {
 }
 
 // End of protos/perfetto/trace/android/camera_event.proto
+
+// Begin of protos/perfetto/trace/android/cpu_per_uid_data.proto
+
+message CpuPerUidData {
+  // Number of clusters in the device. This will only be filled in the first
+  // packet in a sequence.
+  optional uint32 cluster_count = 1;
+
+  // The UIDs for which we have data in this packet.
+  repeated uint32 uid = 2 [packed = true];
+
+  // List of times for {UID, cluster} tuples. This will be cluster_count
+  // times as long as the UID list.
+  //
+  // Ordered like:
+  // [{UID 0, cluster 0}, {UID 0, cluster 1}, {UID 0, cluster 2},
+  //  {UID 1, cluster 0}, {UID 1, cluster 1}, {UID 1, cluster 2}, ...]
+  //
+  // Each value is an absolute count for the first packet in a sequence, and a
+  // delta thereafter. UIDs for which all clusters have a zero delta are
+  // omitted; a single non-zero value for any cluster for a UID will cause
+  // values for all clusters to be recorded.
+  repeated uint64 total_time_ms = 3 [packed = true];
+}
+
+// End of protos/perfetto/trace/android/cpu_per_uid_data.proto
 
 // Begin of protos/perfetto/trace/android/frame_timeline_event.proto
 
@@ -7077,9 +7144,13 @@ message ClockSnapshot {
     optional bool is_incremental = 3;
 
     // Allows to specify a custom unit different than the default (ns) for this
-    // clock domain. A multiplier of 1000 means that a timestamp = 3 should be
-    // interpreted as 3000 ns = 3 us. All snapshots for the same clock within a
-    // trace need to use the same unit.
+    // clock domain.
+    //
+    // * A multiplier of 1000 means that a timestamp = 3 should be interpreted
+    //   as 3000 ns = 3 us.
+    // * All snapshots for the same clock within a trace need to use the same
+    //   unit.
+    // * `unit_multiplier_ns` is *not* supported for the `primary_trace_clock`.
     optional uint64 unit_multiplier_ns = 4;
   }
   repeated Clock clocks = 1;
@@ -7241,7 +7312,7 @@ message ReadyThreadEtwEvent {
 
   oneof flag_enum_or_int {
     TraceFlag flag = 4;
-    TraceFlag flag_int = 6;
+    int32 flag_int = 6;
   }
 }
 // End of protos/perfetto/trace/etw/etw.proto
@@ -7251,6 +7322,7 @@ message ReadyThreadEtwEvent {
 message EtwTraceEvent {
   optional uint64 timestamp = 1;
   optional uint32 cpu = 4;
+  optional uint32 thread_id = 5;
 
   oneof event {
     CSwitchEtwEvent c_switch = 2;
@@ -8173,6 +8245,147 @@ message DrmVblankEventDeliveredFtraceEvent {
 }
 
 // End of protos/perfetto/trace/ftrace/drm.proto
+
+// Begin of protos/perfetto/trace/ftrace/dwc3.proto
+
+message Dwc3AllocRequestFtraceEvent {
+  optional string name = 1;
+  optional uint64 req = 2;
+  optional uint32 actual = 3;
+  optional uint32 length = 4;
+  optional int32 status = 5;
+  optional int32 zero = 6;
+  optional int32 short_not_ok = 7;
+  optional int32 no_interrupt = 8;
+}
+message Dwc3CompleteTrbFtraceEvent {
+  optional string name = 1;
+  optional uint64 trb = 2;
+  optional uint32 allocated = 3;
+  optional uint32 queued = 4;
+  optional uint32 bpl = 5;
+  optional uint32 bph = 6;
+  optional uint32 size = 7;
+  optional uint32 ctrl = 8;
+  optional uint32 type = 9;
+  optional uint32 enqueue = 10;
+  optional uint32 dequeue = 11;
+}
+message Dwc3CtrlReqFtraceEvent {
+  optional uint32 bRequestType = 1;
+  optional uint32 bRequest = 2;
+  optional uint32 wValue = 3;
+  optional uint32 wIndex = 4;
+  optional uint32 wLength = 5;
+  optional string str = 6;
+}
+message Dwc3EpDequeueFtraceEvent {
+  optional string name = 1;
+  optional uint64 req = 2;
+  optional uint32 actual = 3;
+  optional uint32 length = 4;
+  optional int32 status = 5;
+  optional int32 zero = 6;
+  optional int32 short_not_ok = 7;
+  optional int32 no_interrupt = 8;
+}
+message Dwc3EpQueueFtraceEvent {
+  optional string name = 1;
+  optional uint64 req = 2;
+  optional uint32 actual = 3;
+  optional uint32 length = 4;
+  optional int32 status = 5;
+  optional int32 zero = 6;
+  optional int32 short_not_ok = 7;
+  optional int32 no_interrupt = 8;
+}
+message Dwc3EventFtraceEvent {
+  optional uint32 event = 1;
+  optional uint32 ep0state = 2;
+  optional string str = 3;
+}
+message Dwc3FreeRequestFtraceEvent {
+  optional string name = 1;
+  optional uint64 req = 2;
+  optional uint32 actual = 3;
+  optional uint32 length = 4;
+  optional int32 status = 5;
+  optional int32 zero = 6;
+  optional int32 short_not_ok = 7;
+  optional int32 no_interrupt = 8;
+}
+message Dwc3GadgetEpCmdFtraceEvent {
+  optional string name = 1;
+  optional uint32 cmd = 2;
+  optional uint32 param0 = 3;
+  optional uint32 param1 = 4;
+  optional uint32 param2 = 5;
+  optional int32 cmd_status = 6;
+}
+message Dwc3GadgetEpDisableFtraceEvent {
+  optional string name = 1;
+  optional uint32 maxpacket = 2;
+  optional uint32 maxpacket_limit = 3;
+  optional uint32 max_streams = 4;
+  optional uint32 maxburst = 5;
+  optional uint32 flags = 6;
+  optional uint32 direction = 7;
+  optional uint32 trb_enqueue = 8;
+  optional uint32 trb_dequeue = 9;
+}
+message Dwc3GadgetEpEnableFtraceEvent {
+  optional string name = 1;
+  optional uint32 maxpacket = 2;
+  optional uint32 maxpacket_limit = 3;
+  optional uint32 max_streams = 4;
+  optional uint32 maxburst = 5;
+  optional uint32 flags = 6;
+  optional uint32 direction = 7;
+  optional uint32 trb_enqueue = 8;
+  optional uint32 trb_dequeue = 9;
+}
+message Dwc3GadgetGenericCmdFtraceEvent {
+  optional uint32 cmd = 1;
+  optional uint32 param = 2;
+  optional int32 status = 3;
+}
+message Dwc3GadgetGivebackFtraceEvent {
+  optional string name = 1;
+  optional uint64 req = 2;
+  optional uint32 actual = 3;
+  optional uint32 length = 4;
+  optional int32 status = 5;
+  optional int32 zero = 6;
+  optional int32 short_not_ok = 7;
+  optional int32 no_interrupt = 8;
+}
+message Dwc3PrepareTrbFtraceEvent {
+  optional string name = 1;
+  optional uint64 trb = 2;
+  optional uint32 allocated = 3;
+  optional uint32 queued = 4;
+  optional uint32 bpl = 5;
+  optional uint32 bph = 6;
+  optional uint32 size = 7;
+  optional uint32 ctrl = 8;
+  optional uint32 type = 9;
+  optional uint32 enqueue = 10;
+  optional uint32 dequeue = 11;
+}
+message Dwc3ReadlFtraceEvent {
+  optional uint64 base = 1;
+  optional uint32 offset = 2;
+  optional uint32 value = 3;
+  optional string msg = 4;
+}
+message Dwc3WritelFtraceEvent {
+  optional uint64 base = 1;
+  optional uint32 offset = 2;
+  optional uint32 value = 3;
+  optional string msg = 4;
+}
+
+// End of protos/perfetto/trace/ftrace/dwc3.proto
 
 // Begin of protos/perfetto/trace/ftrace/ext4.proto
 
@@ -9532,6 +9745,17 @@ message IrqHandlerExitFtraceEvent {
 }
 
 // End of protos/perfetto/trace/ftrace/irq.proto
+
+// Begin of protos/perfetto/trace/ftrace/irq_vectors.proto
+
+message LocalTimerEntryFtraceEvent {
+  optional int32 vector = 1;
+}
+message LocalTimerExitFtraceEvent {
+  optional int32 vector = 1;
+}
+
+// End of protos/perfetto/trace/ftrace/irq_vectors.proto
 
 // Begin of protos/perfetto/trace/ftrace/kgsl.proto
 
@@ -10968,6 +11192,50 @@ message ThermalExynosAcpmHighOverheadFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/thermal_exynos.proto
 
+// Begin of protos/perfetto/trace/ftrace/timer.proto
+
+message HrtimerStartFtraceEvent {
+  optional uint64 hrtimer = 1;
+  optional uint64 function = 2;
+  optional int64 expires = 3;
+  optional int64 softexpires = 4;
+  optional uint32 mode = 5;
+}
+message HrtimerCancelFtraceEvent {
+  optional uint64 hrtimer = 1;
+}
+message HrtimerExpireEntryFtraceEvent {
+  optional uint64 hrtimer = 1;
+  optional int64 now = 2;
+  optional uint64 function = 3;
+}
+message HrtimerExpireExitFtraceEvent {
+  optional uint64 hrtimer = 1;
+}
+message TimerStartFtraceEvent {
+  optional uint64 timer = 1;
+  optional uint64 function = 2;
+  optional uint64 expires = 3;
+  optional uint64 now = 4;
+  optional uint32 deferrable = 5;
+  optional uint32 flags = 6;
+  optional uint64 bucket_expiry = 7;
+}
+message TimerCancelFtraceEvent {
+  optional uint64 timer = 1;
+}
+message TimerExpireEntryFtraceEvent {
+  optional uint64 timer = 1;
+  optional uint64 now = 2;
+  optional uint64 function = 3;
+  optional uint64 baseclk = 4;
+}
+message TimerExpireExitFtraceEvent {
+  optional uint64 timer = 1;
+}
+
+// End of protos/perfetto/trace/ftrace/timer.proto
+
 // Begin of protos/perfetto/trace/ftrace/trusty.proto
 
 message TrustySmcFtraceEvent {
@@ -11921,6 +12189,31 @@ message FtraceEvent {
     MaliGpuPowerStateFtraceEvent mali_gpu_power_state = 548;
     DpuDispDpuUnderrunFtraceEvent dpu_disp_dpu_underrun = 549;
     DpuDispVblankIrqEnableFtraceEvent dpu_disp_vblank_irq_enable = 550;
+    HrtimerStartFtraceEvent hrtimer_start = 551;
+    HrtimerCancelFtraceEvent hrtimer_cancel = 552;
+    HrtimerExpireEntryFtraceEvent hrtimer_expire_entry = 553;
+    HrtimerExpireExitFtraceEvent hrtimer_expire_exit = 554;
+    TimerStartFtraceEvent timer_start = 555;
+    TimerCancelFtraceEvent timer_cancel = 556;
+    TimerExpireEntryFtraceEvent timer_expire_entry = 557;
+    TimerExpireExitFtraceEvent timer_expire_exit = 558;
+    LocalTimerEntryFtraceEvent local_timer_entry = 559;
+    LocalTimerExitFtraceEvent local_timer_exit = 560;
+    Dwc3AllocRequestFtraceEvent dwc3_alloc_request = 561;
+    Dwc3CompleteTrbFtraceEvent dwc3_complete_trb = 562;
+    Dwc3CtrlReqFtraceEvent dwc3_ctrl_req = 563;
+    Dwc3EpDequeueFtraceEvent dwc3_ep_dequeue = 564;
+    Dwc3EpQueueFtraceEvent dwc3_ep_queue = 565;
+    Dwc3EventFtraceEvent dwc3_event = 566;
+    Dwc3FreeRequestFtraceEvent dwc3_free_request = 567;
+    Dwc3GadgetEpCmdFtraceEvent dwc3_gadget_ep_cmd = 568;
+    Dwc3GadgetEpDisableFtraceEvent dwc3_gadget_ep_disable = 569;
+    Dwc3GadgetEpEnableFtraceEvent dwc3_gadget_ep_enable = 570;
+    Dwc3GadgetGenericCmdFtraceEvent dwc3_gadget_generic_cmd = 571;
+    Dwc3GadgetGivebackFtraceEvent dwc3_gadget_giveback = 572;
+    Dwc3PrepareTrbFtraceEvent dwc3_prepare_trb = 573;
+    Dwc3ReadlFtraceEvent dwc3_readl = 574;
+    Dwc3WritelFtraceEvent dwc3_writel = 575;
   }
 }
 
@@ -12112,36 +12405,38 @@ message FtraceEventBundle {
   }
   optional CompactSched compact_sched = 4;
 
-  // traced_probes always sets the ftrace_clock to "boot". That is not available
-  // in older kernels (v3.x). In that case we fallback on "global" or "local".
-  // When we do that, we report the fallback clock in each bundle so we can do
-  // proper clock syncing at parsing time in TraceProcessor. We cannot use the
-  // TracePacket timestamp_clock_id because: (1) there is no per-packet
-  // timestamp for ftrace bundles; (2) "global" does not match CLOCK_MONOTONIC.
-  // Having a dedicated and explicit flag allows us to correct further misakes
-  // in future by looking at the kernel version.
-  // This field has been introduced in perfetto v19 / Android T (13).
-  // This field is omitted when the ftrace clock is just "boot", as that is the
-  // default assumption (and for consistency with the past).
+  // Perfetto will by default try to use the boottime ("boot") clock for ftrace
+  // timestamps as that counts during suspend, is available to userspace, and
+  // is coherent across cpus.
+  //
+  // If this field is set, it means that a different clock was used during
+  // recording. Either because the boot clock is unavailable (e.g. old kernels
+  // before 3.x), or the trace config has set an incompatible option
+  // (use_monotonic_raw_clock / preserve_ftrace_buffer). In that case,
+  // trace_processor will do best-effort clock alignment using timestamp pairs
+  // from |ftrace_timestamp| and |boot_timestamp| fields. This field is omitted
+  // when the ftrace clock is "boot", as that is the default assumption.
+  //
+  // Some clocks (local/global) are technically per-cpu, but we make a
+  // simplifying assumption that they are global, as their inter-cpu skew
+  // should be reasonably bounded on modern systems.
+  //
+  // Added in: perfetto v19. Android T (13).
   optional FtraceClock ftrace_clock = 5;
 
-  // The timestamp according to the ftrace clock, taken at the same instant
-  // as |boot_timestamp|. This is used to sync ftrace events when a non-boot
-  // clock is used as the ftrace clock. We don't use the ClockSnapshot packet
-  // because the ftrace global/local clocks don't match any of the clock_gettime
-  // domains and can be only read by traced_probes.
-  //
-  // Only set when |ftrace_clock| != FTRACE_CLOCK_UNSPECIFIED.
-  //
+  // The timestamp according to the ftrace clock, taken at the same instant as
+  // |boot_timestamp|. Note: timestamping is done at buffer read time, so it
+  // will be in the future relative to the data covered by this bundle.
   // Implementation note: Populated by reading the 'now ts:' field in
-  // tracefs/per_cpu/cpuX/stat.
+  // tracefs/per_cpu/cpu0/stat.
+  //
+  // Set only if |ftrace_clock| != FTRACE_CLOCK_UNSPECIFIED.
   optional int64 ftrace_timestamp = 6;
 
   // The timestamp according to CLOCK_BOOTTIME, taken at the same instant as
-  // |ftrace_timestamp|. See documentation of |ftrace_timestamp| for
-  // more info.
+  // |ftrace_timestamp|.
   //
-  // Only set when |ftrace_clock| != FTRACE_CLOCK_UNSPECIFIED.
+  // Set only if |ftrace_clock| != FTRACE_CLOCK_UNSPECIFIED.
   optional int64 boot_timestamp = 7;
 
   // Errors encountered during parsing of the raw ftrace data. In case of ring
@@ -12205,6 +12500,69 @@ enum FtraceClock {
 }
 
 // End of protos/perfetto/trace/ftrace/ftrace_event_bundle.proto
+
+// Begin of protos/perfetto/trace/generic_kernel/generic_power.proto
+
+// GenericKernelCpuFrequencyEvent is the standard proto to capture CPU
+// frequency change events in a generic kernel implementation.
+message GenericKernelCpuFrequencyEvent {
+  // CPU in which the event occurred.
+  optional int32 cpu = 1;
+  // Frequency (Hz) of the CPU.
+  optional int64 freq_hz = 2;
+}
+
+// End of protos/perfetto/trace/generic_kernel/generic_power.proto
+
+// Begin of protos/perfetto/trace/generic_kernel/generic_task_state.proto
+
+// GenericKernelTaskStateEvent is the standard proto to capture thread state
+// change events in a generic kernel implementation. This is mainly for the
+// case where scheduler events are not directly supported in the kernel's
+// tracing mechanism.
+//
+// By capturing these task state events Perfetto is able to infer higher-level
+// events such as context switches and task waking events, providing as much
+// parity as possible with established tracing frameworks such as
+// Linux's ftrace.
+message GenericKernelTaskStateEvent {
+  // CPU in which the event occurred.
+  // This field is only relevant with the TASK_STATE_RUNNING state. There is
+  // no specific meaning to the cpu field in a non-running state event.
+  optional int32 cpu = 1;
+  // Command name for the thread.
+  optional string comm = 2;
+  // Thread id.
+  optional int64 tid = 3;
+
+  // TaskStateEnum represents the valid states of a thread.
+  // These states are a generic representation of the actual thread state and
+  // don't necessarily map one-to-one to the states the actual OS kernel
+  // tracks internally.
+  //
+  // Note: Consecutive TASK_STATE_RUNNING states for the same TID is considered
+  // an error resulting in potential data loss.
+  enum TaskStateEnum {
+    TASK_STATE_UNKNOWN = 0;
+    TASK_STATE_CREATED = 1;
+    TASK_STATE_RUNNABLE = 2;
+    TASK_STATE_RUNNING = 3;
+    TASK_STATE_INTERRUPTIBLE_SLEEP = 4;
+    TASK_STATE_UNINTERRUPTIBLE_SLEEP = 5;
+    TASK_STATE_STOPPED = 6;
+    TASK_STATE_DEAD = 7;
+    TASK_STATE_DESTROYED = 8;
+  }
+  // New state of the thread.
+  optional TaskStateEnum state = 4;
+
+  // Priority of the thread.
+  // This value is OS agnostic and should only be interpreted based on the
+  // kernel who emitted the message.
+  optional int32 prio = 5;
+}
+
+// End of protos/perfetto/trace/generic_kernel/generic_task_state.proto
 
 // Begin of protos/perfetto/trace/gpu/gpu_counter_event.proto
 
@@ -13580,7 +13938,7 @@ message TaskExecution {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 52.
+// Next reserved id: 13 (up to 15). Next id: 55.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -13708,6 +14066,46 @@ message TrackEvent {
   // TODO(b/204341740): replace "terminating_flow_ids_old" with
   // "terminating_flow_ids" to reduce memory consumption.
   repeated fixed64 terminating_flow_ids = 48;
+
+  // An opaque identifier to correlate this slice with other slices that are
+  // considered part of the same logical operation, even if they are not
+  // causally connected. Examples uses of a correlation id might be the number
+  // of frame going through various stages of rendering in a GPU, the id for an
+  // RPC request going through a distributed system, or the id of a network
+  // request going through various stages of processing by the kernel.
+  //
+  // NOTE: if the events *are* causually connected, you probably want to use
+  // flows instead of OR in addition to correlation ids.
+  //
+  // UIs can use this identifier to visually link these slices, for instance,
+  // by assigning them a consistent color or highlighting the entire correlated
+  // set when one slice is hovered.
+  //
+  // Only one field within this 'oneof' should be set to define the correlation.
+  oneof correlation_id_field {
+    // A 64-bit unsigned integer used as the correlation ID.
+    //
+    // Best for performance and compact traces if the identifier is naturally
+    // numerical or can be easily mapped to one by the trace producer.
+    uint64 correlation_id = 52;
+
+    // A string value used as the correlation ID.
+    //
+    // Offers maximum flexibility for human-readable or complex identifiers
+    // (e.g., GUIDs). Note: Using many unique, long strings may increase trace
+    // size. For frequently repeated string identifiers, consider
+    // 'correlation_id_string_iid'.
+    string correlation_id_str = 53;
+
+    // An interned string identifier (an IID) for correlation.
+    //
+    // This 64-bit ID refers to a string defined in the 'correlation_id_str'
+    // field within the packet sequence's InternedData. This approach combines
+    // the descriptiveness and uniqueness of strings with the efficiency of
+    // integer IDs for storage and comparison, especially for identifiers that
+    // repeat across many events.
+    uint64 correlation_id_str_iid = 54;
+  }
 
   // ---------------------------------------------------------------------------
   // TrackEvent arguments:
@@ -13949,7 +14347,7 @@ message EventName {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 43.
+// Next id: 44.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -14037,6 +14435,9 @@ message InternedData {
 
   // Interned context for android.app_wakelocks.
   repeated AppWakelockInfo app_wakelock_info = 42;
+
+  // Interned correlation ids in track_event.
+  repeated InternedString correlation_id_str = 43;
 
   // removed ProfiledFrameSymbols profiled_frame_symbols
   reserved 21;
@@ -16135,7 +16536,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 117.
+// Next id: 120.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -16281,6 +16682,12 @@ message TracePacket {
     KernelWakelockData kernel_wakelock_data = 115;
 
     AppWakelockBundle app_wakelock_bundle = 116;
+
+    // Generic events for a standard kernel implementation
+    GenericKernelTaskStateEvent generic_kernel_task_state_event = 117;
+    GenericKernelCpuFrequencyEvent generic_kernel_cpu_freq_event = 118;
+
+    CpuPerUidData cpu_per_uid_data = 119;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

@@ -14,8 +14,8 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE android.startup.startups;
-INCLUDE PERFETTO MODULE wattson.curves.estimates;
-INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
+INCLUDE PERFETTO MODULE wattson.estimates;
+INCLUDE PERFETTO MODULE wattson.tasks.threads_w_processes;
 
 -- Create the base table (`android_jank_cuj`) containing all completed CUJs
 -- found in the trace.

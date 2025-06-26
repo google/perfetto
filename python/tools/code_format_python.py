@@ -18,6 +18,15 @@ import sys
 
 from code_format_utils import CodeFormatterBase, run_code_formatters
 
+IGNORE_PATHS = [
+    # Auto-generated Python protos.
+    'python/perfetto/protos/perfetto/trace/perfetto_trace_pb2.py',
+    # The source of truth of Chrome's stdlib is in Chromium. The copy in
+    # Perfetto is imported via Copybara. Don't format it to avoid diverging from
+    # Chromium.
+    'test/trace_processor/diff_tests/stdlib/chrome/',
+]
+
 
 def is_python_exec_script(file):
   if not os.path.isfile(file):
@@ -37,6 +46,10 @@ class Yapf(CodeFormatterBase):
     # However some executable python script in tools are extensionless.
     filtered += [
         f for f in files if f.startswith('tools/') and is_python_exec_script(f)
+    ]
+    # Apply ignore list.
+    filtered = [
+        f for f in filtered if not any(f.startswith(i) for i in IGNORE_PATHS)
     ]
     return filtered
 

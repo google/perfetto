@@ -59,6 +59,7 @@ export function translateState(
 
   // Self describing states
   switch (state) {
+    case 'Created':
     case 'Running':
     case 'Initialized':
     case 'Deferred Ready':
