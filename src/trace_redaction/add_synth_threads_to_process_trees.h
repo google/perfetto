@@ -14,25 +14,20 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_REDACTION_PROTO_UTIL_H_
-#define SRC_TRACE_REDACTION_PROTO_UTIL_H_
+#ifndef SRC_TRACE_REDACTION_ADD_SYNTH_THREADS_TO_PROCESS_TREES_H_
+#define SRC_TRACE_REDACTION_ADD_SYNTH_THREADS_TO_PROCESS_TREES_H_
 
-#include "perfetto/protozero/field.h"
-#include "perfetto/protozero/message.h"
+#include "perfetto/base/status.h"
+#include "src/trace_redaction/trace_redaction_framework.h"
 
 namespace perfetto::trace_redaction {
 
-// This is here, and not in protozero, because field and message are never found
-// together. Because trace redaction is the only user of this function, it is
-// here.
-namespace proto_util {
-
-void AppendField(const protozero::Field& field, protozero::Message* message);
-
-void AppendFields(const protozero::Field& field, protozero::Message* message);
-
-}  // namespace proto_util
+class AddSythThreadsToProcessTrees : public TransformPrimitive {
+ public:
+  base::Status Transform(const Context& context,
+                         std::string* packet) const override;
+};
 
 }  // namespace perfetto::trace_redaction
 
-#endif  // SRC_TRACE_REDACTION_PROTO_UTIL_H_
+#endif  // SRC_TRACE_REDACTION_ADD_SYNTH_THREADS_TO_PROCESS_TREES_H_
