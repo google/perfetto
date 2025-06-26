@@ -139,12 +139,14 @@ PROCESS_TABLE = Table(
             CppOptional(CppString()),
             sql_access=SqlAccess.HIGH_PERF,
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'start_ts',
             CppOptional(CppInt64()),
             sql_access=SqlAccess.HIGH_PERF,
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'end_ts',
@@ -187,6 +189,7 @@ PROCESS_TABLE = Table(
             CppOptional(CppUint32()),
             sql_access=SqlAccess.HIGH_PERF,
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
     ],
@@ -539,6 +542,7 @@ ARG_TABLE = Table(
             CppUint32(),
             flags=ColumnFlag.SORTED | ColumnFlag.SET_ID,
             cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C('flat_key', CppString(), cpp_access=CppAccess.READ),
         C(
