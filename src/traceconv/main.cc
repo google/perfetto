@@ -82,8 +82,8 @@ uint64_t StringToUint64OrDie(const char* str) {
 }
 
 int TextToTrace(std::istream* input, std::ostream* output) {
-  std::string trace_text((std::istreambuf_iterator<char>(*input)),
-                         (std::istreambuf_iterator<char>()));
+  std::string trace_text(std::istreambuf_iterator<char>{*input},
+                         std::istreambuf_iterator<char>{});
   auto proto_status =
       protozero::TextToProto(kTraceDescriptor.data(), kTraceDescriptor.size(),
                              ".perfetto.protos.Trace", "trace", trace_text);
