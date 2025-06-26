@@ -48,6 +48,7 @@ export interface AppInitArgs {
   readonly settingsManager: SettingsManagerImpl;
   readonly timestampFormatSetting: Setting<TimestampFormat>;
   readonly durationPrecisionSetting: Setting<DurationPrecision>;
+  readonly timezoneOverrideSetting: Setting<string>;
 }
 
 /**
@@ -101,12 +102,14 @@ export class AppContext {
 
   readonly timestampFormat: Setting<TimestampFormat>;
   readonly durationPrecision: Setting<DurationPrecision>;
+  readonly timezoneOverride: Setting<string>;
 
   // This constructor is invoked only once, when frontend/index.ts invokes
   // AppMainImpl.initialize().
   private constructor(initArgs: AppInitArgs) {
     this.timestampFormat = initArgs.timestampFormatSetting;
     this.durationPrecision = initArgs.durationPrecisionSetting;
+    this.timezoneOverride = initArgs.timezoneOverrideSetting;
     this.settingsManager = initArgs.settingsManager;
     this.initArgs = initArgs;
     this.initialRouteArgs = initArgs.initialRouteArgs;

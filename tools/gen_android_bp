@@ -201,6 +201,7 @@ shared_library_allowlist = [
     'log',
     'services',
     'statssocket',
+    'timeinstate',
     'tracingproxy',
     'utils',
     'statspull',

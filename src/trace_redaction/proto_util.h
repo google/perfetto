@@ -29,6 +29,8 @@ namespace proto_util {
 
 void AppendField(const protozero::Field& field, protozero::Message* message);
 
+void AppendFields(const protozero::Field& field, protozero::Message* message);
+
 }  // namespace proto_util
 
 }  // namespace perfetto::trace_redaction

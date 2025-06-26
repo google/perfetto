@@ -29,19 +29,9 @@ namespace perfetto {
 namespace trace_processor {
 
 // Tracks information in the transition table.
-class ShellTransitionsTracker : public Destructible {
+class ShellTransitionsTracker {
  public:
   explicit ShellTransitionsTracker(TraceProcessorContext*);
-  virtual ~ShellTransitionsTracker() override;
-
-  static ShellTransitionsTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->shell_transitions_tracker) {
-      context->shell_transitions_tracker.reset(
-          new ShellTransitionsTracker(context));
-    }
-    return static_cast<ShellTransitionsTracker*>(
-        context->shell_transitions_tracker.get());
-  }
 
   ArgsTracker::BoundInserter AddArgsTo(int32_t transition_id);
 

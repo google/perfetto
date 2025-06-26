@@ -14,6 +14,8 @@
 
 import("../../../../../gn/perfetto_cc_proto_descriptor.gni")
 
+assert(enable_perfetto_winscope)
+
 source_set("full") {
   sources = [
     "android_input_event_parser.cc",
@@ -34,6 +36,9 @@ source_set("full") {
     "viewcapture_args_parser.h",
     "viewcapture_parser.cc",
     "viewcapture_parser.h",
+    "winscope_context.h",
+    "winscope_geometry.cc",
+    "winscope_geometry.h",
     "winscope_module.cc",
     "winscope_module.h",
   ]

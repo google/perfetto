@@ -24,8 +24,6 @@ namespace trace_processor {
 ShellTransitionsTracker::ShellTransitionsTracker(TraceProcessorContext* context)
     : context_(context) {}
 
-ShellTransitionsTracker::~ShellTransitionsTracker() = default;
-
 ArgsTracker::BoundInserter ShellTransitionsTracker::AddArgsTo(
     int32_t transition_id) {
   auto* transition_info = GetOrInsertTransition(transition_id);

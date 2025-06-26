@@ -19,6 +19,7 @@ for any serious business just yet""
 
 from python.generators.trace_processor_table.public import Alias
 from python.generators.trace_processor_table.public import CppAccess
+from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
@@ -50,7 +51,12 @@ JIT_CODE_TABLE = Table(
         C('utid', CppUint32(), cpp_access=CppAccess.READ),
         C('start_address', CppInt64(), cpp_access=CppAccess.READ),
         C('size', CppInt64(), cpp_access=CppAccess.READ),
-        C('function_name', CppString(), cpp_access=CppAccess.READ),
+        C(
+            'function_name',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C('native_code_base64', CppOptional(CppString())),
         C('jit_code_id', Alias('id')),
     ],
@@ -81,7 +87,12 @@ JIT_FRAME_TABLE = Table(
     class_name='JitFrameTable',
     sql_name='__intrinsic_jit_frame',
     columns=[
-        C('jit_code_id', CppTableId(JIT_CODE_TABLE), cpp_access=CppAccess.READ),
+        C(
+            'jit_code_id',
+            CppTableId(JIT_CODE_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C(
             'frame_id',
             CppTableId(STACK_PROFILE_FRAME_TABLE),

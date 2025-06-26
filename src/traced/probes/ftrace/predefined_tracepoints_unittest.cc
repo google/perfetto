@@ -33,6 +33,7 @@ class MockFtraceProcfs : public FtraceProcfs {
  public:
   MockFtraceProcfs() : FtraceProcfs("/root/") {}
   MOCK_METHOD(bool, IsFileWriteable, (const std::string& path), (override));
+  MOCK_METHOD(bool, IsFileReadable, (const std::string& path), (override));
 };
 
 class MockProtoTranslationTable : public ProtoTranslationTable {
@@ -68,6 +69,8 @@ TEST(PredefinedTracepointsTest, GetAccessiblePredefinedTracePoints) {
       .WillOnce(Return(&proto_table_events));
 
   EXPECT_CALL(ftrace, IsFileWriteable(_)).WillRepeatedly(Return(false));
+  EXPECT_CALL(ftrace, IsFileWriteable("/root/set_event"))
+      .WillRepeatedly(Return(false));
   EXPECT_CALL(ftrace, IsFileWriteable(
                           "/root/events/mdss/accessible_proto_event/enable"))
       .WillOnce(Return(true));
@@ -90,5 +93,48 @@ TEST(PredefinedTracepointsTest, GetAccessiblePredefinedTracePoints) {
           Pair("gfx",
                ElementsAre(GroupAndName{"mdss", "accessible_proto_event"}))));
 }
+
+TEST(PredefinedTracepointsTest, GetAccessiblePredefinedTracePointsSetEvent) {
+  MockFtraceProcfs ftrace;
+
+  MockProtoTranslationTable table(&ftrace);
+  Event unaccessible_proto_event{};
+  unaccessible_proto_event.name = "unaccessible_proto_event";
+  Event accessible_proto_event{};
+  accessible_proto_event.name = "accessible_proto_event";
+
+  std::vector<const Event*> proto_table_events(
+      {&unaccessible_proto_event, &accessible_proto_event});
+
+  EXPECT_CALL(table, GetEventsByGroup(_)).WillRepeatedly(Return(nullptr));
+  // Add two events to the "gfx" category.
+  EXPECT_CALL(table, GetEventsByGroup("mdss"))
+      .WillOnce(Return(&proto_table_events));
+
+  EXPECT_CALL(ftrace, IsFileWriteable(_)).WillRepeatedly(Return(false));
+  EXPECT_CALL(ftrace, IsFileReadable(_)).WillRepeatedly(Return(false));
+  EXPECT_CALL(ftrace, IsFileWriteable("/root/set_event"))
+      .WillRepeatedly(Return(true));
+  EXPECT_CALL(ftrace,
+              IsFileReadable("/root/events/mdss/accessible_proto_event/format"))
+      .WillOnce(Return(true));
+  // Enable the first and the second events from the 'freq' category.
+  EXPECT_CALL(ftrace, IsFileReadable("/root/events/power/cpu_frequency/format"))
+      .WillOnce(Return(true));
+  EXPECT_CALL(ftrace, IsFileReadable("/root/events/power/gpu_frequency/format"))
+      .WillOnce(Return(true));
+
+  std::map<std::string, base::FlatSet<GroupAndName>> tracepoints =
+      GetAccessiblePredefinedTracePoints(&table, &ftrace);
+
+  EXPECT_THAT(
+      tracepoints,
+      ElementsAre(
+          Pair("freq", ElementsAre(GroupAndName{"power", "cpu_frequency"},
+                                   GroupAndName{"power", "gpu_frequency"})),
+          Pair("gfx",
+               ElementsAre(GroupAndName{"mdss", "accessible_proto_event"}))));
+}
+
 }  // namespace
 }  // namespace perfetto::predefined_tracepoints
