@@ -364,6 +364,10 @@ class JsonExporter {
       }
     }
 
+    void WriteTraceConfigString(const char* value) {
+      metadata_["trace-config"] = value;
+    }
+
     void AppendTelemetryMetadataString(const char* key, const char* value) {
       metadata_["telemetry"][key].append(value);
     }
@@ -1476,6 +1480,11 @@ class JsonExporter {
       // exhaustive list of cases, even if there's a default case.
       metadata::KeyId key = key_it->second;
       switch (static_cast<size_t>(key)) {
+        case metadata::trace_config_pbtxt:
+          writer_.WriteTraceConfigString(
+              storage_->string_pool().Get(*it.str_value()).c_str());
+          break;
+
         case metadata::benchmark_description:
           writer_.AppendTelemetryMetadataString(
               "benchmarkDescriptions",
