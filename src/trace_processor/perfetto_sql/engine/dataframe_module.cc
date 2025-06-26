@@ -97,6 +97,8 @@ std::string OpToString(int op) {
       return " is not null";
     case SQLITE_INDEX_CONSTRAINT_LIMIT:
       return "limit";
+    case SQLITE_INDEX_CONSTRAINT_OFFSET:
+      return "offset";
     case SQLITE_INDEX_CONSTRAINT_FUNCTION:
       return "function";
     default:
@@ -202,6 +204,9 @@ int DataframeModule::Disconnect(sqlite3_vtab* vtab) {
 int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
   auto* v = GetVtab(tab);
 
+  std::optional<int> limit_constraint_idx;
+  std::optional<int> offset_constraint_idx;
+
   std::vector<dataframe::FilterSpec> filter_specs;
   dataframe::LimitSpec limit_spec;
   filter_specs.reserve(static_cast<size_t>(info->nConstraint));
@@ -226,9 +231,11 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
         auto cast = static_cast<uint32_t>(value);
         if (op == SQLITE_INDEX_CONSTRAINT_LIMIT) {
           limit_spec.limit = cast;
+          limit_constraint_idx = i;
         } else {
           PERFETTO_DCHECK(op == SQLITE_INDEX_CONSTRAINT_OFFSET);
           limit_spec.offset = cast;
+          offset_constraint_idx = i;
         }
         continue;
       }
@@ -255,6 +262,8 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
   // and offset constraints.
   if (has_unknown_constraint) {
     limit_spec = dataframe::LimitSpec{};
+    limit_constraint_idx = std::nullopt;
+    offset_constraint_idx = std::nullopt;
   }
 
   bool should_sort_using_order_by = true;
@@ -299,12 +308,23 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
       tab, auto plan,
       v->dataframe->PlanQuery(filter_specs, distinct_specs, sort_specs,
                               limit_spec, info->colUsed));
+  int max_argv = 0;
   for (const auto& c : filter_specs) {
     if (auto value_index = c.value_index; value_index) {
       info->aConstraintUsage[c.source_index].argvIndex =
           static_cast<int>(*value_index) + 1;
       info->aConstraintUsage[c.source_index].omit = true;
+      max_argv =
+          std::max(max_argv, info->aConstraintUsage[c.source_index].argvIndex);
     }
+  }
+  if (limit_constraint_idx) {
+    info->aConstraintUsage[*limit_constraint_idx].omit = true;
+    info->aConstraintUsage[*limit_constraint_idx].argvIndex = ++max_argv;
+  }
+  if (offset_constraint_idx) {
+    info->aConstraintUsage[*offset_constraint_idx].omit = true;
+    info->aConstraintUsage[*offset_constraint_idx].argvIndex = ++max_argv;
   }
   info->needToFreeIdxStr = true;
   info->estimatedCost = plan.estimated_cost();
