@@ -6388,7 +6388,7 @@ perfetto_proto_library(
     name = "protos_perfetto_trace_generic_kernel_protos",
     srcs = [
         "protos/perfetto/trace/generic_kernel/generic_power.proto",
-        "protos/perfetto/trace/generic_kernel/generic_task_state.proto",
+        "protos/perfetto/trace/generic_kernel/generic_task.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
