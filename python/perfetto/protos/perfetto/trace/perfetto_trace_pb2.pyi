@@ -15659,7 +15659,8 @@ class TrackEventRangeOfInterest(_message.Message):
     def __init__(self, start_us: _Optional[int] = ...) -> None: ...
 
 class TransactionState(_message.Message):
-    __slots__ = ["display_changes", "input_event_id", "layer_changes", "merged_transaction_ids", "pid", "post_time", "transaction_id", "uid", "vsync_id"]
+    __slots__ = ["apply_token", "display_changes", "input_event_id", "layer_changes", "merged_transaction_ids", "pid", "post_time", "transaction_id", "uid", "vsync_id"]
+    APPLY_TOKEN_FIELD_NUMBER: _ClassVar[int]
     DISPLAY_CHANGES_FIELD_NUMBER: _ClassVar[int]
     INPUT_EVENT_ID_FIELD_NUMBER: _ClassVar[int]
     LAYER_CHANGES_FIELD_NUMBER: _ClassVar[int]
@@ -15669,6 +15670,7 @@ class TransactionState(_message.Message):
     TRANSACTION_ID_FIELD_NUMBER: _ClassVar[int]
     UID_FIELD_NUMBER: _ClassVar[int]
     VSYNC_ID_FIELD_NUMBER: _ClassVar[int]
+    apply_token: int
     display_changes: _containers.RepeatedCompositeFieldContainer[DisplayState]
     input_event_id: int
     layer_changes: _containers.RepeatedCompositeFieldContainer[LayerState]
@@ -15678,7 +15680,7 @@ class TransactionState(_message.Message):
     transaction_id: int
     uid: int
     vsync_id: int
-    def __init__(self, pid: _Optional[int] = ..., uid: _Optional[int] = ..., vsync_id: _Optional[int] = ..., input_event_id: _Optional[int] = ..., post_time: _Optional[int] = ..., transaction_id: _Optional[int] = ..., layer_changes: _Optional[_Iterable[_Union[LayerState, _Mapping]]] = ..., display_changes: _Optional[_Iterable[_Union[DisplayState, _Mapping]]] = ..., merged_transaction_ids: _Optional[_Iterable[int]] = ...) -> None: ...
+    def __init__(self, pid: _Optional[int] = ..., uid: _Optional[int] = ..., vsync_id: _Optional[int] = ..., input_event_id: _Optional[int] = ..., post_time: _Optional[int] = ..., transaction_id: _Optional[int] = ..., layer_changes: _Optional[_Iterable[_Union[LayerState, _Mapping]]] = ..., display_changes: _Optional[_Iterable[_Union[DisplayState, _Mapping]]] = ..., merged_transaction_ids: _Optional[_Iterable[int]] = ..., apply_token: _Optional[int] = ...) -> None: ...
 
 class TransactionTraceEntry(_message.Message):
     __slots__ = ["added_displays", "added_layers", "destroyed_layer_handles", "destroyed_layers", "displays", "displays_changed", "elapsed_realtime_nanos", "removed_displays", "transactions", "vsync_id"]

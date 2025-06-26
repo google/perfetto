@@ -6361,6 +6361,7 @@ message TransactionState {
   repeated LayerState layer_changes = 7;
   repeated DisplayState display_changes = 8;
   repeated uint64 merged_transaction_ids = 9;
+  optional uint64 apply_token = 10;
 }
 
 // Keep insync with layer_state_t
