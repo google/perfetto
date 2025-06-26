@@ -283,6 +283,25 @@ class PerfettoTable(TestSuite):
         9,90
         """))
 
+  def test_perfetto_table_limit_and_offset(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query="""
+        CREATE PERFETTO TABLE foo AS
+        WITH
+          data(x) AS (
+            VALUES(1), (2), (3), (4), (5)
+          )
+        SELECT x FROM data;
+
+        SELECT * FROM foo LIMIT 2 OFFSET 3;
+        """,
+        out=Csv("""
+        "x"
+        4
+        5
+        """))
+
   def test_max(self):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
