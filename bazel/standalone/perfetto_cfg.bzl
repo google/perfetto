@@ -152,7 +152,8 @@ PERFETTO_CONFIG = struct(
     ),
 
     # The default copts which we use to compile C++ code.
-    default_copts = [
+    default_copts = [],
+    default_cxxopts = [
         "-std=c++17",
-    ]
+    ],
 )

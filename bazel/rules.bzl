@@ -26,8 +26,8 @@ def default_cc_args():
         "deps": PERFETTO_CONFIG.deps.build_config,
         "copts": [
             "-Wno-pragma-system-header-outside-header",
-        ],
-        "cxxopts": PERFETTO_CONFIG.default_copts,
+        ] + PERFETTO_CONFIG.default_copts,
+        "cxxopts": PERFETTO_CONFIG.default_cxxopts,
         "includes": ["include"],
         "linkopts": select({
             "@perfetto//bazel:os_linux": ["-ldl", "-lrt", "-lpthread"],
