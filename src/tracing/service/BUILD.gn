@@ -27,6 +27,7 @@ source_set("service") {
     "../../../include/perfetto/tracing",
     "../../../protos/perfetto/common:zero",
     "../../../protos/perfetto/config:zero",
+    "../../../protos/perfetto/config/priority_boost:cpp",
     "../../../protos/perfetto/trace:zero",
     "../../../protos/perfetto/trace/perfetto:zero",  # For MetatraceWriter.
     "../../android_stats",
@@ -82,6 +83,7 @@ perfetto_unittest_source_set("unittests") {
     ":service",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../../protos/perfetto/config/priority_boost:cpp",
     "../../../protos/perfetto/trace:cpp",
     "../../../protos/perfetto/trace:zero",
     "../../../protos/perfetto/trace/ftrace:cpp",

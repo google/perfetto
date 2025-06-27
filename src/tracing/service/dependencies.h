@@ -19,6 +19,7 @@
 
 #include <memory>
 
+#include "perfetto/ext/base/sched.h"
 #include "src/tracing/service/clock.h"
 #include "src/tracing/service/random.h"
 
