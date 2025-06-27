@@ -913,9 +913,12 @@ class TracingServiceImpl : public TracingService {
                                              uint64_t trigger_name_hash);
   void StopOnDurationMsExpiry(TracingSessionID);
 
+  // TODO(ktimofeev): FIXIT
+ public:
   static base::StatusOr<base::SchedConfig> CreateSchedPolicyFromConfig(
       const protos::gen::PriorityBoostConfig& config);
 
+ private:
   void UpdateCurrentSchedPolicyIfNeeded();
 
   std::unique_ptr<tracing_service::Clock> clock_;

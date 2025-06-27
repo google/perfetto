@@ -115,7 +115,7 @@ int PERFETTO_EXPORT_ENTRYPOINT ProbesMain(int argc, char** argv) {
   }
 
   base::UnixTaskRunner task_runner;
-  ProbesProducer producer;
+  ProbesProducer producer(base::SchedManager::GetInstance());
   // If the TRACED_PROBES_NOTIFY_FD env var is set, write 1 and close the FD,
   // when all data sources have been registered. This is used for //src/tracebox
   // --background-wait, to make sure that the data sources are registered before

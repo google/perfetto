@@ -1428,6 +1428,24 @@ message AndroidPowerConfig {
 
 // End of protos/perfetto/config/power/android_power_config.proto
 
+// Begin of protos/perfetto/config/priority_boost/priority_boost_config.proto
+
+// Configuration that allows to boost the priority of the 'traced' process, by
+// changing the scheduler configuration.
+// Only supported on Linux and Android,
+// 'traced' process must have 'CAP_SYS_NICE' capability (be started as root).
+message PriorityBoostConfig {
+  oneof boost_level {
+    // From [-20 to 19], larger values correspond to _lower_ scheduling
+    // priority. Userspace policy SCHED_OTHER will be used.
+    int32 nice_value = 1;
+    // From [1 to 99], lager value correspond to _higher_ priority.
+    // Realtime policy SCHED_FIFO will be used.
+    uint32 realtime_priority = 2;
+  }
+}
+// End of protos/perfetto/config/priority_boost/priority_boost_config.proto
+
 // Begin of protos/perfetto/config/process_stats/process_stats_config.proto
 
 message ProcessStatsConfig {
@@ -3879,6 +3897,8 @@ message DataSourceConfig {
   // sources registered with a configurable buffer exhausted policy).
   optional BufferExhaustedPolicy buffer_exhausted_policy = 9;
 
+  optional PriorityBoostConfig priority_boost = 10;
+
   // Keep the lower IDs (up to 99) for fields that are *not* specific to
   // data-sources and needs to be processed by the traced daemon.
 
@@ -4021,24 +4041,6 @@ message DataSourceConfig {
 }
 
 // End of protos/perfetto/config/data_source_config.proto
-
-// Begin of protos/perfetto/config/priority_boost/priority_boost_config.proto
-
-// Configuration that allows to boost the priority of the 'traced' process, by
-// changing the scheduler configuration.
-// Only supported on Linux and Android,
-// 'traced' process must have 'CAP_SYS_NICE' capability (be started as root).
-message PriorityBoostConfig {
-  oneof boost_level {
-    // From [-20 to 19], larger values correspond to _lower_ scheduling
-    // priority. Userspace policy SCHED_OTHER will be used.
-    int32 nice_value = 1;
-    // From [1 to 99], lager value correspond to _higher_ priority.
-    // Realtime policy SCHED_FIFO will be used.
-    uint32 realtime_priority = 2;
-  }
-}
-// End of protos/perfetto/config/priority_boost/priority_boost_config.proto
 
 // Begin of protos/perfetto/config/trace_config.proto
 

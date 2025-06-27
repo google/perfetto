@@ -20,6 +20,7 @@
 #include <functional>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/sched.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/forward_decls.h"
 
@@ -59,6 +60,8 @@ class ProbesDataSource {
         "ClearIncrementalState received by data source that doesn't provide "
         "its own implementation.");
   }
+
+  std::optional<base::SchedConfig> priority_boost;
 
   const TracingSessionID tracing_session_id;
   const Descriptor* const descriptor;
