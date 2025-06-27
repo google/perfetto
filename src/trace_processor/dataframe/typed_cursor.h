@@ -158,7 +158,7 @@ class TypedCursor {
         sort_specs_(std::move(sort_specs)),
         mutable_(mut),
         column_mutation_count_(impl::Slab<uint32_t*>::Alloc(
-            filter_specs.size() + sort_specs_.size())) {
+            filter_specs_.size() + sort_specs_.size())) {
     filter_values_.resize(filter_specs_.size());
     filter_value_mapping_.resize(filter_specs_.size(),
                                  std::numeric_limits<uint32_t>::max());
