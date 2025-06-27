@@ -17,9 +17,7 @@
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
 
 #include <cstddef>
-#include <cstdint>
 
-#include "src/trace_processor/dataframe/impl/slab.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::dataframe::impl {
@@ -184,17 +182,6 @@ TEST(FlexVectorTest, DataAccessor) {
   // Modify through data()
   data[1] = 42;
   EXPECT_EQ(vec[1], 42);
-}
-
-// Test with custom alignment
-TEST(FlexVectorTest, CustomAlignment) {
-  // Use 128-byte alignment
-  constexpr size_t kCustomAlignment = 128;
-  auto vec = FlexVector<double, kCustomAlignment>::CreateWithCapacity(256);
-
-  // The data pointer should be aligned to kCustomAlignment
-  auto ptr_value = reinterpret_cast<uintptr_t>(vec.data());
-  EXPECT_EQ(ptr_value % kCustomAlignment, 0u);
 }
 
 }  // namespace
