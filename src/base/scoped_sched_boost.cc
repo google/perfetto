@@ -21,7 +21,6 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#include <pthread.h>
 #include <sys/resource.h>
 #endif
 
@@ -35,29 +34,70 @@ namespace base {
 namespace {
 
 // One instance per thread.
-class CurThread {
+class ThreadMgr {
  public:
-  CurThread() {
-    PERFETTO_CHECK(pthread_getschedparam(pthread_self(), &initial_policy,
-                                         &initial_param) == 0);
+  static ThreadMgr& Instance() {
+    static ThreadMgr* instance = new ThreadMgr();
+    return *instance;
   }
 
+  ThreadMgr();
+  Status Add(SchedPolicyAndPrio);
+  void Remove(SchedPolicyAndPrio);
   Status RecalcAndUpdatePrio();
 
   int initial_policy = SCHED_OTHER;
   sched_param initial_param{};
+  int initial_nice = 0;
   std::vector<SchedPolicyAndPrio> prios_;
 };
 
-thread_local CurThread sched_mgr;
+ThreadMgr::ThreadMgr() {
+  initial_policy = sched_getscheduler(0);
+  initial_param = {};
+  sched_getparam(0, &initial_param);
+  initial_nice = getpriority(PRIO_PROCESS, static_cast<id_t>(GetThreadId()));
+}
 
-Status CurThread::RecalcAndUpdatePrio() {
-  pthread_t self = pthread_self();
-  if (prios_.empty()) {
-    PERFETTO_CHECK(
-        pthread_setschedparam(self, initial_policy, &initial_param) == 0);
+Status ThreadMgr::Add(SchedPolicyAndPrio spp) {
+  auto it = std::lower_bound(prios_.begin(), prios_.end(), spp);
+  it = prios_.emplace(it, spp);
+  bool is_highest = std::distance(it, prios_.end()) == 1;
+  if (is_highest) {
+    Status res = RecalcAndUpdatePrio();
+    if (!res.ok()) {
+      prios_.erase(it);
+      return res;
+    }
   }
-  SchedPolicyAndPrio& max_pol = prios_.front();
+  return OkStatus();
+}
+
+void ThreadMgr::Remove(SchedPolicyAndPrio spp) {
+  auto it = std::find(prios_.begin(), prios_.end(), spp);
+  if (it == prios_.end()) {
+    return;  // Can happen if the creation failed, e.g. due to permission err.
+  }
+  bool recalc = std::distance(it, prios_.end()) == 1;
+  prios_.erase(it);
+  if (recalc)
+    RecalcAndUpdatePrio();
+}
+
+Status ThreadMgr::RecalcAndUpdatePrio() {
+  if (prios_.empty()) {
+    if (sched_setscheduler(0, initial_policy, &initial_param)) {
+      return ErrStatus("sched_setscheduler(initial) failed (%d)", errno);
+    }
+    if (initial_policy == SCHED_OTHER &&
+        setpriority(PRIO_PROCESS, static_cast<id_t>(GetThreadId()),
+                    initial_nice)) {
+      return ErrStatus("setpriority(initial_nice) failed (%d)", errno);
+    }
+    return OkStatus();
+  }
+
+  SchedPolicyAndPrio& max_pol = prios_.back();
   sched_param param{};
   switch (max_pol.policy) {
     case SchedPolicyAndPrio::kInvalid:
@@ -66,32 +106,23 @@ Status CurThread::RecalcAndUpdatePrio() {
       break;
     case SchedPolicyAndPrio::kSchedFifo:
       param.sched_priority = max_pol.prio;
-      if (pthread_setschedparam(self, SCHED_FIFO, &param)) {
-        return ErrStatus(
-            "pthread_setschedparam(SCHED_FIFO, %d) failed errno=%d",
-            param.sched_priority, errno);
+      if (sched_setscheduler(0, SCHED_FIFO, &param)) {
+        return ErrStatus("sched_setscheduler(SCHED_FIFO, %d) failed (%d)",
+                         param.sched_priority, errno);
       }
       return OkStatus();
     case SchedPolicyAndPrio::kSchedOther:
-      if (pthread_setschedparam(self, SCHED_OTHER, &param)) {
-        return ErrStatus(
-            "pthread_setschedparam(SCHED_OTHER, 0) failed, errno=%d", errno);
+      if (sched_setscheduler(0, SCHED_OTHER, &param)) {
+        return ErrStatus("sched_setscheduler(SCHED_OTHER, 0) failed (%d)",
+                         errno);
       }
 
       int nice_level = -max_pol.prio;
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
-      if (setpriority(PRIO_DARWIN_THREAD, 0, nice_level)) {
-        return ErrStatus(
-            "setpriority(PRIO_DARWIN_THREAD, 0, %d) failed, errno=%d",
-            nice_level, errno);
-      }
-#else
-      int cur_tid = static_cast<int>(GetThreadId());
+      id_t cur_tid = static_cast<id_t>(GetThreadId());
       if (setpriority(PRIO_PROCESS, cur_tid, nice_level)) {
-        return ErrStatus("setpriority(PRIO_PROCESS, %d, %d) failed, errno=%d",
-                         cur_tid, nice_level, errno);
+        return ErrStatus("setpriority(PRIO_PROCESS, %d, %d) failed (%d)",
+                         static_cast<int>(cur_tid), nice_level, errno);
       }
-#endif
       return OkStatus();
   }
   PERFETTO_CHECK(false);  // For GCC.
@@ -100,46 +131,36 @@ Status CurThread::RecalcAndUpdatePrio() {
 }  // namespace
 
 // static
+void ScopedSchedBoost::ResetForTesting() {
+  ThreadMgr::Instance() = ThreadMgr();
+}
+
+// static
 StatusOr<ScopedSchedBoost> ScopedSchedBoost::Boost(SchedPolicyAndPrio spp) {
-  auto& prios = sched_mgr.prios_;
-  auto it = std::lower_bound(prios.begin(), prios.end(), spp);
-  bool boost = it == prios.begin();
-  it = prios.emplace(it, spp);
-  if (boost) {
-    Status res = sched_mgr.RecalcAndUpdatePrio();
-    if (!res.ok()) {
-      prios.erase(it);
-      return res;
-    }
-  }
+  auto res = ThreadMgr::Instance().Add(spp);
+  if (!res.ok())
+    return res;
   return StatusOr<ScopedSchedBoost>(ScopedSchedBoost(spp));
 }
 
 ScopedSchedBoost::ScopedSchedBoost(ScopedSchedBoost&& other) noexcept {
-  *this = std::move(other);
+  this->policy_and_prio_ = other.policy_and_prio_;
+  other.policy_and_prio_.policy = SchedPolicyAndPrio::kInvalid;
 }
 
 ScopedSchedBoost& ScopedSchedBoost::operator=(
     ScopedSchedBoost&& other) noexcept {
-  this->policy_and_prio_ = other.policy_and_prio_;
-  other.policy_and_prio_.policy = SchedPolicyAndPrio::kInvalid;
+  this->~ScopedSchedBoost();
+  new (this) ScopedSchedBoost(std::move(other));
   return *this;
 }
 
 ScopedSchedBoost::~ScopedSchedBoost() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  if (policy_and_prio_.policy == SchedPolicyAndPrio::kInvalid) {
+  if (policy_and_prio_.policy == SchedPolicyAndPrio::kInvalid)
     return;  // A std::move(d) object.
-  }
-  auto& prios = sched_mgr.prios_;
-  auto it = std::find(prios.begin(), prios.end(), policy_and_prio_);
-  if (it == prios.end()) {
-    return;  // Can happen if the creation failed, e.g. due to permission err.
-  }
-  bool recalc = it == prios.begin();
-  prios.erase(it);
-  if (recalc)
-    sched_mgr.RecalcAndUpdatePrio();
+  ThreadMgr::Instance().Remove(policy_and_prio_);
+  policy_and_prio_.policy = SchedPolicyAndPrio::kInvalid;
 }
 
 #else

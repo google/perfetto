@@ -57,8 +57,8 @@ struct SchedPolicyAndPrio {
     return !(*this == other);
   }
 
-  Policy policy;
-  int prio;
+  Policy policy = kInvalid;
+  int prio = 0;
 };
 
 // RAII helper to temporarily boost the scheduler priority of the current
@@ -67,6 +67,7 @@ struct SchedPolicyAndPrio {
 // It is supported only on Linux/Android, fails on other platforms.
 class ScopedSchedBoost {
  public:
+  static void ResetForTesting();
   static StatusOr<ScopedSchedBoost> Boost(SchedPolicyAndPrio);
   ScopedSchedBoost(ScopedSchedBoost&&) noexcept;
   ScopedSchedBoost& operator=(ScopedSchedBoost&&) noexcept;
