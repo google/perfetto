@@ -123,7 +123,7 @@ void Dataframe::Clear() {
     }
   }
   row_count_ = 0;
-  ++mutations_;
+  ++non_column_mutations_;
 }
 
 base::StatusOr<Index> Dataframe::BuildIndex(const uint32_t* columns_start,
@@ -153,13 +153,13 @@ base::StatusOr<Index> Dataframe::BuildIndex(const uint32_t* columns_start,
 void Dataframe::AddIndex(Index index) {
   PERFETTO_CHECK(finalized_);
   indexes_.emplace_back(std::move(index));
-  ++mutations_;
+  ++non_column_mutations_;
 }
 
 void Dataframe::RemoveIndexAt(uint32_t index) {
   PERFETTO_CHECK(finalized_);
   indexes_.erase(indexes_.begin() + static_cast<std::ptrdiff_t>(index));
-  ++mutations_;
+  ++non_column_mutations_;
 }
 
 void Dataframe::Finalize() {
