@@ -20,7 +20,7 @@ const path = require("path");
 const hljs = require("highlight.js");
 
 const CS_BASE_URL =
-  "https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto";
+  "https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/";
 
 const ROOT_DIR = path.dirname(path.dirname(path.dirname(__dirname)));
 
@@ -170,6 +170,36 @@ function renderParagraph(text) {
   return `<p${cssClass}>${text}</p>\n`;
 }
 
+function renderHtml(originalHtmlFn, raw) {
+  if (!raw.trim().startsWith('<?tabs>')) {
+    return originalHtmlFn(raw);
+  }
+  const sanitized = raw.replace('<?tabs>', '').replace('</tabs?>', '');
+  const tabs = sanitized
+    .split('TAB: ')
+    .map((x) => x.trim())
+    .filter((x) => x.length !== 0);
+  const buttons = [];
+  const content = [];
+  for (const tab of tabs) {
+    const eol = tab.indexOf('\n');
+    buttons.push(tab.substring(0, eol));
+    content.push(render(tab.substring(eol + 1)));
+  }
+  return `
+    <div class="tab-box">
+      <div class="tab-buttons">
+      ${buttons
+      .map((x) => `<button class="tab-button">${x}</button>`)
+      .join('\n')}
+      </div>
+      ${content
+      .map((x) => `<div class="tab-content"><p>${x}</p></div>`)
+      .join('\n')}
+    </div>
+  `;
+}
+
 function render(rawMarkdown) {
   const renderer = new marked.Renderer();
   const originalLinkFn = renderer.link.bind(renderer);
@@ -179,6 +209,8 @@ function render(rawMarkdown) {
   renderer.code = renderCode;
   renderer.heading = renderHeading;
   renderer.paragraph = renderParagraph;
+  const originalHtmlFn = renderer.html.bind(renderer);
+  renderer.html = (html) => renderHtml(originalHtmlFn, html);
 
   return marked.marked.parse(rawMarkdown, { renderer: renderer });
 }

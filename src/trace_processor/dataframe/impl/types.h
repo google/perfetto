@@ -139,7 +139,7 @@ class Storage {
   using Double = FlexVector<double>;
   using String = FlexVector<StringPool::Id>;
 
-  using DataPointer = std::variant<nullptr_t,
+  using DataPointer = std::variant<std::nullptr_t,
                                    const uint32_t*,
                                    const int32_t*,
                                    const int64_t*,

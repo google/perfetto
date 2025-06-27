@@ -84,7 +84,7 @@ be unfeasible. `mm_event` instead reports only periodic histograms in the trace,
 reducing sensibly the overhead.
 
 `mm_event` is available only on some Google Pixel kernels running Android 10 (Q)
-and beyond. 
+and beyond.
 
 When `mm_event` is enabled, the following mm event types are recorded:
 
@@ -278,16 +278,14 @@ in the form of a counter. The counter value is the PID of the killed process
 
 ![Userspace lmkd](/docs/images/lmk_lmkd.png "Example of a LMK caused by lmkd")
 
-TODO: we are working on a better UI support for LMKs.
-
 ### SQL
 
 Both newer lmkd and legacy kernel-driven lowmemorykiller events are normalized
 at import time and available under the `mem.lmk` key in the `instants` table.
 
 ```sql
-SELECT ts, process.name, process.pid 
-FROM instant 
+SELECT ts, process.name, process.pid
+FROM instant
 JOIN process_track ON instant.track_id = process_track.id
 JOIN process USING (upid)
 WHERE instant.name = 'mem.lmk'
