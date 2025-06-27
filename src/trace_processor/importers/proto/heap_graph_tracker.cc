@@ -429,14 +429,13 @@ void HeapGraphTracker::AddObject(uint32_t seq_id,
   for (size_t i = 0; i < obj.runtime_internal_objects.size(); ++i) {
     uint64_t owned_object_id = obj.runtime_internal_objects[i];
     // This is true for unset reference fields.
-    std::optional<ObjectTable::RowReference> owned_row_ref;
-    if (owned_object_id != 0)
-      owned_row_ref = GetOrInsertObject(&sequence_state, owned_object_id);
+    ObjectTable::RowReference owned_row_ref =
+        GetOrInsertObject(&sequence_state, owned_object_id);
 
     storage_->mutable_heap_graph_reference_table()->Insert(
         {reference_set_id,
          owner_id,
-         owned_row_ref ? std::make_optional(owned_row_ref->id()) : std::nullopt,
+         std::make_optional(owned_row_ref.id()),
          storage_->InternString("runtimeInternalObjects"),
          {},
          /*deobfuscated_field_name=*/std::nullopt});
