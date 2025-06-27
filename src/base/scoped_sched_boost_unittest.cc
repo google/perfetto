@@ -48,6 +48,10 @@ int GetCurRtPrio() {
 class ScopedSchedBoostTest : public testing::Test {
  public:
   void SetUp() override {
+    if (geteuid() != 0) {
+      GTEST_SKIP() << "ScopedSchedBoostTest requires root";
+    }
+
     initial_prio = GetCurThreadPrio();
     ScopedSchedBoost::ResetForTesting();
   }
