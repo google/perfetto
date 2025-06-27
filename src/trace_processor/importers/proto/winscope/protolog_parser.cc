@@ -42,7 +42,11 @@
 
 namespace perfetto::trace_processor {
 
-ProtoLogParser::ProtoLogParser(WinscopeContext* context)
+namespace {
+using ProtoLogLevel = winscope::ProtoLogLevel;
+}
+
+ProtoLogParser::ProtoLogParser(winscope::WinscopeContext* context)
     : context_(context),
       args_parser_{*context->trace_processor_context_->descriptor_pool_},
       log_level_debug_string_id_(
@@ -148,7 +152,7 @@ void ProtoLogParser::ParseAndAddViewerConfigToMessageDecoder(
     protozero::ConstBytes blob) {
   protos::pbzero::ProtoLogViewerConfig::Decoder protolog_viewer_config(blob);
 
-  ProtoLogMessageDecoder& protolog_message_decoder =
+  winscope::ProtoLogMessageDecoder& protolog_message_decoder =
       context_->protolog_message_decoder_;
 
   for (auto it = protolog_viewer_config.groups(); it; ++it) {

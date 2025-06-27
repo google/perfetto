@@ -39,6 +39,7 @@ struct Size {
 // visibilities. These rects are added to the __intrinsic_winscope_rect table.
 class Rect {
  public:
+  explicit Rect();
   explicit Rect(const protos::pbzero::RectProto::Decoder& rect);
   explicit Rect(const protos::pbzero::FloatRectProto::Decoder& rect);
   Rect(double left, double top, double right, double bottom);
