@@ -45,28 +45,28 @@ class StringPool {
   struct Block;
 
   // StringPool IDs are 32-bit. If the MSB is 1, the remaining bits of the ID
-  // are an index into the |large_strings_| vector. Otherwise, the next 6 bits
-  // are the index of the Block in the pool, and the remaining 25 bits the
+  // are an index into the |large_strings_| vector. Otherwise, the next 9 bits
+  // are the index of the Block in the pool, and the remaining 22 bits the
   // offset of the encoded string inside the pool.
   //
-  // [31] [30:25] [24:0]
+  // [31] [30:22] [21:0]
   //  |      |       |
   //  |      |       +---- offset in block (or LSB of large string index).
   //  |      +------------ block index (or MSB of large string index).
   //  +------------------- 1: large string, 0: string in a Block.
-  static constexpr size_t kNumBlockIndexBits = 6;
-  static constexpr uint32_t kNumBlockOffsetBits = 25;
+  static constexpr size_t kNumBlockIndexBits = 9;
+  static constexpr uint32_t kNumBlockOffsetBits = 22;
 
   static constexpr size_t kLargeStringFlagBitMask = 1u << 31;
   static constexpr size_t kBlockOffsetBitMask = (1u << kNumBlockOffsetBits) - 1;
   static constexpr size_t kBlockIndexBitMask =
       0xffffffff & ~kLargeStringFlagBitMask & ~kBlockOffsetBitMask;
 
-  static constexpr uint32_t kBlockSizeBytes = kBlockOffsetBitMask + 1;  // 32 MB
+  static constexpr uint32_t kBlockSizeBytes = kBlockOffsetBitMask + 1;  // 4 MB
 
   static constexpr uint32_t kMaxBlockCount = 1u << kNumBlockIndexBits;
 
-  static constexpr size_t kMinLargeStringSizeBytes = kBlockSizeBytes / 8;
+  static constexpr size_t kMinLargeStringSizeBytes = kBlockSizeBytes / 4;
 
  public:
   struct Id {
