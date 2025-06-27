@@ -40,7 +40,7 @@ const uint64_t kLRUInodeCacheSize = 1000;
 
 class ProbesProducer : public Producer, public FtraceController::Observer {
  public:
-  ProbesProducer();
+  ProbesProducer(base::SchedManagerInterface&);
   ~ProbesProducer() override;
 
   ProbesProducer(const ProbesProducer&) = delete;
@@ -99,6 +99,8 @@ class ProbesProducer : public Producer, public FtraceController::Observer {
   void OnDataSourceFlushComplete(FlushRequestID, DataSourceInstanceID);
   void OnFlushTimeout(FlushRequestID);
 
+  void UpdateCurrentSchedPolicyIfNeeded();
+
   State state_ = kNotStarted;
   base::TaskRunner* task_runner_ = nullptr;
   std::unique_ptr<TracingService::ProducerEndpoint> endpoint_;
@@ -133,6 +135,11 @@ class ProbesProducer : public Producer, public FtraceController::Observer {
   LRUInodeCache cache_{kLRUInodeCacheSize};
   std::map<BlockDeviceID, std::unordered_map<Inode, InodeMapValue>>
       system_inodes_;
+
+  base::SchedManagerInterface& sched_manager_;
+  // This field having value implies that the current platform supports sched
+  // policy updates.
+  std::optional<base::SchedConfig> default_sched_policy_;
 
   base::WeakPtrFactory<ProbesProducer> weak_factory_;  // Keep last.
 };

@@ -19,6 +19,7 @@
 #include <sys/stat.h>
 
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "perfetto/base/logging.h"
@@ -31,6 +32,7 @@
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/forward_decls.h"
+#include "protos/perfetto/config/priority_boost/priority_boost_config.gen.h"
 #include "src/traced/probes/android_cpu_per_uid/android_cpu_per_uid_data_source.h"
 #include "src/traced/probes/android_game_intervention_list/android_game_intervention_list_data_source.h"
 #include "src/traced/probes/android_kernel_wakelocks/android_kernel_wakelocks_data_source.h"
@@ -49,6 +51,7 @@
 #include "src/traced/probes/statsd_client/statsd_binder_data_source.h"
 #include "src/traced/probes/sys_stats/sys_stats_data_source.h"
 #include "src/traced/probes/system_info/system_info_data_source.h"
+#include "src/tracing/service/tracing_service_impl.h"
 
 namespace perfetto {
 namespace {
@@ -78,7 +81,8 @@ ProbesProducer* ProbesProducer::GetInstance() {
   return instance_;
 }
 
-ProbesProducer::ProbesProducer() : weak_factory_(this) {
+ProbesProducer::ProbesProducer(base::SchedManagerInterface& sched_manager)
+    : sched_manager_(sched_manager), weak_factory_(this) {
   PERFETTO_CHECK(instance_ == nullptr);
   instance_ = this;
 }
@@ -99,9 +103,10 @@ void ProbesProducer::Restart() {
   base::TaskRunner* task_runner = task_runner_;
   const char* socket_name = socket_name_;
 
+  base::SchedManagerInterface& sched_manager = sched_manager_;
   // Invoke destructor and then the constructor again.
   this->~ProbesProducer();
-  new (this) ProbesProducer();
+  new (this) ProbesProducer(sched_manager);
 
   ConnectWithRetries(socket_name, task_runner);
 }
@@ -464,6 +469,29 @@ void ProbesProducer::StartDataSource(DataSourceInstanceID instance_id,
   ProbesDataSource* data_source = it->second.get();
   if (data_source->started)
     return;
+  if (config.has_priority_boost()) {
+    if (!default_sched_policy_.has_value()) {
+      const base::StatusOr<base::SchedConfig>& current_policy =
+          sched_manager_.GetCurrentSchedConfig();
+      if (!current_policy.ok()) {
+        return PERFETTO_ELOG("%s", current_policy.status().c_message());
+      }
+      default_sched_policy_ = current_policy.value();
+    }
+
+    const protos::gen::PriorityBoostConfig& boost = config.priority_boost();
+    const auto& policy = TracingServiceImpl::CreateSchedPolicyFromConfig(boost);
+    if (!policy.ok()) {
+      PERFETTO_ELOG("%s", policy.status().c_message());
+    } else {
+      data_source->priority_boost = policy.value();
+      PERFETTO_LOG("ProbesProducer::StartDataSource, priority boost: %s",
+                   policy.value().ToString().c_str());
+    }
+    UpdateCurrentSchedPolicyIfNeeded();
+  } else {
+    PERFETTO_LOG("ProbesProducer::StartDataSource, no priority boost");
+  }
   if (config.trace_duration_ms() != 0) {
     // We need to ensure this timeout is worse than the worst case
     // time from us starting to traced managing to disable us.
@@ -516,6 +544,8 @@ void ProbesProducer::StopDataSource(DataSourceInstanceID id) {
   }
   data_sources_.erase(it);
   watchdogs_.erase(id);
+
+  UpdateCurrentSchedPolicyIfNeeded();
 
   // We could (and used to) acknowledge the stop before tearing the local state
   // down, allowing the tracing service and the consumer to carry on quicker.
@@ -611,6 +641,37 @@ void ProbesProducer::OnFlushTimeout(FlushRequestID flush_request_id) {
   PERFETTO_ELOG("Flush(%" PRIu64 ") timed out", flush_request_id);
   pending_flushes_.erase(flush_request_id);
   endpoint_->NotifyFlushComplete(flush_request_id);
+}
+
+void ProbesProducer::UpdateCurrentSchedPolicyIfNeeded() {
+  // if sched policy update is not supported just return.
+  if (!default_sched_policy_.has_value()) {
+    return;
+  }
+
+  base::SchedConfig new_policy = default_sched_policy_.value();
+  for (const auto& [_, data_source] : data_sources_) {
+    if (data_source) {
+      auto sched_config = data_source->priority_boost;
+      if (sched_config.has_value()) {
+        new_policy = std::max(new_policy, sched_config.value());
+      }
+    }
+  }
+  PERFETTO_LOG(
+      "ProbesProducer::UpdateCurrentSchedPolicyIfNeeded, new_policy: %s",
+      new_policy.ToString().c_str());
+  // At this stage we've already checked that we have permission to set policy
+  // and validated the 'new_policy' value is correct. If 'SetSchedPolicy'
+  // returns an error, something is very wrong beyond our control, log the error
+  // message in the production build, crash in the debug build.
+  if (const auto status = sched_manager_.SetSchedConfig(new_policy);
+      !status.ok()) {
+    PERFETTO_DFATAL_OR_ELOG(
+        "Failed to update current sched policy. New policy: %s, error message: "
+        "%s",
+        new_policy.ToString().c_str(), status.message().c_str());
+  }
 }
 
 void ProbesProducer::ClearIncrementalState(

@@ -204,7 +204,7 @@ class ProbesProducerThread {
   void Connect() {
     runner_ = base::ThreadTaskRunner::CreateAndStart("perfetto.prd.probes");
     runner_->PostTaskAndWaitForTesting([this]() {
-      producer_.reset(new ProbesProducer());
+      producer_.reset(new ProbesProducer(base::SchedManager::GetInstance()));
       producer_->ConnectWithRetries(producer_socket_.c_str(), runner_->get());
     });
   }
