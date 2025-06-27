@@ -130,48 +130,39 @@ export class CounterSelectionAggregator implements Aggregator {
     return [
       {
         title: 'Name',
-        kind: 'STRING',
         columnId: 'name',
       },
       {
         title: 'Delta value',
-        kind: 'NUMBER',
         columnId: 'delta_value',
       },
       {
         title: 'Rate /s',
-        kind: 'Number',
         columnId: 'rate',
       },
       {
         title: 'Weighted avg value',
-        kind: 'Number',
         columnId: 'avg_value',
       },
       {
         title: 'Count',
-        kind: 'Number',
         columnId: 'count',
         sum: true,
       },
       {
         title: 'First value',
-        kind: 'NUMBER',
         columnId: 'first_value',
       },
       {
         title: 'Last value',
-        kind: 'NUMBER',
         columnId: 'last_value',
       },
       {
         title: 'Min value',
-        kind: 'NUMBER',
         columnId: 'min_value',
       },
       {
         title: 'Max value',
-        kind: 'NUMBER',
         columnId: 'max_value',
       },
     ];

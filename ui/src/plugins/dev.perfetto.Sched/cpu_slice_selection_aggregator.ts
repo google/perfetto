@@ -80,38 +80,33 @@ export class CpuSliceSelectionAggregator implements Aggregator {
     return [
       {
         title: 'Process',
-        kind: 'STRING',
         columnId: 'process_name',
       },
       {
         title: 'PID',
-        kind: 'NUMBER',
         columnId: 'pid',
       },
       {
         title: 'Thread',
-        kind: 'STRING',
         columnId: 'thread_name',
       },
       {
         title: 'TID',
-        kind: 'NUMBER',
         columnId: 'tid',
       },
       {
-        title: 'Wall duration (ms)',
-        kind: 'TIMESTAMP_NS',
+        title: 'Wall duration',
+        formatHint: 'DURATION_NS',
         columnId: 'total_dur',
         sum: true,
       },
       {
-        title: 'Avg Wall duration (ms)',
-        kind: 'TIMESTAMP_NS',
+        title: 'Avg Wall duration',
+        formatHint: 'DURATION_NS',
         columnId: 'avg_dur',
       },
       {
         title: 'Occurrences',
-        kind: 'NUMBER',
         columnId: 'occurrences',
         sum: true,
       },
