@@ -57,7 +57,7 @@ namespace perfetto::trace_processor::dataframe::impl {
 template <typename T>
 class FlexVector {
  public:
-  // The capacity should alwauys be a multiple of this value to ensure
+  // The capacity should always be a multiple of this value to ensure
   // proper alignment and memory access patterns.
   static constexpr size_t kCapacityMultiple = 64;
 
