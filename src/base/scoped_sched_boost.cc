@@ -33,9 +33,10 @@ namespace base {
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 namespace {
 
-// One instance per thread.
 class ThreadMgr {
  public:
+  // TODO(primiano): this works only for the main thread. If we want to use it
+  // for >1 thread, this needs to become GetInstanceForThread().
   static ThreadMgr& Instance() {
     static ThreadMgr* instance = new ThreadMgr();
     return *instance;
