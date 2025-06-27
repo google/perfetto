@@ -126,6 +126,10 @@ class TypedCursor {
   // Returns true if the cursor has reached the end of the result set.
   PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
 
+  // Resets the cursor to the initial state. This frees any resources the
+  // cursor may have allocated and prepares it for a new query execution.
+  void Reset() { PrepareCursorInternal(); }
+
   // Calls `Dataframe:GetCellUnchecked` for the current row and specified
   // column.
   template <size_t C, typename D>
