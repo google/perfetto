@@ -28,6 +28,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -244,7 +245,10 @@ class HeapGraphTracker : public Destructible {
                    std::vector<tables::HeapGraphObjectTable::Id>&);
   void MarkRoot(tables::HeapGraphObjectTable::RowReference, StringId type);
   size_t RankRoot(StringId type);
-  void UpdateShortestPaths(tables::HeapGraphObjectTable::RowReference row_ref);
+  void UpdateShortestPaths(
+      base::CircularQueue<
+          std::pair<int32_t, tables::HeapGraphObjectTable::RowReference>>&,
+      tables::HeapGraphObjectTable::RowReference row_ref);
   void FindPathFromRoot(tables::HeapGraphObjectTable::RowReference,
                         PathFromRoot* path);
 

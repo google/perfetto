@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/string_view.h"
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
 #include "src/trace_processor/dataframe/specs.h"
@@ -927,19 +928,22 @@ void HeapGraphTracker::MarkRoot(ObjectTable::RowReference row_ref,
   }
 }
 
-void HeapGraphTracker::UpdateShortestPaths(ObjectTable::RowReference row_ref) {
+void HeapGraphTracker::UpdateShortestPaths(
+    base::CircularQueue<std::pair<int32_t, ObjectTable::RowReference>>& reach,
+    ObjectTable::RowReference row_ref) {
+  PERFETTO_DCHECK(reach.empty());
+
   // Calculate shortest distance to a GC root.
-  std::deque<std::pair<int32_t, ObjectTable::RowReference>> reachable_nodes{
-      {0, row_ref}};
+  reach.emplace_back(0, row_ref);
 
   std::vector<ObjectTable::Id> children;
-  while (!reachable_nodes.empty()) {
-    auto pair = reachable_nodes.front();
+  while (!reach.empty()) {
+    auto pair = reach.front();
 
     int32_t distance = pair.first;
     ObjectTable::RowReference cur_row_ref = pair.second;
 
-    reachable_nodes.pop_front();
+    reach.pop_front();
     int32_t cur_distance = cur_row_ref.root_distance();
     if (cur_distance == -1 || cur_distance > distance) {
       cur_row_ref.set_root_distance(distance);
@@ -950,7 +954,7 @@ void HeapGraphTracker::UpdateShortestPaths(ObjectTable::RowReference row_ref) {
             *storage_->mutable_heap_graph_object_table()->FindById(child_node);
         int32_t child_distance = child_row_ref.root_distance();
         if (child_distance == -1 || child_distance > distance + 1)
-          reachable_nodes.emplace_back(distance + 1, child_row_ref);
+          reach.emplace_back(distance + 1, child_row_ref);
       }
     }
   }
@@ -1159,10 +1163,11 @@ void HeapGraphTracker::FinalizeAllProfiles() {
   }
 
   // Update the shortest paths for all roots.
+  base::CircularQueue<std::pair<int32_t, ObjectTable::RowReference>> reach;
   auto* object_table = storage_->mutable_heap_graph_object_table();
   for (auto& [_, roots] : roots_) {
     for (ObjectTable::RowNumber root : roots) {
-      UpdateShortestPaths(root.ToRowReference(object_table));
+      UpdateShortestPaths(reach, root.ToRowReference(object_table));
     }
   }
 }
