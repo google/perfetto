@@ -1170,6 +1170,14 @@ void HeapGraphTracker::FinalizeAllProfiles() {
       UpdateShortestPaths(reach, root.ToRowReference(object_table));
     }
   }
+
+  // TODO(lalitm): when experimental_flamegraph is removed, we can remove all of
+  // this.
+  class_cursor_.Reset();
+  object_cursor_.Reset();
+  superclass_cursor_.Reset();
+  reference_cursor_.Reset();
+  referred_cursor_.Reset();
 }
 
 bool HeapGraphTracker::IsTruncated(UniquePid upid, int64_t ts) {
