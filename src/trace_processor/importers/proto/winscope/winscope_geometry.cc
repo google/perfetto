@@ -31,18 +31,24 @@ static bool IsFloatClose(double a, double b) {
 }
 }  // namespace
 
+Rect::Rect() = default;
+
 Rect::Rect(const protos::pbzero::RectProto::Decoder& rect) {
   x = rect.has_left() ? rect.left() : 0;
   y = rect.has_top() ? rect.top() : 0;
-  w = rect.has_right() ? rect.right() : 0;
-  h = rect.has_bottom() ? rect.bottom() : 0;
+  auto right = rect.has_right() ? rect.right() : 0;
+  auto bottom = rect.has_bottom() ? rect.bottom() : 0;
+  w = right - x;
+  h = bottom - y;
 }
 
 Rect::Rect(const protos::pbzero::FloatRectProto::Decoder& rect) {
   x = rect.has_left() ? static_cast<double>(rect.left()) : 0;
   y = rect.has_top() ? static_cast<double>(rect.top()) : 0;
-  w = rect.has_right() ? static_cast<double>(rect.right()) : 0;
-  h = rect.has_bottom() ? static_cast<double>(rect.bottom()) : 0;
+  auto right = rect.has_right() ? static_cast<double>(rect.right()) : 0;
+  auto bottom = rect.has_bottom() ? static_cast<double>(rect.bottom()) : 0;
+  w = right - x;
+  h = bottom - y;
 }
 
 Rect::Rect(double left, double top, double right, double bottom) {
@@ -65,7 +71,7 @@ Rect Rect::CropRect(const Rect& other) {
   const auto min_right = std::min(x + w, other.x + other.w);
   const auto max_top = std::max(y, other.y);
   const auto min_bottom = std::min(y + h, other.y + other.h);
-  return Rect{max_left, max_top, min_right - max_left, min_bottom - max_top};
+  return Rect(max_left, max_top, min_right, min_bottom);
 }
 
 bool Rect::ContainsRect(const Rect& other) {
@@ -93,8 +99,7 @@ bool Rect::IntersectsRect(const Rect& other) {
     if (y + h > other.y + other.h) {
       new_h = other.h;
     }
-
-    return !Rect{new_x, new_y, new_w, new_h}.IsEmpty();
+    return !Rect(new_x, new_y, new_w + new_x, new_h + new_y).IsEmpty();
   }
   return false;
 }
@@ -127,12 +132,8 @@ Rect TransformMatrix::TransformRect(const Rect& r) {
   const auto rb_prime = TransformMatrix::TransformPoint({r.x + r.w, r.y + r.h});
   const auto x = std::min(lt_prime.x, rb_prime.x);
   const auto y = std::min(lt_prime.y, rb_prime.y);
-  return Rect{
-      x,
-      y,
-      std::max(lt_prime.x, rb_prime.x) - x,
-      std::max(lt_prime.y, rb_prime.y) - y,
-  };
+  return Rect(x, y, std::max(lt_prime.x, rb_prime.x),
+              std::max(lt_prime.y, rb_prime.y));
 }
 
 Region TransformMatrix::TransformRegion(Region region) {
