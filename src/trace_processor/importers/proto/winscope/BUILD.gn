@@ -36,8 +36,15 @@ source_set("full") {
     "viewcapture_args_parser.h",
     "viewcapture_parser.cc",
     "viewcapture_parser.h",
+    "winscope_context.h",
+    "winscope_geometry.cc",
+    "winscope_geometry.h",
     "winscope_module.cc",
     "winscope_module.h",
+    "winscope_rect_tracker.cc",
+    "winscope_rect_tracker.h",
+    "winscope_transform_tracker.cc",
+    "winscope_transform_tracker.h",
   ]
   deps = [
     ":gen_cc_winscope_descriptor",

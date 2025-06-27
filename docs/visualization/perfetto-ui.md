@@ -87,7 +87,7 @@ We also have a new `TO_TIMECODE()` function in Trace Processor to print timestam
 
 ## UI Tips and Tricks
 
-### Pivot Tables
+### {#pivot-tables} Pivot Tables
 
 To use pivot tables in the Perfetto UI, you will need to enable the
 "Pivot tables" feature flag in the "Flags" tab under "Support" in the Sidebar.

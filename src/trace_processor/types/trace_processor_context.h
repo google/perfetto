@@ -168,11 +168,6 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> etm_tracker;                            // EtmTracker
   std::unique_ptr<Destructible> elf_tracker;                            // ElfTracker
   std::unique_ptr<Destructible> file_tracker;                           // FileTracker
-
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
-  std::unique_ptr<Destructible> shell_transitions_tracker;              // ShellTransitionsTracker
-  std::unique_ptr<Destructible> protolog_message_decoder;               // ProtoLogMessageDecoder
-#endif
   // clang-format on
 
   std::unique_ptr<ProtoTraceParser> proto_trace_parser;

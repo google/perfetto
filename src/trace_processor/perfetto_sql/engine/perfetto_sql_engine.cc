@@ -796,7 +796,15 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
         "RELEASE create_table_using_dataframe;"));
     // Failing a rollback/release is pretty catastrophic as we have no idea
     // what state the database is in anymore.
-    PERFETTO_CHECK(rollback_res.ok());
+    // TODO(lalitm): turn this into a fatal error once we understand why
+    // this is happening in Google3.
+    if (!rollback_res.ok()) {
+      PERFETTO_LOG(
+          "Failed to rollback after CREATE PERFETTO TABLE(%s): %s. Original "
+          "error: %s",
+          create_table.name.c_str(), rollback_res.status().c_message(),
+          exec_res.status().c_message());
+    }
   }
   return exec_res.status();
 }
