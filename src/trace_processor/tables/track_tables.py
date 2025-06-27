@@ -45,6 +45,7 @@ TRACK_TABLE = Table(
             CppOptional(CppUint32()),
             sql_access=SqlAccess.HIGH_PERF,
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
         C("type", CppString(), cpp_access=CppAccess.READ),
