@@ -10,6 +10,11 @@ Unreleased:
   SDK:
     *
 
+v51.1 - 2025-06-26:
+  Build system:
+    * Fixed issue with Bazel copts/cxxopts. Embedders are required to add a
+      default_cxxopts to their perfetto.bzl file in their repository.
+
 v51.0 - 2025-06-24:
   Tracing service and probes:
     * Added a new data source to poll for CPU time per UID and cluster.
