@@ -27,6 +27,7 @@
 #include "src/traced/probes/ftrace/event_info.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/ftrace_stats.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
@@ -86,12 +87,6 @@ void FrozenFtraceDataSource::Start() {
   // data is cleared because of the failure of buffer metadata validation.
   size_t num_cpus = tracefs_->NumberOfCpus();
 
-  // This assumes that the clock is CLOCK_BOOTTIME, but anyway the clock
-  // is not matter because this is not a live trace. We already don't
-  // know the absolute time in the previous boot.
-  const auto ftrace_clock =
-      protos::pbzero::FtraceClock::FTRACE_CLOCK_UNSPECIFIED;
-
   // To avoid reading pages more than expected, record remaining pages.
   size_t initial_page_quota = tracefs_->GetCpuBufferSizeInPages();
 
@@ -100,8 +95,7 @@ void FrozenFtraceDataSource::Start() {
   for (size_t cpu = 0; cpu < num_cpus; cpu++) {
     cpu_readers_.emplace_back(cpu, tracefs_->OpenPipeForCpu(cpu),
                               translation_table_.get(),
-                              /*symbolizer=*/nullptr, ftrace_clock,
-                              /*ftrace_clock_snapshot=*/nullptr);
+                              /*symbolizer=*/nullptr);
 
     cpu_page_quota_.push_back(initial_page_quota);
   }

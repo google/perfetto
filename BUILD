@@ -2274,8 +2274,15 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/winscope/viewcapture_args_parser.h",
         "src/trace_processor/importers/proto/winscope/viewcapture_parser.cc",
         "src/trace_processor/importers/proto/winscope/viewcapture_parser.h",
+        "src/trace_processor/importers/proto/winscope/winscope_context.h",
+        "src/trace_processor/importers/proto/winscope/winscope_geometry.cc",
+        "src/trace_processor/importers/proto/winscope/winscope_geometry.h",
         "src/trace_processor/importers/proto/winscope/winscope_module.cc",
         "src/trace_processor/importers/proto/winscope/winscope_module.h",
+        "src/trace_processor/importers/proto/winscope/winscope_rect_tracker.cc",
+        "src/trace_processor/importers/proto/winscope/winscope_rect_tracker.h",
+        "src/trace_processor/importers/proto/winscope/winscope_transform_tracker.cc",
+        "src/trace_processor/importers/proto/winscope/winscope_transform_tracker.h",
     ],
 )
 
@@ -6433,7 +6440,7 @@ perfetto_proto_library(
     name = "protos_perfetto_trace_generic_kernel_protos",
     srcs = [
         "protos/perfetto/trace/generic_kernel/generic_power.proto",
-        "protos/perfetto/trace/generic_kernel/generic_task_state.proto",
+        "protos/perfetto/trace/generic_kernel/generic_task.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,

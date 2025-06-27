@@ -47,7 +47,8 @@ class TypedCursor {
     static const Type kInt64 = base::variant_index<FilterValue, int64_t>();
     static const Type kDouble = base::variant_index<FilterValue, double>();
     static const Type kString = base::variant_index<FilterValue, const char*>();
-    static const Type kNull = base::variant_index<FilterValue, nullptr_t>();
+    static const Type kNull =
+        base::variant_index<FilterValue, std::nullptr_t>();
     int64_t GetInt64Value(uint32_t col) const {
       return base::unchecked_get<int64_t>(filter_values_[col]);
     }

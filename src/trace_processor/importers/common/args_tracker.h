@@ -23,6 +23,8 @@
 #include <tuple>
 #include <type_traits>
 
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/db/column.h"
@@ -295,7 +297,18 @@ class ArgsTracker {
                                    uint32_t /*col*/,
                                    uint32_t /*row*/,
                                    StringId /*key*/>;
-  std::map<ArrayKeyTuple, size_t /*next_index*/> array_indexes_;
+  struct Hasher {
+    uint64_t operator()(const ArrayKeyTuple& t) const {
+      base::Hasher hasher;
+      hasher.Update(reinterpret_cast<uint64_t>(std::get<0>(t)));
+      hasher.Update(std::get<1>(t));
+      hasher.Update(std::get<2>(t));
+      hasher.Update(std::get<3>(t).raw_id());
+      return hasher.digest();
+    }
+  };
+  base::FlatHashMap<ArrayKeyTuple, size_t /*next_index*/, Hasher>
+      array_indexes_;
 };
 
 }  // namespace perfetto::trace_processor
