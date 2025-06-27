@@ -83,6 +83,7 @@ class HeapGraphTracker : public Destructible {
 
     std::vector<uint64_t> field_name_ids;
     std::vector<uint64_t> referred_objects;
+    std::vector<uint64_t> runtime_internal_objects;
 
     // If this object is an instance of `libcore.util.NativeAllocationRegistry`,
     // this is the value of its `size` field.

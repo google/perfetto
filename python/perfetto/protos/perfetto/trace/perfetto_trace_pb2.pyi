@@ -9195,7 +9195,7 @@ class HeapGraph(_message.Message):
     def __init__(self, pid: _Optional[int] = ..., objects: _Optional[_Iterable[_Union[HeapGraphObject, _Mapping]]] = ..., roots: _Optional[_Iterable[_Union[HeapGraphRoot, _Mapping]]] = ..., types: _Optional[_Iterable[_Union[HeapGraphType, _Mapping]]] = ..., field_names: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., location_names: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., continued: bool = ..., index: _Optional[int] = ...) -> None: ...
 
 class HeapGraphObject(_message.Message):
-    __slots__ = ["heap_type_delta", "id", "id_delta", "native_allocation_registry_size_field", "reference_field_id", "reference_field_id_base", "reference_object_id", "self_size", "type_id"]
+    __slots__ = ["heap_type_delta", "id", "id_delta", "native_allocation_registry_size_field", "reference_field_id", "reference_field_id_base", "reference_object_id", "runtime_internal_object_id", "self_size", "type_id"]
     class HeapType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     HEAP_TYPE_APP: HeapGraphObject.HeapType
@@ -9209,6 +9209,7 @@ class HeapGraphObject(_message.Message):
     REFERENCE_FIELD_ID_BASE_FIELD_NUMBER: _ClassVar[int]
     REFERENCE_FIELD_ID_FIELD_NUMBER: _ClassVar[int]
     REFERENCE_OBJECT_ID_FIELD_NUMBER: _ClassVar[int]
+    RUNTIME_INTERNAL_OBJECT_ID_FIELD_NUMBER: _ClassVar[int]
     SELF_SIZE_FIELD_NUMBER: _ClassVar[int]
     TYPE_ID_FIELD_NUMBER: _ClassVar[int]
     heap_type_delta: HeapGraphObject.HeapType
@@ -9218,9 +9219,10 @@ class HeapGraphObject(_message.Message):
     reference_field_id: _containers.RepeatedScalarFieldContainer[int]
     reference_field_id_base: int
     reference_object_id: _containers.RepeatedScalarFieldContainer[int]
+    runtime_internal_object_id: _containers.RepeatedScalarFieldContainer[int]
     self_size: int
     type_id: int
-    def __init__(self, id: _Optional[int] = ..., id_delta: _Optional[int] = ..., type_id: _Optional[int] = ..., self_size: _Optional[int] = ..., reference_field_id_base: _Optional[int] = ..., reference_field_id: _Optional[_Iterable[int]] = ..., reference_object_id: _Optional[_Iterable[int]] = ..., native_allocation_registry_size_field: _Optional[int] = ..., heap_type_delta: _Optional[_Union[HeapGraphObject.HeapType, str]] = ...) -> None: ...
+    def __init__(self, id: _Optional[int] = ..., id_delta: _Optional[int] = ..., type_id: _Optional[int] = ..., self_size: _Optional[int] = ..., reference_field_id_base: _Optional[int] = ..., reference_field_id: _Optional[_Iterable[int]] = ..., reference_object_id: _Optional[_Iterable[int]] = ..., native_allocation_registry_size_field: _Optional[int] = ..., heap_type_delta: _Optional[_Union[HeapGraphObject.HeapType, str]] = ..., runtime_internal_object_id: _Optional[_Iterable[int]] = ...) -> None: ...
 
 class HeapGraphRoot(_message.Message):
     __slots__ = ["object_ids", "root_type"]
