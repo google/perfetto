@@ -24,7 +24,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 
-namespace perfetto::trace_processor {
+namespace perfetto::trace_processor::winscope {
 
 ProtoLogMessageDecoder::ProtoLogMessageDecoder(TraceProcessorContext* context)
     : context_(context) {}
@@ -148,4 +148,4 @@ void ProtoLogMessageDecoder::TrackMessage(
                            TrackedMessage{level, group_id, message, location});
 }
 
-}  // namespace perfetto::trace_processor
+}  // namespace perfetto::trace_processor::winscope
