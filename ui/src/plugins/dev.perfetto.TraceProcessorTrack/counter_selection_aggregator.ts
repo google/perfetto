@@ -13,13 +13,13 @@
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import {ColumnDef, Sorting} from '../../public/aggregation';
-import {Aggregation, AreaSelection} from '../../public/selection';
+import {ColumnDef, Sorting} from '../../components/aggregation';
+import {Aggregation, Aggregator} from '../../components/aggregation_adapter';
+import {AreaSelection} from '../../public/selection';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
-import {AreaSelectionAggregator} from '../../public/selection';
 
-export class CounterSelectionAggregator implements AreaSelectionAggregator {
+export class CounterSelectionAggregator implements Aggregator {
   readonly id = 'counter_aggregation';
 
   probe(area: AreaSelection): Aggregation | undefined {

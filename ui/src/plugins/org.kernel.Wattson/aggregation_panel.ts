@@ -13,33 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {createBaseAggregationToTabAdaptor} from '../../components/aggregation_adapter';
+import {AggregateData, Column} from '../../components/aggregation';
 import {
-  AggState,
-  AggregationPanel,
   AggregationPanelAttrs,
-} from '../../components/aggregation_panel';
+  AggState,
+} from '../../components/aggregation_adapter';
+import {AggregationPanel} from '../../components/aggregation_panel';
 import {translateState} from '../../components/sql_utils/thread_state';
-import {AggregateData, Column} from '../../public/aggregation';
-import {
-  AreaSelectionAggregator,
-  AreaSelectionTab,
-} from '../../public/selection';
-import {Trace} from '../../public/trace';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
-
-export function createWattsonAggregationToTabAdaptor(
-  trace: Trace,
-  aggregator: AreaSelectionAggregator,
-  tabPriorityOverride?: number,
-): AreaSelectionTab {
-  return createBaseAggregationToTabAdaptor(
-    trace,
-    aggregator,
-    WattsonAggregationPanel,
-    tabPriorityOverride,
-  );
-}
 
 export class WattsonAggregationPanel
   extends AggregationPanel

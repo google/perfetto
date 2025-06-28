@@ -12,19 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ColumnDef, Sorting, BarChartData} from '../../public/aggregation';
-import {Aggregation, AreaSelection} from '../../public/selection';
-import {Engine} from '../../trace_processor/engine';
-import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
-import {AreaSelectionAggregator} from '../../public/selection';
-import {colorForThreadState} from './common';
-import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
+import {BarChartData, ColumnDef, Sorting} from '../../components/aggregation';
 import {
+  Aggregation,
+  Aggregator,
   ii,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
+import {AreaSelection} from '../../public/selection';
+import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
+import {Engine} from '../../trace_processor/engine';
+import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
+import {colorForThreadState} from './common';
 
-export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
+export class ThreadStateSelectionAggregator implements Aggregator {
   readonly id = 'thread_state_aggregation';
 
   probe(area: AreaSelection): Aggregation | undefined {
