@@ -37,6 +37,7 @@ source_set("base") {
     "periodic_task.h",
     "pipe.h",
     "platform.h",
+    "proc_utils.h",
     "scoped_file.h",
     "scoped_mmap.h",
     "small_set.h",
