@@ -82,6 +82,61 @@ will jump straight to that slice.
 
 ![](/docs/images/analysis-cookbook-unint-sleep.png)
 
+## Finding process metadata and fetching UPID
+
+Demonstrates:
+
+- Fetching `process_name`, `upid` and `uid`. This data is used to get process level metrics from other tables
+- Using UPID for getting process specific metrics from other tables
+- Using `GLOB` for regex based queries
+
+Knowing details like process name, package name or UPID come in handy as they serve as a basis for many other queries in Perfetto.
+
+```sql
+INCLUDE PERFETTO MODULE android.process_metadata;
+
+SELECT
+  upid,
+  process_name,
+  package_name,
+  uid
+FROM android_process_metadata
+WHERE process_name GLOB '*Camera*'; -- GLOB search is case sensitive
+```
+Result:
+
+![](/docs/images/analysis-cookbook-process-metadata.png)
+
+**Note:** In case you don’t see the expected process, it may be happening because `GLOB` search is case sensitive.  So if you are not sure about your process name, it is worth doing `select upid, process_name, package_name, uid from android_process_metadata` to find the UPID of your process.
+
+
+**UPID** is the unique process ID which remains constant throughout the duration of the trace as opposed to the PID (process ID) which can change.
+Many [standard library tables](https://perfetto.dev/docs/analysis/stdlib-docs) in Perfetto such as `android_lmk_events`,  `cpu_cycles_per_process` etc use UPID to point to processes. This comes in handy specially when you need data filtered against your process. UPID is also useful for performing `JOIN` operations with other tables. Example for getting the cold start reason for GoogleCamera:
+```sql
+INCLUDE PERFETTO MODULE android.app_process_starts;
+INCLUDE PERFETTO MODULE time.conversion;
+
+
+SELECT
+  process_name,
+  upid,
+  intent,
+  reason,
+  time_to_ms(total_dur)
+FROM android_app_process_starts
+WHERE upid = 844;
+```
+
+**UID** is the Android app User ID is also useful. In cases where a `package_name` does **not** exist, standard library tables are populated in the format `uid=$X`. For example, `android_network_packets`. Example for getting network bytes transmitted for a process:
+```sql
+include perfetto module android.network_packets;
+
+SELECT
+  *
+FROM android_network_packets
+WHERE package_name = 'uid=12332';
+```
+
 ## Find top causes for uninterruptible sleep
 
 Demonstrates:
