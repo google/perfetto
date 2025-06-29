@@ -23,8 +23,7 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/winscope_proto_mapping.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor::winscope {
 
 SurfaceFlingerLayersParser::SurfaceFlingerLayersParser(
     TraceProcessorContext* context)
@@ -89,5 +88,4 @@ void SurfaceFlingerLayersParser::ParseLayer(
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::winscope
