@@ -18,14 +18,11 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_SURFACEFLINGER_LAYERS_PARSER_H_
 
 #include "src/trace_processor/tables/winscope_tables_py.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
-namespace perfetto {
-
-namespace trace_processor {
-
-class TraceProcessorContext;
+namespace perfetto::trace_processor::winscope {
 
 class SurfaceFlingerLayersParser {
  public:
@@ -40,7 +37,6 @@ class SurfaceFlingerLayersParser {
   TraceProcessorContext* const context_;
   util::ProtoToArgsParser args_parser_;
 };
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::winscope
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_SURFACEFLINGER_LAYERS_PARSER_H_

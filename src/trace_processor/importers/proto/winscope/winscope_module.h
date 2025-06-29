@@ -65,7 +65,7 @@ class WinscopeModule : public ProtoImporterModule {
   winscope::WinscopeContext context_;
   util::ProtoToArgsParser args_parser_;
 
-  SurfaceFlingerLayersParser surfaceflinger_layers_parser_;
+  winscope::SurfaceFlingerLayersParser surfaceflinger_layers_parser_;
   SurfaceFlingerTransactionsParser surfaceflinger_transactions_parser_;
   ShellTransitionsParser shell_transitions_parser_;
   ProtoLogParser protolog_parser_;
