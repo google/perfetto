@@ -12,8 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {removeFalsyValues} from '../../base/array_utils';
 import {assertExists} from '../../base/logging';
+import {Time} from '../../base/time';
+import {createAggregationTab} from '../../components/aggregation_adapter';
+import {
+  metricsFromTableOrSubquery,
+  QueryFlamegraph,
+} from '../../components/query_flamegraph';
+import {MinimapRow} from '../../public/minimap';
 import {PerfettoPlugin} from '../../public/plugin';
+import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
 import {Trace} from '../../public/trace';
 import {COUNTER_TRACK_KIND, SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {getTrackName} from '../../public/utils';
@@ -25,27 +34,18 @@ import {
   STR,
   STR_NULL,
 } from '../../trace_processor/query_result';
+import {escapeSearchQuery} from '../../trace_processor/query_utils';
+import {Flamegraph} from '../../widgets/flamegraph';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
+import {CounterSelectionAggregator} from './counter_selection_aggregator';
+import {COUNTER_TRACK_SCHEMAS} from './counter_tracks';
+import {PivotTableTab} from './pivot_table_tab';
+import {SliceSelectionAggregator} from './slice_selection_aggregator';
 import {SLICE_TRACK_SCHEMAS} from './slice_tracks';
 import {TraceProcessorCounterTrack} from './trace_processor_counter_track';
-import {COUNTER_TRACK_SCHEMAS} from './counter_tracks';
 import {createTraceProcessorSliceTrack} from './trace_processor_slice_track';
 import {TopLevelTrackGroup, TrackGroupSchema} from './types';
-import {removeFalsyValues} from '../../base/array_utils';
-import {createAggregationToTabAdaptor} from '../../components/aggregation_adapter';
-import {CounterSelectionAggregator} from './counter_selection_aggregator';
-import {SliceSelectionAggregator} from './slice_selection_aggregator';
-import {PivotTableTab} from './pivot_table_tab';
-import {MinimapRow} from '../../public/minimap';
-import {Time} from '../../base/time';
-import {Flamegraph} from '../../widgets/flamegraph';
-import {
-  metricsFromTableOrSubquery,
-  QueryFlamegraph,
-} from '../../components/query_flamegraph';
-import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
-import {escapeSearchQuery} from '../../trace_processor/query_utils';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.TraceProcessorTrack';
@@ -382,10 +382,10 @@ export default class implements PerfettoPlugin {
 
   private addAggregations(ctx: Trace) {
     ctx.selection.registerAreaSelectionTab(
-      createAggregationToTabAdaptor(ctx, new CounterSelectionAggregator()),
+      createAggregationTab(ctx, new CounterSelectionAggregator()),
     );
     ctx.selection.registerAreaSelectionTab(
-      createAggregationToTabAdaptor(ctx, new SliceSelectionAggregator()),
+      createAggregationTab(ctx, new SliceSelectionAggregator()),
     );
     ctx.selection.registerAreaSelectionTab(new PivotTableTab(ctx));
     ctx.selection.registerAreaSelectionTab(createSliceFlameGraphPanel(ctx));
