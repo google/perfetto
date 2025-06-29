@@ -1,0 +1,32 @@
+android_bitmap_metric {
+    process_with_bitmaps {
+        process_name: "com.google.android.apps.nexuslauncher"
+        counters {
+            name: "Bitmap Count"
+            min: 56.0
+            max: 64.0
+            avg: 58.81986707434517
+        }
+        counters {
+            name: "Bitmap Memory"
+            min: 4714584.0
+            max: 4863696.0
+            avg: 4763095.146500702
+        }
+    }
+    process_with_bitmaps {
+        process_name: "com.android.systemui"
+        counters {
+            name: "Bitmap Count"
+            min: 15.0
+            max: 17.0
+            avg: 16.1340648089358
+        }
+        counters {
+            name: "Bitmap Memory"
+            min: 479984.0
+            max: 787312.0
+            avg: 685674.6707797156
+        }
+    }
+}
