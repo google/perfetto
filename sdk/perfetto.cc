@@ -31938,7 +31938,7 @@ void TrackEvent_LegacyEvent::Serialize(::protozero::Message* msg) const {
 // Intentionally empty (crbug.com/998165)
 // gen_amalgamated begin source: gen/protos/perfetto/trace/generic_kernel/generic_power.pbzero.cc
 // Intentionally empty (crbug.com/998165)
-// gen_amalgamated begin source: gen/protos/perfetto/trace/generic_kernel/generic_task_state.pbzero.cc
+// gen_amalgamated begin source: gen/protos/perfetto/trace/generic_kernel/generic_task.pbzero.cc
 // Intentionally empty (crbug.com/998165)
 // gen_amalgamated begin source: gen/protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.cc
 // Intentionally empty (crbug.com/998165)
@@ -42367,8 +42367,8 @@ void TrackEventInternal::EnableRegistry(
     uint32_t internal_instance_index) {
   for (size_t i = 0; i < registry->category_count(); i++) {
     if (IsCategoryEnabled(*registry, config, *registry->GetCategory(i))) {
-      PERFETTO_DLOG("EnableRegistry %" PRIu32 " %" PRIu64,
-                    internal_instance_index, i);
+      PERFETTO_DLOG("EnableRegistry %" PRIu32 " %zu", internal_instance_index,
+                    i);
       registry->EnableCategoryForInstance(i, internal_instance_index);
     }
   }
@@ -44792,8 +44792,8 @@ const char* GetVersionCode();
 #ifndef GEN_PERFETTO_VERSION_GEN_H_
 #define GEN_PERFETTO_VERSION_GEN_H_
 
-#define PERFETTO_VERSION_STRING() "v51.0-8eb032e80"
-#define PERFETTO_VERSION_SCM_REVISION() "8eb032e80a9442fe18c90c6ea01f641db63c0868"
+#define PERFETTO_VERSION_STRING() "v51.1-c5f468f2f"
+#define PERFETTO_VERSION_SCM_REVISION() "c5f468f2f1d55817df1841645c45e9603d659b7a"
 
 #endif  // GEN_PERFETTO_VERSION_GEN_H_
 /*
