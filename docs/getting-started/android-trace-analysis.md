@@ -371,3 +371,52 @@ The debug tracks should now look like this:
 Here is an example from a busier trace, where you can see the same process being
 assigned to different groups:
 ![](/docs/images/debug-track-setprocessgroup-final-result.png)
+
+## State of background jobs
+
+Use `android_job_scheduler_states` table in Perfetto to collect job duration and error metrics for jobs to identify whether background jobs are running as expected.
+
+Demonstrates:
+
+- Filtering by process
+- Using Perfetto standard library tables
+- Including Perfetto modules for SQL queries
+- Converting duration to milliseconds using `time_to_ms` function
+
+JobScheduler is an Android system service that helps apps schedule background tasks (like data syncs or file downloads) efficiently. In Android development, *Background jobs* generally refer to any work that an application needs to perform without directly interacting with the user interface. This could include tasks like syncing data with a server, downloading files, processing images, sending analytics, or performing database operations.
+
+To collect data for background jobs in `android_job_scheduler_states` table, you will need the following snippet in your Perfetto configuration when recording traces:
+```
+data_sources {
+  config {
+    name: "android.statsd"
+    statsd_tracing_config {
+      push_atom_id: ATOM_SCHEDULED_JOB_STATE_CHANGED
+    }
+  }
+}
+```
+
+```sql
+INCLUDE PERFETTO MODULE android.job_scheduler_states;
+
+SELECT
+  job_id,
+  job_name,
+  AVG(time_to_ms(dur)) AS avg_dur_ms,
+  COUNT(*) AS num_times_ran,
+  internal_stop_reason AS stop_reason,
+  SUM(num_uncompleted_work_items) AS num_uncompleted_work_items,
+  AVG(job_start_latency_ms) AS queue_time_ms
+FROM android_job_scheduler_states
+WHERE package_name = 'com.google.android.adservices.api'
+GROUP BY job_name, job_id, internal_stop_reason, package_name;
+```
+
+Long durations, frequent errors and retries indicate issues within your background jobs themselves (e.g., bugs in your code, unhandled exceptions, incorrect data processing). They can lead to increased resource consumption, battery drain and data usage on the user's device.
+
+Long queue times mean your background jobs are waiting too long to execute. This can have downstream effects. For instance, if a job is responsible for syncing user data, long queue times could lead to stale information being displayed to the user or a delay in critical updates.
+
+Result
+
+![](/docs/images/android-trace-analysis-background-jobs.png)
