@@ -81,17 +81,17 @@ export class FrameSelectionAggregator implements Aggregator {
       },
       {
         title: 'Min duration',
-        kind: 'DURATION_NS',
+        kind: 'TIMESTAMP_NS',
         columnId: 'minDur',
       },
       {
         title: 'Max duration',
-        kind: 'DURATION_NS',
+        kind: 'TIMESTAMP_NS',
         columnId: 'maxDur',
       },
       {
         title: 'Mean duration',
-        kind: 'DURATION_NS',
+        kind: 'TIMESTAMP_NS',
         columnId: 'meanDur',
       },
       {

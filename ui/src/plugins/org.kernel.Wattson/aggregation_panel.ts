@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Duration} from '../../base/time';
 import {BarChartData, ColumnDef} from '../../components/aggregation';
 import {AggregationPanelAttrs} from '../../components/aggregation_panel';
 import {
@@ -105,8 +104,11 @@ export class WattsonAggregationPanel
   }
 
   private colKindToRenderer(kind: string, value: SqlValue, colName: string) {
-    if (kind === 'DURATION_NS' && typeof value === 'bigint') {
-      return m('span.pf-data-grid__cell--number', Duration.humanise(value));
+    if (kind === 'TIMESTAMP_NS' && typeof value === 'bigint') {
+      return m(
+        'span.pf-data-grid__cell--number',
+        (Number(value) / 1_000_000).toFixed(3),
+      );
     } else {
       let v = value;
       if (

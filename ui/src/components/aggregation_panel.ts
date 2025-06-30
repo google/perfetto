@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Duration} from '../base/time';
 import {SqlValue} from '../trace_processor/query_result';
 import {Box} from '../widgets/box';
 import {Stack, StackAuto, StackFixed} from '../widgets/stack';
@@ -88,8 +87,11 @@ export class AggregationPanel
 }
 
 function colKindToRenderer(kind: string, value: SqlValue, colName: string) {
-  if (kind === 'DURATION_NS' && typeof value === 'bigint') {
-    return m('span.pf-data-grid__cell--number', Duration.humanise(value));
+  if (kind === 'TIMESTAMP_NS' && typeof value === 'bigint') {
+    return m(
+      'span.pf-data-grid__cell--number',
+      (Number(value) / 1_000_000).toFixed(3),
+    );
   } else {
     return renderCell(value, colName);
   }

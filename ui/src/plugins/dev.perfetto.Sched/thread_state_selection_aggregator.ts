@@ -129,14 +129,14 @@ export class ThreadStateSelectionAggregator implements Aggregator {
         columnId: 'state',
       },
       {
-        title: 'Wall duration',
-        kind: 'DURATION_NS',
+        title: 'Wall duration (ms)',
+        kind: 'TIMESTAMP_NS',
         columnId: 'total_dur',
         sum: true,
       },
       {
-        title: 'Avg Wall duration',
-        kind: 'DURATION_NS',
+        title: 'Avg Wall duration (ms)',
+        kind: 'TIMESTAMP_NS',
         columnId: 'avg_dur',
       },
       {
