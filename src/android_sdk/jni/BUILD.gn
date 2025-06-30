@@ -27,7 +27,7 @@ source_set("libperfetto_jni_src") {
 source_set("libperfetto_framework_jni_src") {
   sources = SOURCE_SET_SOURCES
   deps = SOURCE_SET_DEPS
-  cflags = [ "-DPERFETTO_JNI_JARJAR_PREFIX=com/android/internal" ]
+  cflags = [ "-DPERFETTO_JNI_JARJAR_PREFIX=com/android/internal/" ]
 }
 
 perfetto_android_jni_library("libperfetto_jni") {

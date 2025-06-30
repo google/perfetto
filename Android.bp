@@ -1193,7 +1193,7 @@ cc_library_shared {
         "perfetto_defaults",
     ],
     cflags: [
-        "-DPERFETTO_JNI_JARJAR_PREFIX=com/android/internal",
+        "-DPERFETTO_JNI_JARJAR_PREFIX=com/android/internal/",
     ],
     header_libs: [
         "jni_headers",
