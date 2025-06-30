@@ -469,7 +469,7 @@ data_sources {
 }
 ```
 
-### CPU utilization
+### Process Level CPU utilization
 
 CPU utilization for an Android device refers to the percentage of time the device's CPU is actively working to execute instructions and run programs. CPU utilization can be measured using CPU cycles which is directly proportional to the time taken by the CPU to complete a task. High CPU utilization by a specific Android process indicates that it is demanding a significant portion of the CPU's processing power.
 
@@ -492,7 +492,7 @@ Result:
 
 ![](/docs/images/android-trace-analysis-cpu-utilization-process.png)
 
-### Slice level CPU utilisation
+### Slice Level CPU utilisation
 
 To see cpu utilisation for an interesting slice, use the following query:
 ```sql
@@ -511,18 +511,12 @@ Or to check slice utilization for all the slices of your process:
 INCLUDE PERFETTO MODULE linux.cpu.utilization.slice;
 
 SELECT
-  slice.name,
-  SUM(millicycles),
-  SUM(megacycles) as megacycles,
-  process.name
+  name,
+  millicycles,
+  megacycles,
+  process_name
 FROM cpu_cycles_per_thread_slice
-JOIN slice ON slice.id = cpu_cycles_per_thread_slice.id
-JOIN thread_track ON slice.track_id = thread_track.id
-JOIN thread ON thread_track.utid = thread.utid
-JOIN process ON thread.upid = process.upid
-WHERE process.name = 'com.google.android.GoogleCamera'
-AND thread.utid = cpu_cycles_per_thread_slice.utid
-GROUP BY slice.id
+WHERE process_name = 'com.google.android.GoogleCamera'
 ORDER BY megacycles DESC;
 ```
 
