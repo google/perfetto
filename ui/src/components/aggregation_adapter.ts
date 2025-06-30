@@ -13,17 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {AggregationPanel, AggregationPanelAttrs} from './aggregation_panel';
+import {Time} from '../base/time';
+import {exists} from '../base/utils';
 import {
   AreaSelection,
-  AreaSelectionAggregator,
   areaSelectionsEqual,
   AreaSelectionTab,
 } from '../public/selection';
 import {Trace} from '../public/trace';
-import {SelectionAggregationManager} from './selection_aggregation_manager';
-import {EmptyState} from '../widgets/empty_state';
-import {Spinner} from '../widgets/spinner';
 import {Track} from '../public/track';
 import {
   Dataset,
@@ -31,14 +28,74 @@ import {
   SourceDataset,
   UnionDataset,
 } from '../trace_processor/dataset';
-import {exists} from '../base/utils';
 import {Engine} from '../trace_processor/engine';
-import {Time} from '../base/time';
+import {EmptyState} from '../widgets/empty_state';
+import {Spinner} from '../widgets/spinner';
+import {AggregateData, BarChartData, ColumnDef, Sorting} from './aggregation';
+import {AggregationPanel} from './aggregation_panel';
+import {SelectionAggregationManager} from './selection_aggregation_manager';
+
+export interface AggregationData {
+  readonly tableName: string;
+  readonly barChartData?: ReadonlyArray<BarChartData>;
+}
+
+export interface Aggregation {
+  /**
+   * Creates a view for the aggregated data corresponding to the selected area.
+   *
+   * The dataset provided will be filtered based on the `trackKind` and `schema`
+   * if these properties are defined.
+   *
+   * @param engine - The query engine used to execute queries.
+   */
+  prepareData(engine: Engine): Promise<AggregationData>;
+}
+
+export interface AggState {
+  getSortingPrefs(): Sorting | undefined;
+  toggleSortingColumn(column: string): void;
+}
+
+export interface AggregationPanelAttrs {
+  readonly trace: Trace;
+  readonly data: AggregateData;
+  readonly model: AggState;
+}
 
 // Define a type for the expected props of the panel components so that a
 // generic AggregationPanel can be specificed as an argument to
 // createBaseAggregationToTabAdaptor()
-type PanelComponent = m.ComponentTypes<AggregationPanelAttrs>;
+export type PanelComponent = m.ComponentTypes<AggregationPanelAttrs>;
+
+export interface Aggregator {
+  readonly id: string;
+
+  /**
+   * If set, this component will be used instead of the default AggregationPanel
+   * for displaying the aggregation. Use this to customize the look and feel of
+   * the rendered table.
+   */
+  readonly Panel?: PanelComponent;
+
+  /**
+   * This function is called every time the area selection changes. The purpose
+   * of this function is to test whether this aggregator applies to the given
+   * area selection. If it does, it returns an aggregation object which gives
+   * further instructions on how to prepare the aggregation data.
+   *
+   * Aggregators are arranged this way because often the computation required to
+   * work out whether this aggregation applies is the same as the computation
+   * required to actually do the aggregation, so doing it like this means the
+   * prepareData() function returned can capture intermediate state avoiding
+   * having to do it again or awkwardly cache it somewhere in the aggregators
+   * local state.
+   */
+  probe(area: AreaSelection): Aggregation | undefined;
+  getTabName(): string;
+  getDefaultSorting(): Sorting;
+  getColumnDefinitions(): ColumnDef[];
+}
 
 export function selectTracksAndGetDataset<T extends DatasetSchema>(
   tracks: ReadonlyArray<Track>,
@@ -113,10 +170,9 @@ export async function ii<T extends {ts: bigint; dur: bigint; id: number}>(
  * Creates an adapter that adapts an old style aggregation to a new area
  * selection sub-tab.
  */
-export function createBaseAggregationToTabAdaptor(
+export function createAggregationTab(
   trace: Trace,
-  aggregator: AreaSelectionAggregator,
-  PanelComponent: PanelComponent,
+  aggregator: Aggregator,
   priority: number = 0,
 ): AreaSelectionTab {
   const aggMan = new SelectionAggregationManager(trace.engine, aggregator);
@@ -158,7 +214,7 @@ export function createBaseAggregationToTabAdaptor(
 
       return {
         isLoading: false,
-        content: m(PanelComponent, {
+        content: m(aggregator.Panel ?? AggregationPanel, {
           data,
           trace,
           model: aggMan,
@@ -166,17 +222,4 @@ export function createBaseAggregationToTabAdaptor(
       };
     },
   };
-}
-
-export function createAggregationToTabAdaptor(
-  trace: Trace,
-  aggregator: AreaSelectionAggregator,
-  tabPriorityOverride?: number,
-): AreaSelectionTab {
-  return createBaseAggregationToTabAdaptor(
-    trace,
-    aggregator,
-    AggregationPanel,
-    tabPriorityOverride,
-  );
 }

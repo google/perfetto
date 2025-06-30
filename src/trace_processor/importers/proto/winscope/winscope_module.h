@@ -62,10 +62,10 @@ class WinscopeModule : public ProtoImporterModule {
                                    protozero::ConstBytes blob);
   void ParseWindowManagerData(int64_t timestamp, protozero::ConstBytes blob);
 
-  WinscopeContext context_;
+  winscope::WinscopeContext context_;
   util::ProtoToArgsParser args_parser_;
 
-  SurfaceFlingerLayersParser surfaceflinger_layers_parser_;
+  winscope::SurfaceFlingerLayersParser surfaceflinger_layers_parser_;
   SurfaceFlingerTransactionsParser surfaceflinger_transactions_parser_;
   ShellTransitionsParser shell_transitions_parser_;
   ProtoLogParser protolog_parser_;

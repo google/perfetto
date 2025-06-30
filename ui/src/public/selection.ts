@@ -13,11 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {duration, time, TimeSpan} from '../base/time';
-import {Engine} from '../trace_processor/engine';
-import {ColumnDef, Sorting, BarChartData} from './aggregation';
-import {Track} from './track';
 import {arrayEquals} from '../base/array_utils';
+import {duration, time, TimeSpan} from '../base/time';
+import {Track} from './track';
 
 export interface ContentWithLoadingFlag {
   readonly isLoading: boolean;
@@ -132,45 +130,6 @@ export interface SelectionManager {
    * Register a new tab under the area selection details panel.
    */
   registerAreaSelectionTab(tab: AreaSelectionTab): void;
-}
-
-export interface AggregationData {
-  readonly tableName: string;
-  readonly barChartData?: ReadonlyArray<BarChartData>;
-}
-
-export interface Aggregation {
-  /**
-   * Creates a view for the aggregated data corresponding to the selected area.
-   *
-   * The dataset provided will be filtered based on the `trackKind` and `schema`
-   * if these properties are defined.
-   *
-   * @param engine - The query engine used to execute queries.
-   */
-  prepareData(engine: Engine): Promise<AggregationData>;
-}
-
-export interface AreaSelectionAggregator {
-  readonly id: string;
-
-  /**
-   * This function is called every time the area selection changes. The purpose
-   * of this function is to test whether this aggregator applies to the given
-   * area selection. If it does, it returns an aggregation object which gives
-   * further instructions on how to prepare the aggregation data.
-   *
-   * Aggregators are arranged this way because often the computation required to
-   * work out whether this aggregation applies is the same as the computation
-   * required to actually do the aggregation, so doing it like this means the
-   * prepareData() function returned can capture intermediate state avoiding
-   * having to do it again or awkwardly cache it somewhere in the aggregators
-   * local state.
-   */
-  probe(area: AreaSelection): Aggregation | undefined;
-  getTabName(): string;
-  getDefaultSorting(): Sorting;
-  getColumnDefinitions(): ColumnDef[];
 }
 
 export type Selection =

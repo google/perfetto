@@ -13501,6 +13501,11 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/dataframe/impl:bytecode_interpreter_test_utils
+filegroup {
+    name: "perfetto_src_trace_processor_dataframe_impl_bytecode_interpreter_test_utils",
+}
+
 // GN: //src/trace_processor/dataframe/impl:impl
 filegroup {
     name: "perfetto_src_trace_processor_dataframe_impl_impl",
@@ -14202,12 +14207,15 @@ filegroup {
         "src/trace_processor/importers/proto/winscope/protolog_parser.cc",
         "src/trace_processor/importers/proto/winscope/shell_transitions_parser.cc",
         "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.cc",
+        "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_extractor.cc",
         "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.cc",
         "src/trace_processor/importers/proto/winscope/surfaceflinger_transactions_parser.cc",
         "src/trace_processor/importers/proto/winscope/viewcapture_args_parser.cc",
         "src/trace_processor/importers/proto/winscope/viewcapture_parser.cc",
         "src/trace_processor/importers/proto/winscope/winscope_geometry.cc",
         "src/trace_processor/importers/proto/winscope/winscope_module.cc",
+        "src/trace_processor/importers/proto/winscope/winscope_rect_tracker.cc",
+        "src/trace_processor/importers/proto/winscope/winscope_transform_tracker.cc",
     ],
 }
 
@@ -17075,6 +17083,7 @@ cc_test {
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_containers_unittests",
         ":perfetto_src_trace_processor_dataframe_dataframe",
+        ":perfetto_src_trace_processor_dataframe_impl_bytecode_interpreter_test_utils",
         ":perfetto_src_trace_processor_dataframe_impl_impl",
         ":perfetto_src_trace_processor_dataframe_impl_unittests",
         ":perfetto_src_trace_processor_dataframe_specs",

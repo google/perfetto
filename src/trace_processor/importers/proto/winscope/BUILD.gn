@@ -28,8 +28,11 @@ source_set("full") {
     "shell_transitions_parser.h",
     "shell_transitions_tracker.cc",
     "shell_transitions_tracker.h",
+    "surfaceflinger_layers_extractor.cc",
+    "surfaceflinger_layers_extractor.h",
     "surfaceflinger_layers_parser.cc",
     "surfaceflinger_layers_parser.h",
+    "surfaceflinger_layers_utils.h",
     "surfaceflinger_transactions_parser.cc",
     "surfaceflinger_transactions_parser.h",
     "viewcapture_args_parser.cc",
@@ -41,6 +44,10 @@ source_set("full") {
     "winscope_geometry.h",
     "winscope_module.cc",
     "winscope_module.h",
+    "winscope_rect_tracker.cc",
+    "winscope_rect_tracker.h",
+    "winscope_transform_tracker.cc",
+    "winscope_transform_tracker.h",
   ]
   deps = [
     ":gen_cc_winscope_descriptor",

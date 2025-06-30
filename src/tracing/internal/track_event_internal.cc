@@ -249,8 +249,8 @@ void TrackEventInternal::EnableRegistry(
     uint32_t internal_instance_index) {
   for (size_t i = 0; i < registry->category_count(); i++) {
     if (IsCategoryEnabled(*registry, config, *registry->GetCategory(i))) {
-      PERFETTO_DLOG("EnableRegistry %" PRIu32 " %" PRIu64,
-                    internal_instance_index, i);
+      PERFETTO_DLOG("EnableRegistry %" PRIu32 " %zu", internal_instance_index,
+                    i);
       registry->EnableCategoryForInstance(i, internal_instance_index);
     }
   }
