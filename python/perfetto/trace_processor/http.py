@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import http.client
-from typing import List
+from typing import List, Optional, Union
 
 from perfetto.trace_processor.protos import ProtoFactory
 
@@ -42,6 +42,37 @@ class TraceProcessorHttp:
     self.conn.request('POST', '/compute_metric', body=byte_data)
     with self.conn.getresponse() as f:
       result = self.protos.ComputeMetricResult()
+      result.ParseFromString(f.read())
+      return result
+
+  def trace_summary(self,
+                    specs: List[Union[str, bytes]],
+                    metric_ids: Optional[List[str]] = None,
+                    metadata_query_id: Optional[str] = None):
+    args = self.protos.TraceSummaryArgs()
+
+    if (metric_ids is None):
+      args.computation_spec.run_all_metrics = True
+    elif (len(metric_ids) > 0):
+      args.computation_spec.metric_ids.extend(metric_ids)
+
+    if (specs is not None and len(specs) > 0):
+      for spec in specs:
+        if isinstance(spec, str):
+          args.textproto_specs.append(spec)
+        elif isinstance(spec, bytes):
+          proto_spec = self.protos.TraceSummarySpec()
+          proto_spec.ParseFromString(spec)
+          args.proto_specs.append(proto_spec)
+
+    if (metadata_query_id is not None):
+      args.computation_spec.metadata_query_id = metadata_query_id
+
+    args.output_format = self.protos.TraceSummaryArgs.Format.BINARY_PROTOBUF
+    byte_data = args.SerializeToString()
+    self.conn.request('POST', '/trace_summary', body=byte_data)
+    with self.conn.getresponse() as f:
+      result = self.protos.TraceSummaryResult()
       result.ParseFromString(f.read())
       return result
 

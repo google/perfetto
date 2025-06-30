@@ -209,6 +209,46 @@ void ThreadStateTracker::ClosePendingState(int64_t end_ts,
   }
 }
 
+void ThreadStateTracker::PushThreadState(int64_t ts,
+                                         UniqueTid utid,
+                                         StringId state,
+                                         std::optional<uint16_t> cpu) {
+  ClosePendingState(ts, utid, false /*data_loss*/);
+
+  AddOpenState(ts, utid, state, cpu);
+}
+
+void ThreadStateTracker::UpdatePendingState(
+    UniqueTid utid,
+    StringId state,
+    std::optional<uint16_t> cpu,
+    std::optional<UniqueTid> waker_utid,
+    std::optional<uint16_t> common_flags) {
+  // Discard update if there is no open state to close.
+  if (!HasPreviousRowNumbersForUtid(utid))
+    return;
+
+  auto row_ref = RowNumToRef(prev_row_numbers_for_thread_[utid]->last_row);
+
+  row_ref.set_state(state);
+  if (cpu)
+    row_ref.set_ucpu(context_->cpu_tracker->GetOrCreateCpu(*cpu));
+  if (waker_utid)
+    row_ref.set_waker_utid(*waker_utid);
+  if (common_flags.has_value()) {
+    row_ref.set_irq_context(CommonFlagsToIrqContext(*common_flags));
+  }
+}
+
+StringId ThreadStateTracker::GetPrevEndState(UniqueTid utid) {
+  if (!HasPreviousRowNumbersForUtid(utid))
+    return kNullStringId;
+
+  auto row_ref = RowNumToRef(prev_row_numbers_for_thread_[utid]->last_row);
+
+  return row_ref.state();
+}
+
 bool ThreadStateTracker::IsRunning(StringId state) {
   return state == running_string_id_;
 }

@@ -17,12 +17,15 @@ import("../../../../gn/test.gni")
 
 source_set("minimal") {
   sources = [
+    "json_parser.h",
     "json_utils.cc",
     "json_utils.h",
   ]
   deps = [
     "../../../../gn:default_deps",
+    "../../containers",
     "../../storage",
+    "../../types",
     "../common",
   ]
   if (enable_perfetto_trace_processor_json) {
@@ -41,6 +44,7 @@ if (enable_perfetto_trace_processor_json) {
     deps = [
       ":minimal",
       "../../../../gn:default_deps",
+      "../../containers",
       "../../sorter",
       "../../storage",
       "../../tables",

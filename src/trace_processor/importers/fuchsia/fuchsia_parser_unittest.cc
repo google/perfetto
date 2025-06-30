@@ -65,6 +65,7 @@
 
 namespace perfetto::trace_processor {
 namespace {
+
 using ::testing::_;
 using ::testing::Args;
 using ::testing::AtLeast;
@@ -81,6 +82,7 @@ using ::testing::Pointwise;
 using ::testing::Return;
 using ::testing::ReturnRef;
 using ::testing::UnorderedElementsAreArray;
+
 class MockSchedEventTracker : public FtraceSchedEventTracker {
  public:
   explicit MockSchedEventTracker(TraceProcessorContext* context)
@@ -90,11 +92,11 @@ class MockSchedEventTracker : public FtraceSchedEventTracker {
               PushSchedSwitch,
               (uint32_t cpu,
                int64_t timestamp,
-               uint32_t prev_pid,
+               int64_t prev_pid,
                base::StringView prev_comm,
                int32_t prev_prio,
                int64_t prev_state,
-               uint32_t next_pid,
+               int64_t next_pid,
                base::StringView next_comm,
                int32_t next_prio),
               (override));
@@ -107,15 +109,15 @@ class MockProcessTracker : public ProcessTracker {
 
   MOCK_METHOD(UniquePid,
               SetProcessMetadata,
-              (uint32_t pid,
-               std::optional<uint32_t> ppid,
+              (int64_t pid,
+               std::optional<int64_t> ppid,
                base::StringView process_name,
                base::StringView cmdline),
               (override));
 
   MOCK_METHOD(UniqueTid,
               UpdateThreadName,
-              (uint32_t tid,
+              (int64_t tid,
                StringId thread_name_id,
                ThreadNamePriority priority),
               (override));
@@ -125,12 +127,9 @@ class MockProcessTracker : public ProcessTracker {
                StringId thread_name_id,
                ThreadNamePriority priority),
               (override));
-  MOCK_METHOD(UniqueTid,
-              UpdateThread,
-              (uint32_t tid, uint32_t tgid),
-              (override));
+  MOCK_METHOD(UniqueTid, UpdateThread, (int64_t tid, int64_t tgid), (override));
 
-  MOCK_METHOD(UniquePid, GetOrCreateProcess, (uint32_t pid), (override));
+  MOCK_METHOD(UniquePid, GetOrCreateProcess, (int64_t pid), (override));
   MOCK_METHOD(void,
               SetProcessNameIfUnset,
               (UniquePid upid, StringId process_name_id),

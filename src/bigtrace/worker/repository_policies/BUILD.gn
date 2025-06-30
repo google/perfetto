@@ -34,7 +34,6 @@ source_set("repository_policies") {
     "../../../../gn:jsoncpp",
     "../../../../src/trace_processor",
     "../../../../src/trace_processor/rpc:rpc",
-    "../../../../src/trace_processor/util:util",
     "../../../base",
   ]
 }

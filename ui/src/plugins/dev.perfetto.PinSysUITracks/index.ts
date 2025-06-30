@@ -57,9 +57,7 @@ export default class implements PerfettoPlugin {
           // Ensure we only grab tracks that are in the SysUI process group
           if (!track.uri.startsWith(`/process_${sysuiUpid}`)) return;
           if (
-            !TRACKS_TO_PIN.some((trackName) =>
-              track.title.startsWith(trackName),
-            )
+            !TRACKS_TO_PIN.some((trackName) => track.name.startsWith(trackName))
           ) {
             return;
           }
@@ -68,7 +66,7 @@ export default class implements PerfettoPlugin {
 
         // expand the sysui process tracks group
         ctx.workspace.flatTracks.forEach((track) => {
-          if (track.hasChildren && track.title.startsWith(SYSTEM_UI_PROCESS)) {
+          if (track.hasChildren && track.name.startsWith(SYSTEM_UI_PROCESS)) {
             track.expand();
           }
         });

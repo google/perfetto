@@ -45,7 +45,7 @@ class AndroidGpu(TestSuite):
         trace=Path('../../metrics/graphics/gpu_frequency_metric.textproto'),
         query="""
         INCLUDE PERFETTO MODULE android.gpu.frequency;
-        SELECT *
+        SELECT ts, dur, gpu_id, gpu_freq
         FROM android_gpu_frequency;
       """,
         out=Csv("""
@@ -56,3 +56,28 @@ class AndroidGpu(TestSuite):
         200002000000,3000000,1,400000
         200005000000,1000000,1,758000
       """))
+
+  def test_mali_gpu_power_state(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_gpu.pb'),
+        query="""
+          INCLUDE PERFETTO MODULE android.gpu.mali_power_state;
+          SELECT
+            ts, dur, power_state
+          FROM android_mali_gpu_power_state
+          ORDER BY ts ASC
+          LIMIT 10;
+        """,
+        out=Csv("""
+          "ts","dur","power_state"
+          96928650804,1251383,2
+          96929902187,6571208,0
+          96936473395,1430094,2
+          96937903489,8691895,0
+          96946595384,1621744,2
+          96948217128,5552328,0
+          96953769456,1407511,2
+          96955176967,7472453,0
+          96962649420,1280070,2
+          96963929490,2806356,0
+        """))

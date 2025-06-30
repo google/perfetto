@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_SLICE_TRACKER_H_
 
 #include <stdint.h>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <vector>
@@ -69,7 +70,7 @@ class SliceTracker {
     if (row.name) {
       row.name = context_->slice_translation_table->TranslateName(*row.name);
     }
-    return StartSlice(row.ts, row.track_id, args_callback,
+    return StartSlice(row.ts, row.dur, row.track_id, args_callback,
                       [table, &row]() { return table->Insert(row).id; });
   }
 
@@ -91,7 +92,7 @@ class SliceTracker {
     if (row.name) {
       row.name = context_->slice_translation_table->TranslateName(*row.name);
     }
-    return StartSlice(row.ts, row.track_id, args_callback,
+    return StartSlice(row.ts, row.dur, row.track_id, args_callback,
                       [table, &row]() { return table->Insert(row).id; });
   }
 
@@ -146,6 +147,7 @@ class SliceTracker {
 
   // virtual for testing.
   virtual std::optional<SliceId> StartSlice(int64_t timestamp,
+                                            int64_t duration,
                                             TrackId track_id,
                                             SetArgsCallback args_callback,
                                             std::function<SliceId()> inserter);
@@ -156,7 +158,10 @@ class SliceTracker {
       SetArgsCallback args_callback,
       std::function<std::optional<uint32_t>(const SlicesStack&)> finder);
 
-  void MaybeCloseStack(int64_t end_ts, const SlicesStack&, TrackId track_id);
+  [[nodiscard]] bool MaybeCloseStack(int64_t ts,
+                                     int64_t dur,
+                                     const SlicesStack&,
+                                     TrackId track_id);
 
   std::optional<uint32_t> MatchingIncompleteSliceIndex(const SlicesStack& stack,
                                                        StringId name,

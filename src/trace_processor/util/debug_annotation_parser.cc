@@ -43,14 +43,6 @@ std::string SanitizeDebugAnnotationName(const std::string& raw_name) {
   return result;
 }
 
-constexpr bool IsJsonSupported() {
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
-  return true;
-#else
-  return false;
-#endif
-}
-
 }  // namespace
 
 DebugAnnotationParser::DebugAnnotationParser(ProtoToArgsParser& parser)
@@ -138,13 +130,9 @@ DebugAnnotationParser::ParseDebugAnnotationValue(
         return {value_parse_result.status, added_entry};
     }
   } else if (annotation.has_legacy_json_value()) {
-    if (!IsJsonSupported())
-      return {base::ErrStatus("Ignoring legacy_json_value (no json support)"),
-              false};
-
     bool added_entry =
         delegate.AddJson(context_name, annotation.legacy_json_value());
-    return {base::OkStatus(), added_entry};
+    return {base::ErrStatus("Failed to parse JSON"), added_entry};
   } else if (annotation.has_nested_value()) {
     return ParseNestedValueArgs(annotation.nested_value(), context_name,
                                 delegate);

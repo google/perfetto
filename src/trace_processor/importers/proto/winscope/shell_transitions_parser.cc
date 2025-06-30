@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/proto/winscope/shell_transitions_parser.h"
+#include <optional>
 #include "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.h"
 
 #include "perfetto/ext/base/base64.h"
@@ -22,6 +23,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/winscope_proto_mapping.h"
 
@@ -61,9 +63,81 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
         stats::winscope_shell_transitions_parse_errors);
   }
 
+  if (transition.has_type()) {
+    transition_tracker->SetTransitionType(transition.id(), transition.type());
+  }
+
   if (transition.has_dispatch_time_ns()) {
+    transition_tracker->SetDispatchTime(transition.id(),
+                                        transition.dispatch_time_ns());
     transition_tracker->SetTimestamp(transition.id(),
                                      transition.dispatch_time_ns());
+  }
+
+  if (transition.has_send_time_ns()) {
+    transition_tracker->SetSendTime(transition.id(), transition.send_time_ns());
+    transition_tracker->SetTimestampIfEmpty(transition.id(),
+                                            transition.send_time_ns());
+  }
+
+  if (transition.has_finish_time_ns()) {
+    auto finish_time = transition.finish_time_ns();
+    transition_tracker->TrySetDurationFromFinishTime(transition.id(),
+                                                     finish_time);
+
+    if (finish_time > 0) {
+      transition_tracker->SetStatus(
+          transition.id(),
+          context_->storage->mutable_string_pool()->InternString("played"));
+    }
+  }
+
+  if (transition.has_handler()) {
+    transition_tracker->SetHandler(transition.id(), transition.handler());
+  }
+
+  auto shell_aborted = transition.has_shell_abort_time_ns() &&
+                       transition.shell_abort_time_ns() > 0;
+  auto wm_aborted =
+      transition.has_wm_abort_time_ns() && transition.wm_abort_time_ns() > 0;
+
+  if (shell_aborted || wm_aborted) {
+    transition_tracker->SetStatus(
+        transition.id(),
+        context_->storage->mutable_string_pool()->InternString("aborted"));
+  }
+
+  auto merged =
+      transition.has_merge_time_ns() && transition.merge_time_ns() > 0;
+  if (merged) {
+    transition_tracker->SetStatus(
+        transition.id(),
+        context_->storage->mutable_string_pool()->InternString("merged"));
+  }
+
+  // set flags id and flags
+  if (transition.has_flags()) {
+    transition_tracker->SetFlags(transition.id(), transition.flags());
+  }
+
+  // update participants
+  if (transition.has_targets()) {
+    auto* participants_table =
+        context_->storage
+            ->mutable_window_manager_shell_transition_participants_table();
+    for (auto it = transition.targets(); it; ++it) {
+      tables::WindowManagerShellTransitionParticipantsTable::Row
+          participant_row;
+      participant_row.transition_id = transition.id();
+      protos::pbzero::ShellTransition::Target::Decoder target(*it);
+      if (target.has_layer_id()) {
+        participant_row.layer_id = target.layer_id();
+      }
+      if (target.has_window_id()) {
+        participant_row.window_id = target.window_id();
+      }
+      participants_table->Insert(participant_row);
+    }
   }
 }
 

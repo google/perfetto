@@ -47,6 +47,8 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_ExtensionDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FrameTimelineEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceEventBundle);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceStats);
+PERFETTO_PB_MSG_DECL(perfetto_protos_GenericKernelCpuFrequencyEvent);
+PERFETTO_PB_MSG_DECL(perfetto_protos_GenericKernelTaskStateEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GpuCounterEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GpuLog);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GpuMemTotalEvent);
@@ -528,6 +530,16 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   perfetto_protos_AppWakelockBundle,
                   app_wakelock_bundle,
                   116);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_GenericKernelTaskStateEvent,
+                  generic_kernel_task_state_event,
+                  117);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_GenericKernelCpuFrequencyEvent,
+                  generic_kernel_cpu_freq_event,
+                  118);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
                   perfetto_protos_TestEvent,

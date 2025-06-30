@@ -45,7 +45,7 @@ CREATE PERFETTO TABLE android_wakeups (
   backoff_state STRING,
   -- 'short', 'failed' or NULL. Set if suspend backoff is triggered.
   backoff_reason STRING,
-  -- Number of times suspend backoff has occured, or NULL. Set if suspend
+  -- Number of times suspend backoff has occurred, or NULL. Set if suspend
   -- backoff is triggered.
   backoff_count LONG,
   -- Next suspend backoff duration, or NULL. Set if suspend backoff is

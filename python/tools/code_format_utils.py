@@ -41,6 +41,11 @@ class CodeFormatterBase:
         action='store_true',
         help='Format all versioned sources, not just the changed ones')
     parser.add_argument('filelist', nargs='*')
+    parser.add_argument(
+        '--skip',
+        type=str,
+        default='',
+        help='Comma-separated list of formatter names to skip')
     return parser
 
   def add_custom_args(self, parser):
@@ -106,6 +111,8 @@ def run_code_formatters(formatters: list[CodeFormatterBase]):
   ]
   os.chdir(ROOT_DIR)
   files = CodeFormatterBase.build_file_list(args)
+  skip_list = set(args.skip.split(','))
+  formatters = [f for f in formatters if f.name not in skip_list]
   for formatter in formatters:
     files_to_check = formatter.filter_files(files)
     if not args.quiet:

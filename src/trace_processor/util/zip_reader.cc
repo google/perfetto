@@ -29,12 +29,12 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/util/gzip_utils.h"
-#include "src/trace_processor/util/status_macros.h"
 #include "src/trace_processor/util/streaming_line_reader.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
