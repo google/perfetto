@@ -32,9 +32,8 @@ In short, use trace summarization when you need to:
 
 ## Using Summaries with the Standard Library
 
-The easiest way to get started with trace summarization is by using the modules
-available in the PerfettoSQL
-[Standard Library](/docs/analysis/stdlib-docs.autogen).
+The easiest way to get started is by using the modules in the
+[PerfettoSQL Standard Library](/docs/analysis/stdlib-docs.autogen).
 
 Let's walk through an example. Suppose we want to compute the average memory
 usage (specifically, RSS + Swap) for each process in a trace. The
@@ -110,8 +109,8 @@ repeating the same `query` and `dimensions` blocks, you can use a
 This is more concise, less error-prone, and more performant as the underlying
 query is only run once.
 
-Let's extend our memory example to calculate the min, max, and
-duration-weighted average of RSS+Swap for each process.
+Let's extend our memory example to calculate the min, max, and duration-weighted
+average of RSS+Swap for each process.
 
 ```protobuf
 // spec.textproto
@@ -149,11 +148,13 @@ metric_template_spec {
 ```
 
 This single template generates three metrics:
+
 - `memory_per_process_min_rss_and_swap`
 - `memory_per_process_max_rss_and_swap`
 - `memory_per_process_avg_rss_and_swap`
 
-You can then run this, requesting any or all of the generated metrics.
+You can then run this, requesting any or all of the generated metrics, as shown
+below.
 
 <?tabs>
 
@@ -307,14 +308,13 @@ trace_processor_shell --summary \
 
 ### Analyzing Time Intervals with `interval_intersect`
 
-`interval_intersect` lets you analyze data from one source within specific time
-windows defined by another source, ideal for analyzing "Critical User Journeys"
-(CUJs).
+A common analysis pattern is to analyze data from one source (e.g., CPU usage)
+within specific time windows from another (e.g., a "Critical User Journey"
+slice). The `interval_intersect` query makes this easy.
 
-It performs a time-based intersection of a primary data source (the `base`
-query) with time intervals (the `interval_intersect` queries). An event from the
-`base` query is included only if its time span overlaps with at least one
-interval from _each_ `interval_intersect` query.
+It works by taking a `base` query and one or more `interval` queries. The result
+includes only the rows from the `base` query that overlap in time with at least
+one row from _each_ of the `interval` queries.
 
 **Use Cases:**
 
@@ -338,7 +338,7 @@ query: {
        // The base data is CPU time per thread.
        table: {
          table_name: "thread_slice_cpu_time"
-         module_name: "linux.memory.process"
+         module_name: "slices.cpu_time"
        }
        filters: {
          column_name: "thread_name"
@@ -430,9 +430,9 @@ contains a `metric_bundles` field, which is a list of `TraceMetricV2Bundle`
 messages.
 
 Each bundle can contain the results for one or more metrics that were computed
-together. Using a `TraceMetricV2TemplateSpec` is the most common way to create
-a bundle. All metrics generated from a single template are automatically placed
-in the same bundle, sharing the same `specs` and `row` structure. This is highly
+together. Using a `TraceMetricV2TemplateSpec` is the most common way to create a
+bundle. All metrics generated from a single template are automatically placed in
+the same bundle, sharing the same `specs` and `row` structure. This is highly
 efficient as the dimension values, which are often repetitive, are only written
 once per row.
 
@@ -518,7 +518,7 @@ For programmatic workflows, use the `trace_summary` method of the
 `TraceProcessor` class.
 
 ```python
-from perfetto.trace_processor.api import TraceProcessor
+from perfetto.trace_processor import TraceProcessor
 
 # Assume 'tp' is an initialized TraceProcessor instance
 # and 'spec_text' contains your TraceSummarySpec.
