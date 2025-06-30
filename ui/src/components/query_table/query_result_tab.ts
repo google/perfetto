@@ -105,10 +105,8 @@ export class QueryResultTab implements Tab {
               },
               m(AddDebugTrackMenu, {
                 trace: this.trace,
-                dataSource: {
-                  sqlSource: `select * from ${this.sqlViewName}`,
-                  columns: assertExists(this.queryResponse).columns,
-                },
+                query: `select * from ${this.sqlViewName}`,
+                availableColumns: assertExists(this.queryResponse).columns,
               }),
             ),
       ],

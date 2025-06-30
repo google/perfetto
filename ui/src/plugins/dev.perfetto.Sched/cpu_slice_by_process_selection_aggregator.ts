@@ -12,20 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ColumnDef, Sorting} from '../../public/aggregation';
-import {Aggregation, AreaSelection} from '../../public/selection';
-import {Engine} from '../../trace_processor/engine';
-import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {AreaSelectionAggregator} from '../../public/selection';
-import {LONG, NUM} from '../../trace_processor/query_result';
+import {ColumnDef, Sorting} from '../../components/aggregation';
 import {
+  Aggregation,
+  Aggregator,
   ii,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
+import {AreaSelection} from '../../public/selection';
+import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {Engine} from '../../trace_processor/engine';
+import {LONG, NUM} from '../../trace_processor/query_result';
 
-export class CpuSliceByProcessSelectionAggregator
-  implements AreaSelectionAggregator
-{
+export class CpuSliceByProcessSelectionAggregator implements Aggregator {
   readonly id = 'cpu_by_process_aggregation';
 
   probe(area: AreaSelection): Aggregation | undefined {
@@ -79,32 +78,27 @@ export class CpuSliceByProcessSelectionAggregator
       {
         title: 'Process',
         kind: 'STRING',
-        columnConstructor: Uint16Array,
         columnId: 'process_name',
       },
       {
         title: 'PID',
         kind: 'NUMBER',
-        columnConstructor: Float64Array,
         columnId: 'pid',
       },
       {
         title: 'Wall duration (ms)',
         kind: 'TIMESTAMP_NS',
-        columnConstructor: Float64Array,
         columnId: 'total_dur',
         sum: true,
       },
       {
         title: 'Avg Wall duration (ms)',
         kind: 'TIMESTAMP_NS',
-        columnConstructor: Float64Array,
         columnId: 'avg_dur',
       },
       {
         title: 'Occurrences',
         kind: 'NUMBER',
-        columnConstructor: Uint16Array,
         columnId: 'occurrences',
         sum: true,
       },

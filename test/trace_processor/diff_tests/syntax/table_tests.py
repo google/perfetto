@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Path, DataPath, Metric
-from python.generators.diff_tests.testing import Csv, Json, TextProto
+from python.generators.diff_tests.testing import Path, DataPath
+from python.generators.diff_tests.testing import Csv, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
@@ -77,7 +77,7 @@ class PerfettoTable(TestSuite):
         1,"ts","int64",0,2
         2,"track_id","uint32",0,3
         3,"value","double",0,3
-        4,"arg_set_id","uint32",3,3
+        4,"arg_set_id","uint32",2,3
         """))
 
   def test_perfetto_table_info_runtime_table(self):
@@ -281,6 +281,25 @@ class PerfettoTable(TestSuite):
         7,70
         8,80
         9,90
+        """))
+
+  def test_perfetto_table_limit_and_offset(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query="""
+        CREATE PERFETTO TABLE foo AS
+        WITH
+          data(x) AS (
+            VALUES(1), (2), (3), (4), (5)
+          )
+        SELECT x FROM data;
+
+        SELECT * FROM foo LIMIT 2 OFFSET 3;
+        """,
+        out=Csv("""
+        "x"
+        4
+        5
         """))
 
   def test_max(self):

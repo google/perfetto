@@ -83,6 +83,7 @@ ETM_V4_SESSION = Table(
             'configuration_id',
             CppTableId(ETM_V4_CONFIGURATION),
             cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C(
             'start_ts',
@@ -112,7 +113,10 @@ ETM_V4_TRACE = Table(
     class_name='EtmV4TraceTable',
     sql_name='__intrinsic_etm_v4_trace',
     columns=[
-        C('session_id', CppTableId(ETM_V4_SESSION), cpp_access=CppAccess.READ),
+        C('session_id',
+          CppTableId(ETM_V4_SESSION),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
         C('trace_set_id',
           CppUint32(),
           flags=ColumnFlag.SORTED | ColumnFlag.SET_ID),

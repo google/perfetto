@@ -56,12 +56,6 @@ gn_args_base = {
     'enable_perfetto_traced_perf': 'false',
     'perfetto_force_dcheck': '"off"',
     'enable_perfetto_llvm_demangle': 'true',
-    # TODO(lalitm): we are disabling these temporarily because Studio cannot
-    # build them and the we don't have a way to enable/disable these properly
-    # at the Bazel level.
-    # Reenable these once we have a way to enable/disable them in Bazel.
-    'enable_perfetto_trace_processor_mac_instruments': 'false',
-    'enable_perfetto_etm_importer': 'false',
 }
 gn_args = ' '.join((map(lambda x: '='.join(x), gn_args_base.items())))
 

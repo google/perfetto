@@ -139,7 +139,7 @@ class Storage {
   using Double = FlexVector<double>;
   using String = FlexVector<StringPool::Id>;
 
-  using DataPointer = std::variant<nullptr_t,
+  using DataPointer = std::variant<std::nullptr_t,
                                    const uint32_t*,
                                    const int32_t*,
                                    const int64_t*,
@@ -401,6 +401,7 @@ struct Column {
   SortState sort_state;
   DuplicateState duplicate_state;
   SpecializedStorage specialized_storage = SpecializedStorage{};
+  uint32_t mutations = 0;
 };
 
 // Handle for referring to a filter value during query execution.

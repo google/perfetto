@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_DATAFRAME_TYPED_CURSOR_H_
 #define SRC_TRACE_PROCESSOR_DATAFRAME_TYPED_CURSOR_H_
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -29,6 +30,7 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/dataframe/cursor.h"
 #include "src/trace_processor/dataframe/dataframe.h"
+#include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
 
@@ -47,7 +49,8 @@ class TypedCursor {
     static const Type kInt64 = base::variant_index<FilterValue, int64_t>();
     static const Type kDouble = base::variant_index<FilterValue, double>();
     static const Type kString = base::variant_index<FilterValue, const char*>();
-    static const Type kNull = base::variant_index<FilterValue, nullptr_t>();
+    static const Type kNull =
+        base::variant_index<FilterValue, std::nullptr_t>();
     int64_t GetInt64Value(uint32_t col) const {
       return base::unchecked_get<int64_t>(filter_values_[col]);
     }
@@ -71,8 +74,7 @@ class TypedCursor {
       : TypedCursor(dataframe,
                     std::move(filter_specs),
                     std::move(sort_specs),
-                    false,
-                    std::numeric_limits<uint32_t>::max()) {}
+                    false) {}
 
   TypedCursor(Dataframe* dataframe,
               std::vector<FilterSpec> filter_specs,
@@ -80,8 +82,7 @@ class TypedCursor {
       : TypedCursor(dataframe,
                     std::move(filter_specs),
                     std::move(sort_specs),
-                    true,
-                    std::numeric_limits<uint32_t>::max()) {}
+                    true) {}
 
   TypedCursor(const TypedCursor&) = delete;
   TypedCursor& operator=(const TypedCursor&) = delete;
@@ -125,6 +126,10 @@ class TypedCursor {
   // Returns true if the cursor has reached the end of the result set.
   PERFETTO_ALWAYS_INLINE bool Eof() const { return cursor_.Eof(); }
 
+  // Resets the cursor to the initial state. This frees any resources the
+  // cursor may have allocated and prepares it for a new query execution.
+  void Reset() { PrepareCursorInternal(); }
+
   // Calls `Dataframe:GetCellUnchecked` for the current row and specified
   // column.
   template <size_t C, typename D>
@@ -147,21 +152,29 @@ class TypedCursor {
   TypedCursor(const Dataframe* dataframe,
               std::vector<FilterSpec> filter_specs,
               std::vector<SortSpec> sort_specs,
-              bool mut,
-              uint32_t last_execution_mutation_count)
+              bool mut)
       : dataframe_(dataframe),
         filter_specs_(std::move(filter_specs)),
         sort_specs_(std::move(sort_specs)),
         mutable_(mut),
-        last_execution_mutation_count_(last_execution_mutation_count) {
+        column_mutation_count_(impl::Slab<uint32_t*>::Alloc(
+            filter_specs_.size() + sort_specs_.size())) {
     filter_values_.resize(filter_specs_.size());
     filter_value_mapping_.resize(filter_specs_.size(),
                                  std::numeric_limits<uint32_t>::max());
+    uint32_t i = 0;
+    for (const auto& spec : filter_specs_) {
+      column_mutation_count_[i++] =
+          &dataframe->column_ptrs_[spec.col]->mutations;
+    }
+    for (const auto& spec : sort_specs_) {
+      column_mutation_count_[i++] =
+          &dataframe->column_ptrs_[spec.col]->mutations;
+    }
   }
   template <typename C>
   PERFETTO_ALWAYS_INLINE void SetFilterValueInternal(uint32_t index, C value) {
-    if (PERFETTO_UNLIKELY(last_execution_mutation_count_ !=
-                          dataframe_->mutations_)) {
+    if (PERFETTO_UNLIKELY(last_execution_mutation_count_ != GetMutations())) {
       PrepareCursorInternal();
     }
     uint32_t mapped = filter_value_mapping_[index];
@@ -172,6 +185,14 @@ class TypedCursor {
 
   void PrepareCursorInternal();
 
+  uint32_t GetMutations() const {
+    uint32_t mutations = dataframe_->non_column_mutations_;
+    for (uint32_t* m : column_mutation_count_) {
+      mutations += *m;
+    }
+    return mutations;
+  }
+
   const Dataframe* dataframe_;
   std::vector<FilterValue> filter_values_;
   std::vector<uint32_t> filter_value_mapping_;
@@ -179,7 +200,10 @@ class TypedCursor {
   std::vector<SortSpec> sort_specs_;
   bool mutable_;
   Cursor<Fetcher> cursor_;
-  uint32_t last_execution_mutation_count_;
+
+  impl::Slab<uint32_t*> column_mutation_count_;
+  uint32_t last_execution_mutation_count_ =
+      std::numeric_limits<uint32_t>::max();
 };
 
 }  // namespace perfetto::trace_processor::dataframe

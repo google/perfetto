@@ -13,16 +13,14 @@
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import {ColumnDef, Sorting} from '../../public/aggregation';
-import {Aggregation, AreaSelection} from '../../public/selection';
+import {ColumnDef, Sorting} from '../../components/aggregation';
+import {Aggregation, Aggregator} from '../../components/aggregation_adapter';
+import {AreaSelection} from '../../public/selection';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
-import {AreaSelectionAggregator} from '../../public/selection';
 import {LONG, NUM} from '../../trace_processor/query_result';
 
-export class PowerCounterSelectionAggregator
-  implements AreaSelectionAggregator
-{
+export class PowerCounterSelectionAggregator implements Aggregator {
   readonly id = 'power_counter_aggregation';
 
   // This just describes which counters we match, we don't actually use the
@@ -85,25 +83,21 @@ export class PowerCounterSelectionAggregator
       {
         title: 'Rail Name',
         kind: 'STRING',
-        columnConstructor: Uint16Array,
         columnId: 'name',
       },
       {
         title: 'Delta energy (uJ)',
         kind: 'NUMBER',
-        columnConstructor: Float64Array,
         columnId: 'delta_value',
       },
       {
         title: 'Avg Power (uW)',
         kind: 'Number',
-        columnConstructor: Float64Array,
         columnId: 'rate',
       },
       {
         title: 'Sample Count',
         kind: 'Number',
-        columnConstructor: Float64Array,
         columnId: 'count',
         sum: true,
       },

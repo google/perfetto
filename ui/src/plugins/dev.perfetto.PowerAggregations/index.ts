@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createAggregationToTabAdaptor} from '../../components/aggregation_adapter';
+import {createAggregationTab} from '../../components/aggregation_adapter';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {PowerCounterSelectionAggregator} from './power_counter_selection_aggregator';
@@ -25,11 +25,7 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.selection.registerAreaSelectionTab(
-      createAggregationToTabAdaptor(
-        ctx,
-        new PowerCounterSelectionAggregator(),
-        200,
-      ),
+      createAggregationTab(ctx, new PowerCounterSelectionAggregator(), 200),
     );
   }
 }

@@ -42,16 +42,27 @@
 
 namespace perfetto::trace_processor {
 
-ProtoLogParser::ProtoLogParser(TraceProcessorContext* context)
+namespace {
+using ProtoLogLevel = winscope::ProtoLogLevel;
+}
+
+ProtoLogParser::ProtoLogParser(winscope::WinscopeContext* context)
     : context_(context),
-      args_parser_{*context_->descriptor_pool_},
-      log_level_debug_string_id_(context->storage->InternString("DEBUG")),
-      log_level_verbose_string_id_(context->storage->InternString("VERBOSE")),
-      log_level_info_string_id_(context->storage->InternString("INFO")),
-      log_level_warn_string_id_(context->storage->InternString("WARN")),
-      log_level_error_string_id_(context->storage->InternString("ERROR")),
-      log_level_wtf_string_id_(context->storage->InternString("WTF")),
-      log_level_unknown_string_id_(context_->storage->InternString("UNKNOWN")) {
+      args_parser_{*context->trace_processor_context_->descriptor_pool_},
+      log_level_debug_string_id_(
+          context->trace_processor_context_->storage->InternString("DEBUG")),
+      log_level_verbose_string_id_(
+          context->trace_processor_context_->storage->InternString("VERBOSE")),
+      log_level_info_string_id_(
+          context->trace_processor_context_->storage->InternString("INFO")),
+      log_level_warn_string_id_(
+          context->trace_processor_context_->storage->InternString("WARN")),
+      log_level_error_string_id_(
+          context->trace_processor_context_->storage->InternString("ERROR")),
+      log_level_wtf_string_id_(
+          context->trace_processor_context_->storage->InternString("WTF")),
+      log_level_unknown_string_id_(
+          context->trace_processor_context_->storage->InternString("UNKNOWN")) {
 }
 
 void ProtoLogParser::ParseProtoLogMessage(
@@ -75,6 +86,8 @@ void ProtoLogParser::ParseProtoLogMessage(
     boolean_params.emplace_back(*it);
   }
 
+  auto storage = context_->trace_processor_context_->storage;
+
   std::vector<std::string> string_params;
   if (protolog_message.has_str_param_iids()) {
     for (auto it = protolog_message.str_param_iids(); it; ++it) {
@@ -85,7 +98,7 @@ void ProtoLogParser::ParseProtoLogMessage(
         // This shouldn't happen since we already checked the incremental
         // state is valid.
         string_params.emplace_back("<ERROR>");
-        context_->storage->IncrementStats(
+        storage->IncrementStats(
             stats::winscope_protolog_missing_interned_arg_parse_errors);
         continue;
       }
@@ -103,24 +116,21 @@ void ProtoLogParser::ParseProtoLogMessage(
       // This shouldn't happen since we already checked the incremental
       // state is valid.
       string_params.emplace_back("<ERROR>");
-      context_->storage->IncrementStats(
+      storage->IncrementStats(
           stats::winscope_protolog_missing_interned_stacktrace_parse_errors);
     } else {
-      stacktrace = context_->storage->InternString(
+      stacktrace = storage->InternString(
           base::StringView(stacktrace_decoder->str().ToStdString()));
     }
   }
 
-  auto* protolog_table = context_->storage->mutable_protolog_table();
+  auto* protolog_table = storage->mutable_protolog_table();
 
   tables::ProtoLogTable::Row row;
   row.ts = timestamp;
   auto row_id = protolog_table->Insert(row).id;
 
-  auto* protolog_message_decoder =
-      ProtoLogMessageDecoder::GetOrCreate(context_);
-
-  auto decoded_message_opt = protolog_message_decoder->Decode(
+  auto decoded_message_opt = context_->protolog_message_decoder_.Decode(
       protolog_message.message_id(), sint64_params, double_params,
       boolean_params, string_params);
   if (decoded_message_opt.has_value()) {
@@ -134,8 +144,7 @@ void ProtoLogParser::ParseProtoLogMessage(
     // This shouldn't happen since we should have processed all viewer config
     // messages in the tokenization state, and process the protolog messages
     // only in the parsing state.
-    context_->storage->IncrementStats(
-        stats::winscope_protolog_message_decoding_failed);
+    storage->IncrementStats(stats::winscope_protolog_message_decoding_failed);
   }
 }
 
@@ -143,12 +152,12 @@ void ProtoLogParser::ParseAndAddViewerConfigToMessageDecoder(
     protozero::ConstBytes blob) {
   protos::pbzero::ProtoLogViewerConfig::Decoder protolog_viewer_config(blob);
 
-  auto* protolog_message_decoder =
-      ProtoLogMessageDecoder::GetOrCreate(context_);
+  winscope::ProtoLogMessageDecoder& protolog_message_decoder =
+      context_->protolog_message_decoder_;
 
   for (auto it = protolog_viewer_config.groups(); it; ++it) {
     protos::pbzero::ProtoLogViewerConfig::Group::Decoder group(*it);
-    protolog_message_decoder->TrackGroup(group.id(), group.tag().ToStdString());
+    protolog_message_decoder.TrackGroup(group.id(), group.tag().ToStdString());
   }
 
   for (auto it = protolog_viewer_config.messages(); it; ++it) {
@@ -160,7 +169,7 @@ void ProtoLogParser::ParseAndAddViewerConfigToMessageDecoder(
       location = message_data.location().ToStdString();
     }
 
-    protolog_message_decoder->TrackMessage(
+    protolog_message_decoder.TrackMessage(
         message_data.message_id(),
         static_cast<ProtoLogLevel>(message_data.level()),
         message_data.group_id(), message_data.message().ToStdString(),
@@ -175,7 +184,8 @@ void ProtoLogParser::PopulateReservedRowWithMessage(
     std::string& message,
     std::optional<StringId> stacktrace,
     std::optional<std::string>& location) {
-  auto* protolog_table = context_->storage->mutable_protolog_table();
+  auto storage = context_->trace_processor_context_->storage;
+  auto* protolog_table = storage->mutable_protolog_table();
   auto row = protolog_table->FindById(table_row_id).value();
 
   StringPool::Id level;
@@ -201,11 +211,10 @@ void ProtoLogParser::PopulateReservedRowWithMessage(
   }
   row.set_level(level);
 
-  auto tag = context_->storage->InternString(base::StringView(group_tag));
+  auto tag = storage->InternString(base::StringView(group_tag));
   row.set_tag(tag);
 
-  auto message_string_id =
-      context_->storage->InternString(base::StringView(message));
+  auto message_string_id = storage->InternString(base::StringView(message));
   row.set_message(message_string_id);
 
   if (stacktrace.has_value()) {
@@ -214,7 +223,7 @@ void ProtoLogParser::PopulateReservedRowWithMessage(
 
   if (location.has_value()) {
     auto location_string_id =
-        context_->storage->InternString(base::StringView(location.value()));
+        storage->InternString(base::StringView(location.value()));
     row.set_location(location_string_id);
   }
 }

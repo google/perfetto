@@ -24,9 +24,10 @@ load("@rules_android//android:rules.bzl", "android_binary", "android_library")
 def default_cc_args():
     return {
         "deps": PERFETTO_CONFIG.deps.build_config,
-        "copts": PERFETTO_CONFIG.default_copts + [
+        "copts": [
             "-Wno-pragma-system-header-outside-header",
-        ],
+        ] + PERFETTO_CONFIG.default_copts,
+        "cxxopts": PERFETTO_CONFIG.default_cxxopts,
         "includes": ["include"],
         "linkopts": select({
             "@perfetto//bazel:os_linux": ["-ldl", "-lrt", "-lpthread"],
