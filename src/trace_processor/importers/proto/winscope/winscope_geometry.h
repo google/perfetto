@@ -44,13 +44,13 @@ class Rect {
   explicit Rect(const protos::pbzero::FloatRectProto::Decoder& rect);
   Rect(double left, double top, double right, double bottom);
 
-  bool operator==(const Rect& other);
+  bool operator==(const Rect& other) const;
 
-  bool IsAlmostEqual(const Rect& other);
-  bool IsEmpty();
-  Rect CropRect(const Rect& other);
-  bool ContainsRect(const Rect& other);
-  bool IntersectsRect(const Rect& other);
+  bool IsAlmostEqual(const Rect& other) const;
+  bool IsEmpty() const;
+  Rect CropRect(const Rect& other) const;
+  bool ContainsRect(const Rect& other) const;
+  bool IntersectsRect(const Rect& other) const;
 
   double x = 0;
   double y = 0;
@@ -67,13 +67,13 @@ struct Region {
 // These transforms are added to the __intrinsic_winscope_transform table.
 class TransformMatrix {
  public:
-  bool operator==(const TransformMatrix& other);
+  bool operator==(const TransformMatrix& other) const;
 
-  Point TransformPoint(Point point);
-  Rect TransformRect(const Rect& r);
-  Region TransformRegion(Region region);
-  TransformMatrix Inverse();
-  bool IsValid();
+  Point TransformPoint(Point point) const;
+  Rect TransformRect(const Rect& r) const;
+  Region TransformRegion(Region region) const;
+  TransformMatrix Inverse() const;
+  bool IsValid() const;
 
   double dsdx = 1;
   double dtdx = 0;
@@ -83,7 +83,7 @@ class TransformMatrix {
   double ty = 0;
 
  private:
-  double Det();
+  double Det() const;
 };
 
 }  // namespace perfetto::trace_processor::winscope::geometry
