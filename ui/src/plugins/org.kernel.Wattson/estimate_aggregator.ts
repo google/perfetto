@@ -12,23 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  Area,
-  AreaSelection,
-  AreaSelectionAggregator,
-} from '../../public/selection';
-import {Engine} from '../../trace_processor/engine';
 import {exists} from '../../base/utils';
-import {ColumnDef, Sorting} from '../../public/aggregation';
+import {ColumnDef, Sorting} from '../../components/aggregation';
+import {Aggregator} from '../../components/aggregation_adapter';
+import {Area, AreaSelection} from '../../public/selection';
+import {Engine} from '../../trace_processor/engine';
+import {WattsonAggregationPanel} from './aggregation_panel';
 import {
   CPUSS_ESTIMATE_TRACK_KIND,
   GPUSS_ESTIMATE_TRACK_KIND,
 } from './track_kinds';
 
-export class WattsonEstimateSelectionAggregator
-  implements AreaSelectionAggregator
-{
+export class WattsonEstimateSelectionAggregator implements Aggregator {
   readonly id = 'wattson_plugin_estimate_aggregation';
+  readonly Panel = WattsonAggregationPanel;
 
   probe(area: AreaSelection) {
     const estimateTracks: string[] = [];

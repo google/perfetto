@@ -14,14 +14,11 @@
 
 import {AsyncLimiter} from '../base/async_limiter';
 import {isString} from '../base/object_utils';
-import {AggregateData, Column, ColumnDef, Sorting} from '../public/aggregation';
-import {
-  Aggregation,
-  AreaSelection,
-  AreaSelectionAggregator,
-} from '../public/selection';
+import {AreaSelection} from '../public/selection';
 import {Engine} from '../trace_processor/engine';
 import {NUM} from '../trace_processor/query_result';
+import {AggregateData, Column, ColumnDef, Sorting} from './aggregation';
+import {Aggregation, Aggregator} from './aggregation_adapter';
 
 export class SelectionAggregationManager {
   private readonly limiter = new AsyncLimiter();
@@ -31,7 +28,7 @@ export class SelectionAggregationManager {
 
   constructor(
     private readonly engine: Engine,
-    private readonly aggregator: AreaSelectionAggregator,
+    private readonly aggregator: Aggregator,
   ) {}
 
   get aggregatedData(): AggregateData | undefined {

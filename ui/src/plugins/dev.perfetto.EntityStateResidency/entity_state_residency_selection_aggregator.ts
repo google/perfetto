@@ -13,15 +13,13 @@
 // limitations under the License.
 
 import {Duration} from '../../base/time';
-import {ColumnDef, Sorting} from '../../public/aggregation';
+import {ColumnDef, Sorting} from '../../components/aggregation';
+import {Aggregator} from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
 import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
-import {AreaSelectionAggregator} from '../../public/selection';
 
-export class EntityStateResidencySelectionAggregator
-  implements AreaSelectionAggregator
-{
+export class EntityStateResidencySelectionAggregator implements Aggregator {
   readonly id = 'entity_state_residency_aggregation';
 
   probe(area: AreaSelection) {

@@ -12515,7 +12515,7 @@ message GenericKernelCpuFrequencyEvent {
 
 // End of protos/perfetto/trace/generic_kernel/generic_power.proto
 
-// Begin of protos/perfetto/trace/generic_kernel/generic_task_state.proto
+// Begin of protos/perfetto/trace/generic_kernel/generic_task.proto
 
 // GenericKernelTaskStateEvent is the standard proto to capture thread state
 // change events in a generic kernel implementation. This is mainly for the
@@ -12563,7 +12563,17 @@ message GenericKernelTaskStateEvent {
   optional int32 prio = 5;
 }
 
-// End of protos/perfetto/trace/generic_kernel/generic_task_state.proto
+// GenericKernelTaskRenameEvent is the standard proto to capture the renaming
+// of a thread.
+message GenericKernelTaskRenameEvent {
+  // Thread id.
+  optional int64 tid = 1;
+  // New command name for the thread.
+  optional string comm = 2;
+}
+
+
+// End of protos/perfetto/trace/generic_kernel/generic_task.proto
 
 // Begin of protos/perfetto/trace/gpu/gpu_counter_event.proto
 
@@ -14991,6 +15001,10 @@ message HeapGraphObject {
   // To reduce the space required we only emit the heap type if it has changed
   // from the previous object we recorded.
   optional HeapType heap_type_delta = 9;
+
+  // Ids of the Objects referred by this object, not via fields, but via
+  // internal runtime structures.
+  repeated uint64 runtime_internal_object_id = 10 [packed = true];
 }
 
 message HeapGraph {
@@ -16537,7 +16551,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 120.
+// Next id: 121.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -16687,6 +16701,7 @@ message TracePacket {
     // Generic events for a standard kernel implementation
     GenericKernelTaskStateEvent generic_kernel_task_state_event = 117;
     GenericKernelCpuFrequencyEvent generic_kernel_cpu_freq_event = 118;
+    GenericKernelTaskRenameEvent generic_kernel_task_rename_event = 120;
 
     CpuPerUidData cpu_per_uid_data = 119;
 

@@ -513,3 +513,66 @@ class ProfilingHeapGraph(TestSuite):
         "android.graphics.Bitmap",123456
         "android.os.BinderProxy",0
         """))
+
+  def test_heap_graph_runtime_internal_(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 2
+              ppid: 1
+              cmdline: "system_server"
+              uid: 1000
+            }
+          }
+        }
+        packet {
+          trusted_packet_sequence_id: 999
+          timestamp: 10
+          heap_graph {
+            pid: 2
+            types {
+              id: 3
+              class_name: "java.lang.Object"
+            }
+            types {
+              id: 4
+              class_name: "java.lang.DexCache"
+              superclass_id: 3
+            }
+            roots {
+              root_type: ROOT_JAVA_FRAME
+              object_ids: 5
+            }
+            objects {
+              id: 5
+              type_id: 4
+              runtime_internal_object_id: 6
+              self_size: 64
+            }
+            objects {
+              id: 6
+              type_id: 3
+              self_size: 32
+            }
+            continued: false
+            index: 0
+          }
+        }
+        """),
+        query="""
+        SELECT
+          r.field_name,
+          ca.name owner,
+          cb.name owned
+        FROM heap_graph_reference r
+        JOIN heap_graph_object a ON a.id = r.owner_id
+        JOIN heap_graph_class ca ON ca.id = a.type_id
+        JOIN heap_graph_object b ON b.id = r.owned_id
+        JOIN heap_graph_class cb ON cb.id = b.type_id
+        """,
+        out=Csv("""
+        "field_name","owner","owned"
+        "runtimeInternalObjects","java.lang.DexCache","java.lang.Object"
+        """))

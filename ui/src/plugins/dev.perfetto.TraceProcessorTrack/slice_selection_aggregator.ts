@@ -12,20 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ColumnDef, Sorting} from '../../components/aggregation';
 import {
+  Aggregation,
+  Aggregator,
   ii,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
-import {ColumnDef, Sorting} from '../../public/aggregation';
-import {
-  Aggregation,
-  AreaSelection,
-  AreaSelectionAggregator,
-} from '../../public/selection';
+import {AreaSelection} from '../../public/selection';
 import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
 
-export class SliceSelectionAggregator implements AreaSelectionAggregator {
+export class SliceSelectionAggregator implements Aggregator {
   readonly id = 'slice_aggregation';
 
   probe(area: AreaSelection): Aggregation | undefined {

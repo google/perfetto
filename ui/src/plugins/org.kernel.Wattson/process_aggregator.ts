@@ -12,16 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AreaSelection, AreaSelectionAggregator} from '../../public/selection';
-import {ColumnDef, Sorting} from '../../public/aggregation';
+import {exists} from '../../base/utils';
+import {ColumnDef, Sorting} from '../../components/aggregation';
+import {Aggregator} from '../../components/aggregation_adapter';
+import {AreaSelection} from '../../public/selection';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
-import {exists} from '../../base/utils';
+import {WattsonAggregationPanel} from './aggregation_panel';
 
-export class WattsonProcessSelectionAggregator
-  implements AreaSelectionAggregator
-{
+export class WattsonProcessSelectionAggregator implements Aggregator {
   readonly id = 'wattson_plugin_process_aggregation';
+  readonly Panel = WattsonAggregationPanel;
 
   probe(area: AreaSelection) {
     const selectedCpus: number[] = [];

@@ -467,6 +467,7 @@ class {self.table_name} {{
     RowNumber ToRowNumber() const {{
       return RowNumber{{cursor_.RowIndex()}};
     }}
+    void Reset() {{ cursor_.Reset(); }}
     {cursor_getter}
 
    private:
@@ -492,6 +493,8 @@ class {self.table_name} {{
     RowNumber ToRowNumber() const {{
       return RowNumber{{cursor_.RowIndex()}};
     }}
+    void Reset() {{ cursor_.Reset(); }}
+
     {cursor_getter}
     {cursor_setter}
 

@@ -348,17 +348,20 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
     const json = v1Controller.resultAsJson;
     return m(
       '.metrics-page',
-      m(SegmentedButtons, {
-        options: [{label: 'Metric v1'}, {label: 'Metric v2'}],
-        selectedOption: this.mode === 'V1' ? 0 : 1,
-        onOptionSelected: (num) => {
-          if (num === 0) {
-            this.mode = 'V1';
-          } else {
-            this.mode = 'V2';
-          }
-        },
-      }),
+      m(
+        '',
+        m(SegmentedButtons, {
+          options: [{label: 'Metric v1'}, {label: 'Metric v2'}],
+          selectedOption: this.mode === 'V1' ? 0 : 1,
+          onOptionSelected: (num) => {
+            if (num === 0) {
+              this.mode = 'V1';
+            } else {
+              this.mode = 'V2';
+            }
+          },
+        }),
+      ),
       this.mode === 'V1' &&
         m(MetricV1Fetcher, {
           controller: v1Controller,

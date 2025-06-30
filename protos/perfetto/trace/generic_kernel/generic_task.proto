@@ -62,3 +62,13 @@ message GenericKernelTaskStateEvent {
   // kernel who emitted the message.
   optional int32 prio = 5;
 }
+
+// GenericKernelTaskRenameEvent is the standard proto to capture the renaming
+// of a thread.
+message GenericKernelTaskRenameEvent {
+  // Thread id.
+  optional int64 tid = 1;
+  // New command name for the thread.
+  optional string comm = 2;
+}
+

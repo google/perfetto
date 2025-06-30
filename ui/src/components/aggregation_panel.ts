@@ -13,26 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  AggregateData,
-  Column,
-  Sorting,
-  BarChartData,
-} from '../public/aggregation';
-import {DurationWidget} from './widgets/duration';
-import {translateState} from './sql_utils/thread_state';
 import {Trace} from '../public/trace';
-
-export interface AggregationPanelAttrs {
-  readonly trace: Trace;
-  readonly data: AggregateData;
-  readonly model: AggState;
-}
-
-export interface AggState {
-  getSortingPrefs(): Sorting | undefined;
-  toggleSortingColumn(column: string): void;
-}
+import {AggregateData, BarChartData, Column} from './aggregation';
+import {AggregationPanelAttrs, AggState} from './aggregation_adapter';
+import {translateState} from './sql_utils/thread_state';
+import {DurationWidget} from './widgets/duration';
 
 export class AggregationPanel
   implements m.ClassComponent<AggregationPanelAttrs>

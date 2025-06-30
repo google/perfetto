@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/string_view.h"
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
 #include "src/trace_processor/dataframe/specs.h"
@@ -401,6 +402,7 @@ void HeapGraphTracker::AddObject(uint32_t seq_id,
   uint32_t reference_set_id =
       storage_->heap_graph_reference_table().row_count();
   bool any_references = false;
+  bool any_native_references = false;
 
   ObjectTable::Id owner_id = owner_row_ref.id();
   for (size_t i = 0; i < obj.referred_objects.size(); ++i) {
@@ -425,8 +427,25 @@ void HeapGraphTracker::AddObject(uint32_t seq_id,
     }
     any_references = true;
   }
-  if (any_references) {
+  for (size_t i = 0; i < obj.runtime_internal_objects.size(); ++i) {
+    uint64_t owned_object_id = obj.runtime_internal_objects[i];
+    // This is true for unset reference fields.
+    ObjectTable::RowReference owned_row_ref =
+        GetOrInsertObject(&sequence_state, owned_object_id);
+
+    storage_->mutable_heap_graph_reference_table()->Insert(
+        {reference_set_id,
+         owner_id,
+         std::make_optional(owned_row_ref.id()),
+         storage_->InternString("runtimeInternalObjects"),
+         {},
+         /*deobfuscated_field_name=*/std::nullopt});
+    any_native_references = true;
+  }
+  if (any_references || any_native_references) {
     owner_row_ref.set_reference_set_id(reference_set_id);
+  }
+  if (any_references) {
     if (obj.field_name_ids.empty()) {
       sequence_state.deferred_reference_objects_for_type_[type_id].push_back(
           owner_row_ref.ToRowNumber());
@@ -927,19 +946,22 @@ void HeapGraphTracker::MarkRoot(ObjectTable::RowReference row_ref,
   }
 }
 
-void HeapGraphTracker::UpdateShortestPaths(ObjectTable::RowReference row_ref) {
+void HeapGraphTracker::UpdateShortestPaths(
+    base::CircularQueue<std::pair<int32_t, ObjectTable::RowReference>>& reach,
+    ObjectTable::RowReference row_ref) {
+  PERFETTO_DCHECK(reach.empty());
+
   // Calculate shortest distance to a GC root.
-  std::deque<std::pair<int32_t, ObjectTable::RowReference>> reachable_nodes{
-      {0, row_ref}};
+  reach.emplace_back(0, row_ref);
 
   std::vector<ObjectTable::Id> children;
-  while (!reachable_nodes.empty()) {
-    auto pair = reachable_nodes.front();
+  while (!reach.empty()) {
+    auto pair = reach.front();
 
     int32_t distance = pair.first;
     ObjectTable::RowReference cur_row_ref = pair.second;
 
-    reachable_nodes.pop_front();
+    reach.pop_front();
     int32_t cur_distance = cur_row_ref.root_distance();
     if (cur_distance == -1 || cur_distance > distance) {
       cur_row_ref.set_root_distance(distance);
@@ -950,7 +972,7 @@ void HeapGraphTracker::UpdateShortestPaths(ObjectTable::RowReference row_ref) {
             *storage_->mutable_heap_graph_object_table()->FindById(child_node);
         int32_t child_distance = child_row_ref.root_distance();
         if (child_distance == -1 || child_distance > distance + 1)
-          reachable_nodes.emplace_back(distance + 1, child_row_ref);
+          reach.emplace_back(distance + 1, child_row_ref);
       }
     }
   }
@@ -1159,12 +1181,21 @@ void HeapGraphTracker::FinalizeAllProfiles() {
   }
 
   // Update the shortest paths for all roots.
+  base::CircularQueue<std::pair<int32_t, ObjectTable::RowReference>> reach;
   auto* object_table = storage_->mutable_heap_graph_object_table();
   for (auto& [_, roots] : roots_) {
     for (ObjectTable::RowNumber root : roots) {
-      UpdateShortestPaths(root.ToRowReference(object_table));
+      UpdateShortestPaths(reach, root.ToRowReference(object_table));
     }
   }
+
+  // TODO(lalitm): when experimental_flamegraph is removed, we can remove all of
+  // this.
+  class_cursor_.Reset();
+  object_cursor_.Reset();
+  superclass_cursor_.Reset();
+  reference_cursor_.Reset();
+  referred_cursor_.Reset();
 }
 
 bool HeapGraphTracker::IsTruncated(UniquePid upid, int64_t ts) {
