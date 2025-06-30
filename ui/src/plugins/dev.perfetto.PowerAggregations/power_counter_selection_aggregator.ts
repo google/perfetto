@@ -83,25 +83,21 @@ export class PowerCounterSelectionAggregator implements Aggregator {
       {
         title: 'Rail Name',
         kind: 'STRING',
-        columnConstructor: Uint16Array,
         columnId: 'name',
       },
       {
         title: 'Delta energy (uJ)',
         kind: 'NUMBER',
-        columnConstructor: Float64Array,
         columnId: 'delta_value',
       },
       {
         title: 'Avg Power (uW)',
         kind: 'Number',
-        columnConstructor: Float64Array,
         columnId: 'rate',
       },
       {
         title: 'Sample Count',
         kind: 'Number',
-        columnConstructor: Float64Array,
         columnId: 'count',
         sum: true,
       },

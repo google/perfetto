@@ -12,30 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-aggregation-loading {
-  height: 100%;
+import m from 'mithril';
+import {classNames} from '../base/classnames';
+
+export interface BoxAttrs {
+  readonly fillHeight?: boolean;
 }
 
-.pf-aggregation-panel {
-  &__bar-chart {
-    font-size: 11px;
-    display: flex;
-    overflow: hidden;
-    gap: 1px;
-
-    &-bar {
-      height: 20px;
-      line-height: 20px;
-      padding-left: 3px;
-      padding-right: 3px;
-
-      border-style: solid;
-      border-width: 1px;
-      border-radius: 2px;
-
-      &:hover {
-        min-width: fit-content;
-      }
-    }
+export class Box implements m.ClassComponent<BoxAttrs> {
+  view({attrs, children}: m.CVnode<BoxAttrs>) {
+    const {fillHeight = false} = attrs;
+    return m(
+      '.pf-box',
+      {
+        className: classNames(fillHeight && 'pf-box--fill-height'),
+      },
+      children,
+    );
   }
 }
