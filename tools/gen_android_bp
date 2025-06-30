@@ -1226,11 +1226,11 @@ def extract_defaults(module: Module, blueprint: Blueprint):
                            module.gn_target)
   items_copy = dict(module.__dict__)
   for k, v in items_copy.items():
-    if k not in ('type', 'name', 'comment', 'defaults'):
+    if k not in ('type', 'name', 'comment'):
       defaults_module.__dict__[k] = v
       module.__dict__[k] = None
   blueprint.add_module(defaults_module)
-  module.defaults.add(defaults_module.name)
+  module.defaults = {defaults_module.name}
 
 
 def _get_cflags(target: GnParser.Target):
