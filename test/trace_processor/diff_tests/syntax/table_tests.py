@@ -77,7 +77,7 @@ class PerfettoTable(TestSuite):
         1,"ts","int64",0,2
         2,"track_id","uint32",0,3
         3,"value","double",0,3
-        4,"arg_set_id","uint32",3,3
+        4,"arg_set_id","uint32",2,3
         """))
 
   def test_perfetto_table_info_runtime_table(self):
