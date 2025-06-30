@@ -53,7 +53,7 @@ export function renderDoFrameTag(
     ctx.arc(x, y, radius, 0, 2 * Math.PI);
     ctx.closePath();
 
-    if (lynxPerfGlobals.state.filteredTraceSet.has(value.id) !== undefined) {
+    if (lynxPerfGlobals.state.filteredTraceSet.has(value.id)) {
       ctx.fillStyle = UNEXPECTED_PINK.disabled.cssString;
     } else {
       ctx.fillStyle =
