@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {AsyncLimiter} from '../base/async_limiter';
 import {Time} from '../base/time';
 import {exists} from '../base/utils';
 import {
@@ -31,9 +32,10 @@ import {
 import {Engine} from '../trace_processor/engine';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
-import {AggregateData, BarChartData, ColumnDef, Sorting} from './aggregation';
 import {AggregationPanel} from './aggregation_panel';
-import {SelectionAggregationManager} from './selection_aggregation_manager';
+import {DataGridDataSource} from './widgets/data_grid/common';
+import {SQLDataSource} from './widgets/data_grid/sql_data_source';
+import {BarChartData, ColumnDef, Sorting} from './aggregation';
 
 export interface AggregationData {
   readonly tableName: string;
@@ -52,15 +54,40 @@ export interface Aggregation {
   prepareData(engine: Engine): Promise<AggregationData>;
 }
 
-export interface AggState {
-  getSortingPrefs(): Sorting | undefined;
-  toggleSortingColumn(column: string): void;
+export interface Aggregator {
+  readonly id: string;
+
+  /**
+   * This function is called every time the area selection changes. The purpose
+   * of this function is to test whether this aggregator applies to the given
+   * area selection. If it does, it returns an aggregation object which gives
+   * further instructions on how to prepare the aggregation data.
+   *
+   * Aggregators are arranged this way because often the computation required to
+   * work out whether this aggregation applies is the same as the computation
+   * required to actually do the aggregation, so doing it like this means the
+   * prepareData() function returned can capture intermediate state avoiding
+   * having to do it again or awkwardly cache it somewhere in the aggregators
+   * local state.
+   */
+  probe(area: AreaSelection): Aggregation | undefined;
+  getTabName(): string;
+  getDefaultSorting(): Sorting;
+  getColumnDefinitions(): ColumnDef[];
+
+  /**
+   * Optionally override which component is used to render the data in the
+   * details panel. This can be used to define customize how the data is
+   * rendered.
+   */
+  readonly PanelComponent?: PanelComponent;
 }
 
 export interface AggregationPanelAttrs {
-  readonly trace: Trace;
-  readonly data: AggregateData;
-  readonly model: AggState;
+  readonly dataSource: DataGridDataSource;
+  readonly sorting: Sorting;
+  readonly columns: ReadonlyArray<ColumnDef>;
+  readonly barChartData?: ReadonlyArray<BarChartData>;
 }
 
 // Define a type for the expected props of the panel components so that a
@@ -175,9 +202,11 @@ export function createAggregationTab(
   aggregator: Aggregator,
   priority: number = 0,
 ): AreaSelectionTab {
-  const aggMan = new SelectionAggregationManager(trace.engine, aggregator);
+  const limiter = new AsyncLimiter();
   let currentSelection: AreaSelection | undefined;
-  let canAggregate = false;
+  let aggregation: Aggregation | undefined;
+  let barChartData: ReadonlyArray<BarChartData> | undefined;
+  let dataSource: DataGridDataSource | undefined;
 
   return {
     id: aggregator.id,
@@ -188,16 +217,25 @@ export function createAggregationTab(
         currentSelection === undefined ||
         !areaSelectionsEqual(selection, currentSelection)
       ) {
-        canAggregate = aggMan.aggregateArea(selection);
         currentSelection = selection;
+        aggregation = aggregator.probe(selection);
+
+        // Kick off a new load of the data
+        limiter.schedule(async () => {
+          if (aggregation) {
+            const data = await aggregation?.prepareData(trace.engine);
+            dataSource = new SQLDataSource(trace.engine, data.tableName);
+            barChartData = data.barChartData;
+          }
+        });
       }
 
-      if (!canAggregate) {
+      if (!aggregation) {
+        // Hides the tab
         return undefined;
       }
 
-      const data = aggMan.aggregatedData;
-      if (!data) {
+      if (!dataSource) {
         return {
           isLoading: true,
           content: m(
@@ -212,12 +250,16 @@ export function createAggregationTab(
         };
       }
 
+      const PanelComponent = aggregator.Panel ?? AggregationPanel;
+
       return {
         isLoading: false,
-        content: m(aggregator.Panel ?? AggregationPanel, {
-          data,
-          trace,
-          model: aggMan,
+        content: m(PanelComponent, {
+          key: aggregator.id,
+          dataSource,
+          columns: aggregator.getColumnDefinitions(),
+          sorting: aggregator.getDefaultSorting(),
+          barChartData,
         }),
       };
     },

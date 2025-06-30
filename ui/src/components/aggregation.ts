@@ -1,7 +1,7 @@
-// Copyright (C) 2019 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
+// you may not use size file except in compliance with the License.
 // You may obtain a copy of the License at
 //
 //      http://www.apache.org/licenses/LICENSE-2.0
@@ -14,65 +14,16 @@
 
 import {ColorScheme} from '../base/color_scheme';
 
-export type Column = (
-  | StringColumn
-  | TimestampColumn
-  | NumberColumn
-  | StateColumn
-) & {
-  readonly title: string;
-  readonly columnId: string;
-};
-
-export interface StringColumn {
-  readonly kind: 'STRING';
-  readonly data: Uint16Array;
-}
-
-export interface TimestampColumn {
-  readonly kind: 'TIMESTAMP_NS';
-  readonly data: Float64Array;
-}
-
-export interface NumberColumn {
-  readonly kind: 'NUMBER';
-  readonly data: Uint16Array;
-}
-
-export interface StateColumn {
-  readonly kind: 'STATE';
-  readonly data: Uint16Array;
-}
-
-type TypedArrayConstructor =
-  | Uint16ArrayConstructor
-  | Float64ArrayConstructor
-  | Uint32ArrayConstructor;
 export interface ColumnDef {
+  readonly columnId: string;
   readonly title: string;
   readonly kind: string;
   readonly sum?: boolean;
-  readonly columnConstructor: TypedArrayConstructor;
-  readonly columnId: string;
-}
-
-export interface AggregateData {
-  readonly tabName: string;
-  readonly columns: Column[];
-  readonly columnSums: string[];
-  // For string interning.
-  readonly strings: string[];
-  // Some aggregations will have extra info to display;
-  readonly barChart?: ReadonlyArray<BarChartData>;
-}
-
-export function isEmptyData(data: AggregateData) {
-  return data.columns.length === 0 || data.columns[0].data.length === 0;
 }
 
 export interface BarChartData {
-  readonly name: string;
-  readonly timeInStateMs: number;
+  readonly title: string;
+  readonly value: number;
   readonly color: ColorScheme;
 }
 
