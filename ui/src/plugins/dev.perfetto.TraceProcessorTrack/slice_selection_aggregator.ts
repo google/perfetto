@@ -70,26 +70,22 @@ export class SliceSelectionAggregator implements Aggregator {
       {
         title: 'Name',
         kind: 'STRING',
-        columnConstructor: Uint32Array,
         columnId: 'name',
       },
       {
         title: 'Wall duration (ms)',
         kind: 'TIMESTAMP_NS',
-        columnConstructor: Float64Array,
         columnId: 'total_dur',
         sum: true,
       },
       {
         title: 'Avg Wall duration (ms)',
         kind: 'TIMESTAMP_NS',
-        columnConstructor: Float64Array,
         columnId: 'avg_dur',
       },
       {
         title: 'Occurrences',
         kind: 'NUMBER',
-        columnConstructor: Uint32Array,
         columnId: 'occurrences',
         sum: true,
       },
