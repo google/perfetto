@@ -39,8 +39,6 @@ extern "C" {
 
 // These functions are not thread safe unless specified otherwise.
 
-bool __attribute__((visibility("default"))) EnsureCpuTimesAvailable();
-
 bool __attribute__((visibility("default")))
 GetCpuTimes(CpuTime* cpu_times, size_t* size_of_arr, uint64_t* last_update_ns);
 
