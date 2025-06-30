@@ -82,6 +82,61 @@ will jump straight to that slice.
 
 ![](/docs/images/analysis-cookbook-unint-sleep.png)
 
+## Finding process metadata and fetching UPID
+
+Demonstrates:
+
+- Fetching `process_name`, `upid` and `uid`. This data is used to get process level metrics from other tables
+- Using UPID for getting process specific metrics from other tables
+- Using `GLOB` for regex based queries
+
+Knowing details like process name, package name or UPID come in handy as they serve as a basis for many other queries in Perfetto.
+
+```sql
+INCLUDE PERFETTO MODULE android.process_metadata;
+
+SELECT
+  upid,
+  process_name,
+  package_name,
+  uid
+FROM android_process_metadata
+WHERE process_name GLOB '*Camera*'; -- GLOB search is case sensitive
+```
+Result:
+
+![](/docs/images/analysis-cookbook-process-metadata.png)
+
+**Note:** In case you don’t see the expected process, it may be happening because `GLOB` search is case sensitive.  So if you are not sure about your process name, it is worth doing `select upid, process_name, package_name, uid from android_process_metadata` to find the UPID of your process.
+
+
+**UPID** is the unique process ID which remains constant throughout the duration of the trace as opposed to the PID (process ID) which can change.
+Many [standard library tables](https://perfetto.dev/docs/analysis/stdlib-docs) in Perfetto such as `android_lmk_events`,  `cpu_cycles_per_process` etc use UPID to point to processes. This comes in handy specially when you need data filtered against your process. UPID is also useful for performing `JOIN` operations with other tables. Example for getting the cold start reason for GoogleCamera:
+```sql
+INCLUDE PERFETTO MODULE android.app_process_starts;
+INCLUDE PERFETTO MODULE time.conversion;
+
+
+SELECT
+  process_name,
+  upid,
+  intent,
+  reason,
+  time_to_ms(total_dur)
+FROM android_app_process_starts
+WHERE upid = 844;
+```
+
+**UID** is the Android app User ID is also useful. In cases where a `package_name` does **not** exist, standard library tables are populated in the format `uid=$X`. For example, `android_network_packets`. Example for getting network bytes transmitted for a process:
+```sql
+include perfetto module android.network_packets;
+
+SELECT
+  *
+FROM android_network_packets
+WHERE package_name = 'uid=12332';
+```
+
 ## Find top causes for uninterruptible sleep
 
 Demonstrates:
@@ -316,3 +371,52 @@ The debug tracks should now look like this:
 Here is an example from a busier trace, where you can see the same process being
 assigned to different groups:
 ![](/docs/images/debug-track-setprocessgroup-final-result.png)
+
+## State of background jobs
+
+Use `android_job_scheduler_states` table in Perfetto to collect job duration and error metrics for jobs to identify whether background jobs are running as expected.
+
+Demonstrates:
+
+- Filtering by process
+- Using Perfetto standard library tables
+- Including Perfetto modules for SQL queries
+- Converting duration to milliseconds using `time_to_ms` function
+
+JobScheduler is an Android system service that helps apps schedule background tasks (like data syncs or file downloads) efficiently. In Android development, *Background jobs* generally refer to any work that an application needs to perform without directly interacting with the user interface. This could include tasks like syncing data with a server, downloading files, processing images, sending analytics, or performing database operations.
+
+To collect data for background jobs in `android_job_scheduler_states` table, you will need the following snippet in your Perfetto configuration when recording traces:
+```
+data_sources {
+  config {
+    name: "android.statsd"
+    statsd_tracing_config {
+      push_atom_id: ATOM_SCHEDULED_JOB_STATE_CHANGED
+    }
+  }
+}
+```
+
+```sql
+INCLUDE PERFETTO MODULE android.job_scheduler_states;
+
+SELECT
+  job_id,
+  job_name,
+  AVG(time_to_ms(dur)) AS avg_dur_ms,
+  COUNT(*) AS num_times_ran,
+  internal_stop_reason AS stop_reason,
+  SUM(num_uncompleted_work_items) AS num_uncompleted_work_items,
+  AVG(job_start_latency_ms) AS queue_time_ms
+FROM android_job_scheduler_states
+WHERE package_name = 'com.google.android.adservices.api'
+GROUP BY job_name, job_id, internal_stop_reason, package_name;
+```
+
+Long durations, frequent errors and retries indicate issues within your background jobs themselves (e.g., bugs in your code, unhandled exceptions, incorrect data processing). They can lead to increased resource consumption, battery drain and data usage on the user's device.
+
+Long queue times mean your background jobs are waiting too long to execute. This can have downstream effects. For instance, if a job is responsible for syncing user data, long queue times could lead to stale information being displayed to the user or a delay in critical updates.
+
+Result
+
+![](/docs/images/android-trace-analysis-background-jobs.png)

@@ -1133,6 +1133,9 @@ class AndroidJavaSDKModulesGenerator:
 
       self.blueprint.add_module(java_module)
 
+      if target.android_bp_extract_defaults:
+        extract_defaults(java_module, self.blueprint)
+
       module.static_libs.add(java_library_module_name)
     else:
       module.srcs = [gn_utils.label_to_path(src) for src in target.sources]
@@ -1209,6 +1212,25 @@ class AndroidJavaSDKModulesGenerator:
     visited.add(target)
     for d in target.non_proto_or_source_set_deps():
       self._collect_all_transitive_deps(d, visited)
+
+
+def extract_defaults(module: Module, blueprint: Blueprint):
+  if module.type.startswith('cc_library') or module.type.startswith(
+      'cc_binary'):
+    defaults_type = 'cc_defaults'
+  elif module.type == 'java_library':
+    defaults_type = 'java_defaults'
+  else:
+    raise Error('Unsupported module type: {}'.format(module.type))
+  defaults_module = Module(defaults_type, module.name + '_defaults',
+                           module.gn_target)
+  items_copy = dict(module.__dict__)
+  for k, v in items_copy.items():
+    if k not in ('type', 'name', 'comment'):
+      defaults_module.__dict__[k] = v
+      module.__dict__[k] = None
+  blueprint.add_module(defaults_module)
+  module.defaults = {defaults_module.name}
 
 
 def _get_cflags(target: GnParser.Target):
@@ -1419,6 +1441,9 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
     else:
       raise Error('Unknown dep %s (%s) for target %s' %
                   (dep_module.name, dep_module.type, module.name))
+
+  if target.android_bp_extract_defaults:
+    extract_defaults(module, blueprint)
 
   return module
 

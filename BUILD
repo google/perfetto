@@ -2255,6 +2255,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/winscope/shell_transitions_parser.h",
         "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.cc",
         "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.h",
+        "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_extractor.cc",
+        "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_extractor.h",
         "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.cc",
         "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.h",
         "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_utils.h",
