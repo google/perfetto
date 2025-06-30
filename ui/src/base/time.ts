@@ -185,7 +185,7 @@ export class Time {
   }
 
   static formatMicroseconds(time: time): string {
-    return Time.toMicros(time).toString() + ' µs';
+    return Time.toMicros(time).toString() + ' us';
   }
 
   static toTimecode(time: time): Timecode {
@@ -280,7 +280,7 @@ export class Duration {
   //           1,230,000,023 -> 1.230s
   static humanise(dur: duration): string {
     if (dur < 1) return '0s';
-    const units = ['ns', 'µs', 'ms', 's'];
+    const units = ['ns', 'us', 'ms', 's'];
     let n = Math.abs(Number(dur));
     let u = 0;
     while (n >= 1000 && u + 1 < units.length) {
@@ -299,7 +299,7 @@ export class Duration {
       ['m', 60_000_000_000n],
       ['s', 1_000_000_000n],
       ['ms', 1_000_000n],
-      ['µs', 1_000n],
+      ['us', 1_000n],
       ['ns', 1n],
     ];
     unitAndValue.forEach(([unit, unitSize]) => {
@@ -321,7 +321,7 @@ export class Duration {
   }
 
   static formatMicroseconds(dur: duration): string {
-    return Duration.toMicroSeconds(dur).toString() + ' µs';
+    return Duration.toMicroSeconds(dur).toString() + ' us';
   }
 }
 
