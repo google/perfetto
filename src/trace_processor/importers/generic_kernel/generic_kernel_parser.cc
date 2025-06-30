@@ -24,7 +24,7 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/trace/generic_kernel/generic_power.pbzero.h"
-#include "protos/perfetto/trace/generic_kernel/generic_task_state.pbzero.h"
+#include "protos/perfetto/trace/generic_kernel/generic_task.pbzero.h"
 
 namespace perfetto::trace_processor {
 
@@ -265,6 +265,14 @@ GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
     }
   }
   return kNone;
+}
+
+void GenericKernelParser::ParseGenericTaskRenameEvent(
+    protozero::ConstBytes data) {
+  protos::pbzero::GenericKernelTaskRenameEvent::Decoder task_rename_event(data);
+  StringId comm = context_->storage->InternString(task_rename_event.comm());
+  context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
+      task_rename_event.tid(), comm, ThreadNamePriority::kGenericKernelTask);
 }
 
 void GenericKernelParser::ParseGenericCpuFrequencyEvent(

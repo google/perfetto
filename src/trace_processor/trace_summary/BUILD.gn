@@ -52,6 +52,7 @@ source_set("integrationtests") {
     "../../../gn:gtest_and_gmock",
     "../../../include/perfetto/trace_processor",
     "../../base",
+    "../../base:test_support",
     "../util:descriptors",
   ]
 }

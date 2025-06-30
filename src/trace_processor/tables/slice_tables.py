@@ -72,6 +72,7 @@ SLICE_TABLE = Table(
             'depth',
             CppUint32(),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
         C('stack_id', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
         C(

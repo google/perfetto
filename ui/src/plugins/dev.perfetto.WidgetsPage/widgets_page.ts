@@ -66,7 +66,6 @@ import {
   DataGrid,
   DataGridAttrs,
 } from '../../components/widgets/data_grid/data_grid';
-import {InMemoryDataSource} from '../../components/widgets/data_grid/in_memory_data_source';
 import {SQLDataSource} from '../../components/widgets/data_grid/sql_data_source';
 import {App} from '../../public/app';
 import {Engine} from '../../trace_processor/engine';
@@ -1584,30 +1583,112 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
       renderWidgetShowcase({
         label: 'DataGrid (memory backed)',
         description: `An interactive data explorer and viewer.`,
-        renderWidget: ({readonlyFilters, readonlySorting, ...rest}) =>
-          m(DataGridShowcase, {
+        renderWidget: ({
+          readonlyFilters,
+          readonlySorting,
+          aggregation,
+          ...rest
+        }) =>
+          m(DataGrid, {
             ...rest,
             filters: readonlyFilters ? [] : undefined,
-            sortBy: readonlySorting ? {direction: 'unsorted'} : undefined,
+            sorting: readonlySorting ? {direction: 'UNSORTED'} : undefined,
+            columns: [
+              {
+                name: 'id',
+                title: 'ID',
+                aggregation: aggregation ? 'COUNT' : undefined,
+              },
+              {name: 'ts', title: 'Timestamp'},
+              {
+                name: 'dur',
+                aggregation: aggregation ? 'SUM' : undefined,
+                title: 'Duration',
+              },
+              {name: 'name', title: 'Name'},
+              {name: 'data', title: 'Data'},
+              {name: 'maybe_null', title: 'Maybe Null?'},
+              {name: 'category', title: 'Category'},
+            ],
+            data: [
+              {
+                id: 1,
+                name: 'foo',
+                ts: 123n,
+                dur: 16n,
+                data: new Uint8Array(),
+                maybe_null: null,
+                category: 'aaa',
+              },
+              {
+                id: 2,
+                name: 'bar',
+                ts: 185n,
+                dur: 4n,
+                data: new Uint8Array([1, 2, 3]),
+                maybe_null: 'Non null',
+                category: 'aaa',
+              },
+              {
+                id: 3,
+                name: 'baz',
+                ts: 575n,
+                dur: 12n,
+                data: new Uint8Array([1, 2, 3]),
+                maybe_null: null,
+                category: 'aaa',
+              },
+            ],
           }),
         initialOpts: {
           showFiltersInToolbar: true,
           readonlyFilters: false,
           readonlySorting: false,
+          aggregation: false,
         },
       }),
 
       renderWidgetShowcase({
         label: 'DataGrid (query backed)',
         description: `An interactive data explorer and viewer - fetched from SQL.`,
-        renderWidget: ({readonlyFilters, readonlySorting, ...rest}) => {
+        renderWidget: ({
+          readonlyFilters,
+          readonlySorting,
+          aggregation,
+          ...rest
+        }) => {
           const trace = attrs.app.trace;
           if (trace) {
-            return m(DataGridSqlShowcase, {
+            return m(QueryDataGrid, {
               ...rest,
               engine: trace.engine,
+              query: `
+                SELECT
+                  ts.id as id,
+                  dur,
+                  state,
+                  thread.name as thread_name,
+                  dur
+                FROM thread_state ts
+                JOIN thread USING(utid)
+              `,
               filters: readonlyFilters ? [] : undefined,
-              sortBy: readonlySorting ? {direction: 'unsorted'} : undefined,
+              sorting: readonlySorting ? {direction: 'UNSORTED'} : undefined,
+              columns: [
+                {
+                  name: 'id',
+                  title: 'ID',
+                  aggregation: aggregation ? 'COUNT' : undefined,
+                },
+                {
+                  name: 'dur',
+                  title: 'Duration',
+                  aggregation: aggregation ? 'SUM' : undefined,
+                },
+                {name: 'state', title: 'State'},
+                {name: 'thread_name', title: 'Thread'},
+              ],
+              maxRowsPerPage: 10,
             });
           } else {
             return 'Load a trace to start';
@@ -1617,6 +1698,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           showFiltersInToolbar: true,
           readonlyFilters: false,
           readonlySorting: false,
+          aggregation: false,
         },
       }),
     );
@@ -1687,68 +1769,17 @@ function MultiselectInputDemo() {
   };
 }
 
-function DataGridShowcase() {
-  const dataSource = new InMemoryDataSource([
-    {
-      id: 1,
-      name: 'foo',
-      ts: 123n,
-      dur: 16n,
-      data: new Uint8Array(),
-      maybe_null: null,
-    },
-    {
-      id: 2,
-      name: 'bar',
-      ts: 185n,
-      dur: 4n,
-      data: new Uint8Array([1, 2, 3]),
-      maybe_null: 'Non null',
-    },
-    {
-      id: 3,
-      name: 'baz',
-      ts: 575n,
-      dur: 12n,
-      data: new Uint8Array([1, 2, 3]),
-      maybe_null: null,
-    },
-  ]);
+type QueryDataGridAttrs = Omit<DataGridAttrs, 'data'> & {
+  readonly query: string;
+  readonly engine: Engine;
+};
+
+function QueryDataGrid(vnode: m.Vnode<QueryDataGridAttrs>) {
+  const dataSource = new SQLDataSource(vnode.attrs.engine, vnode.attrs.query);
 
   return {
-    view({attrs}: m.Vnode<Partial<DataGridAttrs>>) {
-      return m(DataGrid, {
-        ...attrs,
-        columns: [
-          {name: 'id'},
-          {name: 'ts'},
-          {name: 'dur'},
-          {name: 'name'},
-          {name: 'data'},
-          {name: 'maybe_null'},
-        ],
-        dataSource,
-      });
-    },
-  };
-}
-
-function DataGridSqlShowcase(
-  vnode: m.Vnode<Partial<DataGridAttrs> & {engine: Engine}>,
-) {
-  const dataSource = new SQLDataSource(
-    vnode.attrs.engine,
-    'SELECT * FROM slice',
-  );
-
-  return {
-    view({attrs}: m.Vnode<Partial<DataGridAttrs> & {engine: Engine}>) {
-      return m(DataGrid, {
-        ...attrs,
-        columns: [{name: 'id'}, {name: 'ts'}, {name: 'dur'}],
-        dataSource,
-        maxRowsPerPage: 10,
-      });
+    view({attrs}: m.Vnode<QueryDataGridAttrs>) {
+      return m(DataGrid, {...attrs, data: dataSource});
     },
   };
 }

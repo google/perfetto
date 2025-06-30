@@ -72,7 +72,10 @@ class BuildContext:
 
 def GnArgs(platform):
   (os, cpu) = platform.split('-')
-  base_args = 'is_debug=false monolithic_binaries=true'
+  base_args = " ".join([
+      'is_clang=true', 'monolithic_binaries=true', 'is_debug=false',
+      'enable_perfetto_winscope=false', 'enable_perfetto_etm_importer=false'
+  ])
   if os not in ('android', 'linux', 'mac'):
     return base_args  # No cross-compiling on Windows.
   cpu = 'x64' if cpu == 'amd64' else cpu  # GN calls it "x64".

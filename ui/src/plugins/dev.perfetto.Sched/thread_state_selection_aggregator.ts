@@ -12,19 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ColumnDef, Sorting, BarChartData} from '../../public/aggregation';
-import {Aggregation, AreaSelection} from '../../public/selection';
-import {Engine} from '../../trace_processor/engine';
-import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
-import {AreaSelectionAggregator} from '../../public/selection';
-import {colorForThreadState} from './common';
-import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
+import {Duration} from '../../base/time';
+import {BarChartData, ColumnDef, Sorting} from '../../components/aggregation';
 import {
+  Aggregation,
+  Aggregator,
   ii,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
+import {AreaSelection} from '../../public/selection';
+import {THREAD_STATE_TRACK_KIND} from '../../public/track_kinds';
+import {Engine} from '../../trace_processor/engine';
+import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
+import {colorForThreadState} from './common';
 
-export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
+export class ThreadStateSelectionAggregator implements Aggregator {
   readonly id = 'thread_state_aggregation';
 
   probe(area: AreaSelection): Aggregation | undefined {
@@ -78,16 +80,15 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
 
         const it = result.iter({
           state: STR_NULL,
-          totalDur: NUM,
+          totalDur: LONG,
         });
 
         const states: BarChartData[] = [];
         for (let i = 0; it.valid(); ++i, it.next()) {
           const name = it.state ?? 'Unknown';
-          const ms = it.totalDur / 1000000;
           states.push({
-            name,
-            timeInStateMs: ms,
+            title: `${name}: ${Duration.humanise(it.totalDur)}`,
+            value: Number(it.totalDur),
             color: colorForThreadState(name),
           });
         }
@@ -105,50 +106,42 @@ export class ThreadStateSelectionAggregator implements AreaSelectionAggregator {
       {
         title: 'Process',
         kind: 'STRING',
-        columnConstructor: Uint16Array,
         columnId: 'process_name',
       },
       {
         title: 'PID',
         kind: 'NUMBER',
-        columnConstructor: Float64Array,
         columnId: 'pid',
       },
       {
         title: 'Thread',
         kind: 'STRING',
-        columnConstructor: Uint16Array,
         columnId: 'thread_name',
       },
       {
         title: 'TID',
         kind: 'NUMBER',
-        columnConstructor: Float64Array,
         columnId: 'tid',
       },
       {
         title: 'State',
         kind: 'STRING',
-        columnConstructor: Uint16Array,
         columnId: 'state',
       },
       {
         title: 'Wall duration (ms)',
         kind: 'TIMESTAMP_NS',
-        columnConstructor: Float64Array,
         columnId: 'total_dur',
         sum: true,
       },
       {
         title: 'Avg Wall duration (ms)',
         kind: 'TIMESTAMP_NS',
-        columnConstructor: Float64Array,
         columnId: 'avg_dur',
       },
       {
         title: 'Occurrences',
         kind: 'NUMBER',
-        columnConstructor: Uint16Array,
         columnId: 'occurrences',
         sum: true,
       },

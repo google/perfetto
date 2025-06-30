@@ -77,6 +77,7 @@ class MockFtraceProcfs : public FtraceProcfs {
     ON_CALL(*this, AppendToFile(_, _)).WillByDefault(Return(true));
     ON_CALL(*this, ClearFile(_)).WillByDefault(Return(true));
     ON_CALL(*this, IsFileWriteable(_)).WillByDefault(Return(true));
+    ON_CALL(*this, IsFileReadable(_)).WillByDefault(Return(true));
     EXPECT_CALL(*this, NumberOfCpus()).Times(AnyNumber());
   }
 
@@ -104,6 +105,7 @@ class MockFtraceProcfs : public FtraceProcfs {
               (const std::string& group, const std::string& name),
               (const, override));
   MOCK_METHOD(bool, IsFileWriteable, (const std::string& path), (override));
+  MOCK_METHOD(bool, IsFileReadable, (const std::string& path), (override));
 };
 
 class MockAtraceWrapper : public AtraceWrapper {
@@ -961,37 +963,54 @@ TEST_F(FtraceConfigMuxerFakeTableTest, AtracePreferTrackEvent) {
   ASSERT_TRUE(model_.RemoveConfig(id_a));
 }
 
-TEST_F(FtraceConfigMuxerFakeTableTest, SetupClockForTesting) {
+TEST_F(FtraceConfigMuxerFakeTableTest, SetupClockBoot) {
   FtraceConfig config;
-
   namespace pb0 = protos::pbzero;
 
+  // [local] -> write "boot" -> [boot]
   EXPECT_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
-      .Times(AnyNumber());
+      .WillRepeatedly(Return("[local] global boot"));
+  testing::Expectation write_expectation =
+      EXPECT_CALL(ftrace_, WriteToFile("/root/trace_clock", "boot"));
+  EXPECT_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
+      .After(write_expectation)
+      .WillRepeatedly(Return("local global [boot]"));
 
-  ON_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
-      .WillByDefault(Return("[local] global boot"));
-  EXPECT_CALL(ftrace_, WriteToFile("/root/trace_clock", "boot"));
   model_.SetupClockForTesting(config);
+
   // unspecified = boot.
-  EXPECT_EQ(model_.ftrace_clock(),
-            static_cast<int>(pb0::FTRACE_CLOCK_UNSPECIFIED));
+  EXPECT_EQ(model_.ftrace_clock(), pb0::FTRACE_CLOCK_UNSPECIFIED);
+}
 
-  ON_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
-      .WillByDefault(Return("[local] global"));
-  EXPECT_CALL(ftrace_, WriteToFile("/root/trace_clock", "global"));
-  model_.SetupClockForTesting(config);
-  EXPECT_EQ(model_.ftrace_clock(), static_cast<int>(pb0::FTRACE_CLOCK_GLOBAL));
+TEST_F(FtraceConfigMuxerFakeTableTest, SetupClockNoBoot) {
+  FtraceConfig config;
+  namespace pb0 = protos::pbzero;
 
-  ON_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
-      .WillByDefault(Return(""));
-  model_.SetupClockForTesting(config);
-  EXPECT_EQ(model_.ftrace_clock(), static_cast<int>(pb0::FTRACE_CLOCK_UNKNOWN));
+  // [local] -> write "global" -> [global]
+  EXPECT_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
+      .WillRepeatedly(Return("[local] global"));
+  testing::Expectation write_expectation =
+      EXPECT_CALL(ftrace_, WriteToFile("/root/trace_clock", "global"));
+  EXPECT_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
+      .After(write_expectation)
+      .WillRepeatedly(Return("local [global]"));
 
-  ON_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
-      .WillByDefault(Return("local [global]"));
   model_.SetupClockForTesting(config);
-  EXPECT_EQ(model_.ftrace_clock(), static_cast<int>(pb0::FTRACE_CLOCK_GLOBAL));
+
+  EXPECT_EQ(model_.ftrace_clock(), pb0::FTRACE_CLOCK_GLOBAL);
+}
+
+TEST_F(FtraceConfigMuxerFakeTableTest, SetupClockUnknown) {
+  FtraceConfig config;
+  namespace pb0 = protos::pbzero;
+
+  // empty clock file (inaccessible due to file ACLs?)
+  EXPECT_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
+      .WillRepeatedly(Return(""));
+  EXPECT_CALL(ftrace_, WriteToFile("/root/trace_clock", _)).Times(0);
+
+  model_.SetupClockForTesting(config);
+  EXPECT_EQ(model_.ftrace_clock(), pb0::FTRACE_CLOCK_UNKNOWN);
 }
 
 TEST_F(FtraceConfigMuxerFakeTableTest, GetFtraceEvents) {

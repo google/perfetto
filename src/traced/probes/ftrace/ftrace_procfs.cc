@@ -211,9 +211,22 @@ bool FtraceProcfs::IsEventAccessible(const std::string& group,
   return IsFileWriteable(path);
 }
 
+bool FtraceProcfs::IsEventFormatReadable(const std::string& group,
+                                         const std::string& name) {
+  std::string path = root_ + "events/" + group + "/" + name + "/format";
+
+  return IsFileReadable(path);
+}
+
 bool FtraceProcfs::DisableAllEvents() {
   std::string path = root_ + "events/enable";
   return WriteToFile(path, "0");
+}
+
+bool FtraceProcfs::IsGenericSetEventWritable() {
+  std::string path = root_ + "set_event";
+
+  return IsFileWriteable(path);
 }
 
 std::string FtraceProcfs::ReadEventFormat(const std::string& group,
@@ -641,6 +654,10 @@ bool FtraceProcfs::ClearFile(const std::string& path) {
 
 bool FtraceProcfs::IsFileWriteable(const std::string& path) {
   return access(path.c_str(), W_OK) == 0;
+}
+
+bool FtraceProcfs::IsFileReadable(const std::string& path) {
+  return access(path.c_str(), R_OK) == 0;
 }
 
 std::string FtraceProcfs::ReadFileIntoString(const std::string& path) const {

@@ -29,6 +29,7 @@ if (perfetto_build_with_android) {
     ]
     sources = [
       "atrace_hal.cc",
+      "cpu_time_in_state.cc",
       "health_hal.cc",
       "incident_service.cc",
       "power_stats.cc",
@@ -54,6 +55,7 @@ if (perfetto_build_with_android) {
       "hidlbase",
       "incident",
       "services",
+      "timeinstate",
       "tracingproxy",
       "utils",
       "statspull",
@@ -76,6 +78,7 @@ source_set("headers") {
   ]
   sources = [
     "atrace_hal.h",
+    "cpu_time_in_state.h",
     "health_hal.h",
     "incident_service.h",
     "power_stats.h",

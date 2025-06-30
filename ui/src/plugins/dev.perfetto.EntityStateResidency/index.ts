@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TrackNode} from '../../public/workspace';
-import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
-import {createAggregationToTabAdaptor} from '../../components/aggregation_adapter';
+import {createAggregationTab} from '../../components/aggregation_adapter';
+import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import {PerfettoPlugin} from '../../public/plugin';
+import {Trace} from '../../public/trace';
+import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
+import {TrackNode} from '../../public/workspace';
 import {NUM, STR} from '../../trace_processor/query_result';
 import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
-import {Trace} from '../../public/trace';
 import {EntityStateResidencySelectionAggregator} from './entity_state_residency_selection_aggregator';
-import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 
 /**
  * This plugin handles the aggregations for entity state residency counter tracks.
@@ -31,7 +31,7 @@ export default class implements PerfettoPlugin {
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.selection.registerAreaSelectionTab(
-      createAggregationToTabAdaptor(
+      createAggregationTab(
         ctx,
         new EntityStateResidencySelectionAggregator(),
         200,
