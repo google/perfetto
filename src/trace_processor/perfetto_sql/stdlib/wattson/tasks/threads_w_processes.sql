@@ -15,11 +15,15 @@
 
 INCLUDE PERFETTO MODULE android.process_metadata;
 
+INCLUDE PERFETTO MODULE intervals.intersect;
+
 INCLUDE PERFETTO MODULE intervals.overlap;
 
 INCLUDE PERFETTO MODULE linux.irqs;
 
 INCLUDE PERFETTO MODULE wattson.cpu.idle;
+
+INCLUDE PERFETTO MODULE wattson.utils;
 
 -- Get slices only where there is transition from deep idle to active
 CREATE PERFETTO TABLE _idle_exits AS
@@ -34,7 +38,7 @@ WHERE
   idle = -1 AND dur > 0;
 
 -- Establish relationships between thread/process/package
-CREATE PERFETTO TABLE _sched_w_thread_process_package_summary AS
+CREATE PERFETTO TABLE _task_wo_irq_infos AS
 SELECT
   sched.ts,
   sched.dur,
@@ -140,7 +144,7 @@ FROM base_name;
 -- SPAN_OUTER_JOIN needed because IRQ table do not have contiguous slices,
 -- whereas tasks table will be contiguous
 CREATE VIRTUAL TABLE _irq_w_tasks_info USING SPAN_OUTER_JOIN (
-  _sched_w_thread_process_package_summary PARTITIONED cpu,
+  _task_wo_irq_infos PARTITIONED cpu,
   _all_irqs_flattened_slices PARTITIONED cpu
 );
 
@@ -161,3 +165,122 @@ SELECT
   coalesce(irq_name, package_name) AS package_name,
   NOT irq_id IS NULL AS is_irq
 FROM _irq_w_tasks_info;
+
+-- Associate idle states, and specifically the active state, with tasks
+CREATE PERFETTO TABLE _active_state_w_tasks AS
+SELECT
+  ii.ts,
+  ii.dur,
+  ii.cpu,
+  tasks.utid,
+  tasks.upid,
+  tasks.tid,
+  tasks.pid,
+  tasks.uid,
+  tasks.thread_name,
+  tasks.process_name,
+  tasks.package_name,
+  tasks.is_irq,
+  id_1 AS idle_group
+FROM _interval_intersect!(
+(
+  _ii_subquery!(_all_tasks_flattened_slices),
+  _ii_subquery!(_idle_exits)
+),
+(cpu)
+) AS ii
+JOIN _all_tasks_flattened_slices AS tasks
+  ON tasks._auto_id = id_0;
+
+CREATE PERFETTO INDEX _active_state_w_tasks_group ON _active_state_w_tasks(idle_group, ts);
+
+-- Find the task responsible for causing the idle exit, and remove all tasks
+-- before it (effectively only IRQs and swappers). This logic creates a table
+-- wherein the first task in the table is the one that caused the idle exit.
+CREATE PERFETTO TABLE _task_causing_idle_exit AS
+WITH
+  exit_causer AS (
+    SELECT
+      ts,
+      idle_group,
+      -- If there are non-IRQs in this idle_group, select the first non-IRQ
+      -- task as the first row. Otherwise, select the first IRQ as the first
+      -- row.
+      row_number() OVER (PARTITION BY idle_group ORDER BY (
+        CASE WHEN NOT is_irq AND utid > 0 THEN 0 ELSE 1 END
+      ), ts) AS rn
+    FROM _active_state_w_tasks
+  )
+SELECT
+  ts AS boundary_ts,
+  idle_group
+FROM exit_causer
+WHERE
+  rn = 1;
+
+CREATE PERFETTO INDEX _task_causing_idle_exit_idx ON _task_causing_idle_exit(idle_group, boundary_ts);
+
+--- Recreate all known tasks in the context of power estimation, meaning that
+--- tasks (usually IRQs) that do not contribute to power attribution are removed
+--- and replaced with swapper. The previous table, _active_state_w_tasks, has
+--- many groups of "islands", of which the gaps need to be filled back in with
+--- the swapper task.
+CREATE PERFETTO TABLE _sched_w_thread_process_package_summary AS
+WITH
+  base_tasks AS (
+    SELECT
+      t.*
+    FROM _active_state_w_tasks AS t
+    JOIN _task_causing_idle_exit AS exit
+      USING (idle_group)
+    WHERE
+      t.ts >= exit.boundary_ts
+  ),
+  activity_islands AS (
+    SELECT
+      cpu,
+      idle_group,
+      min(ts) AS island_start,
+      max(ts + dur) AS island_end
+    FROM base_tasks
+    GROUP BY
+      cpu,
+      idle_group
+  ),
+  swapper_gaps AS (
+    SELECT
+      island_end AS ts,
+      lead(island_start) OVER (PARTITION BY cpu ORDER BY island_start) - island_end AS dur,
+      cpu
+    FROM activity_islands
+  )
+-- Combine the real tasks with the calculated swapper gaps.
+SELECT
+  ts,
+  dur,
+  cpu,
+  utid,
+  upid,
+  tid,
+  pid,
+  uid,
+  thread_name,
+  process_name,
+  package_name
+FROM base_tasks
+UNION ALL
+SELECT
+  ts,
+  dur,
+  cpu,
+  0 AS utid,
+  0 AS upid,
+  0 AS tid,
+  0 AS pid,
+  NULL AS uid,
+  'swapper' AS thread_name,
+  NULL AS process_name,
+  NULL AS package_name
+FROM swapper_gaps
+WHERE
+  dur > 0;

@@ -445,3 +445,33 @@ class WattsonStdlib(TestSuite):
           2132254,"IRQ (1c0b1000.drmdpp)",2330704911466106250
           1187454,"IRQ (1c0b2000.drmdpp)",-4397375750993244671
           """))
+
+  # Tests that all tasks are correct after accounting for preemption and idle
+  # exits
+  def test_wattson_all_tasks_flattening_and_idle_exits(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_irq_gpu_markers.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE wattson.tasks.threads_w_processes;
+
+        SELECT
+          SUM(dur) AS dur,
+          thread_name
+        FROM _sched_w_thread_process_package_summary
+        GROUP BY thread_name
+        ORDER BY dur DESC
+        LIMIT 10
+        """,
+        out=Csv("""
+          "dur","thread_name"
+          80559339989,"swapper"
+          1617087785,"Runner: gl_tess"
+          800487950,"mali-cmar-backe"
+          469271586,"mali_jd_thread"
+          426019439,"surfaceflinger"
+          326858956,"IRQ (exynos-mct)"
+          323531361,"s.nexuslauncher"
+          312153973,"RenderThread"
+          251889143,"50000.corporate"
+          241043219,"traced_probes"
+          """))
