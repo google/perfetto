@@ -28,4 +28,5 @@ perfetto_android_jni_library("libperfetto_jni") {
   ]
   binary_name = "libperfetto_jni.so"
   bazel_linkopts = "-llog"
+  android_bp_extract_defaults = true
 }
