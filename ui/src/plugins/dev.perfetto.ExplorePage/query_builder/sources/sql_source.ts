@@ -30,13 +30,11 @@ import {TextInput} from '../../../../widgets/text_input';
 import {
   createFiltersProto,
   createGroupByProto,
-  Operator,
 } from '../operations/operation_component';
 
 export interface SqlSourceAttrs extends QueryNodeState {
   sql?: string;
   sqlColumns?: string[];
-  preamble?: string;
 }
 
 export class SqlSourceNode implements QueryNode {
@@ -60,11 +58,11 @@ export class SqlSourceNode implements QueryNode {
     const newState: SqlSourceAttrs = {
       sql: this.state.sql,
       sqlColumns: this.state.sqlColumns,
-      preamble: this.state.preamble,
       sourceCols: newColumnControllerRows(this.sourceCols),
       groupByColumns: newColumnControllerRows(this.state.groupByColumns),
       filters: this.state.filters.map((f) => ({...f})),
       aggregations: this.state.aggregations.map((a) => ({...a})),
+      customTitle: this.state.customTitle,
     };
     return newState;
   }
@@ -73,13 +71,12 @@ export class SqlSourceNode implements QueryNode {
     return (
       this.state.sql !== undefined &&
       this.state.sqlColumns !== undefined &&
-      this.state.preamble !== undefined &&
       this.sourceCols.length > 0
     );
   }
 
   getTitle(): string {
-    return `Sql source`;
+    return this.state.customTitle ?? 'Sql source';
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
@@ -89,7 +86,6 @@ export class SqlSourceNode implements QueryNode {
 
     if (this.state.sql) sqlProto.sql = this.state.sql;
     if (this.state.sqlColumns) sqlProto.columnNames = this.state.sqlColumns;
-    if (this.state.preamble) sqlProto.preamble = this.state.preamble;
     sq.sql = sqlProto;
 
     const filtersProto = createFiltersProto(this.state.filters);
@@ -105,21 +101,9 @@ export class SqlSourceNode implements QueryNode {
     return sq;
   }
 
-  getDetails(): m.Child {
+  coreModify(): m.Child {
     return m(
       '',
-      m(
-        '',
-        'Preamble',
-        m(TextInput, {
-          id: 'preamble',
-          type: 'string',
-          oninput: (e: Event) => {
-            if (!e.target) return;
-            this.state.preamble = (e.target as HTMLInputElement).value.trim();
-          },
-        }),
-      ),
       m(
         '',
         'Sql ',
@@ -156,69 +140,6 @@ export class SqlSourceNode implements QueryNode {
           },
         }),
       ),
-    );
-  }
-}
-
-export class SqlSource implements m.ClassComponent<SqlSourceAttrs> {
-  view({attrs}: m.CVnode<SqlSourceAttrs>) {
-    return m(
-      '',
-      m(
-        '',
-        'Preamble',
-        m(TextInput, {
-          id: 'preamble',
-          type: 'string',
-          oninput: (e: Event) => {
-            if (!e.target) return;
-            attrs.preamble = (e.target as HTMLInputElement).value.trim();
-          },
-        }),
-      ),
-      m(
-        '',
-        'Sql ',
-        m(TextInput, {
-          id: 'sql_source',
-          type: 'string',
-          oninput: (e: Event) => {
-            if (!e.target) return;
-            attrs.sql = (e.target as HTMLInputElement).value
-              .trim()
-              .split(';')[0];
-          },
-        }),
-      ),
-      m(
-        '',
-        'Column names (comma separated strings) ',
-        m(TextInput, {
-          id: 'columns',
-          type: 'string',
-          oninput: (e: Event) => {
-            if (!e.target) return;
-            attrs.sqlColumns = (e.target as HTMLInputElement).value
-              .split(',')
-              .map((col) => col.trim())
-              .filter(Boolean);
-            attrs.sourceCols = attrs.sqlColumns.map((c) =>
-              columnControllerRowFromName(c, true),
-            );
-            attrs.groupByColumns = newColumnControllerRows(
-              attrs.sourceCols,
-              false,
-            );
-          },
-        }),
-      ),
-      m(Operator, {
-        filter: {sourceCols: attrs.sourceCols, filters: attrs.filters},
-        groupby: {
-          groupByColumns: attrs.groupByColumns,
-          aggregations: attrs.aggregations,
-        },
-      }),
     );
   }
 }

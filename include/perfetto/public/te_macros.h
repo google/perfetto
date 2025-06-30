@@ -356,6 +356,107 @@ struct PerfettoTeHlMacroNameAndType {
           perfetto_protos_TrackDescriptor_counter_field_number, PERFETTO_NULL, \
           0))
 
+// Specifies that the current event should be emitted onto a hierarchy of nested
+// tracks. The arguments should use the PERFETTO_TE_NESTED_TRACK_* macros (NOT
+// the PERFETTO_TE_TRACK_* macros).
+//
+// The first macro at the left specifies the outermost track, the last macro at
+// the right specifies the innermost track (the one the event should be directly
+// emitted on).
+//
+// For example:
+//
+// * PERFETTO_TE_NESTED_TRACKS(
+//                    PERFETTO_TE_NESTED_TRACK_REGISTERED(&mytrack),
+//                    PERFETTO_TE_NESTED_TRACK_COUNTER("dynamiccounter"))
+//   The event is part of a counter track, which is the child of a registered
+//   track.
+//
+// * PERFETTO_TE_NESTED_TRACKS(
+//                    PERFETTO_TE_NESTED_TRACK_PROCESS(),
+//                    PERFETTO_TE_NESTED_TRACK_NAMED("track_name", 2))
+//   The event is part of a named track (partially identified by the id 2),
+//   which is the child of the current process track.
+//
+// * PERFETTO_TE_NESTED_TRACKS(
+//                    PERFETTO_TE_NESTED_TRACK_NAMED("parent_track", 4),
+//                    PERFETTO_TE_NESTED_TRACK_NAMED("child_track", 3))
+//   The event is part of a named track (partially identified by the id 3),
+//   which is the child of a named track (partially identified by the id 4). The
+//   parent track is a global track, since it has no other parent.
+//
+// * PERFETTO_TE_NESTED_TRACKS(PERFETTO_TE_NESTED_TRACK_THREAD())
+//   The event is part of the current thread track. This is default behavior
+//   when no PERFETTO_TE_*TRACK* param is provided.
+#define PERFETTO_TE_NESTED_TRACKS(...)                                       \
+  PERFETTO_I_TE_EXTRA(                                                       \
+      PerfettoTeHlExtraNestedTracks,                                         \
+      {{PERFETTO_TE_HL_EXTRA_TYPE_NESTED_TRACKS},                            \
+       PERFETTO_I_TE_COMPOUND_LITERAL_ARRAY(struct PerfettoTeHlNestedTrack*, \
+                                            {__VA_ARGS__, PERFETTO_NULL})})
+
+// A track called `NAME` (const char *), uniquely identified by `NAME`, `ID` (a
+// uint64_t) and its parent hierarchy.
+#define PERFETTO_TE_NESTED_TRACK_NAMED(NAME, ID) \
+  PERFETTO_REINTERPRET_CAST(                     \
+      struct PerfettoTeHlNestedTrack*,           \
+      PERFETTO_I_TE_COMPOUND_LITERAL_ADDR(       \
+          PerfettoTeHlNestedTrackNamed,          \
+          {{PERFETTO_TE_HL_NESTED_TRACK_TYPE_NAMED}, NAME, ID}))
+
+// A track uniquely identified by `ID` (a uint64_t) and its parent hierarchy.
+// The rest of the params should be PERFETTO_TE_PROTO_FIELD_* macros and should
+// be fields of the perfetto.protos.TrackDescriptor protobuf message: they will
+// be serialized in the trace.
+#define PERFETTO_TE_NESTED_TRACK_PROTO(ID, ...)                            \
+  PERFETTO_REINTERPRET_CAST(struct PerfettoTeHlNestedTrack*,               \
+                            PERFETTO_I_TE_COMPOUND_LITERAL_ADDR(           \
+                                PerfettoTeHlNestedTrackProto,              \
+                                {{PERFETTO_TE_HL_NESTED_TRACK_TYPE_PROTO}, \
+                                 ID,                                       \
+                                 PERFETTO_I_TE_COMPOUND_LITERAL_ARRAY(     \
+                                     struct PerfettoTeHlProtoField*,       \
+                                     {__VA_ARGS__, PERFETTO_NULL})}))
+
+// A counter track named `NAME` (const char*). `NAME` and its parent hierarchy
+// uniquely identify this track.
+#define PERFETTO_TE_NESTED_TRACK_COUNTER(NAME)                                 \
+  PERFETTO_TE_NESTED_TRACK_PROTO(                                              \
+      PerfettoTeCounterTrackUuid(NAME, 0),                                     \
+      PERFETTO_TE_PROTO_FIELD_CSTR(                                            \
+          perfetto_protos_TrackDescriptor_name_field_number, NAME),            \
+      PERFETTO_TE_PROTO_FIELD_BYTES(                                           \
+          perfetto_protos_TrackDescriptor_counter_field_number, PERFETTO_NULL, \
+          0))
+
+// A track `struct PerfettoTeRegisteredTrack* T`, which must have been
+// registered earlier with PerfettoTe*TrackRegister().
+//
+// The parent of this track should match the parent_uuid that was specified when
+// the track was registered.
+#define PERFETTO_TE_NESTED_TRACK_REGISTERED(T) \
+  PERFETTO_REINTERPRET_CAST(                   \
+      struct PerfettoTeHlNestedTrack*,         \
+      PERFETTO_I_TE_COMPOUND_LITERAL_ADDR(     \
+          PerfettoTeHlNestedTrackRegistered,   \
+          {{PERFETTO_TE_HL_NESTED_TRACK_TYPE_REGISTERED}, &(T)->impl}))
+
+// The current thread track. This shouldn't have parents (it should be the first
+// param).
+#define PERFETTO_TE_NESTED_TRACK_THREAD()  \
+  PERFETTO_REINTERPRET_CAST(               \
+      struct PerfettoTeHlNestedTrack*,     \
+      PERFETTO_I_TE_COMPOUND_LITERAL_ADDR( \
+          PerfettoTeHlNestedTrack, {PERFETTO_TE_HL_NESTED_TRACK_TYPE_THREAD}))
+
+// The current process track. This shouldn't have parents (it should be the
+// first param).
+#define PERFETTO_TE_NESTED_TRACK_PROCESS()                       \
+  PERFETTO_REINTERPRET_CAST(struct PerfettoTeHlNestedTrack*,     \
+                            PERFETTO_I_TE_COMPOUND_LITERAL_ADDR( \
+                                PerfettoTeHlNestedTrack,         \
+                                {PERFETTO_TE_HL_NESTED_TRACK_TYPE_PROCESS}))
+
 // ----------------------------------
 // The main PERFETTO_TE tracing macro
 // ----------------------------------

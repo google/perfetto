@@ -30,7 +30,9 @@ concurrency:
 
 jobs:
   enforce-reviews:
-    runs-on: self-hosted
+    # Deliberately run on GitHub's ubuntu-latest pool as it's faster for small
+    # job like this.
+    runs-on: ubuntu-latest
     steps:
       - name: Check if PR is from a fork
         id: fork_check

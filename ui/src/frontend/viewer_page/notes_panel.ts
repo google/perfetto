@@ -329,7 +329,7 @@ export class NotesPanel {
       onclick: async () => {
         const result = await this.trace.omnibox.prompt('Group name...');
         if (result) {
-          const group = new TrackNode({title: result, isSummary: true});
+          const group = new TrackNode({name: result, isSummary: true});
           this.trace.workspace.addChildLast(group);
         }
       },
@@ -444,7 +444,7 @@ export class NotesPanel {
 
     if (size.width > 0 && timespan.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width);
-      const offset = this.trace.timeline.timestampOffset();
+      const offset = this.trace.timeline.getTimeAxisOrigin();
       const tickGen = generateTicks(timespan, maxMajorTicks, offset);
       for (const {type, time} of tickGen) {
         const px = Math.floor(timescale.timeToPx(time));

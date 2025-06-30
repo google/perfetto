@@ -93,6 +93,7 @@ source_set("common") {
     "../../../base",
     "../../../protozero",
     "../../containers",
+    "../../dataframe",
     "../../db:minimal",
     "../../storage",
     "../../tables:tables",
@@ -107,7 +108,10 @@ source_set("common") {
 
 source_set("trace_parser_hdr") {
   sources = [ "trace_parser.h" ]
-  deps = [ "../../../../gn:default_deps" ]
+  deps = [
+    ":parser_types",
+    "../../../../gn:default_deps",
+  ]
 }
 
 source_set("parser_types") {

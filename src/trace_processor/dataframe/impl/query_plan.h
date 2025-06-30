@@ -17,7 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_QUERY_PLAN_H_
 #define SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_QUERY_PLAN_H_
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -33,6 +32,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/small_vector.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
@@ -43,49 +44,52 @@
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/types.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::dataframe::impl {
-
-static constexpr uint32_t kMaxColumns = 64;
 
 // A QueryPlan encapsulates all the information needed to execute a query,
 // including the bytecode instructions and interpreter configuration.
 struct QueryPlan {
   // Contains various parameters required for execution of this query plan.
   struct ExecutionParams {
+    // An estimate for the cost of executing the query plan.
+    double estimated_cost = 0;
+
+    // Register holding the final filtered indices.
+    bytecode::reg::ReadHandle<Span<uint32_t>> output_register;
+
     // The maximum number of rows it's possible for this query plan to return.
     uint32_t max_row_count = 0;
 
     // The number of rows this query plan estimates it will return.
     uint32_t estimated_row_count = 0;
 
-    // An estimate for the cost of executing the query plan.
-    double estimated_cost = 0;
+    // The number of registers used by this query plan.
+    uint32_t register_count = 0;
 
     // Number of filter values used by this query.
     uint32_t filter_value_count = 0;
-
-    // Register holding the final filtered indices.
-    bytecode::reg::ReadHandle<Span<uint32_t>> output_register;
-
-    // Maps column indices to output offsets.
-    std::array<uint32_t, kMaxColumns> col_to_output_offset;
 
     // Number of output indices per row.
     uint32_t output_per_row = 0;
   };
   static_assert(std::is_trivially_copyable_v<ExecutionParams>);
   static_assert(std::is_trivially_destructible_v<ExecutionParams>);
+  static_assert(sizeof(ExecutionParams) == 32);
 
   // Serializes the query plan to a Base64-encoded string.
   // This allows plans to be stored or transmitted between processes.
   std::string Serialize() const {
-    size_t size = sizeof(size_t) +
+    size_t size = sizeof(params) + sizeof(size_t) +
                   (bytecode.size() * sizeof(bytecode::Bytecode)) +
-                  sizeof(params);
+                  sizeof(size_t) +
+                  (col_to_output_offset.size() * sizeof(uint32_t));
     std::string res(size, '\0');
     char* p = res.data();
+    {
+      memcpy(p, &params, sizeof(params));
+      p += sizeof(params);
+    }
     {
       size_t bytecode_size = bytecode.size();
       memcpy(p, &bytecode_size, sizeof(bytecode_size));
@@ -96,8 +100,14 @@ struct QueryPlan {
       p += bytecode.size() * sizeof(bytecode::Bytecode);
     }
     {
-      memcpy(p, &params, sizeof(params));
-      p += sizeof(params);
+      size_t columns_size = col_to_output_offset.size();
+      memcpy(p, &columns_size, sizeof(columns_size));
+      p += sizeof(columns_size);
+    }
+    {
+      size_t columns_size = col_to_output_offset.size();
+      memcpy(p, col_to_output_offset.data(), columns_size * sizeof(uint32_t));
+      p += columns_size * sizeof(uint32_t);
     }
     PERFETTO_CHECK(p == res.data() + res.size());
     return base::Base64Encode(base::StringView(res));
@@ -112,6 +122,11 @@ struct QueryPlan {
     PERFETTO_CHECK(raw_data);
     const char* p = raw_data->data();
     size_t bytecode_size;
+    size_t columns_size;
+    {
+      memcpy(&res.params, p, sizeof(res.params));
+      p += sizeof(res.params);
+    }
     {
       memcpy(&bytecode_size, p, sizeof(bytecode_size));
       p += sizeof(bytecode_size);
@@ -125,8 +140,16 @@ struct QueryPlan {
       p += bytecode_size * sizeof(bytecode::Bytecode);
     }
     {
-      memcpy(&res.params, p, sizeof(res.params));
-      p += sizeof(res.params);
+      memcpy(&columns_size, p, sizeof(columns_size));
+      p += sizeof(columns_size);
+    }
+    {
+      for (uint32_t i = 0; i < columns_size; ++i) {
+        res.col_to_output_offset.emplace_back();
+      }
+      memcpy(res.col_to_output_offset.data(), p,
+             columns_size * sizeof(uint32_t));
+      p += columns_size * sizeof(uint32_t);
     }
     PERFETTO_CHECK(p == raw_data->data() + raw_data->size());
     return res;
@@ -134,6 +157,7 @@ struct QueryPlan {
 
   ExecutionParams params;
   bytecode::BytecodeVector bytecode;
+  base::SmallVector<uint32_t, 24> col_to_output_offset;
 };
 
 // Builder class for creating query plans.
@@ -173,12 +197,14 @@ class QueryPlanBuilder {
   // of rows.
   struct UnchangedRowCount {};
 
-  // Indicates that the bytecode reduces the estimated number of rows by 2.
-  struct Div2RowCount {};
+  // Indicates that the bytecode is a non-equality filter.
+  struct NonEqualityFilterRowCount {};
 
-  // Indicates that the bytecode reduces the estimated number of rows by 2 *
-  // log(row_count).
-  struct DoubleLog2RowCount {};
+  // Indicates that the bytecode is a equality filter with given duplicate
+  // state.
+  struct EqualityFilterRowCount {
+    DuplicateState duplicate_state;
+  };
 
   // Indicates that the bytecode produces *exactly* one row and the estimated
   // and maximum should be set to 1.
@@ -194,8 +220,8 @@ class QueryPlanBuilder {
     uint32_t offset;
   };
   using RowCountModifier = std::variant<UnchangedRowCount,
-                                        Div2RowCount,
-                                        DoubleLog2RowCount,
+                                        NonEqualityFilterRowCount,
+                                        EqualityFilterRowCount,
                                         OneRowCount,
                                         ZeroRowCount,
                                         LimitOffsetRowCount>;
@@ -263,10 +289,25 @@ class QueryPlanBuilder {
                            const StorageType& ct,
                            const NonNullOp& op);
 
-  // Adds overlay translation for handling special column properties like
-  // nullability.
-  bytecode::reg::RwHandle<Span<uint32_t>> MaybeAddOverlayTranslation(
-      const FilterSpec& c);
+  // Given a list of indices, prunes any indices that point to null rows
+  // in the given column. The indices are pruned in-place, and the
+  // `indices_register` is updated to contain only non-null indices.
+  void PruneNullIndices(uint32_t col,
+                        bytecode::reg::RwHandle<Span<uint32_t>> indices);
+
+  // Given a list of table indices pointing to *only* non-null rows,
+  // if necessary, translates them to the storage indices for the given column.
+  // If no translation is needed, the indices are returned as-is.
+  // If translation *is* needed, the value of `in_place` determines
+  // whether the translation is done in-place or whether the data is stored
+  // in the scratch register.
+  //
+  // Returns a register handle to the translated indices (either
+  // `indices_register` or the scratch register).
+  bytecode::reg::RwHandle<Span<uint32_t>> TranslateNonNullIndices(
+      uint32_t col,
+      bytecode::reg::RwHandle<Span<uint32_t>> indices_register,
+      bool in_place);
 
   // Ensures indices are stored in a Slab, converting from Range if necessary.
   PERFETTO_NO_INLINE bytecode::reg::RwHandle<Span<uint32_t>>
@@ -304,6 +345,37 @@ class QueryPlanBuilder {
   bytecode::reg::ReadHandle<CastFilterValueResult>
   CastFilterValue(FilterSpec& c, const StorageType& ct, NonNullOp non_null_op);
 
+  bytecode::reg::RwHandle<Span<uint32_t>> GetOrCreateScratchSpanRegister(
+      uint32_t size);
+
+  // Parameters for conversion to row layout.
+  struct RowLayoutParams {
+    // The column to be copied.
+    uint32_t column;
+
+    // Whether, instead of copying the string column, we should replace it
+    // with a rank of the string.
+    bool replace_string_with_rank = false;
+
+    // Whether the bits when copied should be inverted.
+    bool invert_copied_bits = false;
+  };
+  uint16_t CalculateRowLayoutStride(
+      const std::vector<RowLayoutParams>& row_layout_params);
+
+  bytecode::reg::RwHandle<Slab<uint8_t>> CopyToRowLayout(
+      uint16_t row_stride,
+      bytecode::reg::RwHandle<Span<uint32_t>> indices,
+      bytecode::reg::ReadHandle<bytecode::reg::StringIdToRankMap> rank_map,
+      const std::vector<RowLayoutParams>& row_layout_params);
+
+  void MaybeReleaseScratchSpanRegister();
+
+  void AddLinearFilterEqBytecode(
+      const FilterSpec&,
+      const bytecode::reg::ReadHandle<CastFilterValueResult>&,
+      const NonIdStorageType&);
+
   bool CanUseMinMaxOptimization(const std::vector<SortSpec>&, const LimitSpec&);
 
   const Column& GetColumn(uint32_t idx) { return *columns_[idx]; }
@@ -320,11 +392,18 @@ class QueryPlanBuilder {
   // State information for each column during planning.
   std::vector<ColumnState> column_states_;
 
-  // Number of registers allocated so far.
-  uint32_t register_count_ = 0;
-
   // Current register holding the set of matching indices.
   IndicesReg indices_reg_;
+
+  // If scratch indices are needed, this holds the size and handles to
+  // the scratch indices in both Span and Slab forms.
+  struct ScratchIndices {
+    uint32_t size;
+    bytecode::reg::RwHandle<Slab<uint32_t>> slab;
+    bytecode::reg::RwHandle<Span<uint32_t>> span;
+    bool in_use = false;
+  };
+  std::optional<ScratchIndices> scratch_indices_;
 };
 
 }  // namespace perfetto::trace_processor::dataframe::impl

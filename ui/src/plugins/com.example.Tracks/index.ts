@@ -66,13 +66,11 @@ async function createDummyData(trace: Trace) {
 
 // Example 1: A basic slice track showing all data from the table.
 async function addBasicSliceTrack(trace: Trace): Promise<void> {
-  const title = 'All Example Events';
   const uri = `com.example.Tracks#BasicSliceTrack`;
 
   trace.tracks.registerTrack({
     uri,
-    title,
-    track: new DatasetSliceTrack({
+    renderer: new DatasetSliceTrack({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -88,18 +86,19 @@ async function addBasicSliceTrack(trace: Trace): Promise<void> {
   });
 
   // Add to workspace
-  trace.workspace.addChildInOrder(new TrackNode({uri, title}));
+  trace.workspace.addChildInOrder(
+    new TrackNode({uri, name: 'All Example Events'}),
+  );
 }
 
 // Example 2: A simple slice track filtering data from an existing table.
 async function addFilteredSliceTrack(trace: Trace): Promise<void> {
-  const title = 'Slices starting with "B"';
+  const name = 'Slices starting with "B"';
   const uri = `com.example.Tracks#FilteredSliceTrack`;
 
   trace.tracks.registerTrack({
     uri,
-    title,
-    track: new DatasetSliceTrack({
+    renderer: new DatasetSliceTrack({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -123,18 +122,17 @@ async function addFilteredSliceTrack(trace: Trace): Promise<void> {
   });
 
   // Add to workspace
-  trace.workspace.addChildInOrder(new TrackNode({uri, title}));
+  trace.workspace.addChildInOrder(new TrackNode({uri, name}));
 }
 
 // Example 3: A slice track using a custom colorizer based on arguments.
 async function addSliceTrackWithCustomColorizer(trace: Trace): Promise<void> {
-  const title = 'Slices colorized by arg';
+  const name = 'Slices colorized by arg';
   const uri = `com.example.Tracks#SliceTrackColorized`;
 
   trace.tracks.registerTrack({
     uri,
-    title,
-    track: new DatasetSliceTrack({
+    renderer: new DatasetSliceTrack({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -155,18 +153,17 @@ async function addSliceTrackWithCustomColorizer(trace: Trace): Promise<void> {
   });
 
   // Add to workspace
-  trace.workspace.addChildInOrder(new TrackNode({uri, title}));
+  trace.workspace.addChildInOrder(new TrackNode({uri, name}));
 }
 
 // Example 4: An instant track (no durations).
 async function addInstantTrack(trace: Trace): Promise<void> {
-  const title = 'Instant Events';
+  const name = 'Instant Events';
   const uri = `com.example.Tracks#InstantTrack`;
 
   trace.tracks.registerTrack({
     uri,
-    title,
-    track: new DatasetSliceTrack({
+    renderer: new DatasetSliceTrack({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -182,18 +179,17 @@ async function addInstantTrack(trace: Trace): Promise<void> {
   });
 
   // Add to workspace
-  trace.workspace.addChildInOrder(new TrackNode({uri, title}));
+  trace.workspace.addChildInOrder(new TrackNode({uri, name}));
 }
 
 // Example 5: A slice track with explicit depth (rendered flat).
 async function addFlatSliceTrack(trace: Trace): Promise<void> {
-  const title = 'Flat Slices (Depth 0)';
+  const name = 'Flat Slices (Depth 0)';
   const uri = `com.example.Tracks#FlatSliceTrack`;
 
   trace.tracks.registerTrack({
     uri,
-    title,
-    track: new DatasetSliceTrack({
+    renderer: new DatasetSliceTrack({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -211,18 +207,17 @@ async function addFlatSliceTrack(trace: Trace): Promise<void> {
   });
 
   // Add to workspace
-  trace.workspace.addChildInOrder(new TrackNode({uri, title}));
+  trace.workspace.addChildInOrder(new TrackNode({uri, name}));
 }
 
 // Example 6: A slice track with a fixed color scheme.
 async function addFixedColorSliceTrack(trace: Trace): Promise<void> {
-  const title = 'Fixed Color Slices (Red)';
+  const name = 'Fixed Color Slices (Red)';
   const uri = `com.example.Tracks#FixedColorSliceTrack`;
 
   trace.tracks.registerTrack({
     uri,
-    title,
-    track: new DatasetSliceTrack({
+    renderer: new DatasetSliceTrack({
       trace: trace,
       uri,
       dataset: new SourceDataset({
@@ -240,7 +235,7 @@ async function addFixedColorSliceTrack(trace: Trace): Promise<void> {
   });
 
   // Add to workspace
-  trace.workspace.addChildInOrder(new TrackNode({uri, title}));
+  trace.workspace.addChildInOrder(new TrackNode({uri, name}));
 }
 
 // Example 7: Creating a nested group of tracks in the workspace.
@@ -252,31 +247,31 @@ async function addNestedTrackGroup(trace: Trace): Promise<void> {
 
   // Create track nodes for the hierarchy
   const trackRoot = new TrackNode({
-    title: 'Nested Track Group',
+    name: 'Nested Track Group',
   });
   const track1 = new TrackNode({
     uri: trackUri,
-    title: 'Nested 1',
+    name: 'Nested 1',
   });
   const track2 = new TrackNode({
     uri: trackUri,
-    title: 'Nested 2',
+    name: 'Nested 2',
   });
   const track11 = new TrackNode({
     uri: trackUri,
-    title: 'Nested 1.1',
+    name: 'Nested 1.1',
   });
   const track12 = new TrackNode({
     uri: trackUri,
-    title: 'Nested 1.2',
+    name: 'Nested 1.2',
   });
   const track121 = new TrackNode({
     uri: trackUri,
-    title: 'Nested 1.2.1',
+    name: 'Nested 1.2.1',
   });
   const track21 = new TrackNode({
     uri: trackUri,
-    title: 'Nested 2.1',
+    name: 'Nested 2.1',
   });
 
   // Build the hierarchy

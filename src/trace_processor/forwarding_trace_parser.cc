@@ -22,6 +22,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
@@ -33,7 +34,6 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/trace_reader_registry.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/status_macros.h"
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
@@ -57,6 +57,7 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
     case kSystraceTraceType:
     case kGzipTraceType:
     case kCtraceTraceType:
+    case kArtHprofTraceType:
       return std::nullopt;
 
     case kPerfDataTraceType:

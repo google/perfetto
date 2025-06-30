@@ -747,7 +747,8 @@ class TrackEvent(TestSuite):
         "FlowSlice3Begin","FlowSlice3End4Begin"
         "FlowSlice3End4Begin","FlowSlice4Step"
         "FlowSlice4Step","FlowSlice4Step2_FlowIdOnAsyncEndEvent"
-        "FlowSlice4Step2_FlowIdOnAsyncEndEvent","FlowSlice4End"
+        "FlowSlice4Step2_FlowIdOnAsyncEndEvent","FlowSlice4Step2_FlowIdOnEndEvent"
+        "FlowSlice4Step2_FlowIdOnEndEvent","FlowSlice4End"
         """))
 
   def test_flow_events_proto_v2(self):
@@ -785,8 +786,11 @@ class TrackEvent(TestSuite):
     return DiffTestBlueprint(
         trace=Path('experimental_slice_layout_depth.py'),
         query="""
-        SELECT layout_depth FROM experimental_slice_layout
-        WHERE filter_track_ids = (SELECT group_concat(track_id, ',') FROM slice);
+        SELECT layout_depth
+        FROM experimental_slice_layout((
+          SELECT group_concat(track_id, ',')
+          FROM slice
+        ))
         """,
         out=Csv("""
         "layout_depth"

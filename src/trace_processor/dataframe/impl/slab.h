@@ -65,8 +65,8 @@ class Slab {
   Slab() = default;
 
   // Move operations are supported.
-  Slab(Slab&&) = default;
-  Slab& operator=(Slab&&) = default;
+  constexpr Slab(Slab&&) = default;
+  constexpr Slab& operator=(Slab&&) = default;
 
   // Copy operations are deleted to avoid accidental copies.
   Slab(const Slab&) = delete;
@@ -94,14 +94,16 @@ class Slab {
   PERFETTO_ALWAYS_INLINE T* end() const { return data_.get() + size_; }
 
   // Provides indexed access to elements.
-  PERFETTO_ALWAYS_INLINE T& operator[](uint64_t i) const { return data_[i]; }
+  PERFETTO_ALWAYS_INLINE T& operator[](uint64_t i) const {
+    return data_.get()[i];
+  }
 
  private:
   // Constructor used by Alloc.
   Slab(T* data, uint64_t size) : data_(data), size_(size) {}
 
   // Aligned unique pointer that holds the allocated memory.
-  base::AlignedUniquePtr<T[]> data_;
+  base::AlignedUniquePtr<T> data_;
 
   // Number of elements in the slab.
   uint64_t size_ = 0;

@@ -112,11 +112,10 @@ StatsdModule::StatsdModule(TraceProcessorContext* context)
   RegisterForField(TracePacket::kStatsdAtomFieldNumber, context);
   context_->descriptor_pool_->AddFromFileDescriptorSet(kAtomsDescriptor.data(),
                                                        kAtomsDescriptor.size());
-
-  std::optional<uint32_t> opt_idx =
-      context_->descriptor_pool_->FindDescriptorIdx(kAtomProtoName);
-  if (opt_idx.has_value()) {
-    descriptor_ = &context_->descriptor_pool_->descriptors()[opt_idx.value()];
+  if (auto i = context_->descriptor_pool_->FindDescriptorIdx(kAtomProtoName)) {
+    descriptor_idx_ = *i;
+  } else {
+    PERFETTO_FATAL("Failed to find descriptor for %s", kAtomProtoName);
   }
 }
 
@@ -197,11 +196,12 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
       [&](ArgsTracker::BoundInserter* inserter) {
         ArgsParser delegate(ts, *inserter, *context_->storage);
 
-        const auto& fields = descriptor_->fields();
-        const auto& field_it = fields.find(nested_field_id);
+        const auto& descriptor =
+            context_->descriptor_pool_->descriptors()[descriptor_idx_];
+        const auto& field_it = descriptor.fields().find(nested_field_id);
         base::Status status;
 
-        if (field_it == fields.end()) {
+        if (field_it == descriptor.fields().end()) {
           /// Field ids 100000 and over are OEM atoms - we can't have the
           // descriptor for them so don't report errors. See:
           // https://cs.android.com/android/platform/superproject/main/+/main:frameworks/proto_logging/stats/atoms.proto;l=1290;drc=a34b11bfebe897259a0340a59f1793ae2dffd762
@@ -225,15 +225,16 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
 StringId StatsdModule::GetAtomName(uint32_t atom_field_id) {
   StringId* cached_name = atom_names_.Find(atom_field_id);
   if (cached_name == nullptr) {
-    if (descriptor_ == nullptr) {
+    if (!descriptor_idx_) {
       context_->storage->IncrementStats(stats::atom_unknown);
       return context_->storage->InternString("Could not load atom descriptor");
     }
 
+    const auto& descriptor =
+        context_->descriptor_pool_->descriptors()[descriptor_idx_];
     StringId name_id;
-    const auto& fields = descriptor_->fields();
-    const auto& field_it = fields.find(atom_field_id);
-    if (field_it == fields.end()) {
+    const auto& field_it = descriptor.fields().find(atom_field_id);
+    if (field_it == descriptor.fields().end()) {
       base::StackString<255> name("atom_%u", atom_field_id);
       name_id = context_->storage->InternString(name.string_view());
     } else {

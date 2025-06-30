@@ -26,19 +26,19 @@ class ShellTransitions(TestSuite):
         trace=Path('shell_transitions.textproto'),
         query="""
         SELECT
-          id, ts, transition_id
+          id, ts, transition_id, transition_type, send_time_ns, dispatch_time_ns, duration_ns, handler, status, flags
         FROM
           window_manager_shell_transitions
         ORDER BY id;
         """,
         out=Csv("""
-        "id","ts","transition_id"
-        0,76879063147,7
-        1,77899001013,10
-        2,82536817137,11
-        3,77320527177,8
-        4,77876414832,9
-        5,0,12
+        "id","ts","transition_id","transition_type","send_time_ns","dispatch_time_ns","duration_ns","handler","status","flags"
+        0,76879063147,7,"[NULL]",76875395422,76879063147,"[NULL]",2,"[NULL]","[NULL]"
+        1,77899001013,10,"[NULL]",77894307328,77899001013,727303101,4,"played","[NULL]"
+        2,82536817137,11,"[NULL]",82535513345,82536817137,"[NULL]",2,"[NULL]","[NULL]"
+        3,77320527177,8,"[NULL]",77277756832,77320527177,"[NULL]",3,"merged","[NULL]"
+        4,77876414832,9,"[NULL]",77843436723,77876414832,30498739,3,"played","[NULL]"
+        5,0,12,1,"[NULL]","[NULL]","[NULL]","[NULL]","merged","[NULL]"
         """))
 
   def test_has_expected_transition_args(self):
@@ -130,4 +130,22 @@ class ShellTransitions(TestSuite):
         "handler","2"
         "id","729"
         "targets[0].flags","1048577"
+        """))
+
+  def test_participants(self):
+    return DiffTestBlueprint(
+        trace=Path('shell_transitions.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.winscope.transitions;
+        SELECT
+          transition_id, layer_id, window_id
+        FROM
+          android_window_manager_shell_transition_participants
+        ORDER BY transition_id;
+        """,
+        out=Csv("""
+        "transition_id","layer_id","window_id"
+        11,"[NULL]",11
+        11,4,"[NULL]"
+        12,4,12
         """))

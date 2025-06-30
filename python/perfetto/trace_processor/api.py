@@ -14,7 +14,7 @@
 
 import dataclasses as dc
 from urllib.parse import urlparse
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from perfetto.common.exceptions import PerfettoException
 from perfetto.common.query_result_iterator import QueryResultIterator
@@ -165,6 +165,32 @@ class TraceProcessor:
     metrics = self.protos.TraceMetrics()
     metrics.ParseFromString(response.metrics)
     return metrics
+
+  def trace_summary(self,
+                    specs: List[Union[str, bytes]],
+                    metric_ids: Optional[List[str]] = None,
+                    metadata_query_id: Optional[str] = None):
+    """Returns the trace summary data corresponding to the passed in metric
+    IDs and specs. Raises TraceProcessorException if the response returns with
+    an error.
+
+    Args:
+      specs: A list of textproto (as str) or binary proto (as bytes) specs to be
+        used for the summary
+      metric_ids: Optional list of metric IDs as defined in TraceMetrics. 
+        If `None` all metrics will be executed.
+      metadata_query_id: Optional query ID for metadata
+
+    Returns:
+      The trace summary data as a proto message
+    """
+    response = self.http.trace_summary(specs, metric_ids, metadata_query_id)
+    if response.error:
+      raise TraceProcessorException(response.error)
+
+    summary = self.protos.TraceSummary()
+    summary.ParseFromString(response.proto_summary)
+    return summary
 
   def enable_metatrace(self):
     """Enable metatrace for the currently running trace_processor.

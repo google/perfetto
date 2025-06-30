@@ -1580,3 +1580,25 @@ class AndroidStdlib(TestSuite):
 416753734715,129444346,53,"@androidx.work.systemjobscheduler@com.android.providers.media.module/androidx.work.impl.background.systemjob.SystemJobService_-2746960329031286781",10090,-2746960329031286781,129444346,"com.android.providers.media.module","androidx.work.systemjobscheduler","Charging","Unknown",400,1,0,0,0,0,0,0,0,0,0,0,0,400,"EXEMPTED",0,0,0,0,0,5,0,"PROCESS_STATE_PERSISTENT","INTERNAL_STOP_REASON_SUCCESSFUL_FINISH","STOP_REASON_UNDEFINED"
 422530232411,86735906,59,"@androidx.work.systemjobscheduler@com.android.providers.media.module/androidx.work.impl.background.systemjob.SystemJobService_-2746960329031286780",10090,-2746960329031286780,86735906,"com.android.providers.media.module","androidx.work.systemjobscheduler","Charging","Unknown",400,1,0,0,0,0,0,0,0,0,0,0,0,400,"EXEMPTED",0,0,0,0,0,3,0,"PROCESS_STATE_PERSISTENT","INTERNAL_STOP_REASON_SUCCESSFUL_FINISH","STOP_REASON_UNDEFINED"
       """))
+
+  def test_android_kernel_wakelocks(self):
+    return DiffTestBlueprint(
+        trace=Path('android_kernel_wakelocks.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE android.kernel_wakelocks;
+
+          SELECT *
+          FROM android_kernel_wakelocks;
+        """,
+        out=Csv("""
+"ts","dur","awake_dur","name","type","held_dur","held_ratio"
+100000000000,5000000000,5000000000,"kernel_wakelock_1","kernel",1000000,0.000200
+100000000000,5000000000,5000000000,"kernel_wakelock_3","kernel",3000000,0.000600
+100000000000,5000000000,5000000000,"native_wakelock_2","native",2000000,0.000400
+105000000000,5000000000,2000000000,"kernel_wakelock_1","kernel",10000000,0.005000
+105000000000,5000000000,2000000000,"kernel_wakelock_3","kernel",0,0.000000
+105000000000,5000000000,2000000000,"native_wakelock_2","native",0,0.000000
+110000000000,5000000000,5000000000,"kernel_wakelock_1","kernel",100000000,0.020000
+110000000000,5000000000,5000000000,"kernel_wakelock_3","kernel",300000000,0.060000
+110000000000,5000000000,5000000000,"native_wakelock_2","native",200000000,0.040000
+        """))

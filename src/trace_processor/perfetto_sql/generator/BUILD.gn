@@ -25,7 +25,8 @@ source_set("generator") {
     "../../../../protos/perfetto/perfetto_sql:zero",
     "../../../base",
     "../../../protozero",
-    "../../util",
+    "../../sqlite",
+    "../tokenizer",
   ]
 }
 
@@ -46,5 +47,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../base",
     "../../../base:test_support",
     "../../../protozero/text_to_proto",
+    "../../sqlite",
+    "../tokenizer",
   ]
 }

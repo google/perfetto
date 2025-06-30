@@ -16,16 +16,20 @@ import("../../../gn/test.gni")
 
 source_set("dataframe") {
   sources = [
+    "adhoc_dataframe_builder.cc",
+    "adhoc_dataframe_builder.h",
     "cursor.h",
+    "cursor_impl.h",
     "dataframe.cc",
     "dataframe.h",
     "runtime_dataframe_builder.h",
+    "typed_cursor.cc",
+    "typed_cursor.h",
   ]
   deps = [
     "../../../gn:default_deps",
     "../../base",
     "../containers",
-    "../util",
     "../util:glob",
     "../util:regex",
     "impl",
