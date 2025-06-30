@@ -9144,7 +9144,7 @@ class GpuMemTotalFtraceEvent(_message.Message):
     def __init__(self, gpu_id: _Optional[int] = ..., pid: _Optional[int] = ..., size: _Optional[int] = ...) -> None: ...
 
 class GpuRenderStageEvent(_message.Message):
-    __slots__ = ["command_buffer_handle", "context", "duration", "event_id", "extra_data", "gpu_id", "hw_queue_id", "hw_queue_iid", "render_pass_handle", "render_subpass_index_mask", "render_target_handle", "specifications", "stage_id", "stage_iid", "submission_id"]
+    __slots__ = ["command_buffer_handle", "context", "duration", "event_id", "extra_data", "gpu_id", "hw_queue_id", "hw_queue_iid", "render_pass_handle", "render_pass_instance_id", "render_subpass_index_mask", "render_target_handle", "specifications", "stage_id", "stage_iid", "submission_id"]
     class ExtraData(_message.Message):
         __slots__ = ["name", "value"]
         NAME_FIELD_NUMBER: _ClassVar[int]
@@ -9185,6 +9185,7 @@ class GpuRenderStageEvent(_message.Message):
     HW_QUEUE_ID_FIELD_NUMBER: _ClassVar[int]
     HW_QUEUE_IID_FIELD_NUMBER: _ClassVar[int]
     RENDER_PASS_HANDLE_FIELD_NUMBER: _ClassVar[int]
+    RENDER_PASS_INSTANCE_ID_FIELD_NUMBER: _ClassVar[int]
     RENDER_SUBPASS_INDEX_MASK_FIELD_NUMBER: _ClassVar[int]
     RENDER_TARGET_HANDLE_FIELD_NUMBER: _ClassVar[int]
     SPECIFICATIONS_FIELD_NUMBER: _ClassVar[int]
@@ -9200,13 +9201,14 @@ class GpuRenderStageEvent(_message.Message):
     hw_queue_id: int
     hw_queue_iid: int
     render_pass_handle: int
+    render_pass_instance_id: int
     render_subpass_index_mask: _containers.RepeatedScalarFieldContainer[int]
     render_target_handle: int
     specifications: GpuRenderStageEvent.Specifications
     stage_id: int
     stage_iid: int
     submission_id: int
-    def __init__(self, event_id: _Optional[int] = ..., duration: _Optional[int] = ..., hw_queue_iid: _Optional[int] = ..., stage_iid: _Optional[int] = ..., gpu_id: _Optional[int] = ..., context: _Optional[int] = ..., render_target_handle: _Optional[int] = ..., submission_id: _Optional[int] = ..., extra_data: _Optional[_Iterable[_Union[GpuRenderStageEvent.ExtraData, _Mapping]]] = ..., render_pass_handle: _Optional[int] = ..., render_subpass_index_mask: _Optional[_Iterable[int]] = ..., command_buffer_handle: _Optional[int] = ..., specifications: _Optional[_Union[GpuRenderStageEvent.Specifications, _Mapping]] = ..., hw_queue_id: _Optional[int] = ..., stage_id: _Optional[int] = ...) -> None: ...
+    def __init__(self, event_id: _Optional[int] = ..., duration: _Optional[int] = ..., hw_queue_iid: _Optional[int] = ..., stage_iid: _Optional[int] = ..., gpu_id: _Optional[int] = ..., context: _Optional[int] = ..., render_target_handle: _Optional[int] = ..., submission_id: _Optional[int] = ..., extra_data: _Optional[_Iterable[_Union[GpuRenderStageEvent.ExtraData, _Mapping]]] = ..., render_pass_handle: _Optional[int] = ..., render_pass_instance_id: _Optional[int] = ..., render_subpass_index_mask: _Optional[_Iterable[int]] = ..., command_buffer_handle: _Optional[int] = ..., specifications: _Optional[_Union[GpuRenderStageEvent.Specifications, _Mapping]] = ..., hw_queue_id: _Optional[int] = ..., stage_id: _Optional[int] = ...) -> None: ...
 
 class GpuRenderStagesConfig(_message.Message):
     __slots__ = ["full_loadstore", "low_overhead", "trace_metrics"]
