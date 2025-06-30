@@ -18,8 +18,8 @@
 #define SRC_ANDROID_SDK_JNI_MACROS_H_
 #include <string_view>
 
-// This is a very basic check to make sure we get the 'JNI_JARJAR_PREFIX'
-// in the form of 'com/android/internal/'.
+// This is a very basic check to make sure we get the
+// 'PERFETTO_JNI_JARJAR_PREFIX' in the form of 'com/android/internal/'.
 constexpr static bool IsValidJavaPackage(const std::string_view str) {
   if (str.empty())
     return false;
@@ -38,10 +38,10 @@ constexpr static bool IsValidJavaPackage(const std::string_view str) {
 #define TO_STRING1(x) #x
 #define TO_STRING(x) TO_STRING1(x)
 
-#ifdef JNI_JARJAR_PREFIX
-static_assert(IsValidJavaPackage(TO_STRING(JNI_JARJAR_PREFIX)));
+#ifdef PERFETTO_JNI_JARJAR_PREFIX
+static_assert(IsValidJavaPackage(TO_STRING(PERFETTO_JNI_JARJAR_PREFIX)));
 #define TO_MAYBE_JAR_JAR_CLASS_NAME(className) \
-  TO_STRING(JNI_JARJAR_PREFIX) className
+  TO_STRING(PERFETTO_JNI_JARJAR_PREFIX) className
 #else
 #define TO_MAYBE_JAR_JAR_CLASS_NAME(className) className
 #endif
