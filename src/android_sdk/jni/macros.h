@@ -35,9 +35,13 @@ constexpr static bool IsValidJavaPackage(const std::string_view str) {
   return true;
 }
 
+#define TO_STRING1(x) #x
+#define TO_STRING(x) TO_STRING1(x)
+
 #ifdef JNI_JARJAR_PREFIX
-static_assert(IsValidJavaPackage(JNI_JARJAR_PREFIX));
-#define TO_MAYBE_JAR_JAR_CLASS_NAME(className) JNI_JARJAR_PREFIX className
+static_assert(IsValidJavaPackage(TO_STRING(JNI_JARJAR_PREFIX)));
+#define TO_MAYBE_JAR_JAR_CLASS_NAME(className) \
+  TO_STRING(JNI_JARJAR_PREFIX) className
 #else
 #define TO_MAYBE_JAR_JAR_CLASS_NAME(className) className
 #endif
