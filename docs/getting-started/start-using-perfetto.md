@@ -6,11 +6,11 @@ world of performance, we suggest reading the
 what Perfetto is and why it's useful, check out the
 [Perfetto homepage](/docs/README.md) first.
 
-Perfetto is a large project and it can be daunting for someone new to undestand
-what parts of the documentation relevant to them. By focusing on what technology
-you are using and what you are trying to accomplish, this page will guide you
-through our documentation and help you solve problems with Perfetto as quickly
-as possible.
+Perfetto is a large project and it can be daunting for someone new to understand
+what parts of the documentation are relevant to them. By focusing on what
+technology you are using and what you are trying to accomplish, this page will
+guide you through our documentation and help you solve problems with Perfetto as
+quickly as possible.
 
 Our docs make use of the terms "Tutorials", "Cookbooks" and "Case Studies":
 
@@ -23,12 +23,12 @@ Our docs make use of the terms "Tutorials", "Cookbooks" and "Case Studies":
   you can follow.
 - **Case Studies** are detailed, opinionated guides which take you step-by-step
   how you can debug and root-cause a "vertical" problem using Perfetto. They
-  focus more on helping you solve the problem and and less on teaching you
-  Perfetto tools. They may also make signifcant use of non-Perfetto based tools
+  focus more on helping you solve the problem and less on teaching you Perfetto
+  tools. They may also make signifcant use of non-Perfetto based tools
   or commands where appropriate.
 
 Based on what technology you are interested in, please choose one of the
-following sections to go next:
+following sections to go to next:
 
 ```mermaid
 graph TD
