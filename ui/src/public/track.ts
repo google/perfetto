@@ -117,8 +117,9 @@ export interface Track {
   // Describes how to render the track.
   readonly renderer: TrackRenderer;
 
-  // Optional: A human readable description of the track.
-  readonly description?: string;
+  // Optional: A human readable description of the track. This can be a simple
+  // string or a render function that returns Mithril vnodes.
+  readonly description?: string | (() => m.Children);
 
   // Optional: Human readable subtitle. Sometimes displayed if there is room.
   readonly subtitle?: string;
