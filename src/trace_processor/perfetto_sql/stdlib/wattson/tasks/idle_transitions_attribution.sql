@@ -21,16 +21,6 @@ INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
 
 INCLUDE PERFETTO MODULE wattson.utils;
 
--- Get slice info of tasks/processes
-CREATE PERFETTO TABLE _task_slices AS
-SELECT
-  ts,
-  dur,
-  cpu,
-  utid,
-  upid
-FROM _wattson_task_slices;
-
 -- Gets the slices where the CPU transitions from deep idle to active, and the
 -- associated task that causes the idle exit
 CREATE PERFETTO TABLE _idle_w_tasks AS
@@ -45,13 +35,15 @@ WITH
       id_1 AS idle_group
     FROM _interval_intersect!(
     (
-      _ii_subquery!(_task_slices),
+      _ii_subquery!(_wattson_task_slices),
       _ii_subquery!(_idle_exits)
     ),
     (cpu)
   ) AS ii
-    JOIN _task_slices AS tasks
+    JOIN _wattson_task_slices AS tasks
       ON tasks._auto_id = id_0
+    ORDER BY
+      ii.ts ASC
   ),
   -- Since sorted by time, MIN() is fast aggregate function that will return the
   -- first time slice, which will be the utid = 0 slice immediately succeeding the
