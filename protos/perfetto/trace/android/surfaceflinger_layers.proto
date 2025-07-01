@@ -238,6 +238,10 @@ message LayerProto {
 
   // Layer's scale during background blur, relative to 1.0f=100%
   optional float background_blur_scale = 60;
+
+  optional BorderSettings border_settings = 61;
+
+  optional BoxShadowSettings box_shadow_settings = 62;
 }
 
 message PositionProto {

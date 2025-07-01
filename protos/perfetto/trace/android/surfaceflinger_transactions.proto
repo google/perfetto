@@ -172,6 +172,8 @@ message LayerState {
     eStretchChanged = 0x2000;
     eTrustedOverlayChanged = 0x4000;
     eDropInputModeChanged = 0x8000;
+    eBorderSettingsChanged = 0x400000;
+    eBoxShadowSettingsChanged = 0x800000;
   };
   optional uint64 what = 2;
   optional float x = 3;
@@ -301,6 +303,10 @@ message LayerState {
   optional TrustedOverlay trusted_overlay = 43;
 
   optional float background_blur_scale = 44;
+
+  optional BorderSettings border_settings = 45;
+
+  optional BoxShadowSettings box_shadow_settings = 46;
 }
 
 message DisplayState {
