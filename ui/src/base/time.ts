@@ -287,7 +287,7 @@ export class Duration {
       n /= 1000;
       ++u;
     }
-    return `${toSignificantDigits(Math.sign(Number(dur)) * n, 4)} ${units[u]}`;
+    return `${toSignificantDigits(Math.sign(Number(dur)) * n, 4)}${units[u]}`;
   }
 
   // Print duration with absolute precision.
