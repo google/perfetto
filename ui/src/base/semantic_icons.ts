@@ -45,6 +45,7 @@ export class Icons {
   static readonly GoTo = 'arrow_forward';
   static readonly ContextMenuAlt = 'more_vert';
   static readonly Warning = 'warning';
+  static readonly Help = 'help';
 
   // Page control
   static readonly NextPage = 'chevron_right';

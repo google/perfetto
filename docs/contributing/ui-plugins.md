@@ -646,7 +646,7 @@ To add a track use `trace.tracks.registerTrack`.
 registerTrack(track: {
   uri: string;
   track: TrackRenderer;
-  description?: string;
+  description?: string | (() => m.Children);
   subtitle?: string;
   tags?: TrackTags;
   chips?: ReadonlyArray<string>;
@@ -658,7 +658,7 @@ Registers a new track with Perfetto. Pass a `Track` object which includes:
 - `uri`: Unique id for this track.
 - `track`: Track renderer - describes how this track loads data and renders it
   to the canvas.
-- `description`: A short human readable description for this track.
+- `description`: A human readable description or help text for this track.
 - `subtitle`: Shown underneath the track title.
 - `tags`: Arbitrary key-value pairs.
 - `chipd`: A list of strings displayed to the right of the track title.
@@ -736,6 +736,71 @@ export default class implements PerfettoPlugin {
 See
 [the source](https://github.com/google/perfetto/blob/main/ui/src/components/tracks/query_counter_track.ts)
 for detailed usage.
+
+### Track Descriptions / Help Text
+
+If a `description` property is provided when registering a track, any `TrackNode`
+that references that track will display a help button in its shell. When
+clicked, a popup appears containing the content of the `description`.
+
+The `description` can be either a simple string or a function that returns
+Mithril vnodes. Using a function is useful for embedding rich content, such as
+hyperlinks, into the popup.
+
+For example:
+
+```ts
+ctx.tracks.registerTrack({
+  description: () => {
+    return m('', [
+      `Shows which threads were running on CPU ${cpu.toString()} over time.`,
+      m('br'),
+      m(
+        Anchor,
+        {
+          href: 'https://perfetto.dev/docs/data-sources/cpu-scheduling',
+          target: '_blank',
+          icon: Icons.ExternalLink,
+        },
+        'Documentation',
+      ),
+    ]);
+  },
+  // ...
+});
+```
+
+The `description` property is part of the `Track` registration rather than the
+`TrackNode` because `TrackNode`s must be serializable to JSON, and functions
+(which `description` can be) are not.
+
+This has an implication for track groups. If you want to add help text to a
+`TrackNode` that only serves as a group and has no renderable `Track`
+associated with it, you must register a "dummy" track for it. This dummy track
+can have an empty renderer but will carry the `description`.
+
+```ts
+const uri = `com.example.Tracks#GroupWithHelpText`;
+
+trace.tracks.registerTrack({
+  uri,
+  renderer: {
+    // Empty track renderer
+    render: () => {},
+  },
+  description: () => [
+    'This is a group track with some help text.',
+    m('br'),
+    'Use Mithril vnodes for formatting.',
+  ],
+});
+
+// Now create the group node referencing the dummy track's URI.
+const groupNode = new TrackNode({uri, name: 'Group with Help Text'});
+```
+
+Example:
+https://github.com/google/perfetto/blob/main/ui/src/plugins/com.example.Tracks/index.ts
 
 #### Grouping Tracks
 

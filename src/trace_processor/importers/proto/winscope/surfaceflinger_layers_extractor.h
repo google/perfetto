@@ -19,19 +19,19 @@
 
 #include <unordered_map>
 #include <vector>
-#include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/android/surfaceflinger_layers.pbzero.h"
 
 namespace perfetto::trace_processor::winscope::surfaceflinger_layers {
 
-using ConstBytes = protozero::ConstBytes;
+namespace {
 using LayersDecoder = protos::pbzero::LayersProto::Decoder;
 using LayerDecoder = protos::pbzero::LayerProto::Decoder;
+}  // namespace
 
-std::unordered_map<int, ConstBytes> ExtractLayersById(
+std::unordered_map<int, LayerDecoder> ExtractLayersById(
     const LayersDecoder& layers_decoder);
 
-std::vector<ConstBytes> ExtractLayersTopToBottom(
+std::vector<LayerDecoder> ExtractLayersTopToBottom(
     const LayersDecoder& layers_decoder);
 
 }  // namespace perfetto::trace_processor::winscope::surfaceflinger_layers
