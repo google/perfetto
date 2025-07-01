@@ -138,6 +138,11 @@ $border: 1px solid rgb(225, 225, 225);
     visibility: hidden;
   }
 
+  // Don't want the progress bar to squish!
+  &__loading {
+    flex: none;
+  }
+
   &__filter-chip {
     cursor: pointer;
   }
