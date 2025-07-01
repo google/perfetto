@@ -34,6 +34,7 @@ struct AndroidCpuPerUidState : PacketSequenceStateGeneration::CustomState {
 
   uint32_t cluster_count;
 
+  // Key is 32 bits of UID in MSB, 32 bits cluster in LSB.
   base::FlatHashMap<uint64_t, uint64_t> last_values;
 };
 
