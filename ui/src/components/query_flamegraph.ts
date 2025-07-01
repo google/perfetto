@@ -340,6 +340,13 @@ async function computeFlamegraphTree(
     ),
   );
   disposable.use(
+    await createPerfettoIndex(
+      engine,
+      `_flamegraph_filtered_${uuid}_index`,
+      `_flamegraph_filtered_${uuid}(parentId)`,
+    ),
+  );
+  disposable.use(
     await createPerfettoTable(
       engine,
       `_flamegraph_accumulated_${uuid}`,
@@ -391,6 +398,13 @@ async function computeFlamegraphTree(
           ${computeGroupedAggExprs(agg)}
         )
       `,
+    ),
+  );
+  disposable.use(
+    await createPerfettoIndex(
+      engine,
+      `_flamegraph_merged_${uuid}_index`,
+      `_flamegraph_merged_${uuid}(parentId)`,
     ),
   );
   disposable.use(
