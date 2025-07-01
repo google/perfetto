@@ -43,6 +43,7 @@ import {TraceArrayBufferSource, TraceSource} from './trace_source';
 import {TaskTrackerImpl} from '../frontend/task_tracker/task_tracker';
 import {Embedder} from './embedder/embedder';
 import {createEmbedder} from './embedder/create_embedder';
+import {CpuInfoManagerImpl} from './cpu_info_manager';
 
 export type OpenTraceArrayBufArgs = Omit<
   Omit<TraceArrayBufferSource, 'type'>,
@@ -77,6 +78,7 @@ export class AppImpl implements App {
   readonly sidebar: SidebarManagerImpl;
   readonly plugins = new PluginManagerImpl();
   readonly perfDebugging = new PerfManager();
+  readonly cpuInfoMgr = new CpuInfoManagerImpl();
   readonly analytics: AnalyticsInternal;
   readonly serviceWorkerController = new ServiceWorkerController();
   readonly taskTracker = new TaskTrackerImpl();
@@ -193,6 +195,10 @@ export class AppImpl implements App {
 
   get trace(): TraceImpl | undefined {
     return this._activeTrace;
+  }
+
+  get cpuInfos(): CpuInfoManagerImpl {
+    return this.cpuInfoMgr;
   }
 
   get raf(): Raf {
