@@ -59,7 +59,7 @@ function getTrackHeight(node: TrackNode, track?: TrackRenderer) {
   // compact to save space.
   if (node.isSummary && node.expanded) return TRACK_HEIGHT_DEFAULT_PX;
 
-  const trackHeight = track?.getHeight();
+  const trackHeight = track?.getHeight?.();
   if (trackHeight === undefined) return TRACK_HEIGHT_DEFAULT_PX;
 
   // Limit the minimum height of a track, and also round up to the nearest

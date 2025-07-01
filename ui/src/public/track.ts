@@ -210,7 +210,7 @@ export interface TrackRenderer {
    * track uses.
    */
   getSliceVerticalBounds?(depth: number): VerticalBounds | undefined;
-  getHeight(): number;
+  getHeight?(): number;
   getTrackShellButtons?(): m.Children;
   onMouseMove?(event: TrackMouseEvent): void;
   onMouseClick?(event: TrackMouseEvent): boolean;
