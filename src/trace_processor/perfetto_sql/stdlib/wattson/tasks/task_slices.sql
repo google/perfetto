@@ -37,7 +37,7 @@ FROM _adjusted_deep_idle
 WHERE
   idle = -1 AND dur > 0;
 
--- Establish relationships between thread/process/package
+-- Establish relationships between tasks, such as thread/process/package
 CREATE PERFETTO TABLE _task_wo_irq_infos AS
 SELECT
   sched.ts,
@@ -225,7 +225,7 @@ CREATE PERFETTO INDEX _task_causing_idle_exit_idx ON _task_causing_idle_exit(idl
 --- and replaced with swapper. The previous table, _active_state_w_tasks, has
 --- many groups of "islands", of which the gaps need to be filled back in with
 --- the swapper task.
-CREATE PERFETTO TABLE _sched_w_thread_process_package_summary AS
+CREATE PERFETTO TABLE _wattson_task_slices AS
 WITH
   base_tasks AS (
     SELECT

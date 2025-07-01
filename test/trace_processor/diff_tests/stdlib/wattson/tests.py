@@ -424,7 +424,7 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_irq_gpu_markers.pb'),
         query="""
-        INCLUDE PERFETTO MODULE wattson.tasks.threads_w_processes;
+        INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
 
         SELECT
           SUM(dur) AS total_dur, irq_name, irq_id
@@ -452,12 +452,12 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('wattson_irq_gpu_markers.pb'),
         query="""
-        INCLUDE PERFETTO MODULE wattson.tasks.threads_w_processes;
+        INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
 
         SELECT
           SUM(dur) AS dur,
           thread_name
-        FROM _sched_w_thread_process_package_summary
+        FROM _wattson_task_slices
         GROUP BY thread_name
         ORDER BY dur DESC
         LIMIT 10
