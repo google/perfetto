@@ -1170,6 +1170,36 @@ cc_library_static {
     min_sdk_version: "30",
 }
 
+// GN: //src/android_sdk/jni:libperfetto_framework_jni
+cc_library_shared {
+    name: "libperfetto_framework_jni",
+    srcs: [
+        ":perfetto_include_perfetto_public_abi_base",
+        ":perfetto_include_perfetto_public_abi_public",
+        ":perfetto_include_perfetto_public_base",
+        ":perfetto_include_perfetto_public_protos_protos",
+        ":perfetto_include_perfetto_public_protozero",
+        ":perfetto_include_perfetto_public_public",
+        ":perfetto_src_android_sdk_jni_libperfetto_framework_jni_src",
+        ":perfetto_src_android_sdk_nativehelper_nativehelper",
+        ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni",
+        ":perfetto_src_android_sdk_perfetto_sdk_for_jni_perfetto_sdk_for_jni_public",
+    ],
+    shared_libs: [
+        "liblog",
+        "libperfetto_c",
+    ],
+    defaults: [
+        "perfetto_defaults",
+    ],
+    cflags: [
+        "-DPERFETTO_JNI_JARJAR_PREFIX=com/android/internal/",
+    ],
+    header_libs: [
+        "jni_headers",
+    ],
+}
+
 // GN: //src/android_sdk/jni:libperfetto_jni
 cc_library_shared {
     name: "libperfetto_jni",
@@ -11882,6 +11912,16 @@ android_library {
     sdk_version: "35",
 }
 
+// GN: //src/android_sdk/jni:libperfetto_framework_jni_src
+filegroup {
+    name: "perfetto_src_android_sdk_jni_libperfetto_framework_jni_src",
+    srcs: [
+        "src/android_sdk/jni/dev_perfetto_sdk_PerfettoNativeMemoryCleaner.cc",
+        "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrace.cc",
+        "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.cc",
+    ],
+}
+
 // GN: //src/android_sdk/jni:libperfetto_jni_src
 filegroup {
     name: "perfetto_src_android_sdk_jni_libperfetto_jni_src",
@@ -14931,6 +14971,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/pixel/camera.sql",
         "src/trace_processor/perfetto_sql/stdlib/pkvm/hypervisor.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/casts.sql",
+        "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/indexes.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/tables_views.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/after_eof/views.sql",
@@ -16684,7 +16725,24 @@ android_library {
 
 // GN: //src/android_sdk/java/main:perfetto_trace_lib
 java_library {
+    name: "perfetto_trace_lib_framework_java",
+    defaults: [
+        "perfetto_trace_lib_java_defaults",
+    ],
+    jarjar_rules: "src/android_sdk/java/main/perfetto-sdk-framework-jarjar-rules.txt",
+}
+
+// GN: //src/android_sdk/java/main:perfetto_trace_lib
+java_library {
     name: "perfetto_trace_lib_java",
+    defaults: [
+        "perfetto_trace_lib_java_defaults",
+    ],
+}
+
+// GN: //src/android_sdk/java/main:perfetto_trace_lib
+java_defaults {
+    name: "perfetto_trace_lib_java_defaults",
     srcs: [
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoNativeMemoryCleaner.java",
         "src/android_sdk/java/main/dev/perfetto/sdk/PerfettoTrace.java",

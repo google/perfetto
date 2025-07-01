@@ -13,131 +13,86 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Trace} from '../public/trace';
-import {AggregateData, BarChartData, Column} from './aggregation';
-import {AggregationPanelAttrs, AggState} from './aggregation_adapter';
-import {translateState} from './sql_utils/thread_state';
-import {DurationWidget} from './widgets/duration';
+import {SqlValue} from '../trace_processor/query_result';
+import {Box} from '../widgets/box';
+import {Stack, StackAuto, StackFixed} from '../widgets/stack';
+import {ColumnDefinition, DataGridDataSource} from './widgets/data_grid/common';
+import {DataGrid, renderCell} from './widgets/data_grid/data_grid';
+import {BarChartData, ColumnDef, Sorting} from './aggregation';
+
+export interface AggregationPanelAttrs {
+  readonly dataSource: DataGridDataSource;
+  readonly sorting: Sorting;
+  readonly columns: ReadonlyArray<ColumnDef>;
+  readonly barChartData?: ReadonlyArray<BarChartData>;
+}
 
 export class AggregationPanel
   implements m.ClassComponent<AggregationPanelAttrs>
 {
-  private trace: Trace;
-
-  constructor({attrs}: m.CVnode<AggregationPanelAttrs>) {
-    this.trace = attrs.trace;
-  }
-
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
-    return m(
-      '.details-panel',
-      m(
-        '.details-panel-heading.aggregation',
-        attrs.data.barChart !== undefined &&
-          this.renderBarChart(attrs.data.barChart),
-        this.showTimeRange(),
-        m(
-          'table',
-          m(
-            'tr',
-            attrs.data.columns.map((col) =>
-              this.formatColumnHeading(col, attrs.model),
-            ),
-          ),
-          m(
-            'tr.sum',
-            attrs.data.columnSums.map((sum) => {
-              const sumClass = sum === '' ? 'td' : 'td.sum-data';
-              return m(sumClass, sum);
-            }),
-          ),
-        ),
-      ),
-      m('.details-table.aggregation', m('table', this.getRows(attrs.data))),
-    );
+    const {dataSource, sorting, columns, barChartData} = attrs;
+
+    return m(Stack, {fillHeight: true}, [
+      barChartData && m(StackFixed, m(Box, this.renderBarChart(barChartData))),
+      m(StackAuto, this.renderTable(dataSource, sorting, columns)),
+    ]);
   }
 
-  formatColumnHeading(col: Column, model: AggState) {
-    const pref = model.getSortingPrefs();
-    let sortIcon = '';
-    if (pref && pref.column === col.columnId) {
-      sortIcon =
-        pref.direction === 'DESC' ? 'arrow_drop_down' : 'arrow_drop_up';
-    }
-    return m(
-      'th',
-      {
-        onclick: () => {
-          model.toggleSortingColumn(col.columnId);
-        },
+  private renderTable(
+    dataSource: DataGridDataSource,
+    sorting: Sorting,
+    columns: ReadonlyArray<ColumnDef>,
+  ) {
+    return m(DataGrid, {
+      fillHeight: true,
+      showResetButton: false,
+      columns: columns.map((c): ColumnDefinition => {
+        return {
+          name: c.columnId,
+          title: c.title,
+          aggregation: c.sum ? 'SUM' : undefined,
+        };
+      }),
+      data: dataSource,
+      initialSorting: sorting,
+      cellRenderer: (value: SqlValue, columnName: string) => {
+        const kind = columns.find((c) => c.columnId === columnName)?.kind ?? '';
+        return colKindToRenderer(kind, value, columnName);
       },
-      col.title,
-      m('i.material-icons', sortIcon),
-    );
+    });
   }
 
-  getRows(data: AggregateData) {
-    if (data.columns.length === 0) return;
-    const rows = [];
-    for (let i = 0; i < data.columns[0].data.length; i++) {
-      const row = [];
-      for (let j = 0; j < data.columns.length; j++) {
-        row.push(m('td', this.getFormattedData(data, i, j)));
-      }
-      rows.push(m('tr', row));
-    }
-    return rows;
-  }
-
-  getFormattedData(data: AggregateData, rowIndex: number, columnIndex: number) {
-    switch (data.columns[columnIndex].kind) {
-      case 'STRING':
-        return data.strings[data.columns[columnIndex].data[rowIndex]];
-      case 'TIMESTAMP_NS':
-        return `${data.columns[columnIndex].data[rowIndex] / 1000000}`;
-      case 'STATE': {
-        const concatState =
-          data.strings[data.columns[columnIndex].data[rowIndex]];
-        const split = concatState.split(',');
-        const ioWait =
-          split[1] === 'NULL' ? undefined : !!Number.parseInt(split[1], 10);
-        return translateState(split[0], ioWait);
-      }
-      case 'NUMBER':
-      default:
-        return data.columns[columnIndex].data[rowIndex];
-    }
-  }
-
-  showTimeRange() {
-    const selection = this.trace.selection.selection;
-    if (selection.kind !== 'area') return undefined;
-    const duration = selection.end - selection.start;
+  private renderBarChart(data: ReadonlyArray<BarChartData>) {
+    const summedValues = data.reduce((sum, item) => sum + item.value, 0);
     return m(
-      '.time-range',
-      'Selected range: ',
-      m(DurationWidget, {dur: duration}),
-    );
-  }
-
-  renderBarChart(data: ReadonlyArray<BarChartData>) {
-    const totalTime = data.reduce((sum, item) => sum + item.timeInStateMs, 0);
-    return m(
-      '.states',
+      '.pf-aggregation-panel__bar-chart',
       data.map((d) => {
-        const width = (d.timeInStateMs / totalTime) * 100;
+        const width = (d.value / summedValues) * 100;
         return m(
-          '.state',
+          '.pf-aggregation-panel__bar-chart-bar',
           {
             style: {
               background: d.color.base.cssString,
               color: d.color.textBase.cssString,
+              borderColor: d.color.variant.cssString,
               width: `${width}%`,
             },
           },
-          `${d.name}: ${d.timeInStateMs} ms`,
+          d.title,
         );
       }),
     );
+  }
+}
+
+function colKindToRenderer(kind: string, value: SqlValue, colName: string) {
+  if (kind === 'TIMESTAMP_NS' && typeof value === 'bigint') {
+    return m(
+      'span.pf-data-grid__cell--number',
+      (Number(value) / 1_000_000).toFixed(3),
+    );
+  } else {
+    return renderCell(value, colName);
   }
 }

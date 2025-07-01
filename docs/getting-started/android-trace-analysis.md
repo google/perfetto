@@ -82,6 +82,61 @@ will jump straight to that slice.
 
 ![](/docs/images/analysis-cookbook-unint-sleep.png)
 
+## Finding process metadata and fetching UPID
+
+Demonstrates:
+
+- Fetching `process_name`, `upid` and `uid`. This data is used to get process level metrics from other tables
+- Using UPID for getting process specific metrics from other tables
+- Using `GLOB` for regex based queries
+
+Knowing details like process name, package name or UPID come in handy as they serve as a basis for many other queries in Perfetto.
+
+```sql
+INCLUDE PERFETTO MODULE android.process_metadata;
+
+SELECT
+  upid,
+  process_name,
+  package_name,
+  uid
+FROM android_process_metadata
+WHERE process_name GLOB '*Camera*'; -- GLOB search is case sensitive
+```
+Result:
+
+![](/docs/images/analysis-cookbook-process-metadata.png)
+
+**Note:** In case you don’t see the expected process, it may be happening because `GLOB` search is case sensitive.  So if you are not sure about your process name, it is worth doing `select upid, process_name, package_name, uid from android_process_metadata` to find the UPID of your process.
+
+
+**UPID** is the unique process ID which remains constant throughout the duration of the trace as opposed to the PID (process ID) which can change.
+Many [standard library tables](https://perfetto.dev/docs/analysis/stdlib-docs) in Perfetto such as `android_lmk_events`,  `cpu_cycles_per_process` etc use UPID to point to processes. This comes in handy specially when you need data filtered against your process. UPID is also useful for performing `JOIN` operations with other tables. Example for getting the cold start reason for GoogleCamera:
+```sql
+INCLUDE PERFETTO MODULE android.app_process_starts;
+INCLUDE PERFETTO MODULE time.conversion;
+
+
+SELECT
+  process_name,
+  upid,
+  intent,
+  reason,
+  time_to_ms(total_dur)
+FROM android_app_process_starts
+WHERE upid = 844;
+```
+
+**UID** is the Android app User ID is also useful. In cases where a `package_name` does **not** exist, standard library tables are populated in the format `uid=$X`. For example, `android_network_packets`. Example for getting network bytes transmitted for a process:
+```sql
+include perfetto module android.network_packets;
+
+SELECT
+  *
+FROM android_network_packets
+WHERE package_name = 'uid=12332';
+```
+
 ## Find top causes for uninterruptible sleep
 
 Demonstrates:
@@ -316,3 +371,197 @@ The debug tracks should now look like this:
 Here is an example from a busier trace, where you can see the same process being
 assigned to different groups:
 ![](/docs/images/debug-track-setprocessgroup-final-result.png)
+
+## State of background jobs
+
+Use `android_job_scheduler_states` table in Perfetto to collect job duration and error metrics for jobs to identify whether background jobs are running as expected.
+
+Demonstrates:
+
+- Filtering by process
+- Using Perfetto standard library tables
+- Including Perfetto modules for SQL queries
+- Converting duration to milliseconds using `time_to_ms` function
+
+JobScheduler is an Android system service that helps apps schedule background tasks (like data syncs or file downloads) efficiently. In Android development, *Background jobs* generally refer to any work that an application needs to perform without directly interacting with the user interface. This could include tasks like syncing data with a server, downloading files, processing images, sending analytics, or performing database operations.
+
+To collect data for background jobs in `android_job_scheduler_states` table, you will need the following snippet in your Perfetto configuration when recording traces:
+```
+data_sources {
+  config {
+    name: "android.statsd"
+    statsd_tracing_config {
+      push_atom_id: ATOM_SCHEDULED_JOB_STATE_CHANGED
+    }
+  }
+}
+```
+
+```sql
+INCLUDE PERFETTO MODULE android.job_scheduler_states;
+
+SELECT
+  job_id,
+  job_name,
+  AVG(time_to_ms(dur)) AS avg_dur_ms,
+  COUNT(*) AS num_times_ran,
+  internal_stop_reason AS stop_reason,
+  SUM(num_uncompleted_work_items) AS num_uncompleted_work_items,
+  AVG(job_start_latency_ms) AS queue_time_ms
+FROM android_job_scheduler_states
+WHERE package_name = 'com.google.android.adservices.api'
+GROUP BY job_name, job_id, internal_stop_reason, package_name;
+```
+
+Long durations, frequent errors and retries indicate issues within your background jobs themselves (e.g., bugs in your code, unhandled exceptions, incorrect data processing). They can lead to increased resource consumption, battery drain and data usage on the user's device.
+
+Long queue times mean your background jobs are waiting too long to execute. This can have downstream effects. For instance, if a job is responsible for syncing user data, long queue times could lead to stale information being displayed to the user or a delay in critical updates.
+
+Result
+
+![](/docs/images/android-trace-analysis-background-jobs.png)
+
+## Get CPU Utilization and processing information
+
+To collect data related to events on CPU and utilization, you will need the following snippet in your Perfetto configuration when recording traces:
+```
+data_sources {
+  config {
+    name: "linux.ftrace"
+    ftrace_config {
+      ftrace_events: "sched/sched_process_exit"
+      ftrace_events: "sched/sched_process_free"
+      ftrace_events: "task/task_newtask"
+      ftrace_events: "task/task_rename"
+      ftrace_events: "sched/sched_switch"
+      ftrace_events: "power/suspend_resume"
+      ftrace_events: "sched/sched_blocked_reason"
+      ftrace_events: "sched/sched_wakeup"
+      ftrace_events: "sched/sched_wakeup_new"
+      ftrace_events: "sched/sched_waking"
+      ftrace_events: "sched/sched_process_exit"
+      ftrace_events: "sched/sched_process_free"
+      ftrace_events: "task/task_newtask"
+      ftrace_events: "task/task_rename"
+      ftrace_events: "power/cpu_frequency"
+      ftrace_events: "power/cpu_idle"
+      ftrace_events: "power/suspend_resume"
+      symbolize_ksyms: true
+      disable_generic_events: true
+    }
+  }
+}
+data_sources {
+  config {
+    name: "linux.process_stats"
+    process_stats_config {
+      scan_all_processes_on_start: true
+    }
+  }
+}
+data_sources {
+  config {
+    name: "linux.sys_stats"
+    sys_stats_config {
+      cpufreq_period_ms: 250
+    }
+  }
+}
+```
+
+### Process Level CPU utilization
+
+CPU utilization for an Android device refers to the percentage of time the device's CPU is actively working to execute instructions and run programs. CPU utilization can be measured using CPU cycles which is directly proportional to the time taken by the CPU to complete a task. High CPU utilization by a specific Android process indicates that it is demanding a significant portion of the CPU's processing power.
+
+```sql
+INCLUDE PERFETTO MODULE linux.cpu.utilization.process;
+
+select
+  name AS process_name,
+  SUM(megacycles) AS sum_megacycles,
+  time_to_ms(SUM(runtime)) AS runtime_msec,
+  MIN(min_freq) AS min_freq,
+  MAX(max_freq) AS max_freq
+FROM cpu_cycles_per_process
+JOIN process USING (upid)
+WHERE process_name = 'system-server'
+GROUP BY process_name;
+```
+
+Result:
+
+![](/docs/images/android-trace-analysis-cpu-utilization-process.png)
+
+### Slice Level CPU utilisation
+
+To see cpu utilisation for an interesting slice, use the following query:
+```sql
+INCLUDE PERFETTO MODULE linux.cpu.utilization.slice;
+
+select
+  slice_name,
+  SUM(megacycles)
+FROM cpu_cycles_per_thread_slice
+WHERE slice_name GLOB '*interesting_slice*'  -- or cpu_cycles_per_thread_slice.id=<id of interesting slice>
+GROUP BY slice_name;
+```
+
+Or to check slice utilization for all the slices of your process:
+```sql
+INCLUDE PERFETTO MODULE linux.cpu.utilization.slice;
+
+SELECT
+  name,
+  millicycles,
+  megacycles,
+  process_name
+FROM cpu_cycles_per_thread_slice
+WHERE process_name = 'com.google.android.GoogleCamera'
+ORDER BY megacycles DESC;
+```
+
+Result:
+
+![](/docs/images/android-trace-analysis-cpu-utilization-slice.png)
+
+### The number of times cpu exits idle state
+
+When the CPU is idle, it enters a low-power state to conserve energy. Wake-ups disrupt this state, forcing the CPU to ramp up its activity and consume more power.
+
+The number of times cpu exits idle state during the trace duration:
+```sql
+select
+  COUNT(*) as num_idle_exits
+FROM counter AS c
+LEFT JOIN cpu_counter_track AS t
+ON c.track_id = t.id
+WHERE t.name = 'cpuidle'
+AND value = 4294967295;
+```
+
+Value 4294967295 (0xffffffff) represents [back to not-idle](https://perfetto.dev/docs/data-sources/cpu-freq#sql).
+
+When a process wakes the CPU from idle state excessively, it can have the following adverse effects:
+1. Battery drain: Frequent wake-ups can significantly drain the battery
+2. Latency: Waking up the CPU from idle introduces latency, as it takes time for the CPU to transition from a low-power state to an active state.
+3. Context Switching: Each wake-up might involve context switching, where the CPU has to save the state of the current task and load the state of the new task, further adding to the overhead.
+
+
+### Number of events scheduled on the cpu by your process
+
+To see if your process's threads are being evenly distributed across available CPU cores you can check the number of events scheduled on the cpu by your process per cpu core:
+
+```sql
+SELECT
+  COUNT(*),
+  cpu
+FROM sched_slice
+JOIN thread USING (utid)
+JOIN process USING (upid)
+WHERE process.name = 'com.google.android.GoogleCamera'
+GROUP BY cpu;
+```
+
+Result:
+
+![](/docs/images/android-trace-analysis-cpu-num-events-process.png)
