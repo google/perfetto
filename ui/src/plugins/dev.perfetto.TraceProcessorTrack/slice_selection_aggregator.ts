@@ -69,23 +69,21 @@ export class SliceSelectionAggregator implements Aggregator {
     return [
       {
         title: 'Name',
-        kind: 'STRING',
         columnId: 'name',
       },
       {
-        title: 'Wall duration (ms)',
-        kind: 'TIMESTAMP_NS',
+        title: 'Wall duration',
+        formatHint: 'DURATION_NS',
         columnId: 'total_dur',
         sum: true,
       },
       {
-        title: 'Avg Wall duration (ms)',
-        kind: 'TIMESTAMP_NS',
+        title: 'Avg Wall duration',
+        formatHint: 'DURATION_NS',
         columnId: 'avg_dur',
       },
       {
         title: 'Occurrences',
-        kind: 'NUMBER',
         columnId: 'occurrences',
         sum: true,
       },
