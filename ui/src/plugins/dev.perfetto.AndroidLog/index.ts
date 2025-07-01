@@ -23,6 +23,8 @@ import {createAndroidLogTrack} from './logs_track';
 import {exists} from '../../base/utils';
 import {TrackNode} from '../../public/workspace';
 import {escapeSearchQuery} from '../../trace_processor/query_utils';
+import {Anchor} from '../../widgets/anchor';
+import {Icons} from '../../base/semantic_icons';
 
 const VERSION = 1;
 
@@ -76,7 +78,21 @@ export default class implements PerfettoPlugin {
     if (logCount > 0) {
       ctx.tracks.registerTrack({
         uri,
-        description: 'Android log messages',
+        description: () => {
+          return m('', [
+            'Android log (logcat) messages.',
+            m('br'),
+            m(
+              Anchor,
+              {
+                href: 'https://perfetto.dev/docs/data-sources/android-log',
+                target: '_blank',
+                icon: Icons.ExternalLink,
+              },
+              'Documentation',
+            ),
+          ]);
+        },
         tags: {kind: ANDROID_LOGS_TRACK_KIND},
         renderer: createAndroidLogTrack(ctx, uri),
       });

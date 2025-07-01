@@ -162,6 +162,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       createNewGroup = true,
       onPopupMount = () => {},
       onPopupUnMount = () => {},
+      matchWidth,
     } = attrs;
 
     const portalAttrs: PortalAttrs = {
@@ -213,6 +214,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
           class: classNames(
             className,
             createNewGroup && Popup.POPUP_GROUP_CLASS,
+            matchWidth && 'pf-popup--match-width',
           ),
           ref: Popup.POPUP_REF,
         },
