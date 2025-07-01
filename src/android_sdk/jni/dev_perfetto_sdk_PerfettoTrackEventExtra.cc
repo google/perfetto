@@ -17,9 +17,9 @@
 #include "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.h"
 
 #include <jni.h>
+#include "src/android_sdk/jni/macros.h"
 #include "src/android_sdk/nativehelper/JNIHelp.h"
 #include "src/android_sdk/nativehelper/scoped_utf_chars.h"
-#include "src/android_sdk/nativehelper/utils.h"
 #include "src/android_sdk/perfetto_sdk_for_jni/tracing_sdk.h"
 
 #include <list>
@@ -722,97 +722,120 @@ static const JNINativeMethod gCounterDoubleMethods[] = {
      (void*)
          dev_perfetto_sdk_PerfettoTrackEventExtraCounterDouble_get_extra_ptr}};
 
-#define LOG_ALWAYS_FATAL_IF(cond, fmt) \
-  if (cond)                            \
-    __android_log_assert(nullptr, "PerfettoJNI", fmt);
-
 int register_dev_perfetto_sdk_PerfettoTrackEventExtra(JNIEnv* env) {
   int res = jniRegisterNativeMethods(
-      env, "dev/perfetto/sdk/PerfettoTrackEventExtra$ArgInt64",
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME(
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$ArgInt64"),
       gArgInt64Methods, NELEM(gArgInt64Methods));
   LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register arg int64 native methods.");
 
   res = jniRegisterNativeMethods(
-      env, "dev/perfetto/sdk/PerfettoTrackEventExtra$ArgBool", gArgBoolMethods,
-      NELEM(gArgBoolMethods));
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME(
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$ArgBool"),
+      gArgBoolMethods, NELEM(gArgBoolMethods));
   LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register arg bool native methods.");
 
   res = jniRegisterNativeMethods(
-      env, "dev/perfetto/sdk/PerfettoTrackEventExtra$ArgDouble",
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME(
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$ArgDouble"),
       gArgDoubleMethods, NELEM(gArgDoubleMethods));
   LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register arg double native methods.");
 
   res = jniRegisterNativeMethods(
-      env, "dev/perfetto/sdk/PerfettoTrackEventExtra$ArgString",
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME(
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$ArgString"),
       gArgStringMethods, NELEM(gArgStringMethods));
   LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register arg string native methods.");
 
   res = jniRegisterNativeMethods(
-      env, "dev/perfetto/sdk/PerfettoTrackEventExtra$FieldInt64",
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME(
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$FieldInt64"),
       gFieldInt64Methods, NELEM(gFieldInt64Methods));
   LOG_ALWAYS_FATAL_IF(res < 0,
                       "Unable to register field int64 native methods.");
 
   res = jniRegisterNativeMethods(
-      env, "dev/perfetto/sdk/PerfettoTrackEventExtra$FieldDouble",
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME(
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$FieldDouble"),
       gFieldDoubleMethods, NELEM(gFieldDoubleMethods));
   LOG_ALWAYS_FATAL_IF(res < 0,
                       "Unable to register field double native methods.");
 
   res = jniRegisterNativeMethods(
-      env, "dev/perfetto/sdk/PerfettoTrackEventExtra$FieldString",
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME(
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$FieldString"),
       gFieldStringMethods, NELEM(gFieldStringMethods));
   LOG_ALWAYS_FATAL_IF(res < 0,
                       "Unable to register field string native methods.");
 
   res = jniRegisterNativeMethods(
-      env, "dev/perfetto/sdk/PerfettoTrackEventExtra$FieldNested",
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME(
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$FieldNested"),
       gFieldNestedMethods, NELEM(gFieldNestedMethods));
   LOG_ALWAYS_FATAL_IF(res < 0,
                       "Unable to register field nested native methods.");
 
-  res =
-      jniRegisterNativeMethods(env, "dev/perfetto/sdk/PerfettoTrackEventExtra",
-                               gExtraMethods, NELEM(gExtraMethods));
+  res = jniRegisterNativeMethods(
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/PerfettoTrackEventExtra"),
+      gExtraMethods, NELEM(gExtraMethods));
   LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register extra native methods.");
 
   res = jniRegisterNativeMethods(
-      env, "dev/perfetto/sdk/PerfettoTrackEventExtra$Proto", gProtoMethods,
-      NELEM(gProtoMethods));
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME(
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$Proto"),
+      gProtoMethods, NELEM(gProtoMethods));
   LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register proto native methods.");
 
   res = jniRegisterNativeMethods(
-      env, "dev/perfetto/sdk/PerfettoTrackEventExtra$Flow", gFlowMethods,
-      NELEM(gFlowMethods));
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME(
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$Flow"),
+      gFlowMethods, NELEM(gFlowMethods));
   LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register flow native methods.");
 
   res = jniRegisterNativeMethods(
-      env, "dev/perfetto/sdk/PerfettoTrackEventExtra$NamedTrack",
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME(
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$NamedTrack"),
       gNamedTrackMethods, NELEM(gNamedTrackMethods));
   LOG_ALWAYS_FATAL_IF(res < 0,
                       "Unable to register named track native methods.");
 
   res = jniRegisterNativeMethods(
-      env, "dev/perfetto/sdk/PerfettoTrackEventExtra$CounterTrack",
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME(
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$CounterTrack"),
       gCounterTrackMethods, NELEM(gCounterTrackMethods));
   LOG_ALWAYS_FATAL_IF(res < 0,
                       "Unable to register counter track native methods.");
 
   res = jniRegisterNativeMethods(
-      env, "dev/perfetto/sdk/PerfettoTrackEventExtra$CounterInt64",
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME(
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$CounterInt64"),
       gCounterInt64Methods, NELEM(gCounterInt64Methods));
   LOG_ALWAYS_FATAL_IF(res < 0,
                       "Unable to register counter int64 native methods.");
 
   res = jniRegisterNativeMethods(
-      env, "dev/perfetto/sdk/PerfettoTrackEventExtra$CounterDouble",
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME(
+          "dev/perfetto/sdk/PerfettoTrackEventExtra$CounterDouble"),
       gCounterDoubleMethods, NELEM(gCounterDoubleMethods));
   LOG_ALWAYS_FATAL_IF(res < 0,
                       "Unable to register counter double native methods.");
   return 0;
 }
-
-#undef LOG_ALWAYS_FATAL_IF
 
 }  // namespace jni
 }  // namespace perfetto

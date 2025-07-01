@@ -65,28 +65,23 @@ export class WattsonPackageSelectionAggregator implements Aggregator {
     return [
       {
         title: 'Package Name',
-        kind: 'STRING',
         columnId: 'package_name',
       },
       {
         title: 'Android app UID',
-        kind: 'NUMBER',
         columnId: 'uid',
       },
       {
         title: 'Total Duration (ms)',
-        kind: 'NUMBER',
         columnId: 'dur_ms',
       },
       {
         title: 'Active power (estimated mW)',
-        kind: 'NUMBER',
         columnId: 'active_mw',
         sum: true,
       },
       {
         title: 'Active energy (estimated mWs)',
-        kind: 'NUMBER',
         columnId: 'active_mws',
         sum: true,
       },

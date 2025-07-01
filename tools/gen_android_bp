@@ -78,6 +78,7 @@ default_targets = [
     '//src/java_sdk/main:perfetto_java_sdk_app',
     '//src/java_sdk/test:perfetto_java_sdk_instrumentation_test',
     '//src/android_sdk/java/main:perfetto_trace_lib',
+    '//src/android_sdk/jni:libperfetto_framework_jni',
     '//src/android_sdk/java/test:perfetto_trace_instrumentation_test',
     '//test/cts:perfetto_cts_deps',
     '//test/cts:perfetto_cts_jni_deps',
@@ -628,6 +629,7 @@ class Module(object):
     self.resource_dirs: Optional[List[str]] = None
     self.jni_libs: Optional[List[str]] = None
     self.jni_uses_platform_apis: Optional[bool] = None
+    self.jarjar_rules: Optional[str] = None
 
   def to_string(self, output):
     if self.comment:
@@ -676,6 +678,7 @@ class Module(object):
     self._output_field(output, 'output_extension')
     self._output_field(output, 'jni_libs')
     self._output_field(output, 'jni_uses_platform_apis')
+    self._output_field(output, 'jarjar_rules')
 
     target_out = []
     self._output_field(target_out, 'android')
@@ -1123,8 +1126,8 @@ class AndroidJavaSDKModulesGenerator:
                                     bp_module_name: str):
     module = Module('android_library', bp_module_name, target.name)
 
-    if target.android_bp_generate_java_target:
-      java_library_module_name = bp_module_name + "_java"
+    if target.android_bp_java_target_name_suffix:
+      java_library_module_name = bp_module_name + target.android_bp_java_target_name_suffix
       java_module = Module('java_library', java_library_module_name,
                            target.name)
       java_module.srcs = [gn_utils.label_to_path(src) for src in target.sources]
@@ -1133,8 +1136,15 @@ class AndroidJavaSDKModulesGenerator:
 
       self.blueprint.add_module(java_module)
 
-      if target.android_bp_extract_defaults:
-        extract_defaults(java_module, self.blueprint)
+      if target.android_bp_copy_java_target_name_suffix:
+        _extract_defaults(java_module, self.blueprint)
+        java_copy_module_name = bp_module_name + target.android_bp_copy_java_target_name_suffix
+        java_copy_module = Module('java_library', java_copy_module_name,
+                                  target.name)
+        java_copy_module.defaults = java_module.defaults
+        java_copy_module.jarjar_rules = gn_utils.label_to_path(
+            target.android_bp_copy_java_target_jarjar)
+        self.blueprint.add_module(java_copy_module)
 
       module.static_libs.add(java_library_module_name)
     else:
@@ -1214,7 +1224,7 @@ class AndroidJavaSDKModulesGenerator:
       self._collect_all_transitive_deps(d, visited)
 
 
-def extract_defaults(module: Module, blueprint: Blueprint):
+def _extract_defaults(module: Module, blueprint: Blueprint):
   if module.type.startswith('cc_library') or module.type.startswith(
       'cc_binary'):
     defaults_type = 'cc_defaults'
@@ -1226,7 +1236,7 @@ def extract_defaults(module: Module, blueprint: Blueprint):
                            module.gn_target)
   items_copy = dict(module.__dict__)
   for k, v in items_copy.items():
-    if k not in ('type', 'name', 'comment'):
+    if k not in ('type', 'name', 'comment', 'gn_target'):
       defaults_module.__dict__[k] = v
       module.__dict__[k] = None
   blueprint.add_module(defaults_module)
@@ -1441,9 +1451,6 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
     else:
       raise Error('Unknown dep %s (%s) for target %s' %
                   (dep_module.name, dep_module.type, module.name))
-
-  if target.android_bp_extract_defaults:
-    extract_defaults(module, blueprint)
 
   return module
 

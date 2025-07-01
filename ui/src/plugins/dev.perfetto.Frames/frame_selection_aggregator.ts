@@ -76,27 +76,25 @@ export class FrameSelectionAggregator implements Aggregator {
     return [
       {
         title: 'Jank Type',
-        kind: 'STRING',
         columnId: 'jank_type',
       },
       {
         title: 'Min duration',
-        kind: 'TIMESTAMP_NS',
+        formatHint: 'DURATION_NS',
         columnId: 'minDur',
       },
       {
         title: 'Max duration',
-        kind: 'TIMESTAMP_NS',
+        formatHint: 'DURATION_NS',
         columnId: 'maxDur',
       },
       {
         title: 'Mean duration',
-        kind: 'TIMESTAMP_NS',
+        formatHint: 'DURATION_NS',
         columnId: 'meanDur',
       },
       {
         title: 'Occurrences',
-        kind: 'NUMBER',
         columnId: 'occurrences',
         sum: true,
       },
