@@ -18,6 +18,7 @@
 
 #include "src/android_sdk/jni/dev_perfetto_sdk_PerfettoNativeMemoryCleaner.h"
 #include "src/android_sdk/jni/dev_perfetto_sdk_PerfettoTrackEventExtra.h"
+#include "src/android_sdk/jni/macros.h"
 #include "src/android_sdk/nativehelper/JNIHelp.h"
 #include "src/android_sdk/nativehelper/scoped_utf_chars.h"
 #include "src/android_sdk/nativehelper/utils.h"
@@ -155,23 +156,20 @@ static const JNINativeMethod gTraceMethods[] = {
     {"native_stop_session", "(J)[B",
      (void*)dev_perfetto_sdk_PerfettoTrace_stop_session}};
 
-#define LOG_ALWAYS_FATAL_IF(cond, fmt) \
-  if (cond)                            \
-    __android_log_assert(nullptr, "PerfettoJNI", fmt);
-
 int register_dev_perfetto_sdk_PerfettoTrace(JNIEnv* env) {
-  int res = jniRegisterNativeMethods(env, "dev/perfetto/sdk/PerfettoTrace",
-                                     gTraceMethods, NELEM(gTraceMethods));
+  int res = jniRegisterNativeMethods(
+      env, TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/PerfettoTrace"),
+      gTraceMethods, NELEM(gTraceMethods));
   LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register perfetto native methods.");
 
-  res = jniRegisterNativeMethods(env, "dev/perfetto/sdk/PerfettoTrace$Category",
-                                 gCategoryMethods, NELEM(gCategoryMethods));
+  res = jniRegisterNativeMethods(
+      env,
+      TO_MAYBE_JAR_JAR_CLASS_NAME("dev/perfetto/sdk/PerfettoTrace$Category"),
+      gCategoryMethods, NELEM(gCategoryMethods));
   LOG_ALWAYS_FATAL_IF(res < 0, "Unable to register category native methods.");
 
   return 0;
 }
-
-#undef LOG_ALWAYS_FATAL_IF
 
 }  // namespace jni
 }  // namespace perfetto
