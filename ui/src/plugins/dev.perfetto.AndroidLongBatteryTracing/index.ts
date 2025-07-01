@@ -1220,7 +1220,7 @@ export default class implements PerfettoPlugin {
     groupKey: string,
     query: string,
   ): Promise<TrackNode> {
-    const uri = `_day_explorer_ui_hierarchy_${uuidv4()}`;
+    const uri = `/day_explorer_${uuidv4()}`;
     const renderer = await createQueryCounterTrack({
       trace: ctx,
       uri,
@@ -1277,7 +1277,7 @@ export default class implements PerfettoPlugin {
   computeDayExplorerFlameGraph(trace: Trace, currentSelection: AreaSelection) {
     // The flame graph will be shown when any day explorer track is in the area
     // selection. The selection is used to filter by time, but not by track. All
-    // day explorer tracks are considered fro the graph.
+    // day explorer tracks are considered for the graph.
     let hasDayExplorer = false;
     for (const trackInfo of currentSelection.tracks) {
       if (trackInfo?.tags?.kind === DAY_EXPLORER_TRACK_KIND) {
