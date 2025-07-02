@@ -133,23 +133,7 @@ void ProcessTracker::EndThread(int64_t timestamp, int64_t tid) {
 }
 
 std::optional<UniqueTid> ProcessTracker::GetThreadOrNull(int64_t tid) {
-  auto opt_utid = GetThreadOrNull(tid, std::nullopt);
-  if (!opt_utid)
-    return std::nullopt;
-
-  auto& threads = *context_->storage->mutable_thread_table();
-  UniqueTid utid = *opt_utid;
-  auto rr = threads[utid];
-
-  // Ensure that the tid matches the tid we were looking for.
-  PERFETTO_DCHECK(rr.tid() == tid);
-  // Ensure that the thread's machine ID matches the context's machine ID.
-  PERFETTO_DCHECK(rr.machine_id() == context_->machine_id());
-  // If the thread is being tracked by the process tracker, it should not be
-  // known to have ended.
-  PERFETTO_DCHECK(!rr.end_ts().has_value());
-
-  return utid;
+  return GetThreadOrNull(tid, std::nullopt);
 }
 
 UniqueTid ProcessTracker::GetOrCreateThread(int64_t tid) {
@@ -220,6 +204,10 @@ std::optional<UniqueTid> ProcessTracker::GetThreadOrNull(
     UniqueTid current_utid = *it;
     auto rr = threads[current_utid];
 
+    // Ensure that the tid matches the tid we were looking for.
+    PERFETTO_DCHECK(rr.tid() == tid);
+    // Ensure that the thread's machine ID matches the context's machine ID.
+    PERFETTO_DCHECK(rr.machine_id() == context_->machine_id());
     // If we finished this thread, we should have removed it from the vector
     // entirely.
     PERFETTO_DCHECK(!rr.end_ts().has_value());
