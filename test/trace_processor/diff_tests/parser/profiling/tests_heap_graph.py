@@ -195,7 +195,13 @@ class ProfilingHeapGraph(TestSuite):
         )
         LIMIT 10;
         """,
-        out=Path('heap_graph_flamegraph.out'))
+        out=Csv('''
+          "id","depth","name","map_name","count","cumulative_count","size","cumulative_size","parent_id"
+          0,0,"FactoryProducerDelegateImplActor [ROOT_JAVA_FRAME]","JAVA",1,2,64,96,"[NULL]"
+          1,1,"Foo","JAVA",1,1,32,32,0
+          2,0,"DeobfuscatedA[] [ROOT_JAVA_FRAME]","JAVA",1,1,256,256,"[NULL]"
+          3,0,"android.os.Parcel [ROOT_VM_INTERNAL]","JAVA",1,1,256,256,"[NULL]"
+                '''))
 
   def test_heap_graph_object_3(self):
     return DiffTestBlueprint(
