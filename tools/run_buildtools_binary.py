@@ -58,7 +58,6 @@ def run_buildtools_binary(args):
     # receive CTRL+C. Use subprocess instead.
     sys.exit(subprocess.call([exe_path] + args))
   else:
-    print('Running %s' % exe_path)
     os.execl(exe_path, os.path.basename(exe_path), *args)
 
 
