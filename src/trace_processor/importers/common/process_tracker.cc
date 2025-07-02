@@ -157,17 +157,9 @@ UniqueTid ProcessTracker::GetOrCreateThread(int64_t tid) {
   return utid ? *utid : StartNewThread(std::nullopt, tid);
 }
 
-UniqueTid ProcessTracker::UpdateThreadName(int64_t tid,
-                                           StringId thread_name_id,
-                                           ThreadNamePriority priority) {
-  auto utid = GetOrCreateThread(tid);
-  UpdateThreadNameByUtid(utid, thread_name_id, priority);
-  return utid;
-}
-
-void ProcessTracker::UpdateThreadNameByUtid(UniqueTid utid,
-                                            StringId thread_name_id,
-                                            ThreadNamePriority priority) {
+void ProcessTracker::UpdateThreadName(UniqueTid utid,
+                                      StringId thread_name_id,
+                                      ThreadNamePriority priority) {
   if (thread_name_id.is_null())
     return;
 
@@ -327,7 +319,7 @@ UniquePid ProcessTracker::StartNewProcess(std::optional<int64_t> timestamp,
   // Create a new UTID for the main thread, so we don't end up reusing an old
   // entry in case of TID recycling.
   UniqueTid utid = StartNewThread(timestamp, /*tid=*/pid);
-  UpdateThreadNameByUtid(utid, main_thread_name, priority);
+  UpdateThreadName(utid, main_thread_name, priority);
 
   // Note that we erased the pid above so this should always return a new
   // process.
@@ -423,7 +415,8 @@ void ProcessTracker::UpdateThreadNameAndMaybeProcessName(
   auto& tt = *context_->storage->mutable_thread_table();
   auto& pt = *context_->storage->mutable_process_table();
 
-  UniqueTid utid = UpdateThreadName(tid, thread_name, priority);
+  auto utid = GetOrCreateThread(tid);
+  UpdateThreadName(utid, thread_name, priority);
   auto trr = tt[utid];
   std::optional<UniquePid> opt_upid = trr.upid();
   if (!opt_upid.has_value()) {
@@ -585,7 +578,9 @@ void ProcessTracker::SetPidZeroIsUpidZeroIdleProcess() {
   pids_.Insert(0, swapper_upid_);
 
   auto swapper_id = context_->storage->InternString("swapper");
-  UpdateThreadName(0, swapper_id, ThreadNamePriority::kTraceProcessorConstant);
+  auto utid = GetOrCreateThread(0);
+  UpdateThreadName(utid, swapper_id,
+                   ThreadNamePriority::kTraceProcessorConstant);
 }
 
 ArgsTracker::BoundInserter ProcessTracker::AddArgsTo(UniquePid upid) {

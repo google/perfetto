@@ -1706,8 +1706,10 @@ void FtraceParser::ParseSchedWaking(int64_t timestamp,
   protos::pbzero::SchedWakingFtraceEvent::Decoder sw(blob);
   uint32_t wakee_pid = static_cast<uint32_t>(sw.pid());
   StringId name_id = context_->storage->InternString(sw.comm());
-  auto wakee_utid = context_->process_tracker->UpdateThreadName(
-      wakee_pid, name_id, ThreadNamePriority::kFtrace);
+  UniqueTid wakee_utid =
+      context_->process_tracker->GetOrCreateThread(wakee_pid);
+  context_->process_tracker->UpdateThreadName(wakee_utid, name_id,
+                                              ThreadNamePriority::kFtrace);
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(timestamp,
                                                              wakee_utid, utid);
@@ -2419,8 +2421,8 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   // they get resolved to the same process.
   auto source_utid = proc_tracker->GetOrCreateThread(source_tid);
   auto new_utid = proc_tracker->StartNewThread(timestamp, new_tid);
-  proc_tracker->UpdateThreadNameByUtid(new_utid, new_comm,
-                                       ThreadNamePriority::kFtrace);
+  proc_tracker->UpdateThreadName(new_utid, new_comm,
+                                 ThreadNamePriority::kFtrace);
   proc_tracker->AssociateThreads(source_utid, new_utid);
 
   ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
