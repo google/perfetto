@@ -87,7 +87,9 @@ WHERE
       OR
       -- frame end within cuj
       (frame.ts_end >= cuj.ts AND frame.ts_end <= cuj.ts_end)
-   );
+   )
+   -- This grouping is done to de-duplicate identical rows.
+   GROUP BY frame_id;
 
 -- Combine the above two tables to get blocking calls within frame within CUJ.
 DROP TABLE IF EXISTS blocking_calls_frame_cuj;
