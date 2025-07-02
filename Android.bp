@@ -15028,7 +15028,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/wattson/gpu/freq_idle.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/attribution.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/idle_transitions_attribution.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/threads_w_processes.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/tasks/task_slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/ui/continuous_estimates.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/utils.sql",
     ],
