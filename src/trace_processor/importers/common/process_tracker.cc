@@ -329,6 +329,7 @@ UniquePid ProcessTracker::StartNewProcess(std::optional<int64_t> timestamp,
                                           int64_t pid,
                                           StringId main_thread_name,
                                           ThreadNamePriority priority) {
+  pids_.Erase(pid);
   // Clear the old UTIDs, so we don't end up reusing an old entry in case of
   // TID recycling.
   ClearThread(/*tid=*/pid);
