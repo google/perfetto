@@ -28,64 +28,64 @@ enum ProcessingStage { VisitChildren, Add };
 
 // When z-order is the same, we sort such that the layer with the layer id
 // is drawn on top.
-void SortByZThenLayerId(std::vector<ConstBytes>& layers) {
-  std::sort(layers.begin(), layers.end(),
-            [](const ConstBytes& a, const ConstBytes& b) {
-              LayerDecoder layer_a(a);
-              LayerDecoder layer_b(b);
-              auto z_val_a = layer_a.z();
-              auto z_val_b = layer_b.z();
-              if (z_val_a != z_val_b) {
-                return z_val_a > z_val_b;
-              }
-              return layer_a.id() >= layer_b.id();
-            });
+void SortByZThenLayerId(
+    std::vector<int>& layer_ids,
+    const std::unordered_map<int, LayerDecoder>& layers_by_id) {
+  std::sort(layer_ids.begin(), layer_ids.end(), [&layers_by_id](int a, int b) {
+    const auto& layer_a = layers_by_id.at(a);
+    const auto& layer_b = layers_by_id.at(b);
+    return std::make_tuple(layer_a.z(), layer_a.id()) >
+           std::make_tuple(layer_b.z(), layer_b.id());
+  });
 }
 
-std::vector<ConstBytes> ExtractLayersByZOrder(
-    std::vector<ConstBytes>& root_layers,
-    std::unordered_map<int32_t, std::vector<ConstBytes>> children_by_z_parent) {
-  SortByZThenLayerId(root_layers);
+// We work with layer ids to enable sorting and copying, as LayerDecoder can
+// only be moved.
+std::vector<LayerDecoder> ExtractLayersByZOrder(
+    std::vector<int32_t>& root_layer_ids,
+    std::unordered_map<int32_t, std::vector<int32_t>>& child_ids_by_z_parent,
+    std::unordered_map<int32_t, LayerDecoder>& layers_by_id) {
+  SortByZThenLayerId(root_layer_ids, layers_by_id);
 
-  std::vector<ConstBytes> layers_top_to_bottom;
+  std::vector<int32_t> layer_ids_top_to_bottom;
 
-  std::vector<std::pair<ConstBytes, ProcessingStage>> processing_queue;
-  for (auto it = root_layers.rbegin(); it != root_layers.rend(); ++it) {
+  std::vector<std::pair<int32_t, ProcessingStage>> processing_queue;
+  for (auto it = root_layer_ids.rbegin(); it != root_layer_ids.rend(); ++it) {
     processing_queue.emplace_back(*it, ProcessingStage::VisitChildren);
   }
 
   while (!processing_queue.empty()) {
-    std::pair<ConstBytes, ProcessingStage> curr = processing_queue.back();
+    const auto& curr = processing_queue.back();
     processing_queue.pop_back();
 
-    LayerDecoder curr_layer(curr.first);
-    if (!curr_layer.has_id()) {
-      continue;
-    }
+    int32_t curr_layer_id = curr.first;
+    const LayerDecoder& curr_layer = layers_by_id.at(curr_layer_id);
 
-    std::vector<ConstBytes> curr_children;
-    auto pos = children_by_z_parent.find(curr_layer.id());
-    if (pos != children_by_z_parent.end()) {
-      curr_children = pos->second;
-      SortByZThenLayerId(curr_children);
+    std::vector<int32_t> curr_child_ids;
+    auto pos = child_ids_by_z_parent.find(curr_layer_id);
+    if (pos != child_ids_by_z_parent.end()) {
+      curr_child_ids = pos->second;
+      SortByZThenLayerId(curr_child_ids, layers_by_id);
     }
 
     int32_t current_z = curr_layer.z();
 
     if (curr.second == ProcessingStage::VisitChildren) {
-      processing_queue.emplace_back(curr.first, ProcessingStage::Add);
+      processing_queue.emplace_back(curr_layer_id, ProcessingStage::Add);
 
-      for (auto it = curr_children.rbegin(); it != curr_children.rend(); ++it) {
-        LayerDecoder child_layer(*it);
+      for (auto it = curr_child_ids.rbegin(); it != curr_child_ids.rend();
+           ++it) {
+        const LayerDecoder& child_layer = layers_by_id.at(*it);
         if (child_layer.z() >= current_z) {
           processing_queue.emplace_back(*it, ProcessingStage::VisitChildren);
         }
       }
     } else {
-      layers_top_to_bottom.emplace_back(curr.first);
+      layer_ids_top_to_bottom.emplace_back(curr_layer_id);
 
-      for (auto it = curr_children.rbegin(); it != curr_children.rend(); ++it) {
-        LayerDecoder child_layer(*it);
+      for (auto it = curr_child_ids.rbegin(); it != curr_child_ids.rend();
+           ++it) {
+        const LayerDecoder& child_layer = layers_by_id.at(*it);
         if (child_layer.z() < current_z) {
           processing_queue.emplace_back(*it, ProcessingStage::VisitChildren);
         }
@@ -93,21 +93,26 @@ std::vector<ConstBytes> ExtractLayersByZOrder(
     }
   }
 
+  std::vector<LayerDecoder> layers_top_to_bottom;
+  layers_top_to_bottom.reserve(layer_ids_top_to_bottom.size());
+  for (int32_t id : layer_ids_top_to_bottom) {
+    layers_top_to_bottom.emplace_back(std::move(layers_by_id.at(id)));
+  }
   return layers_top_to_bottom;
 }
 }  // namespace
 
 // Returns map of layer id to layer, so we can quickly retrieve a layer by its
 // id during visibility computation.
-std::unordered_map<int, ConstBytes> ExtractLayersById(
+std::unordered_map<int, LayerDecoder> ExtractLayersById(
     const LayersDecoder& layers_decoder) {
-  std::unordered_map<int, ConstBytes> layers_by_id;
+  std::unordered_map<int, LayerDecoder> layers_by_id;
   for (auto it = layers_decoder.layers(); it; ++it) {
     LayerDecoder layer(*it);
     if (!layer.has_id()) {
       continue;
     }
-    layers_by_id[layer.id()] = *it;
+    layers_by_id.emplace(layer.id(), std::move(layer));
   }
   return layers_by_id;
 }
@@ -115,30 +120,36 @@ std::unordered_map<int, ConstBytes> ExtractLayersById(
 // Returns a vector of layers in top-to-bottom drawing order (z order), so
 // we can determine occlusion states during visibility computation and depth
 // in rect computation.
-std::vector<ConstBytes> ExtractLayersTopToBottom(
+std::vector<LayerDecoder> ExtractLayersTopToBottom(
     const LayersDecoder& layers_decoder) {
-  std::vector<ConstBytes> root_layers;
-  std::unordered_map<int32_t, std::vector<ConstBytes>> children_by_z_parent;
+  std::vector<int32_t> root_layer_ids;
+  std::unordered_map<int32_t, std::vector<int32_t>> child_ids_by_z_parent;
+  std::unordered_map<int32_t, LayerDecoder> layers_by_id;
 
   for (auto it = layers_decoder.layers(); it; ++it) {
-    auto layer = LayerDecoder(*it);
-    if (layer::IsRootLayer(layer) && layer.z_order_relative_of() <= 0) {
-      root_layers.emplace_back(*it);
-      continue;
-    }
+    LayerDecoder layer(*it);
     if (!layer.has_id()) {
       continue;
     }
-    auto parent = layer.parent();
-    auto z_parent = layer.z_order_relative_of();
-    if (z_parent > 0) {
-      children_by_z_parent[z_parent].emplace_back(*it);
-    } else if (parent > 0) {
-      children_by_z_parent[parent].emplace_back(*it);
+    auto layer_id = layer.id();
+
+    if (layer::IsRootLayer(layer) && layer.z_order_relative_of() <= 0) {
+      root_layer_ids.emplace_back(layer_id);
+    } else {
+      const auto parent = layer.parent();
+      const auto z_parent = layer.z_order_relative_of();
+      if (z_parent > 0) {
+        child_ids_by_z_parent[z_parent].emplace_back(layer_id);
+      } else if (parent > 0) {
+        child_ids_by_z_parent[parent].emplace_back(layer_id);
+      }
     }
+
+    layers_by_id.emplace(layer_id, std::move(layer));
   }
 
-  return ExtractLayersByZOrder(root_layers, children_by_z_parent);
+  return ExtractLayersByZOrder(root_layer_ids, child_ids_by_z_parent,
+                               layers_by_id);
 }
 
 }  // namespace perfetto::trace_processor::winscope::surfaceflinger_layers

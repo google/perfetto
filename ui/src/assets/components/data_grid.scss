@@ -69,11 +69,22 @@ $border: 1px solid rgb(225, 225, 225);
     }
   }
 
-  td {
+  td,
+  th {
     border-bottom: $border;
     border-right: $border;
     &:last-child {
       border-right: none;
+    }
+
+    .pf-visible-on-hover {
+      visibility: hidden;
+    }
+
+    &:hover {
+      .pf-visible-on-hover {
+        visibility: visible;
+      }
     }
   }
 
@@ -105,6 +116,10 @@ $border: 1px solid rgb(225, 225, 225);
     &.pf-active {
       visibility: visible;
     }
+  }
+
+  &__button-hint {
+    color: gray;
   }
 
   &__cell--number {
