@@ -1225,6 +1225,9 @@ cc_library_shared {
     header_libs: [
         "jni_headers",
     ],
+    visibility: [
+        ":__subpackages__",
+    ],
 }
 
 // GN: //src/java_sdk/main/cpp:perfetto_example_jni_lib
@@ -16737,6 +16740,9 @@ java_library {
     name: "perfetto_trace_lib_java",
     defaults: [
         "perfetto_trace_lib_java_defaults",
+    ],
+    visibility: [
+        ":__subpackages__",
     ],
 }
 
