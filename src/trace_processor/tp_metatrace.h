@@ -41,7 +41,7 @@ namespace metatrace {
 using Category = protos::pbzero::MetatraceCategories;
 
 // Stores whether meta-tracing is enabled.
-extern Category g_enabled_categories;
+extern thread_local Category g_enabled_categories;
 
 inline uint64_t TraceTimeNowNs() {
   return static_cast<uint64_t>(base::GetBootTimeNs().count());
@@ -132,7 +132,7 @@ class RingBuffer {
   void ReadAll(std::function<void(Record*)>);
 
   static RingBuffer* GetInstance() {
-    static RingBuffer* rb = new RingBuffer();
+    thread_local RingBuffer* rb = new RingBuffer();
     return rb;
   }
 

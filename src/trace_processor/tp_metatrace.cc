@@ -42,7 +42,7 @@ ProtoEnum MetatraceCategoriesToProtoEnum(MetatraceCategories categories) {
 
 }  // namespace
 
-Category g_enabled_categories = Category::NONE;
+thread_local Category g_enabled_categories = Category::NONE;
 
 void Enable(MetatraceConfig config) {
   g_enabled_categories = MetatraceCategoriesToProtoEnum(config.categories);
