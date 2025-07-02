@@ -19,6 +19,7 @@
 
 #include <utility>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 
 namespace perfetto {
@@ -61,6 +62,15 @@ class TrackEventSequenceState {
     return thread_instruction_count_;
   }
 
+  double IncrementAndGetCounterValue(uint64_t counter_track_uuid,
+                                     double value) {
+    PERFETTO_CHECK(timestamps_valid());
+    auto [it, inserted] =
+        incremental_counter_values_.Insert(counter_track_uuid, 0.0);
+    *it += value;
+    return *it;
+  }
+
   void SetThreadDescriptor(const protos::pbzero::ThreadDescriptor::Decoder&);
 
  private:
@@ -89,6 +99,9 @@ class TrackEventSequenceState {
   int64_t timestamp_ns_ = 0;
   int64_t thread_timestamp_ns_ = 0;
   int64_t thread_instruction_count_ = 0;
+
+  base::FlatHashMap<uint64_t /* uuid */, double /* value */>
+      incremental_counter_values_;
 
   PersistentState persistent_state_;
 };

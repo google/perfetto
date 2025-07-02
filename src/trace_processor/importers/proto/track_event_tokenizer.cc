@@ -44,7 +44,7 @@
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
-#include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -256,9 +256,6 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     }
 
     // Incrementally encoded counters are only valid on a single sequence.
-    if (counter.is_incremental()) {
-      counter_details.packet_sequence_id = packet.trusted_packet_sequence_id();
-    }
     track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
 
     return ModuleResult::Ignored();
