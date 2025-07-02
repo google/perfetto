@@ -13,28 +13,28 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ColumnControllerRow} from '../column_controller';
+import {ColumnInfo} from '../column_info';
 import {Button} from '../../../../widgets/button';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
-import {Section} from '../../../../widgets/section';
+import {Icon} from '../../../../widgets/icon';
 import protos from '../../../../protos';
 
 export interface Filter {
-  filterOp: string;
-  columnName: ColumnControllerRow;
+  filterOp?: string;
+  columnName?: ColumnInfo;
   stringsRhs: string[];
   doubleRhs: number[];
   intRhs: number[];
+  isValid?: boolean;
 }
 
 export interface FilterAttrs {
-  sourceCols: ColumnControllerRow[];
+  sourceCols: ColumnInfo[];
   filters: Filter[];
 }
 
 export class FilterOperation implements m.ClassComponent<FilterAttrs> {
-  private defaultOp: string = 'EQUAL';
   private availableOperators = [
     'EQUAL',
     'NOT_EQUAL',
@@ -48,22 +48,17 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
   ];
 
   view({attrs}: m.CVnode<FilterAttrs>) {
-    const onAddFilter = (): void => {
-      if (attrs.filters === undefined) {
-        attrs.filters = [];
-      }
-      const firstCheckedColumn = attrs.sourceCols?.find((c) => c.checked);
-      if (!firstCheckedColumn) {
-        return;
-      }
-      attrs.filters?.push({
-        filterOp: this.defaultOp,
-        columnName: firstCheckedColumn,
+    if (
+      attrs.filters.length === 0 ||
+      (attrs.filters[attrs.filters.length - 1].columnName !== undefined &&
+        attrs.filters[attrs.filters.length - 1].filterOp !== undefined)
+    ) {
+      attrs.filters.push({
         stringsRhs: [],
         doubleRhs: [],
         intRhs: [],
       });
-    };
+    }
 
     const onFilterRemoved = (index: number): void => {
       attrs.filters?.splice(index, 1);
@@ -76,10 +71,10 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
           return m(
             'option',
             {
-              value: col.id,
-              selected: col.id === filter.columnName.id,
+              value: col.name,
+              selected: col.name === filter.columnName?.name,
             },
-            col.id,
+            col.name,
           );
         });
 
@@ -95,47 +90,40 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
       });
 
       return m(
-        Section,
-        {title: `Filter ${index}`},
-        m(Button, {
-          label: 'Remove filter',
-          onclick: () => onFilterRemoved(index),
+        '',
+        m(Icon, {
+          icon: filter.isValid ? 'check_circle' : 'warning',
+          style: {marginRight: '5px'},
         }),
         m(
-          '',
-          ' Column: ',
-          m(
-            Select,
-            {
-              onchange: (e: Event) => {
-                const target = e.target as HTMLSelectElement;
-                const selectedColumn = attrs.sourceCols?.find(
-                  (c) => c.id === target.value,
-                );
-                if (selectedColumn) {
-                  filter.columnName = selectedColumn;
-                }
-              },
+          Select,
+          {
+            onchange: (e: Event) => {
+              const target = e.target as HTMLSelectElement;
+              const selectedColumn = attrs.sourceCols?.find(
+                (c) => c.name === target.value,
+              );
+              if (selectedColumn) {
+                filter.columnName = selectedColumn;
+              }
             },
-            columnOptions,
-          ),
+          },
+          m('option', {disabled: true, selected: !filter.columnName}, 'Column'),
+          columnOptions,
         ),
         m(
-          '',
-          ' Operator: ',
-          m(
-            Select,
-            {
-              onchange: (e: Event) => {
-                const target = e.target as HTMLSelectElement;
-                filter.filterOp = target.value;
-              },
+          Select,
+          {
+            onchange: (e: Event) => {
+              const target = e.target as HTMLSelectElement;
+              filter.filterOp = target.value;
             },
-            operatorOptions,
-          ),
+          },
+          m('option', {disabled: true, selected: !filter.filterOp}, 'Operator'),
+          operatorOptions,
         ),
         m(TextInput, {
-          placeholder: 'Enter values separated by commas',
+          placeholder: 'Value',
           onchange: (e: Event) => {
             const target = e.target as HTMLInputElement;
             const values = target.value
@@ -156,15 +144,24 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
             }
           },
         }),
+        m(Button, {
+          label: 'X',
+          onclick: () => onFilterRemoved(index),
+        }),
       );
     });
 
     return m(
-      '',
-      m(Button, {
-        label: 'Add Filter',
-        onclick: onAddFilter,
-      }),
+      'div',
+      {
+        style: {
+          display: 'flex',
+          flexDirection: 'row',
+          gap: '10px',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+        },
+      },
       filterWidgets,
     );
   }
@@ -200,8 +197,8 @@ export function FilterToProto(
   filter: Filter,
 ): protos.PerfettoSqlStructuredQuery.Filter {
   const newFilter = new protos.PerfettoSqlStructuredQuery.Filter();
-  newFilter.columnName = filter.columnName.id;
-  newFilter.op = StringToFilterOp(filter.filterOp);
+  newFilter.columnName = filter.columnName!.name;
+  newFilter.op = StringToFilterOp(filter.filterOp!);
   newFilter.doubleRhs = filter.doubleRhs;
   newFilter.int64Rhs = filter.intRhs;
   newFilter.stringRhs = filter.stringsRhs;

@@ -12,16 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../assets/widgets/theme";
-@import "./query_builder/builder.scss";
+@import "../../../../assets/widgets/theme";
 
-.pf-explore-page {
-  position: relative;
-  overflow: auto;
-  padding: 0.25rem;
+.pf-query-operations {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 
-  &__header {
-    display: flex;
-    align-items: center;
+  .section {
+    padding: 1rem;
+    border: 1px solid $pf-minimal-border;
+    border-radius: 0.5rem;
+    background-color: $pf-primary-foreground;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+
+    h2 {
+      margin-top: 0;
+      margin-bottom: 1rem;
+      color: $pf-minimal-foreground;
+      font-family: "Roboto", sans-serif;
+      font-size: 1.2em;
+      font-weight: 500;
+    }
   }
 }
