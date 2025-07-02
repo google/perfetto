@@ -125,6 +125,48 @@ SELECT
   id
 FROM expected_frame_timeline_slice;
 
+-- Contains frames with missed SF or HWUI callbacks.
+CREATE PERFETTO TABLE _vsync_missed_callback AS
+SELECT
+  CAST(str_split(name, 'Callback#', 1) AS INTEGER) AS vsync,
+  max(name GLOB '*SF*') AS sf_callback_missed,
+  max(name GLOB '*HWUI*') AS hwui_callback_missed
+FROM slice
+WHERE
+  name GLOB '*FT#Missed*Callback*'
+GROUP BY
+  vsync;
+
+CREATE PERFETTO TABLE _android_jank_cuj_sf_process AS
+SELECT
+  *
+FROM process
+WHERE
+  process.name = '/system/bin/surfaceflinger'
+LIMIT 1;
+
+-- Match the frame timeline on the app side with the frame timeline on the SF side.
+-- In cases where there are multiple layers drawn, there would be separate frame timeline
+-- slice for each of the layers. GROUP BY is used to deduplicate these rows.
+CREATE PERFETTO TABLE android_app_to_sf_vsync_match AS
+SELECT
+  app_timeline.upid AS app_upid,
+  CAST(app_timeline.name AS INTEGER) AS app_vsync,
+  sf_process.upid AS sf_upid,
+  CAST(sf_timeline.name AS INTEGER) AS sf_vsync
+FROM actual_frame_timeline_slice AS app_timeline
+JOIN directly_connected_flow(app_timeline.id) AS flow
+  ON flow.slice_out = app_timeline.id
+JOIN actual_frame_timeline_slice AS sf_timeline
+  ON flow.slice_in = sf_timeline.id
+JOIN _android_jank_cuj_sf_process AS sf_process
+  ON sf_timeline.upid = sf_process.upid
+GROUP BY
+  app_upid,
+  app_vsync,
+  sf_upid,
+  sf_vsync;
+
 -- TODO(b/384322064) Match actual timeline slice with correct draw frame using layer name.
 -- All slices related to one frame. Aggregates `Choreographer#doFrame`,
 -- `actual_frame_timeline_slice` and `expected_frame_timeline_slice` slices.
