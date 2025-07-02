@@ -212,11 +212,6 @@ class TrackEventParser::EventImporter {
     category_id_ = ParseTrackEventCategory();
     name_id_ = ParseTrackEventName();
 
-    if (context_->storage->GetString(name_id_).StartsWith(
-            "NavigationControllerImpl")) {
-      PERFETTO_ELOG("%s", context_->storage->GetString(name_id_).c_str());
-    }
-
     if (context_->content_analyzer) {
       PacketAnalyzer::SampleAnnotation annotation;
       annotation.emplace_back(parser_->event_category_key_id_, category_id_);

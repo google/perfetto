@@ -426,12 +426,10 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     std::optional<double> value;
     if (event.has_counter_value()) {
       value = track_event_tracker_->ConvertToAbsoluteCounterValue(
-          track_uuid, packet.trusted_packet_sequence_id(),
-          static_cast<double>(event.counter_value()));
+          state.get(), track_uuid, static_cast<double>(event.counter_value()));
     } else {
       value = track_event_tracker_->ConvertToAbsoluteCounterValue(
-          track_uuid, packet.trusted_packet_sequence_id(),
-          event.double_counter_value());
+          state.get(), track_uuid, event.double_counter_value());
     }
 
     if (!value) {
@@ -447,8 +445,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
   size_t index = 0;
   const protozero::RepeatedFieldIterator<uint64_t> kEmptyIterator;
   auto result = AddExtraCounterValues(
-      data, index, packet.trusted_packet_sequence_id(),
-      event.extra_counter_values(), event.extra_counter_track_uuids(),
+      *state, data, index, event.extra_counter_values(),
+      event.extra_counter_track_uuids(),
       defaults ? defaults->extra_counter_track_uuids() : kEmptyIterator);
   if (!result.ok()) {
     PERFETTO_DLOG("%s", result.c_message());
@@ -456,8 +454,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     return ModuleResult::Handled();
   }
   result = AddExtraCounterValues(
-      data, index, packet.trusted_packet_sequence_id(),
-      event.extra_double_counter_values(),
+      *state, data, index, event.extra_double_counter_values(),
       event.extra_double_counter_track_uuids(),
       defaults ? defaults->extra_double_counter_track_uuids() : kEmptyIterator);
   if (!result.ok()) {
@@ -473,9 +470,9 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
 
 template <typename T>
 base::Status TrackEventTokenizer::AddExtraCounterValues(
+    PacketSequenceStateGeneration& state,
     TrackEventData& data,
     size_t& index,
-    uint32_t trusted_packet_sequence_id,
     protozero::RepeatedFieldIterator<T> value_it,
     protozero::RepeatedFieldIterator<uint64_t> packet_track_uuid_it,
     protozero::RepeatedFieldIterator<uint64_t> default_track_uuid_it) {
@@ -508,8 +505,7 @@ base::Status TrackEventTokenizer::AddExtraCounterValues(
     }
     std::optional<double> abs_value =
         track_event_tracker_->ConvertToAbsoluteCounterValue(
-            *track_uuid_it, trusted_packet_sequence_id,
-            static_cast<double>(*value_it));
+            &state, *track_uuid_it, static_cast<double>(*value_it));
     if (!abs_value) {
       return base::ErrStatus(
           "Ignoring TrackEvent with invalid extra counter track");
