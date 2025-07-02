@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE android.frames.timeline;
+
 CREATE OR REPLACE PERFETTO FUNCTION vsync_from_name(slice_name STRING)
 RETURNS STRING AS
 SELECT CAST(STR_SPLIT($slice_name, " ", 1) AS INTEGER);
@@ -175,21 +177,12 @@ SELECT
   cuj_id,
   do_frame.upid AS app_upid,
   do_frame.vsync AS app_vsync,
-  sf_process.upid AS sf_upid,
-  CAST(sf_timeline.name AS INTEGER) AS sf_vsync
+  app_sf_match.sf_upid,
+  app_sf_match.sf_vsync
 FROM android_jank_cuj_do_frame_slice do_frame
-JOIN actual_frame_timeline_slice app_timeline
-  ON do_frame.upid = app_timeline.upid
-    AND do_frame.vsync = CAST(app_timeline.name AS INTEGER)
-JOIN directly_connected_flow(app_timeline.id) flow
-  ON flow.slice_out = app_timeline.id
-JOIN actual_frame_timeline_slice sf_timeline
-  ON flow.slice_in = sf_timeline.id
-JOIN android_jank_cuj_sf_process sf_process
-  ON sf_timeline.upid = sf_process.upid
--- In cases where there are multiple layers drawn we would have separate frame timeline
--- slice for each of the layers. GROUP BY to deduplicate these rows.
-GROUP BY cuj_id, app_upid, app_vsync, sf_upid, sf_vsync;
+JOIN android_app_to_sf_vsync_match app_sf_match
+  ON do_frame.vsync = app_sf_match.app_vsync
+  AND do_frame.upid = app_sf_match.app_upid;
 
 CREATE OR REPLACE PERFETTO FUNCTION find_android_jank_cuj_sf_main_thread_slice(
   slice_name_glob STRING)

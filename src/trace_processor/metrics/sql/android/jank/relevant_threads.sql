@@ -13,6 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE android.frames.timeline;
 INCLUDE PERFETTO MODULE slices.with_context;
 
 DROP TABLE IF EXISTS android_jank_cuj_main_thread;
@@ -53,9 +54,7 @@ SELECT * FROM ANDROID_JANK_CUJ_APP_THREAD('HWC release');
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_process;
 CREATE PERFETTO TABLE android_jank_cuj_sf_process AS
-SELECT * FROM process
-WHERE process.name = '/system/bin/surfaceflinger'
-LIMIT 1;
+SELECT * FROM _android_jank_cuj_sf_process;
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_main_thread;
 CREATE PERFETTO TABLE android_jank_cuj_sf_main_thread AS
