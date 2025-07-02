@@ -44,10 +44,10 @@ runs:
         # relevant for the buildtools folder or refactor the buildtools folder
         # into two: one for the cachable outputs and the other for extra
         # files which should not be cached.
-        key: buildtools-${{ steps.cachekey.outputs.suffix }}-${{ hashFiles('tools/install-build-deps', 'buildtools/BUILD.gn') }}
+        key: buildtools-${{ hashFiles('buildtools/BUILD.gn') }}-${{ steps.cachekey.outputs.suffix }}-${{ hashFiles('tools/install-build-deps') }}
         restore-keys: |
-          buildtools-${{ steps.cachekey.outputs.suffix }}-
-          buildtools
+          buildtools-${{ hashFiles('buildtools/BUILD.gn') }}-${{ steps.cachekey.outputs.suffix }}-
+          buildtools-${{ hashFiles('buildtools/BUILD.gn') }}
 
     - name: install-build-deps
       run: tools/install-build-deps ${{ inputs.install-flags }}
@@ -59,4 +59,4 @@ runs:
       with:
         path: buildtools
         # TODO(lalitm): see the comment above about the cache key.
-        key: buildtools-${{ steps.cachekey.outputs.suffix }}-${{ hashFiles('tools/install-build-deps', 'buildtools/BUILD.gn') }}
+        key: buildtool-${{ hashFiles('buildtools/BUILD.gn') }}-${{ steps.cachekey.outputs.suffix }}-${{ hashFiles('tools/install-build-deps') }}
