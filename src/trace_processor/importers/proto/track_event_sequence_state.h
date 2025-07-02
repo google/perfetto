@@ -64,7 +64,6 @@ class TrackEventSequenceState {
 
   double IncrementAndGetCounterValue(uint64_t counter_track_uuid,
                                      double value) {
-    PERFETTO_CHECK(timestamps_valid());
     auto [it, inserted] =
         incremental_counter_values_.Insert(counter_track_uuid, 0.0);
     *it += value;
