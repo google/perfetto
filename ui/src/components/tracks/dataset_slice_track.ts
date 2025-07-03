@@ -381,6 +381,9 @@ export function renderTooltip<T>(
   return [
     m('', exists(durationFormatted) && m('b', durationFormatted), ' ', title),
     extras,
+    slice.count > 1
+      ? m('div', `and ${slice.count - 1} other events`)
+      : undefined,
   ];
 }
 

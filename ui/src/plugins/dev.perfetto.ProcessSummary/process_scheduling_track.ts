@@ -46,6 +46,7 @@ interface Data extends TrackData {
   maxCpu: number;
 
   // Slices are stored in a columnar fashion. All fields have the same length.
+  counts: Uint32Array;
   starts: BigInt64Array;
   ends: BigInt64Array;
   utids: Uint32Array;
@@ -61,6 +62,7 @@ export interface Config {
 export class ProcessSchedulingTrack implements TrackRenderer {
   private mousePos?: Point2D;
   private utidHoveredInThisTrack = -1;
+  private countHoveredInThisTrack = -1;
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
   private trackUuid = uuidv4Sql();
 
@@ -169,6 +171,7 @@ export class ProcessSchedulingTrack implements TrackRenderer {
       resolution,
       length: numRows,
       maxCpu: this.cpuCount,
+      counts: new Uint32Array(numRows),
       starts: new BigInt64Array(numRows),
       ends: new BigInt64Array(numRows),
       cpus: new Uint32Array(numRows),
@@ -176,6 +179,7 @@ export class ProcessSchedulingTrack implements TrackRenderer {
     };
 
     const it = queryRes.iter({
+      count: NUM,
       ts: LONG,
       dur: LONG,
       cpu: NUM,
@@ -187,6 +191,7 @@ export class ProcessSchedulingTrack implements TrackRenderer {
       const dur = it.dur;
       const end = Time.add(start, dur);
 
+      slices.counts[row] = it.count;
       slices.starts[row] = start;
       slices.ends[row] = end;
       slices.cpus[row] = it.cpu;
@@ -206,6 +211,7 @@ export class ProcessSchedulingTrack implements TrackRenderer {
         (z.ts / ${bucketSize}) * ${bucketSize} as ts,
         iif(s.dur = -1, s.dur, max(z.dur, ${bucketSize})) as dur,
         s.id,
+        z.count,
         z.depth as cpu,
         utid
       from process_scheduling_${this.trackUuid}(
@@ -233,9 +239,21 @@ export class ProcessSchedulingTrack implements TrackRenderer {
 
     if (hoveredThread.pid !== undefined) {
       const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
-      return m('.tooltip', [m('div', pidText), m('div', tidText)]);
+      return m('.tooltip', [
+        m('div', pidText),
+        m('div', tidText),
+        this.countHoveredInThisTrack > 1
+          ? m('div', `and ${this.countHoveredInThisTrack - 1} other events`)
+          : undefined,
+      ]);
     } else {
-      return m('.tooltip', tidText);
+      return m(
+        '.tooltip',
+        tidText,
+        this.countHoveredInThisTrack > 1
+          ? m('div', `and ${this.countHoveredInThisTrack - 1} other events`)
+          : undefined,
+      );
     }
   }
 
@@ -305,6 +323,7 @@ export class ProcessSchedulingTrack implements TrackRenderer {
     if (data === undefined) return;
     if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
       this.utidHoveredInThisTrack = -1;
+      this.countHoveredInThisTrack = -1;
       this.trace.timeline.hoveredUtid = undefined;
       this.trace.timeline.hoveredPid = undefined;
       return;
@@ -317,13 +336,16 @@ export class ProcessSchedulingTrack implements TrackRenderer {
     const [i, j] = searchRange(data.starts, t, searchEq(data.cpus, cpu));
     if (i === j || i >= data.starts.length || t > data.ends[i]) {
       this.utidHoveredInThisTrack = -1;
+      this.countHoveredInThisTrack = -1;
       this.trace.timeline.hoveredUtid = undefined;
       this.trace.timeline.hoveredPid = undefined;
       return;
     }
 
     const utid = data.utids[i];
+    const count = data.counts[i];
     this.utidHoveredInThisTrack = utid;
+    this.countHoveredInThisTrack = count;
     const threadInfo = this.threads.get(utid);
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     const pid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
