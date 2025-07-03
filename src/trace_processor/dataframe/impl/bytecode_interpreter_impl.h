@@ -38,6 +38,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
+#include "src/base/radix_sort.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
@@ -1030,18 +1031,28 @@ class InterpreterImpl {
     PERFETTO_DCHECK(rank_map_ptr && rank_map_ptr.get());
     auto& rank_map = *rank_map_ptr;
 
-    std::vector<StringPool::Id> ids_to_sort;
-    ids_to_sort.reserve(rank_map.size());
+    struct SortToken {
+      std::string_view str_view;
+      StringPool::Id id;
+      PERFETTO_ALWAYS_INLINE bool operator<(const SortToken& other) const {
+        return str_view < other.str_view;
+      }
+    };
+    auto ids_to_sort = std::make_unique<SortToken[]>(rank_map.size());
+    auto scratch = std::make_unique<SortToken[]>(rank_map.size());
+    uint32_t i = 0;
     for (auto it = rank_map.GetIterator(); it; ++it) {
-      ids_to_sort.push_back(it.key());
+      base::StringView str_view = state_.string_pool->Get(it.key());
+      ids_to_sort[i++] = SortToken{
+          std::string_view(str_view.data(), str_view.size()),
+          it.key(),
+      };
     }
-    std::sort(ids_to_sort.begin(), ids_to_sort.end(),
-              [this](StringPool::Id a, StringPool::Id b) {
-                return state_.string_pool->Get(a) < state_.string_pool->Get(b);
-              });
-
-    for (uint32_t rank = 0; rank < ids_to_sort.size(); ++rank) {
-      auto* it = rank_map.Find(ids_to_sort[rank]);
+    auto* sorted = base::MsdRadixSort(
+        ids_to_sort.get(), ids_to_sort.get() + rank_map.size(), scratch.get(),
+        [](const SortToken& token) { return token.str_view; });
+    for (uint32_t rank = 0; rank < rank_map.size(); ++rank) {
+      auto* it = rank_map.Find(sorted[rank].id);
       PERFETTO_DCHECK(it);
       *it = rank;
     }
@@ -1063,22 +1074,17 @@ class InterpreterImpl {
       uint32_t index;
       uint32_t buf_offset;
     };
-    std::vector<SortToken> p;
-    p.reserve(num_indices);
+    auto p = std::make_unique<SortToken[]>(num_indices);
+    auto q = std::make_unique<SortToken[]>(num_indices);
     for (uint32_t i = 0; i < num_indices; ++i) {
-      p.push_back({indices.b[i], i * stride});
+      p[i] = {indices.b[i], i * stride};
     }
-    // TODO(lalitm): this does *not* need to be a stable sort but we're using it
-    // right now to avoid breaking people who are implicitly relying on the
-    // stability. Once dataframe has landed and been stable for a while, we
-    // should switch away from stable_sort as std::sort is much faster and if we
-    // use a specialized algorithm like radix sort, it can be even faster still.
-    std::stable_sort(
-        p.begin(), p.end(), [buf, stride](SortToken a, SortToken b) {
-          return memcmp(buf + a.buf_offset, buf + b.buf_offset, stride) < 0;
-        });
+    auto counts = std::unique_ptr<uint32_t[]>(new uint32_t[1 << 16]());
+    auto* res = base::RadixSort(
+        p.get(), p.get() + num_indices, q.get(), counts.get(), stride,
+        [buf](const SortToken& token) { return buf + token.buf_offset; });
     for (uint32_t i = 0; i < num_indices; ++i) {
-      indices.b[i] = p[i].index;
+      indices.b[i] = res[i].index;
     }
   }
 
