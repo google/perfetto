@@ -19,10 +19,12 @@
 
 #include <array>
 #include <functional>
+#include <memory>
 #include <vector>
 
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/metatrace_events.h"
+#include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/trace_processor/metatrace_config.h"
@@ -132,8 +134,9 @@ class RingBuffer {
   void ReadAll(std::function<void(Record*)>);
 
   static RingBuffer* GetInstance() {
-    thread_local RingBuffer* rb = new RingBuffer();
-    return rb;
+    thread_local base::NoDestructor<std::unique_ptr<RingBuffer>> rb(
+        new RingBuffer());
+    return rb.ref().get();
   }
 
   uint64_t IndexOf(Record* record) {
