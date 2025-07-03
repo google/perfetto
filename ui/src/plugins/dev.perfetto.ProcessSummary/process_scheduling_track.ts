@@ -237,23 +237,13 @@ export class ProcessSchedulingTrack implements TrackRenderer {
 
     const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
 
+    const count = this.countHoveredInThisTrack;
+    const countDiv = count > 1 && m('div', `and ${count - 1} other events`);
     if (hoveredThread.pid !== undefined) {
       const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
-      return m('.tooltip', [
-        m('div', pidText),
-        m('div', tidText),
-        this.countHoveredInThisTrack > 1
-          ? m('div', `and ${this.countHoveredInThisTrack - 1} other events`)
-          : undefined,
-      ]);
+      return m('.tooltip', [m('div', pidText), m('div', tidText), countDiv]);
     } else {
-      return m(
-        '.tooltip',
-        tidText,
-        this.countHoveredInThisTrack > 1
-          ? m('div', `and ${this.countHoveredInThisTrack - 1} other events`)
-          : undefined,
-      );
+      return m('.tooltip', tidText, countDiv);
     }
   }
 
