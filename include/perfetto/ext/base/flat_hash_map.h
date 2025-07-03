@@ -24,6 +24,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <type_traits>
 
 namespace perfetto {
 namespace base {
@@ -264,13 +265,19 @@ class FlatHashMap {
     if (PERFETTO_UNLIKELY(capacity_ == 0))
       return;
 
-    for (size_t i = 0; i < capacity_; ++i) {
-      const uint8_t tag = tags_[i];
-      if (tag != kFreeSlot && tag != kTombstone)
-        EraseInternal(i);
+    if (!std::is_trivially_destructible<Key>::value ||
+        !std::is_trivially_destructible<Value>::value) {
+      for (size_t i = 0; i < capacity_; ++i) {
+        const uint8_t tag = tags_[i];
+        if (tag != kFreeSlot && (AppendOnly || tag != kTombstone)) {
+          keys_[i].~Key();
+          values_[i].~Value();
+        }
+      }
     }
-    // Clear all tombstones. We really need to do this for AppendOnly.
-    MaybeGrowAndRehash(/*grow=*/false);
+    memset(&tags_[0], kFreeSlot, capacity_);
+    size_ = 0;
+    max_probe_length_ = 0;
   }
 
   Value& operator[](Key key) {

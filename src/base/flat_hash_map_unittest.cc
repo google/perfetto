@@ -383,6 +383,46 @@ TYPED_TEST(FlatHashMapTest, VsUnorderedMap) {
   }
 }
 
+TYPED_TEST(FlatHashMapTest, Clear) {
+  {
+    FlatHashMap<Key, Value, Hasher, typename TestFixture::Probe> fmap;
+    ASSERT_EQ(Key::instances, 0);
+    ASSERT_EQ(Value::instances, 0);
+
+    fmap.Insert(Key(1), Value(1));
+    fmap.Insert(Key(2), Value(2));
+    ASSERT_EQ(Key::instances, 2);
+    ASSERT_EQ(Value::instances, 2);
+
+    fmap.Clear();
+    ASSERT_EQ(fmap.size(), 0u);
+    ASSERT_EQ(Key::instances, 0);
+    ASSERT_EQ(Value::instances, 0);
+
+    fmap.Insert(Key(3), Value(3));
+    ASSERT_EQ(fmap.size(), 1u);
+    ASSERT_EQ(Key::instances, 1);
+    ASSERT_EQ(Value::instances, 1);
+  }
+  ASSERT_EQ(Key::instances, 0);
+  ASSERT_EQ(Value::instances, 0);
+
+  {
+    FlatHashMap<int, int, base::Hash<int>, typename TestFixture::Probe> fmap;
+    fmap.Insert(1, 1);
+    fmap.Insert(2, 2);
+    ASSERT_EQ(fmap.size(), 2u);
+
+    fmap.Clear();
+    ASSERT_EQ(fmap.size(), 0u);
+
+    fmap.Insert(3, 3);
+    ASSERT_EQ(fmap.size(), 1u);
+    ASSERT_NE(fmap.Find(3), nullptr);
+    ASSERT_EQ(*fmap.Find(3), 3);
+  }
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto
