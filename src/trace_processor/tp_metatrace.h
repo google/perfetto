@@ -19,7 +19,6 @@
 
 #include <array>
 #include <functional>
-#include <memory>
 #include <vector>
 
 #include "perfetto/base/time.h"
@@ -133,10 +132,9 @@ class RingBuffer {
 
   void ReadAll(std::function<void(Record*)>);
 
-  static RingBuffer* GetInstance() {
-    thread_local base::NoDestructor<std::unique_ptr<RingBuffer>> rb(
-        new RingBuffer());
-    return rb.ref().get();
+  static RingBuffer& GetInstance() {
+    thread_local base::NoDestructor<RingBuffer> rb;
+    return rb.ref();
   }
 
   uint64_t IndexOf(Record* record) {
@@ -169,7 +167,7 @@ class ScopedEvent {
   ~ScopedEvent() {
     if (PERFETTO_LIKELY(!record_))
       return;
-    if (RingBuffer::GetInstance()->HasOverwritten(record_idx_))
+    if (RingBuffer::GetInstance().HasOverwritten(record_idx_))
       return;
     auto now = TraceTimeNowNs();
     record_->duration_ns = now - record_->timestamp_ns;
@@ -189,7 +187,7 @@ class ScopedEvent {
 
     ScopedEvent event;
     std::tie(event.record_idx_, event.record_) =
-        RingBuffer::GetInstance()->AppendRecord(event_id);
+        RingBuffer::GetInstance().AppendRecord(event_id);
     args_fn(event.record_);
     return event;
   }
