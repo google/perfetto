@@ -102,10 +102,6 @@ void TrackEventModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
   }
 }
 
-void TrackEventModule::OnIncrementalStateCleared(uint32_t packet_sequence_id) {
-  track_event_tracker_->OnIncrementalStateCleared(packet_sequence_id);
-}
-
 void TrackEventModule::OnFirstPacketOnSequence(uint32_t packet_sequence_id) {
   track_event_tracker_->OnFirstPacketOnSequence(packet_sequence_id);
 }

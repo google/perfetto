@@ -334,7 +334,13 @@ additional_args = {
     'perfetto_src_android_sdk_java_test_perfetto_trace_test_lib': [
         ('static_libs', {'perfetto_trace_java_protos'})
     ],
-    'perfetto_trace_lib_java': [('sdk_version', 'module_current')]
+    'perfetto_trace_lib_java': [
+        ('sdk_version', 'module_current'),
+        # Framework should use 'perfetto_trace_lib_framework_java' instead.
+        ('visibility', {':__subpackages__'}),
+    ],
+    # Framework should use 'libperfetto_framework_jni' instead.
+    'libperfetto_jni': [('visibility', {':__subpackages__'}),],
 }
 
 
@@ -630,6 +636,7 @@ class Module(object):
     self.jni_libs: Optional[List[str]] = None
     self.jni_uses_platform_apis: Optional[bool] = None
     self.jarjar_rules: Optional[str] = None
+    self.visibility = set()
 
   def to_string(self, output):
     if self.comment:
@@ -679,6 +686,7 @@ class Module(object):
     self._output_field(output, 'jni_libs')
     self._output_field(output, 'jni_uses_platform_apis')
     self._output_field(output, 'jarjar_rules')
+    self._output_field(output, 'visibility')
 
     target_out = []
     self._output_field(target_out, 'android')
@@ -1236,7 +1244,7 @@ def _extract_defaults(module: Module, blueprint: Blueprint):
                            module.gn_target)
   items_copy = dict(module.__dict__)
   for k, v in items_copy.items():
-    if k not in ('type', 'name', 'comment', 'gn_target'):
+    if k not in ('type', 'name', 'comment', 'gn_target', 'visibility'):
       defaults_module.__dict__[k] = v
       module.__dict__[k] = None
   blueprint.add_module(defaults_module)

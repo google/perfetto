@@ -31,6 +31,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/dataframe/cursor_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/specs.h"
@@ -138,6 +139,27 @@ std::string CreateTableStmt(const dataframe::DataframeSpec& spec) {
   }
   create_stmt += "PRIMARY KEY(" + id + ")) WITHOUT ROWID";
   return create_stmt;
+}
+
+DataframeModule::DfCursor* CreateAndPrepareCursor(DataframeModule::Vtab* v,
+                                                  int idxNum,
+                                                  const char* idxStr) {
+  // L2 cache miss: create, prepare, and store a new cursor.
+  auto plan = dataframe::Dataframe::QueryPlan::Deserialize(idxStr);
+  PERFETTO_TP_TRACE(
+      metatrace::Category::QUERY_TIMELINE, "DATAFRAME_FILTER_PREPARE",
+      [&plan, idxNum](metatrace::Record* record) {
+        record->AddArg("idxNum",
+                       base::StackString<32>("%d", idxNum).string_view());
+        auto str = plan.BytecodeToString();
+        for (uint32_t i = 0; i < str.size(); ++i) {
+          base::StackString<32> c("bytecode[%u]", i);
+          record->AddArg(c.string_view(), str[i]);
+        }
+      });
+  auto df_cursor = std::make_unique<DataframeModule::DfCursor>();
+  v->dataframe->PrepareCursor(plan, *df_cursor);
+  return v->df_cursor_pool.Insert(idxNum, std::move(df_cursor)).first->get();
 }
 
 }  // namespace
@@ -412,14 +434,26 @@ int DataframeModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
   return SQLITE_OK;
 }
 
-int DataframeModule::Open(sqlite3_vtab*, sqlite3_vtab_cursor** cursor) {
-  std::unique_ptr<Cursor> c = std::make_unique<Cursor>();
-  *cursor = c.release();
+int DataframeModule::Open(sqlite3_vtab* pVtab, sqlite3_vtab_cursor** ppCursor) {
+  auto* v = GetVtab(pVtab);
+  Cursor* c = nullptr;
+  if (v->free_cursors.empty()) {
+    v->cursor_pool.emplace_back(std::make_unique<Cursor>());
+    c = v->cursor_pool.back().get();
+  } else {
+    c = v->free_cursors.back();
+    v->free_cursors.pop_back();
+  }
+  c->df_cursor = nullptr;
+  c->idx_num = -1;
+  *ppCursor = c;
   return SQLITE_OK;
 }
 
-int DataframeModule::Close(sqlite3_vtab_cursor* cursor) {
-  std::unique_ptr<Cursor> c(GetCursor(cursor));
+int DataframeModule::Close(sqlite3_vtab_cursor* pCursor) {
+  auto* c = GetCursor(pCursor);
+  auto* v = GetVtab(c->pVtab);
+  v->free_cursors.push_back(c);
   return SQLITE_OK;
 }
 
@@ -428,24 +462,15 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
                             const char* idxStr,
                             int argc,
                             sqlite3_value** argv) {
-  auto* v = GetVtab(cur->pVtab);
   auto* c = GetCursor(cur);
-  if (idxStr != c->last_idx_str) {
-    auto plan = dataframe::Dataframe::QueryPlan::Deserialize(idxStr);
-    PERFETTO_TP_TRACE(
-        metatrace::Category::QUERY_TIMELINE, "DATAFRAME_FILTER_PREPARE",
-        [&plan, idxNum](metatrace::Record* record) {
-          record->AddArg("idxNum",
-                         base::StackString<32>("%d", idxNum).string_view());
-          auto str = plan.BytecodeToString();
-          for (uint32_t i = 0; i < str.size(); ++i) {
-            base::StackString<32> c("bytecode[%u]", i);
-            record->AddArg(c.string_view(), str[i]);
-          }
-        });
-    v->dataframe->PrepareCursor(plan, c->df_cursor);
-    c->last_idx_str = idxStr;
+  auto* v = GetVtab(cur->pVtab);
+
+  if (PERFETTO_UNLIKELY(c->idx_num != idxNum)) {
+    auto it = v->df_cursor_pool.Find(idxNum);
+    c->df_cursor = it ? it->get() : CreateAndPrepareCursor(v, idxNum, idxStr);
+    c->idx_num = idxNum;
   }
+
   // SQLite's API claims it will never pass more than 16 arguments
   // so assert that here as our std::array is fixed size.
   PERFETTO_DCHECK(argc <= 16);
@@ -453,29 +478,45 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
   memcpy(static_cast<void*>(fetcher.sqlite_value.data()),
          static_cast<void*>(argv),
          sizeof(sqlite3_value*) * static_cast<size_t>(argc));
-  c->df_cursor.Execute(fetcher);
+  c->df_cursor->Execute(fetcher);
   return SQLITE_OK;
 }
 
 int DataframeModule::Next(sqlite3_vtab_cursor* cur) {
-  GetCursor(cur)->df_cursor.Next();
+  GetCursor(cur)->df_cursor->Next();
   return SQLITE_OK;
 }
 
 int DataframeModule::Eof(sqlite3_vtab_cursor* cur) {
-  return GetCursor(cur)->df_cursor.Eof();
+  return GetCursor(cur)->df_cursor->Eof();
 }
 
 int DataframeModule::Column(sqlite3_vtab_cursor* cur,
                             sqlite3_context* ctx,
                             int raw_n) {
   SqliteResultCallback visitor{{}, ctx};
-  GetCursor(cur)->df_cursor.Cell(static_cast<uint32_t>(raw_n), visitor);
+  GetCursor(cur)->df_cursor->Cell(static_cast<uint32_t>(raw_n), visitor);
   return SQLITE_OK;
 }
 
 int DataframeModule::Rowid(sqlite3_vtab_cursor*, sqlite_int64*) {
   return SQLITE_ERROR;
+}
+
+int DataframeModule::Commit(sqlite3_vtab* t) {
+  auto* v = GetVtab(t);
+  v->df_cursor_pool.Clear();
+  v->free_cursors.clear();
+  v->cursor_pool.clear();
+  return SQLITE_OK;
+}
+
+int DataframeModule::Rollback(sqlite3_vtab* t) {
+  auto* v = GetVtab(t);
+  v->df_cursor_pool.Clear();
+  v->free_cursors.clear();
+  v->cursor_pool.clear();
+  return SQLITE_OK;
 }
 
 }  // namespace perfetto::trace_processor

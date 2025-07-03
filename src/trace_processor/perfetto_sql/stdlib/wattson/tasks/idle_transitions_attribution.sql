@@ -17,56 +17,37 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE wattson.estimates;
 
-INCLUDE PERFETTO MODULE wattson.tasks.threads_w_processes;
+INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
 
 INCLUDE PERFETTO MODULE wattson.utils;
 
--- Get slice info of threads/processes
-CREATE PERFETTO TABLE _thread_process_slices AS
-SELECT
-  ts,
-  dur,
-  cpu,
-  utid,
-  upid
-FROM _sched_w_thread_process_package_summary;
-
--- Get slices only where there is transition from deep idle to active
-CREATE PERFETTO TABLE _idle_exits AS
-SELECT
-  ts,
-  dur,
-  cpu,
-  idle
-FROM _adjusted_deep_idle
-WHERE
-  idle = -1 AND dur > 0;
-
 -- Gets the slices where the CPU transitions from deep idle to active, and the
--- associated thread that causes the idle exit
-CREATE PERFETTO TABLE _idle_w_threads AS
+-- associated task that causes the idle exit
+CREATE PERFETTO TABLE _idle_w_tasks AS
 WITH
-  _ii_idle_threads AS (
+  _ii_idle_tasks AS (
     SELECT
       ii.ts,
       ii.dur,
       ii.cpu,
-      threads.utid,
-      threads.upid,
+      tasks.utid,
+      tasks.upid,
       id_1 AS idle_group
     FROM _interval_intersect!(
     (
-      _ii_subquery!(_thread_process_slices),
+      _ii_subquery!(_wattson_task_slices),
       _ii_subquery!(_idle_exits)
     ),
     (cpu)
   ) AS ii
-    JOIN _thread_process_slices AS threads
-      ON threads._auto_id = id_0
+    JOIN _wattson_task_slices AS tasks
+      ON tasks._auto_id = id_0
+    ORDER BY
+      ii.ts ASC
   ),
   -- Since sorted by time, MIN() is fast aggregate function that will return the
   -- first time slice, which will be the utid = 0 slice immediately succeeding the
-  -- idle to active transition, and immediately preceding the active thread
+  -- idle to active transition, and immediately preceding the active task
   first_swapper_slice AS (
     SELECT
       ts,
@@ -74,12 +55,12 @@ WITH
       cpu,
       idle_group,
       min(ts) AS min
-    FROM _ii_idle_threads
+    FROM _ii_idle_tasks
     GROUP BY
       idle_group
   ),
-  -- MIN() here will give the first active thread immediately succeeding the idle
-  -- to active transition slice, which means this the the thread that causes the
+  -- MIN() here will give the first active task immediately succeeding the idle
+  -- to active transition slice, which means this the the task that causes the
   -- idle exit
   first_non_swapper_slice AS (
     SELECT
@@ -88,7 +69,7 @@ WITH
       upid,
       min(ts) AS min,
       min(ts) + dur AS next_ts
-    FROM _ii_idle_threads
+    FROM _ii_idle_tasks
     WHERE
       NOT utid IN (
         SELECT
@@ -109,7 +90,7 @@ WITH
       cpu,
       idle_group,
       max(ts) AS min
-    FROM _ii_idle_threads
+    FROM _ii_idle_tasks
     GROUP BY
       idle_group
   )
@@ -117,24 +98,24 @@ SELECT
   swapper_info.ts,
   swapper_info.dur,
   swapper_info.cpu,
-  thread_info.utid,
-  thread_info.upid
-FROM first_non_swapper_slice AS thread_info
+  task_info.utid,
+  task_info.upid
+FROM first_non_swapper_slice AS task_info
 JOIN first_swapper_slice AS swapper_info
   USING (idle_group)
 UNION ALL
 -- Adds the last slice to idle transition attribution IF this is a singleton
--- thread wakeup. This is true if there is only one thread between swapper idle
--- exits/wakeups. For example, groups with order of swapper, thread X, swapper
--- will be included. Entries that have multiple thread between swappers, such as
--- swapper, thread X, thread Y, swapper will not be included.
+-- task wakeup. This is true if there is only one task between swapper idle
+-- exits/wakeups. For example, groups with order of swapper, task X, swapper
+-- will be included. Entries that have multiple task between swappers, such as
+-- swapper, task X, task Y, swapper will not be included.
 SELECT
   swapper_info.ts,
   swapper_info.dur,
   swapper_info.cpu,
-  thread_info.utid,
-  thread_info.upid
-FROM first_non_swapper_slice AS thread_info
+  task_info.utid,
+  task_info.upid
+FROM first_non_swapper_slice AS task_info
 JOIN last_swapper_slice AS swapper_info
   USING (idle_group)
 WHERE
@@ -146,10 +127,10 @@ CREATE PERFETTO TABLE _idle_transition_cost AS
 SELECT
   ii.ts,
   ii.dur,
-  threads.cpu,
-  threads.utid,
-  threads.upid,
-  CASE threads.cpu
+  tasks.cpu,
+  tasks.utid,
+  tasks.upid,
+  CASE tasks.cpu
     WHEN 0
     THEN power.cpu0_mw
     WHEN 1
@@ -170,13 +151,13 @@ SELECT
   END AS estimated_mw
 FROM _interval_intersect!(
   (
-    _ii_subquery!(_idle_w_threads),
+    _ii_subquery!(_idle_w_tasks),
     _ii_subquery!(_system_state_mw)
   ),
   ()
 ) AS ii
-JOIN _idle_w_threads AS threads
-  ON threads._auto_id = id_0
+JOIN _idle_w_tasks AS tasks
+  ON tasks._auto_id = id_0
 JOIN _system_state_mw AS power
   ON power._auto_id = id_1;
 
@@ -189,7 +170,7 @@ CREATE PERFETTO FUNCTION _filter_idle_attribution(
 )
 RETURNS TABLE (
   idle_cost_mws LONG,
-  utid JOINID(thread.id),
+  utid JOINID(task.id),
   upid JOINID(process.id),
   cpu JOINID(cpu.id)
 ) AS

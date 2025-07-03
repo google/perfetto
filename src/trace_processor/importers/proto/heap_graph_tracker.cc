@@ -392,6 +392,14 @@ void HeapGraphTracker::AddObject(uint32_t seq_id,
   if (obj.heap_type != protos::pbzero::HeapGraphObject::HEAP_TYPE_UNKNOWN) {
     owner_row_ref.set_heap_type(storage_->InternString(base::StringView(
         protos::pbzero::HeapGraphObject_HeapType_Name(obj.heap_type))));
+    if (obj.heap_type == protos::pbzero::HeapGraphObject::HEAP_TYPE_ZYGOTE ||
+        obj.heap_type ==
+            protos::pbzero::HeapGraphObject::HEAP_TYPE_BOOT_IMAGE) {
+      // The ART GC doesn't collect these objects:
+      // https://cs.android.com/android/platform/superproject/main/+/main:art/runtime/gc/collector/mark_compact.cc;l=682;drc=6484611fd45e69db9f33f98bfd6864014b030ecf
+      // Let's mark them as roots.
+      sequence_state.internal_vm_roots.emplace_back(obj.object_id);
+    }
   }
 
   if (obj.self_size == 0) {
@@ -704,6 +712,13 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
         stats::heap_graph_malformed_packet,
         static_cast<int>(sequence_state.current_upid));
   }
+
+  SourceRoot internal_vm_roots;
+  internal_vm_roots.root_type =
+      protos::pbzero::HeapGraphRoot::Type::ROOT_VM_INTERNAL;
+  internal_vm_roots.object_ids = std::move(sequence_state.internal_vm_roots);
+  sequence_state.internal_vm_roots.clear();
+  sequence_state.current_roots.emplace_back(std::move(internal_vm_roots));
 
   for (const SourceRoot& root : sequence_state.current_roots) {
     for (uint64_t obj_id : root.object_ids) {

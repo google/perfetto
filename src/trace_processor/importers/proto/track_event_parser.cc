@@ -1033,9 +1033,8 @@ class TrackEventParser::EventImporter {
       if (!thread_name.size)
         return base::OkStatus();
       auto thread_name_id = storage_->InternString(thread_name);
-      procs->UpdateThreadNameByUtid(
-          *utid_, thread_name_id,
-          ThreadNamePriority::kTrackDescriptorThreadType);
+      procs->UpdateThreadName(*utid_, thread_name_id,
+                              ThreadNamePriority::kTrackDescriptorThreadType);
       return base::OkStatus();
     }
     if (event_name == "process_name") {
@@ -1675,7 +1674,7 @@ UniqueTid TrackEventParser::ParseThreadDescriptor(
     // TODO(skyostil): Remove parsing for legacy chrome_thread_type field.
     name_id = chrome_string_lookup_.GetThreadName(decoder.chrome_thread_type());
   }
-  context_->process_tracker->UpdateThreadNameByUtid(
+  context_->process_tracker->UpdateThreadName(
       utid, name_id, ThreadNamePriority::kTrackDescriptor);
   return utid;
 }
@@ -1689,7 +1688,7 @@ void TrackEventParser::ParseChromeThreadDescriptor(
     return;
 
   StringId name_id = chrome_string_lookup_.GetThreadName(decoder.thread_type());
-  context_->process_tracker->UpdateThreadNameByUtid(
+  context_->process_tracker->UpdateThreadName(
       utid, name_id, ThreadNamePriority::kTrackDescriptorThreadType);
 }
 

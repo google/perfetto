@@ -620,6 +620,27 @@ class TrackEvent(TestSuite):
         "MyDoubleCounter","[NULL]","[NULL]","[NULL]","[NULL]",4500,2.718280
         """))
 
+  def test_incremental_counter_sequences(self):
+    return DiffTestBlueprint(
+        trace=Path('incremental_counter_sequences.textproto'),
+        query="""
+        SELECT
+          ts,
+          value
+        FROM counter
+        JOIN track ON counter.track_id = track.id
+        WHERE
+          track.name = 'MyIncrementalCounter'
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","value"
+        100,100.000000
+        150,50.000000
+        200,110.000000
+        250,55.000000
+        """))
+
   # Clock handling
   def test_track_event_monotonic_trace_clock_slices(self):
     return DiffTestBlueprint(

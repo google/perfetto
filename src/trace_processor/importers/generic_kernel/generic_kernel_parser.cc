@@ -147,7 +147,7 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
         return std::nullopt;
       }
       UniqueTid utid = context_->process_tracker->StartNewThread(ts, tid);
-      context_->process_tracker->UpdateThreadNameByUtid(
+      context_->process_tracker->UpdateThreadName(
           utid, comm_id, ThreadNamePriority::kGenericKernelTask);
       return utid;
     }
@@ -157,8 +157,9 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
     case TaskStateEnum::TASK_STATE_DEAD: {
       auto utid_opt = context_->process_tracker->GetThreadOrNull(tid);
       if (!utid_opt) {
-        utid_opt = context_->process_tracker->UpdateThreadName(
-            tid, comm_id, ThreadNamePriority::kGenericKernelTask);
+        utid_opt = context_->process_tracker->GetOrCreateThread(tid);
+        context_->process_tracker->UpdateThreadName(
+            *utid_opt, comm_id, ThreadNamePriority::kGenericKernelTask);
       } else if (ThreadStateTracker::GetOrCreate(context_)->GetPrevEndState(
                      *utid_opt) == destroyed_string_id_) {
         context_->storage->IncrementStats(
@@ -184,7 +185,7 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
     case TaskStateEnum::TASK_STATE_UNINTERRUPTIBLE_SLEEP:
     case TaskStateEnum::TASK_STATE_STOPPED: {
       UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
-      context_->process_tracker->UpdateThreadNameByUtid(
+      context_->process_tracker->UpdateThreadName(
           utid, comm_id, ThreadNamePriority::kGenericKernelTask);
       return utid;
     }

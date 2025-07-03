@@ -115,14 +115,8 @@ class MockProcessTracker : public ProcessTracker {
                base::StringView cmdline),
               (override));
 
-  MOCK_METHOD(UniqueTid,
-              UpdateThreadName,
-              (int64_t tid,
-               StringId thread_name_id,
-               ThreadNamePriority priority),
-              (override));
   MOCK_METHOD(void,
-              UpdateThreadNameByUtid,
+              UpdateThreadName,
               (UniqueTid utid,
                StringId thread_name_id,
                ThreadNamePriority priority),

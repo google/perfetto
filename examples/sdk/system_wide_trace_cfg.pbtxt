@@ -5,7 +5,6 @@ buffers: {
 data_sources: {
     config {
         name: "linux.process_stats"
-        target_buffer: 1
         process_stats_config {
             scan_all_processes_on_start: true
         }

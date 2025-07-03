@@ -3450,6 +3450,7 @@ class ChromeProcessDescriptor(_message.Message):
     PROCESS_SERVICE_MIRRORING: ChromeProcessDescriptor.ProcessType
     PROCESS_SERVICE_NETWORK: ChromeProcessDescriptor.ProcessType
     PROCESS_SERVICE_PAINTPREVIEW: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_PASSAGE_EMBEDDINGS: ChromeProcessDescriptor.ProcessType
     PROCESS_SERVICE_PRINTCOMPOSITOR: ChromeProcessDescriptor.ProcessType
     PROCESS_SERVICE_PRINTING: ChromeProcessDescriptor.ProcessType
     PROCESS_SERVICE_PROFILEIMPORT: ChromeProcessDescriptor.ProcessType

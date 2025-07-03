@@ -49,8 +49,6 @@ class TrackEventModule : public ProtoImporterModule {
                             const TracePacketData& data,
                             uint32_t field_id) override;
 
-  void OnIncrementalStateCleared(uint32_t) override;
-
   void OnFirstPacketOnSequence(uint32_t) override;
 
   void ParseTrackEventData(const protos::pbzero::TracePacket::Decoder& decoder,

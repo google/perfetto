@@ -690,8 +690,9 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
 
     if (thd.has_name()) {
       StringId thread_name_id = context_->storage->InternString(thd.name());
+      auto utid = context_->process_tracker->GetOrCreateThread(tid);
       context_->process_tracker->UpdateThreadName(
-          tid, thread_name_id, ThreadNamePriority::kProcessTree);
+          utid, thread_name_id, ThreadNamePriority::kProcessTree);
     }
 
     if (thd.has_nstid()) {

@@ -322,13 +322,28 @@ CREATE PERFETTO VIEW android_key_events (
   -- The timestamp of when the input event was processed by the system
   ts TIMESTAMP,
   -- Details of the input event parsed from the proto message
-  arg_set_id ARGSETID
+  arg_set_id ARGSETID,
+  -- Event source e.g. touchscreen, keyboard
+  source LONG,
+  -- Action e.g. down, move
+  action LONG,
+  -- Device id
+  device_id LONG,
+  -- Display id
+  display_id LONG,
+  -- Key code
+  key_code LONG
 ) AS
 SELECT
   id,
   event_id,
   ts,
-  arg_set_id
+  arg_set_id,
+  source,
+  action,
+  device_id,
+  display_id,
+  key_code
 FROM __intrinsic_android_key_events;
 
 -- Motion events processed by the Android framework (from android.input.inputevent data source).
@@ -341,13 +356,25 @@ CREATE PERFETTO VIEW android_motion_events (
   -- The timestamp of when the input event was processed by the system
   ts TIMESTAMP,
   -- Details of the input event parsed from the proto message
-  arg_set_id ARGSETID
+  arg_set_id ARGSETID,
+  -- Event source e.g. touchscreen, keyboard
+  source LONG,
+  -- Action e.g. down, move
+  action LONG,
+  -- Device id
+  device_id LONG,
+  -- Display id
+  display_id LONG
 ) AS
 SELECT
   id,
   event_id,
   ts,
-  arg_set_id
+  arg_set_id,
+  source,
+  action,
+  device_id,
+  display_id
 FROM __intrinsic_android_motion_events;
 
 -- Input event dispatching information in Android (from android.input.inputevent data source).

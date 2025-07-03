@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE wattson.estimates;
-INCLUDE PERFETTO MODULE wattson.tasks.threads_w_processes;
+INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
 
 -- This metric is defined to be for entire trace duration
 DROP VIEW IF EXISTS _wattson_period_window;

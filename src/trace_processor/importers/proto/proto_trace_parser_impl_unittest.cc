@@ -190,14 +190,8 @@ class MockProcessTracker : public ProcessTracker {
                base::StringView cmdline),
               (override));
 
-  MOCK_METHOD(UniqueTid,
-              UpdateThreadName,
-              (int64_t tid,
-               StringId thread_name_id,
-               ThreadNamePriority priority),
-              (override));
   MOCK_METHOD(void,
-              UpdateThreadNameByUtid,
+              UpdateThreadName,
               (UniqueTid utid,
                StringId thread_name_id,
                ThreadNamePriority priority),
@@ -883,14 +877,14 @@ TEST_F(ProtoTraceParserTest, ThreadNameFromThreadDescriptor) {
       .WillRepeatedly(testing::Return(1u));
   EXPECT_CALL(*process_, UpdateThread(11, 15)).WillOnce(testing::Return(2u));
 
-  EXPECT_CALL(*process_, UpdateThreadNameByUtid(
-                             1u, storage_->InternString("OldThreadName"),
-                             ThreadNamePriority::kTrackDescriptor));
+  EXPECT_CALL(*process_,
+              UpdateThreadName(1u, storage_->InternString("OldThreadName"),
+                               ThreadNamePriority::kTrackDescriptor));
   // Packet with same thread, but different name should update the name.
-  EXPECT_CALL(*process_, UpdateThreadNameByUtid(
-                             1u, storage_->InternString("NewThreadName"),
-                             ThreadNamePriority::kTrackDescriptor));
-  EXPECT_CALL(*process_, UpdateThreadNameByUtid(
+  EXPECT_CALL(*process_,
+              UpdateThreadName(1u, storage_->InternString("NewThreadName"),
+                               ThreadNamePriority::kTrackDescriptor));
+  EXPECT_CALL(*process_, UpdateThreadName(
                              2u, storage_->InternString("DifferentThreadName"),
                              ThreadNamePriority::kTrackDescriptor));
 
@@ -1504,16 +1498,16 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
     ev1->set_name("ev3");
   }
 
+  EXPECT_CALL(
+      *process_,
+      UpdateThreadName(1u, storage_->InternString("StackSamplingProfiler"),
+                       ThreadNamePriority::kTrackDescriptorThreadType));
   EXPECT_CALL(*process_,
-              UpdateThreadNameByUtid(
-                  1u, storage_->InternString("StackSamplingProfiler"),
-                  ThreadNamePriority::kTrackDescriptorThreadType));
+              UpdateThreadName(2u, kNullStringId,
+                               ThreadNamePriority::kTrackDescriptor));
   EXPECT_CALL(*process_,
-              UpdateThreadNameByUtid(2u, kNullStringId,
-                                     ThreadNamePriority::kTrackDescriptor));
-  EXPECT_CALL(*process_,
-              UpdateThreadNameByUtid(1u, kNullStringId,
-                                     ThreadNamePriority::kTrackDescriptor));
+              UpdateThreadName(1u, kNullStringId,
+                               ThreadNamePriority::kTrackDescriptor));
   EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1u));
   EXPECT_CALL(*process_, UpdateThread(17, 15)).WillRepeatedly(Return(2u));
 
@@ -1653,8 +1647,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
               PushCounter(1100, testing::DoubleEq(1010000), TrackId{1}));
 
   EXPECT_CALL(*process_,
-              UpdateThreadNameByUtid(1u, storage_->InternString("t1"),
-                                     ThreadNamePriority::kTrackDescriptor));
+              UpdateThreadName(1u, storage_->InternString("t1"),
+                               ThreadNamePriority::kTrackDescriptor));
 
   context_.sorter->ExtractEventsForced();
 

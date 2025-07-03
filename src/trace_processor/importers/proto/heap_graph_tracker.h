@@ -178,6 +178,7 @@ class HeapGraphTracker : public Destructible {
     protos::pbzero::HeapGraphObject::HeapType last_heap_type =
         protos::pbzero::HeapGraphObject::HEAP_TYPE_UNKNOWN;
     std::vector<SourceRoot> current_roots;
+    std::vector<uint64_t> internal_vm_roots;
 
     // Note: the below maps are a mix of std::map and base::FlatHashMap because
     // of the incremental evolution of this code (i.e. when the code was written
