@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -71,7 +71,7 @@ TEST(RadixSort, LargeRandomTest) {
 
   std::vector<uint64_t> sorted_data(result, result + data.size());
   for (auto& item : sorted_data) {
-    item = base::BE16ToHost(item);
+    item = base::BE64ToHost(item);
   }
   std::vector<uint64_t> std_sorted = data;
   std::sort(std_sorted.begin(), std_sorted.end());
@@ -156,13 +156,13 @@ TEST(RadixSort, Stability) {
 
 TEST(MsdRadixSort, SmokeTest) {
   std::vector<TestEntryString> data;
-  data.push_back({"", 0});
+  data.push_back(TestEntryString{"", 0});
   base::StringCopy(data.back().key, "apple", TestEntryString::kMaxKeySize);
-  data.push_back({"", 1});
+  data.push_back(TestEntryString{"", 1});
   base::StringCopy(data.back().key, "banana", TestEntryString::kMaxKeySize);
-  data.push_back({"", 2});
+  data.push_back(TestEntryString{"", 2});
   base::StringCopy(data.back().key, "apricot", TestEntryString::kMaxKeySize);
-  data.push_back({"", 3});
+  data.push_back(TestEntryString{"", 3});
   base::StringCopy(data.back().key, "ban", TestEntryString::kMaxKeySize);
 
   std::vector<TestEntryString> scratch(data.size());
@@ -186,7 +186,7 @@ TEST(MsdRadixSort, LargeRandomStringTest) {
     for (uint32_t j = 0; j < len; ++j) {
       key += static_cast<char>('a' + (rnd() % 26));
     }
-    data.push_back({"", i});
+    data.push_back(TestEntryString{"", i});
     base::StringCopy(data.back().key, key.c_str(),
                      TestEntryString::kMaxKeySize);
   }
@@ -209,11 +209,11 @@ TEST(MsdRadixSort, LargeRandomStringTest) {
 
 TEST(MsdRadixSort, SingleElementBuckets) {
   std::vector<TestEntryString> data;
-  data.push_back({"", 0});
+  data.push_back(TestEntryString{"", 0});
   base::StringCopy(data.back().key, "a", TestEntryString::kMaxKeySize);
-  data.push_back({"", 1});
+  data.push_back(TestEntryString{"", 1});
   base::StringCopy(data.back().key, "b", TestEntryString::kMaxKeySize);
-  data.push_back({"", 2});
+  data.push_back(TestEntryString{"", 2});
   base::StringCopy(data.back().key, "c", TestEntryString::kMaxKeySize);
 
   std::vector<TestEntryString> scratch(data.size());
