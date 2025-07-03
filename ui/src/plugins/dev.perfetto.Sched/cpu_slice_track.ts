@@ -217,17 +217,9 @@ export class CpuSliceTrack implements TrackRenderer {
     const countDiv = count > 1 && m('div', `and ${count - 1} other events`);
     if (hoveredThread.pid !== undefined) {
       const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
-      return m('.tooltip', [
-        m('div', pidText),
-        m('div', tidText),
-        countDiv,
-      ]);
+      return m('.tooltip', [m('div', pidText), m('div', tidText), countDiv]);
     } else {
-      return m(
-        '.tooltip',
-        tidText,
-        countDiv,
-      );
+      return m('.tooltip', tidText, countDiv);
     }
   }
 
