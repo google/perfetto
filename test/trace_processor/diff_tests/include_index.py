@@ -122,6 +122,7 @@ from diff_tests.stdlib.android.heap_profile_tests import HeapProfile
 from diff_tests.stdlib.android.memory import AndroidMemory
 from diff_tests.stdlib.android.startups_tests import Startups
 from diff_tests.stdlib.android.sysui_cujs_test import SystemUICujs
+from diff_tests.stdlib.android.bitmaps import AndroidBitmaps
 from diff_tests.stdlib.android.tests import AndroidStdlib
 from diff_tests.stdlib.chrome.chrome_stdlib_testsuites import CHROME_STDLIB_TESTSUITES
 from diff_tests.stdlib.counters.tests import StdlibCounterIntervals
@@ -268,6 +269,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       AndroidMemory,
       AndroidGpu,
       AndroidStdlib,
+      AndroidBitmaps,
       CpuClusters,
       Battery,
       DesktopMode,
