@@ -432,6 +432,12 @@ class InterpreterImpl {
     return true;
   }
 
+  PERFETTO_ALWAYS_INLINE void Reverse(const bytecode::Reverse& r) {
+    using B = bytecode::Reverse;
+    auto& update = ReadFromRegister(r.arg<B::update_register>());
+    std::reverse(update.b, update.e);
+  }
+
   template <typename T, typename RangeOp>
   PERFETTO_ALWAYS_INLINE void SortedFilter(
       const bytecode::SortedFilterBase& f) {
