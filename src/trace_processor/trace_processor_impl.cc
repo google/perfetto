@@ -589,8 +589,6 @@ base::Status TraceProcessorImpl::Parse(TraceBlobView blob) {
 
 void TraceProcessorImpl::Flush() {
   TraceProcessorStorageImpl::Flush();
-  BuildBoundsTable(engine_->sqlite_engine()->db(),
-                   GetTraceTimestampBoundsNs(*context_.storage));
 }
 
 base::Status TraceProcessorImpl::NotifyEndOfFile() {
@@ -1405,8 +1403,6 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
     }
   }
 
-  // Fill trace bounds table.
-  BuildBoundsTable(db, GetTraceTimestampBoundsNs(*storage));
   return engine;
 }
 
