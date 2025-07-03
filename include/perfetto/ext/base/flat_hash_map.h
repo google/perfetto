@@ -17,7 +17,6 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_FLAT_HASH_MAP_H_
 #define INCLUDE_PERFETTO_EXT_BASE_FLAT_HASH_MAP_H_
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/utils.h"
@@ -46,11 +45,6 @@ namespace base {
 // absl::flat_hash_map:       998,013,459 ns    227.379M insertions/s
 // FollyF14FastMap:         1,181,480,602 ns    192.074M insertions/s
 //
-// TODO(primiano): the table regresses for heavy insert+erase workloads since we
-// don't clean up tombstones outside of resizes. In the limit, the entire
-// table's capacity is made up of values/tombstones, so each search has to
-// exhaustively scan the full capacity.
-
 // The structs below define the probing algorithm used to probe slots upon a
 // collision. They are guaranteed to visit all slots as our table size is always
 // a power of two (see https://en.wikipedia.org/wiki/Quadratic_probing).
@@ -148,6 +142,7 @@ class FlatHashMap {
     values_ = std::move(other.values_);
     capacity_ = other.capacity_;
     size_ = other.size_;
+    tombstones_ = other.tombstones_;
     max_probe_length_ = other.max_probe_length_;
     load_limit_ = other.load_limit_;
     load_limit_percent_ = other.load_limit_percent_;
@@ -225,6 +220,17 @@ class FlatHashMap {
         MaybeGrowAndRehash(/*grow=*/true);
         continue;
       }
+      // If there are too many tombstones, it's worth doing a rehash to
+      // clean them up. This is to avoid the case where we have a table full
+      // of tombstones which would cause lookups to be very slow.
+      bool is_many_tombstones = tombstones_ > size_ && size_ > 128;
+      bool is_tombstones_plus_size_too_high =
+          tombstones_ + size_ > capacity_ * 0.85;
+      if (PERFETTO_UNLIKELY(is_many_tombstones ||
+                            is_tombstones_plus_size_too_high)) {
+        MaybeGrowAndRehash(/*grow=*/false);
+        continue;
+      }
       PERFETTO_DCHECK(insertion_slot != kSlotNotFound);
       break;
     }  // for (attempt)
@@ -232,6 +238,10 @@ class FlatHashMap {
     PERFETTO_CHECK(insertion_slot < capacity_);
 
     // We found a free slot (or a tombstone). Proceed with the insertion.
+    if (tags_[insertion_slot] == kTombstone) {
+      PERFETTO_DCHECK(tombstones_ > 0);
+      tombstones_--;
+    }
     Value* value_idx = &values_[insertion_slot];
     new (&keys_[insertion_slot]) Key(std::move(key));
     new (value_idx) Value(std::move(value));
@@ -277,6 +287,7 @@ class FlatHashMap {
     }
     memset(&tags_[0], kFreeSlot, capacity_);
     size_ = 0;
+    tombstones_ = 0;
     max_probe_length_ = 0;
   }
 
@@ -325,6 +336,8 @@ class FlatHashMap {
     keys_[idx].~Key();
     values_[idx].~Value();
     size_--;
+    tombstones_++;
+    PERFETTO_DCHECK(size_ + tombstones_ <= capacity_);
   }
 
   PERFETTO_NO_INLINE void MaybeGrowAndRehash(bool grow) {
@@ -359,6 +372,7 @@ class FlatHashMap {
       }
     }
     PERFETTO_DCHECK(new_size == old_size);
+    PERFETTO_DCHECK(tombstones_ == 0);
     size_ = new_size;
   }
 
@@ -369,6 +383,7 @@ class FlatHashMap {
     capacity_ = n;
     max_probe_length_ = 0;
     size_ = 0;
+    tombstones_ = 0;
     load_limit_ = n * static_cast<size_t>(load_limit_percent_) / 100;
     load_limit_ = std::min(load_limit_, n);
 
@@ -388,6 +403,7 @@ class FlatHashMap {
 
   size_t capacity_ = 0;
   size_t size_ = 0;
+  size_t tombstones_ = 0;
   size_t max_probe_length_ = 0;
   size_t load_limit_ = 0;  // Updated every time |capacity_| changes.
   int load_limit_percent_ =
