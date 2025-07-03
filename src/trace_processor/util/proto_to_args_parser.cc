@@ -21,7 +21,6 @@
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -103,6 +102,9 @@ ProtoToArgsParser::ProtoToArgsParser(const DescriptorPool& pool) : pool_(pool) {
 }
 
 struct ProtoToArgsParser::WorkItem {
+  // The serialized data for the current message.
+  protozero::ConstBytes data;
+
   // The decoder for the current message. Its internal state marks our
   // progress through this message's fields.
   protozero::ProtoDecoder decoder;
@@ -114,7 +116,7 @@ struct ProtoToArgsParser::WorkItem {
   std::unordered_map<size_t, int> repeated_field_index;
 
   // The set of fields seen in this message, for handling defaults.
-  std::unordered_set<std::string_view> existing_fields;
+  std::unordered_set<uint32_t> existing_fields;
 
   // The RAII context for the current message's key. Its destructor will be
   // called automatically when this WorkItem is popped from the stack,
@@ -133,29 +135,29 @@ base::Status ProtoToArgsParser::ParseMessage(
     int* unknown_extensions,
     bool add_defaults) {
   std::vector<WorkItem> work_stack;
-
   {
-    ScopedNestedKeyContext key_context(key_prefix_);
-    if (auto override_result =
-            MaybeApplyOverrideForType(type, key_context, cb, delegate)) {
-      return override_result.value();
-    }
-
     auto idx = pool_.FindDescriptorIdx(type);
     if (!idx) {
       return base::Status("Failed to find proto descriptor for " + type);
     }
-    auto* proto_descriptor = &pool_.descriptors()[*idx];
-    work_stack.emplace_back(WorkItem{protozero::ProtoDecoder(cb),
-                                     proto_descriptor,
+    work_stack.emplace_back(WorkItem{cb,
+                                     protozero::ProtoDecoder(cb),
+                                     &pool_.descriptors()[*idx],
                                      {},
                                      {},
-                                     std::move(key_context),
+                                     ScopedNestedKeyContext(key_prefix_),
                                      true});
   }
 
   while (!work_stack.empty()) {
     WorkItem& item = work_stack.back();
+    if (auto override_result =
+            MaybeApplyOverrideForType(item.descriptor->full_name(),
+                                      item.key_context, item.data, delegate)) {
+      work_stack.pop_back();
+      RETURN_IF_ERROR(override_result.value());
+      continue;
+    }
 
     protozero::Field field = item.decoder.ReadField();
     if (field.valid()) {
@@ -171,10 +173,12 @@ base::Status ProtoToArgsParser::ParseMessage(
       }
 
       if (add_defaults) {
-        item.existing_fields.insert(field_descriptor->name());
+        item.existing_fields.insert(field_descriptor->number());
       }
 
-      if (!IsFieldAllowed(*field_descriptor, allowed_fields)) {
+      // The allowlist only applies to the top-level message.
+      if (work_stack.size() == 1 &&
+          !IsFieldAllowed(*field_descriptor, allowed_fields)) {
         // Field is neither an extension, nor is allowed to be
         // reflected.
         continue;
@@ -187,8 +191,10 @@ base::Status ProtoToArgsParser::ParseMessage(
         continue;
       }
 
-      std::string prefix_part = field_descriptor->name();
+      ScopedNestedKeyContext field_key_context(key_prefix_);
+      AppendProtoType(key_prefix_.flat_key, field_descriptor->name());
       if (field_descriptor->is_repeated()) {
+        std::string prefix_part = field_descriptor->name();
         int& index = item.repeated_field_index[field.id()];
         std::string number = std::to_string(index);
         prefix_part.reserve(prefix_part.length() + number.length() + 2);
@@ -196,11 +202,10 @@ base::Status ProtoToArgsParser::ParseMessage(
         prefix_part.append(number);
         prefix_part.append("]");
         index++;
+        AppendProtoType(key_prefix_.key, prefix_part);
+      } else {
+        AppendProtoType(key_prefix_.key, field_descriptor->name());
       }
-
-      ScopedNestedKeyContext field_key_context(key_prefix_);
-      AppendProtoType(key_prefix_.flat_key, field_descriptor->name());
-      AppendProtoType(key_prefix_.key, prefix_part);
 
       if (std::optional<base::Status> status =
               MaybeApplyOverrideForField(field, delegate)) {
@@ -210,12 +215,6 @@ base::Status ProtoToArgsParser::ParseMessage(
 
       if (field_descriptor->type() ==
           protos::pbzero::FieldDescriptorProto::TYPE_MESSAGE) {
-        if (auto override_result = MaybeApplyOverrideForType(
-                field_descriptor->resolved_type_name(), field_key_context,
-                field.as_bytes(), delegate)) {
-          RETURN_IF_ERROR(override_result.value());
-          continue;
-        }
         auto desc_idx =
             pool_.FindDescriptorIdx(field_descriptor->resolved_type_name());
         if (!desc_idx) {
@@ -223,10 +222,10 @@ base::Status ProtoToArgsParser::ParseMessage(
               "Failed to find proto descriptor for %s",
               field_descriptor->resolved_type_name().c_str());
         }
-        auto* proto_descriptor = &pool_.descriptors()[*desc_idx];
         work_stack.emplace_back(
-            WorkItem{protozero::ProtoDecoder(field.as_bytes()),
-                     proto_descriptor,
+            WorkItem{field.as_bytes(),
+                     protozero::ProtoDecoder(field.as_bytes()),
+                     &pool_.descriptors()[*desc_idx],
                      {},
                      {},
                      std::move(field_key_context),
@@ -237,24 +236,27 @@ base::Status ProtoToArgsParser::ParseMessage(
       continue;
     }
 
-    if (item.empty_message) {
-      delegate.AddNull(item.key_context.key());
-    } else if (add_defaults) {
+    if (add_defaults) {
       for (const auto& [id, field_desc] : item.descriptor->fields()) {
-        if (!IsFieldAllowed(field_desc, allowed_fields)) {
+        if (work_stack.size() == 1 &&
+            !IsFieldAllowed(field_desc, allowed_fields)) {
           continue;
         }
-        const std::string& field_name = field_desc.name();
-        bool field_exists = item.existing_fields.find(field_name) !=
+        bool field_exists = item.existing_fields.find(field_desc.number()) !=
                             item.existing_fields.cend();
         if (field_exists) {
           continue;
         }
+        const std::string& field_name = field_desc.name();
         ScopedNestedKeyContext key_context_default(key_prefix_);
         AppendProtoType(key_prefix_.flat_key, field_name);
         AppendProtoType(key_prefix_.key, field_name);
         RETURN_IF_ERROR(AddDefault(field_desc, delegate));
+        item.empty_message = false;
       }
+    }
+    if (item.empty_message) {
+      delegate.AddNull(item.key_context.key());
     }
     work_stack.pop_back();
   }
