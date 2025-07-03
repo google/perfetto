@@ -1,0 +1,147 @@
+/*
+ * Copyright (C) 2025 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "src/profiling/symbolizer/llvm_symbolizer.h"
+
+#include <dlfcn.h>
+
+#include "perfetto/base/logging.h"
+
+namespace perfetto {
+namespace profiling {
+
+LlvmSymbolizer::LlvmSymbolizer() {
+  library_handle_ = dlopen("libllvm_symbolizer_wrapper.so", RTLD_NOW);
+  if (!library_handle_) {
+    PERFETTO_ELOG("Failed to open libllvm_symbolizer_wrapper.so: %s",
+                  dlerror());
+    return;
+  }
+
+  create_fn_ = reinterpret_cast<decltype(create_fn_)>(
+      dlsym(library_handle_, "LlvmSymbolizer_Create"));
+  destroy_fn_ = reinterpret_cast<decltype(destroy_fn_)>(
+      dlsym(library_handle_, "LlvmSymbolizer_Destroy"));
+  symbolize_fn_ = reinterpret_cast<decltype(symbolize_fn_)>(
+      dlsym(library_handle_, "LlvmSymbolizer_Symbolize"));
+  free_result_fn_ = reinterpret_cast<decltype(free_result_fn_)>(
+      dlsym(library_handle_, "LlvmSymbolizer_FreeSymbolizationResult"));
+
+  if (!create_fn_ || !destroy_fn_ || !symbolize_fn_ || !free_result_fn_) {
+    PERFETTO_ELOG("Failed to look up symbols in libllvm_symbolizer_wrapper.so");
+    dlclose(library_handle_);
+    library_handle_ = nullptr;
+    return;
+  }
+
+  c_api_symbolizer_ = create_fn_();
+  if (!c_api_symbolizer_) {
+    PERFETTO_ELOG("LlvmSymbolizer_Create() failed.");
+    dlclose(library_handle_);
+    library_handle_ = nullptr;
+    create_fn_ = nullptr;
+    return;
+  }
+}
+
+LlvmSymbolizer::~LlvmSymbolizer() {
+  if (c_api_symbolizer_) {
+    destroy_fn_(c_api_symbolizer_);
+  }
+  if (library_handle_) {
+    dlclose(library_handle_);
+  }
+}
+
+LlvmSymbolizer::LlvmSymbolizer(LlvmSymbolizer&& other) noexcept
+    : library_handle_(other.library_handle_),
+      c_api_symbolizer_(other.c_api_symbolizer_),
+      create_fn_(other.create_fn_),
+      destroy_fn_(other.destroy_fn_),
+      symbolize_fn_(other.symbolize_fn_),
+      free_result_fn_(other.free_result_fn_) {
+  other.library_handle_ = nullptr;
+  other.c_api_symbolizer_ = nullptr;
+  other.create_fn_ = nullptr;
+  other.destroy_fn_ = nullptr;
+  other.symbolize_fn_ = nullptr;
+  other.free_result_fn_ = nullptr;
+}
+
+LlvmSymbolizer& LlvmSymbolizer::operator=(LlvmSymbolizer&& other) noexcept {
+  if (this == &other) {
+    return *this;
+  }
+
+  if (c_api_symbolizer_) {
+    destroy_fn_(c_api_symbolizer_);
+  }
+  if (library_handle_) {
+    dlclose(library_handle_);
+  }
+
+  library_handle_ = other.library_handle_;
+  c_api_symbolizer_ = other.c_api_symbolizer_;
+  create_fn_ = other.create_fn_;
+  destroy_fn_ = other.destroy_fn_;
+  symbolize_fn_ = other.symbolize_fn_;
+  free_result_fn_ = other.free_result_fn_;
+
+  other.library_handle_ = nullptr;
+  other.c_api_symbolizer_ = nullptr;
+  other.create_fn_ = nullptr;
+  other.destroy_fn_ = nullptr;
+  other.symbolize_fn_ = nullptr;
+  other.free_result_fn_ = nullptr;
+
+  return *this;
+}
+
+std::vector<std::vector<SymbolizedFrame>> LlvmSymbolizer::SymbolizeBatch(
+    const std::vector<SymbolizationRequest>& requests) {
+  std::vector<std::vector<SymbolizedFrame>> results;
+  results.reserve(requests.size());
+
+  if (!c_api_symbolizer_) {
+    for (size_t i = 0; i < requests.size(); ++i) {
+      results.emplace_back();
+    }
+    return results;
+  }
+
+  for (const SymbolizationRequest& request : requests) {
+    SymbolizationResult result = symbolize_fn_(
+        c_api_symbolizer_, request.binary.c_str(), request.address);
+
+    std::vector<SymbolizedFrame> frames;
+    if (result.frames) {
+      frames.reserve(result.num_frames);
+      for (size_t i = 0; i < result.num_frames; ++i) {
+        SymbolizedFrame frame;
+        frame.function_name = result.frames[i].function_name;
+        frame.file_name = result.frames[i].file_name;
+        frame.line = result.frames[i].line_number;
+        frames.push_back(std::move(frame));
+      }
+      free_result_fn_(result);
+    }
+    results.push_back(std::move(frames));
+  }
+  return results;
+}
+
+}  // namespace profiling
+}  // namespace perfetto

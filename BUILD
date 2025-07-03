@@ -519,6 +519,7 @@ perfetto_cc_library(
     name = "libpprofbuilder",
     srcs = [
         ":src_profiling_deobfuscator",
+        ":src_profiling_symbolizer_common",
         ":src_profiling_symbolizer_symbolize_database",
         ":src_profiling_symbolizer_symbolizer",
         ":src_trace_processor_util_build_id",
@@ -1481,6 +1482,14 @@ perfetto_filegroup(
     srcs = [
         "src/perfetto_cmd/trigger_producer.cc",
         "src/perfetto_cmd/trigger_producer.h",
+    ],
+)
+
+# GN target: //src/profiling/symbolizer:common
+perfetto_filegroup(
+    name = "src_profiling_symbolizer_common",
+    srcs = [
+        "src/profiling/symbolizer/common.h",
     ],
 )
 
@@ -7496,6 +7505,7 @@ perfetto_cc_binary(
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
         ":src_profiling_deobfuscator",
+        ":src_profiling_symbolizer_common",
         ":src_profiling_symbolizer_symbolize_database",
         ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_proto_ring_buffer",
@@ -7694,6 +7704,7 @@ perfetto_cc_binary(
         ":src_kernel_utils_kernel_wakelock_errors",
         ":src_kernel_utils_syscall_table",
         ":src_profiling_deobfuscator",
+        ":src_profiling_symbolizer_common",
         ":src_profiling_symbolizer_symbolize_database",
         ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_proto_ring_buffer",

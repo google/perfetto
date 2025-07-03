@@ -12912,6 +12912,11 @@ filegroup {
     ],
 }
 
+// GN: //src/profiling/symbolizer:common
+filegroup {
+    name: "perfetto_src_profiling_symbolizer_common",
+}
+
 // GN: //src/profiling/symbolizer:symbolize_database
 filegroup {
     name: "perfetto_src_profiling_symbolizer_symbolize_database",
@@ -17235,6 +17240,7 @@ cc_test {
         ":perfetto_src_profiling_perf_producer_unittests",
         ":perfetto_src_profiling_perf_regs_parsing",
         ":perfetto_src_profiling_perf_unwinding",
+        ":perfetto_src_profiling_symbolizer_common",
         ":perfetto_src_profiling_symbolizer_symbolizer",
         ":perfetto_src_profiling_symbolizer_unittests",
         ":perfetto_src_profiling_unittests",
@@ -18113,6 +18119,7 @@ cc_binary {
         ":perfetto_src_kernel_utils_kernel_wakelock_errors",
         ":perfetto_src_kernel_utils_syscall_table",
         ":perfetto_src_profiling_deobfuscator",
+        ":perfetto_src_profiling_symbolizer_common",
         ":perfetto_src_profiling_symbolizer_symbolize_database",
         ":perfetto_src_profiling_symbolizer_symbolizer",
         ":perfetto_src_protozero_proto_ring_buffer",
@@ -18557,6 +18564,7 @@ cc_binary_host {
         ":perfetto_src_kernel_utils_kernel_wakelock_errors",
         ":perfetto_src_kernel_utils_syscall_table",
         ":perfetto_src_profiling_deobfuscator",
+        ":perfetto_src_profiling_symbolizer_common",
         ":perfetto_src_profiling_symbolizer_symbolize_database",
         ":perfetto_src_profiling_symbolizer_symbolizer",
         ":perfetto_src_protozero_proto_ring_buffer",
