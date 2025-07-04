@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {HighPrecisionTime} from '../base/high_precision_time';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {time} from '../base/time';
 import {ScrollToArgs} from '../public/scroll_helper';
@@ -39,7 +40,7 @@ export class ScrollHelper {
 
     if (time !== undefined) {
       if (time.end === undefined || time.start === time.end) {
-        this.timeline.panToTimestamp(time.start);
+        this.focusInstant(time.start);
       } else if (time.viewPercentage !== undefined) {
         this.focusHorizontalRangePercentage(
           time.start,
@@ -54,6 +55,24 @@ export class ScrollHelper {
     if (track !== undefined) {
       this.verticalScrollToTrack(track.uri, track.expandGroup ?? false);
     }
+  }
+
+  private focusInstant(ts: time): void {
+    // If focusing on an instant, we do the following:
+    //   1) if the instant is outside the visible window, we center the
+    //      visible window on the instant.
+    //   2) if the instant is inside the visible window, we zoom in a ratio of
+    //      100x.
+    if (!this.timeline.visibleWindow.contains(ts)) {
+      this.timeline.panToTimestamp(ts);
+      return;
+    }
+    const newDuration = this.timeline.visibleWindow.duration / 100;
+    const halfDuration = newDuration / 2;
+    const newStart = new HighPrecisionTime(ts).subNumber(halfDuration);
+    this.timeline.updateVisibleTimeHP(
+      new HighPrecisionTimeSpan(newStart, newDuration),
+    );
   }
 
   private focusHorizontalRangePercentage(
