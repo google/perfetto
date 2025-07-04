@@ -377,10 +377,10 @@ export function renderTooltip<T>(
 ) {
   const durationFormatted = formatDurationForTooltip(trace, slice);
   const {title = slice.title, extras} = opts;
-
   return [
     m('', exists(durationFormatted) && m('b', durationFormatted), ' ', title),
     extras,
+    slice.count > 1 && m('div', `and ${slice.count - 1} other events`),
   ];
 }
 
