@@ -33,7 +33,6 @@ def format_gn_list(items):
 
 
 def main():
-  llvm_prefix = run_llvm_config(["--prefix"])
   llvm_include_dir = run_llvm_config(["--includedir"])
   cxxflags_raw = run_llvm_config(["--cxxflags"])
 
@@ -70,7 +69,6 @@ def main():
   print(f"defines = {format_gn_list(defines_list)}")
   print(f"cflags = {format_gn_list(cflags_list)}")
   print(f"libs = {format_gn_list(libs_list)}")
-  print(f'llvm_prefix = "{llvm_prefix}"')
   print(f"ldflags = {format_gn_list(ldflags_list)}")
   return 0
 

@@ -88,6 +88,7 @@ if (enable_perfetto_llvm_symbolizer) {
   }
   source_set("llvm_symbolizer_c_api") {
     sources = [ "llvm_symbolizer_c_api.h" ]
+    deps = [ "../../../gn:default_deps" ]
   }
 
   source_set("llvm_symbolizer") {
@@ -99,8 +100,8 @@ if (enable_perfetto_llvm_symbolizer) {
       ":common",
       ":llvm_symbolizer_c_api",
       "../../../gn:default_deps",
+      "../../../include/perfetto/ext/base",
     ]
-    public_deps = [ "../../../include/perfetto/ext/base" ]
     visibility = [
       "../../../buildtools/*",
       "../../src/trace_processor/*",
@@ -124,7 +125,10 @@ perfetto_unittest_source_set("unittests") {
   ]
   if (enable_perfetto_llvm_symbolizer) {
     sources += [ "llvm_symbolizer_unittest.cc" ]
-    deps += [ ":llvm_symbolizer" ]
+    deps += [
+      ":common",
+      ":llvm_symbolizer",
+    ]
     data_deps = [ ":llvm_symbolizer_wrapper" ]
   }
 }
