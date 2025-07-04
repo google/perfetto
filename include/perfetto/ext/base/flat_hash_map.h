@@ -225,7 +225,7 @@ class FlatHashMap {
       // of tombstones which would cause lookups to be very slow.
       bool is_many_tombstones = tombstones_ > size_ && size_ > 128;
       bool is_tombstones_plus_size_too_high =
-          tombstones_ + size_ > capacity_ * 0.85;
+          static_cast<double>(tombstones_ + size_) > capacity_ * 0.85;
       if (PERFETTO_UNLIKELY(is_many_tombstones ||
                             is_tombstones_plus_size_too_high)) {
         MaybeGrowAndRehash(/*grow=*/false);
