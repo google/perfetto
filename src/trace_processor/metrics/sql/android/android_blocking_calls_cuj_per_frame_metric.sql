@@ -74,14 +74,12 @@ SELECT
 FROM android_frames_layers frame
 JOIN android_sysui_jank_cujs cuj
 ON frame.upid = cuj.upid
-   AND frame.layer_id = cuj.layer_id
    AND frame.ui_thread_utid = cuj.ui_thread
+   AND frame.layer_id IS NOT NULL
 -- Check whether the frame_id falls within the begin and end vsync of the cuj.
 -- Also check if the frame start or end timestamp falls within the cuj boundary.
 WHERE
-   -- frame withtin cuj vsync boundary
-   frame_id >= begin_vsync AND frame_id <= end_vsync
-   AND (
+   (
       -- frame start within cuj
       (frame.ts >= cuj.ts AND frame.ts <= cuj.ts_end)
       OR
