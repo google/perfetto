@@ -187,13 +187,15 @@ WITH
       ) AS ts_end
     FROM android_frames_layers AS frame
     JOIN _sysui_cuj_instant_events AS cie
-      ON frame.layer_id = cie.layer_id AND frame.ui_thread_utid = cie.ui_thread
+      ON frame.ui_thread_utid = cie.ui_thread AND frame.layer_id IS NOT NULL
     JOIN _sysui_cujs_slices AS cuj
       ON cie.cuj_id = cuj.cuj_id
     -- Check whether the frame_id falls within the begin and end vsync of the cuj.
     -- Also check if the frame start or end timestamp falls within the cuj boundary.
     WHERE
-      (
+      frame_id >= begin_vsync
+      AND frame_id <= end_vsync
+      AND (
         -- frame start within cuj
         (
           frame.ts >= cuj.ts AND frame.ts <= cuj.ts_end
