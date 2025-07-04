@@ -29,14 +29,15 @@ enum ProcessingStage { VisitChildren, Add };
 // When z-order is the same, we sort such that the layer with the layer id
 // is drawn on top.
 void SortByZThenLayerId(
-    std::vector<int>& layer_ids,
-    const std::unordered_map<int, LayerDecoder>& layers_by_id) {
-  std::sort(layer_ids.begin(), layer_ids.end(), [&layers_by_id](int a, int b) {
-    const auto& layer_a = layers_by_id.at(a);
-    const auto& layer_b = layers_by_id.at(b);
-    return std::make_tuple(layer_a.z(), layer_a.id()) >
-           std::make_tuple(layer_b.z(), layer_b.id());
-  });
+    std::vector<int32_t>& layer_ids,
+    const std::unordered_map<int32_t, LayerDecoder>& layers_by_id) {
+  std::sort(layer_ids.begin(), layer_ids.end(),
+            [&layers_by_id](int32_t a, int32_t b) {
+              const auto& layer_a = layers_by_id.at(a);
+              const auto& layer_b = layers_by_id.at(b);
+              return std::make_tuple(layer_a.z(), layer_a.id()) >
+                     std::make_tuple(layer_b.z(), layer_b.id());
+            });
 }
 
 // We work with layer ids to enable sorting and copying, as LayerDecoder can
@@ -55,7 +56,7 @@ std::vector<LayerDecoder> ExtractLayersByZOrder(
   }
 
   while (!processing_queue.empty()) {
-    const auto& curr = processing_queue.back();
+    const auto curr = processing_queue.back();
     processing_queue.pop_back();
 
     int32_t curr_layer_id = curr.first;
@@ -104,9 +105,9 @@ std::vector<LayerDecoder> ExtractLayersByZOrder(
 
 // Returns map of layer id to layer, so we can quickly retrieve a layer by its
 // id during visibility computation.
-std::unordered_map<int, LayerDecoder> ExtractLayersById(
+std::unordered_map<int32_t, LayerDecoder> ExtractLayersById(
     const LayersDecoder& layers_decoder) {
-  std::unordered_map<int, LayerDecoder> layers_by_id;
+  std::unordered_map<int32_t, LayerDecoder> layers_by_id;
   for (auto it = layers_decoder.layers(); it; ++it) {
     LayerDecoder layer(*it);
     if (!layer.has_id()) {
