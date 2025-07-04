@@ -17,7 +17,6 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 
 #include <array>
-#include <functional>
 #include <random>
 #include <set>
 #include <unordered_map>
@@ -421,6 +420,26 @@ TYPED_TEST(FlatHashMapTest, Clear) {
     ASSERT_NE(fmap.Find(3), nullptr);
     ASSERT_EQ(*fmap.Find(3), 3);
   }
+}
+
+TYPED_TEST(FlatHashMapTest, TombstoneRehash) {
+  FlatHashMap<int, int, base::Hash<int>, typename TestFixture::Probe> fmap;
+  for (int i = 0; i < 100; ++i) {
+    fmap.Insert(i, i);
+  }
+  for (int i = 0; i < 50; ++i) {
+    fmap.Erase(i);
+  }
+  // This should trigger a rehash.
+  fmap.Insert(101, 101);
+
+  // Check that all the old values are still there.
+  for (int i = 50; i < 100; ++i) {
+    ASSERT_NE(fmap.Find(i), nullptr);
+    ASSERT_EQ(*fmap.Find(i), i);
+  }
+  ASSERT_NE(fmap.Find(101), nullptr);
+  ASSERT_EQ(*fmap.Find(101), 101);
 }
 
 }  // namespace
