@@ -50,7 +50,6 @@ perfetto_component("base") {
     "paged_memory.cc",
     "periodic_task.cc",
     "pipe.cc",
-    "radix_sort.h",
     "scoped_mmap.cc",
     "status.cc",
     "string_splitter.cc",

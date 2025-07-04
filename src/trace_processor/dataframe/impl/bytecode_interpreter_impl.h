@@ -30,15 +30,14 @@
 #include <type_traits>
 #include <unordered_set>
 #include <utility>
-#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/endian.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/radix_sort.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
-#include "src/base/radix_sort.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
