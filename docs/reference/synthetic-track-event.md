@@ -60,6 +60,13 @@ To define a process track, you populate the `process` field within its
 `TrackDescriptor`. At a minimum, you should provide a `pid` and ideally a
 `process_name`.
 
+It is also recommended to add a `timestamp` to the `TracePacket` containing the
+process's `TrackDescriptor`. This is especially important when the trace
+contains data from other sources (e.g. scheduling information from the kernel).
+Unlike with "global" tracks, these track types may interact with other data
+sources and as such having a timestamp makes sure that Trace Processor can
+accurately sort the descriptor into the right place.
+
 #### Python Example
 
 Let's say you want to emit a custom counter (e.g. "Active DB Connections") and
@@ -84,6 +91,9 @@ your `trace_converter_template.py` script.
     # 1. Define the Process Track
     # This packet establishes "MyDatabaseService (1234)" in the trace.
     packet = builder.add_packet()
+    # It's good practice to timestamp the descriptor to be before the first
+    # event.
+    packet.timestamp = 9999
     desc = packet.track_descriptor
     desc.uuid = process_track_uuid
     desc.process.pid = PROCESS_ID
@@ -107,7 +117,7 @@ your `trace_converter_template.py` script.
         packet.timestamp = ts
         packet.track_event.type = TrackEvent.TYPE_COUNTER
         packet.track_event.track_uuid = counter_track_uuid
-        packet.track_event.counter_value = float(value)
+        packet.track_event.counter_value = value
         packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
 
     # 3. Emit counter values on the custom counter track
@@ -118,7 +128,7 @@ your `trace_converter_template.py` script.
 
 </details>
 
-TODO: this looks like so.
+![Associating Tracks with Processes](/docs/images/synthetic-track-event-process-counter.png)
 
 Once you have defined a process track, you can parent various other kinds of
 tracks to it. This includes tracks for specific threads within that process (see
@@ -157,6 +167,13 @@ To define a thread track:
     thread of that PID_. The UI often infers process groupings from PIDs present
     in thread tracks.
 
+Similarly to process tracks, it is also recommended to add a `timestamp` to the
+`TracePacket` containing the thread's `TrackDescriptor`. This is especially
+important when the trace contains data from other sources (e.g. scheduling
+information from the kernel). Unlike with "global" tracks, these track types may
+interact with other data sources and as such having a timestamp makes sure that
+Trace Processor can accurately sort the descriptor into the right place.
+
 **Python Example: Thread-Specific Slices**
 
 This example defines a thread "MainWorkLoop" (TID 5678) belonging to process
@@ -189,6 +206,7 @@ your `trace_converter_template.py` script.
 
     # 1. Define the Process Track (Optional, but good for naming the process)
     packet = builder.add_packet()
+    packet.timestamp = 14998
     desc = packet.track_descriptor
     desc.uuid = app_process_track_uuid
     desc.process.pid = APP_PROCESS_ID
@@ -198,6 +216,7 @@ your `trace_converter_template.py` script.
     # The .thread.pid field associates it with the process.
     # No parent_uuid is set here; UI will group by PID.
     packet = builder.add_packet()
+    packet.timestamp = 14999
     desc = packet.track_descriptor
     desc.uuid = main_thread_track_uuid
     # desc.parent_uuid = app_process_track_uuid # This line is NOT used
@@ -234,7 +253,7 @@ your `trace_converter_template.py` script.
 
 </details>
 
-TODO: this looks like so.
+![Associating Tracks with Threads](/docs/images/synthetic-track-event-thread-slice.png)
 
 ## Advanced Track Customization
 
@@ -310,7 +329,7 @@ your `trace_converter_template.py` script.
     # --- 1. Lexicographical Sorting Example ---
     parent_lex_uuid = uuid.uuid4().int & ((1 << 63) - 1)
     define_custom_track(parent_lex_uuid, "Lexicographic Parent",
-                        child_ordering_mode=TrackDescriptor.ChildTracksOrdering.LEXICOGRAPHIC)
+                        child_ordering_mode=TrackDescriptor.LEXICOGRAPHIC)
 
     child_c_lex_uuid = uuid.uuid4().int & ((1 << 63) - 1)
     child_a_lex_uuid = uuid.uuid4().int & ((1 << 63) - 1)
@@ -328,7 +347,7 @@ your `trace_converter_template.py` script.
     # --- 2. Chronological Sorting Example ---
     parent_chrono_uuid = uuid.uuid4().int & ((1 << 63) - 1)
     define_custom_track(parent_chrono_uuid, "Chronological Parent",
-                        child_ordering_mode=TrackDescriptor.ChildTracksOrdering.CHRONOLOGICAL)
+                        child_ordering_mode=TrackDescriptor.CHRONOLOGICAL)
 
     child_late_uuid = uuid.uuid4().int & ((1 << 63) - 1)
     child_early_uuid = uuid.uuid4().int & ((1 << 63) - 1)
@@ -346,7 +365,7 @@ your `trace_converter_template.py` script.
     # --- 3. Explicit Sorting Example ---
     parent_explicit_uuid = uuid.uuid4().int & ((1 << 63) - 1)
     define_custom_track(parent_explicit_uuid, "Explicit Parent",
-                        child_ordering_mode=TrackDescriptor.ChildTracksOrdering.EXPLICIT)
+                        child_ordering_mode=TrackDescriptor.EXPLICIT)
 
     child_rank10_uuid = uuid.uuid4().int & ((1 << 63) - 1)
     child_rank_neg5_uuid = uuid.uuid4().int & ((1 << 63) - 1)
@@ -367,7 +386,7 @@ your `trace_converter_template.py` script.
 
 </details>
 
-TODO: this looks like so.
+![Controlling Track Sorting Order](/docs/images/synthetic-track-event-sorting.png)
 
 ### Interning Data for Trace Size Optimization
 
@@ -499,4 +518,4 @@ your `trace_converter_template.py` script.
 
 </details>
 
-TODO: this looks like so.
+![Interning Data for Trace Size Optimization](/docs/images/synthetic-track-event-interning.png)
