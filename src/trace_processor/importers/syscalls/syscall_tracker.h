@@ -122,7 +122,7 @@ class SyscallTracker : public Destructible {
   TraceProcessorContext* const context_;
 
   inline StringId SyscallNumberToStringId(uint32_t syscall_num) {
-    if (syscall_num > kMaxSyscalls)
+    if (syscall_num >= kMaxSyscalls)
       return kNullStringId;
     return arch_syscall_to_string_id_[syscall_num];
   }
