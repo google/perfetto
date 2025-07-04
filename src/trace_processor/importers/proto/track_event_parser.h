@@ -17,9 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_PARSER_H_
 
-#include <array>
 #include <cstdint>
-#include <optional>
 #include <vector>
 
 #include "perfetto/protozero/field.h"
@@ -47,6 +45,7 @@ static constexpr uint16_t kReflectFields[] = {
 class PacketSequenceStateGeneration;
 class TraceProcessorContext;
 class TrackEventTracker;
+class TrackEventEventImporter;
 
 class TrackEventParser {
  public:
@@ -67,7 +66,7 @@ class TrackEventParser {
   void NotifyEndOfFile();
 
  private:
-  class EventImporter;
+  friend class TrackEventEventImporter;
 
   void ParseChromeProcessDescriptor(UniquePid, protozero::ConstBytes);
   void ParseChromeThreadDescriptor(UniqueTid, protozero::ConstBytes);
