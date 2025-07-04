@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/base/radix_sort.h"
+#include "perfetto/ext/base/radix_sort.h"
 
 #include <cstdint>
 #include <random>

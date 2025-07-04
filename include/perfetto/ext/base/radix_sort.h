@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_BASE_RADIX_SORT_H_
-#define SRC_BASE_RADIX_SORT_H_
+#ifndef INCLUDE_PERFETTO_EXT_BASE_RADIX_SORT_H_
+#define INCLUDE_PERFETTO_EXT_BASE_RADIX_SORT_H_
 
 #include <algorithm>
 #include <cstddef>
@@ -289,4 +289,4 @@ T* MsdRadixSort(T* begin,
 
 }  // namespace perfetto::base
 
-#endif  // SRC_BASE_RADIX_SORT_H_
+#endif  // INCLUDE_PERFETTO_EXT_BASE_RADIX_SORT_H_
