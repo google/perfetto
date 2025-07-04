@@ -34,6 +34,7 @@ perfetto_sql_source_set("android") {
     "battery_stats.sql",
     "binder.sql",
     "binder_breakdown.sql",
+    "bitmaps.sql",
     "broadcasts.sql",
     "critical_blocking_calls.sql",
     "desktop_mode.sql",
