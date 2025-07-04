@@ -26,6 +26,7 @@ import {
 } from './wdp_schema';
 import {disposeWebsocket} from '../../websocket/websocket_utils';
 import {AsyncLazy} from '../../../../base/async_lazy';
+import {RecordTraceV2Settings} from '../../settings';
 
 const WDP_URL = 'https://tools.google.com/dlpage/android_web_device_proxy';
 
@@ -43,6 +44,8 @@ export class WebDeviceProxyTargetProvider implements RecordingTargetProvider {
   readonly supportedPlatforms = ['ANDROID'] as const;
   readonly onTargetsChanged = new EvtSource<void>();
   private targets = new Map<string, WdpDeviceProxyTarget>();
+
+  constructor(private readonly settings: RecordTraceV2Settings) {}
 
   // Wraps the websocket listening for device changes on /track-devices.json.
   private trackDevicesConn = new AsyncLazy<TrackDevicesConnection>();
@@ -172,7 +175,11 @@ export class WebDeviceProxyTargetProvider implements RecordingTargetProvider {
         existingDevice.updateWdpState(devJson);
       } else {
         const wsUrl = 'ws://127.0.0.1:9167/adb-json';
-        const newTarget = new WdpDeviceProxyTarget(wsUrl, devJson);
+        const newTarget = new WdpDeviceProxyTarget(
+          wsUrl,
+          devJson,
+          this.settings,
+        );
         this.targets.set(serial, newTarget);
       }
     }
