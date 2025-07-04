@@ -84,6 +84,7 @@ action("gen_buildflags") {
     "PERFETTO_WATCHDOG=$perfetto_watchdog",
     "PERFETTO_COMPONENT_BUILD=$perfetto_component_build",
     "PERFETTO_ENABLE_ETM_IMPORTER=$enable_perfetto_etm_importer",
+    "PERFETTO_LLVM_SYMBOLIZER=$enable_perfetto_llvm_symbolizer",
     "PERFETTO_FORCE_DLOG_ON=$perfetto_force_dlog_on",
     "PERFETTO_FORCE_DLOG_OFF=$perfetto_force_dlog_off",
     "PERFETTO_FORCE_DCHECK_ON=$perfetto_force_dcheck_on",
