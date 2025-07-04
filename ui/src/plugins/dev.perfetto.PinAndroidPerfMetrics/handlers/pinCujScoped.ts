@@ -115,7 +115,7 @@ class PinCujScopedJank implements MetricHandler {
       },
       columns: {ts: 'ts', dur: 'dur', name: 'id'},
       argColumns: ['id', 'ts', 'dur'],
-      trackName,
+      title: trackName,
     };
 
     return {
