@@ -14,12 +14,16 @@
 
 import m from 'mithril';
 
-import {Button} from '../../../widgets/button';
-import {QueryNode} from '../query_node';
-import {PopupMenu} from '../../../widgets/menu';
-import {Icons} from '../../../base/semantic_icons';
-import {Intent} from '../../../widgets/common';
 import {classNames} from '../../../base/classnames';
+import {Icons} from '../../../base/semantic_icons';
+import {Button} from '../../../widgets/button';
+import {Intent} from '../../../widgets/common';
+import {MenuItem, PopupMenu} from '../../../widgets/menu';
+import {QueryNode} from '../query_node';
+
+const PADDING = 20;
+const NODE_HEIGHT = 50;
+const DEFAULT_NODE_WIDTH = 100;
 
 interface NodeBoxLayout {
   x: number;
@@ -31,16 +35,28 @@ interface NodeBoxLayout {
 interface NodeBoxAttrs {
   readonly node: QueryNode;
   readonly layout: NodeBoxLayout;
-
   readonly isSelected: boolean;
+  readonly isDragging: boolean;
   readonly onNodeSelected: (node: QueryNode) => void;
   readonly onNodeDragStart: (node: QueryNode, event: DragEvent) => void;
-  readonly renderNodeActionsMenuItems: (node: QueryNode) => m.Children;
+  readonly onVisualizeNode: (node: QueryNode) => void;
+  readonly onDuplicateNode: (node: QueryNode) => void;
+  readonly onDeleteNode: (node: QueryNode) => void;
 }
 
-class NodeBox implements m.ClassComponent<NodeBoxAttrs> {
-  view({attrs}: m.CVnode<NodeBoxAttrs>) {
-    const {node, isSelected, layout, onNodeSelected, onNodeDragStart} = attrs;
+const NodeBox: m.Component<NodeBoxAttrs> = {
+  view({attrs}) {
+    const {
+      node,
+      layout,
+      isSelected,
+      isDragging,
+      onNodeSelected,
+      onNodeDragStart,
+      onVisualizeNode,
+      onDuplicateNode,
+      onDeleteNode,
+    } = attrs;
     const conditionalClasses = classNames(
       isSelected && 'pf-node-box__selected',
       !node.validate() && 'pf-node-box__invalid',
@@ -51,8 +67,9 @@ class NodeBox implements m.ClassComponent<NodeBoxAttrs> {
         class: conditionalClasses,
         style: {
           position: 'absolute',
-          left: `${layout.x || 10}px`,
-          top: `${layout.y || 10}px`,
+          left: `${layout.x}px`,
+          top: `${layout.y}px`,
+          opacity: isDragging ? '0' : '1',
         },
         onclick: () => onNodeSelected(node),
         draggable: true,
@@ -67,26 +84,63 @@ class NodeBox implements m.ClassComponent<NodeBoxAttrs> {
             icon: Icons.ContextMenuAlt,
           }),
         },
-        attrs.renderNodeActionsMenuItems(node),
+        m(MenuItem, {
+          label: 'Visualise Data',
+          icon: Icons.Chart,
+          onclick: () => onVisualizeNode(node),
+        }),
+        m(MenuItem, {
+          label: 'Duplicate',
+          onclick: () => onDuplicateNode(node),
+        }),
+        m(MenuItem, {
+          label: 'Delete',
+          onclick: () => onDeleteNode(node),
+        }),
       ),
     );
-  }
+  },
+};
+
+interface SourceCardAttrs {
+  title: string;
+  description: string;
+  icon: string;
+  onclick: () => void;
 }
 
-interface QueryCanvasAttrs {
+const SourceCard: m.Component<SourceCardAttrs> = {
+  view({attrs}) {
+    const {title, description, icon, onclick} = attrs;
+    return m(
+      'div.pf-source-card',
+      {onclick},
+      m('i.material-icons', icon),
+      m('h3', title),
+      m('p', description),
+    );
+  },
+};
+export interface QueryCanvasAttrs {
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
   readonly onNodeSelected: (node: QueryNode) => void;
-  readonly renderNodeActionsMenuItems: (node: QueryNode) => m.Children;
-  readonly addSourcePopupMenu: () => m.Children;
+  readonly onDeselect: () => void;
+  readonly onAddStdlibTableSource: () => void;
+  readonly onAddSlicesSource: () => void;
+  readonly onAddSqlSource: () => void;
+  readonly onClearAllNodes: () => void;
+  readonly onVisualizeNode: (node: QueryNode) => void;
+  readonly onDuplicateNode: (node: QueryNode) => void;
+  readonly onDeleteNode: (node: QueryNode) => void;
 }
 
 export class QueryCanvas implements m.ClassComponent<QueryCanvasAttrs> {
   private dragNode?: QueryNode;
   private nodeLayouts: Map<QueryNode, NodeBoxLayout> = new Map();
 
-  oncreate(vnode: m.VnodeDOM<QueryCanvasAttrs>) {
-    const box = vnode.dom as HTMLElement;
+  oncreate({dom}: m.VnodeDOM<QueryCanvasAttrs>) {
+    const box = dom as HTMLElement;
 
     box.ondragover = (event) => {
       event.preventDefault(); // Allow dropping
@@ -97,22 +151,37 @@ export class QueryCanvas implements m.ClassComponent<QueryCanvasAttrs> {
       if (!this.dragNode) return;
       const dragNodeLayout = this.nodeLayouts.get(this.dragNode);
       if (!dragNodeLayout) return;
-      // Adjust position based on where the mouse dropped relative to the box origin
-      // and center the node based on its stored dimensions.
+
       const rect = box.getBoundingClientRect();
-      const x = event.clientX - rect.left - (dragNodeLayout.width ?? 50) / 2;
-      const y = event.clientY - rect.top - (dragNodeLayout.height ?? 50) / 2;
+      const x =
+        event.clientX -
+        rect.left -
+        (dragNodeLayout.width ?? DEFAULT_NODE_WIDTH) / 2;
+      const y =
+        event.clientY - rect.top - (dragNodeLayout.height ?? NODE_HEIGHT) / 2;
 
       this.nodeLayouts.set(this.dragNode, {
         ...dragNodeLayout,
-        x: Math.max(0, Math.min(x, rect.width - (dragNodeLayout.width ?? 100))),
+        x: Math.max(
+          0,
+          Math.min(
+            x,
+            rect.width - (dragNodeLayout.width ?? DEFAULT_NODE_WIDTH),
+          ),
+        ),
         y: Math.max(
           0,
-          Math.min(y, rect.height - (dragNodeLayout.height ?? 100)),
+          Math.min(y, rect.height - (dragNodeLayout.height ?? NODE_HEIGHT)),
         ),
       });
-      this.dragNode = undefined;
       m.redraw();
+    };
+
+    box.ondragend = () => {
+      if (this.dragNode) {
+        this.dragNode = undefined;
+        m.redraw();
+      }
     };
   }
 
@@ -135,59 +204,139 @@ export class QueryCanvas implements m.ClassComponent<QueryCanvasAttrs> {
     }
   };
 
+  findNextAvailablePosition(): NodeBoxLayout {
+    let y = 10;
+    const layouts = Array.from(this.nodeLayouts.values());
+    if (layouts.length > 0) {
+      const lastNode = layouts.reduce((a, b) => (a.y > b.y ? a : b));
+      y = lastNode.y + (lastNode.height ?? NODE_HEIGHT) + PADDING;
+    }
+    return {x: 10, y};
+  }
+
+  private renderEmptyCanvas(attrs: QueryCanvasAttrs) {
+    return m(
+      '.pf-query-canvas-add-button-container',
+      m('h2.hero-title', 'Welcome to the Explore Page'),
+      m(
+        'p.hero-subtitle',
+        'Build and execute SQL queries on your trace data using a visual ' +
+          'node-based editor. Get started by adding a source node below.',
+      ),
+      m(
+        '.pf-query-canvas-add-buttons',
+        m(SourceCard, {
+          title: 'Standard Library Table',
+          description:
+            'Query and explore data from any table in the Perfetto ' +
+            'standard library.',
+          icon: 'table_chart',
+          onclick: attrs.onAddStdlibTableSource,
+        }),
+        m(SourceCard, {
+          title: 'Slices',
+          description: 'Explore all the slices from your trace.',
+          icon: 'bar_chart',
+          onclick: attrs.onAddSlicesSource,
+        }),
+        m(SourceCard, {
+          title: 'SQL Query',
+          description:
+            'Start with a custom SQL query to act as a source for ' +
+            'further exploration.',
+          icon: 'code',
+          onclick: attrs.onAddSqlSource,
+        }),
+      ),
+    );
+  }
+
+  private renderControls(attrs: QueryCanvasAttrs) {
+    return m(
+      '.pf-query-canvas__controls',
+      m(
+        PopupMenu,
+        {
+          trigger: m(Button, {
+            label: 'Add Node',
+            icon: Icons.Add,
+            intent: Intent.Primary,
+          }),
+        },
+        m(MenuItem, {
+          label: 'Explore table',
+          onclick: attrs.onAddStdlibTableSource,
+        }),
+        m(MenuItem, {
+          label: 'Explore slices',
+          onclick: attrs.onAddSlicesSource,
+        }),
+        m(MenuItem, {
+          label: 'Query',
+          onclick: attrs.onAddSqlSource,
+        }),
+      ),
+      m(Button, {
+        label: 'Clear All Nodes',
+        icon: Icons.Delete,
+        intent: Intent.Danger,
+        onclick: attrs.onClearAllNodes,
+        style: {marginLeft: '8px'},
+      }),
+    );
+  }
+
   view({attrs}: m.CVnode<QueryCanvasAttrs>) {
-    const {
-      rootNodes,
-      onNodeSelected,
-      selectedNode,
-      renderNodeActionsMenuItems,
-      addSourcePopupMenu,
-    } = attrs;
+    const {rootNodes, onNodeSelected, selectedNode} = attrs;
 
-    const nodes: m.Child[] = [];
-    const numRoots = rootNodes.length;
-
-    if (numRoots === 0) {
-      // Render the centered "Add" button if no nodes exist
-      nodes.push(
-        m(
-          '.query-canvas-add-button-container',
-          m(
-            PopupMenu,
-            {
-              trigger: m(Button, {
-                icon: Icons.Add,
-                intent: Intent.Primary,
-              }),
-            },
-            addSourcePopupMenu(),
-          ),
-        ),
-      );
-    } else {
-      rootNodes.forEach((rootNode) => {
-        let curNode: QueryNode | undefined = rootNode;
-        while (curNode) {
-          const localCurNode = curNode;
-          const layout = this.nodeLayouts.get(localCurNode) || {x: 10, y: 10};
-          if (!this.nodeLayouts.has(localCurNode)) {
-            this.nodeLayouts.set(localCurNode, layout);
-          }
-          nodes.push(
-            m(NodeBox, {
-              node: localCurNode,
-              isSelected: selectedNode === localCurNode,
-              layout,
-              onNodeSelected,
-              renderNodeActionsMenuItems,
-              onNodeDragStart: this.onNodeDragStart,
-            }),
-          );
-          curNode = curNode.nextNode;
-        }
-      });
+    const allNodes: QueryNode[] = [];
+    for (const root of rootNodes) {
+      let curr: QueryNode | undefined = root;
+      while (curr) {
+        allNodes.push(curr);
+        curr = curr.nextNode;
+      }
     }
 
-    return m('.pf-query-canvas', nodes);
+    const children: m.Child[] = [];
+
+    if (allNodes.length === 0) {
+      children.push(this.renderEmptyCanvas(attrs));
+    } else {
+      for (const node of allNodes) {
+        let layout = this.nodeLayouts.get(node);
+        if (!layout) {
+          layout = this.findNextAvailablePosition();
+          this.nodeLayouts.set(node, layout);
+        }
+        children.push(
+          m(NodeBox, {
+            node,
+            isSelected: selectedNode === node,
+            isDragging: this.dragNode === node,
+            layout,
+            onNodeSelected,
+            onNodeDragStart: this.onNodeDragStart,
+            onVisualizeNode: attrs.onVisualizeNode,
+            onDuplicateNode: attrs.onDuplicateNode,
+            onDeleteNode: attrs.onDeleteNode,
+          }),
+        );
+      }
+      children.push(this.renderControls(attrs));
+    }
+
+    return m(
+      '.pf-query-canvas',
+      {
+        tabindex: 0,
+        onclick: (e: MouseEvent) => {
+          if (e.target === e.currentTarget) {
+            attrs.onDeselect();
+          }
+        },
+      },
+      children,
+    );
   }
 }

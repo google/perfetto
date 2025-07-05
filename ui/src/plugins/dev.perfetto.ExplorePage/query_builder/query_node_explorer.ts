@@ -15,6 +15,7 @@
 import m from 'mithril';
 
 import {AsyncLimiter} from '../../../base/async_limiter';
+import {ExplorePageHelp} from './explore_page_help';
 import {NodeType, QueryNode} from '../query_node';
 import {Engine} from '../../../trace_processor/engine';
 import protos from '../../../protos';
@@ -26,11 +27,13 @@ import {Operator} from './operations/operation_component';
 import {Trace} from '../../../public/trace';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {TextInput} from '../../../widgets/text_input';
+import {SqlSourceNode} from './sources/sql_source';
 
 export interface QueryNodeExplorerAttrs {
-  readonly node: QueryNode;
+  readonly node?: QueryNode;
   readonly trace: Trace;
   readonly onQueryAnalyzed: (query: Query) => void;
+  readonly onExecute: () => void;
 }
 
 enum SelectedView {
@@ -51,6 +54,11 @@ export class QueryNodeExplorer
 
   private currentQuery?: Query | Error;
   view({attrs}: m.CVnode<QueryNodeExplorerAttrs>) {
+    const {node} = attrs;
+    if (!node) {
+      return m(ExplorePageHelp);
+    }
+
     const renderModeMenu = (): m.Child => {
       return m(
         PopupMenu,
@@ -83,17 +91,17 @@ export class QueryNodeExplorer
     };
 
     const operators = (): m.Child => {
-      switch (attrs.node.type) {
+      switch (node.type) {
         case NodeType.kSimpleSlices:
         case NodeType.kStdlibTable:
           return m(Operator, {
             filter: {
-              sourceCols: attrs.node.state.sourceCols,
-              filters: attrs.node.state.filters,
+              sourceCols: node.state.sourceCols,
+              filters: node.state.filters,
             },
             groupby: {
-              groupByColumns: attrs.node.state.groupByColumns,
-              aggregations: attrs.node.state.aggregations,
+              groupByColumns: node.state.groupByColumns,
+              aggregations: node.state.aggregations,
             },
           });
         case NodeType.kSqlSource:
@@ -102,18 +110,38 @@ export class QueryNodeExplorer
     };
 
     const getAndRunQuery = (): void => {
-      const sq = attrs.node.getStructuredQuery();
+      if (node.type === NodeType.kSqlSource) {
+        // TODO(mayzner): Remove this once we have a proper SQL source node.
+        // This is a temporary hack to allow the SQL source node to work with
+        // the query node explorer, without needing to privide the columns.
+        const sql = (node as SqlSourceNode).state.sql ?? '';
+        if (sql !== this.prevSqString) {
+          this.currentQuery = {
+            sql,
+            textproto: '',
+            modules: [],
+            preambles: [],
+          };
+          attrs.onQueryAnalyzed(this.currentQuery);
+          attrs.onExecute();
+          this.prevSqString = sql;
+        }
+        return;
+      }
+
+      const sq = node.getStructuredQuery();
       if (sq === undefined) return;
 
       this.curSqString = JSON.stringify(sq.toJSON(), null, 2);
 
       if (this.curSqString !== this.prevSqString) {
         this.tableAsyncLimiter.schedule(async () => {
-          this.currentQuery = await analyzeNode(attrs.node, attrs.trace.engine);
+          this.currentQuery = await analyzeNode(node, attrs.trace.engine);
           if (!isAQuery(this.currentQuery)) {
             return;
           }
           attrs.onQueryAnalyzed(this.currentQuery);
+          attrs.onExecute();
           this.prevSqString = this.curSqString;
         });
       }
@@ -129,26 +157,31 @@ export class QueryNodeExplorer
 
     return [
       m(
-        '.pf-node-explorer',
+        `.pf-node-explorer${
+          node.type === NodeType.kSqlSource
+            ? '.pf-node-explorer-sql-source'
+            : ''
+        }`,
         m(
           '.pf-node-explorer__title-row',
-          !attrs.node.validate() &&
-            m(Icon, {
-              icon: Icons.Warning,
-              filled: true,
-              title: 'Invalid node',
-            }),
           m(
             '.title',
+            !node.validate() &&
+              m(Icon, {
+                icon: Icons.Warning,
+                filled: true,
+                title: 'Invalid node',
+                style: {color: '#dc3545'},
+              }),
             m(TextInput, {
-              placeholder: attrs.node.getTitle(),
+              placeholder: node.getTitle(),
               oninput: (e: KeyboardEvent) => {
                 if (!e.target) return;
-                attrs.node.state.customTitle = (
+                node.state.customTitle = (
                   e.target as HTMLInputElement
                 ).value.trim();
-                if (attrs.node.state.customTitle === '') {
-                  attrs.node.state.customTitle = undefined;
+                if (node.state.customTitle === '') {
+                  node.state.customTitle = undefined;
                 }
               },
             }),
@@ -158,7 +191,7 @@ export class QueryNodeExplorer
         ),
         m(
           'article',
-          attrs.node.coreModify(),
+          node.coreModify(),
           this.selectedView === SelectedView.kSql &&
             m(
               '.code-snippet',

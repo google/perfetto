@@ -15,14 +15,14 @@
 import protos from '../../protos';
 import m from 'mithril';
 import {
-  ColumnControllerRow,
-  columnControllerRowFromName,
-  newColumnControllerRows,
-} from './query_builder/column_controller';
+  ColumnInfo,
+  columnInfoFromName,
+  newColumnInfoList,
+} from './query_builder/column_info';
 import {
   GroupByAgg,
   placeholderNewColumnName,
-} from './query_builder/operations/groupy_by';
+} from './query_builder/operations/group_by';
 import {Filter} from './query_builder/operations/filter';
 
 export enum NodeType {
@@ -35,11 +35,11 @@ export enum NodeType {
 // All information required to create a new node.
 export interface QueryNodeState {
   prevNode?: QueryNode;
-  sourceCols: ColumnControllerRow[];
+  sourceCols: ColumnInfo[];
   customTitle?: string;
 
   filters: Filter[];
-  groupByColumns: ColumnControllerRow[];
+  groupByColumns: ColumnInfo[];
   aggregations: GroupByAgg[];
 }
 
@@ -49,10 +49,10 @@ export interface QueryNode {
   readonly nextNode?: QueryNode;
 
   // Columns that are available in the source data.
-  readonly sourceCols: ColumnControllerRow[];
+  readonly sourceCols: ColumnInfo[];
 
   // Columns that are available after applying all operations.
-  readonly finalCols: ColumnControllerRow[];
+  readonly finalCols: ColumnInfo[];
 
   // State of the node. This is used to store the user's input and can be used
   // to fully recover the node.
@@ -88,13 +88,11 @@ export function createFinalColumns(node: QueryNode) {
     const selected = node.state.groupByColumns.filter((c) => c.checked);
     for (const agg of node.state.aggregations) {
       selected.push(
-        columnControllerRowFromName(
-          agg.newColumnName ?? placeholderNewColumnName(agg),
-        ),
+        columnInfoFromName(agg.newColumnName ?? placeholderNewColumnName(agg)),
       );
     }
-    return newColumnControllerRows(selected, true);
+    return newColumnInfoList(selected, true);
   }
 
-  return newColumnControllerRows(node.sourceCols, true);
+  return newColumnInfoList(node.sourceCols, true);
 }

@@ -81,6 +81,10 @@ export class SqlModulesImpl implements SqlModules {
     }
     return undefined;
   }
+
+  listModules(): SqlModule[] {
+    return this.packages.flatMap((p) => p.modules);
+  }
 }
 
 export class StdlibPackageImpl implements SqlPackage {
@@ -139,6 +143,7 @@ export class StdlibPackageImpl implements SqlPackage {
 
 export class StdlibModuleImpl implements SqlModule {
   readonly includeKey: string;
+  readonly tables: SqlTable[];
   readonly dataObjects: SqlTable[];
   readonly functions: SqlFunction[];
   readonly tableFunctions: SqlTableFunction[];
@@ -150,9 +155,10 @@ export class StdlibModuleImpl implements SqlModule {
     const neededInclude = this.includeKey.startsWith('prelude')
       ? undefined
       : this.includeKey;
-    this.dataObjects = docs.data_objects.map(
+    this.tables = docs.data_objects.map(
       (json) => new SqlTableImpl(json, neededInclude),
     );
+    this.dataObjects = this.tables;
 
     this.functions = docs.functions.map((json) => new StdlibFunctionImpl(json));
     this.tableFunctions = docs.table_functions.map(

@@ -40,12 +40,19 @@ export interface EditorAttrs {
 
   // Callback for every change to the text.
   onUpdate?: (text: string) => void;
+
+  // Whether the editor should be focused on creation.
+  autofocus?: boolean;
 }
 
 export class Editor implements m.ClassComponent<EditorAttrs> {
   private editorView?: EditorView;
   private generation?: number;
   private trash = new DisposableStack();
+
+  focus() {
+    this.editorView?.focus();
+  }
 
   oncreate({dom, attrs}: m.CVnodeDOM<EditorAttrs>) {
     const keymaps = [indentWithTab];
@@ -123,6 +130,10 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
         () => {},
       ),
     );
+
+    if (attrs.autofocus) {
+      this.focus();
+    }
   }
 
   onupdate({attrs}: m.CVnodeDOM<EditorAttrs>): void {

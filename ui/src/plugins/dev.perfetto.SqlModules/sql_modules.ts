@@ -31,6 +31,9 @@ export interface SqlModules {
   // Returns all tables/views between all loaded Perfetto SQL modules.
   listTables(): SqlTable[];
 
+  // Returns all loaded Perfetto SQL modules.
+  listModules(): SqlModule[];
+
   // Returns names of all tables/views between all loaded Perfetto SQL modules.
   listTablesNames(): string[];
 
@@ -69,6 +72,7 @@ export interface SqlPackage {
 // Handles the access to a specific Perfetto SQL module.
 export interface SqlModule {
   readonly includeKey: string;
+  readonly tables: SqlTable[];
   readonly dataObjects: SqlTable[];
   readonly functions: SqlFunction[];
   readonly tableFunctions: SqlTableFunction[];
