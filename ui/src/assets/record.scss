@@ -480,6 +480,7 @@
   transition: opacity 0.25s ease;
   opacity: 0;
   display: none;
+  overflow: hidden;
 
   &:not(.active) {
     max-height: 0;
