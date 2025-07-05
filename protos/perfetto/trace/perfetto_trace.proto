@@ -16380,6 +16380,7 @@ message TrackDescriptor {
 
   // If true, forces Trace Processor to use separate tracks for track events
   // and system events for the same thread.
+  //
   // Track events timestamps in Chrome have microsecond resolution, while
   // system events use nanoseconds. It results in broken event nesting when
   // track events and system events share a track.
@@ -16416,9 +16417,128 @@ message TrackDescriptor {
   // tracks with higher ranks. An unspecified rank will be treated as a rank of
   // 0.
   //
+  // Note: this option is only relevant for tracks where the parent has
+  // `child_ordering` set to `EXPLICIT`. It is ignored otherwise.
+  //
   // Note: for tracks where the parent has `thread` or `process` are set, this
-  // option is *ignored*. See `parent_uuid` for details.
+  // option is *ignored* (even if the parent's `child_ordering` is `EXPLICIT``).
+  // See `parent_uuid` for details.
   optional int32 sibling_order_rank = 12;
+
+  // Specifies how the UI (and potentially in the future, the trace processor)
+  // should "merge" different sibling TrackEvent tracks into a single "analysis"
+  // track. This is useful for reducing the vertical space used in the UI when
+  // there are many tracks all showing the same "type" of events (e.g. network
+  // requests, Android broadcasts, Linux wakelocks).
+  //
+  // When tracks are merged togther, the properties for the merged track will be
+  // chosen from the source tracks based on the following rules:
+  //   - for `sibling_order_rank`: the rank of the merged track will be the
+  //     smallest rank among the source tracks.
+  //   - for all other properties: the property taken is unspecified and can
+  //     be any value provided by one of the source tracks
+  //      - examples of other properties include `name`, `child_ordering` etc.
+  //      - because of this, it's recommended to ensure that all source tracks
+  //        have the same value for these properties.
+  //      - the trace processor will also emit an error stat if it detects
+  //        that the properties are not the same across all source tracks.
+  //
+  // Note: merging is done *recursively* so entire trees of tracks can be merged
+  // together. To make this clearer, consider an example track hierarchy (in
+  // the diagrams: "smk" refers to "sibling_merge_key", the first word on a
+  // track line, like "Updater", is its 'name' property):
+  //
+  //   Initial track hierarchy:
+  //     SystemActivity
+  //     ├── AuthService (smk: "auth_main_cluster")
+  //     │   └── LoginOp (smk: "login_v1")
+  //     ├── AuthService (smk: "auth_main_cluster")
+  //     │   └── LoginOp (smk: "login_v1")
+  //     ├── AuthService (smk: "auth_backup_cluster")
+  //     │   └── GuestOp (smk: "guest_v1")
+  //     └── UserProfileService (smk: "profile_cluster")
+  //         └── GetProfileOp (smk: "getprofile_v1")
+  //
+  // Merging outcomes:
+  //
+  // Scenario 1: Merging by `SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY`
+  //   - The first two "AuthService" tracks merge because they share
+  //     `smk: "auth_main_cluster"`. Their names are consistent ("AuthService"),
+  //     aligning with recommendations. The merged track is named "AuthService".
+  //   - The third "AuthService" track (with `smk: "auth_backup_cluster"`)
+  //     remains separate, as its `sibling_merge_key` is different.
+  //   - "UserProfileService" also remains separate.
+  //   - Within the merged "AuthService" (from "auth_main_cluster"):
+  //     "LoginOp" get merged as they have the same sibling merge key.
+  //
+  //   Resulting UI (when merging by SIBLING_MERGE_KEY):
+  //     SystemActivity
+  //     ├── AuthService (merged by smk: "auth_main_cluster")
+  //     │   ├── LoginOp (merged by smk: "login_v1")
+  //     ├── AuthService (smk: "auth_backup_cluster")
+  //     │   └── GuestOp (smk: "guest_v1")
+  //     └── UserProfileService (smk: "profile_cluster")
+  //         └── GetProfileOp (smk: "getprofile_v1")
+  //
+  // Scenario 2: Merging by `SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME`
+  //   - All three tracks named "AuthService" merge because they share the same
+  //     name. The merged track is named "AuthService". The `sibling_merge_key`
+  //     for this merged track would be taken from one of the source tracks
+  //     (e.g., "auth_main_cluster" or "auth_backup_cluster"), which could be
+  //     relevant if its children had key-based merge behaviors.
+  //   - "UserProfileService" remains separate due to its different name.
+  //   - Within the single merged "AuthService" track:
+  //     "LoginOp", "GuestOp" become siblings. "LoginOp" tracks gets merged as
+  //     they have the same name.
+  //
+  //   Resulting UI (when merging by SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME):
+  //     SystemActivity
+  //     ├── AuthService (merged from 3 "AuthService" tracks)
+  //     │   ├── LoginOp (smk: "login_v1")
+  //     │   └── GuestOp (smk: "guest_v1")
+  //     └── UserProfileService (smk: "profile_cluster")
+  //         └── GetProfileOp (smk: "getprofile_v1")
+  //
+  // Note: for tracks where `thread` or `process` are set, this option is
+  // *ignored*. See `parent_uuid` for details.
+  //
+  // Note: this flag only affects the UI for now but we expect this also to be
+  // respected by the trace processor in the future to allow for consistency
+  // between you see and what you query.
+  enum SiblingMergeBehavior {
+    // When unspecified or not set, defaults to `SIBLING_MERGE_BEHAVIOR_LEGACY`.
+    SIBLING_MERGE_BEHAVIOR_UNSPECIFIED = 0;
+
+    // The "legacy" behaviour for merging which predates the introduction of
+    // this field. Any siblings tracks with the same `name` will be merged
+    // together *except* when those tracks have a child *themselves*.
+    //
+    // A bit of history on why this exists: this behaviour was inherited from
+    // chrome://tracing (Catapult) and exists mainly to not break existing
+    // traces. In general, if possible don't use this and prefer to instead
+    // explicitly set the `sibling_merge_behavior` to one of the other
+    // options.
+    SIBLING_MERGE_BEHAVIOR_LEGACY = 1;
+
+    // Never merge this track with any siblings. Useful if if this track has a
+    // specific meaning and you want to see separately from any others.
+    SIBLING_MERGE_BEHAVIOR_NONE = 2;
+
+    // Merge this track with eligible siblings which have the same `name`.
+    SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME = 3;
+
+    // Merge this track with eligible siblings which have the same
+    // `sibling_merge_key`.
+    SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY = 4;
+  }
+  optional SiblingMergeBehavior sibling_merge_behavior = 14;
+
+  // An opaque value which allows specifying which tracks should be merged
+  // together.
+  //
+  // Only meaningful when `sibling_merge_behavior` is set to
+  // `SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY`.
+  optional string sibling_merge_key = 15;
 }
 
 // End of protos/perfetto/trace/track_event/track_descriptor.proto
