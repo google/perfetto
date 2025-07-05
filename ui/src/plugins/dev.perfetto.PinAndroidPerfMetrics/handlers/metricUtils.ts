@@ -60,6 +60,19 @@ export interface BlockingCallMetricData {
   aggregation: string;
 }
 
+/**
+ * Represents data for a Notifications Blocking Call metric
+ * Eg.- perfetto_android_notifications_blocking_call-blocking_calls-name-NotificationStackScrollLayout#onMeasure-cnt
+ * Eg.- perfetto_android_notifications_blocking_call-blocking_calls-name-ExpNotRow#onLayout(nostyle)-total_dur_ns
+ */
+export interface NotificationsBlockingCallMetricData {
+  /** Notification name (e.g., NotificationStackScrollLayout) */
+  notificationName: string;
+
+  /** aggregation type (e.g., total_dur_ms) */
+  aggregation: string;
+}
+
 /** Represents a cuj to be pinned. */
 export interface CujMetricData {
   cujName: string;
@@ -70,6 +83,7 @@ export type MetricData =
   | FullTraceMetricData
   | CujScopedMetricData
   | BlockingCallMetricData
+  | NotificationsBlockingCallMetricData
   | CujMetricData;
 
 // Common JankType for cujScoped and fullTrace metrics
