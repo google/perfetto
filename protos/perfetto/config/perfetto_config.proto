@@ -1952,7 +1952,7 @@ message FollowerEvent {
 //     }
 //   }
 //
-// Next id: 21
+// Next id: 22
 message PerfEventConfig {
   // What event to sample on, and how often.
   // Defined in common/perf_events.proto.
@@ -1974,6 +1974,9 @@ message PerfEventConfig {
   //
   // Available since: perfetto v50.
   repeated uint32 target_cpu = 20;
+
+  // Filter based on CPUID
+  repeated string target_cpuid = 21;
 
   //
   // Kernel <-> userspace ring buffer options:
