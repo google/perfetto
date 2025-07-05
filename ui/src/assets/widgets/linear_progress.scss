@@ -1,0 +1,76 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-linear-progress {
+  height: 1px;
+  position: relative;
+  overflow: hidden;
+}
+
+.pf-linear-progress--anim {
+  &:before {
+    content: "";
+    position: absolute;
+    background-color: hsl(219, 50%, 50%);
+    top: 0;
+    left: 0;
+    bottom: 0;
+    will-change: left, right;
+    animation: indeterminate 2.1s cubic-bezier(0.65, 0.815, 0.735, 0.395)
+      infinite;
+  }
+
+  &:after {
+    content: "";
+    position: absolute;
+    background-color: hsl(219, 50%, 50%);
+    top: 0;
+    left: 0;
+    bottom: 0;
+    will-change: left, right;
+    animation: indeterminate-short 2.1s cubic-bezier(0.165, 0.84, 0.44, 1)
+      infinite;
+    animation-delay: 1.15s;
+  }
+}
+
+@keyframes indeterminate {
+  0% {
+    left: -35%;
+    right: 100%;
+  }
+  60% {
+    left: 100%;
+    right: -90%;
+  }
+  100% {
+    left: 100%;
+    right: -90%;
+  }
+}
+
+@keyframes indeterminate-short {
+  0% {
+    left: -35%;
+    right: 100%;
+  }
+  60% {
+    left: 100%;
+    right: -90%;
+  }
+  100% {
+    left: 100%;
+    right: -90%;
+  }
+}

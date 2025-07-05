@@ -48,6 +48,8 @@ import {featureFlags} from '../core/feature_flags';
 import {trackMatchesFilter} from '../core/track_manager';
 import {renderStatusBar} from './statusbar';
 import {formatTimezone, timezoneOffsetMap} from '../base/time';
+import {LinearProgress} from '../widgets/linear_progress';
+import {taskTracker} from './task_tracker';
 
 const showStatusBarFlag = featureFlags.register({
   id: 'Enable status bar',
@@ -745,15 +747,24 @@ export class UiMainPerTrace implements m.ClassComponent {
       }
     }
 
+    const isSomethingLoading =
+      AppImpl.instance.isLoadingTrace ||
+      (this.trace?.engine.numRequestsPending ?? 0) > 0 ||
+      taskTracker.hasPendingTasks();
+
     return m(
       HotkeyContext,
       {hotkeys},
       m(
-        'main',
+        'main.pf-ui-main',
         m(Sidebar, {trace: this.trace}),
         m(Topbar, {
           omnibox: this.renderOmnibox(),
           trace: this.trace,
+        }),
+        m(LinearProgress, {
+          className: 'pf-ui-main__loading',
+          state: isSomethingLoading ? 'indeterminate' : 'none',
         }),
         app.pages.renderPageForCurrentRoute(),
         m(CookieConsent),
