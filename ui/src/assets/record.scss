@@ -1266,6 +1266,86 @@
       background-color: #eee;
     }
   }
+
+  .selector {
+    @include transition(0.3s);
+    display: grid;
+    grid-template-columns: 1fr 200px;
+    grid-template-rows: 30px 1fr;
+    grid-template-areas:
+      "hdr hdr"
+      "descr dropdown-select";
+    margin-top: var(--record-section-padding);
+
+    &.greyed-out {
+      opacity: 0.5;
+    }
+
+    > * {
+      height: 40px;
+      line-height: 40px;
+    }
+
+    > .textarea-holder {
+      height: 100%;
+    }
+
+    textarea.record-apps-list {
+      margin-top: 0px;
+    }
+
+    > header {
+      @include transition(0.3s);
+      opacity: 1;
+      color: var(--record-text-color);
+      grid-area: hdr;
+      font-size: 14px;
+      border-bottom: unset;
+    }
+
+    > header.descr {
+      grid-area: descr;
+      font-size: 12px;
+      color: #666;
+      height: auto;
+      line-height: 20px;
+      text-align: justify;
+      margin-right: 2em;
+    }
+
+    &:hover > header {
+      opacity: 1;
+      transition-duration: 0.15s;
+    }
+
+    > i {
+      grid-area: icon;
+      font-size: 32px;
+      color: #333;
+    }
+
+    > select {
+      grid-area: dropdown-select;
+      height: fit-content;
+    }
+
+    > button {
+      grid-area: dropdown-select;
+      height: fit-content;
+      line-height: 20px;
+    }
+  }
+
+  h1 {
+    font-size: larger;
+    font-weight: bolder;
+    margin-top: 40px;
+  }
+
+  .tab-content {
+    padding-left: var(--record-section-padding);
+    padding-right: var(--record-section-padding);
+  }
 } // record-section
 
 .inline-chip {
@@ -1533,4 +1613,13 @@ a.inline-chip:visited {
       font-size: 12px;
     }
   }
+}
+
+// Patch pf-tree to render correctly a tree in a popup
+.pf-popup-content > .pf-tree {
+  width: max-content;
+}
+
+.pf-tree-right > .pf-checkbox {
+  display: inline;
 }

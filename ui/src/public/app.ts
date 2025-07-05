@@ -23,6 +23,7 @@ import {PageManager} from './page';
 import {FeatureFlagManager} from './feature_flag';
 import {Raf} from './raf';
 import {SettingsManager} from './settings';
+import {CpuInfoManager} from './cpu_info';
 
 /**
  * The API endpoint to interact programmaticaly with the UI before a trace has
@@ -42,6 +43,7 @@ export interface App {
   readonly pages: PageManager;
   readonly featureFlags: FeatureFlagManager;
   readonly settings: SettingsManager;
+  readonly cpuInfos: CpuInfoManager;
 
   /**
    * The parsed querystring passed when starting the app, before any navigation
