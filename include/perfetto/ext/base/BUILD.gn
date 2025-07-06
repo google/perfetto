@@ -39,6 +39,7 @@ source_set("base") {
     "platform.h",
     "scoped_file.h",
     "scoped_mmap.h",
+    "scoped_sched_boost.h",
     "small_set.h",
     "small_vector.h",
     "status_macros.h",

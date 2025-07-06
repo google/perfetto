@@ -46,6 +46,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_stats.gen.h"
+#include "protos/perfetto/trace/ftrace/sched.gen.h"
 #include "protos/perfetto/trace/perfetto/tracing_service_event.gen.h"
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/trace.gen.h"
@@ -198,6 +199,7 @@ TEST_F(PerfettoFtraceIntegrationTest, TestFtraceFlush) {
   int marker_found = 0;
   for (const auto& packet : helper.trace()) {
     for (int i = 0; i < packet.ftrace_events().event_size(); i++) {
+      // packet.ftrace_events().event()[0].sched_switch().next_pid()
       const auto& ev = packet.ftrace_events().event()[static_cast<size_t>(i)];
       if (ev.has_print() && ev.print().buf().find(kMarker) != std::string::npos)
         marker_found++;

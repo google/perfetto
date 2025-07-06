@@ -1431,6 +1431,31 @@ message AndroidPowerConfig {
 
 // End of protos/perfetto/config/power/android_power_config.proto
 
+// Begin of protos/perfetto/config/priority_boost/priority_boost_config.proto
+
+// Configuration that allows to boost the priority of the 'traced' or
+// 'traced_probs' processes, by changing the scheduler configuration.
+// Only supported on Linux and Android the boosted process must
+// have 'CAP_SYS_NICE' capability (be started as root).
+message PriorityBoostConfig {
+  enum BoostPolicy {
+    POLICY_SCHED_OTHER = 0;
+    POLICY_SCHED_FIFO = 1;
+  };
+  required BoostPolicy policy = 1;
+  required uint32 priority = 2;
+
+  //  oneof boost_level {
+  //    // From [-20 to 19], larger values correspond to _lower_ scheduling
+  //    // priority. Userspace policy SCHED_OTHER will be used.
+  //    int32 nice_value = 1;
+  //    // From [1 to 99], lager value correspond to _higher_ priority.
+  //    // Realtime policy SCHED_FIFO will be used.
+  //    uint32 realtime_priority = 2;
+  //  }
+}
+// End of protos/perfetto/config/priority_boost/priority_boost_config.proto
+
 // Begin of protos/perfetto/config/process_stats/process_stats_config.proto
 
 message ProcessStatsConfig {
@@ -3882,6 +3907,8 @@ message DataSourceConfig {
   // sources registered with a configurable buffer exhausted policy).
   optional BufferExhaustedPolicy buffer_exhausted_policy = 9;
 
+  optional PriorityBoostConfig priority_boost = 10;
+
   // Keep the lower IDs (up to 99) for fields that are *not* specific to
   // data-sources and needs to be processed by the traced daemon.
 
@@ -4032,7 +4059,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 40.
+// Next id: 41.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -4740,6 +4767,8 @@ message TraceConfig {
     optional uint64 max_other_session_count = 2;
   }
   repeated SessionSemaphore session_semaphores = 39;
+
+  optional PriorityBoostConfig priority_boost = 40;
 }
 
 // End of protos/perfetto/config/trace_config.proto

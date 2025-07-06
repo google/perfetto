@@ -59,6 +59,7 @@ if (!build_with_chromium && enable_perfetto_integration_tests) {
       "android_integrationtest.cc",
       "cmdline_integrationtest.cc",
       "ftrace_integrationtest.cc",
+      "priority_boost_integrationtest.cc",
       "traced_integrationtest.cc",
     ]
     if (start_daemons_for_testing) {

@@ -22,10 +22,12 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/priority_boost_config.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/core/data_source_config.h"
@@ -446,6 +448,22 @@ void ProbesProducer::SetupDataSource(DataSourceInstanceID instance_id,
     return;
   }
 
+  if (config.has_priority_boost()) {
+    auto sched_policy = CreateSchedPolicyFromConfig(config.priority_boost());
+    if (!sched_policy.ok()) {
+      PERFETTO_ELOG("Invalid priority boost config for data source '%s': %s",
+                    config.name().c_str(), sched_policy.status().c_message());
+    } else {
+      auto boost = base::ScopedSchedBoost::Boost(sched_policy.value());
+      if (!boost.ok()) {
+        PERFETTO_ELOG("Failed to boost priority for data source '%s': %s",
+                      config.name().c_str(), boost.status().c_message());
+      } else {
+        data_source->priority_boost = std::move(*boost);
+      }
+    }
+  }
+
   session_data_sources_[session_id].emplace(data_source->descriptor,
                                             data_source.get());
   data_sources_[instance_id] = std::move(data_source);
@@ -455,6 +473,10 @@ void ProbesProducer::StartDataSource(DataSourceInstanceID instance_id,
                                      const DataSourceConfig& config) {
   PERFETTO_DLOG("StartDataSource(id=%" PRIu64 ", name=%s)", instance_id,
                 config.name().c_str());
+  std::string thread_name;
+  base::GetThreadName(thread_name);
+  PERFETTO_DLOG("traced_probes pid: %d, thread id: %d, name: %s", getpid(),
+                gettid(), thread_name.c_str());
   auto it = data_sources_.find(instance_id);
   if (it == data_sources_.end()) {
     // Can happen if SetupDataSource() failed (e.g. ftrace was busy).
