@@ -21,8 +21,6 @@
 
 #include <dlfcn.h>
 
-#include <cinttypes>
-
 #include "src/profiling/symbolizer/llvm_symbolizer.h"
 
 namespace perfetto {
@@ -51,8 +49,8 @@ TEST(LlvmSymbolizerTest, Symbolize) {
       {"test/data/test_symbolizer_binary", normal_function_address},
       {"test/data/test_symbolizer_binary", inlined_function_address},
   };
-  std::vector<std::vector<SymbolizedFrame>> results =
-      symbolizer.SymbolizeBatch(requests);
+  SymbolizationResultBatch result_batch = symbolizer.SymbolizeBatch(requests);
+  const auto& results = result_batch.GetResults();
 
   ASSERT_EQ(results.size(), 2u);
 
