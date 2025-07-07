@@ -165,5 +165,26 @@ TEST_F(StringPoolTest, LargeString) {
   }
 }
 
+TEST_F(StringPoolTest, MaxSmallStringIdOnBlockBoundary) {
+  // Null string should be at (0, 0).
+  pool_.InternString(base::StringView());
+
+  static constexpr uint32_t kMetadataSize = 5;
+  static constexpr uint32_t kNullStringSize = 5;
+  pool_.InternString(base::StringView(
+      std::string(1048576 - kMetadataSize - kNullStringSize, 'a')));
+  pool_.InternString(
+      base::StringView(std::string(1048576 - kMetadataSize, 'b')));
+  pool_.InternString(
+      base::StringView(std::string(1048576 - kMetadataSize, 'c')));
+  pool_.InternString(
+      base::StringView(std::string(1048576 - kMetadataSize, 'd')));
+
+  // The max id should point to the *next* block.
+  StringPool::Id max_id = pool_.MaxSmallStringId();
+  ASSERT_EQ(max_id.block_index(), 1u);
+  ASSERT_EQ(max_id.block_offset(), 0u);
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor

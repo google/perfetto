@@ -67,22 +67,6 @@ TEST(IntervalTree, Simple) {
   ASSERT_THAT(overlaps, UnorderedElementsAre(0, 1));
 }
 
-TEST(IntervalTree, SinglePointOverlap) {
-  auto intervals = CreateIntervals({{10, 20}});
-  IntervalTree tree(intervals);
-  std::vector<uint32_t> overlaps;
-
-  // Overlaps at the start point only
-  tree.FindOverlaps(10, 10, overlaps);
-  ASSERT_THAT(overlaps, IsEmpty());
-
-  overlaps.clear();
-
-  // Overlaps at the end point only
-  tree.FindOverlaps(20, 20, overlaps);
-  ASSERT_THAT(overlaps, IsEmpty());
-}
-
 TEST(IntervalTree, NoOverlaps) {
   auto intervals = CreateIntervals({{10, 20}, {30, 40}});
   IntervalTree tree(intervals);
@@ -140,6 +124,53 @@ TEST(IntervalTree, OverlappingEndpoints) {
   ASSERT_THAT(overlaps, UnorderedElementsAre(0, 1));
 }
 
+TEST(IntervalTree, InstantQueryFindsContainingIntervalOnly) {
+  auto intervals = CreateIntervals({{0, 15}, {10, 20}, {15, 15}, {15, 25}});
+  IntervalTree tree(intervals);
+  std::vector<uint32_t> overlaps;
+  tree.FindOverlaps(15, 15, overlaps);
+  ASSERT_THAT(overlaps, UnorderedElementsAre(1, 2, 3));
+}
+
+TEST(IntervalTree, QueryFindsStrictlyContainedInstants) {
+  auto intervals = CreateIntervals({{10, 10}, {12, 18}, {15, 15}, {20, 20}});
+  IntervalTree tree(intervals);
+  std::vector<uint32_t> overlaps;
+  tree.FindOverlaps(10, 20, overlaps);
+  ASSERT_THAT(overlaps, UnorderedElementsAre(0, 1, 2));
+}
+
+TEST(IntervalTree, NarrowQueryFindsContainedInstant) {
+  auto intervals = CreateIntervals({{15, 15}});
+  IntervalTree tree(intervals);
+  std::vector<uint32_t> overlaps;
+  tree.FindOverlaps(14, 16, overlaps);
+  ASSERT_THAT(overlaps, UnorderedElementsAre(0));
+}
+
+TEST(IntervalTree, QueryFindsMultipleInstantsAtSamePoint) {
+  auto intervals = CreateIntervals({{10, 10}, {10, 10}});
+  IntervalTree tree(intervals);
+  std::vector<uint32_t> overlaps;
+  tree.FindOverlaps(9, 11, overlaps);
+  ASSERT_THAT(overlaps, UnorderedElementsAre(0, 1));
+}
+
+TEST(IntervalTree, InstantTouchesQueryEnd) {
+  auto intervals = CreateIntervals({{10, 10}});
+  IntervalTree tree(intervals);
+  std::vector<uint32_t> overlaps;
+  tree.FindOverlaps(5, 10, overlaps);
+  ASSERT_THAT(overlaps, IsEmpty());
+}
+
+TEST(IntervalTree, InstantTouchesQueryStart) {
+  auto intervals = CreateIntervals({{10, 10}});
+  IntervalTree tree(intervals);
+  std::vector<uint32_t> overlaps;
+  tree.FindOverlaps(10, 15, overlaps);
+  ASSERT_THAT(overlaps, UnorderedElementsAre(0));
+}
 TEST(IntervalTree, Stress) {
   static constexpr size_t kCount = 9249;
   std::minstd_rand0 rng(42);
