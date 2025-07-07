@@ -140,6 +140,15 @@ $border: 1px solid rgb(225, 225, 225);
     display: flex;
     padding: 2px;
     align-items: baseline;
+    flex: none;
+  }
+
+  &__loading {
+    flex: none;
+  }
+
+  &__table {
+    flex-grow: 1;
   }
 
   &__toolbar-filters {

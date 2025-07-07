@@ -111,19 +111,6 @@ table {
   user-select: text;
 }
 
-body > main {
-  display: grid;
-  grid-template-areas:
-    "sidebar topbar"
-    "sidebar alerts"
-    "sidebar page"
-    "statusbar statusbar";
-  grid-template-rows: auto auto 1fr auto;
-  grid-template-columns: auto 1fr;
-  color: #121212;
-  overflow: hidden;
-}
-
 body.filedrag::after {
   content: "Drop the trace file to open it";
   position: fixed;
