@@ -1635,7 +1635,6 @@ perfetto_cc_library(
     name = "src_trace_processor_containers_containers",
     srcs = [
         "src/trace_processor/containers/bit_vector.cc",
-        "src/trace_processor/containers/row_map.cc",
         "src/trace_processor/containers/string_pool.cc",
     ],
     hdrs = [
@@ -1649,8 +1648,6 @@ perfetto_cc_library(
         "src/trace_processor/containers/interval_intersector.h",
         "src/trace_processor/containers/interval_tree.h",
         "src/trace_processor/containers/null_term_string_view.h",
-        "src/trace_processor/containers/row_map.h",
-        "src/trace_processor/containers/row_map_algorithms.h",
         "src/trace_processor/containers/string_pool.h",
     ],
     deps = [
