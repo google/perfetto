@@ -44,7 +44,7 @@ class LlvmSymbolizer {
   LlvmSymbolizer(LlvmSymbolizer&& other) noexcept;
   LlvmSymbolizer& operator=(LlvmSymbolizer&& other) noexcept;
 
-  std::vector<std::vector<SymbolizedFrame>> SymbolizeBatch(
+  SymbolizationResultBatch SymbolizeBatch(
       const std::vector<SymbolizationRequest>& requests);
 
  private:
@@ -55,7 +55,8 @@ class LlvmSymbolizer {
   decltype(&::LlvmSymbolizer_Create) create_fn_ = nullptr;
   decltype(&::LlvmSymbolizer_Destroy) destroy_fn_ = nullptr;
   decltype(&::LlvmSymbolizer_Symbolize) symbolize_fn_ = nullptr;
-  decltype(&::LlvmSymbolizer_FreeSymbolizationResult) free_result_fn_ = nullptr;
+  decltype(&::LlvmSymbolizer_FreeBatchSymbolizationResult) free_result_fn_ =
+      nullptr;
 };
 
 }  // namespace profiling
