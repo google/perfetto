@@ -359,6 +359,8 @@ class DataSource : public DataSourceBase {
           Helper::type().GetIncrementalState(tls_inst_, instance_index_));
     }
 
+    TraceWriterBase* getTraceWriter() { return tls_inst_->trace_writer.get(); }
+
    private:
     friend class DataSource;
     template <typename, const internal::TrackEventCategoryRegistry*>
