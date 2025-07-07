@@ -24,6 +24,8 @@
 
 namespace perfetto {
 namespace profiling {
+class LlvmSymbolizer;
+
 struct SymbolizationRequest {
   std::string binary;
   uint64_t address;
@@ -33,6 +35,37 @@ struct LlvmSymbolizedFrame {
   base::StringView function_name;
   base::StringView file_name;
   uint32_t line = 0;
+};
+
+// RAII wrapper for the results of a batch symbolization.
+// This object owns the memory returned by the C API and provides safe,
+// non-owning views to the symbolized frames.
+class SymbolizationResultBatch {
+ public:
+  ~SymbolizationResultBatch();
+
+  // This class is move-only to ensure unique ownership of the underlying data.
+  SymbolizationResultBatch(const SymbolizationResultBatch&) = delete;
+  SymbolizationResultBatch& operator=(const SymbolizationResultBatch&) = delete;
+  SymbolizationResultBatch(SymbolizationResultBatch&&) noexcept;
+  SymbolizationResultBatch& operator=(SymbolizationResultBatch&&) noexcept;
+
+  const std::vector<std::vector<LlvmSymbolizedFrame>>& GetResults() const {
+    return results_;
+  }
+
+ private:
+  friend class LlvmSymbolizer;
+
+  SymbolizationResultBatch(
+      BatchSymbolizationResult c_api_result,
+      decltype(&::LlvmSymbolizer_FreeBatchSymbolizationResult) free_fn);
+
+  void Free();
+
+  BatchSymbolizationResult c_api_result_{};
+  decltype(&::LlvmSymbolizer_FreeBatchSymbolizationResult) free_result_fn_{};
+  std::vector<std::vector<LlvmSymbolizedFrame>> results_;
 };
 
 class LlvmSymbolizer {
