@@ -337,7 +337,7 @@ std::string GetTokenNamesAllowedInMacro() {
 }
 
 base::StatusOr<dataframe::AdhocDataframeBuilder::ColumnType>
-ArgumentTypeToDataframeType(sql_argument::Type type) {
+ArgumentTypeToDataframeType(sql_argument::Type type, bool bytes_as_int64) {
   switch (type) {
     case sql_argument::Type::kLong:
     case sql_argument::Type::kBool:
@@ -347,7 +347,10 @@ ArgumentTypeToDataframeType(sql_argument::Type type) {
     case sql_argument::Type::kString:
       return dataframe::AdhocDataframeBuilder::ColumnType::kString;
     case sql_argument::Type::kBytes:
-      return base::ErrStatus("Bytes type is not supported");
+      return bytes_as_int64
+                 ? base::StatusOr<dataframe::AdhocDataframeBuilder::ColumnType>(
+                       dataframe::AdhocDataframeBuilder::ColumnType::kInt64)
+                 : base::ErrStatus("Bytes type is not supported");
   }
   PERFETTO_FATAL("For GCC");
 }
@@ -383,6 +386,7 @@ base::StatusOr<dataframe::Dataframe> CreateDataframeFromSqliteStatement(
 
 base::StatusOr<std::vector<dataframe::AdhocDataframeBuilder::ColumnType>>
 GetTypesFromSelectStatement(
+    bool bytes_as_int64,
     const std::vector<sql_argument::ArgumentDefinition>& schema,
     const std::vector<std::string>& column_names,
     const std::string& name,
@@ -391,7 +395,7 @@ GetTypesFromSelectStatement(
   PERFETTO_DCHECK(schema.empty() || schema.size() == column_names.size());
   std::vector<dataframe::AdhocDataframeBuilder::ColumnType> types;
   for (const auto& col : schema) {
-    auto type_or = ArgumentTypeToDataframeType(col.type());
+    auto type_or = ArgumentTypeToDataframeType(col.type(), bytes_as_int64);
     if (!type_or.ok()) {
       return base::ErrStatus("%s(%s): %s", tag, name.c_str(),
                              type_or.status().c_message());
@@ -755,9 +759,10 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
     ASSIGN_OR_RETURN(auto schema, ValidateAndGetEffectiveSchema(
                                       column_names, create_table.schema,
                                       "CREATE PERFETTO TABLE"));
-    ASSIGN_OR_RETURN(auto types, GetTypesFromSelectStatement(
-                                     schema, column_names, create_table.name,
-                                     "CREATE PERFETTO TABLE"));
+    ASSIGN_OR_RETURN(auto types,
+                     GetTypesFromSelectStatement(false, schema, column_names,
+                                                 create_table.name,
+                                                 "CREATE PERFETTO TABLE"));
     auto* sqlite_stmt = stmt.sqlite_stmt();
     SqliteStmtValueFetcher fetcher{{}, sqlite_stmt};
     ASSIGN_OR_RETURN(
@@ -845,8 +850,8 @@ base::Status PerfettoSqlEngine::ExecuteCreateView(
       SqliteStmtValueViewFetcher fetcher{{}, stmt.sqlite_stmt()};
       ASSIGN_OR_RETURN(auto types,
                        GetTypesFromSelectStatement(
-                           effective_schema, column_names, create_view.name,
-                           "CREATE PERFETTO VIEW"));
+                           true, effective_schema, column_names,
+                           create_view.name, "CREATE PERFETTO VIEW"));
       base::StatusOr<dataframe::Dataframe> materialized =
           CreateDataframeFromSqliteStatement(
               engine_->db(), pool_, std::move(column_names), std::move(types),
