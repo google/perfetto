@@ -67,7 +67,12 @@ class FtraceParser {
                                       const InlineSchedWaking& data);
 
  private:
-  void ParseGenericFtrace(int64_t timestamp,
+  void ParseLegacyGenericFtrace(int64_t timestamp,
+                                uint32_t cpu,
+                                uint32_t pid,
+                                protozero::ConstBytes);
+  void ParseGenericFtrace(uint32_t event_proto_id,
+                          int64_t timestamp,
                           uint32_t cpu,
                           uint32_t pid,
                           protozero::ConstBytes);
