@@ -129,6 +129,50 @@ WHERE
 GROUP BY
   cuj_id;
 
+-- Track all frames that overlap with the CUJ slice.
+CREATE PERFETTO VIEW _android_frames_in_cuj AS
+SELECT
+  row_number() OVER (PARTITION BY cuj.cuj_id ORDER BY frame.ts) AS frame_idx,
+  count(*) OVER (PARTITION BY cuj.cuj_id) AS frame_cnt,
+  substr(cuj.cuj_slice_name, 3, length(cuj.cuj_slice_name) - 3) AS cuj_name,
+  cuj.upid,
+  cuj.process_name,
+  frame.layer_id,
+  frame.frame_id,
+  frame.do_frame_id,
+  frame.expected_frame_timeline_id,
+  cuj.cuj_id,
+  frame.ts AS frame_ts,
+  frame.dur AS dur,
+  (
+    frame.ts + frame.dur
+  ) AS ts_end,
+  ui_thread_utid
+FROM android_frames_layers AS frame
+JOIN _sysui_cuj_instant_events AS cie
+  ON frame.ui_thread_utid = cie.ui_thread AND frame.layer_id IS NOT NULL
+JOIN _sysui_cujs_slices AS cuj
+  ON cie.cuj_id = cuj.cuj_id
+-- Check whether the frame_id falls within the begin and end vsync of the cuj.
+-- Also check if the frame start or end timestamp falls within the cuj boundary.
+WHERE
+  frame_id >= begin_vsync
+  AND frame_id <= end_vsync
+  AND (
+    -- frame start within cuj
+    (
+      frame.ts >= cuj.ts AND frame.ts <= cuj.ts_end
+    )
+    -- frame end within cuj
+    OR (
+      (
+        frame.ts + frame.dur
+      ) >= cuj.ts AND (
+        frame.ts + frame.dur
+      ) <= cuj.ts_end
+    )
+  );
+
 -- Table tracking all jank CUJs information.
 CREATE PERFETTO TABLE android_sysui_jank_cujs (
   -- Unique incremental ID for each CUJ.
@@ -167,49 +211,6 @@ CREATE PERFETTO TABLE android_sysui_jank_cujs (
   end_vsync LONG
 ) AS
 WITH
-  -- Track all frames that overlap with the CUJ slice, with the same layer id.
-  frames_in_cuj AS (
-    SELECT
-      row_number() OVER (PARTITION BY cuj.cuj_id ORDER BY frame.ts) AS frame_idx,
-      count(*) OVER (PARTITION BY cuj.cuj_id) AS frame_cnt,
-      cuj.cuj_slice_name,
-      cuj.upid,
-      cuj.process_name,
-      frame.layer_id,
-      frame.frame_id,
-      frame.do_frame_id,
-      frame.expected_frame_timeline_id,
-      cuj.cuj_id,
-      frame.ts AS frame_ts,
-      frame.dur AS dur,
-      (
-        frame.ts + frame.dur
-      ) AS ts_end
-    FROM android_frames_layers AS frame
-    JOIN _sysui_cuj_instant_events AS cie
-      ON frame.ui_thread_utid = cie.ui_thread AND frame.layer_id IS NOT NULL
-    JOIN _sysui_cujs_slices AS cuj
-      ON cie.cuj_id = cuj.cuj_id
-    -- Check whether the frame_id falls within the begin and end vsync of the cuj.
-    -- Also check if the frame start or end timestamp falls within the cuj boundary.
-    WHERE
-      frame_id >= begin_vsync
-      AND frame_id <= end_vsync
-      AND (
-        -- frame start within cuj
-        (
-          frame.ts >= cuj.ts AND frame.ts <= cuj.ts_end
-        )
-        -- frame end within cuj
-        OR (
-          (
-            frame.ts + frame.dur
-          ) >= cuj.ts AND (
-            frame.ts + frame.dur
-          ) <= cuj.ts_end
-        )
-      )
-  ),
   -- select the first and last frame.
   cuj_frame_boundary AS (
     SELECT
@@ -234,7 +235,7 @@ WITH
         WHERE
           id = do_frame_id
       ) AS end_frame_ts_end
-    FROM frames_in_cuj
+    FROM _android_frames_in_cuj
     WHERE
       frame_idx = 1 OR frame_idx = frame_cnt
   )
