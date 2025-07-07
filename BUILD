@@ -400,7 +400,6 @@ perfetto_cc_library(
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
-        ":src_trace_processor_tables_macros_internal",
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_tables_tables_python",
         ":src_trace_processor_trace_summary_trace_summary",
@@ -3534,17 +3533,12 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/tables:macros_internal
-perfetto_filegroup(
-    name = "src_trace_processor_tables_macros_internal",
-    srcs = [
-        "src/trace_processor/tables/macros_internal.h",
-    ],
-)
-
 # GN target: //src/trace_processor/tables:tables
 perfetto_filegroup(
     name = "src_trace_processor_tables_tables",
+    srcs = [
+        "src/trace_processor/tables/macros_internal.h",
+    ],
 )
 
 # GN target: //src/trace_processor/tables:tables_python
@@ -7309,7 +7303,6 @@ perfetto_cc_library(
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
-        ":src_trace_processor_tables_macros_internal",
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_tables_tables_python",
         ":src_trace_processor_trace_summary_trace_summary",
@@ -7518,7 +7511,6 @@ perfetto_cc_binary(
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
-        ":src_trace_processor_tables_macros_internal",
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_tables_tables_python",
         ":src_trace_processor_trace_summary_trace_summary",
@@ -7713,7 +7705,6 @@ perfetto_cc_binary(
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
-        ":src_trace_processor_tables_macros_internal",
         ":src_trace_processor_tables_tables",
         ":src_trace_processor_tables_tables_python",
         ":src_trace_processor_trace_summary_trace_summary",
