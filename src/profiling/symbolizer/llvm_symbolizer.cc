@@ -19,6 +19,7 @@
 #include <dlfcn.h>
 
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 
@@ -30,30 +31,13 @@ SymbolizationResultBatch::SymbolizationResultBatch(
     BatchSymbolizationResult c_api_result,
     decltype(&::LlvmSymbolizer_FreeBatchSymbolizationResult) free_fn)
     : c_api_result_(c_api_result), free_result_fn_(free_fn) {
-  if (c_api_result_.results == nullptr) {
-    return;
+  if (c_api_result.ranges) {
+    all_frames_ptr_ =
+        reinterpret_cast<const LlvmSymbolizedFrame*>(c_api_result.frames);
+    num_total_frames_ = c_api_result.total_frames;
+    ranges_ptr_ = c_api_result.ranges;
+    num_ranges_ = c_api_result.num_ranges;
   }
-  results_.reserve(c_api_result.num_results);
-  for (size_t i = 0; i < c_api_result.num_results; ++i) {
-    const SymbolizationResult& result = c_api_result.results[i];
-    std::vector<LlvmSymbolizedFrame> frames;
-    if (result.frames) {
-      frames.reserve(result.num_frames);
-      for (size_t j = 0; j < result.num_frames; ++j) {
-        frames.emplace_back(LlvmSymbolizedFrame{result.frames[j].function_name,
-                                                result.frames[j].file_name,
-                                                result.frames[j].line_number});
-      }
-    }
-    results_.push_back(std::move(frames));
-  }
-}
-
-void SymbolizationResultBatch::Free() {
-  if (c_api_result_.results && free_result_fn_) {
-    free_result_fn_(c_api_result_);
-  }
-  c_api_result_ = {};
 }
 
 SymbolizationResultBatch::~SymbolizationResultBatch() {
@@ -64,7 +48,10 @@ SymbolizationResultBatch::SymbolizationResultBatch(
     SymbolizationResultBatch&& other) noexcept
     : c_api_result_(std::exchange(other.c_api_result_, {})),
       free_result_fn_(std::exchange(other.free_result_fn_, nullptr)),
-      results_(std::move(other.results_)) {}
+      all_frames_ptr_(std::exchange(other.all_frames_ptr_, nullptr)),
+      num_total_frames_(std::exchange(other.num_total_frames_, 0)),
+      ranges_ptr_(std::exchange(other.ranges_ptr_, nullptr)),
+      num_ranges_(std::exchange(other.num_ranges_, 0)) {}
 
 SymbolizationResultBatch& SymbolizationResultBatch::operator=(
     SymbolizationResultBatch&& other) noexcept {
@@ -72,9 +59,34 @@ SymbolizationResultBatch& SymbolizationResultBatch::operator=(
     Free();
     c_api_result_ = std::exchange(other.c_api_result_, {});
     free_result_fn_ = std::exchange(other.free_result_fn_, nullptr);
-    results_ = std::move(other.results_);
+    all_frames_ptr_ = std::exchange(other.all_frames_ptr_, nullptr);
+    num_total_frames_ = std::exchange(other.num_total_frames_, 0);
+    ranges_ptr_ = std::exchange(other.ranges_ptr_, nullptr);
+    num_ranges_ = std::exchange(other.num_ranges_, 0);
   }
   return *this;
+}
+
+void SymbolizationResultBatch::Free() {
+  // c_api_result_.ranges is the base pointer of the single allocation.
+  if (c_api_result_.ranges && free_result_fn_) {
+    free_result_fn_(c_api_result_);
+  }
+  c_api_result_ = {};
+}
+
+std::pair<const LlvmSymbolizedFrame*, size_t>
+SymbolizationResultBatch::GetFramesForRequest(size_t request_index) const {
+  if (request_index >= num_ranges_) {
+    return {nullptr, 0};
+  }
+  const auto& range = ranges_ptr_[request_index];
+  // Ensure we don't read past the end of the frames buffer.
+  if (range.offset + range.num_frames > num_total_frames_) {
+    PERFETTO_DFATAL("Invalid range in symbolization result.");
+    return {nullptr, 0};
+  }
+  return {all_frames_ptr_ + range.offset, range.num_frames};
 }
 
 LlvmSymbolizer::LlvmSymbolizer() {

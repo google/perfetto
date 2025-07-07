@@ -50,25 +50,33 @@ TEST(LlvmSymbolizerTest, Symbolize) {
       {"test/data/test_symbolizer_binary", inlined_function_address},
   };
   SymbolizationResultBatch result_batch = symbolizer.SymbolizeBatch(requests);
-  const auto& results = result_batch.GetResults();
 
-  ASSERT_EQ(results.size(), 2u);
+  ASSERT_EQ(result_batch.size(), 2u);
 
-  ASSERT_EQ(results[0].size(), 1u);
-  EXPECT_EQ(results[0][0].function_name, "TestFunctionToSymbolize()");
-  EXPECT_EQ(results[0][0].file_name,
-            "/usr/local/test/test_symbolizer_binary.cc");
-  EXPECT_EQ(results[0][0].line, 3u);
+  // Check the first request's result (normal function)
+  auto res0 = result_batch.GetFramesForRequest(0);
+  ASSERT_EQ(res0.second, 1u);
+  const LlvmSymbolizedFrame* frames0 = res0.first;
+  EXPECT_EQ(base::StringView(frames0[0].function_name),
+            base::StringView("TestFunctionToSymbolize()"));
+  EXPECT_EQ(base::StringView(frames0[0].file_name),
+            base::StringView("/usr/local/test/test_symbolizer_binary.cc"));
+  EXPECT_EQ(frames0[0].line_number, 3u);
 
-  ASSERT_EQ(results[1].size(), 2u);
-  EXPECT_EQ(results[1][0].function_name, "InlinedFunction()");
-  EXPECT_EQ(results[1][0].file_name,
-            "/usr/local/test/test_symbolizer_binary.cc");
-  EXPECT_EQ(results[1][0].line, 8u);
-  EXPECT_EQ(results[1][1].function_name, "TopLevelFunction()");
-  EXPECT_EQ(results[1][1].file_name,
-            "/usr/local/test/test_symbolizer_binary.cc");
-  EXPECT_EQ(results[1][1].line, 14u);
+  // Check the second request's result (inlined function)
+  auto res1 = result_batch.GetFramesForRequest(1);
+  ASSERT_EQ(res1.second, 2u);
+  const LlvmSymbolizedFrame* frames1 = res1.first;
+  EXPECT_EQ(base::StringView(frames1[0].function_name),
+            base::StringView("InlinedFunction()"));
+  EXPECT_EQ(base::StringView(frames1[0].file_name),
+            base::StringView("/usr/local/test/test_symbolizer_binary.cc"));
+  EXPECT_EQ(frames1[0].line_number, 8u);
+  EXPECT_EQ(base::StringView(frames1[1].function_name),
+            base::StringView("TopLevelFunction()"));
+  EXPECT_EQ(base::StringView(frames1[1].file_name),
+            base::StringView("/usr/local/test/test_symbolizer_binary.cc"));
+  EXPECT_EQ(frames1[1].line_number, 14u);
 }
 
 }  // namespace

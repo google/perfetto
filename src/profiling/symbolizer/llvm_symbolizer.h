@@ -17,6 +17,7 @@
 #ifndef SRC_PROFILING_SYMBOLIZER_LLVM_SYMBOLIZER_H_
 #define SRC_PROFILING_SYMBOLIZER_LLVM_SYMBOLIZER_H_
 
+#include <utility>
 #include <vector>
 
 #include "perfetto/ext/base/scoped_file.h"
@@ -33,14 +34,14 @@ struct SymbolizationRequest {
 };
 
 struct LlvmSymbolizedFrame {
-  base::StringView function_name;
-  base::StringView file_name;
-  uint32_t line = 0;
+  const char* function_name;
+  const char* file_name;
+  uint32_t line_number;
 };
 
 // RAII wrapper for the results of a batch symbolization.
-// This object owns the memory returned by the C API and provides safe,
-// non-owning views to the symbolized frames.
+// This object owns the single contiguous block of memory returned by the C API
+// and provides safe, non-owning views to the symbolized frames.
 class SymbolizationResultBatch {
  public:
   ~SymbolizationResultBatch();
@@ -51,9 +52,12 @@ class SymbolizationResultBatch {
   SymbolizationResultBatch(SymbolizationResultBatch&&) noexcept;
   SymbolizationResultBatch& operator=(SymbolizationResultBatch&&) noexcept;
 
-  const std::vector<std::vector<LlvmSymbolizedFrame>>& GetResults() const {
-    return results_;
-  }
+  // Returns a pair of (pointer, size) for the frames of a given request.
+  std::pair<const LlvmSymbolizedFrame*, size_t> GetFramesForRequest(
+      size_t request_index) const;
+
+  // Returns the number of original requests.
+  size_t size() const { return num_ranges_; }
 
  private:
   friend class LlvmSymbolizer;
@@ -66,7 +70,14 @@ class SymbolizationResultBatch {
 
   BatchSymbolizationResult c_api_result_{};
   decltype(&::LlvmSymbolizer_FreeBatchSymbolizationResult) free_result_fn_{};
-  std::vector<std::vector<LlvmSymbolizedFrame>> results_;
+
+  // Non-owning views into the C API's flat buffer, implemented with raw
+  // pointers and sizes.
+  const LlvmSymbolizedFrame* all_frames_ptr_ = nullptr;
+  size_t num_total_frames_ = 0;
+
+  const SymbolizationResultRange* ranges_ptr_ = nullptr;
+  size_t num_ranges_ = 0;
 };
 
 namespace {
@@ -81,10 +92,11 @@ class LlvmSymbolizer {
  public:
   LlvmSymbolizer();
   ~LlvmSymbolizer();
+
   LlvmSymbolizer(const LlvmSymbolizer&) = delete;
   LlvmSymbolizer& operator=(const LlvmSymbolizer&) = delete;
-  LlvmSymbolizer(LlvmSymbolizer&& other) noexcept = default;
-  LlvmSymbolizer& operator=(LlvmSymbolizer&& other) noexcept = default;
+  LlvmSymbolizer(LlvmSymbolizer&&) noexcept = default;
+  LlvmSymbolizer& operator=(LlvmSymbolizer&&) noexcept = default;
 
   SymbolizationResultBatch SymbolizeBatch(
       const std::vector<SymbolizationRequest>& requests);

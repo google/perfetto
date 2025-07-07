@@ -44,16 +44,26 @@ typedef struct {
   uint32_t line_number;
 } SymbolizedFrame;
 
-// Represents the result of a single symbolization operation.
+// Represents the result of a single symbolization operation as a range in a
+// flattened array of frames.
 typedef struct {
-  SymbolizedFrame* frames;
+  // The offset in the `frames` array of the `BatchSymbolizationResult`.
+  size_t offset;
+  // The number of frames for this result.
   size_t num_frames;
-} SymbolizationResult;
+} SymbolizationResultRange;
 
 // Represents the result of a batch of symbolization operations.
 typedef struct {
-  SymbolizationResult* results;
-  size_t num_results;
+  // A flat array of all symbolized frames for the entire batch.
+  SymbolizedFrame* frames;
+  // The total number of frames in the `frames` array.
+  size_t total_frames;
+  // An array of `SymbolizationResultRange` structs, each representing a range
+  // in the `frames` array.
+  SymbolizationResultRange* ranges;
+  // The number of ranges, corresponding to the number of original requests.
+  size_t num_ranges;
 } BatchSymbolizationResult;
 
 // Creates an instance of the LLVM symbolizer.

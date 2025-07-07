@@ -24,6 +24,7 @@
 #include <memory>
 #include <new>
 #include <string>
+#include <vector>
 
 #include "src/profiling/symbolizer/llvm_symbolizer_c_api.h"
 
@@ -59,19 +60,17 @@ LlvmSymbolizerImpl::~LlvmSymbolizerImpl() = default;
 BatchSymbolizationResult LlvmSymbolizerImpl::Symbolize(
     const SymbolizationRequest* requests,
     size_t num_requests) {
-  SymbolizationResult* res = static_cast<SymbolizationResult*>(
-      malloc(sizeof(SymbolizationResult) * num_requests));
-  if (!res) {
-    return {nullptr, 0};
-  }
+  std::vector<llvm::DIInliningInfo> llvm_results;
+  llvm_results.reserve(num_requests);
 
+  size_t total_frames = 0;
+  size_t total_string_size = 0;
+
+  // --- First Pass: Symbolize all requests and calculate total memory size ---
+  // The expensive LLVM symbolization happens only in this loop.
   for (size_t i = 0; i < num_requests; ++i) {
     const auto& request = requests[i];
 
-    // In order to handle the lack of consistency in the signature of
-    // symbolizeInlinedCode we will preform checks on LLVM_VERSION_MAJOR (which
-    // is defined in llvm/Config/llvm-config.h) in order to correctly call the
-    // function.
 #if LLVM_VERSION_MAJOR >= 11
     llvm::Expected<llvm::DIInliningInfo> res_or_err =
         symbolizer_->symbolizeInlinedCode(
@@ -91,54 +90,70 @@ BatchSymbolizationResult LlvmSymbolizerImpl::Symbolize(
               "Perfetto-LLVM-Wrapper: Failed to symbolize 0x%" PRIx64
               " in %s: %s\n",
               request.address, request.binary_path, os.str().c_str());
-      res[i] = {nullptr, 0};
+      llvm_results.emplace_back();  // Add empty result for failed ones.
       continue;
     }
 
-    const llvm::DIInliningInfo& inlining_info = res_or_err.get();
+    llvm::DIInliningInfo inlining_info = std::move(res_or_err.get());
+
     uint32_t num_frames = inlining_info.getNumberOfFrames();
-    if (num_frames == 0) {
-      res[i] = {nullptr, 0};
-      continue;
-    }
-
-    size_t total_string_size = 0;
+    total_frames += num_frames;
     for (uint32_t j = 0; j < num_frames; ++j) {
       const llvm::DILineInfo& line_info = inlining_info.getFrame(j);
       total_string_size += line_info.FunctionName.size() + 1;
       total_string_size += line_info.FileName.size() + 1;
     }
 
-    size_t total_alloc_size =
-        (sizeof(SymbolizedFrame) * num_frames) + total_string_size;
-    void* buffer = malloc(total_alloc_size);
-    if (!buffer) {
-      res[i] = {nullptr, 0};
-      continue;
-    }
+    llvm_results.push_back(std::move(inlining_info));
+  }
 
-    SymbolizedFrame* frames = static_cast<SymbolizedFrame*>(buffer);
-    char* string_buffer =
-        static_cast<char*>(buffer) + (sizeof(SymbolizedFrame) * num_frames);
+  size_t ranges_size = sizeof(SymbolizationResultRange) * num_requests;
+  size_t frames_size = sizeof(SymbolizedFrame) * total_frames;
+  size_t total_alloc_size = ranges_size + frames_size + total_string_size;
+
+  if (total_alloc_size == 0) {
+    return {nullptr, 0, nullptr, 0};
+  }
+
+  void* buffer = malloc(total_alloc_size);
+  if (!buffer) {
+    return {nullptr, 0, nullptr, 0};
+  }
+
+  // Carve up the single buffer into sections for ranges, frames, and strings.
+  SymbolizationResultRange* ranges_ptr =
+      static_cast<SymbolizationResultRange*>(buffer);
+  SymbolizedFrame* frames_ptr =
+      reinterpret_cast<SymbolizedFrame*>(ranges_ptr + num_requests);
+  char* string_ptr = reinterpret_cast<char*>(frames_ptr + total_frames);
+
+  size_t current_frame_offset = 0;
+  for (size_t i = 0; i < num_requests; ++i) {
+    const auto& inlining_info = llvm_results[i];
+    uint32_t num_frames = inlining_info.getNumberOfFrames();
+
+    ranges_ptr[i] = {current_frame_offset, num_frames};
 
     for (uint32_t j = 0; j < num_frames; ++j) {
       const llvm::DILineInfo& line_info = inlining_info.getFrame(j);
+      SymbolizedFrame& frame = frames_ptr[current_frame_offset + j];
 
-      frames[j].function_name = string_buffer;
-      memcpy(string_buffer, line_info.FunctionName.c_str(),
+      frame.function_name = string_ptr;
+      memcpy(string_ptr, line_info.FunctionName.c_str(),
              line_info.FunctionName.size() + 1);
-      string_buffer += line_info.FunctionName.size() + 1;
+      string_ptr += line_info.FunctionName.size() + 1;
 
-      frames[j].file_name = string_buffer;
-      memcpy(string_buffer, line_info.FileName.c_str(),
+      frame.file_name = string_ptr;
+      memcpy(string_ptr, line_info.FileName.c_str(),
              line_info.FileName.size() + 1);
-      string_buffer += line_info.FileName.size() + 1;
+      string_ptr += line_info.FileName.size() + 1;
 
-      frames[j].line_number = line_info.Line;
+      frame.line_number = line_info.Line;
     }
-    res[i] = {frames, num_frames};
+    current_frame_offset += num_frames;
   }
-  return {res, num_requests};
+
+  return {frames_ptr, total_frames, ranges_ptr, num_requests};
 }
 
 }  // namespace
@@ -165,10 +180,7 @@ BatchSymbolizationResult LlvmSymbolizer_Symbolize(
 
 void LlvmSymbolizer_FreeBatchSymbolizationResult(
     BatchSymbolizationResult result) {
-  for (size_t i = 0; i < result.num_results; ++i) {
-    free(result.results[i].frames);
-  }
-  free(result.results);
+  free(result.ranges);
 }
 
 }  // extern "C"
