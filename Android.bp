@@ -13511,7 +13511,6 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_containers_containers",
     srcs: [
-        "src/trace_processor/containers/bit_vector.cc",
         "src/trace_processor/containers/string_pool.cc",
     ],
 }
@@ -13520,7 +13519,6 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_containers_unittests",
     srcs: [
-        "src/trace_processor/containers/bit_vector_unittest.cc",
         "src/trace_processor/containers/implicit_segment_forest_unittest.cc",
         "src/trace_processor/containers/interval_intersector_unittest.cc",
         "src/trace_processor/containers/interval_tree_unittest.cc",

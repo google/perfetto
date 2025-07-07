@@ -1634,7 +1634,6 @@ perfetto_filegroup(
 perfetto_cc_library(
     name = "src_trace_processor_containers_containers",
     srcs = [
-        "src/trace_processor/containers/bit_vector.cc",
         "src/trace_processor/containers/string_pool.cc",
     ],
     hdrs = [
@@ -1643,7 +1642,6 @@ perfetto_cc_library(
         ":include_perfetto_public_abi_base",
         ":include_perfetto_public_base",
         ":include_perfetto_public_protozero",
-        "src/trace_processor/containers/bit_vector.h",
         "src/trace_processor/containers/implicit_segment_forest.h",
         "src/trace_processor/containers/interval_intersector.h",
         "src/trace_processor/containers/interval_tree.h",
