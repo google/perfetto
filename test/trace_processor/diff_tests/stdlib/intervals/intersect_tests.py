@@ -373,9 +373,9 @@ class IntervalsIntersect(TestSuite):
     return DiffTestBlueprint(
         trace=TextProto(""),
         #      0 1 2 3 4 5 6 7
-        # A:   _ - - - - - - _
-        # B:   - - _ _ _ _ - -
-        # res: _ - _ - - _ - _
+        # A:   _ _ - * - - _ _
+        # B:   - _ _ _ _ _ _ -
+        # res: - _ - * - - _ -
         query="""
         INCLUDE PERFETTO MODULE intervals.intersect;
 
