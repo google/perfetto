@@ -25,7 +25,7 @@
 namespace perfetto {
 namespace profiling {
 
-// dlclose() commented out as it rarely works and is flaky
+// dlclose() was not used as it rarely works and is flaky
 SymbolizationResultBatch::SymbolizationResultBatch(
     BatchSymbolizationResult c_api_result,
     decltype(&::LlvmSymbolizer_FreeBatchSymbolizationResult) free_fn)
@@ -96,7 +96,6 @@ LlvmSymbolizer::LlvmSymbolizer() {
 
   if (!create_fn_ || !destroy_fn_ || !symbolize_fn_ || !free_result_fn_) {
     PERFETTO_ELOG("Failed to look up symbols in libllvm_symbolizer_wrapper.so");
-    // dlclose(library_handle_);
     library_handle_ = nullptr;
     return;
   }
@@ -104,7 +103,6 @@ LlvmSymbolizer::LlvmSymbolizer() {
   c_api_symbolizer_ = create_fn_();
   if (!c_api_symbolizer_) {
     PERFETTO_ELOG("LlvmSymbolizer_Create() failed.");
-    // dlclose(library_handle_);
     library_handle_ = nullptr;
     create_fn_ = nullptr;
     return;
@@ -115,9 +113,6 @@ LlvmSymbolizer::~LlvmSymbolizer() {
   if (c_api_symbolizer_) {
     destroy_fn_(c_api_symbolizer_);
   }
-  // if (library_handle_) {
-  // dlclose(library_handle_);
-  // }
 }
 
 LlvmSymbolizer::LlvmSymbolizer(LlvmSymbolizer&& other) noexcept
@@ -143,9 +138,6 @@ LlvmSymbolizer& LlvmSymbolizer::operator=(LlvmSymbolizer&& other) noexcept {
   if (c_api_symbolizer_) {
     destroy_fn_(c_api_symbolizer_);
   }
-  // if (library_handle_) {
-  // dlclose(library_handle_);
-  // }
 
   library_handle_ = other.library_handle_;
   c_api_symbolizer_ = other.c_api_symbolizer_;
