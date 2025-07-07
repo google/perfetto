@@ -18,8 +18,6 @@ assert(enable_perfetto_trace_processor_sqlite)
 
 source_set("sqlite") {
   sources = [
-    "db_sqlite_table.cc",
-    "db_sqlite_table.h",
     "module_state_manager.cc",
     "module_state_manager.h",
     "scoped_db.h",
@@ -44,8 +42,6 @@ source_set("sqlite") {
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
     "../containers",
-    "../db",
-    "../db/column",
     "../importers/common",
     "../importers/ftrace:ftrace_descriptors",
     "../perfetto_sql/intrinsics/table_functions:interface",
@@ -60,7 +56,6 @@ source_set("sqlite") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
-    "db_sqlite_table_unittest.cc",
     "sql_source_unittest.cc",
     "sqlite_utils_unittest.cc",
   ]
@@ -72,7 +67,6 @@ perfetto_unittest_source_set("unittests") {
     "../../../include/perfetto/trace_processor:basic_types",
     "../../base",
     "../../base:test_support",
-    "../db",
   ]
 }
 

@@ -333,10 +333,6 @@ perfetto_cc_library(
         ":src_trace_processor_dataframe_dataframe",
         ":src_trace_processor_dataframe_impl_impl",
         ":src_trace_processor_dataframe_specs",
-        ":src_trace_processor_db_column_column",
-        ":src_trace_processor_db_compare",
-        ":src_trace_processor_db_db",
-        ":src_trace_processor_db_minimal",
         ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_android_bugreport_android_dumpstate_event",
@@ -1710,79 +1706,6 @@ perfetto_filegroup(
         "src/trace_processor/dataframe/type_set.h",
         "src/trace_processor/dataframe/types.h",
         "src/trace_processor/dataframe/value_fetcher.h",
-    ],
-)
-
-# GN target: //src/trace_processor/db/column:column
-perfetto_filegroup(
-    name = "src_trace_processor_db_column_column",
-    srcs = [
-        "src/trace_processor/db/column/arrangement_overlay.cc",
-        "src/trace_processor/db/column/arrangement_overlay.h",
-        "src/trace_processor/db/column/data_layer.cc",
-        "src/trace_processor/db/column/data_layer.h",
-        "src/trace_processor/db/column/dense_null_overlay.cc",
-        "src/trace_processor/db/column/dense_null_overlay.h",
-        "src/trace_processor/db/column/dummy_storage.cc",
-        "src/trace_processor/db/column/dummy_storage.h",
-        "src/trace_processor/db/column/id_storage.cc",
-        "src/trace_processor/db/column/id_storage.h",
-        "src/trace_processor/db/column/null_overlay.cc",
-        "src/trace_processor/db/column/null_overlay.h",
-        "src/trace_processor/db/column/numeric_storage.cc",
-        "src/trace_processor/db/column/numeric_storage.h",
-        "src/trace_processor/db/column/overlay_layer.cc",
-        "src/trace_processor/db/column/overlay_layer.h",
-        "src/trace_processor/db/column/range_overlay.cc",
-        "src/trace_processor/db/column/range_overlay.h",
-        "src/trace_processor/db/column/selector_overlay.cc",
-        "src/trace_processor/db/column/selector_overlay.h",
-        "src/trace_processor/db/column/set_id_storage.cc",
-        "src/trace_processor/db/column/set_id_storage.h",
-        "src/trace_processor/db/column/storage_layer.cc",
-        "src/trace_processor/db/column/storage_layer.h",
-        "src/trace_processor/db/column/string_storage.cc",
-        "src/trace_processor/db/column/string_storage.h",
-        "src/trace_processor/db/column/types.h",
-        "src/trace_processor/db/column/utils.cc",
-        "src/trace_processor/db/column/utils.h",
-    ],
-)
-
-# GN target: //src/trace_processor/db:compare
-perfetto_filegroup(
-    name = "src_trace_processor_db_compare",
-    srcs = [
-        "src/trace_processor/db/compare.h",
-    ],
-)
-
-# GN target: //src/trace_processor/db:db
-perfetto_filegroup(
-    name = "src_trace_processor_db_db",
-    srcs = [
-        "src/trace_processor/db/runtime_table.cc",
-        "src/trace_processor/db/runtime_table.h",
-    ],
-)
-
-# GN target: //src/trace_processor/db:minimal
-perfetto_filegroup(
-    name = "src_trace_processor_db_minimal",
-    srcs = [
-        "src/trace_processor/db/base_id.h",
-        "src/trace_processor/db/column.cc",
-        "src/trace_processor/db/column.h",
-        "src/trace_processor/db/column_storage.cc",
-        "src/trace_processor/db/column_storage.h",
-        "src/trace_processor/db/column_storage_overlay.h",
-        "src/trace_processor/db/compare.h",
-        "src/trace_processor/db/query_executor.cc",
-        "src/trace_processor/db/query_executor.h",
-        "src/trace_processor/db/table.cc",
-        "src/trace_processor/db/table.h",
-        "src/trace_processor/db/typed_column.h",
-        "src/trace_processor/db/typed_column_internal.h",
     ],
 )
 
@@ -3589,8 +3512,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_sqlite_sqlite",
     srcs = [
-        "src/trace_processor/sqlite/db_sqlite_table.cc",
-        "src/trace_processor/sqlite/db_sqlite_table.h",
         "src/trace_processor/sqlite/module_state_manager.cc",
         "src/trace_processor/sqlite/module_state_manager.h",
         "src/trace_processor/sqlite/scoped_db.h",
@@ -3622,7 +3543,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_tables_macros_internal",
     srcs = [
-        "src/trace_processor/tables/macros_internal.cc",
         "src/trace_processor/tables/macros_internal.h",
     ],
 )
@@ -3630,9 +3550,6 @@ perfetto_filegroup(
 # GN target: //src/trace_processor/tables:tables
 perfetto_filegroup(
     name = "src_trace_processor_tables_tables",
-    srcs = [
-        "src/trace_processor/tables/table_destructors.cc",
-    ],
 )
 
 # GN target: //src/trace_processor/tables:tables_python
@@ -7331,10 +7248,6 @@ perfetto_cc_library(
         ":src_trace_processor_dataframe_dataframe",
         ":src_trace_processor_dataframe_impl_impl",
         ":src_trace_processor_dataframe_specs",
-        ":src_trace_processor_db_column_column",
-        ":src_trace_processor_db_compare",
-        ":src_trace_processor_db_db",
-        ":src_trace_processor_db_minimal",
         ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_android_bugreport_android_dumpstate_event",
@@ -7541,10 +7454,6 @@ perfetto_cc_binary(
         ":src_trace_processor_dataframe_dataframe",
         ":src_trace_processor_dataframe_impl_impl",
         ":src_trace_processor_dataframe_specs",
-        ":src_trace_processor_db_column_column",
-        ":src_trace_processor_db_compare",
-        ":src_trace_processor_db_db",
-        ":src_trace_processor_db_minimal",
         ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_android_bugreport_android_dumpstate_event",
@@ -7743,10 +7652,6 @@ perfetto_cc_binary(
         ":src_trace_processor_dataframe_dataframe",
         ":src_trace_processor_dataframe_impl_impl",
         ":src_trace_processor_dataframe_specs",
-        ":src_trace_processor_db_column_column",
-        ":src_trace_processor_db_compare",
-        ":src_trace_processor_db_db",
-        ":src_trace_processor_db_minimal",
         ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_android_bugreport_android_dumpstate_event",
