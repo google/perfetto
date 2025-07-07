@@ -148,6 +148,21 @@ class Layer {
     return *this;
   }
 
+  Layer& SetZ(int32_t value) {
+    z_ = value;
+    return *this;
+  }
+
+  Layer& SetId(int32_t value) {
+    id_ = value;
+    return *this;
+  }
+
+  Layer& NullifyId() {
+    nullify_id_ = true;
+    return *this;
+  }
+
   std::optional<Color> color_;
   std::optional<ActiveBuffer> active_buffer_;
   std::optional<uint32_t> flags_;
@@ -159,6 +174,9 @@ class Layer {
   std::optional<std::vector<geometry::Rect>> visible_region_rects_;
   std::optional<bool> is_opaque_;
   std::optional<uint32_t> layer_stack_;
+  std::optional<int32_t> z_;
+  std::optional<int32_t> id_;
+  bool nullify_id_ = false;
 };
 
 class SnapshotProtoBuilder {
@@ -183,7 +201,10 @@ class SnapshotProtoBuilder {
     auto i = 1;
     for (const auto& layer : layers_) {
       auto* layer_proto = layers_proto->add_layers();
-      layer_proto->set_id(i);
+
+      if (!layer.nullify_id_) {
+        layer_proto->set_id(layer.id_.has_value() ? layer.id_.value() : i);
+      }
       i++;
 
       if (layer.color_.has_value()) {
@@ -224,6 +245,9 @@ class SnapshotProtoBuilder {
       }
       if (layer.layer_stack_.has_value()) {
         layer_proto->set_layer_stack(layer.layer_stack_.value());
+      }
+      if (layer.z_.has_value()) {
+        layer_proto->set_z(layer.z_.value());
       }
     }
 
