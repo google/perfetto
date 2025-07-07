@@ -1043,8 +1043,9 @@ class InterpreterImpl {
         return str_view < other.str_view;
       }
     };
-    auto ids_to_sort = std::make_unique<SortToken[]>(rank_map.size());
-    auto scratch = std::make_unique<SortToken[]>(rank_map.size());
+    // Initally do *not* default initialize the array for performance.
+    std::unique_ptr<SortToken[]> ids_to_sort(new SortToken[rank_map.size()]);
+    std::unique_ptr<SortToken[]> scratch(new SortToken[rank_map.size()]);
     uint32_t i = 0;
     for (auto it = rank_map.GetIterator(); it; ++it) {
       base::StringView str_view = state_.string_pool->Get(it.key());
@@ -1079,12 +1080,13 @@ class InterpreterImpl {
       uint32_t index;
       uint32_t buf_offset;
     };
-    auto p = std::make_unique<SortToken[]>(num_indices);
-    auto q = std::make_unique<SortToken[]>(num_indices);
+    // Initally do *not* default initialize the array for performance.
+    std::unique_ptr<SortToken[]> p(new SortToken[num_indices]);
+    std::unique_ptr<SortToken[]> q(new SortToken[num_indices]);
+    std::unique_ptr<uint32_t[]> counts(new uint32_t[1 << 16]);
     for (uint32_t i = 0; i < num_indices; ++i) {
       p[i] = {indices.b[i], i * stride};
     }
-    auto counts = std::unique_ptr<uint32_t[]>(new uint32_t[1 << 16]());
     auto* res = base::RadixSort(
         p.get(), p.get() + num_indices, q.get(), counts.get(), stride,
         [buf](const SortToken& token) { return buf + token.buf_offset; });
