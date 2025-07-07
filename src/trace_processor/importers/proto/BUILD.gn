@@ -331,4 +331,7 @@ source_set("unittests") {
     "../common",
     "../ftrace:full",
   ]
+  if (enable_perfetto_winscope) {
+    deps += [ "winscope:unittests" ]
+  }
 }
