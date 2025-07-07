@@ -19,6 +19,7 @@
 
 #include <vector>
 
+#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/profiling/symbolizer/llvm_symbolizer_c_api.h"
 
@@ -68,20 +69,30 @@ class SymbolizationResultBatch {
   std::vector<std::vector<LlvmSymbolizedFrame>> results_;
 };
 
+namespace {
+// A no-op closer function for dlopen handles, as dlclose() is flaky.
+// ScopedResource requires a static function pointer for its template.
+inline int NoOpDlclose(void* /*handle*/) {
+  return 0;
+}
+}  // namespace
+
 class LlvmSymbolizer {
  public:
   LlvmSymbolizer();
   ~LlvmSymbolizer();
   LlvmSymbolizer(const LlvmSymbolizer&) = delete;
   LlvmSymbolizer& operator=(const LlvmSymbolizer&) = delete;
-  LlvmSymbolizer(LlvmSymbolizer&& other) noexcept;
-  LlvmSymbolizer& operator=(LlvmSymbolizer&& other) noexcept;
+  LlvmSymbolizer(LlvmSymbolizer&& other) noexcept = default;
+  LlvmSymbolizer& operator=(LlvmSymbolizer&& other) noexcept = default;
 
   SymbolizationResultBatch SymbolizeBatch(
       const std::vector<SymbolizationRequest>& requests);
 
  private:
-  void* library_handle_ = nullptr;
+  using ScopedLibraryHandle = base::ScopedResource<void*, NoOpDlclose, nullptr>;
+
+  ScopedLibraryHandle library_handle_;
   ::LlvmSymbolizer* c_api_symbolizer_ = nullptr;
 
   // C API function pointers

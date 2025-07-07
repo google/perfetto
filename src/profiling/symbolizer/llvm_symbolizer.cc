@@ -78,7 +78,7 @@ SymbolizationResultBatch& SymbolizationResultBatch::operator=(
 }
 
 LlvmSymbolizer::LlvmSymbolizer() {
-  library_handle_ = dlopen("libllvm_symbolizer_wrapper.so", RTLD_NOW);
+  library_handle_.reset(dlopen("libllvm_symbolizer_wrapper.so", RTLD_NOW));
   if (!library_handle_) {
     PERFETTO_ELOG("Failed to open libllvm_symbolizer_wrapper.so: %s",
                   dlerror());
@@ -86,24 +86,24 @@ LlvmSymbolizer::LlvmSymbolizer() {
   }
 
   create_fn_ = reinterpret_cast<decltype(create_fn_)>(
-      dlsym(library_handle_, "LlvmSymbolizer_Create"));
+      dlsym(*library_handle_, "LlvmSymbolizer_Create"));
   destroy_fn_ = reinterpret_cast<decltype(destroy_fn_)>(
-      dlsym(library_handle_, "LlvmSymbolizer_Destroy"));
+      dlsym(*library_handle_, "LlvmSymbolizer_Destroy"));
   symbolize_fn_ = reinterpret_cast<decltype(symbolize_fn_)>(
-      dlsym(library_handle_, "LlvmSymbolizer_Symbolize"));
+      dlsym(*library_handle_, "LlvmSymbolizer_Symbolize"));
   free_result_fn_ = reinterpret_cast<decltype(free_result_fn_)>(
-      dlsym(library_handle_, "LlvmSymbolizer_FreeBatchSymbolizationResult"));
+      dlsym(*library_handle_, "LlvmSymbolizer_FreeBatchSymbolizationResult"));
 
   if (!create_fn_ || !destroy_fn_ || !symbolize_fn_ || !free_result_fn_) {
     PERFETTO_ELOG("Failed to look up symbols in libllvm_symbolizer_wrapper.so");
-    library_handle_ = nullptr;
+    library_handle_.reset();  // Release the handle on failure.
     return;
   }
 
   c_api_symbolizer_ = create_fn_();
   if (!c_api_symbolizer_) {
     PERFETTO_ELOG("LlvmSymbolizer_Create() failed.");
-    library_handle_ = nullptr;
+    library_handle_.reset();
     create_fn_ = nullptr;
     return;
   }
@@ -113,47 +113,6 @@ LlvmSymbolizer::~LlvmSymbolizer() {
   if (c_api_symbolizer_) {
     destroy_fn_(c_api_symbolizer_);
   }
-}
-
-LlvmSymbolizer::LlvmSymbolizer(LlvmSymbolizer&& other) noexcept
-    : library_handle_(other.library_handle_),
-      c_api_symbolizer_(other.c_api_symbolizer_),
-      create_fn_(other.create_fn_),
-      destroy_fn_(other.destroy_fn_),
-      symbolize_fn_(other.symbolize_fn_),
-      free_result_fn_(other.free_result_fn_) {
-  other.library_handle_ = nullptr;
-  other.c_api_symbolizer_ = nullptr;
-  other.create_fn_ = nullptr;
-  other.destroy_fn_ = nullptr;
-  other.symbolize_fn_ = nullptr;
-  other.free_result_fn_ = nullptr;
-}
-
-LlvmSymbolizer& LlvmSymbolizer::operator=(LlvmSymbolizer&& other) noexcept {
-  if (this == &other) {
-    return *this;
-  }
-
-  if (c_api_symbolizer_) {
-    destroy_fn_(c_api_symbolizer_);
-  }
-
-  library_handle_ = other.library_handle_;
-  c_api_symbolizer_ = other.c_api_symbolizer_;
-  create_fn_ = other.create_fn_;
-  destroy_fn_ = other.destroy_fn_;
-  symbolize_fn_ = other.symbolize_fn_;
-  free_result_fn_ = other.free_result_fn_;
-
-  other.library_handle_ = nullptr;
-  other.c_api_symbolizer_ = nullptr;
-  other.create_fn_ = nullptr;
-  other.destroy_fn_ = nullptr;
-  other.symbolize_fn_ = nullptr;
-  other.free_result_fn_ = nullptr;
-
-  return *this;
 }
 
 SymbolizationResultBatch LlvmSymbolizer::SymbolizeBatch(
