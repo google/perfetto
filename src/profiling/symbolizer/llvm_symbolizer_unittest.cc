@@ -23,7 +23,6 @@
 
 #include <cinttypes>
 
-#include "src/profiling/symbolizer/common.h"
 #include "src/profiling/symbolizer/llvm_symbolizer.h"
 
 namespace perfetto {

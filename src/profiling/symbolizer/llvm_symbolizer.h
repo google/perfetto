@@ -19,11 +19,21 @@
 
 #include <vector>
 
-#include "src/profiling/symbolizer/common.h"
+#include "perfetto/ext/base/string_view.h"
 #include "src/profiling/symbolizer/llvm_symbolizer_c_api.h"
 
 namespace perfetto {
 namespace profiling {
+struct SymbolizationRequest {
+  std::string binary;
+  uint64_t address;
+};
+
+struct LlvmSymbolizedFrame {
+  base::StringView function_name;
+  base::StringView file_name;
+  uint32_t line = 0;
+};
 
 class LlvmSymbolizer {
  public:

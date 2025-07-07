@@ -15,16 +15,9 @@
 import("../../../gn/perfetto.gni")
 import("../../../gn/test.gni")
 
-source_set("common") {
-  sources = [ "common.h" ]
-}
-
 source_set("symbolizer") {
   public_deps = [ "../../../include/perfetto/ext/base" ]
-  deps = [
-    ":common",
-    "../../../gn:default_deps",
-  ]
+  deps = [ "../../../gn:default_deps" ]
   sources = [
     "breakpad_parser.cc",
     "breakpad_parser.h",
@@ -97,7 +90,6 @@ if (enable_perfetto_llvm_symbolizer) {
       "llvm_symbolizer.h",
     ]
     deps = [
-      ":common",
       ":llvm_symbolizer_c_api",
       "../../../gn:default_deps",
       "../../../include/perfetto/ext/base",
@@ -125,10 +117,7 @@ perfetto_unittest_source_set("unittests") {
   ]
   if (enable_perfetto_llvm_symbolizer) {
     sources += [ "llvm_symbolizer_unittest.cc" ]
-    deps += [
-      ":common",
-      ":llvm_symbolizer",
-    ]
+    deps += [ ":llvm_symbolizer" ]
     data_deps = [ ":llvm_symbolizer_wrapper" ]
   }
 }

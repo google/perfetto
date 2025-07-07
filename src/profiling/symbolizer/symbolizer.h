@@ -17,11 +17,18 @@
 #ifndef SRC_PROFILING_SYMBOLIZER_SYMBOLIZER_H_
 #define SRC_PROFILING_SYMBOLIZER_SYMBOLIZER_H_
 
+#include <cstdint>
+#include <string>
 #include <vector>
-#include "src/profiling/symbolizer/common.h"
 
 namespace perfetto {
 namespace profiling {
+
+struct SymbolizedFrame {
+  std::string function_name;
+  std::string file_name;
+  uint32_t line = 0;
+};
 
 class Symbolizer {
  public:
