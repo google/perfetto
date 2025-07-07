@@ -14284,6 +14284,7 @@ genrule {
 filegroup {
     name: "perfetto_src_trace_processor_importers_proto_winscope_unittests",
     srcs: [
+        "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_extractor_unittest.cc",
         "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_visibility_computation_unittest.cc",
     ],
 }
