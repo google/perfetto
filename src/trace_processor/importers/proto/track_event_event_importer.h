@@ -392,9 +392,9 @@ class TrackEventEventImporter {
         if (legacy_event_.has_tid_override())
           tid = static_cast<uint32_t>(legacy_event_.tid_override());
 
-        if (!tid) {
+        if (!pid || !tid) {
           return base::ErrStatus(
-              "track_event_parser: tid 0 is reserved for swapper thread");
+              "track_event_parser: pid/tid 0 is reserved for swapper thread");
         }
 
         utid_ = procs->UpdateThread(tid, pid);
