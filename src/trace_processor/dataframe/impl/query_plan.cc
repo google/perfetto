@@ -346,17 +346,28 @@ void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
     return;
   }
 
-  // Optimization: If there's a single ascending sort constraint on a NonNull
+  // Optimization: If there's a single sort constraint on a NonNull
   // column that is already sorted accordingly, skip the sort operation.
   if (sort_specs.size() == 1) {
     const auto& single_spec = sort_specs[0];
-    if (single_spec.direction == SortDirection::kAscending) {
-      const Column& col = GetColumn(single_spec.col);
-      if (col.null_storage.nullability().Is<NonNull>() &&
-          (col.sort_state.Is<Sorted>() || col.sort_state.Is<IdSorted>() ||
-           col.sort_state.Is<SetIdSorted>())) {
-        // The column is NonNull and already sorted as required.
-        return;
+    const Column& col = GetColumn(single_spec.col);
+    if (col.null_storage.nullability().Is<NonNull>() &&
+        (col.sort_state.Is<Sorted>() || col.sort_state.Is<IdSorted>() ||
+         col.sort_state.Is<SetIdSorted>())) {
+      switch (single_spec.direction) {
+        case SortDirection::kAscending:
+          // The column is NonNull and already sorted as required.
+          return;
+        case SortDirection::kDescending:
+          // The column is NonNull and sorted in the reverse order. Just
+          // reverse the indices to get the correct order.
+          {
+            auto indices = EnsureIndicesAreInSlab();
+            using B = bytecode::Reverse;
+            auto& op = AddOpcode<B>(UnchangedRowCount{});
+            op.arg<B::update_register>() = indices;
+            return;
+          }
       }
     }
   }

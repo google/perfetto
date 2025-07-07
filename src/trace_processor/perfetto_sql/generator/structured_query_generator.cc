@@ -90,8 +90,11 @@ std::pair<SqlSource, SqlSource> GetPreambleAndSql(const std::string& sql) {
 }
 
 struct QueryState {
-  QueryState(QueryType _type, protozero::ConstBytes _bytes, size_t index)
-      : type(_type), bytes(_bytes) {
+  QueryState(QueryType _type,
+             protozero::ConstBytes _bytes,
+             size_t index,
+             std::optional<size_t> parent_idx)
+      : type(_type), bytes(_bytes), parent_index(parent_idx) {
     protozero::ProtoDecoder decoder(bytes);
     std::string prefix = type == QueryType::kShared ? "shared_sq_" : "sq_";
     if (auto id = decoder.FindField(StructuredQuery::kIdFieldNumber); id) {
@@ -106,6 +109,7 @@ struct QueryState {
   protozero::ConstBytes bytes;
   std::optional<std::string> id_from_proto;
   std::string table_name;
+  std::optional<size_t> parent_index;
 
   std::string sql;
 };
@@ -177,7 +181,7 @@ class GeneratorImpl {
 
 base::StatusOr<std::string> GeneratorImpl::Generate(
     protozero::ConstBytes bytes) {
-  state_.emplace_back(QueryType::kRoot, bytes, state_.size());
+  state_.emplace_back(QueryType::kRoot, bytes, state_.size(), std::nullopt);
   for (; state_index_ < state_.size(); ++state_index_) {
     base::StatusOr<std::string> sql = GenerateImpl();
     if (!sql.ok()) {
@@ -390,6 +394,17 @@ base::StatusOr<std::string> GeneratorImpl::IntervalIntersect(
 base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
     protozero::ConstChars raw_id) {
   std::string id = raw_id.ToStdString();
+  for (std::optional<size_t> curr_idx = state_index_; curr_idx;
+       curr_idx = state_[*curr_idx].parent_index) {
+    const auto& query = state_[*curr_idx];
+    if (query.id_from_proto && *query.id_from_proto == id) {
+      return base::ErrStatus(
+          "Cycle detected in structured query dependencies involving query "
+          "with "
+          "id '%s'",
+          id.c_str());
+    }
+  }
   auto* it = query_protos_.Find(id);
   if (!it) {
     return base::ErrStatus("Shared query with id '%s' not found", id.c_str());
@@ -401,12 +416,12 @@ base::StatusOr<std::string> GeneratorImpl::ReferencedSharedQuery(
   }
   state_.emplace_back(QueryType::kShared,
                       protozero::ConstBytes{it->data.get(), it->size},
-                      state_.size());
+                      state_.size(), state_index_);
   return state_.back().table_name;
 }
 
 std::string GeneratorImpl::NestedSource(protozero::ConstBytes bytes) {
-  state_.emplace_back(QueryType::kNested, bytes, state_.size());
+  state_.emplace_back(QueryType::kNested, bytes, state_.size(), state_index_);
   return state_.back().table_name;
 }
 

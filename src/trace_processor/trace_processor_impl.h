@@ -143,6 +143,8 @@ class TraceProcessorImpl : public TraceProcessor,
   // Needed for iterators to be able to access the context.
   friend class IteratorImpl;
 
+  void FlushInternal(bool should_build_bounds_table);
+
   bool IsRootMetricField(const std::string& metric_name);
 
   static std::unique_ptr<PerfettoSqlEngine> InitPerfettoSqlEngine(

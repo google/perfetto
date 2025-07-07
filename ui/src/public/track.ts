@@ -293,6 +293,7 @@ export interface Slice {
   readonly endNs: time;
   readonly durNs: duration;
   readonly ts: time;
+  readonly count: number;
   readonly dur: duration;
   readonly depth: number;
   readonly flags: number;

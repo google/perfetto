@@ -42,12 +42,12 @@ ProtoEnum MetatraceCategoriesToProtoEnum(MetatraceCategories categories) {
 
 }  // namespace
 
-Category g_enabled_categories = Category::NONE;
+thread_local Category g_enabled_categories = Category::NONE;
 
 void Enable(MetatraceConfig config) {
   g_enabled_categories = MetatraceCategoriesToProtoEnum(config.categories);
   if (config.override_buffer_size) {
-    RingBuffer::GetInstance()->Resize(config.override_buffer_size);
+    RingBuffer::GetInstance().Resize(config.override_buffer_size);
   }
 }
 
@@ -55,7 +55,7 @@ void DisableAndReadBuffer(std::function<void(Record*)> fn) {
   g_enabled_categories = Category::NONE;
   if (!fn)
     return;
-  RingBuffer::GetInstance()->ReadAll(fn);
+  RingBuffer::GetInstance().ReadAll(fn);
 }
 
 RingBuffer::RingBuffer() : data_(kDefaultCapacity) {

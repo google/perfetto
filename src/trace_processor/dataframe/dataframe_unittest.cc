@@ -867,7 +867,7 @@ TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_MultipleSpecs) {
                   /*cols_used=*/3);  // 0b11
 }
 
-TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_DescendingOrder) {
+TEST_F(DataframeBytecodeTest, SortOptimization_Reverse) {
   std::vector<impl::Column> cols = MakeColumnVector(
       impl::Column{impl::Storage::Uint32{}, impl::NullStorage::NonNull{},
                    Sorted{}, HasDuplicates{}});
@@ -877,9 +877,7 @@ TEST_F(DataframeBytecodeTest, SortOptimizationNotApplied_DescendingOrder) {
     InitRange: [size=0, dest_register=Register(0)]
     AllocateIndices: [size=0, dest_slab_register=Register(1), dest_span_register=Register(2)]
     Iota: [source_register=Register(0), update_register=Register(2)]
-    AllocateRowLayoutBuffer: [buffer_size=0, dest_buffer_register=Register(3)]
-    CopyToRowLayout<Uint32, NonNull>: [col=0, source_indices_register=Register(2), dest_buffer_register=Register(3), row_layout_offset=0, row_layout_stride=4, invert_copied_bits=1, popcount_register=Register(4294967295), rank_map_register=Register(4294967295)]
-    SortRowLayout: [buffer_register=Register(3), total_row_stride=4, indices_register=Register(2)]
+    Reverse: [update_register=Register(2)]
   )",
                   /*cols_used=*/1);
 }

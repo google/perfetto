@@ -109,8 +109,6 @@ constexpr ProcessName kProcessNames[] = {
     {ChromeProcessDescriptor::PROCESS_SERVICE_SHAPEDETECTION,
      "Service: shape_detection.mojom.ShapeDetectionService"},
     {ChromeProcessDescriptor::PROCESS_RENDERER_EXTENSION, "Extension Renderer"},
-    {ChromeProcessDescriptor::PROCESS_SERVICE_PASSAGE_EMBEDDINGS,
-     "Service: passage_embeddings.mojom.PassageEmbeddingsService"},
 };
 
 struct ThreadName {

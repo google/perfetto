@@ -608,6 +608,17 @@ struct In : InBase {
   static_assert(TS1::Contains<T>());
 };
 
+// Reverses the order of indices in the given register.
+struct Reverse : Bytecode {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = LinearPerRowCost{2};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_1(reg::RwHandle<Span<uint32_t>>,
+                                     update_register);
+};
+
 // List of all bytecode instruction types for variant definition.
 #define PERFETTO_DATAFRAME_BYTECODE_LIST(X)  \
   X(InitRange)                               \
@@ -754,7 +765,8 @@ struct In : InBase {
   X(In<Int32>)                               \
   X(In<Int64>)                               \
   X(In<Double>)                              \
-  X(In<String>)
+  X(In<String>)                              \
+  X(Reverse)
 
 #define PERFETTO_DATAFRAME_BYTECODE_VARIANT(...) __VA_ARGS__,
 

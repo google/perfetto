@@ -52,7 +52,7 @@ def main():
   remap: Dict[str, str] = {}  # {pruned_branch: effective_parent_it_matched}
   branches_to_prune: Set[str] = set()
   all_local_branches = set(get_all_branches())
-  mainline_branches = {'origin/main'}
+  mainline_branches = {'origin/main', 'origin/ui-canary', 'origin/ui-stable'}
 
   print("Checking branches against effective parents...")
   for branch in sorted_branches:

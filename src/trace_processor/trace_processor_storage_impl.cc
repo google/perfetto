@@ -151,11 +151,9 @@ void TraceProcessorStorageImpl::DestroyContext() {
   // sched_switch.prev_state bitflags.
   context.system_info_tracker = std::move(context_.system_info_tracker);
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
-  // "__intrinsic_winscope_proto_to_args_with_defaults" requires proto
-  // descriptors.
+  // "__intrinsic_winscope_proto_to_args_with_defaults" and trace summarization
+  // both require the descriptor pool to be alive.
   context.descriptor_pool_ = std::move(context_.descriptor_pool_);
-#endif
 
   context_ = std::move(context);
 
