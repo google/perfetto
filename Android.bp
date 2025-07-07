@@ -14253,6 +14253,8 @@ filegroup {
         "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.cc",
         "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_extractor.cc",
         "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.cc",
+        "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_rect_computation.cc",
+        "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_visibility_computation.cc",
         "src/trace_processor/importers/proto/winscope/surfaceflinger_transactions_parser.cc",
         "src/trace_processor/importers/proto/winscope/viewcapture_args_parser.cc",
         "src/trace_processor/importers/proto/winscope/viewcapture_parser.cc",
