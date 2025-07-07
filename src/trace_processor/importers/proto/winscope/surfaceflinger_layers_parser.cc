@@ -186,7 +186,9 @@ tables::SurfaceFlingerLayerTable::Id SurfaceFlingerLayersParser::InsertLayerRow(
               base::StringView(base::Base64Encode(blob.data, blob.size)))
           .raw_id();
   LayerDecoder layer_decoder(blob);
-  layer.layer_id = layer_decoder.id();
+  if (layer_decoder.has_id()) {
+    layer.layer_id = layer_decoder.id();
+  }
   if (layer_decoder.has_name()) {
     layer.layer_name =
         context_->trace_processor_context_->storage->mutable_string_pool()
