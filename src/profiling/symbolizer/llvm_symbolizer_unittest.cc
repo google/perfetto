@@ -37,23 +37,14 @@ TEST(LlvmSymbolizerTest, ConstructDestruct) {
   LlvmSymbolizer symbolizer;
 }
 
-// Helper to format the symbolized result for comparison.
-std::string FormatFrames(const std::vector<SymbolizedFrame>& frames) {
-  std::string result;
-  for (const auto& frame : frames) {
-    result += frame.function_name;
-    result += "\n";
-    result += frame.file_name;
-    result += ":";
-    result += std::to_string(frame.line);
-    result += ":0\n";
-  }
-  return result;
-}
-
 // Tests symbolization for both a normal function and an inlined function.
+// To update this test generate a new binary.
+// To ensure proper symbolization using -g and -01 will force inline
+// optimisations and debug information.
+// To find the address of a function named TopLevelFunction you can use:
+// nm ./binary | grep TopLevelFunction
 TEST(LlvmSymbolizerTest, Symbolize) {
-  // ust be updated if the binary is recompiled.
+  // Must be updated if the binary is recompiled.
   constexpr uint64_t normal_function_address = 0x1130;
   constexpr uint64_t inlined_function_address = 0x1140;
   LlvmSymbolizer symbolizer;
@@ -64,15 +55,23 @@ TEST(LlvmSymbolizerTest, Symbolize) {
   std::vector<std::vector<SymbolizedFrame>> results =
       symbolizer.SymbolizeBatch(requests);
 
-  // Currently we ignore column numbers (not stored in the frame)
-  ASSERT_EQ(FormatFrames(results[0]),
-            "TestFunctionToSymbolize()\n"
-            "/usr/local/test/test_symbolizer_binary.cc:3:0\n");
-  ASSERT_EQ(FormatFrames(results[1]),
-            "InlinedFunction()\n"
-            "/usr/local/test/test_symbolizer_binary.cc:8:0\n"
-            "TopLevelFunction()\n"
-            "/usr/local/test/test_symbolizer_binary.cc:14:0\n");
+  ASSERT_EQ(results.size(), 2u);
+
+  ASSERT_EQ(results[0].size(), 1u);
+  EXPECT_EQ(results[0][0].function_name, "TestFunctionToSymbolize()");
+  EXPECT_EQ(results[0][0].file_name,
+            "/usr/local/test/test_symbolizer_binary.cc");
+  EXPECT_EQ(results[0][0].line, 3u);
+
+  ASSERT_EQ(results[1].size(), 2u);
+  EXPECT_EQ(results[1][0].function_name, "InlinedFunction()");
+  EXPECT_EQ(results[1][0].file_name,
+            "/usr/local/test/test_symbolizer_binary.cc");
+  EXPECT_EQ(results[1][0].line, 8u);
+  EXPECT_EQ(results[1][1].function_name, "TopLevelFunction()");
+  EXPECT_EQ(results[1][1].file_name,
+            "/usr/local/test/test_symbolizer_binary.cc");
+  EXPECT_EQ(results[1][1].line, 14u);
 }
 
 }  // namespace
