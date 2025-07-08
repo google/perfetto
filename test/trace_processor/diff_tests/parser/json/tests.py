@@ -797,3 +797,234 @@ class JsonParser(TestSuite):
         out=Csv("""
           "ts","dur","name","thread_name","tid","process_name","pid","flat_key","key","string_value","int_value"
         """))
+
+  def test_string_ts_and_dur(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          [
+            {
+              "ph": "B",
+              "pid": 10,
+              "tid": 11,
+              "ts": "100",
+              "name": "BeginEvent"
+            },
+            {
+              "ph": "E",
+              "pid": 10,
+              "tid": 11,
+              "ts": "200.5",
+              "name": "BeginEvent"
+            },
+            {
+              "ph": "X",
+              "pid": 10,
+              "tid": 12,
+              "ts": "250",
+              "dur": "50.5",
+              "name": "CompleteEvent",
+              "cat": "cat2,cat3",
+              "tts": "240",
+              "tdur": "40.5"
+            }
+          ]
+        '''),
+        query='''
+          SELECT
+            slice.ts,
+            slice.dur,
+            slice.name
+          FROM slice
+          ORDER BY ts
+        ''',
+        out=Csv("""
+          "ts","dur","name"
+          100000,100500,"BeginEvent"
+          250000,50500,"CompleteEvent"
+        """))
+
+  def test_invalid_string_ts_and_dur(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          [
+            {
+              "ph": "X",
+              "pid": 10,
+              "tid": 13,
+              "ts": "300",
+              "dur": "invalid",
+              "name": "InvalidDur"
+            },
+            {
+              "ph": "X",
+              "pid": 10,
+              "tid": 14,
+              "ts": "invalid",
+              "dur": "50",
+              "name": "InvalidTs"
+            }
+          ]
+        '''),
+        query='''
+          SELECT
+            slice.ts,
+            slice.dur,
+            slice.name
+          FROM slice
+          ORDER BY ts
+        ''',
+        out=Csv("""
+          "ts","dur","name"
+        """))
+
+  def test_string_tts_and_tdur(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          [
+            {
+              "ph": "X",
+              "pid": 10,
+              "tid": 15,
+              "ts": "400",
+              "dur": "100",
+              "tts": "390.5",
+              "tdur": "80.5",
+              "name": "StringTtsTdur"
+            }
+          ]
+        '''),
+        query='''
+          SELECT
+            slice.ts,
+            slice.dur,
+            slice.name,
+            slice.thread_ts,
+            slice.thread_dur
+          FROM slice
+          ORDER BY ts
+        ''',
+        out=Csv("""
+          "ts","dur","name","thread_ts","thread_dur"
+          400000,100000,"StringTtsTdur",390500,80500
+        """))
+
+  def test_json_id2_global_string_id(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          [
+            {
+              "ph": "b",
+              "pid": 400,
+              "tid": 401,
+              "ts": 4000,
+              "name": "AsyncId2GlobalString",
+              "cat": "id2test",
+              "id2": {
+                "global": "global_id_str"
+              }
+            },
+            {
+              "ph": "e",
+              "pid": 400,
+              "tid": 401,
+              "ts": 4100,
+              "name": "AsyncId2GlobalString",
+              "cat": "id2test",
+              "id2": {
+                "global": "global_id_str"
+              }
+            }
+          ]
+        '''),
+        query='''
+          SELECT
+            slice.name,
+            slice.ts,
+            slice.dur,
+            track.name as track_name,
+            track.type as track_type
+          FROM slice
+          JOIN track on slice.track_id = track.id
+          WHERE slice.name = "AsyncId2GlobalString"
+        ''',
+        out=Csv("""
+          "name","ts","dur","track_name","track_type"
+          "AsyncId2GlobalString",4000000,100000,"AsyncId2GlobalString","legacy_async_global_slice"
+        """))
+
+  def test_json_id2_local_string_id(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          [
+            {
+              "ph": "b",
+              "pid": 400,
+              "tid": 401,
+              "ts": 4000,
+              "name": "AsyncId2LocalString",
+              "cat": "id2test",
+              "id2": {
+                "local": "local_id_str"
+              }
+            },
+            {
+              "ph": "e",
+              "pid": 400,
+              "tid": 401,
+              "ts": 4100,
+              "name": "AsyncId2LocalString",
+              "cat": "id2test",
+              "id2": {
+                "local": "local_id_str"
+              }
+            }
+          ]
+        '''),
+        query='''
+          SELECT
+            slice.name,
+            slice.ts,
+            slice.dur,
+            track.name as track_name,
+            track.type as track_type
+          FROM slice
+          JOIN track on slice.track_id = track.id
+          WHERE slice.name = "AsyncId2LocalString"
+        ''',
+        out=Csv("""
+          "name","ts","dur","track_name","track_type"
+          "AsyncId2LocalString",4000000,100000,"AsyncId2LocalString","legacy_async_process_slice"
+        """))
+
+  def test_string_ts_trailing_chars(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          [
+            {
+              "ph": "X",
+              "pid": 10,
+              "tid": 16,
+              "ts": "100a",
+              "dur": "50",
+              "name": "TrailingCharsTs"
+            },
+            {
+              "ph": "X",
+              "pid": 10,
+              "tid": 17,
+              "ts": "200",
+              "dur": "50a",
+              "name": "TrailingCharsDur"
+            }
+          ]
+        '''),
+        query='''
+          SELECT
+            slice.name,
+            slice.ts,
+            slice.dur
+          FROM slice
+        ''',
+        out=Csv("""
+          "name","ts","dur"
+        """))
