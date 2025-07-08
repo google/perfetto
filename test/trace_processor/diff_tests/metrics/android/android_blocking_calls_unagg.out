@@ -267,6 +267,55 @@ android_blocking_calls_unagg {
      avg_dur_ns: 10000000
    }
    blocking_calls {
+   name: "draw-VRI[NexusLauncherActivity]"
+   cnt: 1
+   total_dur_ms: 10
+   max_dur_ms: 10
+   min_dur_ms: 10
+   total_dur_ns: 10000000
+   max_dur_ns: 10000000
+   min_dur_ns: 10000000
+   avg_dur_ms: 10
+   avg_dur_ns: 10000000
+   }
+   blocking_calls {
+   name: "draw-VRI[ScreenDecorHwcOverlay]"
+   cnt: 1
+   total_dur_ms: 10
+   max_dur_ms: 10
+   min_dur_ms: 10
+   total_dur_ns: 10000000
+   max_dur_ns: 10000000
+   min_dur_ns: 10000000
+   avg_dur_ms: 10
+   avg_dur_ns: 10000000
+   }
+   blocking_calls {
+   name: "draw-VRI[StatusBar]"
+   cnt: 1
+   total_dur_ms: 10
+   max_dur_ms: 10
+   min_dur_ms: 10
+   total_dur_ns: 10000000
+   max_dur_ns: 10000000
+   min_dur_ns: 10000000
+   avg_dur_ms: 10
+   avg_dur_ns: 10000000
+   }
+   blocking_calls {
+   name: "draw-VRI[Taskbar]"
+   cnt: 1
+   total_dur_ms: 10
+   max_dur_ms: 10
+   min_dur_ms: 10
+   total_dur_ns: 10000000
+   max_dur_ns: 10000000
+   min_dur_ns: 10000000
+   avg_dur_ms: 10
+   avg_dur_ns: 10000000
+   }
+
+   blocking_calls {
      name: "inflate"
      cnt: 1
      total_dur_ms: 10
