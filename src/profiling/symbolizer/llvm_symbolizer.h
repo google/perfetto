@@ -53,11 +53,11 @@ class SymbolizationResultBatch {
   SymbolizationResultBatch& operator=(SymbolizationResultBatch&&) noexcept;
 
   // Returns a pair of (pointer, size) for the frames of a given request.
-  std::pair<const LlvmSymbolizedFrame*, size_t> GetFramesForRequest(
-      size_t request_index) const;
+  std::pair<const LlvmSymbolizedFrame*, uint32_t> GetFramesForRequest(
+      uint32_t request_index) const;
 
   // Returns the number of original requests.
-  size_t size() const { return num_ranges_; }
+  uint32_t size() const { return num_ranges_; }
 
  private:
   friend class LlvmSymbolizer;
@@ -74,10 +74,10 @@ class SymbolizationResultBatch {
   // Non-owning views into the C API's flat buffer, implemented with raw
   // pointers and sizes.
   const LlvmSymbolizedFrame* all_frames_ptr_ = nullptr;
-  size_t num_total_frames_ = 0;
+  uint32_t num_total_frames_ = 0;
 
   const SymbolizationResultRange* ranges_ptr_ = nullptr;
-  size_t num_ranges_ = 0;
+  uint32_t num_ranges_ = 0;
 };
 
 namespace {

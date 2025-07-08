@@ -36,7 +36,7 @@ class LlvmSymbolizerImpl {
   ~LlvmSymbolizerImpl();
 
   BatchSymbolizationResult Symbolize(const SymbolizationRequest* requests,
-                                     size_t num_requests);
+                                     uint32_t num_requests);
 
  private:
   std::unique_ptr<llvm::symbolize::LLVMSymbolizer> symbolizer_;
@@ -63,16 +63,16 @@ LlvmSymbolizerImpl::~LlvmSymbolizerImpl() = default;
 
 BatchSymbolizationResult LlvmSymbolizerImpl::Symbolize(
     const SymbolizationRequest* requests,
-    size_t num_requests) {
+    uint32_t num_requests) {
   std::vector<llvm::DIInliningInfo> llvm_results;
   llvm_results.reserve(num_requests);
 
-  size_t total_frames = 0;
+  uint32_t total_frames = 0;
   size_t total_string_size = 0;
 
   // --- First Pass: Symbolize all requests and calculate total memory size ---
   // The expensive LLVM symbolization happens only in this loop.
-  for (size_t i = 0; i < num_requests; ++i) {
+  for (uint32_t i = 0; i < num_requests; ++i) {
     const auto& request = requests[i];
 
 #if LLVM_VERSION_MAJOR >= 9
@@ -111,8 +111,10 @@ BatchSymbolizationResult LlvmSymbolizerImpl::Symbolize(
     llvm_results.push_back(std::move(inlining_info));
   }
 
-  size_t ranges_size = sizeof(SymbolizationResultRange) * num_requests;
-  size_t frames_size = sizeof(SymbolizedFrame) * total_frames;
+  size_t ranges_size =
+      sizeof(SymbolizationResultRange) * static_cast<size_t>(num_requests);
+  size_t frames_size =
+      sizeof(SymbolizedFrame) * static_cast<size_t>(total_frames);
   size_t total_alloc_size = ranges_size + frames_size + total_string_size;
 
   if (total_alloc_size == 0) {
@@ -127,12 +129,13 @@ BatchSymbolizationResult LlvmSymbolizerImpl::Symbolize(
   // Carve up the single buffer into sections for ranges, frames, and strings.
   SymbolizationResultRange* ranges_ptr =
       static_cast<SymbolizationResultRange*>(buffer);
-  SymbolizedFrame* frames_ptr =
-      reinterpret_cast<SymbolizedFrame*>(ranges_ptr + num_requests);
-  char* string_ptr = reinterpret_cast<char*>(frames_ptr + total_frames);
+  SymbolizedFrame* frames_ptr = reinterpret_cast<SymbolizedFrame*>(
+      ranges_ptr + static_cast<size_t>(num_requests));
+  char* string_ptr =
+      reinterpret_cast<char*>(frames_ptr + static_cast<size_t>(total_frames));
 
-  size_t current_frame_offset = 0;
-  for (size_t i = 0; i < num_requests; ++i) {
+  uint32_t current_frame_offset = 0;
+  for (uint32_t i = 0; i < num_requests; ++i) {
     const auto& inlining_info = llvm_results[i];
     uint32_t num_frames = inlining_info.getNumberOfFrames();
 
@@ -177,7 +180,7 @@ void LlvmSymbolizer_Destroy(LlvmSymbolizer* sym) {
 BatchSymbolizationResult LlvmSymbolizer_Symbolize(
     LlvmSymbolizer* sym,
     const SymbolizationRequest* requests,
-    size_t num_requests) {
+    uint32_t num_requests) {
   return reinterpret_cast<LlvmSymbolizerImpl*>(sym)->Symbolize(requests,
                                                                num_requests);
 }

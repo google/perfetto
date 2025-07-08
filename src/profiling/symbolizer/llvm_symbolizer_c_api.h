@@ -48,9 +48,9 @@ typedef struct {
 // flattened array of frames.
 typedef struct {
   // The offset in the `frames` array of the `BatchSymbolizationResult`.
-  size_t offset;
+  uint32_t offset;
   // The number of frames for this result.
-  size_t num_frames;
+  uint32_t num_frames;
 } SymbolizationResultRange;
 
 // Represents the result of a batch of symbolization operations.
@@ -58,12 +58,12 @@ typedef struct {
   // A flat array of all symbolized frames for the entire batch.
   SymbolizedFrame* frames;
   // The total number of frames in the `frames` array.
-  size_t total_frames;
+  uint32_t total_frames;
   // An array of `SymbolizationResultRange` structs, each representing a range
   // in the `frames` array.
   SymbolizationResultRange* ranges;
   // The number of ranges, corresponding to the number of original requests.
-  size_t num_ranges;
+  uint32_t num_ranges;
 } BatchSymbolizationResult;
 
 // Creates an instance of the LLVM symbolizer.
@@ -79,7 +79,7 @@ LLVM_SYMBOLIZER_C_API void LlvmSymbolizer_Destroy(LlvmSymbolizer* sym);
 LLVM_SYMBOLIZER_C_API BatchSymbolizationResult
 LlvmSymbolizer_Symbolize(LlvmSymbolizer* sym,
                          const SymbolizationRequest* requests,
-                         size_t num_requests);
+                         uint32_t num_requests);
 
 // Frees the memory allocated for a BatchSymbolizationResult.
 LLVM_SYMBOLIZER_C_API void LlvmSymbolizer_FreeBatchSymbolizationResult(

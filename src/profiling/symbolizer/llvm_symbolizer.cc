@@ -75,8 +75,8 @@ void SymbolizationResultBatch::Free() {
   c_api_result_ = {};
 }
 
-std::pair<const LlvmSymbolizedFrame*, size_t>
-SymbolizationResultBatch::GetFramesForRequest(size_t request_index) const {
+std::pair<const LlvmSymbolizedFrame*, uint32_t>
+SymbolizationResultBatch::GetFramesForRequest(uint32_t request_index) const {
   if (request_index >= num_ranges_) {
     return {nullptr, 0};
   }
@@ -141,7 +141,8 @@ SymbolizationResultBatch LlvmSymbolizer::SymbolizeBatch(
   }
 
   BatchSymbolizationResult batch_result =
-      symbolize_fn_(c_api_symbolizer_, c_requests.data(), c_requests.size());
+      symbolize_fn_(c_api_symbolizer_, c_requests.data(),
+                    static_cast<uint32_t>(c_requests.size()));
   return SymbolizationResultBatch(batch_result, free_result_fn_);
 }
 
