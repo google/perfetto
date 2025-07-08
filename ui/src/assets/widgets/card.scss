@@ -12,24 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@import "theme.scss";
+
+$border-radius: 4px;
+$box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.15);
+
 .pf-card {
   padding: 12px 16px;
-  box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.15);
-  border-radius: 2px;
-  border: solid 1px lightgray;
-
-  &--borderless {
-    border: unset;
-    box-shadow: unset;
-  }
+  box-shadow: $box-shadow;
+  border-radius: $border-radius;
+  border: solid 1px $pf-colour-thin-border;
 }
 
-.pf-card-list {
+.pf-card-stack {
   display: flex;
   flex-direction: column;
-  border: solid 1px lightgray;
-  border-radius: 2px;
-  box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.15);
+  border: solid 1px $pf-colour-thin-border;
+  border-radius: $border-radius;
+  box-shadow: $box-shadow;
+  overflow: hidden;
 
   > .pf-card:not(:last-child) {
     border-bottom: 1px solid lightgray;
@@ -37,5 +38,7 @@
 
   > .pf-card {
     border-radius: unset;
+    border: unset;
+    box-shadow: unset;
   }
 }
