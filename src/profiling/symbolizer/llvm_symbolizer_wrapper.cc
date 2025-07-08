@@ -49,9 +49,13 @@ LlvmSymbolizerImpl::LlvmSymbolizerImpl() {
   opts.PrintFunctions = llvm::symbolize::FunctionNameKind::LinkageName;
   opts.RelativeAddresses = false;
   opts.UntagAddresses = true;
+#if LLVM_VERSION_MAJOR >= 12
   opts.UseDIA = false;
+#endif
+#if LLVM_VERSION_MAJOR >= 11
   opts.PathStyle =
       llvm::DILineInfoSpecifier::FileLineInfoKind::AbsoluteFilePath;
+#endif
   symbolizer_ = std::make_unique<llvm::symbolize::LLVMSymbolizer>(opts);
 }
 
@@ -71,7 +75,7 @@ BatchSymbolizationResult LlvmSymbolizerImpl::Symbolize(
   for (size_t i = 0; i < num_requests; ++i) {
     const auto& request = requests[i];
 
-#if LLVM_VERSION_MAJOR >= 11
+#if LLVM_VERSION_MAJOR >= 9
     llvm::Expected<llvm::DIInliningInfo> res_or_err =
         symbolizer_->symbolizeInlinedCode(
             request.binary_path,
