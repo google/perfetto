@@ -23,7 +23,6 @@
 
 #include <algorithm>
 #include <limits>
-#include <type_traits>
 
 namespace perfetto {
 namespace base {
@@ -276,20 +275,14 @@ class FlatHashMap {
     if (PERFETTO_UNLIKELY(capacity_ == 0))
       return;
 
-    if (!std::is_trivially_destructible<Key>::value ||
-        !std::is_trivially_destructible<Value>::value) {
-      for (size_t i = 0; i < capacity_; ++i) {
-        const uint8_t tag = tags_[i];
-        if (tag != kFreeSlot && (AppendOnly || tag != kTombstone)) {
-          keys_[i].~Key();
-          values_[i].~Value();
-        }
+    for (size_t i = 0; i < capacity_; ++i) {
+      const uint8_t tag = tags_[i];
+      if (tag != kFreeSlot && (AppendOnly || tag != kTombstone)) {
+        keys_[i].~Key();
+        values_[i].~Value();
       }
     }
-    memset(&tags_[0], kFreeSlot, capacity_);
-    size_ = 0;
-    tombstones_ = 0;
-    max_probe_length_ = 0;
+    Reset(capacity_);
   }
 
   Value& operator[](Key key) {
@@ -381,6 +374,7 @@ class FlatHashMap {
   PERFETTO_NO_INLINE void Reset(size_t n) {
     PERFETTO_DCHECK((n & (n - 1)) == 0);  // Must be a pow2.
 
+    bool capacity_changed = capacity_ != n;
     capacity_ = n;
     max_probe_length_ = 0;
     size_ = 0;
@@ -388,10 +382,19 @@ class FlatHashMap {
     load_limit_ = n * static_cast<size_t>(load_limit_percent_) / 100;
     load_limit_ = std::min(load_limit_, n);
 
-    tags_.reset(new uint8_t[n]);
-    memset(&tags_[0], 0, n);                  // Clear all tags.
-    keys_ = AlignedAllocTyped<Key[]>(n);      // Deliberately not 0-initialized.
-    values_ = AlignedAllocTyped<Value[]>(n);  // Deliberately not 0-initialized.
+    // Only allocate if capacity is actually changing.
+    if (capacity_changed) {
+      tags_.reset(new uint8_t[n]);
+      keys_ = AlignedAllocTyped<Key[]>(n);  // Deliberately not 0-initialized.
+      values_ =
+          AlignedAllocTyped<Value[]>(n);  // Deliberately not 0-initialized.
+    }
+
+    // Only clear the tags if the new size is non-empty. Otherwise it's possible
+    // tags is nullptr (e.g. if capacity_ was 0 before the reset).
+    if (n > 0) {
+      memset(&tags_[0], 0, n);  // Clear all tags.
+    }
   }
 
   static inline uint8_t HashToTag(size_t full_hash) {
