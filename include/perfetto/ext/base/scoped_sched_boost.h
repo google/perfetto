@@ -22,11 +22,6 @@
 
 namespace perfetto::base {
 
-struct SchedOsConfig {
-  int policy;
-  int prio;
-};
-
 // kSchedOther: it's the default policy (e.g. CFS on Linux). Range: 0-20.
 //              prio is interpreted as -(nice), i.e. 1 is silhgly higher prio
 //              than the default 0,  20 is the highest priority.
@@ -59,6 +54,11 @@ struct SchedPolicyAndPrio {
 
 class SchedOsManager {
  public:
+  struct SchedOsConfig {
+    int policy;
+    int prio;
+  };
+
   static SchedOsManager* GetInstance();
   // virtual for testing
   virtual Status SetSchedConfig(const SchedOsConfig& arg);
@@ -73,29 +73,6 @@ class SchedOsManager {
   SchedOsManager& operator=(const SchedOsManager&) = delete;
   SchedOsManager(SchedOsManager&&) = delete;
   SchedOsManager& operator=(SchedOsManager&&) = delete;
-};
-
-class ThreadMgr {
- public:
-  static ThreadMgr& GetInstance();
-
-  explicit ThreadMgr(SchedOsManager*);
-
-  Status Add(SchedPolicyAndPrio);
-  void Remove(SchedPolicyAndPrio);
-  Status RecalcAndUpdatePrio();
-
-  ThreadMgr(const ThreadMgr&) = delete;
-  ThreadMgr& operator=(const ThreadMgr&) = delete;
-  ThreadMgr(ThreadMgr&&) = delete;
-  ThreadMgr& operator=(ThreadMgr&&) = delete;
-
-  void ResetForTesting(SchedOsManager*);
-
- private:
-  SchedOsManager* os_manager_;
-  std::optional<SchedOsConfig> initial_config_;
-  std::vector<SchedPolicyAndPrio> prios_;
 };
 
 // RAII helper to temporarily boost the scheduler priority of the current

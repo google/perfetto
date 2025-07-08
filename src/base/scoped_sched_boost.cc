@@ -37,20 +37,41 @@ namespace perfetto::base {
 namespace {
 constexpr pid_t kCurrentPid = 0;
 
-SchedOsConfig to_sched_os_config(const SchedPolicyAndPrio& spp) {
+SchedOsManager::SchedOsConfig to_sched_os_config(
+    const SchedPolicyAndPrio& spp) {
   switch (spp.policy) {
     case SchedPolicyAndPrio::Policy::kSchedOther:
-      return SchedOsConfig{SCHED_OTHER, -1 * static_cast<int>(spp.prio)};
+      return SchedOsManager::SchedOsConfig{SCHED_OTHER,
+                                           -1 * static_cast<int>(spp.prio)};
     case SchedPolicyAndPrio::Policy::kSchedFifo:
-      return SchedOsConfig{SCHED_FIFO, static_cast<int>(spp.prio)};
+      return SchedOsManager::SchedOsConfig{SCHED_FIFO,
+                                           static_cast<int>(spp.prio)};
   }
   PERFETTO_CHECK(false);  // For GCC.
 }
 
-}  // namespace
+class ThreadMgr {
+ public:
+  static ThreadMgr& GetInstance();
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  explicit ThreadMgr(SchedOsManager*);
+
+  Status Add(SchedPolicyAndPrio);
+  void Remove(SchedPolicyAndPrio);
+  Status RecalcAndUpdatePrio();
+
+  ThreadMgr(const ThreadMgr&) = delete;
+  ThreadMgr& operator=(const ThreadMgr&) = delete;
+  ThreadMgr(ThreadMgr&&) = delete;
+  ThreadMgr& operator=(ThreadMgr&&) = delete;
+
+  void ResetForTesting(SchedOsManager*);
+
+ private:
+  SchedOsManager* os_manager_;
+  std::optional<SchedOsManager::SchedOsConfig> initial_config_;
+  std::vector<SchedPolicyAndPrio> prios_;
+};
 
 ThreadMgr& ThreadMgr::GetInstance() {
   static NoDestructor<ThreadMgr> instance(SchedOsManager::GetInstance());
@@ -107,6 +128,11 @@ void ThreadMgr::ResetForTesting(SchedOsManager* os_manager) {
   prios_.clear();
 }
 
+}  // namespace
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+
 SchedOsManager* SchedOsManager::GetInstance() {
   static auto* instance = new SchedOsManager();
   return instance;
@@ -143,7 +169,8 @@ Status SchedOsManager::SetSchedConfig(const SchedOsConfig& arg) {
   return ErrStatus("Unknown policy %d", arg.policy);
 }
 
-StatusOr<SchedOsConfig> SchedOsManager::GetCurrentSchedConfig() const {
+StatusOr<SchedOsManager::SchedOsConfig> SchedOsManager::GetCurrentSchedConfig()
+    const {
   int policy = sched_getscheduler(kCurrentPid);
   if (policy == -1) {
     return ErrStatus("sched_getscheduler failed (errno: %d, %s)", errno,
