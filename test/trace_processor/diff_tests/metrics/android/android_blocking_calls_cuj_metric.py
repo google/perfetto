@@ -27,36 +27,21 @@ TOP_LEVEL_SLICES_PID = 4000
 
 # List of blocking calls
 blocking_call_names = [
-    'monitor contention with something else',
-    'SuspendThreadByThreadId 123',
-    'LoadApkAssetsFd 123',
-    'binder transaction',
-    'inflate',
+    'monitor contention with something else', 'SuspendThreadByThreadId 123',
+    'LoadApkAssetsFd 123', 'binder transaction', 'inflate',
     'Lock contention on thread list lock (owner tid: 1665)',
     "Lock contention on thread suspend count lock (owner tid: 0)",
     "Lock contention on a monitor lock (owner tid: 0)",
     'android.os.Handler: kotlinx.coroutines.CancellableContinuationImpl',
-    'relayoutWindow*',
-    'measure',
-    'layout',
-    'configChanged',
-    'Contending for pthread mutex',
-    'ImageDecoder#decodeBitmap',
-    'ImageDecoder#decodeDrawable',
-    'NotificationStackScrollLayout#onMeasure',
-    'ExpNotRow#onMeasure(MessagingStyle)',
-    'ExpNotRow#onMeasure(BigTextStyle)',
-    'animation',
-    'input',
-    'traversal',
-    'postAndWait',
+    'relayoutWindow*', 'measure', 'layout', 'configChanged',
+    'Contending for pthread mutex', 'ImageDecoder#decodeBitmap',
+    'ImageDecoder#decodeDrawable', 'NotificationStackScrollLayout#onMeasure',
+    'ExpNotRow#onMeasure(MessagingStyle)', 'ExpNotRow#onMeasure(BigTextStyle)',
+    'animation', 'input', 'traversal', 'postAndWait',
     'android.os.Handler: kotlinx.coroutines.internal.DispatchedContinuation',
-    'GC: Wait For Completion Alloc',
-    'Should not be in the metric',
-    'draw-VRI[ScreenDecorHwcOverlay]',
-    'draw-VRI[StatusBar]',
-    'draw-VRI[NexusLauncherActivity]',
-    'draw-VRI[Taskbar]'
+    'GC: Wait For Completion Alloc', 'Should not be in the metric',
+    'draw-VRI[ScreenDecorHwcOverlay]', 'draw-VRI[StatusBar]',
+    'draw-VRI[NexusLauncherActivity]', 'draw-VRI[Taskbar]'
 ]
 
 top_level_names = [
