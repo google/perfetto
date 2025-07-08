@@ -53,7 +53,7 @@ export function selectTracksAndGetDataset<T extends DatasetSchema>(
 
   if (datasets.length > 0) {
     // TODO(stevegolton): Avoid typecast in UnionDataset.
-    return new UnionDataset(datasets) as unknown as Dataset<T>;
+    return (new UnionDataset(datasets) as unknown as Dataset<T>).optimize();
   } else {
     return undefined;
   }
