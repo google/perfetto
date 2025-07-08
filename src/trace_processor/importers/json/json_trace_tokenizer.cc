@@ -223,13 +223,15 @@ inline bool CoerceToTs(const json::JsonValue& value,
       json::JsonValue str_parsed;
       std::string temp_str;
       const char* start = value_str.data();
+      const char* end = value_str.data() + value_str.size();
 
       // The ParseValue function expects to see the next character after any
       // number so we need to add one to the end of the string contents (which
       // should be the quote character) to ensure we don't get
       // `kIncompleteInput`.
-      const char* end = value_str.data() + value_str.size() + 1;
-      auto ret = json::ParseValue(start, end, str_parsed, temp_str, status);
+      const char* quote_end = value_str.data() + value_str.size() + 1;
+      auto ret =
+          json::ParseValue(start, quote_end, str_parsed, temp_str, status);
       switch (ret) {
         case json::ReturnCode::kOk:
           if (start != end) {
