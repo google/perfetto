@@ -22,6 +22,7 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/thread_utils.h"
 #include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/watchdog.h"
@@ -476,7 +477,7 @@ void ProbesProducer::StartDataSource(DataSourceInstanceID instance_id,
   std::string thread_name;
   base::GetThreadName(thread_name);
   PERFETTO_DLOG("traced_probes pid: %d, thread id: %d, name: %s", getpid(),
-                gettid(), thread_name.c_str());
+                base::GetThreadId(), thread_name.c_str());
   auto it = data_sources_.find(instance_id);
   if (it == data_sources_.end()) {
     // Can happen if SetupDataSource() failed (e.g. ftrace was busy).

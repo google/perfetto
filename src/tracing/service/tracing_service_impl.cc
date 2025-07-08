@@ -940,8 +940,8 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   if (cfg.has_priority_boost()) {
     std::string thread_name;
     base::GetThreadName(thread_name);
-    PERFETTO_DLOG("traced pid: %d, tid: %d, name: %s", getpid(), gettid(),
-                  thread_name.c_str());
+    PERFETTO_DLOG("traced pid: %d, tid: %d, name: %s", getpid(),
+                  base::GetThreadId(), thread_name.c_str());
     auto sched_policy = CreateSchedPolicyFromConfig(cfg.priority_boost());
     if (!sched_policy.ok()) {
       // TODO(ktimofeev): call MaybeLogUploadEvent
