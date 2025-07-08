@@ -37,19 +37,6 @@ namespace perfetto::base {
 namespace {
 constexpr pid_t kCurrentPid = 0;
 
-SchedOsManager::SchedOsConfig to_sched_os_config(
-    const SchedPolicyAndPrio& spp) {
-  switch (spp.policy) {
-    case SchedPolicyAndPrio::Policy::kSchedOther:
-      return SchedOsManager::SchedOsConfig{SCHED_OTHER,
-                                           -1 * static_cast<int>(spp.prio)};
-    case SchedPolicyAndPrio::Policy::kSchedFifo:
-      return SchedOsManager::SchedOsConfig{SCHED_FIFO,
-                                           static_cast<int>(spp.prio)};
-  }
-  PERFETTO_CHECK(false);  // For GCC.
-}
-
 class ThreadMgr {
  public:
   static ThreadMgr& GetInstance();
@@ -114,7 +101,18 @@ Status ThreadMgr::RecalcAndUpdatePrio() {
   }
   // TODO(ktimofeev): Check previously set prio to skip unnecessary syscall?
   auto max_prio = std::max_element(prios_.begin(), prios_.end());
-  Status res = os_manager_->SetSchedConfig(to_sched_os_config(*max_prio));
+  SchedOsManager::SchedOsConfig os_config{};
+  switch (max_prio->policy) {
+    case SchedPolicyAndPrio::Policy::kSchedOther:
+      os_config = SchedOsManager::SchedOsConfig{
+          SCHED_OTHER, 0, -1 * static_cast<int>(max_prio->prio)};
+      break;
+    case SchedPolicyAndPrio::Policy::kSchedFifo:
+      os_config = SchedOsManager::SchedOsConfig{
+          SCHED_FIFO, static_cast<int>(max_prio->prio), 0};
+      break;
+  }
+  Status res = os_manager_->SetSchedConfig(os_config);
   if (!res.ok()) {
     prios_.erase(max_prio);
     return res;
@@ -140,33 +138,24 @@ SchedOsManager* SchedOsManager::GetInstance() {
 
 Status SchedOsManager::SetSchedConfig(const SchedOsConfig& arg) {
   PERFETTO_DLOG(
-      "SchedOsManager::SetSchedConfig: pid: %d, tid: %d, policy: %d, prio: %d",
-      getpid(), GetThreadId(), arg.policy, arg.prio);
+      "SchedOsManager::SetSchedConfig: pid: %d, tid: %d, policy: %d, rt_prio: "
+      "%d, nice: %d",
+      getpid(), GetThreadId(), arg.policy, arg.rt_prio, arg.nice);
   sched_param param{};
-  if (arg.policy == SCHED_FIFO || arg.policy == SCHED_RR) {
-    param.sched_priority = arg.prio;
-    int ret = sched_setscheduler(kCurrentPid, arg.policy, &param);
-    if (ret == -1) {
-      return ErrStatus("sched_setscheduler(%d, %d) failed (errno: %d, %s)",
-                       arg.policy, arg.prio, errno, strerror(errno));
-    }
-    return OkStatus();
+  param.sched_priority = arg.rt_prio;
+  int ret = sched_setscheduler(kCurrentPid, arg.policy, &param);
+  if (ret == -1) {
+    return ErrStatus("sched_setscheduler(%d, %d) failed (errno: %d, %s)",
+                     arg.policy, arg.rt_prio, errno, strerror(errno));
   }
-  if (arg.policy == SCHED_OTHER || arg.policy == SCHED_BATCH ||
-      arg.policy == SCHED_IDLE) {
-    int ret = sched_setscheduler(kCurrentPid, arg.policy, &param);
+  if (arg.rt_prio == 0) {
+    ret = setpriority(PRIO_PROCESS, kCurrentPid, arg.nice);
     if (ret == -1) {
-      return ErrStatus("sched_setscheduler(%d) failed (errno: %d, %s)",
-                       arg.policy, errno, strerror(errno));
-    }
-    ret = setpriority(PRIO_PROCESS, kCurrentPid, arg.prio);
-    if (ret == -1) {
-      return ErrStatus("setpriority(%d) failed (errno: %d, %s)", arg.prio,
+      return ErrStatus("setpriority(%d) failed (errno: %d, %s)", arg.nice,
                        errno, strerror(errno));
     }
-    return OkStatus();
   }
-  return ErrStatus("Unknown policy %d", arg.policy);
+  return OkStatus();
 }
 
 StatusOr<SchedOsManager::SchedOsConfig> SchedOsManager::GetCurrentSchedConfig()
@@ -176,27 +165,18 @@ StatusOr<SchedOsManager::SchedOsConfig> SchedOsManager::GetCurrentSchedConfig()
     return ErrStatus("sched_getscheduler failed (errno: %d, %s)", errno,
                      strerror(errno));
   }
-  int priority = 0;
-  if (policy == SCHED_FIFO || policy == SCHED_RR) {
-    sched_param param{};
-    int ret = sched_getparam(kCurrentPid, &param);
-    if (ret == -1) {
-      return ErrStatus("sched_getparam failed (errno: %d, %s)", errno,
-                       strerror(errno));
-    }
-    priority = param.sched_priority;
-  } else if (policy == SCHED_OTHER || policy == SCHED_BATCH ||
-             policy == SCHED_IDLE) {
-    errno = 0;
-    priority = getpriority(PRIO_PROCESS, kCurrentPid);
-    if (priority == -1 && errno != 0) {
-      return ErrStatus("getpriority failed (errno: %d, %s)", errno,
-                       strerror(errno));
-    }
-  } else {
-    return ErrStatus("Unknown policy %d", policy);
+  sched_param param{};
+  if (sched_getparam(kCurrentPid, &param) == -1) {
+    return ErrStatus("sched_getparam failed (errno: %d, %s)", errno,
+                     strerror(errno));
   }
-  return SchedOsConfig{policy, priority};
+  errno = 0;
+  int nice = getpriority(PRIO_PROCESS, kCurrentPid);
+  if (nice == -1 && errno != 0) {
+    return ErrStatus("getpriority failed (errno: %d, %s)", errno,
+                     strerror(errno));
+  }
+  return SchedOsConfig{policy, param.sched_priority, nice};
 }
 
 // static

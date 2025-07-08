@@ -56,7 +56,8 @@ class SchedOsManager {
  public:
   struct SchedOsConfig {
     int policy;
-    int prio;
+    int rt_prio;
+    int nice;
   };
 
   static SchedOsManager* GetInstance();
