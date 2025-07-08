@@ -174,18 +174,6 @@ TEST_F(ScopedSchedBoostTest, MoveOperation) {
   ASSERT_EQ(sched_manager_.current_config, kInitSchedOsConfig);
 }
 
-TEST_F(ScopedSchedBoostTest, ReturnNotSupported) {
-  ON_CALL(sched_manager_, GetCurrentSchedConfig())
-      .WillByDefault(Return(ErrStatus("Platform not supported.")));
-  EXPECT_CALL(sched_manager_, SetSchedConfig(_)).Times(0);
-  EXPECT_CALL(sched_manager_, GetCurrentSchedConfig()).Times(1);
-  {
-    auto boost =
-        ScopedSchedBoost::Boost({SchedPolicyAndPrio::Policy::kSchedOther, 5});
-    ASSERT_STREQ(boost.status().c_message(), "Platform not supported.");
-  }
-}
-
 TEST_F(ScopedSchedBoostTest, IgnoreWrongConfig) {
   ON_CALL(sched_manager_, SetSchedConfig(_))
       .WillByDefault(Invoke([&](const SchedOsManager::SchedOsConfig& arg) {

@@ -56,7 +56,7 @@ class ThreadMgr {
 
  private:
   SchedOsManager* os_manager_;
-  std::optional<SchedOsManager::SchedOsConfig> initial_config_;
+  SchedOsManager::SchedOsConfig initial_config_{};
   std::vector<SchedPolicyAndPrio> prios_;
 };
 
@@ -64,7 +64,19 @@ ThreadMgr& ThreadMgr::GetInstance() {
   static NoDestructor<ThreadMgr> instance(SchedOsManager::GetInstance());
   return instance.ref();
 }
-ThreadMgr::ThreadMgr(SchedOsManager* os_manager) : os_manager_(os_manager) {}
+ThreadMgr::ThreadMgr(SchedOsManager* os_manager) : os_manager_(os_manager) {
+  auto res = os_manager_->GetCurrentSchedConfig();
+  if (!res.ok()) {
+    // Should never fail: even without CAP_SYS_NICE we can always get our own
+    // policy and prio. If something goes very wrong, log an error and use
+    // SCHED_OTHER as initial config.
+    PERFETTO_DFATAL_OR_ELOG("Failed to get default sched config: %s",
+                            res.status().c_message());
+    initial_config_ = SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, 0};
+  } else {
+    initial_config_ = res.value();
+  }
+}
 
 Status ThreadMgr::Add(SchedPolicyAndPrio spp) {
   prios_.push_back(spp);
@@ -88,16 +100,8 @@ void ThreadMgr::Remove(SchedPolicyAndPrio spp) {
 }
 
 Status ThreadMgr::RecalcAndUpdatePrio() {
-  if (!initial_config_.has_value()) {
-    // Should never fail on Android/Linux: even without CAP_SYS_NICE we can
-    // always get our own prio.
-    // Always fails on unsupported platforms, or if something goes very wrong on
-    // Linux/Android, in both cases return the error to the caller.
-    auto res = os_manager_->GetCurrentSchedConfig();
-    ASSIGN_OR_RETURN(initial_config_, res);
-  }
   if (prios_.empty()) {
-    return os_manager_->SetSchedConfig(initial_config_.value());
+    return os_manager_->SetSchedConfig(initial_config_);
   }
   // TODO(ktimofeev): Check previously set prio to skip unnecessary syscall?
   auto max_prio = std::max_element(prios_.begin(), prios_.end());
@@ -122,7 +126,7 @@ Status ThreadMgr::RecalcAndUpdatePrio() {
 
 void ThreadMgr::ResetForTesting(SchedOsManager* os_manager) {
   os_manager_ = os_manager;
-  initial_config_.reset();
+  initial_config_ = os_manager->GetCurrentSchedConfig().value();
   prios_.clear();
 }
 
