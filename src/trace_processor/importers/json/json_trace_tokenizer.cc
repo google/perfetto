@@ -591,10 +591,14 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
     context_->storage->IncrementStats(stats::json_tokenizer_failure);
     return true;
   }
-  // Metadata events may omit ts. In all other cases error:
-  if (ts == std::numeric_limits<int64_t>::max() && event.phase != 'M') {
-    context_->storage->IncrementStats(stats::json_tokenizer_failure);
-    return true;
+  // Metadata events may omit ts. In all other cases error.
+  if (ts == std::numeric_limits<int64_t>::max()) {
+    if (event.phase != 'M') {
+      context_->storage->IncrementStats(stats::json_tokenizer_failure);
+      return true;
+    }
+    // If the event is a metadata event, we can set ts to 0.
+    ts = 0;
   }
 
   // Make the tid equal to the pid if tid is not set.
