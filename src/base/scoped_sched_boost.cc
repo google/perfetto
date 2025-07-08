@@ -170,11 +170,14 @@ StatusOr<SchedOsManager::SchedOsConfig> SchedOsManager::GetCurrentSchedConfig()
     return ErrStatus("sched_getparam failed (errno: %d, %s)", errno,
                      strerror(errno));
   }
-  errno = 0;
-  int nice = getpriority(PRIO_PROCESS, kCurrentPid);
-  if (nice == -1 && errno != 0) {
-    return ErrStatus("getpriority failed (errno: %d, %s)", errno,
-                     strerror(errno));
+  int nice = 0;
+  if (param.sched_priority == 0) {
+    errno = 0;
+    nice = getpriority(PRIO_PROCESS, kCurrentPid);
+    if (nice == -1 && errno != 0) {
+      return ErrStatus("getpriority failed (errno: %d, %s)", errno,
+                       strerror(errno));
+    }
   }
   return SchedOsConfig{policy, param.sched_priority, nice};
 }

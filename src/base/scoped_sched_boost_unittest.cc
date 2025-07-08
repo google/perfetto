@@ -238,6 +238,35 @@ class ScopedSchedBoostLinuxIntegrationTest : public testing::Test {
   SchedOsManager::SchedOsConfig initial_config{};
 };
 
+TEST_F(ScopedSchedBoostLinuxIntegrationTest, LinuxApiCalls) {
+  if (geteuid() != 0) {
+    GTEST_SKIP() << "LinuxApiCalls requires root";
+  }
+  {
+    auto boost = ScopedSchedBoost::Boost(
+        SchedPolicyAndPrio{SchedPolicyAndPrio::Policy::kSchedOther, 5});
+    ASSERT_OK(boost);
+    SchedOsManager::SchedOsConfig current{};
+    ASSERT_OK_AND_ASSIGN(
+        current, SchedOsManager::GetInstance()->GetCurrentSchedConfig());
+    ASSERT_THAT(current, Eq(SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -5}));
+    {
+      auto boost_rt = ScopedSchedBoost::Boost(
+          SchedPolicyAndPrio{SchedPolicyAndPrio::Policy::kSchedFifo, 42});
+      ASSERT_OK(boost_rt);
+      SchedOsManager::SchedOsConfig current_rt{};
+      ASSERT_OK_AND_ASSIGN(
+          current_rt, SchedOsManager::GetInstance()->GetCurrentSchedConfig());
+      ASSERT_THAT(current_rt,
+                  Eq(SchedOsManager::SchedOsConfig{SCHED_FIFO, 42, 0}));
+    }
+
+    ASSERT_OK_AND_ASSIGN(
+        current, SchedOsManager::GetInstance()->GetCurrentSchedConfig());
+    ASSERT_THAT(current, Eq(SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -5}));
+  }
+}
+
 TEST_F(ScopedSchedBoostLinuxIntegrationTest, WrongConfig) {
   if (geteuid() != 0) {
     GTEST_SKIP() << "WrongConfig requires root";
