@@ -28,7 +28,7 @@ using LayersDecoder = protos::pbzero::LayersProto::Decoder;
 using LayerDecoder = protos::pbzero::LayerProto::Decoder;
 }  // namespace
 
-std::unordered_map<int, LayerDecoder> ExtractLayersById(
+std::unordered_map<int32_t, LayerDecoder> ExtractLayersById(
     const LayersDecoder& layers_decoder);
 
 std::vector<LayerDecoder> ExtractLayersTopToBottom(

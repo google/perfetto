@@ -1,9 +1,5 @@
 
 "tid","name","is_main_thread","canonical_name"
-0,"[NULL]",0,"Unknown"
-0,"[NULL]",0,"Unknown"
-0,"[NULL]",0,"Unknown"
-0,"[NULL]",0,"Unknown"
 17547,"CrBrowserMain",1,"CrProcessMain"
 17578,"CrBrowserMain",1,"CrProcessMain"
 18245,"ThreadPoolServiceThread",0,"ThreadPoolServiceThread"
