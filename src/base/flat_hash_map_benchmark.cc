@@ -303,16 +303,16 @@ void BM_HashMap_LookupRandInts(benchmark::State& state) {
 }
 
 template <typename MapType>
-void BM_HashMap_RandomIntsInsertAndClear(benchmark::State& state) {
+void BM_HashMap_RandomIntsClear(benchmark::State& state) {
   std::minstd_rand0 rng(0);
   std::vector<size_t> keys(static_cast<size_t>(num_samples()));
   std::shuffle(keys.begin(), keys.end(), rng);
 
   MapType mapz;
-  for (auto _ : state) {
-    for (const size_t key : keys)
-      mapz.insert({key, key});
+  for (const size_t key : keys)
+    mapz.insert({key, key});
 
+  for (auto _ : state) {
     mapz.clear();
     benchmark::ClobberMemory();
   }
@@ -398,4 +398,4 @@ BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, AbslFlatHashMap);
 BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, FollyF14FastMap);
 #endif
 
-BENCHMARK_TEMPLATE(BM_HashMap_RandomIntsInsertAndClear, Ours_LinearProbing);
+BENCHMARK_TEMPLATE(BM_HashMap_RandomIntsClear, Ours_LinearProbing);
