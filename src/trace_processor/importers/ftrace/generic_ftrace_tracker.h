@@ -47,7 +47,7 @@ namespace perfetto::trace_processor {
 // TODO(rsavitski): consider:
 // * deduping struct declarations with compile-time ftrace_descriptors.cc.
 // * using base::SmallVec for GenericField (needs a resize() method).
-class GenericFtraceTracker : public Destructible {
+class GenericFtraceTracker {
  public:
   static constexpr uint32_t kGenericEvtProtoMinPbFieldId = 65536;
 
@@ -63,17 +63,10 @@ class GenericFtraceTracker : public Destructible {
     std::vector<GenericField> fields;
   };
 
+  explicit GenericFtraceTracker(TraceProcessorContext* context);
   GenericFtraceTracker(const GenericFtraceTracker&) = delete;
   GenericFtraceTracker& operator=(const GenericFtraceTracker&) = delete;
-  ~GenericFtraceTracker() override;
-
-  static GenericFtraceTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->generic_ftrace_tracker) {
-      context->generic_ftrace_tracker.reset(new GenericFtraceTracker(context));
-    }
-    return static_cast<GenericFtraceTracker*>(
-        context->generic_ftrace_tracker.get());
-  }
+  ~GenericFtraceTracker();
 
   // Returns true if a proto field id inside |FtraceEvent| proto should be
   // parsed using a descriptor from this tracker.
@@ -89,8 +82,6 @@ class GenericFtraceTracker : public Destructible {
   GenericEvent* GetEvent(uint32_t pb_field_id);
 
  private:
-  explicit GenericFtraceTracker(TraceProcessorContext* context);
-
   TraceProcessorContext* const context_;
   // keyed by proto field id inside the FtraceEvent proto
   base::FlatHashMap<uint32_t, GenericEvent> events_;

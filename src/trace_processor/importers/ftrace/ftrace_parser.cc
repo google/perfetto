@@ -414,8 +414,10 @@ void InsertFieldIntoArgs(StringId name_id,
 
 }  // namespace
 
-FtraceParser::FtraceParser(TraceProcessorContext* context)
+FtraceParser::FtraceParser(TraceProcessorContext* context,
+                           GenericFtraceTracker* generic_tracker)
     : context_(context),
+      generic_tracker_(generic_tracker),
       rss_stat_tracker_(context),
       drm_tracker_(context),
       iostat_tracker_(context),
@@ -1614,7 +1616,7 @@ void FtraceParser::ParseGenericFtrace(uint32_t event_proto_id,
 
   protozero::ProtoDecoder decoder(blob);
   GenericFtraceTracker::GenericEvent* descriptor =
-      GenericFtraceTracker::GetOrCreate(context_)->GetEvent(event_proto_id);
+      generic_tracker_->GetEvent(event_proto_id);
   if (!descriptor) {
     PERFETTO_DLOG("Failed to find descriptor for proto id %" PRIu32 "",
                   event_proto_id);

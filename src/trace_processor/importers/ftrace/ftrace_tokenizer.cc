@@ -160,7 +160,7 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
   for (auto it = decoder.generic_event_descriptors(); it; ++it) {
     protos::pbzero::FtraceEventBundle::GenericEventDescriptor::Decoder
         gen_decoder(it->data(), it->size());
-    GenericFtraceTracker::GetOrCreate(context_)->AddDescriptor(
+    generic_tracker_->AddDescriptor(
         static_cast<uint32_t>(gen_decoder.field_id()),
         gen_decoder.event_descriptor());
   }
