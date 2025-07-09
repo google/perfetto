@@ -473,6 +473,6 @@ TYPED_TEST(FlatHashMapTest, TombstoneCompactionRehash) {
   ASSERT_EQ(*fmap.Find(301), 301);
 }
 
- }  // namespace
- }  // namespace base
+}  // namespace
+}  // namespace base
 }  // namespace perfetto
