@@ -35,6 +35,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/ftrace/generic_ftrace_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/metadata.h"
@@ -152,6 +153,16 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
   for (auto it = decoder.event(); it; ++it) {
     TokenizeFtraceEvent(cpu, clock_id, bundle.slice(it->data(), it->size()),
                         state);
+  }
+
+  // v50+: optional proto descriptors for generic (i.e. not known at
+  // compile-time) ftrace events.
+  for (auto it = decoder.generic_event_descriptors(); it; ++it) {
+    protos::pbzero::FtraceEventBundle::GenericEventDescriptor::Decoder
+        gen_decoder(it->data(), it->size());
+    generic_tracker_->AddDescriptor(
+        static_cast<uint32_t>(gen_decoder.field_id()),
+        gen_decoder.event_descriptor());
   }
 
   // First bundle on each cpu is special since ftrace is recorded in per-cpu
