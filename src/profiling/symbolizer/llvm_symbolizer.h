@@ -69,14 +69,6 @@ class SymbolizationResultBatch {
   uint32_t num_ranges_ = 0;
 };
 
-namespace {
-// A no-op closer function for dlopen handles, as dlclose() is flaky.
-// ScopedResource requires a static function pointer for its template.
-inline int NoOpDlclose(void* /*handle*/) {
-  return 0;
-}
-}  // namespace
-
 class LlvmSymbolizer {
  public:
   LlvmSymbolizer();
@@ -91,6 +83,9 @@ class LlvmSymbolizer {
       const std::vector<::SymbolizationRequest>& requests);
 
  private:
+  // A no-op closer function for dlopen handles, as dlclose() is flaky.
+  // ScopedResource requires a static function pointer for its template.
+  static int NoOpDlclose(void*) { return 0; }
   using ScopedLibraryHandle = base::ScopedResource<void*, NoOpDlclose, nullptr>;
 
   ScopedLibraryHandle library_handle_;
