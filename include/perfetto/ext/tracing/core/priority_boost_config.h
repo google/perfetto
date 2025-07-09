@@ -42,6 +42,8 @@ inline base::StatusOr<base::SchedPolicyAndPrio> CreateSchedPolicyFromConfig(
       }
       return base::ErrStatus(
           "For the 'POLICY_SCHED_FIFO' priority must be in the range [1; 99]");
+    case protos::gen::PriorityBoostConfig::POLICY_UNSPECIFIED:
+      return base::ErrStatus("Policy must not be 'POLICY_UNSPECIFIED'");
   }
   PERFETTO_CHECK(false);  // For GCC.
 }

@@ -12893,6 +12893,7 @@ class PriorityBoostConfig(_message.Message):
     POLICY_FIELD_NUMBER: _ClassVar[int]
     POLICY_SCHED_FIFO: PriorityBoostConfig.BoostPolicy
     POLICY_SCHED_OTHER: PriorityBoostConfig.BoostPolicy
+    POLICY_UNSPECIFIED: PriorityBoostConfig.BoostPolicy
     PRIORITY_FIELD_NUMBER: _ClassVar[int]
     policy: PriorityBoostConfig.BoostPolicy
     priority: int
