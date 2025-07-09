@@ -42,7 +42,7 @@ namespace perfetto::trace_processor {
 // (aka raw) table.
 //
 // TODO(rsavitski): consider:
-// * deduping strutc declarations with compile-time ftrace_descriptors.cc.
+// * deduping struct declarations with compile-time ftrace_descriptors.cc.
 // * using base::SmallVec for GenericField (needs a resize() method).
 class GenericFtraceTracker : public Destructible {
  public:

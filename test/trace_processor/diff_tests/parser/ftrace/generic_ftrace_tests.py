@@ -63,4 +63,3 @@ class GenericFtrace(TestSuite):
         409974959861467,4,"hrtimer_init","clockid","1"
         409974959861467,4,"hrtimer_init","mode","0"
         """))
-
