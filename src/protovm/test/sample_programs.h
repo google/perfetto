@@ -268,14 +268,16 @@ class SamplePrograms {
     perfetto::protos::VmProgram program;
 
     constexpr uint32_t REGISTER_HOLDING_ELEMENT_ID = 0;
+    constexpr uint32_t REGISTER_HOLDING_ELEMENT_INDEX = 1;
 
-    // Process elements_to_delete
+    // Process elements_to_delete_by_id
     {
-      // select element to delete (src)
+      // select element to delete by id (src)
       auto* instr_src_select = program.add_instructions();
       auto* src_select = instr_src_select->mutable_select();
       auto* src_element = src_select->add_relative_path();
-      src_element->set_field_id(protos::Patch::kElementsToDeleteFieldNumber);
+      src_element->set_field_id(
+          protos::Patch::kElementsToDeleteByIdFieldNumber);
       src_element->set_is_repeated(true);
 
       {
@@ -389,6 +391,101 @@ class SamplePrograms {
         {
           auto* instr_set = instr_dst_select->add_nested_instructions();
           instr_set->mutable_set();
+        }
+      }
+    }
+
+    // SRC: for each Patch.elements_to_delete_by_index[i]
+    {
+      auto* instr_src_select = program.add_instructions();
+      auto* src_select = instr_src_select->mutable_select();
+      auto* src_element = src_select->add_relative_path();
+      src_element->set_field_id(
+          protos::Patch::kElementsToDeleteByIndexFieldNumber);
+      src_element->set_is_repeated(true);
+
+      // SRC: load index into register
+      {
+        auto* instr_reg_load = instr_src_select->add_nested_instructions();
+        auto* reg_load = instr_reg_load->mutable_reg_load();
+        reg_load->set_dst_register(REGISTER_HOLDING_ELEMENT_INDEX);
+      }
+
+      // DST: select TraceEntry.elements[register]
+      {
+        auto* instr_dst_select = instr_src_select->add_nested_instructions();
+        auto* dst_select = instr_dst_select->mutable_select();
+        dst_select->set_cursor(perfetto::protos::VmCursorEnum::VM_CURSOR_DST);
+        dst_select->set_create_if_not_exist(false);
+        auto* component_elements = dst_select->add_relative_path();
+        component_elements->set_field_id(
+            protos::TraceEntry::kElementsFieldNumber);
+        auto* component_array_index = dst_select->add_relative_path();
+        component_array_index->set_array_index_register(
+            REGISTER_HOLDING_ELEMENT_INDEX);
+
+        // delete
+        {
+          auto* instr_del = instr_dst_select->add_nested_instructions();
+          instr_del->mutable_del();
+        }
+      }
+    }
+
+    // SRC: for each Patch.elements_to_insert_by_index[i]
+    {
+      auto* instr_select_element_and_index = program.add_instructions();
+      auto* select_elemente_and_index =
+          instr_select_element_and_index->mutable_select();
+      auto* element_and_index = select_elemente_and_index->add_relative_path();
+      element_and_index->set_field_id(
+          protos::Patch::kElementsToInsertByIndexFieldNumber);
+      element_and_index->set_is_repeated(true);
+
+      // SRC: select Patch.elements_to_insert_by_index[i].index
+      {
+        auto* instr_select_index =
+            instr_select_element_and_index->add_nested_instructions();
+        auto* select_index = instr_select_index->mutable_select();
+        auto* index = select_index->add_relative_path();
+        index->set_field_id(protos::ElementAndIndex::kIndexFieldNumber);
+
+        // SRC: load index into register
+        {
+          auto* instr_reg_load = instr_select_index->add_nested_instructions();
+          auto* reg_load = instr_reg_load->mutable_reg_load();
+          reg_load->set_dst_register(REGISTER_HOLDING_ELEMENT_INDEX);
+        }
+      }
+
+      // SRC: select Patch.elements_to_insert_by_index[i].element
+      {
+        auto* instr_select_element =
+            instr_select_element_and_index->add_nested_instructions();
+        auto* select_element = instr_select_element->mutable_select();
+        auto* element = select_element->add_relative_path();
+        element->set_field_id(protos::ElementAndIndex::kElementFieldNumber);
+
+        // DST: select TraceEntry.elements[register]
+        {
+          auto* instr_dst_select_element =
+              instr_select_element_and_index->add_nested_instructions();
+          auto* select_dst_element = instr_dst_select_element->mutable_select();
+          select_dst_element->set_cursor(
+              perfetto::protos::VmCursorEnum::VM_CURSOR_DST);
+          select_dst_element->set_create_if_not_exist(true);
+          auto* dst_element = select_dst_element->add_relative_path();
+          dst_element->set_field_id(protos::TraceEntry::kElementsFieldNumber);
+          auto* component_array_index = select_dst_element->add_relative_path();
+          component_array_index->set_array_index_register(
+              REGISTER_HOLDING_ELEMENT_INDEX);
+
+          // insert
+          {
+            auto* instr_array_insert =
+                instr_dst_select_element->add_nested_instructions();
+            instr_array_insert->mutable_insert();
+          }
         }
       }
     }
