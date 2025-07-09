@@ -104,7 +104,8 @@ class PerfettoPriorityBoostIntegrationTest : public ::testing::Test {
   static base::SchedOsManager::SchedOsConfig GetRealSchedInfo(int tid) {
     base::StackString<128> stat_path("/proc/%d/stat", tid);
     std::string line;
-    PERFETTO_DCHECK(base::ReadFile(stat_path.c_str(), &line));
+    bool ok = base::ReadFile(stat_path.c_str(), &line);
+    PERFETTO_DCHECK(ok);
     std::vector parts = base::SplitString(line, " ");
     int nice = base::StringToInt32(parts[18]).value();
     int rt_prio = base::StringToInt32(parts[39]).value();
