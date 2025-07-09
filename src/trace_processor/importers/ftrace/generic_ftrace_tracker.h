@@ -33,13 +33,16 @@ namespace perfetto::trace_processor {
 // compile-time) ftrace events:
 // * FtraceEvent proto has a range of field ids reserved for
 //   dynamically-generated extensions.
-// * FtraceEventBundle proto has a mapping from the field id to a serialised
-//   proto descriptor for that event (derived from the tracefs /format file).
+// * FtraceEventBundle proto is populated with a mapping from the field id to a
+//   serialised proto descriptor for that event (derived from the tracefs
+//   /format file), which stays consistent for all bundles within a trace.
 //
 // This tracker is used to carry state from the ftrace tokenizer to the parser:
 // the earlier submits the descriptors found in "bundle" protos, and the latter
 // looks up descriptors when parsing the event payload into the |ftrace_event|
 // (aka raw) table.
+//
+// For more info, see https://github.com/google/perfetto/commit/4c92085.
 //
 // TODO(rsavitski): consider:
 // * deduping struct declarations with compile-time ftrace_descriptors.cc.
