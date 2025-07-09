@@ -283,6 +283,12 @@ Cleanup<Func> MakeCleanup(Func f) {
 
 class CustomDataSource : public perfetto::DataSource<CustomDataSource> {};
 
+class CustomDataSourceSingleInstance
+    : public perfetto::DataSource<CustomDataSourceSingleInstance> {
+ public:
+  static constexpr bool kSupportsMultipleInstances = false;
+};
+
 class MockDataSource;
 
 // We can't easily use gmock here because instances of data sources are lazily
@@ -790,6 +796,11 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
       dsd.set_name("CustomDataSource");
       CustomDataSource::Register(dsd);
     }
+    {
+      perfetto::DataSourceDescriptor dsd;
+      dsd.set_name("CustomDataSourceSingleInstance");
+      CustomDataSourceSingleInstance::Register(dsd);
+    }
     perfetto::TrackEvent::Register();
 
     // Make sure our data source always has a valid handle.
@@ -811,6 +822,8 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
         ClearDataSourceTlsStateOnReset<MockDataSource>();
     perfetto::test::TracingMuxerImplInternalsForTest::
         ClearDataSourceTlsStateOnReset<CustomDataSource>();
+    perfetto::test::TracingMuxerImplInternalsForTest::
+        ClearDataSourceTlsStateOnReset<CustomDataSourceSingleInstance>();
     perfetto::test::TracingMuxerImplInternalsForTest::
         ClearDataSourceTlsStateOnReset<
             perfetto::internal::TrackEventDataSource>();
@@ -4998,6 +5011,30 @@ TEST_P(PerfettoApiTest, CustomDataSource) {
     }
   }
   EXPECT_TRUE(found_for_testing);
+}
+
+TEST_P(PerfettoApiTest, CustomDataSourceSingleInstance) {
+  perfetto::TraceConfig cfg;
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("CustomDataSourceSingleInstance");
+  auto* tracing_session1 = NewTrace(cfg);
+  tracing_session1->get()->StartBlocking();
+
+  auto* tracing_session2 = NewTrace(cfg);
+  tracing_session2->get()->StartBlocking();
+
+  CustomDataSourceSingleInstance::Trace(
+      [](CustomDataSourceSingleInstance::TraceContext ctx) {
+        auto packet = ctx.NewTracePacket();
+        packet->set_timestamp(4200000);
+        packet->set_for_testing()->set_str("Test String");
+      });
+  CustomDataSourceSingleInstance::Trace(
+      [](CustomDataSourceSingleInstance::TraceContext ctx) { ctx.Flush(); });
+
+  tracing_session2->get()->StopBlocking();
+  tracing_session1->get()->StopBlocking();
 }
 
 TEST_P(PerfettoApiTest, QueryServiceState) {
