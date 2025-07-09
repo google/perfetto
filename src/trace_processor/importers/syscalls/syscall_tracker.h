@@ -131,6 +131,7 @@ class SyscallTracker : public Destructible {
   StringId sys_write_string_id_ = std::numeric_limits<StringId>::max();
   StringId sys_rt_sigreturn_string_id_ = std::numeric_limits<StringId>::max();
   // UniqueTids currently in a sys_write syscall.
+  // This is a BitVector, but we use a vector for simplicity.
   std::vector<uint8_t> in_sys_write_;
 };
 
