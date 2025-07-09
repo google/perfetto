@@ -176,6 +176,7 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
           const eventTarget = event.target as HTMLTextAreaElement;
           this.searchText = eventTarget.value;
         },
+        leftIcon: Icons.Search,
         value: this.searchText,
         placeholder: 'Filter options...',
         className: 'pf-search-box',
