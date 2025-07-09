@@ -82,7 +82,10 @@ Status ThreadMgr::Add(SchedPolicyAndPrio spp) {
 }
 
 void ThreadMgr::Remove(SchedPolicyAndPrio spp) {
-  prios_.erase(std::remove(prios_.begin(), prios_.end(), spp), prios_.end());
+  auto it = std::find(prios_.begin(), prios_.end(), spp);
+  if (it != prios_.end()) {
+    prios_.erase(it);
+  }
   // It is possible that we previously added the wrongly configured policy,
   // that wasn't the max policy. In that case the policy will be validated now,
   // in 'RecalcAndUpdatePrio'.

@@ -142,6 +142,13 @@ TEST_F(ScopedSchedBoostTest, ScopeEnterExit) {
           ASSERT_THAT(sched_manager_.current_config,
                       Eq(SchedOsManager::SchedOsConfig{SCHED_FIFO, 42, 0}));
         }
+        {
+          auto boost5_nested = ScopedSchedBoost::Boost(
+              {SchedPolicyAndPrio::Policy::kSchedOther, 5});
+          ASSERT_OK(boost5_nested);
+          // When destroying the boost5_nested, the outer 'boost5' shouldn't be
+          // removed.
+        }
       }
       ASSERT_THAT(sched_manager_.current_config,
                   Eq(SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -10}));
