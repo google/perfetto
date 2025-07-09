@@ -14,6 +14,7 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE android.frames.timeline;
+INCLUDE PERFETTO MODULE android.surfaceflinger;
 
 CREATE OR REPLACE PERFETTO FUNCTION vsync_from_name(slice_name STRING)
 RETURNS STRING AS
@@ -203,7 +204,7 @@ SELECT
   slice.dur,
   slice.ts + slice.dur AS ts_end
 FROM slice
-JOIN android_jank_cuj_sf_main_thread main_thread USING (track_id)
+JOIN _android_sf_main_thread main_thread USING (track_id)
 JOIN sf_vsync
   ON vsync_from_name(slice.name) = sf_vsync.vsync
 WHERE slice.name GLOB $slice_name_glob AND slice.dur > 0
