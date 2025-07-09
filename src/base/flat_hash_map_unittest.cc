@@ -422,15 +422,20 @@ TYPED_TEST(FlatHashMapTest, Clear) {
   }
 }
 
-TYPED_TEST(FlatHashMapTest, TombstoneRehash) {
+TYPED_TEST(FlatHashMapTest, TombstoneGrowthRehash) {
   FlatHashMap<int, int, base::Hash<int>, typename TestFixture::Probe> fmap;
+  // Insert 100 elements. This will cause the capacity to become 128.
   for (int i = 0; i < 100; ++i) {
     fmap.Insert(i, i);
   }
+
+  // Erase 50 elements. This will leave us with size = 50 and tombstones = 50.
   for (int i = 0; i < 50; ++i) {
     fmap.Erase(i);
   }
-  // This should trigger a rehash.
+
+  // The next insert should trigger a growth rehash because size + tombstones
+  // (100) is close to the load limit (112) and a new element would exceed it.
   fmap.Insert(101, 101);
 
   // Check that all the old values are still there.
@@ -442,6 +447,32 @@ TYPED_TEST(FlatHashMapTest, TombstoneRehash) {
   ASSERT_EQ(*fmap.Find(101), 101);
 }
 
-}  // namespace
-}  // namespace base
+TYPED_TEST(FlatHashMapTest, TombstoneCompactionRehash) {
+  FlatHashMap<int, int, base::Hash<int>, typename TestFixture::Probe> fmap;
+  // Insert 300 elements. This will cause the capacity to become 512.
+  for (int i = 0; i < 300; ++i) {
+    fmap.Insert(i, i);
+  }
+
+  // Erase 160 elements. This will leave us with size = 140 and tombstones =
+  // 160.
+  for (int i = 0; i < 160; ++i) {
+    fmap.Erase(i);
+  }
+
+  // The next insert should trigger a compaction rehash because tombstones >
+  // size and size > 128.
+  fmap.Insert(301, 301);
+
+  // Check that all the old values are still there.
+  for (int i = 160; i < 300; ++i) {
+    ASSERT_NE(fmap.Find(i), nullptr);
+    ASSERT_EQ(*fmap.Find(i), i);
+  }
+  ASSERT_NE(fmap.Find(301), nullptr);
+  ASSERT_EQ(*fmap.Find(301), 301);
+}
+
+ }  // namespace
+ }  // namespace base
 }  // namespace perfetto
