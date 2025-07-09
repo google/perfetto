@@ -93,7 +93,7 @@ class PerfettoPriorityBoostIntegrationTest : public ::testing::Test {
 
   base::SchedOsManager::SchedOsConfig GetSchedInfo(int tid) {
 #if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
-    PERFETTO_CHECK(tid == sched_manager_.expected_boosted_thread);
+    PERFETTO_DCHECK(tid == sched_manager_.expected_boosted_thread);
     return sched_manager_.current_config;
 #else
     return GetRealSchedInfo(tid);
@@ -104,7 +104,7 @@ class PerfettoPriorityBoostIntegrationTest : public ::testing::Test {
   static base::SchedOsManager::SchedOsConfig GetRealSchedInfo(int tid) {
     base::StackString<128> stat_path("/proc/%d/stat", tid);
     std::string line;
-    PERFETTO_CHECK(base::ReadFile(stat_path.c_str(), &line));
+    PERFETTO_DCHECK(base::ReadFile(stat_path.c_str(), &line));
     std::vector parts = base::SplitString(line, " ");
     int nice = base::StringToInt32(parts[18]).value();
     int rt_prio = base::StringToInt32(parts[39]).value();
@@ -122,7 +122,7 @@ class PerfettoPriorityBoostIntegrationTest : public ::testing::Test {
       }));
       ON_CALL(*this, SetSchedConfig)
           .WillByDefault(Invoke([&](const SchedOsConfig& arg) {
-            PERFETTO_CHECK(base::GetThreadId() == expected_boosted_thread);
+            PERFETTO_DCHECK(base::GetThreadId() == expected_boosted_thread);
             current_config = arg;
             return base::OkStatus();
           }));
@@ -204,6 +204,8 @@ TEST_F(PerfettoPriorityBoostIntegrationTest, TestTracedProbes) {
 #error "Need to start daemons for Linux test or be built on Android."
 #endif
 
+  ASSERT_NE(traced_probes_tid, -1);
+
   base::SchedOsManager::SchedOsConfig init_traced_probes_sched_info =
       GetSchedInfo(traced_probes_tid);
 
@@ -217,11 +219,8 @@ TEST_F(PerfettoPriorityBoostIntegrationTest, TestTracedProbes) {
       CreateTraceConfigWithDataSourcePriorityBoost(
           protos::gen::PriorityBoostConfig::POLICY_SCHED_OTHER, 7));
 
-  PERFETTO_CHECK(traced_probes_tid != -1);
   {
     auto traced_probes_sched_info_boosted = GetSchedInfo(traced_probes_tid);
-    PERFETTO_LOG("traced_probes_sched_info_boosted: %s",
-                 ToString(traced_probes_sched_info_boosted).c_str());
     ASSERT_THAT(traced_probes_sched_info_boosted,
                 Eq(base::SchedOsManager::SchedOsConfig{SCHED_FIFO, 42, 0}));
   }
@@ -230,9 +229,6 @@ TEST_F(PerfettoPriorityBoostIntegrationTest, TestTracedProbes) {
 
   {
     auto traced_probes_sched_info_stopped = GetSchedInfo(traced_probes_tid);
-    PERFETTO_LOG("traced_probes_sched_info_stopped: %s",
-                 ToString(traced_probes_sched_info_stopped).c_str());
-
     ASSERT_THAT(traced_probes_sched_info_stopped,
                 Eq(base::SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -7}));
   }
@@ -242,9 +238,6 @@ TEST_F(PerfettoPriorityBoostIntegrationTest, TestTracedProbes) {
 
   {
     auto traced_probes_sched_info_stopped_2 = GetSchedInfo(traced_probes_tid);
-    PERFETTO_LOG("traced_probes_sched_info_stopped_2: %s",
-                 ToString(traced_probes_sched_info_stopped_2).c_str());
-
     ASSERT_EQ(traced_probes_sched_info_stopped_2,
               init_traced_probes_sched_info);
   }

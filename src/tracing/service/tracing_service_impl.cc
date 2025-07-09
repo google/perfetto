@@ -950,7 +950,6 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
                               boost.status().c_message());
     }
     priority_boost = std::move(*boost);
-    PERFETTO_DLOG("traced pid: %d", getpid());
   }
 
   const TracingSessionID tsid = ++last_tracing_session_id_;
