@@ -33,14 +33,6 @@ class LlvmSymbolizer;
 // and provides safe, non-owning views to the symbolized frames.
 class SymbolizationResultBatch {
  public:
-  ~SymbolizationResultBatch();
-
-  // This class is move-only to ensure unique ownership of the underlying data.
-  SymbolizationResultBatch(const SymbolizationResultBatch&) = delete;
-  SymbolizationResultBatch& operator=(const SymbolizationResultBatch&) = delete;
-  SymbolizationResultBatch(SymbolizationResultBatch&&) noexcept;
-  SymbolizationResultBatch& operator=(SymbolizationResultBatch&&) noexcept;
-
   // Returns a pair of (pointer, size) for the frames of a given request.
   std::pair<const ::LlvmSymbolizedFrame*, uint32_t> GetFramesForRequest(
       uint32_t request_index) const;
@@ -51,14 +43,19 @@ class SymbolizationResultBatch {
  private:
   friend class LlvmSymbolizer;
 
+  struct ScopedResult {
+    BatchSymbolizationResult c_api_result;
+    decltype(&::LlvmSymbolizer_FreeBatchSymbolizationResult) free_fn;
+  };
+  static int CleanUp(ScopedResult*);
+  using ScopedResultHandle =
+      base::ScopedResource<ScopedResult*, CleanUp, nullptr>;
+
   SymbolizationResultBatch(
       BatchSymbolizationResult c_api_result,
       decltype(&::LlvmSymbolizer_FreeBatchSymbolizationResult) free_fn);
 
-  void Free();
-
-  BatchSymbolizationResult c_api_result_{};
-  decltype(&::LlvmSymbolizer_FreeBatchSymbolizationResult) free_result_fn_{};
+  ScopedResultHandle scoped_result_handle_;
 
   // Non-owning views into the C API's flat buffer, implemented with raw
   // pointers and sizes.
@@ -72,12 +69,6 @@ class SymbolizationResultBatch {
 class LlvmSymbolizer {
  public:
   LlvmSymbolizer();
-  ~LlvmSymbolizer();
-
-  LlvmSymbolizer(const LlvmSymbolizer&) = delete;
-  LlvmSymbolizer& operator=(const LlvmSymbolizer&) = delete;
-  LlvmSymbolizer(LlvmSymbolizer&&) noexcept = default;
-  LlvmSymbolizer& operator=(LlvmSymbolizer&&) noexcept = default;
 
   SymbolizationResultBatch SymbolizeBatch(
       const std::vector<::SymbolizationRequest>& requests);
@@ -88,12 +79,19 @@ class LlvmSymbolizer {
   static int NoOpDlclose(void*) { return 0; }
   using ScopedLibraryHandle = base::ScopedResource<void*, NoOpDlclose, nullptr>;
 
+  struct ScopedSymbolizer {
+    ::LlvmSymbolizer* symbolizer;
+    decltype(&::LlvmSymbolizer_Destroy) destroy_fn;
+  };
+  static int CleanUpSymbolizer(ScopedSymbolizer*);
+  using ScopedSymbolizerHandle =
+      base::ScopedResource<ScopedSymbolizer*, CleanUpSymbolizer, nullptr>;
+
   ScopedLibraryHandle library_handle_;
-  ::LlvmSymbolizer* c_api_symbolizer_ = nullptr;
+  ScopedSymbolizerHandle scoped_symbolizer_handle_;
 
   // C API function pointers
   decltype(&::LlvmSymbolizer_Create) create_fn_ = nullptr;
-  decltype(&::LlvmSymbolizer_Destroy) destroy_fn_ = nullptr;
   decltype(&::LlvmSymbolizer_Symbolize) symbolize_fn_ = nullptr;
   decltype(&::LlvmSymbolizer_FreeBatchSymbolizationResult) free_result_fn_ =
       nullptr;

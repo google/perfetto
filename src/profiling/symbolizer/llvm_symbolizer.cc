@@ -27,51 +27,24 @@ namespace perfetto {
 namespace profiling {
 
 // dlclose() was not used as it rarely works and is flaky
+int SymbolizationResultBatch::CleanUp(ScopedResult* result) {
+  if (result && result->c_api_result.ranges && result->free_fn) {
+    result->free_fn(result->c_api_result);
+  }
+  delete result;
+  return 0;
+}
+
 SymbolizationResultBatch::SymbolizationResultBatch(
     BatchSymbolizationResult c_api_result,
-    decltype(&::LlvmSymbolizer_FreeBatchSymbolizationResult) free_fn)
-    : c_api_result_(c_api_result), free_result_fn_(free_fn) {
+    decltype(&::LlvmSymbolizer_FreeBatchSymbolizationResult) free_fn) {
   if (c_api_result.ranges) {
+    scoped_result_handle_.reset(new ScopedResult{c_api_result, free_fn});
     all_frames_ptr_ = c_api_result.frames;
     num_total_frames_ = c_api_result.total_frames;
     ranges_ptr_ = c_api_result.ranges;
     num_ranges_ = c_api_result.num_ranges;
   }
-}
-
-SymbolizationResultBatch::~SymbolizationResultBatch() {
-  Free();
-}
-
-SymbolizationResultBatch::SymbolizationResultBatch(
-    SymbolizationResultBatch&& other) noexcept
-    : c_api_result_(std::exchange(other.c_api_result_, {})),
-      free_result_fn_(std::exchange(other.free_result_fn_, nullptr)),
-      all_frames_ptr_(std::exchange(other.all_frames_ptr_, nullptr)),
-      num_total_frames_(std::exchange(other.num_total_frames_, 0)),
-      ranges_ptr_(std::exchange(other.ranges_ptr_, nullptr)),
-      num_ranges_(std::exchange(other.num_ranges_, 0)) {}
-
-SymbolizationResultBatch& SymbolizationResultBatch::operator=(
-    SymbolizationResultBatch&& other) noexcept {
-  if (this != &other) {
-    Free();
-    c_api_result_ = std::exchange(other.c_api_result_, {});
-    free_result_fn_ = std::exchange(other.free_result_fn_, nullptr);
-    all_frames_ptr_ = std::exchange(other.all_frames_ptr_, nullptr);
-    num_total_frames_ = std::exchange(other.num_total_frames_, 0);
-    ranges_ptr_ = std::exchange(other.ranges_ptr_, nullptr);
-    num_ranges_ = std::exchange(other.num_ranges_, 0);
-  }
-  return *this;
-}
-
-void SymbolizationResultBatch::Free() {
-  // c_api_result_.ranges is the base pointer of the single allocation.
-  if (c_api_result_.ranges && free_result_fn_) {
-    free_result_fn_(c_api_result_);
-  }
-  c_api_result_ = {};
 }
 
 std::pair<const ::LlvmSymbolizedFrame*, uint32_t>
@@ -88,6 +61,14 @@ SymbolizationResultBatch::GetFramesForRequest(uint32_t request_index) const {
   return {all_frames_ptr_ + range.offset, range.num_frames};
 }
 
+int LlvmSymbolizer::CleanUpSymbolizer(ScopedSymbolizer* s) {
+  if (s && s->symbolizer) {
+    s->destroy_fn(s->symbolizer);
+  }
+  delete s;
+  return 0;
+}
+
 LlvmSymbolizer::LlvmSymbolizer() {
   library_handle_.reset(dlopen("libllvm_symbolizer_wrapper.so", RTLD_NOW));
   if (!library_handle_) {
@@ -98,43 +79,38 @@ LlvmSymbolizer::LlvmSymbolizer() {
 
   create_fn_ = reinterpret_cast<decltype(create_fn_)>(
       dlsym(*library_handle_, "LlvmSymbolizer_Create"));
-  destroy_fn_ = reinterpret_cast<decltype(destroy_fn_)>(
+  auto destroy_fn = reinterpret_cast<decltype(&::LlvmSymbolizer_Destroy)>(
       dlsym(*library_handle_, "LlvmSymbolizer_Destroy"));
   symbolize_fn_ = reinterpret_cast<decltype(symbolize_fn_)>(
       dlsym(*library_handle_, "LlvmSymbolizer_Symbolize"));
   free_result_fn_ = reinterpret_cast<decltype(free_result_fn_)>(
       dlsym(*library_handle_, "LlvmSymbolizer_FreeBatchSymbolizationResult"));
 
-  if (!create_fn_ || !destroy_fn_ || !symbolize_fn_ || !free_result_fn_) {
+  if (!create_fn_ || !destroy_fn || !symbolize_fn_ || !free_result_fn_) {
     PERFETTO_ELOG("Failed to look up symbols in libllvm_symbolizer_wrapper.so");
     library_handle_.reset();  // Release the handle on failure.
     return;
   }
 
-  c_api_symbolizer_ = create_fn_();
-  if (!c_api_symbolizer_) {
+  ::LlvmSymbolizer* symbolizer = create_fn_();
+  if (!symbolizer) {
     PERFETTO_ELOG("LlvmSymbolizer_Create() failed.");
     library_handle_.reset();
     create_fn_ = nullptr;
     return;
   }
-}
-
-LlvmSymbolizer::~LlvmSymbolizer() {
-  if (c_api_symbolizer_) {
-    destroy_fn_(c_api_symbolizer_);
-  }
+  scoped_symbolizer_handle_.reset(new ScopedSymbolizer{symbolizer, destroy_fn});
 }
 
 SymbolizationResultBatch LlvmSymbolizer::SymbolizeBatch(
     const std::vector<::SymbolizationRequest>& requests) {
-  if (!c_api_symbolizer_) {
+  if (!scoped_symbolizer_handle_) {
     return SymbolizationResultBatch({}, free_result_fn_);
   }
 
   BatchSymbolizationResult batch_result =
-      symbolize_fn_(c_api_symbolizer_, requests.data(),
-                    static_cast<uint32_t>(requests.size()));
+      symbolize_fn_(scoped_symbolizer_handle_.get()->symbolizer,
+                    requests.data(), static_cast<uint32_t>(requests.size()));
   return SymbolizationResultBatch(batch_result, free_result_fn_);
 }
 
