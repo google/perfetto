@@ -165,7 +165,8 @@ TraceConfig CreateTraceConfigWithDataSourcePriorityBoost(
   return trace_config;
 }
 
-void TestHelperStartTrace(TestHelper& helper, const TraceConfig& trace_config) {
+void TestHelperStartTraceAndWaitForTraced(TestHelper& helper,
+                                          const TraceConfig& trace_config) {
   static bool first_time = true;
   if (first_time) {
     first_time = false;
@@ -209,12 +210,12 @@ TEST_F(PerfettoPriorityBoostIntegrationTest, TestTracedProbes) {
   base::SchedOsManager::SchedOsConfig init_traced_probes_sched_info =
       GetSchedInfo(traced_probes_tid);
 
-  TestHelperStartTrace(
+  TestHelperStartTraceAndWaitForTraced(
       helper_fifo_42,
       CreateTraceConfigWithDataSourcePriorityBoost(
           protos::gen::PriorityBoostConfig::POLICY_SCHED_FIFO, 42));
 
-  TestHelperStartTrace(
+  TestHelperStartTraceAndWaitForTraced(
       helper_other_7,
       CreateTraceConfigWithDataSourcePriorityBoost(
           protos::gen::PriorityBoostConfig::POLICY_SCHED_OTHER, 7));
@@ -241,6 +242,48 @@ TEST_F(PerfettoPriorityBoostIntegrationTest, TestTracedProbes) {
     ASSERT_EQ(traced_probes_sched_info_stopped_2,
               init_traced_probes_sched_info);
   }
+}
+
+TEST_F(PerfettoPriorityBoostIntegrationTest, TestTraced) {
+  base::TestTaskRunner task_runner;
+
+  TestHelper helper(&task_runner);
+  helper.StartServiceIfRequired();
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  base::PlatformThreadId traced_tid = -1;
+
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
+  traced_tid = helper.service_thread()->GetThreadIdForTesting();
+  sched_manager_.expected_boosted_thread = traced_tid;
+#elif PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+  traced_tid = PidForProcessName("/system/bin/traced");
+#else
+#error "Need to start daemons for Linux test or be built on Android."
+#endif
+
+  ASSERT_NE(traced_tid, -1);
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(64);
+  auto* priority_boost_config = trace_config.mutable_priority_boost();
+  priority_boost_config->set_policy(
+      protos::gen::PriorityBoostConfig::POLICY_SCHED_OTHER);
+  priority_boost_config->set_priority(13);
+
+  helper.StartTracing(trace_config);
+  helper.WaitForAllDataSourceStarted();
+  {
+    auto traced_sched_info_boosted = GetSchedInfo(traced_tid);
+    ASSERT_THAT(traced_sched_info_boosted,
+                Eq(base::SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -13}));
+  }
+
+  helper.DisableTracing();
+  helper.WaitForTracingDisabled();
+  // traced priority is not yet restored at this point
+  // TODO(ktimofeev): assert priority restored to initial
 }
 
 }  // namespace perfetto
