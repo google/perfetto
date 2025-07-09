@@ -67,7 +67,7 @@ std::string CreateTableStmt(uint32_t args_count,
   for (uint32_t i = 0; i < args_count; ++i) {
     create_stmt += "_fn_arg" + std::to_string(i) + " HIDDEN, ";
   }
-  create_stmt += "_auto_id INTEGER NOT NULL, ";
+  create_stmt += "_auto_id INTEGER NOT NULL HIDDEN, ";
   create_stmt += "PRIMARY KEY(_auto_id)) WITHOUT ROWID";
   return create_stmt;
 }
@@ -213,8 +213,23 @@ int StaticTableFunctionModule::Eof(sqlite3_vtab_cursor* cur) {
 int StaticTableFunctionModule::Column(sqlite3_vtab_cursor* cur,
                                       sqlite3_context* ctx,
                                       int raw_n) {
-  DataframeModule::SqliteResultCallback visitor{{}, ctx};
-  GetCursor(cur)->df_cursor.Cell(static_cast<uint32_t>(raw_n), visitor);
+  auto* c = GetCursor(cur);
+  auto* t = GetVtab(cur->pVtab);
+  auto idx = static_cast<size_t>(raw_n);
+
+  if (PERFETTO_LIKELY(idx < t->output_count)) {
+    DataframeModule::SqliteResultCallback visitor{{}, ctx};
+    c->df_cursor.Cell(static_cast<uint32_t>(raw_n), visitor);
+  } else if (PERFETTO_LIKELY(idx < t->output_count + t->arg_count)) {
+    // TODO(lalitm): it may be more appropriate to keep a note of the arguments
+    // which we passed in and return them here. Not doing this to because it
+    // doesn't seem necessary for any useful thing but something which may need
+    // to be changed in the future.
+    sqlite::result::Null(ctx);
+  } else {
+    PERFETTO_DCHECK(idx == t->output_count + t->arg_count);
+    sqlite::result::Long(ctx, c->df_cursor.RowIndex());
+  }
   return SQLITE_OK;
 }
 
