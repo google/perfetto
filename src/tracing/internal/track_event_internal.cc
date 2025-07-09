@@ -199,7 +199,7 @@ bool TrackEventInternal::Initialize(
       for (const auto& tag : category->tags) {
         if (tag) {
           cat->add_tags(tag);
-          if (!strcmp(tag, kSlowTag) || !strcmp(tag, kDebugTag)) {
+          if (!strcmp(tag, kSlowTag)) {
             has_slow_tag = true;
           }
         }
