@@ -14,13 +14,13 @@
 
 @import "widgets/theme";
 
-// The opacity changes are only transitional. Once the `modalFadeOut` animation
+// The opacity changes are only transitional. Once the `pf-modalFadeOut` animation
 // reaches the end, the Mithril component that renders .modal-backdrop
 // (and .modal-dialog) is fully destroyed and removed from the DOM.
 // We use keyframes+animation, rather than transition, because the former allow
 // hooking the onanimationend events to synchronize the Mithril removal with
 // the end of the CSS animation.
-@keyframes modalFadeOut {
+@keyframes pf-modalFadeOut {
   from {
     opacity: 1;
   }
@@ -29,7 +29,7 @@
   }
 }
 
-@keyframes modalFadeIn {
+@keyframes pf-modalFadeIn {
   from {
     opacity: 0;
   }
@@ -38,7 +38,7 @@
   }
 }
 
-.modal-backdrop {
+.pf-modal-backdrop {
   position: absolute;
   z-index: 99;
   background-color: rgba(0, 0, 0, 0.6);
@@ -47,16 +47,16 @@
   right: 0;
   bottom: 0;
   backdrop-filter: blur(2px);
-  animation: modalFadeIn 0.25s var(--anim-easing);
+  animation: pf-modalFadeIn 0.25s var(--pf-anim-easing);
   animation-fill-mode: both;
 
   &.modal-fadeout {
-    animation: modalFadeOut 0.25s var(--anim-easing);
+    animation: pf-modalFadeOut 0.25s var(--pf-anim-easing);
     animation-fill-mode: both;
   }
 }
 
-.modal-dialog {
+.pf-modal-dialog {
   position: absolute;
   z-index: 100;
   background-color: #fff;
@@ -118,16 +118,16 @@
     margin-top: 2rem;
     gap: 4px;
   } // footer
-}
+} // pf-modal-dialog
 
-.help {
+.pf-help {
   table {
     margin-bottom: 15px;
     td {
       min-width: 250px;
     }
     td:first-child {
-      font-family: var(--monospace-font);
+      font-family: var(--pf-monospace-font);
     }
   }
   h2 {
@@ -136,39 +136,41 @@
   }
 }
 
-.modal-pre {
-  white-space: pre-line;
-  font-size: 13px;
-}
+.pf-modal-dialog {
+  .modal-pre {
+    white-space: pre-line;
+    font-size: 13px;
+  }
 
-.modal-logs,
-.modal-bash {
-  white-space: pre-wrap;
-  border: 1px solid #999;
-  background: #eee;
-  font-size: 10px;
-  font-family: var(--monospace-font);
-  margin-top: 10px;
-  margin-bottom: 10px;
-  min-height: 50px;
-  max-height: 40vh;
-  overflow: auto;
-}
+  .modal-logs,
+  .modal-bash {
+    white-space: pre-wrap;
+    border: 1px solid #999;
+    background: #eee;
+    font-size: 10px;
+    font-family: var(--pf-monospace-font);
+    margin-top: 10px;
+    margin-bottom: 10px;
+    min-height: 50px;
+    max-height: 40vh;
+    overflow: auto;
+  }
 
-.modal-bash {
-  margin: 0;
-  padding: 5px 0;
-  overflow: auto;
-  min-height: 0;
-}
+  .modal-bash {
+    margin: 0;
+    padding: 5px 0;
+    overflow: auto;
+    min-height: 0;
+  }
 
-.modal-textarea {
-  display: block;
-  margin-top: 10px;
-  margin-bottom: 10px;
-  width: 100%;
-}
+  .modal-textarea {
+    display: block;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    width: 100%;
+  }
 
-.modal-small {
-  font-size: 0.75rem;
+  .modal-small {
+    font-size: 0.75rem;
+  }
 }

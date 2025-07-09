@@ -48,7 +48,7 @@ export class NoteEditor implements m.ClassComponent<NodeDetailsPanelAttrs> {
     }
     const startTime = getStartTimestamp(note);
     return m(
-      '.notes-editor-panel',
+      '.pf-notes-editor-panel',
       {
         key: id, // Every note shoul get its own brand new DOM.
       },

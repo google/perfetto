@@ -19,14 +19,14 @@
   max-width: 600px;
 }
 
-.topbar {
+.pf-topbar {
   grid-area: topbar;
   position: relative;
   z-index: 3;
   overflow: visible;
   background-color: hsl(215, 1%, 95%);
   box-shadow: 0px 1px 2px 1px #00000026;
-  min-height: var(--topbar-height);
+  min-height: var(--pf-topbar-height);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -75,10 +75,10 @@
       max-width: 100%;
       margin-top: 0;
       border-left: 1px solid #404854;
-      height: var(--topbar-height);
+      height: var(--pf-topbar-height);
       input {
         color: #9ddc67;
-        font-family: var(--monospace-font);
+        font-family: var(--pf-monospace-font);
         padding-left: 0;
       }
       &:before {
@@ -109,7 +109,7 @@
       border-radius: $pf-border-radius;
       input::placeholder {
         font-weight: 400;
-        font-family: var(--monospace-font);
+        font-family: var(--pf-monospace-font);
         color: hsl(213, 40%, 50%);
       }
       &:before {
@@ -154,7 +154,7 @@
   }
 }
 
-.error-box {
+.pf-error-box {
   position: absolute;
   right: 10px;
   display: flex;
@@ -171,25 +171,13 @@
   }
 }
 
-.error-popup {
+.pf-error-popup {
   width: 100px;
   font-size: 14px;
   font-family: "Roboto Condensed", sans-serif;
 }
 
-.hint-text {
-  padding-bottom: 5px;
-}
-
-.hint-dismiss-button {
-  color: #f4fafb;
-  background-color: #19212b;
-  width: fit-content;
-  padding: 3px;
-  border-radius: 3px;
-}
-
-.hide-sidebar {
+.pf-topbar.hide-sidebar {
   .query-mode {
     padding-left: 48px;
   }

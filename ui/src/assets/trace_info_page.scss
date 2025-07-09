@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.trace-info-page {
+.pf-trace-info-page {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0 20px;
@@ -29,7 +29,7 @@
     }
 
     .metric-error {
-      font-family: var(--monospace-font);
+      font-family: var(--pf-monospace-font);
       font-size: 12px;
       padding: 5px;
       word-break: break-all;
@@ -89,7 +89,7 @@
         }
 
         td {
-          font-family: var(--monospace-font);
+          font-family: var(--pf-monospace-font);
           font-size: 12px;
           padding: 5px;
           word-break: break-all;

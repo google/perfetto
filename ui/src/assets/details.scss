@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.details-panel {
+.pf-details-panel {
   @include bottom-panel-font;
 
   // This is required to position locally-scoped (i.e. non-full-screen) modal
@@ -129,64 +129,56 @@
   }
 }
 
-.details-table-multicolumn {
-  display: flex;
-  user-select: "text";
-}
 
 .flow-link:hover {
   cursor: pointer;
   text-decoration: underline;
 }
 
-.flow-info i.material-icons {
-  color: rgb(60, 86, 136);
+.pf-details-panel {
+  .flow-info i.material-icons {
+    color: rgb(60, 86, 136);
+  }
+
+  .warning {
+    position: relative;
+    font-size: 13px;
+    color: hsl(45, 100%, 48%);
+  }
+
+  .warning i.material-icons {
+    font-size: 13px;
+  }
+
+  .warning .tooltip {
+    visibility: hidden;
+
+    background-color: white;
+    color: #3f4040;
+    box-shadow: 1px 3px 15px rgba(23, 32, 44, 0.3);
+
+    padding: 4px;
+    border-radius: 4px;
+
+    text-align: center;
+    white-space: nowrap;
+
+    position: absolute;
+    z-index: 1;
+    top: -5px;
+    left: 105%;
+  }
+
+  .warning:hover .tooltip {
+    visibility: visible;
+  }
+
+  .flow-button {
+    color: rgb(60, 86, 136);
+  }
 }
 
-.warning {
-  position: relative;
-  font-size: 13px;
-  color: hsl(45, 100%, 48%);
-}
-
-.warning i.material-icons {
-  font-size: 13px;
-}
-
-.warning .tooltip {
-  visibility: hidden;
-
-  background-color: white;
-  color: #3f4040;
-  box-shadow: 1px 3px 15px rgba(23, 32, 44, 0.3);
-
-  padding: 4px;
-  border-radius: 4px;
-
-  text-align: center;
-  white-space: nowrap;
-
-  position: absolute;
-  z-index: 1;
-  top: -5px;
-  left: 105%;
-}
-
-.warning:hover .tooltip {
-  visibility: visible;
-}
-
-.flow-button {
-  color: rgb(60, 86, 136);
-}
-
-.half-width-panel {
-  max-width: 50%;
-  flex-grow: 1;
-  height: fit-content;
-}
-
-.notes-editor-panel {
+.pf-notes-editor-panel {
   padding: 10px;
   display: flex;
   flex-direction: column;
@@ -220,7 +212,7 @@
   }
 }
 
-.sum {
+.pf-details-panel .flow-events-table .sum {
   font-weight: bolder;
   font-size: 12px;
   .sum-data {
@@ -228,113 +220,10 @@
   }
 }
 
-.log-panel {
-  display: contents;
-
-  header {
-    position: sticky;
-    top: 0;
-    left: 0;
-    z-index: 1;
-    background-color: white;
-    color: #3c4b5d;
-    padding: 5px;
-    display: grid;
-    grid-template-columns: auto auto;
-    justify-content: space-between;
-  }
-
-  .log-rows-label {
-    display: flex;
-    align-items: center;
-  }
-
-  .log-filters {
-    display: flex;
-    margin-right: 5px;
-    align-items: center;
-
-    .log-label {
-      padding-right: 0.35rem;
-    }
-
-    .tag-container {
-      height: auto;
-      min-height: 34px;
-      padding: 2px;
-      margin: 2px;
-      cursor: text;
-      border-radius: 3px;
-      display: flex;
-      align-items: center;
-
-      .chips .chip {
-        display: inline-block;
-        width: auto;
-        float: left;
-
-        background-color: #0878b2;
-        color: #fff;
-        border-radius: 3px;
-        margin: 2px;
-        overflow: hidden;
-
-        .chip-button {
-          padding: 4px;
-          cursor: pointer;
-          background-color: #054570;
-          display: inline-block;
-        }
-
-        .chip-text {
-          padding: 4px;
-          display: inline-block;
-          pointer-events: none;
-        }
-      }
-
-      .chip-input {
-        margin-left: 5px;
-      }
-    }
-
-    .filter-widget {
-      user-select: none;
-      cursor: pointer;
-      position: relative;
-      display: inline-block;
-    }
-
-    .filter-widget .tooltip {
-      visibility: hidden;
-      width: 120px;
-      background-color: black;
-      color: #fff;
-      text-align: center;
-      border-radius: 6px;
-      padding: 5px 0;
-
-      /* Position the tooltip */
-      position: absolute;
-      z-index: 1;
-      top: 130%;
-      right: 50%;
-    }
-
-    .filter-widget:hover .tooltip {
-      visibility: visible;
-    }
-  }
-
-  header.stale {
-    color: grey;
-  }
-}
-
 .pf-ftrace-explorer {
   height: 100%;
   font-size: 11px;
-  font-family: var(--monospace-font);
+  font-family: var(--pf-monospace-font);
 
   .pf-ftrace-namebox {
     display: flex;
@@ -352,7 +241,7 @@
 .pf-android-logs-table {
   height: 100%;
   font-size: 11px;
-  font-family: var(--monospace-font);
+  font-family: var(--pf-monospace-font);
 
   .D {
     color: hsl(122, 20%, 40%);
@@ -381,7 +270,7 @@
   margin: 10px;
 }
 
-.screenshot-panel {
+.pf-screenshot-panel {
   height: 100%;
   img {
     max-height: 100%;
@@ -392,7 +281,7 @@
   height: 100%;
 }
 
-.flamegraph-profile {
+.pf-flamegraph-profile {
   height: 100%;
   // This is required to position locally-scoped (i.e. non-full-screen) modal
   // dialogs within the panel, as they use position: absolute.

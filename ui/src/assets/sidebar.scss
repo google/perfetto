@@ -14,20 +14,20 @@
 
 @import "widgets/theme";
 
-.sidebar {
-  --sidebar-padding-bottom: 40px;
-  --sidebar-timing: 0.15s;
+.pf-sidebar {
+  --pf-sidebar-padding-bottom: 40px;
+  --pf-sidebar-timing: 0.15s;
   grid-area: sidebar;
   z-index: 4;
   background-color: #262f3c;
   overflow: hidden;
-  width: var(--sidebar-width);
+  width: var(--pf-sidebar-width);
   display: flex;
   position: relative;
   flex-direction: column;
   transition:
-    margin-left var(--anim-easing) var(--sidebar-timing),
-    visibility linear var(--sidebar-timing);
+    margin-left var(--pf-anim-easing) var(--pf-sidebar-timing),
+    visibility linear var(--pf-sidebar-timing);
   > * {
     border-bottom: 1px solid #404854;
   }
@@ -38,8 +38,8 @@
     font-family: "Roboto Condensed", sans-serif;
     font-weight: 700;
     font-size: 24px;
-    height: var(--topbar-height);
-    line-height: var(--topbar-height);
+    height: var(--pf-topbar-height);
+    line-height: var(--pf-topbar-height);
     vertical-align: middle;
     padding: 0 12px;
     color: #fff;
@@ -74,12 +74,12 @@
     position: fixed;
     z-index: 5;
     background-color: #262f3c;
-    height: var(--topbar-height);
-    left: calc(var(--sidebar-width) - 50px);
+    height: var(--pf-topbar-height);
+    left: calc(var(--pf-sidebar-width) - 50px);
     border-radius: 0 5px 5px 0;
     border-bottom: inherit;
     visibility: visible; // So stays visible when the sidebar is hidden.
-    transition: left var(--anim-easing) var(--sidebar-timing);
+    transition: left var(--pf-anim-easing) var(--pf-sidebar-timing);
     width: 48px;
     overflow: hidden;
     > button {
@@ -88,7 +88,7 @@
   }
   &.hide-sidebar {
     visibility: hidden;
-    margin-left: calc(var(--sidebar-width) * -1);
+    margin-left: calc(var(--pf-sidebar-width) * -1);
     .sidebar-button {
       left: 0;
       background-color: transparent;
@@ -114,7 +114,7 @@
     > .sidebar-scroll-container {
       position: relative;
       min-height: 100%;
-      padding-bottom: var(--sidebar-padding-bottom);
+      padding-bottom: var(--pf-sidebar-padding-bottom);
 
       > section {
         @include transition();
@@ -248,7 +248,7 @@
     width: 100%;
     padding: 2px 10px;
     display: grid;
-    height: -var(--sidebar-padding-bottom);
+    height: -var(--pf-sidebar-padding-bottom);
     grid-template-columns: repeat(4, min-content);
     grid-gap: 10px;
 
@@ -318,7 +318,7 @@ body.testing .sidebar-footer {
   visibility: hidden;
 }
 
-.keycap {
+.pf-help .keycap {
   background-color: #fafbfc;
   border: 1px solid #d1d5da;
   border-bottom-color: #c6cbd1;
@@ -326,7 +326,7 @@ body.testing .sidebar-footer {
   box-shadow: inset 0 -1px 0 #c6cbd1;
   color: #444d56;
   display: inline-block;
-  font-family: var(--monospace-font);
+  font-family: var(--pf-monospace-font);
   vertical-align: middle;
 
   line-height: 20px;

@@ -103,7 +103,7 @@ export class HeapProfileFlamegraphDetailsPanel
   render() {
     const {type, ts} = this.props;
     return m(
-      '.flamegraph-profile',
+      '.pf-flamegraph-profile',
       this.maybeShowModal(this.trace, type, this.heapGraphIncomplete),
       m(
         DetailsShell,

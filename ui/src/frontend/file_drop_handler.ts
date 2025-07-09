@@ -22,7 +22,7 @@ export function installFileDropHandler() {
     evt.stopPropagation();
     lastDragTarget = evt.target;
     if (dragEventHasFiles(evt)) {
-      document.body.classList.add('filedrag');
+      document.body.classList.add('pf-filedrag');
     }
   };
 
@@ -30,14 +30,14 @@ export function installFileDropHandler() {
     evt.preventDefault();
     evt.stopPropagation();
     if (evt.target === lastDragTarget) {
-      document.body.classList.remove('filedrag');
+      document.body.classList.remove('pf-filedrag');
     }
   };
 
   window.ondrop = (evt: DragEvent) => {
     evt.preventDefault();
     evt.stopPropagation();
-    document.body.classList.remove('filedrag');
+    document.body.classList.remove('pf-filedrag');
     if (evt.dataTransfer && dragEventHasFiles(evt)) {
       const file = evt.dataTransfer.files[0];
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions

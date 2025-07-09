@@ -141,9 +141,9 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
     }
 
     const aria = '[aria-labelledby=mm-title][aria-model][role=dialog]';
-    const align = attrs.vAlign === 'TOP' ? '.modal-dialog-valign-top' : '';
+    const align = attrs.vAlign === 'TOP' ? '.pf-modal-dialog-valign-top' : '';
     return m(
-      '.modal-backdrop',
+      '.pf-modal-backdrop',
       {
         onclick: this.onBackdropClick.bind(this, attrs),
         onkeyup: this.onBackdropKeyupdown.bind(this, attrs),
@@ -151,7 +151,7 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
         tabIndex: 0,
       },
       m(
-        `.modal-dialog${align}${aria}`,
+        `.pf-modal-dialog${align}${aria}`,
         m(
           'header',
           m('h2', {id: 'mm-title'}, attrs.title),
@@ -172,7 +172,7 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
     // Only react when clicking on the backdrop. Don't close if the user clicks
     // on the dialog itself.
     const t = e.target;
-    if (t instanceof Element && t.classList.contains('modal-backdrop')) {
+    if (t instanceof Element && t.classList.contains('pf-modal-backdrop')) {
       closeModal(attrs.key);
     }
   }

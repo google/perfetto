@@ -14,7 +14,7 @@
 
 @import "widgets/theme";
 
-.home-page {
+.pf-home-page {
   display: grid;
   align-items: stretch;
   justify-items: center;
@@ -169,4 +169,4 @@
     font-family: $pf-font;
     color: #333;
   }
-} // .home-page
+} // .pf-home-page

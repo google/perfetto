@@ -513,7 +513,7 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
   view({attrs}: m.CVnode<TraceInfoPageAttrs>) {
     const engine = assertExists(this.engine);
     return m(
-      '.trace-info-page',
+      '.pf-trace-info-page',
       m(LoadingErrors, {trace: attrs.trace}),
       m(StatsSection, {
         engine,

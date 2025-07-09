@@ -117,7 +117,7 @@ export class FlowEventsAreaSelectedPanel
       rows.push(m('tr', data));
     });
 
-    return m('.details-panel', [
+    return m('.pf-details-panel', [
       m('.details-panel-heading', m('h2', `Selected flow events`)),
       m('.flow-events-table', m('table', rows)),
     ]);

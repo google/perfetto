@@ -91,7 +91,7 @@ export class CpuProfileSampleFlamegraphDetailsPanel
 
   render() {
     return m(
-      '.flamegraph-profile',
+      '.pf-flamegraph-profile',
       m(
         DetailsShell,
         {

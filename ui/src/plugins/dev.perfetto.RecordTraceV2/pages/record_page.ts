@@ -76,7 +76,7 @@ export class RecordPageV2 implements m.ClassComponent<RecordPageAttrs> {
     const cmdlineUrl =
       'https://perfetto.dev/docs/quickstart/android-tracing#perfetto-cmdline';
     return m(
-      '.record-page',
+      '.pf-record-page',
       m(
         Stack,
         {className: 'record-container'},
@@ -139,7 +139,7 @@ export class RecordPageV2 implements m.ClassComponent<RecordPageAttrs> {
   private renderMenu() {
     const pages = Array.from(this.recMgr.pages.values());
     return m(
-      '.record-menu',
+      '.pf-record-menu',
       m(RecordingCtl, {recMgr: this.recMgr}),
       m(
         'header',

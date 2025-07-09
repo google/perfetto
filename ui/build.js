@@ -91,6 +91,7 @@ const cfg = {
   crossOriginIsolation: false,
   testFilter: '',
   noOverrideGnArgs: false,
+  embedded: false,
 
   // The fields below will be changed by main() after cmdline parsing.
   // Directory structure:
@@ -161,6 +162,10 @@ async function main() {
     help: 'filter Jest tests by regex, e.g. \'chrome_render\'',
   });
   parser.add_argument('--no-override-gn-args', {action: 'store_true'});
+  parser.add_argument('--embedded', '-e', {
+    action: 'store_true',
+    help: 'Build for embedding Perfetto UI in other applications (affects especially CSS)'
+  });
 
   const args = parser.parse_args();
   const clean = !args.no_build;
@@ -212,6 +217,7 @@ async function main() {
   if (!cfg.onlyWasmMemory64) {
     cfg.wasmModules.push('trace_processor');
   }
+  cfg.embedded = args.embedded;
 
   process.on('SIGINT', () => {
     console.log('\nSIGINT received. Killing all child processes and exiting');
@@ -393,7 +399,8 @@ function copyUiTestArtifactsAssets(src, dst) {
 }
 
 function compileScss() {
-  const src = pjoin(ROOT_DIR, 'ui/src/assets/perfetto.scss');
+  const cssSrc = pjoin(ROOT_DIR, 'ui/src/assets');
+  const src = pjoin(cssSrc, 'perfetto.scss');
   const dst = pjoin(cfg.outDistDir, 'perfetto.css');
   // In watch mode, don't exit(1) if scss fails. It can easily happen by
   // having a typo in the css. It will still print an error.
@@ -401,6 +408,11 @@ function compileScss() {
   const args = [src, dst];
   if (!cfg.verbose) {
     args.unshift('--quiet');
+  }
+  if (cfg.embedded) {
+    args.unshift('-I', pjoin(cssSrc, 'base/embedded'));
+  } else {
+    args.unshift('-I', pjoin(cssSrc, 'base/default'));
   }
   addTask(execModule, ['sass', args, {noErrCheck}]);
   if (cfg.bigtrace) {

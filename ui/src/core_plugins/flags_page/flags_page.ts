@@ -106,7 +106,7 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
   view() {
     const needsReload = channelChanged();
     return m(
-      '.flags-page',
+      '.pf-flags-page',
       m(
         '.flags-content',
         m('h1', 'Feature flags'),
@@ -151,7 +151,7 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
           .map((flag) => m(FlagWidget, {flag})),
 
         m(
-          '.flags-page__footer',
+          '.pf-flags-page__footer',
           m(
             'span',
             'Are you looking for plugins? These have moved to the ',

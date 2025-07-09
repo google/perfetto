@@ -207,7 +207,7 @@ export function createThreadPerfSamplesProfileTrack(
 
 function renderDetailsPanel(flamegraph: QueryFlamegraph, ts: time) {
   return m(
-    '.flamegraph-profile',
+    '.pf-flamegraph-profile',
     m(
       DetailsShell,
       {

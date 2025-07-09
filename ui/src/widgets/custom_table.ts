@@ -136,7 +136,7 @@ class ReorderableCellGroup
   view(vnode: m.Vnode<ReorderableCellGroupAttrs>): m.Children {
     return vnode.attrs.cells.map((cell, index) =>
       m(
-        `td.reorderable-cell${cell.extraClasses}`,
+        `td.pf-reorderable-cell${cell.extraClasses}`,
         {
           draggable: 'draggable',
           class: this.getClassForIndex(index),

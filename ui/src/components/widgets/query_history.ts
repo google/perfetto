@@ -46,7 +46,7 @@ export class QueryHistoryComponent
         ...rest,
       },
       m(
-        'header.overview',
+        'header.pf-overview',
         `Query history (${queryHistoryStorage.data.length} queries)`,
       ),
       starred.map((attrs) => m(HistoryItemComponent, attrs)),

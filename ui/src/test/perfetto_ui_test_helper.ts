@@ -30,12 +30,12 @@ export class PerfettoTestHelper {
   constructor(readonly page: Page) {}
 
   resetFocus(): Promise<void> {
-    return this.page.click('.sidebar img.brand');
+    return this.page.click('.pf-sidebar img.brand');
   }
 
   async sidebarSize(): Promise<Size2D> {
     if (this.cachedSidebarSize === undefined) {
-      const size = await this.page.locator('main > .sidebar').boundingBox();
+      const size = await this.page.locator('main > .pf-sidebar').boundingBox();
       this.cachedSidebarSize = assertExists(size);
     }
     return this.cachedSidebarSize;

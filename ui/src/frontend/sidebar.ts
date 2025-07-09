@@ -344,7 +344,7 @@ class SidebarFooter implements m.ClassComponent<OptionalTraceImplAttrs> {
 class HiringBanner implements m.ClassComponent {
   view() {
     return m(
-      '.hiring-banner',
+      '.pf-hiring-banner',
       m(
         'a',
         {
@@ -370,10 +370,10 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
     const sidebar = AppImpl.instance.sidebar;
     if (!sidebar.enabled) return null;
     return m(
-      'nav.sidebar',
+      'nav.pf-sidebar',
       {
         class: sidebar.visible ? 'show-sidebar' : 'hide-sidebar',
-        // 150 here matches --sidebar-timing in the css.
+        // 150 here matches --pf-sidebar-timing in the css.
         // TODO(hjd): Should link to the CSS variable.
         ontransitionstart: (e: TransitionEvent) => {
           if (e.target !== e.currentTarget) return;

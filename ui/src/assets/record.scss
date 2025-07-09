@@ -15,11 +15,11 @@
 @import "widgets/theme";
 
 :root {
-  --record-text-color: #333;
+  --pf-record-text-color: #333;
 }
 
 // The whole record page.
-.record-page {
+.pf-record-page {
   position: relative;
   overflow-y: scroll;
   background-color: #fefefe;
@@ -27,7 +27,7 @@
 }
 
 // The always-visible centered box that has menu and sections on the right.
-.record-container {
+.pf-record-page .record-container {
   position: relative;
   max-width: 900px;
   min-height: 500px;
@@ -328,7 +328,7 @@
 }
 
 // The left-hand-side menu with 'Cpu', 'Memory' etc.
-.record-menu {
+.pf-record-menu {
   grid-area: sidebar;
   .rec {
     color: #ee3326;
@@ -721,7 +721,7 @@
       font-size: 14px;
       font-weight: 200;
       min-height: 50px;
-      color: var(--record-text-color);
+      color: var(--pf-record-text-color);
       line-height: 20px;
     }
 
@@ -786,7 +786,7 @@
     > label {
       cursor: pointer;
       font-size: 14px;
-      color: var(--record-text-color);
+      color: var(--pf-record-text-color);
 
       // The per-probe on-off switch.
       input[type="checkbox"] {
@@ -926,7 +926,7 @@
 
     &.thin > header {
       opacity: 1;
-      color: var(--record-text-color);
+      color: var(--pf-record-text-color);
       font-size: 14px;
     }
 
@@ -1039,7 +1039,7 @@
     .unit {
       grid-area: unit;
       font-size: 12px;
-      color: var(--record-text-color);
+      color: var(--pf-record-text-color);
       position: relative;
       line-height: 37px;
       overflow: hidden;
@@ -1068,7 +1068,7 @@
       @include transition();
       min-height: 25px;
       font-size: 12px;
-      color: var(--record-text-color);
+      color: var(--pf-record-text-color);
       cursor: pointer;
       padding: 5px 0;
     }
@@ -1288,7 +1288,7 @@ a.inline-chip,
 a.inline-chip:link,
 a.inline-chip:visited {
   text-decoration: none;
-  color: var(--record-text-color);
+  color: var(--pf-record-text-color);
 }
 
 .code-snippet {

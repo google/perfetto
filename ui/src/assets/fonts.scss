@@ -13,7 +13,7 @@
 // limitations under the License.
 
 @mixin bottom-panel-font {
-  font-family: "Roboto Condensed", sans-serif;
+  font-family: var(--pf-font);
   font-weight: 300;
-  color: #3c4b5d;
+  color: var(--pf-main-color);
 }

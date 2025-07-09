@@ -200,7 +200,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
 
   private renderContent(resp: QueryResponse, dataSource: DataGridDataSource) {
     if (resp.error) {
-      return m('.query-error', `SQL error: ${resp.error}`);
+      return m('.pf-query-error', `SQL error: ${resp.error}`);
     }
 
     const onViewerPage =

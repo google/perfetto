@@ -332,7 +332,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
         },
         this.state.isLoading() && m(Spinner),
         this.state.getQueryError() !== undefined &&
-          m('.query-error', this.state.getQueryError()),
+          m('.pf-query-error', this.state.getQueryError()),
       ),
     ];
   }

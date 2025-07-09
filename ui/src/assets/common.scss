@@ -15,18 +15,19 @@
 @import "widgets/theme";
 @import "typefaces";
 @import "fonts";
+@import "base";
 
 :root {
-  --sidebar-width: 230px;
-  --topbar-height: 44px;
-  --monospace-font: "Roboto Mono", monospace;
-  --track-shell-width: 250px;
-  --track-border-color: #00000025;
-  --anim-easing: cubic-bezier(0.4, 0, 0.2, 1);
-  --selection-stroke-color: #00344596;
-  --selection-fill-color: #8398e64d;
-  --overview-timeline-non-visible-color: #c8c8c8cc;
-  --details-content-height: 308px;
+  --pf-sidebar-width: 230px;
+  --pf-topbar-height: 44px;
+  --pf-monospace-font: "Roboto Mono", monospace;
+  --pf-track-shell-width: 250px;
+  --pf-track-border-color: #00000025;
+  --pf-anim-easing: cubic-bezier(0.4, 0, 0.2, 1);
+  --pf-selection-stroke-color: #00344596;
+  --pf-selection-fill-color: #8398e64d;
+  --pf-overview-timeline-non-visible-color: #c8c8c8cc;
+  --pf-details-content-height: 308px;
 }
 
 @mixin transition($time: 0.1s) {
@@ -50,68 +51,14 @@
   content: $content;
 }
 
-* {
-  box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
-}
-
-html {
-  font-family: Roboto, verdana, sans-serif;
-  height: 100%;
-  width: 100%;
-  touch-action: pan-x pan-y;
-}
-
-@media (pointer: coarse) {
-  // Disable long-press text selection on tablets. That collides with the mouse
-  // emulation we do where long press emulates a mousedown+move+up (to
-  // distinguish it from pans).
-  html {
-    // required for iOS which doesn't support unprefixed user-select.
-    -webkit-user-select: none;
-    user-select: none;
-    -webkit-touch-callout: none;
-  }
-}
-
-html,
-body,
-body > main {
-  height: 100%;
-  width: 100%;
-  padding: 0;
-  margin: 0;
-  overscroll-behavior: none;
-  overflow: hidden;
-}
-
-pre,
-code {
-  font-family: var(--monospace-font);
-}
-
 // This is to minimize Mac vs Linux Chrome Headless rendering differences
-// when running UI intergrationtests via puppeteer.
+// when running UI integration tests via puppeteer.
 body.testing {
   -webkit-font-smoothing: antialiased !important;
   font-kerning: none !important;
 }
 
-h1,
-h2,
-h3 {
-  font-family: inherit;
-  font-size: inherit;
-  font-weight: inherit;
-  padding: 0;
-  margin: 0;
-}
-table {
-  -webkit-user-select: text;
-  user-select: text;
-}
-
-body.filedrag::after {
+body.pf-filedrag::after {
   content: "Drop the trace file to open it";
   position: fixed;
   z-index: 99;
@@ -127,32 +74,7 @@ body.filedrag::after {
   background: rgba(255, 255, 255, 0.5);
 }
 
-button {
-  background: none;
-  color: inherit;
-  border: none;
-  padding: 0;
-  font: inherit;
-  cursor: pointer;
-  outline: inherit;
-}
-
-button.close {
-  font-family: var(--monospace-font);
-}
-
-.full-page-loading-screen {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-direction: row;
-  background: #3e4a5a url("assets/logo-3d.png") no-repeat fixed center;
-}
-
-.page {
+.pf-page {
   grid-area: page;
 }
 
@@ -211,7 +133,7 @@ $bottom-tab-padding: 10px;
   @include table-component;
 }
 
-.pivot-table {
+.pf-pivot-table {
   @include table-component;
 
   thead,
@@ -245,7 +167,7 @@ $bottom-tab-padding: 10px;
   }
 }
 
-.query-error {
+.pf-query-error {
   padding: 20px 10px;
   color: hsl(-10, 50%, 50%);
   font-family: "Roboto Mono", sans-serif;
@@ -254,84 +176,14 @@ $bottom-tab-padding: 10px;
   white-space: pre;
 }
 
-.dropdown {
-  display: inline-block;
-  position: relative;
-}
-
-.dropdown-button {
-  cursor: pointer;
-}
-
-.popup-menu {
-  position: absolute;
-  background-color: white;
-  right: 0;
-  box-shadow: 0 0 4px 0 #999;
-  /* TODO(hjd): Reduce and make z-index use sensible. */
-  z-index: 1000;
-
-  &.closed {
-    display: none;
-  }
-
-  &.opened {
-    display: block;
-  }
-
-  button.open-menu {
-    border-radius: 0;
-    margin: 0;
-    height: auto;
-    background: transparent;
-    color: #111;
-    font-size: 12px;
-    padding: 0.4em 1em;
-    white-space: nowrap;
-    width: 100%;
-    text-align: right;
-    line-height: 1;
-    display: block; // Required in order for inherited white-space property not
-    // to screw up vertical rendering of the popup menu items.
-
-    &:hover {
-      background: #c7d0db;
-    }
-  }
-
-  .nested-menu {
-    padding-right: 1em;
-  }
-}
-
-.x-scrollable {
-  overflow-x: auto;
-}
-
-.text-select {
-  user-select: text;
-  -webkit-user-select: text;
-}
-
-button.query-ctrl {
-  background: #262f3c;
-  color: white;
-  border-radius: 10px;
-  font-size: 10px;
-  height: 18px;
-  line-height: 18px;
-  min-width: 7em;
-  margin: auto 0 auto 1rem;
-}
-
-.perf-stats {
+.pf-perf-stats {
   --stroke-color: hsl(217, 39%, 94%);
   position: fixed;
   bottom: 0;
   left: 0;
   width: 600px;
   color: var(--stroke-color);
-  font-family: var(--monospace-font);
+  font-family: var(--pf-monospace-font);
   padding: 10px 24px;
   z-index: 100;
   background-color: rgba(27, 28, 29, 0.9);
@@ -370,7 +222,7 @@ button.query-ctrl {
   }
 }
 
-.cookie-consent {
+.pf-cookie-consent {
   position: absolute;
   z-index: 10;
   left: 10px;
@@ -405,11 +257,7 @@ button.query-ctrl {
   }
 }
 
-.disallow-selection {
-  user-select: none;
-}
-
-.pivot-table {
+.pf-pivot-table {
   user-select: text;
   -webkit-user-select: text;
   padding: $bottom-tab-padding;
@@ -421,7 +269,7 @@ button.query-ctrl {
     background-color: #c7d0db;
   }
 
-  &.query-error {
+  &.pf-query-error {
     color: red;
   }
 
@@ -452,21 +300,7 @@ button.query-ctrl {
   }
 }
 
-.name-completion {
-  input {
-    width: 90%;
-  }
-  min-height: 20vh;
-  min-width: 30vw;
-
-  .arguments-popup-sizer {
-    color: transparent;
-    user-select: none;
-    height: 0;
-  }
-}
-
-.reorderable-cell {
+.pf-reorderable-cell {
   &.dragged {
     color: gray;
   }

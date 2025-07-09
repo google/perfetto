@@ -106,7 +106,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
 
   view({attrs}: m.CVnode<QueryPageAttrs>) {
     return m(
-      '.pf-query-page.page',
+      '.pf-query-page.pf-page',
       m(Box, {className: 'pf-query-page__toolbar'}, [
         m(Stack, {orientation: 'horizontal'}, [
           m(Button, {
@@ -181,7 +181,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   ) {
     const queryTimeString = `${queryResult.durationMs.toFixed(1)} ms`;
     if (queryResult.error) {
-      return m('.query-error', `SQL error: ${queryResult.error}`);
+      return m('.pf-query-error', `SQL error: ${queryResult.error}`);
     } else {
       return [
         queryResult.statementWithOutputCount > 1 &&

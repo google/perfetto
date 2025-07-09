@@ -41,7 +41,7 @@
     display: grid;
     grid-template-columns:
       calc(var(--depth) * var(--indent-size)) calc(
-        var(--track-shell-width) - (var(--depth) * var(--indent-size))
+        var(--pf-track-shell-width) - (var(--depth) * var(--indent-size))
       )
       1fr;
     grid-template-areas: "indent shell canvas";
@@ -69,7 +69,7 @@
     grid-area: shell;
     border-width: 0 1px 1px 0; // Borders on bottom and right
     border-style: solid;
-    border-color: var(--track-border-color);
+    border-color: var(--pf-track-border-color);
 
     &--highlight {
       background-color: #ffe263;
@@ -116,20 +116,18 @@
   &__canvas {
     grid-area: canvas;
     overflow: hidden; // Keeps subtitle width contained
-    border-bottom: solid 1px var(--track-border-color);
+    border-bottom: solid 1px var(--pf-track-border-color);
 
     &--error {
       // Necessary trig because we have 45deg stripes
       $pattern-density: 1px * math.sqrt(2);
       $pattern-col: #ddd;
 
-      background: repeating-linear-gradient(
-        -45deg,
-        $pattern-col,
-        $pattern-col $pattern-density,
-        white $pattern-density,
-        white $pattern-density * 4
-      );
+      background: repeating-linear-gradient(-45deg,
+          $pattern-col,
+          $pattern-col $pattern-density,
+          white $pattern-density,
+          white $pattern-density * 4);
     }
   }
 
@@ -167,11 +165,12 @@
       white-space: nowrap;
       user-select: none;
       width: max-content;
-      z-index: 10; /* Ensures it appears above other elements */
+      z-index: 10;
+      /* Ensures it appears above other elements */
     }
 
     &:hover &-popup--visible {
-      box-shadow: 1px 1px 2px 2px var(--track-border-color);
+      box-shadow: 1px 1px 2px 2px var(--pf-track-border-color);
       background: white;
       color: hsl(213, 22%, 30%);
     }

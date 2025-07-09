@@ -29,19 +29,19 @@ export let COLLAPSED_BACKGROUND = '#ffffff';
 export let EXPANDED_BACKGROUND = '#ffffff';
 
 export function initCssConstants() {
-  TRACK_SHELL_WIDTH = getCssNum('--track-shell-width') ?? TRACK_SHELL_WIDTH;
-  SIDEBAR_WIDTH = getCssNum('--sidebar-width') ?? SIDEBAR_WIDTH;
-  TRACK_BORDER_COLOR = getCssStr('--track-border-color') ?? TRACK_BORDER_COLOR;
-  TOPBAR_HEIGHT = getCssNum('--topbar-height') ?? TOPBAR_HEIGHT;
+  TRACK_SHELL_WIDTH = getCssNum('--pf-track-shell-width') ?? TRACK_SHELL_WIDTH;
+  SIDEBAR_WIDTH = getCssNum('--pf-sidebar-width') ?? SIDEBAR_WIDTH;
+  TRACK_BORDER_COLOR = getCssStr('--pf-track-border-color') ?? TRACK_BORDER_COLOR;
+  TOPBAR_HEIGHT = getCssNum('--pf-topbar-height') ?? TOPBAR_HEIGHT;
   SELECTION_STROKE_COLOR =
-    getCssStr('--selection-stroke-color') ?? SELECTION_STROKE_COLOR;
+    getCssStr('--pf-selection-stroke-color') ?? SELECTION_STROKE_COLOR;
   SELECTION_FILL_COLOR =
-    getCssStr('--selection-fill-color') ?? SELECTION_FILL_COLOR;
+    getCssStr('--pf-selection-fill-color') ?? SELECTION_FILL_COLOR;
   OVERVIEW_TIMELINE_NON_VISIBLE_COLOR =
-    getCssStr('--overview-timeline-non-visible-color') ??
+    getCssStr('--pf-overview-timeline-non-visible-color') ??
     OVERVIEW_TIMELINE_NON_VISIBLE_COLOR;
   DEFAULT_DETAILS_CONTENT_HEIGHT =
-    getCssNum('--details-content-height') ?? DEFAULT_DETAILS_CONTENT_HEIGHT;
+    getCssNum('--pf-details-content-height') ?? DEFAULT_DETAILS_CONTENT_HEIGHT;
   BACKGROUND_COLOR = getCssStr('--main-background-color') ?? BACKGROUND_COLOR;
   FOREGROUND_COLOR = getCssStr('--main-foreground-color') ?? FOREGROUND_COLOR;
   COLLAPSED_BACKGROUND =
