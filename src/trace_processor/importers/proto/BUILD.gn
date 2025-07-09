@@ -320,7 +320,6 @@ source_set("unittests") {
     "../../../protozero",
     "../../containers",
     "../../dataframe",
-    "../../db/column",
     "../../sorter",
     "../../storage",
     "../../tables",
