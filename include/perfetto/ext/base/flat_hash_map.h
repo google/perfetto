@@ -128,7 +128,7 @@ class FlatHashMap {
                        int load_limit_pct = kDefaultLoadLimitPct)
       : load_limit_percent_(load_limit_pct) {
     if (initial_capacity > 0)
-      Reset(initial_capacity);
+      Reset(initial_capacity, true);
   }
 
   // We are calling Clear() so that the destructors for the inserted entries are
@@ -223,9 +223,7 @@ class FlatHashMap {
       // clean them up. This is to avoid the case where we have a table full
       // of tombstones which would cause lookups to be very slow.
       bool is_many_tombstones = tombstones_ > size_ && size_ > 128;
-      bool is_tombstones_plus_size_too_high =
-          static_cast<double>(tombstones_ + size_) >
-          static_cast<double>(capacity_) * 0.85;
+      bool is_tombstones_plus_size_too_high = tombstones_ + size_ > load_limit_;
       if (PERFETTO_UNLIKELY(is_many_tombstones ||
                             is_tombstones_plus_size_too_high)) {
         MaybeGrowAndRehash(/*grow=*/false);
@@ -282,7 +280,7 @@ class FlatHashMap {
         values_[i].~Value();
       }
     }
-    Reset(capacity_);
+    Reset(capacity_, false);
   }
 
   Value& operator[](Key key) {
@@ -353,7 +351,7 @@ class FlatHashMap {
     // This must be a CHECK (i.e. not just a DCHECK) to prevent UAF attacks on
     // 32-bit archs that try to double the size of the table until wrapping.
     PERFETTO_CHECK(new_capacity >= old_capacity);
-    Reset(new_capacity);
+    Reset(new_capacity, true);
 
     size_t new_size = 0;  // Recompute the size.
     for (size_t i = 0; i < old_capacity; ++i) {
@@ -371,10 +369,9 @@ class FlatHashMap {
   }
 
   // Doesn't call destructors. Use Clear() for that.
-  PERFETTO_NO_INLINE void Reset(size_t n) {
+  PERFETTO_NO_INLINE void Reset(size_t n, bool reallocate) {
     PERFETTO_DCHECK((n & (n - 1)) == 0);  // Must be a pow2.
 
-    bool capacity_changed = capacity_ != n;
     capacity_ = n;
     max_probe_length_ = 0;
     size_ = 0;
@@ -382,17 +379,15 @@ class FlatHashMap {
     load_limit_ = n * static_cast<size_t>(load_limit_percent_) / 100;
     load_limit_ = std::min(load_limit_, n);
 
-    // Only allocate if capacity is actually changing.
-    if (capacity_changed) {
+    if (reallocate) {
       tags_.reset(new uint8_t[n]);
       keys_ = AlignedAllocTyped<Key[]>(n);  // Deliberately not 0-initialized.
       values_ =
           AlignedAllocTyped<Value[]>(n);  // Deliberately not 0-initialized.
     }
 
-    // Only clear the tags if the new size is non-empty. Otherwise it's possible
-    // tags is nullptr (e.g. if capacity_ was 0 before the reset).
-    if (n > 0) {
+    // Only clear the tags if not nullptr.
+    if (tags_) {
       memset(&tags_[0], 0, n);  // Clear all tags.
     }
   }
