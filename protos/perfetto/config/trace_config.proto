@@ -736,5 +736,7 @@ message TraceConfig {
   }
   repeated SessionSemaphore session_semaphores = 39;
 
+  // Priority boost to be applied to the traced process, when the session is
+  // running.
   optional PriorityBoostConfig priority_boost = 40;
 }

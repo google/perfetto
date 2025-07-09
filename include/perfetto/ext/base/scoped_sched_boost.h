@@ -22,9 +22,9 @@
 
 namespace perfetto::base {
 
-// kSchedOther: it's the default policy (e.g. CFS on Linux). Range: 0-20.
-//              prio is interpreted as -(nice), i.e. 1 is silhgly higher prio
-//              than the default 0,  20 is the highest priority.
+// kSchedOther: it's the default policy (e.g., CFS on Linux). Range: 0-20.
+//              prio is interpreted as -(nice), i.e., 1 is slightly higher prio
+//              than default 0, 20 is the highest priority.
 //              Note that this is the opposite semantic of the cmdline nice, and
 //              is done for consistency with kSchedFifo, so higher
 //              number == higher prio.
@@ -49,7 +49,7 @@ struct SchedPolicyAndPrio {
   }
 
   Policy policy = Policy::kSchedOther;
-  unsigned int prio = 0;
+  uint32_t prio = 0;
 };
 
 class SchedOsManager {
