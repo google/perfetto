@@ -68,10 +68,27 @@ using ::testing::Invoke;
 using ::testing::NiceMock;
 using ::testing::Return;
 
+// We have two quite different code flows for this test, depending on the way it
+// is being built and run.
+//
+// 1. When running as part of Android Tree (#if
+// PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)), we test that the external,
+// started by Android, traced and traced_probes daemons can change their
+// priorities In this case we read /proc/%d/stat to query their state.
+//
+// 2. When running on Linux (#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)),
+// we use MockSchedOsManager to check that the traced/traced_probes code changes
+// their priority as expected.
+// In this case, the traced/traced_probes are just the separate threads of the
+// test binary. 'base::ScopedSchedBoost' doesn't expect that the priority is
+// updated for the single thread and not the whole app, so we test only one
+// thread at a time.
 class PerfettoPriorityBoostIntegrationTest : public ::testing::Test {
  public:
   void SetUp() override {
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
     base::ScopedSchedBoost::ResetForTesting(&sched_manager_);
+#endif
   }
 
   base::SchedOsManager::SchedOsConfig GetSchedInfo(int tid) {
@@ -96,6 +113,7 @@ class PerfettoPriorityBoostIntegrationTest : public ::testing::Test {
   }
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
   class MockSchedOsManager : public base::SchedOsManager {
    public:
     MockSchedOsManager() : current_config(kInitConfig) {
@@ -127,14 +145,51 @@ class PerfettoPriorityBoostIntegrationTest : public ::testing::Test {
   };
 
   NiceMock<MockSchedOsManager> sched_manager_;
+#endif
 };
+
+constexpr char kTestDataSourceName[] = "linux.system_info";
+
+TraceConfig CreateTraceConfigWithDataSourcePriorityBoost(
+    protos::gen::PriorityBoostConfig_BoostPolicy policy,
+    uint32_t priority) {
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(64);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name(kTestDataSourceName);
+  ds_config->set_target_buffer(0);
+
+  auto* ds_priority_boost_config = ds_config->mutable_priority_boost();
+  ds_priority_boost_config->set_policy(policy);
+  ds_priority_boost_config->set_priority(priority);
+  return trace_config;
+}
+
+void TestHelperStartTrace(TestHelper& helper, const TraceConfig& trace_config) {
+  static bool first_time = true;
+  if (first_time) {
+    first_time = false;
+    helper.StartServiceIfRequired();
+  }
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  // Wait for the traced_probes service to connect. We want to start tracing
+  // only after it connects, otherwise we'll start a tracing session with 0
+  // producers connected (which is valid but not what we want here).
+  helper.WaitForDataSourceConnected(kTestDataSourceName);
+
+  helper.StartTracing(trace_config);
+  helper.WaitForAllDataSourceStarted();
+}
+
 }  // namespace
 
 TEST_F(PerfettoPriorityBoostIntegrationTest, TestTracedProbes) {
   base::TestTaskRunner task_runner;
 
-  TestHelper helper(&task_runner);
-  helper.StartServiceIfRequired();
+  TestHelper helper_fifo_42(&task_runner);
+  TestHelper helper_other_7(&task_runner);
 
   base::PlatformThreadId traced_probes_tid = -1;
 
@@ -152,28 +207,15 @@ TEST_F(PerfettoPriorityBoostIntegrationTest, TestTracedProbes) {
   base::SchedOsManager::SchedOsConfig init_traced_probes_sched_info =
       GetSchedInfo(traced_probes_tid);
 
-  helper.ConnectConsumer();
-  helper.WaitForConsumerConnect();
+  TestHelperStartTrace(
+      helper_fifo_42,
+      CreateTraceConfigWithDataSourcePriorityBoost(
+          protos::gen::PriorityBoostConfig::POLICY_SCHED_FIFO, 42));
 
-  // Wait for the traced_probes service to connect. We want to start tracing
-  // only after it connects, otherwise we'll start a tracing session with 0
-  // producers connected (which is valid but not what we want here).
-  helper.WaitForDataSourceConnected("linux.system_info");
-
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(64);
-
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("linux.system_info");
-  ds_config->set_target_buffer(0);
-
-  auto* ds_priority_boost_config = ds_config->mutable_priority_boost();
-  ds_priority_boost_config->set_policy(
-      protos::gen::PriorityBoostConfig::POLICY_SCHED_FIFO);
-  ds_priority_boost_config->set_priority(42);
-
-  helper.StartTracing(trace_config);
-  helper.WaitForAllDataSourceStarted();
+  TestHelperStartTrace(
+      helper_other_7,
+      CreateTraceConfigWithDataSourcePriorityBoost(
+          protos::gen::PriorityBoostConfig::POLICY_SCHED_OTHER, 7));
 
   PERFETTO_CHECK(traced_probes_tid != -1);
   {
@@ -183,15 +225,28 @@ TEST_F(PerfettoPriorityBoostIntegrationTest, TestTracedProbes) {
     ASSERT_THAT(traced_probes_sched_info_boosted,
                 Eq(base::SchedOsManager::SchedOsConfig{SCHED_FIFO, 42, 0}));
   }
-  helper.DisableTracing();
-  helper.WaitForTracingDisabled();
+  helper_fifo_42.DisableTracing();
+  helper_fifo_42.WaitForTracingDisabled();
 
   {
     auto traced_probes_sched_info_stopped = GetSchedInfo(traced_probes_tid);
     PERFETTO_LOG("traced_probes_sched_info_stopped: %s",
                  ToString(traced_probes_sched_info_stopped).c_str());
 
-    ASSERT_EQ(traced_probes_sched_info_stopped, init_traced_probes_sched_info);
+    ASSERT_THAT(traced_probes_sched_info_stopped,
+                Eq(base::SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -7}));
+  }
+
+  helper_other_7.DisableTracing();
+  helper_other_7.WaitForTracingDisabled();
+
+  {
+    auto traced_probes_sched_info_stopped_2 = GetSchedInfo(traced_probes_tid);
+    PERFETTO_LOG("traced_probes_sched_info_stopped_2: %s",
+                 ToString(traced_probes_sched_info_stopped_2).c_str());
+
+    ASSERT_EQ(traced_probes_sched_info_stopped_2,
+              init_traced_probes_sched_info);
   }
 }
 
