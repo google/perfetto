@@ -33,7 +33,11 @@ typedef struct LlvmSymbolizer LlvmSymbolizer;
 
 // Represents a single symbolization request.
 typedef struct {
+  // Path to the binary file.
   const char* binary_path;
+  // The length of binary_path. If the caller does not know the size and the
+  // string is null-terminated, this should be set to (uint32_t)-1.
+  uint32_t binary_path_len;
   uint64_t address;
 } SymbolizationRequest;
 
@@ -42,7 +46,7 @@ typedef struct {
   const char* function_name;
   const char* file_name;
   uint32_t line_number;
-} SymbolizedFrame;
+} LlvmSymbolizedFrame;
 
 // Represents the result of a single symbolization operation as a range in a
 // flattened array of frames.
@@ -56,7 +60,7 @@ typedef struct {
 // Represents the result of a batch of symbolization operations.
 typedef struct {
   // A flat array of all symbolized frames for the entire batch.
-  SymbolizedFrame* frames;
+  LlvmSymbolizedFrame* frames;
   // The total number of frames in the `frames` array.
   uint32_t total_frames;
   // An array of `SymbolizationResultRange` structs, each representing a range

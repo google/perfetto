@@ -28,17 +28,6 @@ namespace perfetto {
 namespace profiling {
 class LlvmSymbolizer;
 
-struct SymbolizationRequest {
-  std::string binary;
-  uint64_t address;
-};
-
-struct LlvmSymbolizedFrame {
-  const char* function_name;
-  const char* file_name;
-  uint32_t line_number;
-};
-
 // RAII wrapper for the results of a batch symbolization.
 // This object owns the single contiguous block of memory returned by the C API
 // and provides safe, non-owning views to the symbolized frames.
@@ -53,7 +42,7 @@ class SymbolizationResultBatch {
   SymbolizationResultBatch& operator=(SymbolizationResultBatch&&) noexcept;
 
   // Returns a pair of (pointer, size) for the frames of a given request.
-  std::pair<const LlvmSymbolizedFrame*, uint32_t> GetFramesForRequest(
+  std::pair<const ::LlvmSymbolizedFrame*, uint32_t> GetFramesForRequest(
       uint32_t request_index) const;
 
   // Returns the number of original requests.
@@ -73,7 +62,7 @@ class SymbolizationResultBatch {
 
   // Non-owning views into the C API's flat buffer, implemented with raw
   // pointers and sizes.
-  const LlvmSymbolizedFrame* all_frames_ptr_ = nullptr;
+  const ::LlvmSymbolizedFrame* all_frames_ptr_ = nullptr;
   uint32_t num_total_frames_ = 0;
 
   const SymbolizationResultRange* ranges_ptr_ = nullptr;
@@ -99,7 +88,7 @@ class LlvmSymbolizer {
   LlvmSymbolizer& operator=(LlvmSymbolizer&&) noexcept = default;
 
   SymbolizationResultBatch SymbolizeBatch(
-      const std::vector<SymbolizationRequest>& requests);
+      const std::vector<::SymbolizationRequest>& requests);
 
  private:
   using ScopedLibraryHandle = base::ScopedResource<void*, NoOpDlclose, nullptr>;

@@ -32,8 +32,7 @@ SymbolizationResultBatch::SymbolizationResultBatch(
     decltype(&::LlvmSymbolizer_FreeBatchSymbolizationResult) free_fn)
     : c_api_result_(c_api_result), free_result_fn_(free_fn) {
   if (c_api_result.ranges) {
-    all_frames_ptr_ =
-        reinterpret_cast<const LlvmSymbolizedFrame*>(c_api_result.frames);
+    all_frames_ptr_ = c_api_result.frames;
     num_total_frames_ = c_api_result.total_frames;
     ranges_ptr_ = c_api_result.ranges;
     num_ranges_ = c_api_result.num_ranges;
@@ -75,7 +74,7 @@ void SymbolizationResultBatch::Free() {
   c_api_result_ = {};
 }
 
-std::pair<const LlvmSymbolizedFrame*, uint32_t>
+std::pair<const ::LlvmSymbolizedFrame*, uint32_t>
 SymbolizationResultBatch::GetFramesForRequest(uint32_t request_index) const {
   if (request_index >= num_ranges_) {
     return {nullptr, 0};
@@ -128,21 +127,14 @@ LlvmSymbolizer::~LlvmSymbolizer() {
 }
 
 SymbolizationResultBatch LlvmSymbolizer::SymbolizeBatch(
-    const std::vector<SymbolizationRequest>& requests) {
+    const std::vector<::SymbolizationRequest>& requests) {
   if (!c_api_symbolizer_) {
     return SymbolizationResultBatch({}, free_result_fn_);
   }
 
-  std::vector<::SymbolizationRequest> c_requests;
-  c_requests.reserve(requests.size());
-  for (const auto& request : requests) {
-    c_requests.emplace_back(
-        ::SymbolizationRequest{request.binary.c_str(), request.address});
-  }
-
   BatchSymbolizationResult batch_result =
-      symbolize_fn_(c_api_symbolizer_, c_requests.data(),
-                    static_cast<uint32_t>(c_requests.size()));
+      symbolize_fn_(c_api_symbolizer_, requests.data(),
+                    static_cast<uint32_t>(requests.size()));
   return SymbolizationResultBatch(batch_result, free_result_fn_);
 }
 

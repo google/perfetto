@@ -114,7 +114,7 @@ BatchSymbolizationResult LlvmSymbolizerImpl::Symbolize(
   size_t ranges_size =
       sizeof(SymbolizationResultRange) * static_cast<size_t>(num_requests);
   size_t frames_size =
-      sizeof(SymbolizedFrame) * static_cast<size_t>(total_frames);
+      sizeof(LlvmSymbolizedFrame) * static_cast<size_t>(total_frames);
   size_t total_alloc_size = ranges_size + frames_size + total_string_size;
 
   if (total_alloc_size == 0) {
@@ -129,7 +129,7 @@ BatchSymbolizationResult LlvmSymbolizerImpl::Symbolize(
   // Carve up the single buffer into sections for ranges, frames, and strings.
   SymbolizationResultRange* ranges_ptr =
       static_cast<SymbolizationResultRange*>(buffer);
-  SymbolizedFrame* frames_ptr = reinterpret_cast<SymbolizedFrame*>(
+  LlvmSymbolizedFrame* frames_ptr = reinterpret_cast<LlvmSymbolizedFrame*>(
       ranges_ptr + static_cast<size_t>(num_requests));
   char* string_ptr =
       reinterpret_cast<char*>(frames_ptr + static_cast<size_t>(total_frames));
@@ -143,7 +143,7 @@ BatchSymbolizationResult LlvmSymbolizerImpl::Symbolize(
 
     for (uint32_t j = 0; j < num_frames; ++j) {
       const llvm::DILineInfo& line_info = inlining_info.getFrame(j);
-      SymbolizedFrame& frame = frames_ptr[current_frame_offset + j];
+      LlvmSymbolizedFrame& frame = frames_ptr[current_frame_offset + j];
 
       frame.function_name = string_ptr;
       memcpy(string_ptr, line_info.FunctionName.c_str(),

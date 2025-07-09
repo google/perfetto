@@ -45,9 +45,11 @@ TEST(LlvmSymbolizerTest, Symbolize) {
   constexpr uint64_t normal_function_address = 0x1130;
   constexpr uint64_t inlined_function_address = 0x1140;
   LlvmSymbolizer symbolizer;
-  const std::vector<SymbolizationRequest> requests = {
-      {"test/data/test_symbolizer_binary", normal_function_address},
-      {"test/data/test_symbolizer_binary", inlined_function_address},
+  const std::vector<::SymbolizationRequest> requests = {
+      {"test/data/test_symbolizer_binary", static_cast<uint32_t>(-1),
+       normal_function_address},
+      {"test/data/test_symbolizer_binary", static_cast<uint32_t>(-1),
+       inlined_function_address},
   };
   SymbolizationResultBatch result_batch = symbolizer.SymbolizeBatch(requests);
 
@@ -56,7 +58,7 @@ TEST(LlvmSymbolizerTest, Symbolize) {
   // Check the first request's result (normal function)
   auto res0 = result_batch.GetFramesForRequest(0);
   ASSERT_EQ(res0.second, 1u);
-  const LlvmSymbolizedFrame* frames0 = res0.first;
+  const ::LlvmSymbolizedFrame* frames0 = res0.first;
   EXPECT_EQ(base::StringView(frames0[0].function_name),
             base::StringView("TestFunctionToSymbolize()"));
   EXPECT_EQ(base::StringView(frames0[0].file_name),
@@ -66,7 +68,7 @@ TEST(LlvmSymbolizerTest, Symbolize) {
   // Check the second request's result (inlined function)
   auto res1 = result_batch.GetFramesForRequest(1);
   ASSERT_EQ(res1.second, 2u);
-  const LlvmSymbolizedFrame* frames1 = res1.first;
+  const ::LlvmSymbolizedFrame* frames1 = res1.first;
   EXPECT_EQ(base::StringView(frames1[0].function_name),
             base::StringView("InlinedFunction()"));
   EXPECT_EQ(base::StringView(frames1[0].file_name),
