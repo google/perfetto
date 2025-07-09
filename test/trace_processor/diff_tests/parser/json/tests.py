@@ -1028,3 +1028,143 @@ class JsonParser(TestSuite):
         out=Csv("""
           "name","ts","dur"
         """))
+
+  def test_json_id2_global_int_id(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          {
+              "traceEvents": [
+                  {
+                      "name": "process_name",
+                      "ph": "M",
+                      "pid": 2,
+                      "args": {
+                          "name": "device2"
+                      }
+                  },
+                  {
+                      "name": "thread_name",
+                      "ph": "M",
+                      "pid": 2,
+                      "tid": 2,
+                      "args": {
+                          "name": "send2"
+                      }
+                  },
+                  {
+                      "name": "write",
+                      "ph": "b",
+                      "pid": 2,
+                      "tid": 2,
+                      "ts": 1850244461563845.0,
+                      "id2": {
+                          "global": 1
+                      },
+                      "args": {
+                          "dev_name": "86",
+                          "wr": "129010217631161",
+                          "op_type": "3",
+                          "src_num": "1",
+                          "dst_num": "3",
+                          "ah_num": "1",
+                          "length": "1048577"
+                      }
+                  },
+                  {
+                      "name": "write",
+                      "ph": "e",
+                      "pid": 2,
+                      "tid": 2,
+                      "ts": 1850244461564012.0,
+                      "id2": {
+                          "global": 1
+                      }
+                  }
+              ]
+          }
+        '''),
+        query='''
+          SELECT
+            slice.name,
+            slice.ts,
+            slice.dur,
+            track.name as track_name,
+            track.type as track_type
+          FROM slice
+          JOIN track on slice.track_id = track.id
+          WHERE slice.name = "write"
+        ''',
+        out=Csv("""
+          "name","ts","dur","track_name","track_type"
+          "write",1850244461563845000,167000,"write","legacy_async_global_slice"
+        """))
+
+  def test_json_id2_local_int_id(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          {
+              "traceEvents": [
+                  {
+                      "name": "process_name",
+                      "ph": "M",
+                      "pid": 1,
+                      "args": {
+                          "name": "device"
+                      }
+                  },
+                  {
+                      "name": "thread_name",
+                      "ph": "M",
+                      "pid": 1,
+                      "tid": 1,
+                      "args": {
+                          "name": "send"
+                      }
+                  },
+                  {
+                      "name": "write",
+                      "ph": "b",
+                      "pid": 1,
+                      "tid": 1,
+                      "ts": 1750244461563845.0,
+                      "id2": {
+                          "local": 0
+                      },
+                      "args": {
+                          "dev_name": "85",
+                          "wr": "129010217631160",
+                          "op_type": "2",
+                          "src_num": "0",
+                          "dst_num": "2",
+                          "ah_num": "0",
+                          "length": "1048576"
+                      }
+                  },
+                  {
+                      "name": "write",
+                      "ph": "e",
+                      "pid": 1,
+                      "tid": 1,
+                      "ts": 1750244461564012.0,
+                      "id2": {
+                          "local": 0
+                      }
+                  }
+              ]
+          }
+        '''),
+        query='''
+          SELECT
+            slice.name,
+            slice.ts,
+            slice.dur,
+            track.name as track_name,
+            track.type as track_type
+          FROM slice
+          JOIN track on slice.track_id = track.id
+          WHERE slice.name = "write"
+        ''',
+        out=Csv("""
+          "name","ts","dur","track_name","track_type"
+          "write",1750244461563845000,167000,"write","legacy_async_process_slice"
+        """))
