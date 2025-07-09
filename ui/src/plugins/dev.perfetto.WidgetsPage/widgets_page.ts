@@ -866,13 +866,16 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           multiple Card elements in a vertical stack. Cards placed in this list
           automatically have their borders adjusted to appear as one continuous
           card with thin borders between them.`,
-        renderWidget: () =>
-          m(CardStack, [
-            m(Card, m(Switch, {label: 'Option 1'})),
-            m(Card, m(Switch, {label: 'Option 2'})),
-            m(Card, m(Switch, {label: 'Option 3'})),
+        renderWidget: ({direction, actionable}) =>
+          m(CardStack, {direction}, [
+            m(Card, {actionable}, m(Switch, {label: 'Option 1'})),
+            m(Card, {actionable}, m(Switch, {label: 'Option 2'})),
+            m(Card, {actionable}, m(Switch, {label: 'Option 3'})),
           ]),
-        initialOpts: {},
+        initialOpts: {
+          direction: new EnumOption('vertical', ['vertical', 'horizontal']),
+          actionable: true,
+        },
       }),
       m(WidgetShowcase, {
         label: 'CopyableLink',

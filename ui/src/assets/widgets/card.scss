@@ -22,6 +22,14 @@ $box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.15);
   box-shadow: $box-shadow;
   border-radius: $border-radius;
   border: solid 1px $pf-colour-thin-border;
+
+  &.pf-actionable {
+    transition: all 200ms ease-in-out;
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.2);
+    }
+  }
 }
 
 .pf-card-stack {
@@ -40,5 +48,14 @@ $box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.15);
     border-radius: unset;
     border: unset;
     box-shadow: unset;
+  }
+
+  &.pf-card-stack-horizontal {
+    flex-direction: row;
+
+    > .pf-card:not(:last-child) {
+      border-right: 1px solid lightgray;
+      border-bottom: unset;
+    }
   }
 }
