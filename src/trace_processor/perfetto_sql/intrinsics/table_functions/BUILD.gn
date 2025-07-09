@@ -59,8 +59,6 @@ source_set("table_functions") {
     "../../../containers",
     "../../../dataframe",
     "../../../dataframe",
-    "../../../db",
-    "../../../db/column",
     "../../../importers/proto:full",
     "../../../importers/proto:minimal",
     "../../../sqlite",
@@ -87,7 +85,6 @@ source_set("interface") {
     "../../../../../include/perfetto/trace_processor:basic_types",
     "../../../../base",
     "../../../dataframe",
-    "../../../db",
   ]
 }
 
@@ -114,8 +111,6 @@ source_set("unittests") {
     "../../../../base:test_support",
     "../../../containers",
     "../../../dataframe",
-    "../../../db",
-    "../../../db/column",
     "../../../importers/common",
     "../../../perfetto_sql/engine",
     "../../../sqlite",
