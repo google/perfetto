@@ -19,171 +19,180 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX)
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/utils.h"
-#include "perfetto/ext/traced/traced.h"
-#include "perfetto/ext/tracing/core/commit_data_request.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/tracing/core/data_source_config.h"
-#include "perfetto/tracing/core/tracing_service_state.h"
 #include "src/base/test/test_task_runner.h"
-#include "src/base/test/utils.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
 
 #include "protos/perfetto/config/priority_boost/priority_boost_config.gen.h"
-#include "protos/perfetto/config/test_config.gen.h"
 #include "protos/perfetto/config/trace_config.gen.h"
-#include "protos/perfetto/trace/ftrace/ftrace.gen.h"
-#include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
-#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
-#include "protos/perfetto/trace/ftrace/ftrace_stats.gen.h"
-#include "protos/perfetto/trace/perfetto/tracing_service_event.gen.h"
-#include "protos/perfetto/trace/test_event.gen.h"
-#include "protos/perfetto/trace/trace.gen.h"
-#include "protos/perfetto/trace/trace_packet.gen.h"
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 #include "test/android_test_utils.h"
 #endif
 
 namespace perfetto {
+namespace base {
+// For ASSERT_EQ()
+inline bool operator==(const SchedOsManager::SchedOsConfig& lhs,
+                       const SchedOsManager::SchedOsConfig& rhs) {
+  return std::tie(lhs.policy, lhs.rt_prio, lhs.nice) ==
+         std::tie(rhs.policy, rhs.rt_prio, rhs.nice);
+}
+
+// For ASSERT_EQ()
+inline std::ostream& operator<<(std::ostream& os,
+                                const SchedOsManager::SchedOsConfig& s) {
+  return os << "SchedOsConfig{policy: " << s.policy << ", prio: " << s.rt_prio
+            << ", nice: " << s.nice << "}";
+}
+
+inline std::string ToString(const SchedOsManager::SchedOsConfig& cfg) {
+  std::stringstream ss;
+  ss << cfg;
+  return ss.str();
+}
+}  // namespace base
 
 namespace {
-
-using ::testing::ContainsRegex;
-using ::testing::Each;
-using ::testing::ElementsAreArray;
-using ::testing::HasSubstr;
-using ::testing::Property;
-using ::testing::SizeIs;
-using ::testing::UnorderedElementsAreArray;
+using ::testing::Eq;
+using ::testing::Invoke;
+using ::testing::NiceMock;
+using ::testing::Return;
 
 class PerfettoPriorityBoostIntegrationTest : public ::testing::Test {
  public:
-  struct SystemSchedInfo {
-    std::string comm;
-    int prio;
-    int nice;
-    int rt_prio;
-    int policy;
+  void SetUp() override {
+    base::ScopedSchedBoost::ResetForTesting(&sched_manager_);
+  }
 
-    std::string ToString() const {
-      std::ostringstream oss;
-      oss << "SystemSchedInfo{";
-      oss << "comm: " << comm << ", prio: " << prio << ", nice: " << nice
-          << ", rt_prio: " << rt_prio << ", policy: " << policy;
-      oss << "}";
-      return oss.str();
-    }
-  };
+  base::SchedOsManager::SchedOsConfig GetSchedInfo(int tid) {
+#if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
+    PERFETTO_CHECK(tid == sched_manager_.expected_boosted_thread);
+    return sched_manager_.current_config;
+#else
+    return GetRealSchedInfo(tid);
+#endif
+  }
 
-  static std::optional<SystemSchedInfo> GetSchedInfo(int tid) {
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+  static base::SchedOsManager::SchedOsConfig GetRealSchedInfo(int tid) {
     base::StackString<128> stat_path("/proc/%d/stat", tid);
     std::string line;
-    if (!base::ReadFile(stat_path.c_str(), &line)) {
-      PERFETTO_ELOG("Can't read file: %s", stat_path.c_str());
-      return std::nullopt;
-    }
+    PERFETTO_CHECK(base::ReadFile(stat_path.c_str(), &line));
     std::vector parts = base::SplitString(line, " ");
-    int prio = base::StringToInt32(parts[17]).value();
     int nice = base::StringToInt32(parts[18]).value();
     int rt_prio = base::StringToInt32(parts[39]).value();
     int policy = base::StringToInt32(parts[40]).value();
-    SystemSchedInfo info{parts[1], prio, nice, rt_prio, policy};
-    return info;
+    return base::SchedOsManager::SchedOsConfig{policy, rt_prio, nice};
   }
+#endif
+
+  class MockSchedOsManager : public base::SchedOsManager {
+   public:
+    MockSchedOsManager() : current_config(kInitConfig) {
+      ON_CALL(*this, GetCurrentSchedConfig()).WillByDefault(Invoke([&] {
+        return current_config;
+      }));
+      ON_CALL(*this, SetSchedConfig)
+          .WillByDefault(Invoke([&](const SchedOsConfig& arg) {
+            PERFETTO_CHECK(base::GetThreadId() == expected_boosted_thread);
+            current_config = arg;
+            return base::OkStatus();
+          }));
+    }
+    MOCK_METHOD(base::Status,
+                SetSchedConfig,
+                (const SchedOsConfig&),
+                (override));
+    MOCK_METHOD(base::StatusOr<base::SchedOsManager::SchedOsConfig>,
+                GetCurrentSchedConfig,
+                (),
+                (const, override));
+
+    ~MockSchedOsManager() override = default;
+
+    base::PlatformThreadId expected_boosted_thread = -1;
+
+    SchedOsConfig current_config;
+    static constexpr SchedOsConfig kInitConfig{SCHED_OTHER, 0, 0};
+  };
+
+  NiceMock<MockSchedOsManager> sched_manager_;
 };
 }  // namespace
 
-TEST_F(PerfettoPriorityBoostIntegrationTest, TestTraced) {
+TEST_F(PerfettoPriorityBoostIntegrationTest, TestTracedProbes) {
   base::TestTaskRunner task_runner;
 
   TestHelper helper(&task_runner);
   helper.StartServiceIfRequired();
 
-  int traced_tid = -1;
-  int traced_probes_tid = -1;
+  base::PlatformThreadId traced_probes_tid = -1;
 
 #if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
-  PERFETTO_DLOG("PERFETTO_START_DAEMONS");
   ProbesProducerThread probes(GetTestProducerSockName());
   probes.Connect();
-#elif
-  GTEST_SKIP() << "This test requires PERFETTO_START_DAEMONS or ANDROID_BUILD";
-  PERFETTO_DLOG("NOT PERFETTO_START_DAEMONS");
+  traced_probes_tid = probes.runner()->GetThreadIdForTesting();
+  sched_manager_.expected_boosted_thread = traced_probes_tid;
+#elif PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+  traced_probes_tid = PidForProcessName("/system/bin/traced_probes");
+#else
+#error "Need to start daemons for Linux test or be built on Android."
 #endif
+
+  base::SchedOsManager::SchedOsConfig init_traced_probes_sched_info =
+      GetSchedInfo(traced_probes_tid);
 
   helper.ConnectConsumer();
   helper.WaitForConsumerConnect();
-  helper.WaitForDataSourceConnected("linux.ftrace");
+
+  // Wait for the traced_probes service to connect. We want to start tracing
+  // only after it connects, otherwise we'll start a tracing session with 0
+  // producers connected (which is valid but not what we want here).
+  helper.WaitForDataSourceConnected("linux.system_info");
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(64);
-  auto* priority_boost_config = trace_config.mutable_priority_boost();
-  priority_boost_config->set_policy(
-      protos::gen::PriorityBoostConfig::POLICY_SCHED_FIFO);
-  priority_boost_config->set_priority(42);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("linux.ftrace");
+  ds_config->set_name("linux.system_info");
   ds_config->set_target_buffer(0);
 
   auto* ds_priority_boost_config = ds_config->mutable_priority_boost();
   ds_priority_boost_config->set_policy(
-      protos::gen::PriorityBoostConfig::POLICY_SCHED_OTHER);
-  ds_priority_boost_config->set_priority(7);
-
-  protos::gen::FtraceConfig ftrace_config;
-  ftrace_config.add_ftrace_events("sched_switch");
-  ds_config->set_ftrace_config_raw(ftrace_config.SerializeAsString());
+      protos::gen::PriorityBoostConfig::POLICY_SCHED_FIFO);
+  ds_priority_boost_config->set_priority(42);
 
   helper.StartTracing(trace_config);
-  helper.WaitForDataSourceConnected("linux.ftrace");
+  helper.WaitForAllDataSourceStarted();
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-  PERFETTO_DLOG("PERFETTO_ANDROID_BUILD");
-  traced_tid = PidForProcessName("/system/bin/traced");
-  traced_probes_tid = PidForProcessName("/system/bin/traced_probes");
-#else
-  traced_tid = helper.service_thread()->GetThreadIdForTesting();
-  traced_probes_tid = probes.runner()->GetThreadIdForTesting();
-#endif
-
-  PERFETTO_DLOG("traced_tid: %d, traced_probes_tid: %d", traced_tid,
-                traced_probes_tid);
-
-  auto traced_sched_info = GetSchedInfo(traced_tid);
-  auto traced_probes_sched_info = GetSchedInfo(traced_probes_tid);
-
-  PERFETTO_DLOG("traced_sched_info: %s",
-                traced_sched_info.value().ToString().c_str());
-  PERFETTO_DLOG("traced_probes_sched_info: %s",
-                traced_probes_sched_info.value().ToString().c_str());
-
-  // helper.FlushAndWait(kDefaultFlushTimeoutMs);
+  PERFETTO_CHECK(traced_probes_tid != -1);
+  {
+    auto traced_probes_sched_info_boosted = GetSchedInfo(traced_probes_tid);
+    PERFETTO_LOG("traced_probes_sched_info_boosted: %s",
+                 ToString(traced_probes_sched_info_boosted).c_str());
+    ASSERT_THAT(traced_probes_sched_info_boosted,
+                Eq(base::SchedOsManager::SchedOsConfig{SCHED_FIFO, 42, 0}));
+  }
   helper.DisableTracing();
   helper.WaitForTracingDisabled();
 
-  helper.ReadData();
-  helper.WaitForReadData();
+  {
+    auto traced_probes_sched_info_stopped = GetSchedInfo(traced_probes_tid);
+    PERFETTO_LOG("traced_probes_sched_info_stopped: %s",
+                 ToString(traced_probes_sched_info_stopped).c_str());
 
-  PERFETTO_DLOG("Tracing disabled, data read");
-  PERFETTO_DLOG("traced_sched_info: %s",
-                traced_sched_info.value().ToString().c_str());
-  PERFETTO_DLOG("traced_probes_sched_info: %s",
-                traced_probes_sched_info.value().ToString().c_str());
+    ASSERT_EQ(traced_probes_sched_info_stopped, init_traced_probes_sched_info);
+  }
 }
 
 }  // namespace perfetto
