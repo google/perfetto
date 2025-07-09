@@ -57,7 +57,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/sys_types.h"
-#include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/version.h"
@@ -938,10 +937,6 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 
   std::optional<base::ScopedSchedBoost> priority_boost;
   if (cfg.has_priority_boost()) {
-    std::string thread_name;
-    base::GetThreadName(thread_name);
-    PERFETTO_DLOG("traced pid: %d, tid: %d, name: %s", getpid(),
-                  base::GetThreadId(), thread_name.c_str());
     auto sched_policy = CreateSchedPolicyFromConfig(cfg.priority_boost());
     if (!sched_policy.ok()) {
       // TODO(ktimofeev): call MaybeLogUploadEvent

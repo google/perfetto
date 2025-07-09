@@ -25,8 +25,6 @@
 #include <sys/resource.h>  // for 'setpriority', 'getpriority', 'PRIO_PROCESS'
 #endif
 
-#include "perfetto/base/thread_utils.h"  // for debug logging, todo remove
-
 #include <unistd.h>
 
 #include "perfetto/ext/base/no_destructor.h"
@@ -141,10 +139,6 @@ SchedOsManager* SchedOsManager::GetInstance() {
 }
 
 Status SchedOsManager::SetSchedConfig(const SchedOsConfig& arg) {
-  PERFETTO_DLOG(
-      "SchedOsManager::SetSchedConfig: pid: %d, tid: %d, policy: %d, rt_prio: "
-      "%d, nice: %d",
-      getpid(), GetThreadId(), arg.policy, arg.rt_prio, arg.nice);
   sched_param param{};
   param.sched_priority = arg.rt_prio;
   int ret = sched_setscheduler(kCurrentPid, arg.policy, &param);
