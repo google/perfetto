@@ -88,7 +88,7 @@ class TrackEventSessionObserverRegistry {
   }
 
   void ForEachObserverForRegistries(
-      const std::vector<const TrackEventCategoryRegistry*> registries,
+      const std::vector<const TrackEventCategoryRegistry*>& registries,
       std::function<void(TrackEventSessionObserver*)> callback) {
     std::unique_lock<std::recursive_mutex> lock(mutex_);
     for (auto& registered_observer : observers_) {
@@ -255,8 +255,8 @@ void TrackEventInternal::EnableRegistry(
     uint32_t internal_instance_index) {
   for (size_t i = 0; i < registry->category_count(); i++) {
     if (IsCategoryEnabled(*registry, config, *registry->GetCategory(i))) {
-      PERFETTO_DLOG("EnableRegistry %" PRIu32 " %" PRIu64,
-                    internal_instance_index, i);
+      PERFETTO_DLOG("EnableRegistry %" PRIu32 " %zu", internal_instance_index,
+                    i);
       registry->EnableCategoryForInstance(i, internal_instance_index);
     }
   }

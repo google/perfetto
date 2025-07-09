@@ -31,18 +31,24 @@ static bool IsFloatClose(double a, double b) {
 }
 }  // namespace
 
+Rect::Rect() = default;
+
 Rect::Rect(const protos::pbzero::RectProto::Decoder& rect) {
   x = rect.has_left() ? rect.left() : 0;
   y = rect.has_top() ? rect.top() : 0;
-  w = rect.has_right() ? rect.right() : 0;
-  h = rect.has_bottom() ? rect.bottom() : 0;
+  auto right = rect.has_right() ? rect.right() : 0;
+  auto bottom = rect.has_bottom() ? rect.bottom() : 0;
+  w = right - x;
+  h = bottom - y;
 }
 
 Rect::Rect(const protos::pbzero::FloatRectProto::Decoder& rect) {
   x = rect.has_left() ? static_cast<double>(rect.left()) : 0;
   y = rect.has_top() ? static_cast<double>(rect.top()) : 0;
-  w = rect.has_right() ? static_cast<double>(rect.right()) : 0;
-  h = rect.has_bottom() ? static_cast<double>(rect.bottom()) : 0;
+  auto right = rect.has_right() ? static_cast<double>(rect.right()) : 0;
+  auto bottom = rect.has_bottom() ? static_cast<double>(rect.bottom()) : 0;
+  w = right - x;
+  h = bottom - y;
 }
 
 Rect::Rect(double left, double top, double right, double bottom) {
@@ -52,7 +58,7 @@ Rect::Rect(double left, double top, double right, double bottom) {
   h = bottom - top;
 }
 
-bool Rect::IsEmpty() {
+bool Rect::IsEmpty() const {
   const bool null_value_present = IsFloatEqual(x, -1) || IsFloatEqual(y, -1) ||
                                   IsFloatEqual(x + w, -1) ||
                                   IsFloatEqual(y + h, -1);
@@ -60,20 +66,20 @@ bool Rect::IsEmpty() {
   return null_value_present || null_h_or_w;
 }
 
-Rect Rect::CropRect(const Rect& other) {
+Rect Rect::CropRect(const Rect& other) const {
   const auto max_left = std::max(x, other.x);
   const auto min_right = std::min(x + w, other.x + other.w);
   const auto max_top = std::max(y, other.y);
   const auto min_bottom = std::min(y + h, other.y + other.h);
-  return Rect{max_left, max_top, min_right - max_left, min_bottom - max_top};
+  return Rect(max_left, max_top, min_right, min_bottom);
 }
 
-bool Rect::ContainsRect(const Rect& other) {
+bool Rect::ContainsRect(const Rect& other) const {
   return (w > 0 && h > 0 && x <= other.x && y <= other.y &&
           (x + w >= other.x + other.w) && (y + h >= other.y + other.h));
 }
 
-bool Rect::IntersectsRect(const Rect& other) {
+bool Rect::IntersectsRect(const Rect& other) const {
   if (x < other.x + other.w && other.x < x + w && y <= other.y + other.h &&
       other.y <= y + h) {
     auto new_x = x;
@@ -93,49 +99,44 @@ bool Rect::IntersectsRect(const Rect& other) {
     if (y + h > other.y + other.h) {
       new_h = other.h;
     }
-
-    return !Rect{new_x, new_y, new_w, new_h}.IsEmpty();
+    return !Rect(new_x, new_y, new_w + new_x, new_h + new_y).IsEmpty();
   }
   return false;
 }
 
-bool Rect::operator==(const Rect& other) {
+bool Rect::operator==(const Rect& other) const {
   return IsFloatEqual(x, other.x) && IsFloatEqual(y, other.y) &&
          IsFloatEqual(w, other.w) && IsFloatEqual(h, other.h);
 }
 
-bool Rect::IsAlmostEqual(const Rect& other) {
+bool Rect::IsAlmostEqual(const Rect& other) const {
   return (IsFloatClose(x, other.x) && IsFloatClose(y, other.y) &&
           IsFloatClose(w, other.w) && IsFloatClose(h, other.h));
 }
 
-bool TransformMatrix::operator==(const TransformMatrix& other) {
+bool TransformMatrix::operator==(const TransformMatrix& other) const {
   return IsFloatEqual(dsdx, other.dsdx) && IsFloatEqual(dsdy, other.dsdy) &&
          IsFloatEqual(dtdx, other.dtdx) && IsFloatEqual(dtdy, other.dtdy) &&
          IsFloatEqual(tx, other.tx) && IsFloatEqual(ty, other.ty);
 }
 
-Point TransformMatrix::TransformPoint(Point point) {
+Point TransformMatrix::TransformPoint(Point point) const {
   return {
       dsdx * point.x + dtdx * point.y + tx,
       dtdy * point.x + dsdy * point.y + ty,
   };
 }
 
-Rect TransformMatrix::TransformRect(const Rect& r) {
+Rect TransformMatrix::TransformRect(const Rect& r) const {
   const auto lt_prime = TransformMatrix::TransformPoint({r.x, r.y});
   const auto rb_prime = TransformMatrix::TransformPoint({r.x + r.w, r.y + r.h});
   const auto x = std::min(lt_prime.x, rb_prime.x);
   const auto y = std::min(lt_prime.y, rb_prime.y);
-  return Rect{
-      x,
-      y,
-      std::max(lt_prime.x, rb_prime.x) - x,
-      std::max(lt_prime.y, rb_prime.y) - y,
-  };
+  return Rect(x, y, std::max(lt_prime.x, rb_prime.x),
+              std::max(lt_prime.y, rb_prime.y));
 }
 
-Region TransformMatrix::TransformRegion(Region region) {
+Region TransformMatrix::TransformRegion(Region region) const {
   std::vector<Rect> rects;
   for (const auto& rect : region.rects) {
     rects.push_back(TransformMatrix::TransformRect(rect));
@@ -143,7 +144,7 @@ Region TransformMatrix::TransformRegion(Region region) {
   return Region{rects};
 }
 
-TransformMatrix TransformMatrix::Inverse() {
+TransformMatrix TransformMatrix::Inverse() const {
   const auto ident = 1.0 / TransformMatrix::Det();
   TransformMatrix inverse = TransformMatrix{
       dsdy * ident, -dtdx * ident, 0, -dtdy * ident, dsdx * ident, 0,
@@ -157,11 +158,11 @@ TransformMatrix TransformMatrix::Inverse() {
   return inverse;
 }
 
-bool TransformMatrix::IsValid() {
+bool TransformMatrix::IsValid() const {
   return !IsFloatEqual(dsdx * dsdy, dtdx * dtdy);
 }
 
-double TransformMatrix::Det() {
+double TransformMatrix::Det() const {
   return dsdx * dsdy - dtdx * dtdy;
 }
 

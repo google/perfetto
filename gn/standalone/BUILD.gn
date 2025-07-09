@@ -147,11 +147,17 @@ config("no_exceptions") {
   }
 }
 
-config("no_rtti") {
-  if (is_win) {
-    cflags_cc = [ "/GR-" ]
-  } else {
-    cflags_cc = [ "-fno-rtti" ]
+config("rtti_cflags") {
+  # Generally, we want -fno-rtti. However, this is compatible with some ubsan
+  # configurations (specifically, those that use -fsanitize=vptr). Since we
+  # don't know if anyone linking in perfetto will use -fsanitize=vptr, don't
+  # pass -fno-rtti when is_ubsan is true.
+  if (!is_ubsan) {
+    if (is_win) {
+      cflags_cc = [ "/GR-" ]
+    } else {
+      cflags_cc = [ "-fno-rtti" ]
+    }
   }
 }
 

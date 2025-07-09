@@ -32,9 +32,8 @@ In short, use trace summarization when you need to:
 
 ## Using Summaries with the Standard Library
 
-The easiest way to get started with trace summarization is by using the modules
-available in the PerfettoSQL
-[Standard Library](/docs/analysis/stdlib-docs.autogen).
+The easiest way to get started is by using the modules in the
+[PerfettoSQL Standard Library](/docs/analysis/stdlib-docs.autogen).
 
 Let's walk through an example. Suppose we want to compute the average memory
 usage (specifically, RSS + Swap) for each process in a trace. The
@@ -66,8 +65,28 @@ metric_spec {
 }
 ```
 
-To run this, save the above content as `spec.textproto` and use the
-`trace_processor_shell`:
+To run this, save the above content as `spec.textproto` and use your preferred
+tool.
+
+<?tabs>
+
+TAB: Python API
+
+```python
+from perfetto.trace_processor import TraceProcessor
+
+with open('spec.textproto', 'r') as f:
+    spec_text = f.read()
+
+with TraceProcessor(trace='my_trace.pftrace') as tp:
+    summary = tp.trace_summary(
+        specs=[spec_text],
+        metric_ids=["memory_per_process"]
+    )
+    print(summary)
+```
+
+TAB: Command-line shell
 
 ```bash
 trace_processor_shell --summary \
@@ -76,8 +95,99 @@ trace_processor_shell --summary \
   my_trace.pftrace
 ```
 
-The output will be a `TraceSummary` proto containing the results, which is
-structured and ready for automated processing.
+</tabs?>
+
+## Reducing Duplication with Templates
+
+Often, you'll want to compute several related metrics that share the same
+underlying query and dimensions. For example, for a given process, you might
+want to know the minimum, maximum, and average memory usage.
+
+Instead of writing a separate `metric_spec` for each, which would involve
+repeating the same `query` and `dimensions` blocks, you can use a
+[`TraceMetricV2TemplateSpec`](/protos/perfetto/trace_summary/v2_metric.proto).
+This is more concise, less error-prone, and more performant as the underlying
+query is only run once.
+
+Let's extend our memory example to calculate the min, max, and duration-weighted
+average of RSS+Swap for each process.
+
+```protobuf
+// spec.textproto
+metric_template_spec {
+  id_prefix: "memory_per_process"
+  dimensions: "process_name"
+  value_columns: "min_rss_and_swap"
+  value_columns: "max_rss_and_swap"
+  value_columns: "avg_rss_and_swap"
+  query: {
+    table: {
+      table_name: "memory_rss_and_swap_per_process"
+      module_name: "linux.memory.process"
+    }
+    group_by: {
+      column_names: "process_name"
+      aggregates: {
+        column_name: "rss_and_swap"
+        op: MIN
+        result_column_name: "min_rss_and_swap"
+      }
+      aggregates: {
+        column_name: "rss_and_swap"
+        op: MAX
+        result_column_name: "max_rss_and_swap"
+      }
+      aggregates: {
+        column_name: "rss_and_swap"
+        op: DURATION_WEIGHTED_MEAN
+        result_column_name: "avg_rss_and_swap"
+      }
+    }
+  }
+}
+```
+
+This single template generates three metrics:
+
+- `memory_per_process_min_rss_and_swap`
+- `memory_per_process_max_rss_and_swap`
+- `memory_per_process_avg_rss_and_swap`
+
+You can then run this, requesting any or all of the generated metrics, as shown
+below.
+
+<?tabs>
+
+TAB: Python API
+
+```python
+from perfetto.trace_processor import TraceProcessor
+
+with open('spec.textproto', 'r') as f:
+    spec_text = f.read()
+
+with TraceProcessor(trace='my_trace.pftrace') as tp:
+    summary = tp.trace_summary(
+        specs=[spec_text],
+        metric_ids=[
+            "memory_per_process_min_rss_and_swap",
+            "memory_per_process_max_rss_and_swap",
+            "memory_per_process_avg_rss_and_swap",
+        ]
+    )
+    print(summary)
+```
+
+TAB: Command-line shell
+
+```bash
+trace_processor_shell --summary \
+  --summary-spec spec.textproto \
+  --summary-metrics-v2 memory_per_process_min_rss_and_swap,memory_per_process_max_rss_and_swap,memory_per_process_avg_rss_and_swap \
+  my_trace.pftrace
+```
+
+</tabs?>
 
 ## Using Summaries with Custom SQL Modules
 
@@ -89,7 +199,7 @@ A SQL package is simply a directory containing `.sql` files. This directory can
 be loaded into Trace Processor, and its files become available as modules.
 
 Let's say you have custom slices named `game_frame` and you want to calculate
-the average frame duration.
+the average, minimum, and maximum frame duration.
 
 **1. Create your custom SQL module:**
 
@@ -108,21 +218,29 @@ Inside `metrics.sql`, define a view that calculates the frame stats:
 CREATE PERFETTO VIEW game_frame_stats AS
 SELECT
   'game_frame' AS frame_type,
+  MIN(dur) AS min_duration_ns,
+  MAX(dur) AS max_duration_ns,
   AVG(dur) AS avg_duration_ns
 FROM slice
-WHERE name = 'game_frame';
+WHERE name = 'game_frame'
+GROUP BY 1;
 ```
 
-**2. Use the module in your summary spec:**
+**2. Use a template in your summary spec:**
 
-Now, create a `spec.textproto` that references your custom module and view:
+Again, we can use a `TraceMetricV2TemplateSpec` to generate these related
+metrics from a single, shared configuration.
+
+Create a `spec.textproto` that references your custom module and view:
 
 ```protobuf
 // spec.textproto
-metric_spec {
-  id: "avg_game_frame_duration"
+metric_template_spec {
+  id_prefix: "game_frame"
   dimensions: "frame_type"
-  value: "avg_duration_ns"
+  value_columns: "min_duration_ns"
+  value_columns: "max_duration_ns"
+  value_columns: "avg_duration_ns"
   query: {
     table: {
       // The module name is the directory path relative to the package root,
@@ -159,19 +277,28 @@ with open('spec.textproto', 'r') as f:
     spec_text = f.read()
 
 with TraceProcessor(trace='my_trace.pftrace', config=config) as tp:
-    summary = tp.trace_summary(specs=[spec_text])
+    # Requesting one, some, or all of the generated metrics.
+    summary = tp.trace_summary(
+        specs=[spec_text],
+        metric_ids=[
+            "game_frame_min_duration_ns",
+            "game_frame_max_duration_ns",
+            "game_frame_avg_duration_ns"
+        ]
+    )
     print(summary)
 ```
 
 TAB: Command-line shell
 
-Use the `--add-sql-package` flag.
+Use the `--add-sql-package` flag. You can list the metrics explicitly or use
+the `all` keyword.
 
 ```bash
 trace_processor_shell --summary \
   --add-sql-package ./my_sql_modules \
   --summary-spec spec.textproto \
-  --summary-metrics-v2 avg_game_frame_duration \
+  --summary-metrics-v2 game_frame_min_duration_ns,game_frame_max_duration_ns,game_frame_avg_duration_ns \
   my_trace.pftrace
 ```
 
@@ -181,14 +308,13 @@ trace_processor_shell --summary \
 
 ### Analyzing Time Intervals with `interval_intersect`
 
-`interval_intersect` lets you analyze data from one source within specific time
-windows defined by another source, ideal for analyzing "Critical User Journeys"
-(CUJs).
+A common analysis pattern is to analyze data from one source (e.g., CPU usage)
+within specific time windows from another (e.g., a "Critical User Journey"
+slice). The `interval_intersect` query makes this easy.
 
-It performs a time-based intersection of a primary data source (the `base`
-query) with time intervals (the `interval_intersect` queries). An event from the
-`base` query is included only if its time span overlaps with at least one
-interval from _each_ `interval_intersect` query.
+It works by taking a `base` query and one or more `interval` queries. The result
+includes only the rows from the `base` query that overlap in time with at least
+one row from _each_ of the `interval` queries.
 
 **Use Cases:**
 
@@ -212,7 +338,7 @@ query: {
        // The base data is CPU time per thread.
        table: {
          table_name: "thread_slice_cpu_time"
-         module_name: "linux.memory.process"
+         module_name: "slices.cpu_time"
        }
        filters: {
          column_name: "thread_name"
@@ -278,7 +404,7 @@ Pass both `metric_ids` and `metadata_query_id`:
 ```python
 summary = tp.trace_summary(
     specs=[spec_text],
-    metric_ids=["avg_game_frame_duration"],
+    metric_ids=["game_frame_avg_duration_ns"],
     metadata_query_id="device_info_query"
 )
 ```
@@ -290,7 +416,7 @@ Use both `--summary-metrics-v2` and `--summary-metadata-query`:
 ```bash
 trace_processor_shell --summary \\
   --summary-spec spec.textproto \\
-  --summary-metrics-v2 avg_game_frame_duration \\
+  --summary-metrics-v2 game_frame_avg_duration_ns \\
   --summary-metadata-query device_info_query \\
   my_trace.pftrace
 ```
@@ -304,30 +430,51 @@ contains a `metric_bundles` field, which is a list of `TraceMetricV2Bundle`
 messages.
 
 Each bundle can contain the results for one or more metrics that were computed
-together. This is useful when you have multiple metrics that share the same
-dimensions and query, as it avoids duplicating the dimension values in the
-output.
+together. Using a `TraceMetricV2TemplateSpec` is the most common way to create a
+bundle. All metrics generated from a single template are automatically placed in
+the same bundle, sharing the same `specs` and `row` structure. This is highly
+efficient as the dimension values, which are often repetitive, are only written
+once per row.
 
 #### Example Output
 
-For the `memory_per_process` example, the output `TraceSummary` would contain a
-`TraceMetricV2Bundle` like this:
+For the `memory_per_process` template example, the output `TraceSummary` would
+contain a `TraceMetricV2Bundle` like this:
 
 ```protobuf
 # In TraceSummary's metric_bundles field:
 metric_bundles {
+  # The specs for all three metrics generated by the template.
   specs {
-    id: "memory_per_process"
+    id: "memory_per_process_min_rss_and_swap"
+    dimensions: "process_name"
+    value: "min_rss_and_swap"
+    # ... query details ...
+  }
+  specs {
+    id: "memory_per_process_max_rss_and_swap"
+    dimensions: "process_name"
+    value: "max_rss_and_swap"
+    # ... query details ...
+  }
+  specs {
+    id: "memory_per_process_avg_rss_and_swap"
     dimensions: "process_name"
     value: "avg_rss_and_swap"
     # ... query details ...
   }
+  # Each row contains one set of dimensions and three values, corresponding
+  # to the three metrics in `specs`.
   row {
-    values { double_value: 123456.789 }
+    values { double_value: 100000 } # min
+    values { double_value: 200000 } # max
+    values { double_value: 123456.789 } # avg
     dimension { string_value: "com.example.app" }
   }
   row {
-    values { double_value: 98765.432 }
+    values { double_value: 80000 } # min
+    values { double_value: 150000 } # max
+    values { double_value: 98765.432 } # avg
     dimension { string_value: "system_server" }
   }
   # ...
@@ -371,7 +518,7 @@ For programmatic workflows, use the `trace_summary` method of the
 `TraceProcessor` class.
 
 ```python
-from perfetto.trace_processor.api import TraceProcessor
+from perfetto.trace_processor import TraceProcessor
 
 # Assume 'tp' is an initialized TraceProcessor instance
 # and 'spec_text' contains your TraceSummarySpec.

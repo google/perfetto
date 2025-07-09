@@ -12,16 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AreaSelection, AreaSelectionAggregator} from '../../public/selection';
-import {ColumnDef, Sorting} from '../../public/aggregation';
+import {AreaSelection} from '../../public/selection';
 import {CPU_SLICE_TRACK_KIND} from '../../public/track_kinds';
 import {Engine} from '../../trace_processor/engine';
 import {exists} from '../../base/utils';
+import {Aggregator} from '../../components/aggregation_adapter';
+import {WattsonAggregationPanel} from './aggregation_panel';
+import {ColumnDef, Sorting} from '../../components/aggregation';
 
-export class WattsonPackageSelectionAggregator
-  implements AreaSelectionAggregator
-{
+export class WattsonPackageSelectionAggregator implements Aggregator {
   readonly id = 'wattson_plugin_package_aggregation';
+  readonly PanelComponent = WattsonAggregationPanel;
 
   probe(area: AreaSelection) {
     const selectedCpus: number[] = [];
@@ -64,33 +65,23 @@ export class WattsonPackageSelectionAggregator
     return [
       {
         title: 'Package Name',
-        kind: 'STRING',
-        columnConstructor: Uint16Array,
         columnId: 'package_name',
       },
       {
         title: 'Android app UID',
-        kind: 'NUMBER',
-        columnConstructor: Uint16Array,
         columnId: 'uid',
       },
       {
         title: 'Total Duration (ms)',
-        kind: 'NUMBER',
-        columnConstructor: Float64Array,
         columnId: 'dur_ms',
       },
       {
         title: 'Active power (estimated mW)',
-        kind: 'NUMBER',
-        columnConstructor: Float64Array,
         columnId: 'active_mw',
         sum: true,
       },
       {
         title: 'Active energy (estimated mWs)',
-        kind: 'NUMBER',
-        columnConstructor: Float64Array,
         columnId: 'active_mws',
         sum: true,
       },

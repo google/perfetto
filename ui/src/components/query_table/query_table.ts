@@ -201,7 +201,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
       // in filter read only mode.
       filters: [],
       columns: resp.columns.map((c) => ({name: c})),
-      dataSource,
+      data: dataSource,
       cellRenderer: (value, name, row) => {
         const sliceId = getSliceId(row);
         const cell = renderCell(value, name);

@@ -467,6 +467,7 @@ class {self.table_name} {{
     RowNumber ToRowNumber() const {{
       return RowNumber{{cursor_.RowIndex()}};
     }}
+    void Reset() {{ cursor_.Reset(); }}
     {cursor_getter}
 
    private:
@@ -492,6 +493,8 @@ class {self.table_name} {{
     RowNumber ToRowNumber() const {{
       return RowNumber{{cursor_.RowIndex()}};
     }}
+    void Reset() {{ cursor_.Reset(); }}
+
     {cursor_getter}
     {cursor_setter}
 
@@ -638,7 +641,7 @@ def serialize_header(ifdef_guard: str, tables: List[ParsedTable],
 #include "perfetto/base/compiler.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/base_id.h"
+#include "src/trace_processor/tables/macros_internal.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/specs.h"
 

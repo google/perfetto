@@ -101,7 +101,8 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         storage->GetString(StringPool::Id::Raw(event.pid)), base::StringView());
   }
   if (event.tid_is_string_id) {
-    procs->UpdateThreadName(event.tid, StringPool::Id::Raw(event.tid),
+    UniqueTid event_utid = procs->GetOrCreateThread(event.tid);
+    procs->UpdateThreadName(event_utid, StringPool::Id::Raw(event.tid),
                             ThreadNamePriority::kOther);
   }
   UniqueTid utid = procs->UpdateThread(event.tid, event.pid);
@@ -405,7 +406,7 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         }
         if (name == "thread_name") {
           auto thread_name_id = context_->storage->InternString(args_name);
-          procs->UpdateThreadName(event.tid, thread_name_id,
+          procs->UpdateThreadName(utid, thread_name_id,
                                   ThreadNamePriority::kOther);
         } else if (name == "process_name") {
           procs->SetProcessMetadata(

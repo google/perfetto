@@ -55,6 +55,7 @@
 #include "src/trace_processor/importers/ftrace/binder_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
+#include "src/trace_processor/importers/ftrace/generic_ftrace_tracker.h"
 #include "src/trace_processor/importers/ftrace/pkvm_hyp_cpu_tracker.h"
 #include "src/trace_processor/importers/ftrace/v4l2_tracker.h"
 #include "src/trace_processor/importers/ftrace/virtio_video_tracker.h"
@@ -68,6 +69,7 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/softirq_action.h"
 #include "src/trace_processor/types/tcp_state.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/types/version_number.h"
 
@@ -356,10 +358,66 @@ const char* GetMmEventTypeStr(uint32_t type) {
   }
 }
 
+void InsertFieldIntoArgs(StringId name_id,
+                         ProtoSchemaType type,
+                         const protozero::Field& fld,
+                         ArgsTracker::BoundInserter& inserter,
+                         TraceProcessorContext* context) {
+  switch (type) {
+    case ProtoSchemaType::kInt32:
+    case ProtoSchemaType::kInt64:
+    case ProtoSchemaType::kSfixed32:
+    case ProtoSchemaType::kSfixed64:
+    case ProtoSchemaType::kBool:
+    case ProtoSchemaType::kEnum: {
+      inserter.AddArg(name_id, Variadic::Integer(fld.as_int64()));
+      break;
+    }
+    case ProtoSchemaType::kUint32:
+    case ProtoSchemaType::kUint64:
+    case ProtoSchemaType::kFixed32:
+    case ProtoSchemaType::kFixed64: {
+      // Note that SQLite functions will still treat unsigned values
+      // as a signed 64 bit integers (but the translation back to ftrace
+      // refers to this storage directly).
+      inserter.AddArg(name_id, Variadic::UnsignedInteger(fld.as_uint64()));
+      break;
+    }
+    case ProtoSchemaType::kSint32:
+    case ProtoSchemaType::kSint64: {
+      inserter.AddArg(name_id, Variadic::Integer(fld.as_sint64()));
+      break;
+    }
+    case ProtoSchemaType::kString:
+    case ProtoSchemaType::kBytes: {
+      StringId value = context->storage->InternString(fld.as_string());
+      inserter.AddArg(name_id, Variadic::String(value));
+      break;
+    }
+    case ProtoSchemaType::kDouble: {
+      inserter.AddArg(name_id, Variadic::Real(fld.as_double()));
+      break;
+    }
+    case ProtoSchemaType::kFloat: {
+      inserter.AddArg(name_id,
+                      Variadic::Real(static_cast<double>(fld.as_float())));
+      break;
+    }
+    case ProtoSchemaType::kUnknown:
+    case ProtoSchemaType::kGroup:
+    case ProtoSchemaType::kMessage:
+      PERFETTO_DLOG("Could not store %s as a field in args table.",
+                    ProtoSchemaToString(type));
+      break;
+  }
+}
+
 }  // namespace
 
-FtraceParser::FtraceParser(TraceProcessorContext* context)
+FtraceParser::FtraceParser(TraceProcessorContext* context,
+                           GenericFtraceTracker* generic_tracker)
     : context_(context),
+      generic_tracker_(generic_tracker),
       rss_stat_tracker_(context),
       drm_tracker_(context),
       iostat_tracker_(context),
@@ -776,7 +834,9 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
 
     ConstBytes fld_bytes = fld.as_bytes();
     if (fld.id() == FtraceEvent::kGenericFieldNumber) {
-      ParseGenericFtrace(ts, cpu, pid, fld_bytes);
+      ParseLegacyGenericFtrace(ts, cpu, pid, fld_bytes);
+    } else if (GenericFtraceTracker::IsGenericFtraceEvent(fld.id())) {
+      ParseGenericFtrace(fld.id(), ts, cpu, pid, fld_bytes);
     } else if (fld.id() != FtraceEvent::kSchedSwitchFieldNumber) {
       // sched_switch parsing populates the raw table by itself
       ParseTypedFtraceToRaw(fld.id(), ts, cpu, pid, fld_bytes, seq_state);
@@ -1516,10 +1576,10 @@ void FtraceParser::MaybeOnFirstFtraceEvent() {
   has_seen_first_ftrace_packet_ = true;
 }
 
-void FtraceParser::ParseGenericFtrace(int64_t ts,
-                                      uint32_t cpu,
-                                      uint32_t tid,
-                                      ConstBytes blob) {
+void FtraceParser::ParseLegacyGenericFtrace(int64_t ts,
+                                            uint32_t cpu,
+                                            uint32_t tid,
+                                            ConstBytes blob) {
   protos::pbzero::GenericFtraceEvent::Decoder evt(blob);
   StringId event_id = context_->storage->InternString(evt.event_name());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
@@ -1543,6 +1603,51 @@ void FtraceParser::ParseGenericFtrace(int64_t ts,
       StringId str_value = context_->storage->InternString(fld.str_value());
       inserter.AddArg(field_name_id, Variadic::String(str_value));
     }
+  }
+}
+
+void FtraceParser::ParseGenericFtrace(uint32_t event_proto_id,
+                                      int64_t ts,
+                                      uint32_t cpu,
+                                      uint32_t tid,
+                                      ConstBytes blob) {
+  if (PERFETTO_UNLIKELY(!context_->config.ingest_ftrace_in_raw_table))
+    return;
+
+  protozero::ProtoDecoder decoder(blob);
+  GenericFtraceTracker::GenericEvent* descriptor =
+      generic_tracker_->GetEvent(event_proto_id);
+  if (!descriptor) {
+    PERFETTO_DLOG("Failed to find descriptor for proto id %" PRIu32 "",
+                  event_proto_id);
+    context_->storage->IncrementStats(stats::ftrace_generic_descriptor_errors);
+    return;
+  }
+
+  // Insert event into |ftrace_event|.
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
+  auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
+  tables::FtraceEventTable::Id id =
+      context_->storage->mutable_ftrace_event_table()
+          ->Insert({ts, descriptor->name, utid, {}, {}, ucpu})
+          .id;
+  auto inserter = context_->args_tracker->AddArgsTo(id);
+
+  // Insert fields into |args|.
+  for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
+    if (PERFETTO_UNLIKELY(
+            (fld.id() >= descriptor->fields.size()) ||
+            (descriptor->fields[fld.id()].type == ProtoSchemaType::kUnknown))) {
+      context_->storage->IncrementStats(
+          stats::ftrace_generic_descriptor_errors);
+      PERFETTO_DLOG("Skipping unknown generic field with id %" PRIu32 "",
+                    fld.id());
+      continue;
+    }
+    auto& field_descriptor = descriptor->fields[fld.id()];
+    auto name_id = field_descriptor.name;
+    auto type = field_descriptor.type;
+    InsertFieldIntoArgs(name_id, type, fld, inserter, context_);
   }
 }
 
@@ -1611,53 +1716,7 @@ void FtraceParser::ParseTypedFtraceToRaw(
       }
     }
 
-    switch (type) {
-      case ProtoSchemaType::kInt32:
-      case ProtoSchemaType::kInt64:
-      case ProtoSchemaType::kSfixed32:
-      case ProtoSchemaType::kSfixed64:
-      case ProtoSchemaType::kBool:
-      case ProtoSchemaType::kEnum: {
-        inserter.AddArg(name_id, Variadic::Integer(fld.as_int64()));
-        break;
-      }
-      case ProtoSchemaType::kUint32:
-      case ProtoSchemaType::kUint64:
-      case ProtoSchemaType::kFixed32:
-      case ProtoSchemaType::kFixed64: {
-        // Note that SQLite functions will still treat unsigned values
-        // as a signed 64 bit integers (but the translation back to ftrace
-        // refers to this storage directly).
-        inserter.AddArg(name_id, Variadic::UnsignedInteger(fld.as_uint64()));
-        break;
-      }
-      case ProtoSchemaType::kSint32:
-      case ProtoSchemaType::kSint64: {
-        inserter.AddArg(name_id, Variadic::Integer(fld.as_sint64()));
-        break;
-      }
-      case ProtoSchemaType::kString:
-      case ProtoSchemaType::kBytes: {
-        StringId value = context_->storage->InternString(fld.as_string());
-        inserter.AddArg(name_id, Variadic::String(value));
-        break;
-      }
-      case ProtoSchemaType::kDouble: {
-        inserter.AddArg(name_id, Variadic::Real(fld.as_double()));
-        break;
-      }
-      case ProtoSchemaType::kFloat: {
-        inserter.AddArg(name_id,
-                        Variadic::Real(static_cast<double>(fld.as_float())));
-        break;
-      }
-      case ProtoSchemaType::kUnknown:
-      case ProtoSchemaType::kGroup:
-      case ProtoSchemaType::kMessage:
-        PERFETTO_DLOG("Could not store %s as a field in args table.",
-                      ProtoSchemaToString(type));
-        break;
-    }
+    InsertFieldIntoArgs(name_id, type, fld, inserter, context_);
   }
 }
 
@@ -1706,8 +1765,10 @@ void FtraceParser::ParseSchedWaking(int64_t timestamp,
   protos::pbzero::SchedWakingFtraceEvent::Decoder sw(blob);
   uint32_t wakee_pid = static_cast<uint32_t>(sw.pid());
   StringId name_id = context_->storage->InternString(sw.comm());
-  auto wakee_utid = context_->process_tracker->UpdateThreadName(
-      wakee_pid, name_id, ThreadNamePriority::kFtrace);
+  UniqueTid wakee_utid =
+      context_->process_tracker->GetOrCreateThread(wakee_pid);
+  context_->process_tracker->UpdateThreadName(wakee_utid, name_id,
+                                              ThreadNamePriority::kFtrace);
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(timestamp,
                                                              wakee_utid, utid);
@@ -2419,8 +2480,8 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   // they get resolved to the same process.
   auto source_utid = proc_tracker->GetOrCreateThread(source_tid);
   auto new_utid = proc_tracker->StartNewThread(timestamp, new_tid);
-  proc_tracker->UpdateThreadNameByUtid(new_utid, new_comm,
-                                       ThreadNamePriority::kFtrace);
+  proc_tracker->UpdateThreadName(new_utid, new_comm,
+                                 ThreadNamePriority::kFtrace);
   proc_tracker->AssociateThreads(source_utid, new_utid);
 
   ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(

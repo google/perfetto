@@ -613,11 +613,11 @@ function getHeapGraphNodeOptionalActions(
         if (value !== undefined) {
           const uuid = uuidv4Sql();
           const pathHashTableName = `_heap_graph_filtered_path_hashes_${uuid}`;
-          await createPerfettoTable(
-            trace.engine,
-            pathHashTableName,
-            pathHashesToTableStatement(value),
-          );
+          await createPerfettoTable({
+            engine: trace.engine,
+            name: pathHashTableName,
+            as: pathHashesToTableStatement(value),
+          });
 
           const tableName = `_heap_graph${tableModifier(isDominator)}object_references`;
           const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes, ${pathHashTableName}`;
@@ -645,11 +645,11 @@ function getHeapGraphNodeOptionalActions(
             if (value !== undefined) {
               const uuid = uuidv4Sql();
               const pathHashTableName = `_heap_graph_filtered_path_hashes_${uuid}`;
-              await createPerfettoTable(
-                trace.engine,
-                pathHashTableName,
-                pathHashesToTableStatement(value),
-              );
+              await createPerfettoTable({
+                engine: trace.engine,
+                name: pathHashTableName,
+                as: pathHashesToTableStatement(value),
+              });
 
               const tableName = `_heap_graph${tableModifier(isDominator)}incoming_references`;
               const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes, ${pathHashTableName}`;
@@ -671,11 +671,11 @@ function getHeapGraphNodeOptionalActions(
             if (value !== undefined) {
               const uuid = uuidv4Sql();
               const pathHashTableName = `_heap_graph_filtered_path_hashes_${uuid}`;
-              await createPerfettoTable(
-                trace.engine,
-                pathHashTableName,
-                pathHashesToTableStatement(value),
-              );
+              await createPerfettoTable({
+                engine: trace.engine,
+                name: pathHashTableName,
+                as: pathHashesToTableStatement(value),
+              });
 
               const tableName = `_heap_graph${tableModifier(isDominator)}outgoing_references`;
               const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes, ${pathHashTableName}`;
@@ -705,11 +705,11 @@ function getHeapGraphNodeOptionalActions(
             if (value !== undefined) {
               const uuid = uuidv4Sql();
               const pathHashTableName = `_heap_graph_filtered_path_hashes_${uuid}`;
-              await createPerfettoTable(
-                trace.engine,
-                pathHashTableName,
-                pathHashesToTableStatement(value),
-              );
+              await createPerfettoTable({
+                engine: trace.engine,
+                name: pathHashTableName,
+                as: pathHashesToTableStatement(value),
+              });
 
               const tableName = `_heap_graph${tableModifier(isDominator)}retained_object_counts`;
               const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes, ${pathHashTableName}`;
@@ -731,11 +731,11 @@ function getHeapGraphNodeOptionalActions(
             if (value !== undefined) {
               const uuid = uuidv4Sql();
               const pathHashTableName = `_heap_graph_filtered_path_hashes_${uuid}`;
-              await createPerfettoTable(
-                trace.engine,
-                pathHashTableName,
-                pathHashesToTableStatement(value),
-              );
+              await createPerfettoTable({
+                engine: trace.engine,
+                name: pathHashTableName,
+                as: pathHashesToTableStatement(value),
+              });
 
               const tableName = `_heap_graph${tableModifier(isDominator)}retaining_object_counts`;
               const macroArgs = `_heap_graph${tableModifier(isDominator)}path_hashes, ${pathHashTableName}`;

@@ -401,6 +401,7 @@ struct Column {
   SortState sort_state;
   DuplicateState duplicate_state;
   SpecializedStorage specialized_storage = SpecializedStorage{};
+  uint32_t mutations = 0;
 };
 
 // Handle for referring to a filter value during query execution.

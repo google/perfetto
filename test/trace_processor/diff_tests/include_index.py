@@ -73,6 +73,7 @@ from diff_tests.parser.fs.tests import Fs
 from diff_tests.parser.ftrace.block_io_tests import BlockIo
 from diff_tests.parser.ftrace.ftrace_crop_tests import FtraceCrop
 from diff_tests.parser.ftrace.kprobes_tests import Kprobes
+from diff_tests.parser.ftrace.generic_ftrace_tests import GenericFtrace
 from diff_tests.parser.fuchsia.tests import Fuchsia
 from diff_tests.parser.gecko.tests import GeckoParser
 from diff_tests.parser.generic_kernel.tests import GenericKernelParser
@@ -122,6 +123,7 @@ from diff_tests.stdlib.android.heap_profile_tests import HeapProfile
 from diff_tests.stdlib.android.memory import AndroidMemory
 from diff_tests.stdlib.android.startups_tests import Startups
 from diff_tests.stdlib.android.sysui_cujs_test import SystemUICujs
+from diff_tests.stdlib.android.bitmaps import AndroidBitmaps
 from diff_tests.stdlib.android.tests import AndroidStdlib
 from diff_tests.stdlib.chrome.chrome_stdlib_testsuites import CHROME_STDLIB_TESTSUITES
 from diff_tests.stdlib.counters.tests import StdlibCounterIntervals
@@ -186,6 +188,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       Etm,
       Fs,
       Fuchsia,
+      GenericFtrace,
       GenericKernelParser,
       GraphicsDrmRelatedFtraceEvents,
       GraphicsGpuTrace,
@@ -268,6 +271,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       AndroidMemory,
       AndroidGpu,
       AndroidStdlib,
+      AndroidBitmaps,
       CpuClusters,
       Battery,
       DesktopMode,

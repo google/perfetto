@@ -367,6 +367,12 @@ base::Status CreateQueriesAndComputeMetrics(
     protos::pbzero::TraceMetricV2Spec::Decoder first_spec(first->spec);
 
     auto query_it = processor->ExecuteQuery(first->query);
+    if (!query_it.Status().ok()) {
+      return base::ErrStatus(
+          "Error while executing query for metric bundle '%s': %s",
+          bundle_id.c_str(), query_it.Status().c_message());
+    }
+
     ASSIGN_OR_RETURN(std::vector<DimensionWithIndex> dimensions_with_index,
                      GetDimensionsWithIndex(first_spec, query_it));
 
