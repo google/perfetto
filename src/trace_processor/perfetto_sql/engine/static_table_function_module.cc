@@ -67,7 +67,7 @@ std::string CreateTableStmt(uint32_t args_count,
   for (uint32_t i = 0; i < args_count; ++i) {
     create_stmt += "_fn_arg" + std::to_string(i) + " HIDDEN, ";
   }
-  create_stmt += "_auto_id INTEGER NOT NULL HIDDEN, ";
+  create_stmt += "_auto_id HIDDEN INTEGER NOT NULL, ";
   create_stmt += "PRIMARY KEY(_auto_id)) WITHOUT ROWID";
   return create_stmt;
 }
