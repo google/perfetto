@@ -265,6 +265,9 @@ TEST_F(PerfettoPriorityBoostIntegrationTest, TestTraced) {
 
   ASSERT_NE(traced_tid, -1);
 
+  base::SchedOsManager::SchedOsConfig init_traced_sched_info =
+      GetSchedInfo(traced_tid);
+
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(64);
   auto* priority_boost_config = trace_config.mutable_priority_boost();
@@ -280,10 +283,12 @@ TEST_F(PerfettoPriorityBoostIntegrationTest, TestTraced) {
                 Eq(base::SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -13}));
   }
 
-  helper.DisableTracing();
+  helper.FreeBuffers();
   helper.WaitForTracingDisabled();
-  // traced priority is not yet restored at this point
-  // TODO(ktimofeev): assert priority restored to initial
+  // The tracing session is destroyed at this point, and the priority is
+  // restored to the initial value
+  auto traced_sched_info_stopped = GetSchedInfo(traced_tid);
+  ASSERT_EQ(traced_sched_info_stopped, init_traced_sched_info);
 }
 
 }  // namespace perfetto
