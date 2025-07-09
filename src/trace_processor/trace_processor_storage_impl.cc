@@ -142,6 +142,10 @@ void TraceProcessorStorageImpl::DestroyContext() {
   TraceProcessorContext context;
   context.storage = std::move(context_.storage);
 
+  // Fix for nullptr exception in forwarding_trace_parser (b/366266937)
+  context.reader_registry = std::move(context_.reader_registry);
+  context.process_tracker = std::move(context_.process_tracker);
+
   // TODO(b/309623584): Decouple from storage and remove from here. This
   // function should only move storage and delete everything else.
   context.heap_graph_tracker = std::move(context_.heap_graph_tracker);
