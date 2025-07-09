@@ -406,8 +406,7 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         }
         if (name == "thread_name") {
           auto thread_name_id = context_->storage->InternString(args_name);
-          UniqueTid event_utid = procs->GetOrCreateThread(event.tid);
-          procs->UpdateThreadName(event_utid, thread_name_id,
+          procs->UpdateThreadName(utid, thread_name_id,
                                   ThreadNamePriority::kOther);
         } else if (name == "process_name") {
           procs->SetProcessMetadata(

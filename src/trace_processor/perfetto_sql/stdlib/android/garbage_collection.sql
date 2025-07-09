@@ -149,12 +149,12 @@ SELECT
   last_value,
   value,
   CASE
-    WHEN gc_name GLOB '*young*'
-    THEN 'young'
     WHEN gc_name GLOB '*NativeAlloc*'
     THEN 'native_alloc'
     WHEN gc_name GLOB '*Alloc*'
     THEN 'alloc'
+    WHEN gc_name GLOB '*young*'
+    THEN 'young'
     WHEN gc_name GLOB '*CollectorTransition*'
     THEN 'collector_transition'
     WHEN gc_name GLOB '*Explicit*'

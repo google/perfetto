@@ -69,13 +69,8 @@ class PerfettoSqlParser {
   // Indicates that the specified SQL was a CREATE PERFETTO TABLE statement
   // with the following parameters.
   struct CreateTable {
-    enum Implementation : uint8_t {
-      kRuntimeTable,
-      kDataframe,
-    };
     bool replace;
     std::string name;
-    Implementation implementation;
     std::vector<sql_argument::ArgumentDefinition> schema;
     // SQL source for the select statement.
     SqlSource sql;

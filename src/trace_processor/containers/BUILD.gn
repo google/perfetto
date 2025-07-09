@@ -21,20 +21,13 @@ import("../../../gn/test.gni")
 # build to pass strict header checks.
 perfetto_component("containers") {
   public = [
-    "bit_vector.h",
     "implicit_segment_forest.h",
     "interval_intersector.h",
     "interval_tree.h",
     "null_term_string_view.h",
-    "row_map.h",
-    "row_map_algorithms.h",
     "string_pool.h",
   ]
-  sources = [
-    "bit_vector.cc",
-    "row_map.cc",
-    "string_pool.cc",
-  ]
+  sources = [ "string_pool.cc" ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/protozero",
@@ -46,12 +39,10 @@ perfetto_component("containers") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
-    "bit_vector_unittest.cc",
     "implicit_segment_forest_unittest.cc",
     "interval_intersector_unittest.cc",
     "interval_tree_unittest.cc",
     "null_term_string_view_unittest.cc",
-    "row_map_unittest.cc",
     "string_pool_unittest.cc",
   ]
   deps = [
@@ -73,11 +64,6 @@ if (enable_perfetto_benchmarks) {
       "../../../gn:default_deps",
       "../../base",
     ]
-    sources = [
-      "bit_vector_benchmark.cc",
-      "row_map_algorithms_benchmark.cc",
-      "row_map_benchmark.cc",
-      "string_pool_benchmark.cc",
-    ]
+    sources = [ "string_pool_benchmark.cc" ]
   }
 }

@@ -14,28 +14,17 @@
 
 import m from 'mithril';
 import {HTMLAttrs} from './common';
-import {classNames} from '../base/classnames';
 
-export interface CardAttrs extends HTMLAttrs {
-  readonly borderless?: boolean;
-}
+export interface CardAttrs extends HTMLAttrs {}
 
 export class Card implements m.ClassComponent<CardAttrs> {
   view(vnode: m.Vnode<CardAttrs>): m.Children {
-    const {borderless, className, ...htmlAttrs} = vnode.attrs;
-    return m(
-      '.pf-card',
-      {
-        className: classNames(borderless && 'pf-card--borderless', className),
-        ...htmlAttrs,
-      },
-      vnode.children,
-    );
+    return m('.pf-card', vnode.attrs, vnode.children);
   }
 }
 
-export class CardList implements m.ClassComponent<HTMLAttrs> {
+export class CardStack implements m.ClassComponent<HTMLAttrs> {
   view(vnode: m.Vnode<{}>): m.Children {
-    return m('.pf-card-list', vnode.children);
+    return m('.pf-card-stack', vnode.children);
   }
 }
