@@ -88,7 +88,7 @@ class TrackEventSessionObserverRegistry {
   }
 
   void ForEachObserverForRegistries(
-      const std::vector<const TrackEventCategoryRegistry*> registries,
+      const std::vector<const TrackEventCategoryRegistry*>& registries,
       std::function<void(TrackEventSessionObserver*)> callback) {
     std::unique_lock<std::recursive_mutex> lock(mutex_);
     for (auto& registered_observer : observers_) {
