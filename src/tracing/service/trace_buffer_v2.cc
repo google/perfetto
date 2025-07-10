@@ -116,8 +116,8 @@ bool BufIterator::NextChunkInBuffer() {
 
   TBChunk* cur_chunk = nullptr;
   size_t off;
-  if (target_chunk_ == nullptr) {
-    // target_chunk_ is nullptr the first time we initialize from the ctor.
+  if (end_chunk_ == nullptr) {
+    // end_chunk_ is nullptr the first time we initialize from the ctor.
     if (buf_->wr_ < buf_->used_size_) {
       off = buf_->wr_;
     } else {
@@ -127,7 +127,7 @@ bool BufIterator::NextChunkInBuffer() {
     }
     // cur_chunk stays deliberately = nullptr
   } else {
-    cur_chunk = target_chunk_;
+    cur_chunk = end_chunk_;
     off = buf_->OffsetOf(cur_chunk);
   }
 
@@ -135,7 +135,7 @@ bool BufIterator::NextChunkInBuffer() {
     // If we have a chunk (always, with the exception of the first call from the
     // constructor) move to its end and start the search there.
     if (cur_chunk) {
-      PERFETTO_DCHECK(cur_chunk->exists);
+      PERFETTO_DCHECK(cur_chunk->IsChecksumValid(off));
       off += cur_chunk->outer_size();
       if (limit_ && off >= limit_)
         return false;
@@ -150,7 +150,6 @@ bool BufIterator::NextChunkInBuffer() {
     }
 
     cur_chunk = buf_->GetTBChunkAt(off);
-    PERFETTO_DCHECK(cur_chunk->exists);
     if (cur_chunk->is_padding()) {
       continue;  // The chunk has been consumed/deleted.
     }
@@ -181,7 +180,7 @@ bool BufIterator::NextChunkInBuffer() {
     if (SetNextChunkIfContiguousAndValid(
             seq, /*prev_chunk_id=*/seq->last_chunk_id_consumed,
             /*next_chunk=*/first_chunk_of_seq, /*next_seq_idx=*/0)) {
-      target_chunk_ = cur_chunk;
+      end_chunk_ = cur_chunk;
       return true;
     }
   }
@@ -275,7 +274,7 @@ bool BufIterator::SetNextChunkIfContiguousAndValid(
 // See comments around BufIterator in the .h file for the rationale.
 bool BufIterator::NextChunk() {
   PERFETTO_DCHECK(valid());
-  const bool move_in_seq_order = chunk_ != target_chunk_;
+  const bool move_in_seq_order = chunk_ != end_chunk_;
   if (move_in_seq_order) {
     // Move to the next chunk in the linked list.
     // We should be able to move next in the list because we reached this
@@ -905,7 +904,7 @@ TraceBufferV2::TBChunk* TraceBufferV2::CreateTBChunk(size_t off,
     data_.EnsureCommitted(end);
   }
   TBChunk* chunk = GetTBChunkAtUnchecked(off);
-  return new (chunk) TBChunk(payload_size);
+  return new (chunk) TBChunk(off, payload_size);
 }
 
 // Note for reviewer: unlike the old v1 impl, here DeleteNextChunksFor also
@@ -1064,14 +1063,15 @@ void TraceBufferV2::DumpForTesting() {
   PERFETTO_DLOG("wr=%zu, size=%zu, used_size=%zu", wr_, size_, used_size_);
   if (rd_iter_.valid()) {
     PERFETTO_DLOG("rd=%zu, target=%zu, seq=%d", OffsetOf(rd_iter_.chunk()),
-                  OffsetOf(rd_iter_.target_chunk()),
+                  OffsetOf(rd_iter_.end_chunk()),
                   !!rd_iter_.sequence_state());
   } else {
     PERFETTO_DLOG("rd=invalid");
   }
   for (size_t rd = 0; rd < size_;) {
     TBChunk* c = GetTBChunkAtUnchecked(rd);
-    if (c->exists) {
+    bool checksum_valid = c->IsChecksumValid(rd);
+    if (checksum_valid) {
       PERFETTO_DLOG(
           "[%06zu-%06zu] size=%05u(%05u) id=%05u pr_wr=%08x flags=%08x", rd,
           rd + c->outer_size(), c->payload_size, c->payload_avail, c->chunk_id,
