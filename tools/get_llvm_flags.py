@@ -58,7 +58,6 @@ def main():
     if part.startswith('-L'):
       # Add library search paths (e.g., "-L/usr/lib/llvm-19/lib")
       ldflags_list.append(part)
-      ldflags_list.append(f'-Wl,-rpath,{part[2:]}')
     elif part.startswith('-l'):
       # Add library names (e.g., "LLVM-19", "z")
       libs_list.append(part[2:])

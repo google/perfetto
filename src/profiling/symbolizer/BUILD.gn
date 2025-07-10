@@ -75,8 +75,7 @@ if (enable_perfetto_llvm_symbolizer) {
     ldflags = _llvm_flags_output.ldflags
     cflags = _llvm_flags_output.cflags
     if (is_clang) {
-      ldflags += [ "-stdlib=libstdc++" ]
-      cflags += [ "-stdlib=libstdc++" ]
+      ldflags += [ "-lstdc++" ]
     }
     defines = _llvm_flags_output.defines
 
