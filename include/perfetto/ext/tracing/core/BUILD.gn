@@ -15,6 +15,7 @@
 source_set("core") {
   public_deps = [
     "../../../../../protos/perfetto/common:cpp",
+    "../../../../../protos/perfetto/config/priority_boost:cpp",
     "../../../tracing/core",
     "../../base",
   ]

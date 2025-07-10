@@ -29,6 +29,7 @@ if (!build_with_chromium && enable_perfetto_integration_tests) {
       "../protos/perfetto/config:cpp",
       "../protos/perfetto/config:zero",
       "../protos/perfetto/config/power:zero",
+      "../protos/perfetto/config/priority_boost:cpp",
       "../protos/perfetto/config/sys_stats:cpp",
       "../protos/perfetto/trace:cpp",
       "../protos/perfetto/trace:zero",
