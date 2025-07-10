@@ -304,6 +304,12 @@ What happened meanwhile?
 
 ![Recap](/docs/images/sched-latency/recap.png)
 
+We can use the **"Critical path lite"** button to see the list of threads
+that lead to the change of state of the main thread, without having to follow
+manually the various "Woken by" labels in the thread state tracks:
+
+![Critical Path](/docs/images/sched-latency/critical_path.png)
+
 Now there is something suspicious here, let's recap:
 
 - The main thread is blocked for 1.5 ms
@@ -375,7 +381,8 @@ Unfortunately a few things go wrong here:
  can lead to suboptimal decisions when waking up a waiters upon unlock().
  In fact, it can end up unparking a thread that was bound to the same CPU of the
  current one.
- The Linux/Android CFS scheduler is NOT
+
+- The Linux/Android CFS scheduler is NOT
  [work conserving](https://en.wikipedia.org/wiki/Work-conserving_scheduler)
  when using the default SCHED_OTHER policy, and will NOT aggressively migrate
  threads across cores to minimize scheduling latency (it does so to balance
@@ -384,7 +391,8 @@ Unfortunately a few things go wrong here:
  The end result is that the two threads end up executing in linear order on the
  same CPU, despite the fact that the mutex was unlocked most of the time.
  This serialization of the BG workload and amplifies even more the blocking
- time of the main thread.
+ time of the main thread. You can notice the absence of real parallelization of
+ the SystemUIBg-* threads in the screenshots above.
 
 [AbstractQueuedSynchronizer]: https://cs.android.com/android/platform/superproject/main/+/main:libcore/ojluni/src/main/java/java/util/concurrent/locks/AbstractQueuedSynchronizer.java;drc=61197364367c9e404c7da6900658f1b16c42d0da;l=670
 
