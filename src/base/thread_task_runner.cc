@@ -114,7 +114,7 @@ uint64_t ThreadTaskRunner::GetThreadCPUTimeNsForTesting() {
   return thread_time_ns;
 }
 PlatformThreadId ThreadTaskRunner::GetThreadIdForTesting() {
-  PlatformThreadId thread_id = -1;
+  PlatformThreadId thread_id = static_cast<PlatformThreadId>(-1);
   PostTaskAndWaitForTesting([&thread_id] { thread_id = GetThreadId(); });
   return thread_id;
 }
