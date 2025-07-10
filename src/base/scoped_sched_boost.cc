@@ -36,6 +36,9 @@ constexpr pid_t kCurrentPid = 0;
 
 class ThreadMgr {
  public:
+  // In this class we manage the boost state for the whole process.
+  // If we want to use it for each single thread, this needs to become
+  // 'GetInstanceForThread()'.
   static ThreadMgr* GetInstance();
 
   explicit ThreadMgr(SchedOsHooks*);
@@ -148,6 +151,9 @@ Status SchedOsHooks::SetSchedConfig(const SchedOsConfig& arg) {
     return ErrStatus("sched_setscheduler(%d, %d) failed (errno: %d, %s)",
                      arg.policy, arg.rt_prio, errno, strerror(errno));
   }
+  // For the real-time policies the 'arg.rt_prio' value is >= 1.
+  // The userspace policies (SCHED_OTHER, SCHED_BATCH, SCHED_IDLE) use the nice
+  // value.
   if (arg.rt_prio == 0) {
     ret = setpriority(PRIO_PROCESS, kCurrentPid, arg.nice);
     if (ret == -1) {
@@ -171,6 +177,9 @@ StatusOr<SchedOsHooks::SchedOsConfig> SchedOsHooks::GetCurrentSchedConfig()
                      strerror(errno));
   }
   int nice = 0;
+  // For the real-time policies the 'param.sched_priority' value is >= 1.
+  // The userspace policies (SCHED_OTHER, SCHED_BATCH, SCHED_IDLE) use the nice
+  // value.
   if (param.sched_priority == 0) {
     errno = 0;
     nice = getpriority(PRIO_PROCESS, kCurrentPid);
