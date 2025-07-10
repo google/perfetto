@@ -143,6 +143,8 @@ class TraceProcessorImpl : public TraceProcessor,
   // Needed for iterators to be able to access the context.
   friend class IteratorImpl;
 
+  void FlushInternal(bool should_build_bounds_table);
+
   bool IsRootMetricField(const std::string& metric_name);
 
   static std::unique_ptr<PerfettoSqlEngine> InitPerfettoSqlEngine(
@@ -156,9 +158,6 @@ class TraceProcessorImpl : public TraceProcessor,
       std::unordered_map<std::string, std::string>* proto_fn_name_to_path,
       TraceProcessor*,
       bool notify_eof_called);
-
-  static std::vector<PerfettoSqlEngine::LegacyStaticTable>
-  GetLegacyStaticTables(TraceStorage* storage);
 
   static std::vector<PerfettoSqlEngine::UnfinalizedStaticTable>
   GetUnfinalizedStaticTables(TraceStorage* storage);

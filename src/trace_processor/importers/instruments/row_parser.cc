@@ -49,8 +49,8 @@ void RowParser::ParseInstrumentsRow(int64_t ts, instruments_importer::Row row) {
 
   // TODO(leszeks): Avoid setting thread/process name if we've already seen this
   // Thread* / Process*.
-  context_->process_tracker->UpdateThreadNameByUtid(utid, thread->fmt,
-                                                    ThreadNamePriority::kOther);
+  context_->process_tracker->UpdateThreadName(utid, thread->fmt,
+                                              ThreadNamePriority::kOther);
   context_->process_tracker->SetProcessNameIfUnset(upid, process->fmt);
 
   auto& stack_profile_tracker = *context_->stack_profile_tracker;

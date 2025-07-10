@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.tasks.threads_w_processes;
+INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
 
 INCLUDE PERFETTO MODULE wattson.ui.continuous_estimates;
 
@@ -164,11 +164,11 @@ SELECT
 FROM _interval_intersect!(
   (
     _ii_subquery!(_unioned_wattson_estimates_mw),
-    _ii_subquery!(_sched_w_thread_process_package_summary)
+    _ii_subquery!(_wattson_task_slices)
   ),
   (cpu)
 ) AS ii
 JOIN _unioned_wattson_estimates_mw AS uw
   ON uw._auto_id = id_0
-JOIN _sched_w_thread_process_package_summary AS s
+JOIN _wattson_task_slices AS s
   ON s._auto_id = id_1;

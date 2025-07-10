@@ -412,5 +412,39 @@ TEST(StructuredQueryGeneratorTest, Median) {
   )"));
 }
 
+TEST(StructuredQueryGeneratorTest, CycleDetection) {
+  StructuredQueryGenerator gen;
+  auto proto_a = ToProto(R"(
+    id: "a"
+    inner_query_id: "b"
+  )");
+  ASSERT_OK(gen.AddQuery(proto_a.data(), proto_a.size()));
+
+  auto proto_b = ToProto(R"(
+    id: "b"
+    inner_query_id: "a"
+  )");
+  ASSERT_OK(gen.AddQuery(proto_b.data(), proto_b.size()));
+
+  auto ret = gen.GenerateById("a");
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Cycle detected in structured query"));
+}
+
+TEST(StructuredQueryGeneratorTest, SelfCycleDetection) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    id: "a"
+    inner_query_id: "a"
+  )");
+  ASSERT_OK(gen.AddQuery(proto.data(), proto.size()));
+
+  auto ret = gen.GenerateById("a");
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Cycle detected in structured query"));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::perfetto_sql::generator

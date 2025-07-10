@@ -1236,7 +1236,6 @@ base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
         *size_mb = static_cast<double>(parsed_size) / 1E6;
         fprintf(stderr, "\rLoading trace: %.2f MB\r", *size_mb);
       });
-  g_tp->Flush();
   if (!read_status.ok()) {
     return base::ErrStatus("Could not read trace file (path: %s): %s",
                            trace_file_path.c_str(), read_status.c_message());
@@ -1247,6 +1246,7 @@ base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
                                       getenv("PERFETTO_SYMBOLIZER_MODE"));
 
   if (symbolizer) {
+    g_tp->Flush();
     profiling::SymbolizeDatabase(
         g_tp, symbolizer.get(), [](const std::string& trace_proto) {
           std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);
@@ -1258,11 +1258,11 @@ base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
             return;
           }
         });
-    g_tp->Flush();
   }
 
   auto maybe_map = profiling::GetPerfettoProguardMapPath();
   if (!maybe_map.empty()) {
+    g_tp->Flush();
     profiling::ReadProguardMapsToDeobfuscationPackets(
         maybe_map, [](const std::string& trace_proto) {
           std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);

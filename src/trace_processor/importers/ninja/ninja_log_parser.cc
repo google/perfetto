@@ -169,8 +169,8 @@ base::Status NinjaLogParser::NotifyEndOfFile() {
 
       base::StackString<32> name("Worker");
       StringId name_id = ctx_->storage->InternString(name.string_view());
-      ctx_->process_tracker->UpdateThreadNameByUtid(utid, name_id,
-                                                    ThreadNamePriority::kOther);
+      ctx_->process_tracker->UpdateThreadName(utid, name_id,
+                                              ThreadNamePriority::kOther);
       TrackId track_id = ctx_->track_tracker->InternThreadTrack(utid);
       workers.emplace_back(Worker{/*busy_until=*/job.end_ms, track_id});
       worker = &workers.back();

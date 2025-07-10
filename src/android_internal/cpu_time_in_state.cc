@@ -28,10 +28,6 @@
 namespace perfetto {
 namespace android_internal {
 
-bool EnsureCpuTimesAvailable() {
-  return android::bpf::startTrackingUidTimes();
-}
-
 bool GetCpuTimes(CpuTime* cpu_times,
                  size_t* size_of_arr,
                  uint64_t* last_update_ns) {

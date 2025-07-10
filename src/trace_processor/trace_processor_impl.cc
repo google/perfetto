@@ -47,7 +47,6 @@
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser_impl.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event_parser_impl.h"
@@ -588,9 +587,15 @@ base::Status TraceProcessorImpl::Parse(TraceBlobView blob) {
 }
 
 void TraceProcessorImpl::Flush() {
+  FlushInternal(true);
+}
+
+void TraceProcessorImpl::FlushInternal(bool should_build_bounds_table) {
   TraceProcessorStorageImpl::Flush();
-  BuildBoundsTable(engine_->sqlite_engine()->db(),
-                   GetTraceTimestampBoundsNs(*context_.storage));
+  if (should_build_bounds_table) {
+    BuildBoundsTable(engine_->sqlite_engine()->db(),
+                     GetTraceTimestampBoundsNs(*context_.storage));
+  }
 }
 
 base::Status TraceProcessorImpl::NotifyEndOfFile() {
@@ -607,7 +612,7 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
     current_trace_name_ = "Unnamed trace";
 
   // Last opportunity to flush all pending data.
-  Flush();
+  FlushInternal(false);
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
   if (context_.etm_tracker) {
@@ -985,12 +990,6 @@ std::vector<uint8_t> TraceProcessorImpl::GetMetricDescriptors() {
   return metrics_descriptor_pool_.SerializeAsDescriptorSet();
 }
 
-std::vector<PerfettoSqlEngine::LegacyStaticTable>
-TraceProcessorImpl::GetLegacyStaticTables(TraceStorage*) {
-  std::vector<PerfettoSqlEngine::LegacyStaticTable> tables;
-  return tables;
-}
-
 std::vector<PerfettoSqlEngine::UnfinalizedStaticTable>
 TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
   std::vector<PerfettoSqlEngine::UnfinalizedStaticTable> tables;
@@ -1180,8 +1179,6 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   auto engine = std::make_unique<PerfettoSqlEngine>(
       storage->mutable_string_pool(), dataframe_shared_storage,
       config.enable_extra_checks);
-
-  auto legacy_tables = GetLegacyStaticTables(storage);
   auto functions =
       CreateStaticTableFunctions(context, storage, config, engine.get());
 
@@ -1206,8 +1203,8 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
     // Clear the unfinalized tables as all of them have finalized counterparts.
     unfinalized.clear();
   }
-  engine->InitializeStaticTablesAndFunctions(
-      legacy_tables, unfinalized, std::move(finalized), std::move(functions));
+  engine->InitializeStaticTablesAndFunctions(unfinalized, std::move(finalized),
+                                             std::move(functions));
 
   sqlite3* db = engine->sqlite_engine()->db();
   sqlite3_str_split_init(db);

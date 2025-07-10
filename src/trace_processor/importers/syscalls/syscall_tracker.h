@@ -18,14 +18,12 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_SYSCALLS_SYSCALL_TRACKER_H_
 
 #include <limits>
-#include <tuple>
+#include <vector>
 
-#include "perfetto/ext/base/string_view.h"
 #include "src/kernel_utils/syscall_table.h"
-#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
-#include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/track_tracker.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -69,9 +67,9 @@ class SyscallTracker : public Destructible {
 
     if (name == sys_write_string_id_) {
       if (utid >= in_sys_write_.size())
-        in_sys_write_.Resize(utid + 1);
+        in_sys_write_.resize(utid + 1);
 
-      in_sys_write_.Set(utid);
+      in_sys_write_[utid] = true;
     }
   }
 
@@ -86,13 +84,13 @@ class SyscallTracker : public Destructible {
 
     if (name == sys_write_string_id_) {
       if (utid >= in_sys_write_.size())
-        in_sys_write_.Resize(utid + 1);
+        in_sys_write_.resize(utid + 1);
       // Either seeing an exit event without the corresponding entry at the
       // start of the trace, or the slice was closed by
       // MaybeTruncateOngoingWriteSlice.
-      if (!in_sys_write_.IsSet(utid))
+      if (!in_sys_write_[utid])
         return;
-      in_sys_write_.Clear(utid);
+      in_sys_write_[utid] = false;
     }
 
     TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
@@ -104,11 +102,11 @@ class SyscallTracker : public Destructible {
   // android. See callsite for details.
   void MaybeTruncateOngoingWriteSlice(int64_t ts, UniqueTid utid) {
     if (utid >= in_sys_write_.size())
-      in_sys_write_.Resize(utid + 1);
+      in_sys_write_.resize(utid + 1);
 
-    if (!in_sys_write_.IsSet(utid))
+    if (!in_sys_write_[utid])
       return;
-    in_sys_write_.Clear(utid);
+    in_sys_write_[utid] = false;
     context_->storage->IncrementStats(stats::truncated_sys_write_duration);
 
     TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
@@ -122,7 +120,7 @@ class SyscallTracker : public Destructible {
   TraceProcessorContext* const context_;
 
   inline StringId SyscallNumberToStringId(uint32_t syscall_num) {
-    if (syscall_num > kMaxSyscalls)
+    if (syscall_num >= kMaxSyscalls)
       return kNullStringId;
     return arch_syscall_to_string_id_[syscall_num];
   }
@@ -133,7 +131,8 @@ class SyscallTracker : public Destructible {
   StringId sys_write_string_id_ = std::numeric_limits<StringId>::max();
   StringId sys_rt_sigreturn_string_id_ = std::numeric_limits<StringId>::max();
   // UniqueTids currently in a sys_write syscall.
-  BitVector in_sys_write_;
+  // This is a BitVector, but we use a vector for simplicity.
+  std::vector<uint8_t> in_sys_write_;
 };
 
 }  // namespace perfetto::trace_processor

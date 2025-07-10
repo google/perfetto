@@ -132,46 +132,39 @@ export class WattsonThreadSelectionAggregator implements Aggregator {
     return [
       {
         title: 'Thread Name',
-        kind: 'STRING',
         columnId: 'thread_name',
       },
       {
         title: 'TID',
-        kind: 'NUMBER',
         columnId: 'tid',
       },
       {
         title: 'PID',
-        kind: 'NUMBER',
         columnId: 'pid',
       },
       {
         title: 'Active power (estimated mW)',
-        kind: 'NUMBER',
         columnId: 'active_mw',
         sum: true,
       },
       {
         title: 'Active energy (estimated mWs)',
-        kind: 'NUMBER',
         columnId: 'active_mws',
         sum: true,
       },
       {
         title: 'Idle transitions overhead (estimated mWs)',
-        kind: 'NUMBER',
         columnId: 'idle_cost_mws',
         sum: false,
       },
       {
         title: 'Total energy (estimated mWs)',
-        kind: 'NUMBER',
         columnId: 'total_mws',
         sum: true,
       },
       {
         title: '% of total energy',
-        kind: 'PERCENT',
+        formatHint: 'PERCENT',
         columnId: 'percent_of_total_energy',
         sum: false,
       },
