@@ -96,14 +96,6 @@ BufIterator BufIterator::CloneReadOnly(const BufIterator& other) noexcept {
   return bi;
 }
 
-void BufIterator::SetChunk(SequenceState* seq, TBChunk* chunk) {
-  seq_ = seq;
-  chunk_ = chunk;
-  next_frag_off_ = chunk->unread_payload_off();
-  PERFETTO_DCHECK(seq);
-  PERFETTO_DCHECK(seq->chunks.at(seq_idx_) == buf_->OffsetOf(chunk));
-}
-
 bool BufIterator::NextChunkInBuffer() {
   PERFETTO_DCHECK(buf_->used_size_ > 0);
   PERFETTO_DCHECK(buf_->wr_ < buf_->size_);
@@ -165,14 +157,6 @@ bool BufIterator::NextChunkInBuffer() {
 
     SequenceState* seq = buf_->GetSeqForChunk(cur_chunk);
     PERFETTO_DCHECK(seq);  // A non-padding chunk must be part of a sequence.
-    if (seq->skip_in_generation == buf_->read_generation_) {
-      // If we hit this, it means that we tried to read this chunk while
-      // trying to reassmble a fragmented packet started in a prior chunk, but
-      // we failed. We want to skip any chunk in this sequence until the next
-      // BeginRead(), which will increment the read_pass_.
-      continue;
-    }
-
     // `next_chunk` might not be logically contiguous with the last chunk
     // consumed for the sequence. However that does NOT imply that we are
     // missing the chunk. Giving up here would be premature.
@@ -194,30 +178,18 @@ bool BufIterator::NextChunkInBuffer() {
     TBChunk* first_chunk_of_seq = buf_->GetTBChunkAt(first_off);
     PERFETTO_DCHECK(!first_chunk_of_seq->is_padding());
 
-    bool chunk_id_gap =
-        seq->last_chunk_id_consumed.has_value() &&
-        first_chunk_of_seq->chunk_id != *seq->last_chunk_id_consumed + 1;
-    bool needs_patching = cur_chunk->flags & kChunkNeedsPatching;
-
-    if (chunk_id_gap || needs_patching) {
-      PERFETTO_DCHECK(!read_only_iterator_);
-      seq->skip_in_generation = buf_->read_generation_;
-      continue;
+    if (SetNextChunkIfContiguousAndValid(
+            seq, /*prev_chunk_id=*/seq->last_chunk_id_consumed,
+            /*next_chunk=*/first_chunk_of_seq, /*next_seq_idx=*/0)) {
+      target_chunk_ = cur_chunk;
+      return true;
     }
-
-    target_chunk_ = cur_chunk;
-    seq_idx_ = 0;
-    SetChunk(seq, first_chunk_of_seq);
-    return true;
   }
 }
 
 bool BufIterator::NextChunkInSequence() {
   PERFETTO_DCHECK(valid());
   PERFETTO_DCHECK(seq_);
-
-  if (seq_->skip_in_generation == buf_->read_generation_)
-    return false;
 
   auto& chunk_list = seq_->chunks;
 
@@ -255,32 +227,48 @@ bool BufIterator::NextChunkInSequence() {
 
   size_t next_chunk_off = chunk_list.at(next_seq_idx);       // O(1)
   TBChunk* next_chunk = buf_->GetTBChunkAt(next_chunk_off);  // O(1)
-  ChunkID next_chunk_id = next_chunk->chunk_id;              // O(1)
+  // ChunkID next_chunk_id = next_chunk->chunk_id;              // O(1)
 
-  if (next_chunk->flags & kChunkNeedsPatching) {
+  // PERFETTO_DCHECK(!last_chunk_id.has_value() ||
+  //               ChunkIdCompare(*last_chunk_id, next_chunk_id) < 0);
+
+  return SetNextChunkIfContiguousAndValid(seq_, last_chunk_id, next_chunk,
+                                          next_seq_idx);
+}
+
+bool BufIterator::SetNextChunkIfContiguousAndValid(
+    SequenceState* seq,
+    const std::optional<ChunkID>& prev_chunk_id,
+    TBChunk* next_chunk,
+    size_t next_seq_idx) {
+  PERFETTO_DCHECK(seq);
+
+  if (seq->skip_in_generation == buf_->read_generation_) {
+    // If we hit this, it means that we tried to read this chunk while
+    // trying to reassmble a fragmented packet started in a prior chunk, but
+    // we failed. We want to skip any chunk in this sequence until the next
+    // BeginRead(), which will increment the read_pass_.
     return false;
   }
 
-  // TODO rename chunk_list with chunk_offsets
-  PERFETTO_DCHECK(!last_chunk_id.has_value() ||
-                  ChunkIdCompare(*last_chunk_id, next_chunk_id) < 0);
-  // PERFETTO_ILOG("NextInSeq %lu -> %lu", chunk_list.at(next_seq_idx),
-  //               chunk_list.at(seq_idx_) + 1);  // DNS
+  PERFETTO_DCHECK(seq->chunks.at(next_seq_idx) == buf_->OffsetOf(next_chunk));
+
   bool chunk_id_gap =
-      last_chunk_id.has_value() && next_chunk_id != *last_chunk_id + 1;
+      prev_chunk_id.has_value() && next_chunk->chunk_id != *prev_chunk_id + 1;
+
   bool needs_patching = next_chunk->flags & kChunkNeedsPatching;
+
   if (chunk_id_gap || needs_patching) {
-    // If we get here, either there is a gap in the sequence and we are missing
-    // some intermediate chunks, or one of the chunks in the sequence are
-    // awaiting a patch. In either case, abort the sequence-order walk and skip
-    // this sequence (unless this was a read-only iterator for reassembly).
     if (PERFETTO_LIKELY(!read_only_iterator_)) {
-      seq_->skip_in_generation = buf_->read_generation_;
+      seq->skip_in_generation = buf_->read_generation_;
     }
     return false;
   }
+
+  chunk_ = next_chunk;
+  seq_ = seq;
   seq_idx_ = next_seq_idx;
-  SetChunk(seq_, next_chunk);
+  next_frag_off_ = next_chunk->unread_payload_off();
   return true;
 }
 
@@ -583,7 +571,8 @@ bool TraceBufferV2::ReadNextTracePacket(
           // marking future chunks as data losses or loops.
           frag.seq->skip_in_generation = read_generation_;
 
-          // TODO make thid rd_iter_.InterruptSequence and hanlde the rest above uniformly
+          // TODO make thid rd_iter_.InterruptSequence and hanlde the rest above
+          // uniformly
           if (!rd_iter_.NextChunkInBuffer()) {
             TRACE_BUFFER_DLOG("  ReadNextTracePacket -> false (reassembly)");
             return false;

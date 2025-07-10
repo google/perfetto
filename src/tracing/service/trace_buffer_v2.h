@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include <limits>
+#include <optional>
 #include <unordered_map>
 
 #include "perfetto/base/logging.h"
@@ -215,7 +216,10 @@ class BufIterator {
   std::optional<Frag> NextFragmentInChunk();
   void SkipCurrentSequence();
   bool EraseCurrentChunkAndMoveNext();
-  void SetChunk(SequenceState* seq, TBChunk* chunk);
+  bool SetNextChunkIfContiguousAndValid(SequenceState*,
+                                        const std::optional<ChunkID>&,
+                                        TBChunk*,
+                                        size_t next_seq_idx);
 
   bool valid() {
     PERFETTO_DCHECK((!chunk_ && !target_chunk_) || (chunk_ && target_chunk_));
