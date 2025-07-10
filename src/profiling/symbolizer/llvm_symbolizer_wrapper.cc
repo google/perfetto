@@ -71,10 +71,13 @@ BatchSymbolizationResult LlvmSymbolizerImpl::Symbolize(
   uint32_t total_frames = 0;
   size_t total_string_size = 0;
 
-  // --- First Pass: Symbolize all requests and calculate total memory size ---
-  // The expensive LLVM symbolization happens only in this loop.
+  // First Pass: Symbolize all requests and calculate total memory size.
   for (uint32_t i = 0; i < num_requests; ++i) {
     const auto& request = requests[i];
+
+    // TODO: For future work, implement and actually use the size
+    // condition to maximize performance while still being consistent with LLVM
+    // versions.
 
 #if LLVM_VERSION_MAJOR >= 9
     llvm::Expected<llvm::DIInliningInfo> res_or_err =

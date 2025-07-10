@@ -36,8 +36,11 @@ typedef struct {
   // Path to the binary file.
   const char* binary_path;
   // The length of binary_path. If the caller does not know the size and the
-  // string is null-terminated, this should be set to (uint32_t)-1.
+  // string is null-terminated, this should be set to uint32_t::max() - 1.
+  // The implementation currently assumes that the string is null-terminated,
+  // but the length is passed for future optimizations.
   uint32_t binary_path_len;
+  // The address to be symbolized.
   uint64_t address;
 } SymbolizationRequest;
 
@@ -78,7 +81,10 @@ typedef struct {
   SymbolizationResultRange* ranges;
   // The number of ranges, corresponding to the number of original requests.
   uint32_t num_ranges;
+  // An array of `SymbolizationError` structs, each representing an error that
+  // occurred during symbolization.
   SymbolizationError* errors;
+  // The number of errors that occurred.
   uint32_t num_errors;
 } BatchSymbolizationResult;
 

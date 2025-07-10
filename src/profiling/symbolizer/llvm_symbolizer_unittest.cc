@@ -20,6 +20,7 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
 
 #include <dlfcn.h>
+#include <limits>
 
 #include "src/profiling/symbolizer/llvm_symbolizer.h"
 
@@ -46,10 +47,10 @@ TEST(LlvmSymbolizerTest, Symbolize) {
   constexpr uint64_t inlined_function_address = 0x1140;
   LlvmSymbolizer symbolizer;
   const std::vector<::SymbolizationRequest> requests = {
-      {"test/data/test_symbolizer_binary", static_cast<uint32_t>(-1),
-       normal_function_address},
-      {"test/data/test_symbolizer_binary", static_cast<uint32_t>(-1),
-       inlined_function_address},
+      {"test/data/test_symbolizer_binary",
+       std::numeric_limits<uint32_t>::max() - 1, normal_function_address},
+      {"test/data/test_symbolizer_binary",
+       std::numeric_limits<uint32_t>::max() - 1, inlined_function_address},
   };
   SymbolizationResultBatch result_batch = symbolizer.SymbolizeBatch(requests);
 
