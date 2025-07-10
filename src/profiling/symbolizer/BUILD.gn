@@ -74,6 +74,10 @@ if (enable_perfetto_llvm_symbolizer) {
     libs = _llvm_flags_output.libs
     ldflags = _llvm_flags_output.ldflags
     cflags = _llvm_flags_output.cflags
+    if (is_clang) {
+      ldflags += [ "-stdlib=libstdc++" ]
+      cflags += [ "-stdlib=libstdc++" ]
+    }
     defines = _llvm_flags_output.defines
 
     cflags += [ "-fvisibility=hidden" ]  # Not currently necessary, but good for
