@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Icons} from '../../base/semantic_icons';
-import {assertTrue} from '../../base/logging';
-import {Icon} from '../../widgets/icon';
+import {Trace} from '../../../public/trace';
+import {Icon} from '../../../widgets/icon';
+import {Icons} from '../../../base/semantic_icons';
 import {z} from 'zod';
-import {Trace} from '../../public/trace';
+import {assertTrue} from '../../../base/logging';
 
 const QUERY_HISTORY_KEY = 'queryHistory';
 

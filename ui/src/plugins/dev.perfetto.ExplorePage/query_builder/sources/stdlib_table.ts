@@ -25,21 +25,18 @@ import {
   createFinalColumns,
 } from '../../query_node';
 import {
-  ColumnControllerRow,
-  columnControllerRowFromSqlColumn,
-  newColumnControllerRows,
-} from '../column_controller';
+  ColumnInfo,
+  columnInfoFromSqlColumn,
+  newColumnInfoList,
+} from '../column_info';
 import protos from '../../../../protos';
 import {TextParagraph} from '../../../../widgets/text_paragraph';
+import {Button} from '../../../../widgets/button';
 import {Trace} from '../../../../public/trace';
-import {Button, ButtonVariant} from '../../../../widgets/button';
-import {closeModal} from '../../../../widgets/modal';
 import {
   createFiltersProto,
   createGroupByProto,
-  Operator,
 } from '../operations/operation_component';
-import {Intent} from '../../../../widgets/common';
 
 export interface StdlibTableAttrs extends QueryNodeState {
   readonly trace: Trace;
@@ -48,19 +45,56 @@ export interface StdlibTableAttrs extends QueryNodeState {
   sqlTable?: SqlTable;
 }
 
+interface StdlibTableSelectionResult {
+  sqlTable: SqlTable;
+  sourceCols: ColumnInfo[];
+  groupByColumns: ColumnInfo[];
+}
+
+export async function promptForStdlibTableSelection(
+  trace: Trace,
+  sqlModules: SqlModules,
+): Promise<StdlibTableSelectionResult | undefined> {
+  const tableName = await trace.omnibox.prompt(
+    'Choose a table...',
+    sqlModules.listTablesNames(),
+  );
+
+  if (!tableName) return undefined;
+
+  const sqlTable = sqlModules.getTable(tableName);
+  if (!sqlTable) return undefined;
+
+  const sourceCols = sqlTable.columns.map((c) =>
+    columnInfoFromSqlColumn(c, true),
+  );
+  const groupByColumns = newColumnInfoList(sourceCols, false);
+
+  return {sqlTable, sourceCols, groupByColumns};
+}
+
 export class StdlibTableNode implements QueryNode {
   readonly type: NodeType = NodeType.kStdlibTable;
   readonly prevNode = undefined;
   nextNode?: QueryNode;
 
-  readonly sourceCols: ColumnControllerRow[];
-  readonly finalCols: ColumnControllerRow[];
+  readonly sourceCols: ColumnInfo[];
+  readonly finalCols: ColumnInfo[];
   readonly state: StdlibTableAttrs;
+
+  showColumns: boolean = false;
 
   constructor(attrs: StdlibTableAttrs) {
     this.state = attrs;
 
-    this.sourceCols = attrs.sourceCols ?? [];
+    if (attrs.sqlTable) {
+      this.sourceCols = attrs.sourceCols;
+      this.state.filters = attrs.filters ?? [];
+      this.state.groupByColumns = attrs.groupByColumns;
+      this.state.aggregations = attrs.aggregations ?? [];
+    } else {
+      this.sourceCols = attrs.sourceCols ?? [];
+    }
     this.finalCols = createFinalColumns(this);
   }
 
@@ -69,8 +103,8 @@ export class StdlibTableNode implements QueryNode {
       trace: this.state.trace,
       sqlModules: this.state.sqlModules,
       sqlTable: this.state.sqlTable,
-      sourceCols: newColumnControllerRows(this.sourceCols),
-      groupByColumns: newColumnControllerRows(this.state.groupByColumns),
+      sourceCols: newColumnInfoList(this.sourceCols),
+      groupByColumns: newColumnInfoList(this.state.groupByColumns),
       filters: this.state.filters.map((f) => ({...f})),
       aggregations: this.state.aggregations.map((a) => ({...a})),
       customTitle: this.state.customTitle,
@@ -79,34 +113,47 @@ export class StdlibTableNode implements QueryNode {
   }
 
   coreModify(): m.Child {
-    return m(
-      '',
-      m(Button, {
-        label: this.state.sqlTable ? 'Change table' : 'Select table',
-        intent: Intent.Primary,
-        variant: ButtonVariant.Filled,
-        onclick: async () => {
-          const tableName = await this.state.trace.omnibox.prompt(
-            'Choose a table...',
-            this.state.sqlModules.listTablesNames(),
-          );
-
-          if (!tableName) return;
-          const sqlTable = this.state.sqlModules.getTable(tableName);
-
-          if (!sqlTable) return;
-          this.state.sqlTable = sqlTable;
-          this.state.sourceCols = sqlTable.columns.map((c) =>
-            columnControllerRowFromSqlColumn(c, true),
-          );
-          this.state.filters = [];
-          this.state.groupByColumns = newColumnControllerRows(
-            this.state.sourceCols,
-            false,
-          );
-        },
-      }),
-    );
+    if (this.state.sqlTable) {
+      const table = this.state.sqlTable;
+      return m(
+        '.stdlib-table-node',
+        m(
+          '.details-box',
+          m(TextParagraph, {text: table.description}),
+          m(Button, {
+            label: this.showColumns ? 'Hide Columns' : 'Show Columns',
+            onclick: () => {
+              this.showColumns = !this.showColumns;
+            },
+          }),
+          this.showColumns &&
+            m(
+              'table.pf-table.pf-table-striped',
+              m(
+                'thead',
+                m(
+                  'tr',
+                  m('th', 'Column'),
+                  m('th', 'Type'),
+                  m('th', 'Description'),
+                ),
+              ),
+              m(
+                'tbody',
+                table.columns.map((col) => {
+                  return m(
+                    'tr',
+                    m('td', col.name),
+                    m('td', col.type.name),
+                    m('td', col.description),
+                  );
+                }),
+              ),
+            ),
+        ),
+      );
+    }
+    return m(TextParagraph, 'No description available for this table.');
   }
 
   validate(): boolean {
@@ -143,55 +190,5 @@ export class StdlibTableNode implements QueryNode {
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) sq.selectColumns = selectedColumns;
     return sq;
-  }
-}
-
-export class StdlibTableSource implements m.ClassComponent<StdlibTableAttrs> {
-  async onTableSelect(attrs: StdlibTableAttrs) {
-    closeModal();
-    const tableName = await attrs.trace.omnibox.prompt(
-      'Choose a table...',
-      attrs.sqlModules.listTablesNames(),
-    );
-
-    if (!tableName) return;
-    const sqlTable = attrs.sqlModules.getTable(tableName);
-
-    if (!sqlTable) return;
-    attrs.sqlTable = sqlTable;
-    attrs.sourceCols = sqlTable.columns.map((c) =>
-      columnControllerRowFromSqlColumn(c, true),
-    );
-    attrs.filters = [];
-    attrs.groupByColumns = newColumnControllerRows(attrs.sourceCols, false);
-  }
-
-  view({attrs}: m.CVnode<StdlibTableAttrs>) {
-    const tableInfoStr = attrs.sqlTable
-      ? `Selected table: ${attrs.sqlTable.name}`
-      : 'No table selected';
-    const tableInfo = m(TextParagraph, {text: tableInfoStr});
-
-    return m(
-      '',
-      m(Button, {
-        label: attrs.sqlTable ? 'Change table' : 'Select table',
-        intent: Intent.Primary,
-        variant: ButtonVariant.Filled,
-        onclick: async () => {
-          this.onTableSelect(attrs);
-        },
-      }),
-      attrs.sqlTable && [
-        tableInfo,
-        m(Operator, {
-          filter: {sourceCols: attrs.sourceCols, filters: attrs.filters},
-          groupby: {
-            groupByColumns: attrs.groupByColumns,
-            aggregations: attrs.aggregations,
-          },
-        }),
-      ],
-    );
   }
 }

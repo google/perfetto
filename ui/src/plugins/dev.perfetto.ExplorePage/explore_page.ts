@@ -17,16 +17,11 @@ import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
 import {DataVisualiser} from './data_visualiser/data_visualiser';
 import {QueryBuilder} from './query_builder/builder';
-import {Button, ButtonVariant} from '../../widgets/button';
-import {Intent} from '../../widgets/common';
 import {NodeType, QueryNode} from './query_node';
-import {MenuItem} from '../../widgets/menu';
-import {Icons} from '../../base/semantic_icons';
-import {VisViewSource} from './data_visualiser/view_source';
-import {PopupMenu} from '../../widgets/menu';
 import {
   StdlibTableAttrs,
   StdlibTableNode,
+  promptForStdlibTableSelection,
 } from './query_builder/sources/stdlib_table';
 import {
   SlicesSourceAttrs,
@@ -38,6 +33,7 @@ import {
   SqlSourceNode,
 } from './query_builder/sources/sql_source';
 import {Trace} from '../../public/trace';
+import {VisViewSource} from './data_visualiser/view_source';
 
 export interface ExplorePageState {
   rootNodes: QueryNode[];
@@ -51,11 +47,6 @@ export enum ExplorePageModes {
   DATA_VISUALISER,
 }
 
-export const ExplorePageModeToLabel: Record<ExplorePageModes, string> = {
-  [ExplorePageModes.QUERY_BUILDER]: 'Query Builder',
-  [ExplorePageModes.DATA_VISUALISER]: 'Visualise Data',
-};
-
 interface ExplorePageAttrs {
   readonly trace: Trace;
   readonly sqlModulesPlugin: SqlModulesPlugin;
@@ -63,35 +54,112 @@ interface ExplorePageAttrs {
 }
 
 export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
-  renderNodeActionsMenuItems(node: QueryNode, state: ExplorePageState) {
-    // TODO: Split into operations on graph (like delete or duplicate) and
-    // operations on node (like edit).
-    return [
-      m(MenuItem, {
-        label: 'Visualise Data',
-        icon: Icons.Chart,
-        onclick: () => {
-          state.selectedNode = node;
-          state.mode = ExplorePageModes.DATA_VISUALISER;
-        },
+  private addNode(state: ExplorePageState, newNode: QueryNode) {
+    state.rootNodes.push(newNode);
+    this.selectNode(state, newNode);
+  }
+
+  private selectNode(state: ExplorePageState, node: QueryNode) {
+    state.selectedNode = node;
+  }
+
+  private deselectNode(state: ExplorePageState) {
+    state.selectedNode = undefined;
+  }
+
+  async handleAddStdlibTableSource(attrs: ExplorePageAttrs) {
+    const {trace, state} = attrs;
+    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+
+    const selection = await promptForStdlibTableSelection(trace, sqlModules);
+
+    if (selection) {
+      this.addNode(
+        state,
+        new StdlibTableNode({
+          trace,
+          sqlModules,
+          sqlTable: selection.sqlTable,
+          sourceCols: selection.sourceCols,
+          filters: [],
+          groupByColumns: selection.groupByColumns,
+          aggregations: [],
+        }),
+      );
+    }
+  }
+
+  handleAddSlicesSource(state: ExplorePageState) {
+    this.addNode(
+      state,
+      new SlicesSourceNode({
+        sourceCols: slicesSourceNodeColumns(true),
+        filters: [],
+        groupByColumns: slicesSourceNodeColumns(false),
+        aggregations: [],
       }),
-      m(MenuItem, {
-        label: 'Duplicate',
-        onclick: async () => {
-          state.rootNodes.push(cloneQueryNode(node));
-        },
+    );
+  }
+
+  handleAddSqlSource(state: ExplorePageState) {
+    this.addNode(
+      state,
+      new SqlSourceNode({
+        sourceCols: [],
+        filters: [],
+        groupByColumns: [],
+        aggregations: [],
       }),
-      m(MenuItem, {
-        label: 'Delete',
-        onclick: async () => {
-          const idx = state.rootNodes.indexOf(node);
-          if (idx !== -1) {
-            state.rootNodes.splice(idx, 1);
-            state.selectedNode = node;
-          }
-        },
-      }),
-    ];
+    );
+  }
+
+  handleClearAllNodes(state: ExplorePageState) {
+    state.rootNodes = [];
+    this.deselectNode(state);
+  }
+
+  handleVisualizeNode(state: ExplorePageState, node: QueryNode) {
+    this.selectNode(state, node);
+    state.mode = ExplorePageModes.DATA_VISUALISER;
+  }
+
+  handleDuplicateNode(state: ExplorePageState, node: QueryNode) {
+    state.rootNodes.push(cloneQueryNode(node));
+  }
+
+  handleDeleteNode(state: ExplorePageState, node: QueryNode) {
+    const idx = state.rootNodes.indexOf(node);
+    if (idx !== -1) {
+      state.rootNodes.splice(idx, 1);
+      if (state.selectedNode === node) {
+        this.deselectNode(state);
+      }
+    }
+  }
+
+  private handleKeyDown(event: KeyboardEvent, attrs: ExplorePageAttrs) {
+    const {state} = attrs;
+    if (state.rootNodes.length > 0) {
+      return;
+    }
+    // Do not interfere with text inputs
+    if (
+      event.target instanceof HTMLInputElement ||
+      event.target instanceof HTMLTextAreaElement
+    ) {
+      return;
+    }
+    switch (event.key) {
+      case 'q':
+        this.handleAddSqlSource(attrs.state);
+        break;
+      case 't':
+        this.handleAddStdlibTableSource(attrs);
+        break;
+      case 's':
+        this.handleAddSlicesSource(attrs.state);
+        break;
+    }
   }
 
   view({attrs}: m.CVnode<ExplorePageAttrs>) {
@@ -99,62 +167,35 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
 
     return m(
       '.page.explore-page',
-      m(
-        '.explore-page__header',
-        m('h1', `${ExplorePageModeToLabel[state.mode]}`),
-        m('span', {style: {flexGrow: 1}}),
-        state.mode === ExplorePageModes.QUERY_BUILDER
-          ? m(
-              '',
-              m(
-                PopupMenu,
-                {
-                  trigger: m(Button, {
-                    label: 'Add new node',
-                    icon: Icons.Add,
-                    intent: Intent.Primary,
-                    variant: ButtonVariant.Filled,
-                  }),
-                },
-                addSourcePopupMenu(attrs),
-              ),
-              m(Button, {
-                label: 'Clear All Query Nodes',
-                intent: Intent.Primary,
-                variant: ButtonVariant.Filled,
-                onclick: () => {
-                  state.rootNodes = [];
-                  state.selectedNode = undefined;
-                },
-                style: {marginLeft: '10px'},
-              }),
-            )
-          : m(Button, {
-              label: 'Back to Query Builder',
-              intent: Intent.Primary,
-              variant: ButtonVariant.Filled,
-              onclick: () => {
-                state.mode = ExplorePageModes.QUERY_BUILDER;
-              },
-            }),
-      ),
-
+      {
+        onkeydown: (e: KeyboardEvent) => this.handleKeyDown(e, attrs),
+        oncreate: (vnode) => {
+          (vnode.dom as HTMLElement).focus();
+        },
+        tabindex: 0,
+      },
       state.mode === ExplorePageModes.QUERY_BUILDER &&
         m(QueryBuilder, {
           trace,
           sqlModules: attrs.sqlModulesPlugin.getSqlModules(),
-          onRootNodeCreated(arg) {
-            state.rootNodes.push(arg);
-            state.selectedNode = arg;
+          onRootNodeCreated: (node: QueryNode) => this.addNode(state, node),
+          onNodeSelected: (node?: QueryNode) => {
+            if (node) {
+              this.selectNode(state, node);
+            }
           },
-          onNodeSelected(arg) {
-            state.selectedNode = arg;
-          },
-          renderNodeActionsMenuItems: (node: QueryNode) =>
-            this.renderNodeActionsMenuItems(node, state),
+          onDeselect: () => this.deselectNode(state),
           rootNodes: state.rootNodes,
           selectedNode: state.selectedNode,
-          addSourcePopupMenu: () => addSourcePopupMenu(attrs),
+          onVisualizeNode: (node: QueryNode) =>
+            this.handleVisualizeNode(state, node),
+          onDuplicateNode: (node: QueryNode) =>
+            this.handleDuplicateNode(state, node),
+          onDeleteNode: (node: QueryNode) => this.handleDeleteNode(state, node),
+          onAddStdlibTableSource: () => this.handleAddStdlibTableSource(attrs),
+          onAddSlicesSource: () => this.handleAddSlicesSource(state),
+          onAddSqlSource: () => this.handleAddSqlSource(state),
+          onClearAllNodes: () => this.handleClearAllNodes(state),
         }),
       state.mode === ExplorePageModes.DATA_VISUALISER &&
         state.rootNodes.length !== 0 &&
@@ -164,54 +205,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         }),
     );
   }
-}
-
-function addSourcePopupMenu(attrs: ExplorePageAttrs): m.Children {
-  const {trace, state} = attrs;
-  const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
-  return [
-    m(MenuItem, {
-      label: 'Standard library table',
-      onclick: async () => {
-        const newNode = new StdlibTableNode({
-          filters: [],
-          sourceCols: [],
-          groupByColumns: [],
-          aggregations: [],
-          trace,
-          sqlModules,
-        });
-        state.rootNodes.push(newNode);
-        state.selectedNode = newNode;
-      },
-    }),
-    m(MenuItem, {
-      label: 'Custom slices',
-      onclick: () => {
-        const newNode = new SlicesSourceNode({
-          sourceCols: slicesSourceNodeColumns(true),
-          filters: [],
-          groupByColumns: slicesSourceNodeColumns(false),
-          aggregations: [],
-        });
-        state.rootNodes.push(newNode);
-        state.selectedNode = newNode;
-      },
-    }),
-    m(MenuItem, {
-      label: 'Custom SQL',
-      onclick: () => {
-        const newNode = new SqlSourceNode({
-          sourceCols: [],
-          filters: [],
-          groupByColumns: [],
-          aggregations: [],
-        });
-        state.rootNodes.push(newNode);
-        state.selectedNode = newNode;
-      },
-    }),
-  ];
 }
 
 function cloneQueryNode(node: QueryNode): QueryNode {

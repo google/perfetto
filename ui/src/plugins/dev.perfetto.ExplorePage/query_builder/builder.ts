@@ -15,11 +15,14 @@
 import m from 'mithril';
 
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
-import {QueryNode} from '../query_node';
+import {QueryNode, NodeType} from '../query_node';
+import {ExplorePageHelp} from './explore_page_help';
 import {Query, QueryNodeExplorer} from './query_node_explorer';
 import {QueryCanvas} from './query_canvas';
 import {Trace} from 'src/public/trace';
 import {NodeDataViewer} from './node_data_viewer';
+import {columnInfoFromSqlColumn, newColumnInfoList} from './column_info';
+import {StdlibTableNode} from './sources/stdlib_table';
 
 export interface QueryBuilderAttrs {
   readonly trace: Trace;
@@ -30,14 +33,21 @@ export interface QueryBuilderAttrs {
 
   readonly onRootNodeCreated: (node: QueryNode) => void;
   readonly onNodeSelected: (node?: QueryNode) => void;
-  readonly renderNodeActionsMenuItems: (node: QueryNode) => m.Children;
-  readonly addSourcePopupMenu: () => m.Children;
+  readonly onDeselect: () => void;
+  readonly onAddStdlibTableSource: () => void;
+  readonly onAddSlicesSource: () => void;
+  readonly onAddSqlSource: () => void;
+  readonly onClearAllNodes: () => void;
+  readonly onVisualizeNode: (node: QueryNode) => void;
+  readonly onDuplicateNode: (node: QueryNode) => void;
+  readonly onDeleteNode: (node: QueryNode) => void;
 }
 
 export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
   private query?: Query;
   private queryExecuted: boolean = false;
-  private tablePosition: 'left' | 'right' | 'bottom' = 'right';
+  private tablePosition: 'left' | 'right' | 'bottom' = 'bottom';
+  private previousSelectedNode?: QueryNode;
 
   view({attrs}: m.CVnode<QueryBuilderAttrs>) {
     const {
@@ -45,11 +55,29 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       rootNodes,
       onNodeSelected,
       selectedNode,
-      renderNodeActionsMenuItems,
-      addSourcePopupMenu,
+      onAddStdlibTableSource,
+      onAddSlicesSource,
+      onAddSqlSource,
+      onClearAllNodes,
+      sqlModules,
     } = attrs;
 
-    console.log('Table position:', this.tablePosition);
+    if (selectedNode && selectedNode !== this.previousSelectedNode) {
+      if (selectedNode.type === NodeType.kSqlSource) {
+        this.tablePosition = 'left';
+      } else {
+        this.tablePosition = 'bottom';
+      }
+    }
+    this.previousSelectedNode = selectedNode;
+
+    const layoutStyle: m.Attributes['style'] = {
+      display: 'grid',
+      gridTemplateColumns: '50% 50%',
+      gridTemplateRows: selectedNode ? '50% 50%' : 'auto 1fr',
+      gap: '10px',
+      height: '100%',
+    };
 
     const canvasStyle: m.Attributes['style'] = {
       gridColumn: 1,
@@ -62,63 +90,93 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       overflow: 'auto',
     };
     const viewerStyle: m.Attributes['style'] = {
-      gridColumn: 2,
-      gridRow: 2,
       overflow: 'auto',
     };
 
-    switch (this.tablePosition) {
-      case 'left':
-        viewerStyle.gridColumn = 1;
-        explorerStyle.gridRow = '1/span 2';
-        break;
-      case 'right':
-        viewerStyle.gridColumn = 2;
-        canvasStyle.gridRow = '1/ span 2';
-        break;
-      case 'bottom':
-        viewerStyle.gridColumn = '1/span 2';
-        break;
+    if (selectedNode) {
+      switch (this.tablePosition) {
+        case 'left':
+          viewerStyle.gridColumn = 1;
+          viewerStyle.gridRow = 2;
+          explorerStyle.gridRow = '1 / span 2';
+          break;
+        case 'right':
+          viewerStyle.gridColumn = 2;
+          viewerStyle.gridRow = 2;
+          canvasStyle.gridRow = '1 / span 2';
+          break;
+        case 'bottom':
+          viewerStyle.gridColumn = '1 / span 2';
+          viewerStyle.gridRow = 2;
+          break;
+      }
     }
+
+    const explorer = selectedNode
+      ? m(QueryNodeExplorer, {
+          trace,
+          node: selectedNode,
+          onQueryAnalyzed: (query: Query) => {
+            this.query = query;
+            this.queryExecuted = false;
+          },
+          onExecute: () => {
+            this.queryExecuted = false;
+            m.redraw();
+          },
+        })
+      : m(ExplorePageHelp, {
+          sqlModules,
+          onTableClick: (tableName: string) => {
+            const {onRootNodeCreated} = attrs;
+            const sqlTable = sqlModules.getTable(tableName);
+            if (!sqlTable) return;
+
+            const sourceCols = sqlTable.columns.map((c) =>
+              columnInfoFromSqlColumn(c, true),
+            );
+            const groupByColumns = newColumnInfoList(sourceCols, false);
+
+            onRootNodeCreated(
+              new StdlibTableNode({
+                trace,
+                sqlModules,
+                sqlTable,
+                sourceCols,
+                groupByColumns,
+                filters: [],
+                aggregations: [],
+              }),
+            );
+          },
+        });
 
     return m(
       '.query-builder-layout',
       {
-        style: {
-          display: 'grid',
-          gridTemplateColumns: '50% 50%',
-          gridTemplateRows: '50% 50%',
-          gap: '10px',
-          height: '100%',
-        },
+        style: layoutStyle,
       },
       m(
-        '',
+        'div',
         {style: canvasStyle},
         m(QueryCanvas, {
           rootNodes,
           selectedNode,
           onNodeSelected,
-          renderNodeActionsMenuItems,
-          addSourcePopupMenu,
+          onDeselect: attrs.onDeselect,
+          onAddStdlibTableSource,
+          onAddSlicesSource,
+          onAddSqlSource,
+          onClearAllNodes,
+          onVisualizeNode: attrs.onVisualizeNode,
+          onDuplicateNode: attrs.onDuplicateNode,
+          onDeleteNode: attrs.onDeleteNode,
         }),
       ),
-      attrs.selectedNode &&
+      m('div', {style: explorerStyle}, explorer),
+      selectedNode &&
         m(
-          '',
-          {style: explorerStyle},
-          m(QueryNodeExplorer, {
-            trace,
-            node: attrs.selectedNode,
-            onQueryAnalyzed: (query: Query) => {
-              this.query = query;
-              this.queryExecuted = false;
-            },
-          }),
-        ),
-      attrs.selectedNode &&
-        m(
-          '',
+          'div',
           {style: viewerStyle},
           m(NodeDataViewer, {
             trace,

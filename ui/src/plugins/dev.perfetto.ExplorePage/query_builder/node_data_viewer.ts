@@ -57,14 +57,14 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
     };
     const queryErrors = () => {
       if (attrs.query === undefined) {
-        return `No data to display}`;
+        return `No data to display`;
       }
       if (attrs.query instanceof Error) {
         return `Error: ${attrs.query.message}`;
       }
       if (this.queryResult === undefined) {
         runQuery();
-        return `No data to display`;
+        return `Typing...`;
       }
       if (this.queryResult.error !== undefined) {
         return `Error: ${this.queryResult.error}`;
@@ -80,7 +80,7 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
         m(
           '.pf-node-data-viewer__title-row',
           m('.title', 'Query data'),
-          m('span.spacer'), // Added spacer to push menu to the right
+          m('span.spacer'), // Push menu to the right
           m(
             PopupMenu,
             {
@@ -114,13 +114,22 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
           ? m(TextParagraph, {text: errors ?? ''})
           : m(
               'article',
-              m(QueryTable, {
-                trace: attrs.trace,
-                query:
-                  attrs.query instanceof Error ? '' : queryToRun(attrs.query),
-                resp: this.queryResult,
-                fillParent: false,
-              }),
+              {
+                style: {
+                  display: 'flex',
+                  flexDirection: 'column',
+                  flexGrow: 1,
+                },
+              },
+              [
+                m(QueryTable, {
+                  trace: attrs.trace,
+                  query:
+                    attrs.query instanceof Error ? '' : queryToRun(attrs.query),
+                  resp: this.queryResult,
+                  fillParent: true,
+                }),
+              ],
             ),
       ),
     ];
