@@ -203,8 +203,8 @@ class TrackEventTracker {
   // for a descriptor with this |uuid| has been reserved.
   std::optional<ResolvedDescriptorTrack> GetDescriptorTrack(
       uint64_t uuid,
-      StringId event_name = kNullStringId,
-      std::optional<uint32_t> packet_sequence_id = std::nullopt);
+      StringId event_name,
+      std::optional<uint32_t> packet_sequence_id);
 
   // Converts the given counter value to an absolute value in the unit of the
   // counter, applying incremental delta encoding or unit multipliers as
@@ -227,8 +227,8 @@ class TrackEventTracker {
  private:
   std::optional<ResolvedDescriptorTrack> GetDescriptorTrackImpl(
       uint64_t uuid,
-      StringId event_name = kNullStringId,
-      std::optional<uint32_t> packet_sequence_id = std::nullopt);
+      StringId event_name,
+      std::optional<uint32_t> packet_sequence_id);
 
   ResolvedDescriptorTrack ResolveDescriptorTrack(
       uint64_t uuid,
