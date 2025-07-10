@@ -991,3 +991,48 @@ class TrackEvent(TestSuite):
         "thread_time",1
         "thread_instruction_count",1
         """))
+
+  def test_track_event_name_resolution(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_name_resolution.textproto'),
+        query="""
+        SELECT name
+        FROM track
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name"
+        "Before Event"
+        "Event Name"
+        "Second Name"
+        """))
+
+  def test_track_event_name_resolution_extended(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_name_resolution_extended.textproto'),
+        query="""
+        SELECT t.name, t.parent_id is null as is_root
+        FROM track t
+        ORDER BY t.name;
+        """,
+        out=Csv("""
+        "name","is_root"
+        "After Event",1
+        "Child Event",0
+        "Event Name",1
+        "Parent",1
+        "Second Name",1
+        """))
+
+  def test_track_event_name_resolution_null_override(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_name_resolution_null_override.textproto'),
+        query="""
+        SELECT name
+        FROM track
+        WHERE name IS NOT NULL;
+        """,
+        out=Csv("""
+        "name"
+        "First Name"
+        """))

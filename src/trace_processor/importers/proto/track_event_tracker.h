@@ -60,6 +60,11 @@ class TrackEventTracker {
                         o.builtin_type_str);
       }
     };
+    enum class SiblingMergeBehavior {
+      kByName = 0,
+      kNone = 1,
+      kByKey = 2,
+    };
 
     uint64_t parent_uuid = 0;
     std::optional<uint32_t> pid;
@@ -77,6 +82,10 @@ class TrackEventTracker {
     ChildTracksOrdering ordering = ChildTracksOrdering::kUnknown;
     std::optional<int32_t> sibling_order_rank;
 
+    // For merging tracks.
+    SiblingMergeBehavior sibling_merge_behavior = SiblingMergeBehavior::kByName;
+    StringId sibling_merge_key = kNullStringId;
+
     // Whether |other| is a valid descriptor for this track reservation. A track
     // should always remain nested underneath its original parent.
     bool IsForSameTrack(const DescriptorTrackReservation& other) {
@@ -87,9 +96,10 @@ class TrackEventTracker {
           !counter_details->IsForSameTrack(*other.counter_details)) {
         return false;
       }
-      return std::tie(parent_uuid, pid, tid, is_counter) ==
-             std::tie(other.parent_uuid, other.pid, other.tid,
-                      other.is_counter);
+      return std::tie(parent_uuid, pid, tid, is_counter, sibling_merge_behavior,
+                      sibling_merge_key) ==
+             std::tie(other.parent_uuid, other.pid, other.tid, other.is_counter,
+                      other.sibling_merge_behavior, other.sibling_merge_key);
     }
   };
   explicit TrackEventTracker(TraceProcessorContext*);
