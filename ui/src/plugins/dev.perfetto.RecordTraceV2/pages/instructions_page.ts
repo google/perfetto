@@ -93,7 +93,7 @@ class InstructionsPage implements m.ClassComponent<RecMgrAttrs> {
             title: 'Copy to clipboard',
             onclick: () => copyToClipboard(this.configTxt),
           },
-          m('i.material-icons', 'assignment'),
+          m('i.pf-material-icons', 'assignment'),
         ),
         m('code', this.configTxt),
       ),

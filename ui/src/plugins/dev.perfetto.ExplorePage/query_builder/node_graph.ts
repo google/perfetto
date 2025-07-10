@@ -41,7 +41,7 @@ const SourceCard: m.Component<SourceCardAttrs> = {
     return m(
       '.pf-source-card',
       {onclick},
-      m('i.material-icons', icon),
+      m('i.pf-material-icons', icon),
       m('h3', title),
       m('p', description),
     );

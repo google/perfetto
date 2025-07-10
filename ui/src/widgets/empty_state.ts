@@ -40,7 +40,7 @@ export class EmptyState implements m.ClassComponent<EmptyStateAttrs> {
     return m(
       '.pf-empty-state',
       {className},
-      m('i.material-icons', icon),
+      m('i.pf-material-icons', icon),
       title && m('.pf-empty-state-title', title),
       m('.pf-empty-state-content', children),
     );

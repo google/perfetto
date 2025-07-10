@@ -85,7 +85,7 @@ class PerfStatsUi implements m.ClassComponent<PerfStatsUiAttrs> {
             raf.scheduleFullRedraw();
           },
         },
-        m('i.material-icons', 'close'),
+        m('i.pf-material-icons', 'close'),
       ),
       attrs.perfMgr.containers.map((c, i) =>
         m('section', m('div', `Container #${i + 1}`), c.renderPerfStats()),

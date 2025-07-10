@@ -53,7 +53,7 @@ class TraceErrorIcon implements m.ClassComponent<TraceImplAttrs> {
         'a.error',
         {href: '#!/info'},
         m(
-          'i.material-icons',
+          'i.pf-material-icons',
           {
             title: message + ` Click for more info.`,
           },

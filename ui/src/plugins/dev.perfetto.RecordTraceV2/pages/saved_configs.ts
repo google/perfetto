@@ -86,7 +86,7 @@ class SavedConfigsPage implements m.ClassComponent<RecMgrAttrs> {
               this.newConfigName = '';
             },
           },
-          m('i.material-icons', 'save'),
+          m('i.pf-material-icons', 'save'),
         ),
       ]),
       this.savedConfigs.map((s) => this.renderSavedSessions(s)),
@@ -106,7 +106,7 @@ class SavedConfigsPage implements m.ClassComponent<RecMgrAttrs> {
             this.recMgr.loadSession(item.config);
           },
         },
-        m('i.material-icons', 'file_upload'),
+        m('i.pf-material-icons', 'file_upload'),
       ),
       m(
         'button',
@@ -122,7 +122,7 @@ class SavedConfigsPage implements m.ClassComponent<RecMgrAttrs> {
             savedCfg.config = this.recMgr.serializeSession();
           },
         },
-        m('i.material-icons', 'save'),
+        m('i.pf-material-icons', 'save'),
       ),
       m(
         'button',
@@ -131,7 +131,7 @@ class SavedConfigsPage implements m.ClassComponent<RecMgrAttrs> {
           title: 'Generate a shareable URL for the saved config',
           onclick: () => shareRecordConfig(item.config),
         },
-        m('i.material-icons', 'share'),
+        m('i.pf-material-icons', 'share'),
       ),
       m(
         'button',
@@ -146,7 +146,7 @@ class SavedConfigsPage implements m.ClassComponent<RecMgrAttrs> {
             self.savedConfigs.splice(idx, 1);
           },
         },
-        m('i.material-icons', 'delete'),
+        m('i.pf-material-icons', 'delete'),
       ),
     ]);
   }

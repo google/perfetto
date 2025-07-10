@@ -117,7 +117,7 @@ $bottom-tab-padding: 10px;
     padding: 3px 5px;
     white-space: nowrap;
 
-    i.material-icons {
+    i.pf-material-icons {
       // Shrink the icons inside the table cells to increase the information
       // density a little bit.
       font-size: 16px;
@@ -317,7 +317,7 @@ $bottom-tab-padding: 10px;
 .context-wrapper {
   white-space: nowrap;
 
-  i.material-icons {
+  i.pf-material-icons {
     margin-left: 0;
   }
 }

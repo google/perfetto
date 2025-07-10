@@ -23,7 +23,7 @@ export class DocsChip implements m.ClassComponent<DocsChipAttrs> {
     return m(
       'a.pf-inline-chip',
       {href: attrs.href, title: 'Open docs in new tab', target: '_blank'},
-      m('i.material-icons', 'info'),
+      m('i.pf-material-icons', 'info'),
       ' Docs',
     );
   }

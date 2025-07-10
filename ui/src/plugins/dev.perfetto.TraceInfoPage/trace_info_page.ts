@@ -112,7 +112,7 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
     const tableRows = data.map((row) => {
       const help = [];
       if (Boolean(row.description)) {
-        help.push(m('i.material-icons.contextual-help', 'help_outline'));
+        help.push(m('i.pf-material-icons.contextual-help', 'help_outline'));
       }
       const idx = row.idx !== '' ? `[${row.idx}]` : '';
       return m(

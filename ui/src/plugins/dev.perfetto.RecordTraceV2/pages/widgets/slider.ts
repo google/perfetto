@@ -121,7 +121,7 @@ export class Slider implements ProbeSetting {
       '.slider' + (attrs.cssClass ?? ''),
       m('header', attrs.title),
       description ? m('header.descr', attrs.description) : '',
-      attrs.icon !== undefined ? m('i.material-icons', attrs.icon) : [],
+      attrs.icon !== undefined ? m('i.pf-material-icons', attrs.icon) : [],
       m(`input[id="${id}"][type=range][min=0][max=${maxIdx}][value=${idx}]`, {
         disabled,
         oninput: (e: InputEvent) => {

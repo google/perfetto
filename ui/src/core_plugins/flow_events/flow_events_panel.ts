@@ -38,7 +38,7 @@ export class FlowEventsAreaSelectedPanel
         'Show',
         m(
           'a.warning',
-          m('i.material-icons', 'warning'),
+          m('i.pf-material-icons', 'warning'),
           m(
             '.tooltip',
             'Showing a large number of flows may impact performance.',
@@ -70,7 +70,7 @@ export class FlowEventsAreaSelectedPanel
         m(
           'td.sum-data',
           m(
-            'i.material-icons',
+            'i.pf-material-icons',
             {
               onclick: () => {
                 if (allWasChecked) {
@@ -101,7 +101,7 @@ export class FlowEventsAreaSelectedPanel
         m(
           'td.flow-info',
           m(
-            'i.material-icons',
+            'i.pf-material-icons',
             {
               onclick: () => {
                 if (wasChecked) {

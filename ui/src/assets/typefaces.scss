@@ -112,11 +112,11 @@
     "opsz" 24;
 }
 
-.material-icons {
+.pf-material-icons {
   @include icon;
 }
 
-.material-icons-filled {
+.pf-material-icons-filled {
   @include icon;
   @include icon-filled;
 }

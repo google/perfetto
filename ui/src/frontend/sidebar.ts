@@ -394,7 +394,7 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
             onclick: () => sidebar.toggleVisibility(),
           },
           m(
-            'i.material-icons',
+            'i.pf-material-icons',
             {
               title: sidebar.visible ? 'Hide menu' : 'Show menu',
             },
@@ -503,7 +503,7 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
           disabled,
           title: tooltip,
         },
-        exists(item.icon) && m('i.material-icons', valueOrCallback(item.icon)),
+        exists(item.icon) && m('i.pf-material-icons', valueOrCallback(item.icon)),
         text,
       ),
     );

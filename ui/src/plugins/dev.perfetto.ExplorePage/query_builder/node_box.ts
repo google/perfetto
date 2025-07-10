@@ -49,7 +49,7 @@ function renderWarningIcon(node: QueryNode): m.Child {
     node.state.queryError || node.state.responseError || node.state.dataError;
   if (!error) return null;
 
-  const iconClasses = classNames('material-icons', 'pf-node-box__warning-icon');
+  const iconClasses = classNames('pf-material-icons', 'pf-node-box__warning-icon');
 
   return m('i', {class: iconClasses, title: error.message}, 'warning');
 }

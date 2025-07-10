@@ -721,14 +721,14 @@ export class UiMainPerTrace implements m.ClassComponent {
           {
             onclick: () => searchMgr.stepBackwards(),
           },
-          m('i.material-icons.left', 'keyboard_arrow_left'),
+          m('i.pf-material-icons.left', 'keyboard_arrow_left'),
         ),
         m(
           'button',
           {
             onclick: () => searchMgr.stepForward(),
           },
-          m('i.material-icons.right', 'keyboard_arrow_right'),
+          m('i.pf-material-icons.right', 'keyboard_arrow_right'),
         ),
       );
     }

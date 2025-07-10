@@ -166,7 +166,7 @@ function renderValue(name: string, value: Value): m.Children {
         return null;
       }
       return m(
-        'i.material-icons.grey',
+        'i.pf-material-icons.grey',
         {
           onclick: button.action,
           title: button.hoverText,
