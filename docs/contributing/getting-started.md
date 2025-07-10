@@ -49,7 +49,7 @@ _UI_
 ui/build
 
 # Run the dev server
-ui/run_dev_server
+ui/run-dev-server
 ```
 
 For more information on building Perfetto go to [build instructions](build-instructions).

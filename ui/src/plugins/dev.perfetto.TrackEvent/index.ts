@@ -42,6 +42,7 @@ export default class implements PerfettoPlugin {
         g.parent_id as parentId,
         g.is_counter AS isCounter,
         g.name,
+        g.description,
         g.unit,
         g.builtin_counter_type as builtinCounterType,
         g.has_data AS hasData,
@@ -63,6 +64,7 @@ export default class implements PerfettoPlugin {
       parentId: NUM_NULL,
       isCounter: NUM,
       name: STR_NULL,
+      description: STR_NULL,
       unit: STR_NULL,
       builtinCounterType: STR_NULL,
       hasData: NUM,
@@ -85,6 +87,7 @@ export default class implements PerfettoPlugin {
         parentId,
         isCounter,
         name,
+        description,
         unit,
         builtinCounterType,
         hasData,
@@ -126,6 +129,7 @@ export default class implements PerfettoPlugin {
         const trackId = trackIds[0];
         ctx.tracks.registerTrack({
           uri,
+          description: description ?? undefined,
           tags: {
             kind,
             trackIds: [trackIds[0]],
@@ -145,6 +149,7 @@ export default class implements PerfettoPlugin {
       } else if (hasData) {
         ctx.tracks.registerTrack({
           uri,
+          description: description ?? undefined,
           tags: {
             kind,
             trackIds: trackIds,

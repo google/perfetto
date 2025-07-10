@@ -106,16 +106,16 @@ export class ProcessSchedulingTrack implements TrackRenderer {
 
     const trash = new AsyncDisposableStack();
     trash.use(
-      await createPerfettoTable(
-        this.trace.engine,
-        `tmp_${this.trackUuid}`,
-        getQuery(),
-      ),
+      await createPerfettoTable({
+        engine: this.trace.engine,
+        name: `tmp_${this.trackUuid}`,
+        as: getQuery(),
+      }),
     );
-    await createVirtualTable(
-      this.trace.engine,
-      `process_scheduling_${this.trackUuid}`,
-      `__intrinsic_slice_mipmap((
+    await createVirtualTable({
+      engine: this.trace.engine,
+      name: `process_scheduling_${this.trackUuid}`,
+      using: `__intrinsic_slice_mipmap((
         select
           s.id,
           s.ts,
@@ -136,7 +136,7 @@ export class ProcessSchedulingTrack implements TrackRenderer {
           s.cpu as depth
         from tmp_${this.trackUuid} s
       ))`,
-    );
+    });
     await trash.asyncDispose();
   }
 

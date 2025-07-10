@@ -477,7 +477,7 @@ class PerfettoTable(TestSuite):
         query="""
         SELECT flat_key, key, int_value, string_value, real_value FROM __intrinsic_winscope_proto_to_args_with_defaults('surfaceflinger_layer') AS sfl
         ORDER BY sfl.base64_proto_id, key
-        LIMIT 96
+        LIMIT 99
         """,
         out=Csv("""
         "flat_key","key","int_value","string_value","real_value"
@@ -499,11 +499,13 @@ class PerfettoTable(TestSuite):
         "children","children[4]",44,"[NULL]","[NULL]"
         "children","children[5]",77,"[NULL]","[NULL]"
         "children","children[6]",87,"[NULL]","[NULL]"
+        "client_drawn_corner_radii","client_drawn_corner_radii","[NULL]","[NULL]","[NULL]"
         "color.a","color.a","[NULL]","[NULL]",1.000000
         "color.b","color.b","[NULL]","[NULL]",-1.000000
         "color.g","color.g","[NULL]","[NULL]",-1.000000
         "color.r","color.r","[NULL]","[NULL]",-1.000000
         "color_transform","color_transform","[NULL]","[NULL]","[NULL]"
+        "corner_radii","corner_radii","[NULL]","[NULL]","[NULL]"
         "corner_radius","corner_radius","[NULL]","[NULL]",0.000000
         "corner_radius_crop","corner_radius_crop","[NULL]","[NULL]","[NULL]"
         "crop.bottom","crop.bottom",-1,"[NULL]","[NULL]"
@@ -547,6 +549,7 @@ class PerfettoTable(TestSuite):
         "requested_color.b","requested_color.b","[NULL]","[NULL]",-1.000000
         "requested_color.g","requested_color.g","[NULL]","[NULL]",-1.000000
         "requested_color.r","requested_color.r","[NULL]","[NULL]",-1.000000
+        "requested_corner_radii","requested_corner_radii","[NULL]","[NULL]","[NULL]"
         "requested_corner_radius","requested_corner_radius","[NULL]","[NULL]",0.000000
         "requested_position","requested_position","[NULL]","[NULL]","[NULL]"
         "requested_transform.dsdx","requested_transform.dsdx","[NULL]","[NULL]",0.000000

@@ -464,3 +464,103 @@ class Viz(TestSuite):
         12,4
         13,3
         """))
+
+  def test_ordered_tracks_description(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          track_descriptor {
+            uuid: 1
+            name: "A"
+            description: "Track A's description"
+          }
+        }
+        packet {
+          timestamp: 220
+          trusted_packet_sequence_id: 3903809
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            track_uuid: 1
+            name: "A1"
+          }
+        }
+        packet {
+          timestamp: 230
+          trusted_packet_sequence_id: 3903809
+          track_event {
+            type: TYPE_SLICE_END
+            track_uuid: 1
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 2
+            name: "B"
+          }
+        }
+        packet {
+          timestamp: 210
+          trusted_packet_sequence_id: 3903809
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            track_uuid: 2
+            name: "B1"
+          }
+        }
+        packet {
+          timestamp: 215
+          trusted_packet_sequence_id: 3903809
+          track_event {
+            type: TYPE_SLICE_END
+            track_uuid: 2
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 3
+            process {
+              pid: 5
+              process_name: "p1"
+            }
+            description: "Process p1 description"
+          }
+        }
+        packet {
+          timestamp: 210
+          trusted_packet_sequence_id: 3903809
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            track_uuid: 3
+            name: "P1"
+          }
+        }
+        packet {
+          timestamp: 215
+          trusted_packet_sequence_id: 3903809
+          track_event {
+            type: TYPE_SLICE_END
+            track_uuid: 3
+          }
+        }
+        packet {
+          track_descriptor {
+            uuid: 4
+            name: "C"
+            description: "Track C's description"
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE viz.summary.track_event;
+        SELECT cast_int!(track_ids) as id, name, description
+        FROM _track_event_tracks_ordered_groups
+        ORDER BY id;
+        """,
+        out=Csv("""
+          "id","name","description"
+          0,"A","Track A's description"
+          1,"B","[NULL]"
+          2,"[NULL]","Process p1 description"
+          3,"C","Track C's description"
+        """),
+    )

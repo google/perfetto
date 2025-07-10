@@ -16,7 +16,7 @@ import {ColumnDef, Sorting} from '../../components/aggregation';
 import {
   Aggregation,
   Aggregator,
-  ii,
+  createIITable,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
@@ -38,7 +38,12 @@ export class SliceSelectionAggregator implements Aggregator {
 
     return {
       prepareData: async (engine: Engine) => {
-        const iiDataset = await ii(engine, this.id, dataset, area);
+        await using iiTable = await createIITable(
+          engine,
+          dataset,
+          area.start,
+          area.end,
+        );
         await engine.query(`
           create or replace perfetto table ${this.id} as
           select
@@ -46,7 +51,7 @@ export class SliceSelectionAggregator implements Aggregator {
             sum(dur) AS total_dur,
             sum(dur)/count() as avg_dur,
             count() as occurrences
-          from (${iiDataset.query()})
+          from (${iiTable.name})
           group by name
         `);
 

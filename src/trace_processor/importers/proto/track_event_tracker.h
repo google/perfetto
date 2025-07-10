@@ -66,6 +66,7 @@ class TrackEventTracker {
     std::optional<uint32_t> tid;
     int64_t min_timestamp = 0;
     StringId name = kNullStringId;
+    StringId description = kNullStringId;
     bool use_separate_track = false;
     bool is_counter = false;
 
@@ -227,6 +228,7 @@ class TrackEventTracker {
   const StringId sibling_order_rank_key_;
   const StringId descriptor_source_;
   const StringId default_descriptor_track_name_;
+  const StringId description_key_;
 
   std::optional<int64_t> range_of_interest_start_us_;
   TraceProcessorContext* const context_;

@@ -99,6 +99,7 @@ TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
       descriptor_source_(context->storage->InternString("descriptor")),
       default_descriptor_track_name_(
           context->storage->InternString("Default Track")),
+      description_key_(context->storage->InternString("description")),
       context_(context) {}
 
 void TrackEventTracker::ReserveDescriptorTrack(
@@ -515,6 +516,10 @@ void TrackEventTracker::AddTrackArgs(
   if (reservation.sibling_order_rank) {
     args.AddArg(sibling_order_rank_key_,
                 Variadic::Integer(*reservation.sibling_order_rank));
+  }
+
+  if (!reservation.description.is_null()) {
+    args.AddArg(description_key_, Variadic::String(reservation.description));
   }
 }
 

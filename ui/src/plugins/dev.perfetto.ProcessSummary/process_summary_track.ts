@@ -82,13 +82,17 @@ export class ProcessSummaryTrack implements TrackRenderer {
 
     const trash = new AsyncDisposableStack();
     trash.use(
-      await createPerfettoTable(this.engine, `tmp_${this.uuid}`, getQuery()),
+      await createPerfettoTable({
+        engine: this.engine,
+        name: `tmp_${this.uuid}`,
+        as: getQuery(),
+      }),
     );
     trash.use(
-      await createPerfettoTable(
-        this.engine,
-        `changes_${this.uuid}`,
-        `
+      await createPerfettoTable({
+        engine: this.engine,
+        name: `changes_${this.uuid}`,
+        as: `
           select ts, 1.0 as value
           from tmp_${this.uuid}
           cross join slice using (track_id)
@@ -99,12 +103,12 @@ export class ProcessSummaryTrack implements TrackRenderer {
           cross join slice using (track_id)
           where slice.depth = 0
         `,
-      ),
+      }),
     );
-    await createVirtualTable(
-      this.engine,
-      `process_summary_${this.uuid}`,
-      `__intrinsic_counter_mipmap((
+    await createVirtualTable({
+      engine: this.engine,
+      name: `process_summary_${this.uuid}`,
+      using: `__intrinsic_counter_mipmap((
         select
           ts,
           sum(value) over (order by ts) / (
@@ -113,7 +117,7 @@ export class ProcessSummaryTrack implements TrackRenderer {
         from changes_${this.uuid}
         order by ts
       ))`,
-    );
+    });
     await trash.asyncDispose();
   }
 

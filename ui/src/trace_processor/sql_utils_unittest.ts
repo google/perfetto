@@ -12,39 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {constraintsToQueryPrefix, constraintsToQuerySuffix} from './sql_utils';
+import {constraintsToQuerySuffix} from './sql_utils';
 
 // Clean up repeated whitespaces to allow for easier testing.
 function normalize(s: string): string {
   return s.replace(/\s+/g, ' ');
 }
-
-test('constraintsToQueryPrefix: empty', () => {
-  expect(normalize(constraintsToQueryPrefix({}))).toEqual('');
-});
-
-test('constraintsToQueryPrefix: one CTE', () => {
-  expect(
-    normalize(
-      constraintsToQueryPrefix({
-        commonTableExpressions: {foo: 'select * from bar'},
-      }),
-    ),
-  ).toEqual('WITH foo AS (select * from bar)');
-});
-
-test('constraintsToQueryPrefix: one CTE', () => {
-  expect(
-    normalize(
-      constraintsToQueryPrefix({
-        commonTableExpressions: {
-          foo1: 'select * from bar1',
-          foo2: 'select * from bar2',
-        },
-      }),
-    ),
-  ).toEqual('WITH foo1 AS (select * from bar1), foo2 AS (select * from bar2)');
-});
 
 test('constraintsToQuerySuffix: where', () => {
   expect(

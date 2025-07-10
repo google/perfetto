@@ -22,6 +22,7 @@
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/ftrace/ftrace_parser.h"
 #include "src/trace_processor/importers/ftrace/ftrace_tokenizer.h"
+#include "src/trace_processor/importers/ftrace/generic_ftrace_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
@@ -69,6 +70,7 @@ class FtraceModuleImpl : public FtraceModule {
   }
 
  private:
+  GenericFtraceTracker generic_tracker_;
   FtraceTokenizer tokenizer_;
   FtraceParser parser_;
 };

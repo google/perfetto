@@ -67,10 +67,12 @@ using ::testing::DoAll;
 using ::testing::ElementsAre;
 using ::testing::InSequence;
 using ::testing::IsNull;
+using ::testing::MockFunction;
 using ::testing::NiceMock;
 using ::testing::ResultOf;
 using ::testing::Return;
 using ::testing::SaveArg;
+using ::testing::StrictMock;
 using ::testing::UnorderedElementsAre;
 
 constexpr char kDataSourceName1[] = "dev.perfetto.example_data_source";
@@ -1279,6 +1281,82 @@ TEST_F(SharedLibTrackEventTest, TrackEventFastpathOneCatEnabled) {
   EXPECT_TRUE(std::atomic_load(cat1.enabled));
   EXPECT_FALSE(std::atomic_load(cat2.enabled));
   EXPECT_FALSE(std::atomic_load(cat3.enabled));
+}
+
+TEST_F(SharedLibTrackEventTest, TrackEventCategoryCallback) {
+  StrictMock<MockFunction<void(struct PerfettoTeCategoryImpl*,
+                               PerfettoDsInstanceIndex, bool, bool)>>
+      mf;
+
+  auto f = [](struct PerfettoTeCategoryImpl* cat, PerfettoDsInstanceIndex i,
+              bool created, bool global_state_changed, void* mf) {
+    static_cast<MockFunction<void(struct PerfettoTeCategoryImpl*,
+                                  PerfettoDsInstanceIndex, bool, bool)>*>(mf)
+        ->Call(cat, i, created, global_state_changed);
+  };
+
+  PerfettoTeCategorySetCallback(&cat1, f, &mf);
+  PerfettoTeCategorySetCallback(&cat2, f, &mf);
+  PerfettoTeCategorySetCallback(&cat3, f, &mf);
+
+  EXPECT_CALL(
+      mf, Call(cat1.impl, _, /*created=*/true, /*global_state_changed=*/true))
+      .WillOnce(Return());
+  EXPECT_CALL(
+      mf, Call(cat2.impl, _, /*created=*/true, /*global_state_changed=*/true))
+      .WillOnce(Return());
+  EXPECT_CALL(mf, Call(cat3.impl, _, /*created=*/_, /*global_state_changed=*/_))
+      .Times(0);
+
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("cat1")
+                                       .add_enabled_category("cat2")
+                                       .add_disabled_category("*")
+                                       .Build();
+
+  testing::Mock::VerifyAndClear(&mf);
+
+  EXPECT_CALL(
+      mf, Call(cat1.impl, _, /*created=*/true, /*global_state_changed=*/false))
+      .WillOnce(Return());
+  EXPECT_CALL(mf, Call(cat2.impl, _, /*created=*/_, /*global_state_changed=*/_))
+      .Times(0);
+  EXPECT_CALL(mf, Call(cat3.impl, _, /*created=*/_, /*global_state_changed=*/_))
+      .Times(0);
+
+  TracingSession tracing_session2 = TracingSession::Builder()
+                                        .set_data_source_name("track_event")
+                                        .add_enabled_category("cat1")
+                                        .add_disabled_category("*")
+                                        .Build();
+
+  testing::Mock::VerifyAndClear(&mf);
+
+  EXPECT_CALL(
+      mf, Call(cat1.impl, _, /*created=*/false, /*global_state_changed=*/false))
+      .WillOnce(Return());
+  EXPECT_CALL(mf, Call(cat2.impl, _, /*created=*/_, /*global_state_changed=*/_))
+      .Times(0);
+  EXPECT_CALL(mf, Call(cat3.impl, _, /*created=*/_, /*global_state_changed=*/_))
+      .Times(0);
+
+  tracing_session2.StopBlocking();
+
+  testing::Mock::VerifyAndClear(&mf);
+
+  EXPECT_CALL(
+      mf, Call(cat1.impl, _, /*created=*/false, /*global_state_changed=*/true))
+      .WillOnce(Return());
+  EXPECT_CALL(
+      mf, Call(cat2.impl, _, /*created=*/false, /*global_state_changed=*/true))
+      .WillOnce(Return());
+  EXPECT_CALL(mf, Call(cat3.impl, _, /*created=*/_, /*global_state_changed=*/_))
+      .Times(0);
+
+  tracing_session.StopBlocking();
+
+  testing::Mock::VerifyAndClear(&mf);
 }
 
 TEST_F(SharedLibTrackEventTest, TrackEventHlCategory) {

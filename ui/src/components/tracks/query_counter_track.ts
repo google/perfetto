@@ -96,7 +96,7 @@ async function createPerfettoTableForTrack(
     order by ts
   `;
 
-  return await createPerfettoTable(engine, tableName, query);
+  return await createPerfettoTable({engine, name: tableName, as: query});
 }
 
 export class SqlTableCounterTrack extends BaseCounterTrack {

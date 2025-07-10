@@ -58,25 +58,25 @@ export class SearchOverviewTrack implements AsyncDisposable {
   private async initialize() {
     const engine = this.trace.engine;
     this.trash.use(
-      await createVirtualTable(
+      await createVirtualTable({
         engine,
-        'search_summary_window',
-        '__intrinsic_window(0, 0, 1)',
-      ),
+        name: 'search_summary_window',
+        using: '__intrinsic_window(0, 0, 1)',
+      }),
     );
     this.trash.use(
-      await createVirtualTable(
+      await createVirtualTable({
         engine,
-        'search_summary_sched_span',
-        'span_join(sched PARTITIONED cpu, search_summary_window)',
-      ),
+        name: 'search_summary_sched_span',
+        using: 'span_join(sched PARTITIONED cpu, search_summary_window)',
+      }),
     );
     this.trash.use(
-      await createVirtualTable(
+      await createVirtualTable({
         engine,
-        'search_summary_slice_span',
-        'span_join(slice PARTITIONED track_id, search_summary_window)',
-      ),
+        name: 'search_summary_slice_span',
+        using: 'span_join(slice PARTITIONED track_id, search_summary_window)',
+      }),
     );
   }
 
