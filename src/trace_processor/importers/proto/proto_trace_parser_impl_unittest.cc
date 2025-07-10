@@ -32,7 +32,7 @@
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/base/test/status_matchers.h"
-#include "src/trace_processor/db/column/types.h"
+#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
@@ -189,14 +189,8 @@ class MockProcessTracker : public ProcessTracker {
                base::StringView cmdline),
               (override));
 
-  MOCK_METHOD(UniqueTid,
-              UpdateThreadName,
-              (int64_t tid,
-               StringId thread_name_id,
-               ThreadNamePriority priority),
-              (override));
   MOCK_METHOD(void,
-              UpdateThreadNameByUtid,
+              UpdateThreadName,
               (UniqueTid utid,
                StringId thread_name_id,
                ThreadNamePriority priority),
@@ -213,7 +207,8 @@ class MockProcessTracker : public ProcessTracker {
 class MockBoundInserter : public ArgsTracker::BoundInserter {
  public:
   MockBoundInserter()
-      : ArgsTracker::BoundInserter(&tracker_, nullptr, 0u), tracker_(nullptr) {
+      : ArgsTracker::BoundInserter(&tracker_, nullptr, 0u, 0u),
+        tracker_(nullptr) {
     ON_CALL(*this, AddArg(_, _, _, _)).WillByDefault(ReturnRef(*this));
   }
 
@@ -297,14 +292,21 @@ class ProtoTraceParserTest : public ::testing::Test {
 
   bool HasArg(ArgSetId set_id, StringId key_id, Variadic value) {
     const auto& args = storage_->arg_table();
-    Query q;
-    q.constraints = {args.arg_set_id().eq(set_id)};
+    auto cursor = args.CreateCursor({
+        dataframe::FilterSpec{
+            tables::ArgTable::ColumnIndex::arg_set_id,
+            0,
+            dataframe::Eq{},
+            std::nullopt,
+        },
+    });
+    cursor.SetFilterValueUnchecked(0, set_id);
 
     bool found = false;
-    for (auto it = args.FilterToIterator(q); it; ++it) {
-      if (it.key() == key_id) {
-        EXPECT_EQ(it.flat_key(), key_id);
-        if (storage_->GetArgValue(it.row_number().row_number()) == value) {
+    for (cursor.Execute(); !cursor.Eof(); cursor.Next()) {
+      if (cursor.key() == key_id) {
+        EXPECT_EQ(cursor.flat_key(), key_id);
+        if (storage_->GetArgValue(cursor.ToRowNumber().row_number()) == value) {
           found = true;
           break;
         }
@@ -396,11 +398,11 @@ TEST_F(ProtoTraceParserTest, LoadEventsIntoFtraceEvent) {
               testing::ElementsAre("pid", "comm", "clone_flags",
                                    "oom_score_adj", "ip", "buf"));
   ASSERT_EQ(args[0].int_value(), 123);
-  ASSERT_EQ(context_.storage->GetString(*args[1].string_value()), task_newtask);
+  ASSERT_EQ(context_.storage->GetString(args[1].string_value()), task_newtask);
   ASSERT_EQ(args[2].int_value(), 12);
   ASSERT_EQ(args[3].int_value(), 15);
   ASSERT_EQ(args[4].int_value(), 20);
-  ASSERT_EQ(context_.storage->GetString(*args[5].string_value()), buf_value);
+  ASSERT_EQ(context_.storage->GetString(args[5].string_value()), buf_value);
 
   // TODO(hjd): Add test ftrace event with all field types
   // and test here.
@@ -446,23 +448,32 @@ TEST_F(ProtoTraceParserTest, LoadGenericFtrace) {
   auto set_id = raw[raw.row_count() - 1].arg_set_id();
 
   const auto& args = storage_->arg_table();
-  Query q;
-  q.constraints = {args.arg_set_id().eq(set_id)};
+  auto cursor = args.CreateCursor({
+      dataframe::FilterSpec{
+          tables::ArgTable::ColumnIndex::arg_set_id,
+          0,
+          dataframe::Eq{},
+          std::nullopt,
+      },
+  });
+  cursor.SetFilterValueUnchecked(0, set_id);
+  cursor.Execute();
+  ASSERT_FALSE(cursor.Eof());
 
-  auto it = args.FilterToIterator(q);
-  ASSERT_TRUE(it);
+  ASSERT_EQ(storage_->GetString(cursor.key()), "meta1");
+  ASSERT_EQ(storage_->GetString(cursor.string_value()), "value1");
+  cursor.Next();
+  ASSERT_FALSE(cursor.Eof());
 
-  ASSERT_EQ(storage_->GetString(it.key()), "meta1");
-  ASSERT_EQ(storage_->GetString(*it.string_value()), "value1");
-  ASSERT_TRUE(++it);
+  ASSERT_EQ(storage_->GetString(cursor.key()), "meta2");
+  ASSERT_EQ(cursor.int_value(), -2);
+  cursor.Next();
+  ASSERT_FALSE(cursor.Eof());
 
-  ASSERT_EQ(storage_->GetString(it.key()), "meta2");
-  ASSERT_EQ(it.int_value(), -2);
-  ASSERT_TRUE(++it);
-
-  ASSERT_EQ(storage_->GetString(it.key()), "meta3");
-  ASSERT_EQ(it.int_value(), 3);
-  ASSERT_FALSE(++it);
+  ASSERT_EQ(storage_->GetString(cursor.key()), "meta3");
+  ASSERT_EQ(cursor.int_value(), 3);
+  cursor.Next();
+  ASSERT_TRUE(cursor.Eof());
 }
 
 TEST_F(ProtoTraceParserTest, LoadMultipleEvents) {
@@ -865,14 +876,14 @@ TEST_F(ProtoTraceParserTest, ThreadNameFromThreadDescriptor) {
       .WillRepeatedly(testing::Return(1u));
   EXPECT_CALL(*process_, UpdateThread(11, 15)).WillOnce(testing::Return(2u));
 
-  EXPECT_CALL(*process_, UpdateThreadNameByUtid(
-                             1u, storage_->InternString("OldThreadName"),
-                             ThreadNamePriority::kTrackDescriptor));
+  EXPECT_CALL(*process_,
+              UpdateThreadName(1u, storage_->InternString("OldThreadName"),
+                               ThreadNamePriority::kTrackDescriptor));
   // Packet with same thread, but different name should update the name.
-  EXPECT_CALL(*process_, UpdateThreadNameByUtid(
-                             1u, storage_->InternString("NewThreadName"),
-                             ThreadNamePriority::kTrackDescriptor));
-  EXPECT_CALL(*process_, UpdateThreadNameByUtid(
+  EXPECT_CALL(*process_,
+              UpdateThreadName(1u, storage_->InternString("NewThreadName"),
+                               ThreadNamePriority::kTrackDescriptor));
+  EXPECT_CALL(*process_, UpdateThreadName(
                              2u, storage_->InternString("DifferentThreadName"),
                              ThreadNamePriority::kTrackDescriptor));
 
@@ -1486,16 +1497,16 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
     ev1->set_name("ev3");
   }
 
+  EXPECT_CALL(
+      *process_,
+      UpdateThreadName(1u, storage_->InternString("StackSamplingProfiler"),
+                       ThreadNamePriority::kTrackDescriptorThreadType));
   EXPECT_CALL(*process_,
-              UpdateThreadNameByUtid(
-                  1u, storage_->InternString("StackSamplingProfiler"),
-                  ThreadNamePriority::kTrackDescriptorThreadType));
+              UpdateThreadName(2u, kNullStringId,
+                               ThreadNamePriority::kTrackDescriptor));
   EXPECT_CALL(*process_,
-              UpdateThreadNameByUtid(2u, kNullStringId,
-                                     ThreadNamePriority::kTrackDescriptor));
-  EXPECT_CALL(*process_,
-              UpdateThreadNameByUtid(1u, kNullStringId,
-                                     ThreadNamePriority::kTrackDescriptor));
+              UpdateThreadName(1u, kNullStringId,
+                               ThreadNamePriority::kTrackDescriptor));
   EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1u));
   EXPECT_CALL(*process_, UpdateThread(17, 15)).WillRepeatedly(Return(2u));
 
@@ -1635,8 +1646,8 @@ TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
               PushCounter(1100, testing::DoubleEq(1010000), TrackId{1}));
 
   EXPECT_CALL(*process_,
-              UpdateThreadNameByUtid(1u, storage_->InternString("t1"),
-                                     ThreadNamePriority::kTrackDescriptor));
+              UpdateThreadName(1u, storage_->InternString("t1"),
+                               ThreadNamePriority::kTrackDescriptor));
 
   context_.sorter->ExtractEventsForced();
 

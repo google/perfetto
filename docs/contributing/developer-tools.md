@@ -5,8 +5,17 @@ working with the Perfetto codebase. This page is mainly targetted towards
 frequent contributors to Perfetto (e.g. team members or external contribtors
 sending a lot of PRs).
 
-These tools have a bit of a learning curve to them but can signficantly
+These tools have a bit of a learning curve to them but can significantly
 accelerate the developer experience.
+
+## Continuous integration
+
+The Perfetto CI on GitHub Actions covers building and testing
+on most platforms and toolchains within ~30 mins. Anecdotally most build
+failures and bugs are detected at the Perfetto CI level.
+
+You can also
+[test a pending Perfetto CL against Chrome's TryBots](testing.md#chromium).
 
 ## "Stacked diffs" with GitHub
 

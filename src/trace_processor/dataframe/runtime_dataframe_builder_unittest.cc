@@ -101,9 +101,9 @@ TEST_F(DataframeBuilderTest, AddSingleRowSimple) {
               ElementsAre("int_col", "double_col", "str_col", "_auto_id"));
   ASSERT_THAT(
       spec.column_specs,
-      ElementsAre(ColumnSpec{Uint32{}, NonNull{}, Sorted{}, NoDuplicates{}},
-                  ColumnSpec{Double{}, NonNull{}, Sorted{}, NoDuplicates{}},
-                  ColumnSpec{String{}, NonNull{}, Sorted{}, NoDuplicates{}},
+      ElementsAre(ColumnSpec{Uint32{}, NonNull{}, Sorted{}, HasDuplicates{}},
+                  ColumnSpec{Double{}, NonNull{}, Sorted{}, HasDuplicates{}},
+                  ColumnSpec{String{}, NonNull{}, Sorted{}, HasDuplicates{}},
                   ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
   VerifyData(*df, 7,
              Rows(Row(uint32_t{123}, 45.6, NullTermStringView{"hello"})));
@@ -118,7 +118,7 @@ TEST_F(DataframeBuilderTest, AddMultipleRowsConsistentTypes) {
   ASSERT_THAT(
       spec.column_specs,
       ElementsAre(ColumnSpec{Uint32{}, NonNull{}, Unsorted{}, NoDuplicates{}},
-                  ColumnSpec{String{}, NonNull{}, Sorted{}, NoDuplicates{}},
+                  ColumnSpec{String{}, NonNull{}, Sorted{}, HasDuplicates{}},
                   ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
   VerifyData(*df, 3,
              Rows(Row(uint32_t{10}, NullTermStringView{"A"}),
@@ -142,7 +142,7 @@ TEST_F(DataframeBuilderTest, AddRowsWithNulls) {
       ElementsAre(
           ColumnSpec{Uint32{}, SparseNull{}, Unsorted{}, HasDuplicates{}},
           ColumnSpec{String{}, SparseNull{}, Unsorted{}, HasDuplicates{}},
-          ColumnSpec{Double{}, NonNull{}, Sorted{}, NoDuplicates{}},
+          ColumnSpec{Double{}, NonNull{}, Sorted{}, HasDuplicates{}},
           ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
   VerifyData(*df, 7,
              Rows(Row(uint32_t{1}, nullptr, 1.1),
@@ -229,14 +229,14 @@ TEST_F(DataframeBuilderTest, AddRowErrorStringToInt) {
   ASSERT_FALSE(builder.status().ok());
 
   EXPECT_THAT(builder.status().message(),
-              testing::HasSubstr("Type mismatch in column 'col_a'"));
-  EXPECT_THAT(builder.status().message(),
-              testing::HasSubstr("Existing type != fetched type"));
+              testing::HasSubstr("column 'col_a' was inferred to be LONG, but "
+                                 "later received a value of type STRING"));
 
   base::StatusOr<Dataframe> df_status = std::move(builder).Build();
   ASSERT_FALSE(df_status.ok());
   EXPECT_THAT(df_status.status().message(),
-              testing::HasSubstr("Type mismatch in column 'col_a'"));
+              testing::HasSubstr("column 'col_a' was inferred to be LONG, but "
+                                 "later received a value of type STRING"));
 }
 
 TEST_F(DataframeBuilderTest, AddRowPromoteIntColumnToDouble) {
@@ -262,7 +262,7 @@ TEST_F(DataframeBuilderTest, AddRowPromoteIntColumnToDouble) {
   ASSERT_THAT(spec.column_names, ElementsAre("col_a", "_auto_id"));
   ASSERT_THAT(
       spec.column_specs,
-      ElementsAre(ColumnSpec{Double{}, NonNull{}, Sorted{}, NoDuplicates{}},
+      ElementsAre(ColumnSpec{Double{}, NonNull{}, Sorted{}, HasDuplicates{}},
                   ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
   VerifyData(*df, 1, Rows(Row(100.0), Row(200.5)));
 }
@@ -290,7 +290,7 @@ TEST_F(DataframeBuilderTest, AddRowConvertNewIntToDoubleInDoubleColumn) {
   ASSERT_THAT(spec.column_names, ElementsAre("col_a", "_auto_id"));
   ASSERT_THAT(
       spec.column_specs,
-      ElementsAre(ColumnSpec{Double{}, NonNull{}, Sorted{}, NoDuplicates{}},
+      ElementsAre(ColumnSpec{Double{}, NonNull{}, Sorted{}, HasDuplicates{}},
                   ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
   VerifyData(*df, 1, Rows(Row(100.5), Row(200.0)));
 }
@@ -309,9 +309,9 @@ TEST_F(DataframeBuilderTest, BuildIntegerDowncasting) {
                           "should_be_int64", "_auto_id"));
   ASSERT_THAT(
       spec.column_specs,
-      ElementsAre(ColumnSpec{Uint32{}, NonNull{}, Unsorted{}, NoDuplicates{}},
-                  ColumnSpec{Int32{}, NonNull{}, Unsorted{}, NoDuplicates{}},
-                  ColumnSpec{Int64{}, NonNull{}, Unsorted{}, NoDuplicates{}},
+      ElementsAre(ColumnSpec{Uint32{}, NonNull{}, Unsorted{}, HasDuplicates{}},
+                  ColumnSpec{Int32{}, NonNull{}, Unsorted{}, HasDuplicates{}},
+                  ColumnSpec{Int64{}, NonNull{}, Unsorted{}, HasDuplicates{}},
                   ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
 }
 
@@ -393,7 +393,7 @@ TEST_F(DataframeBuilderTest, BuildIntegerNoDowncast) {
   ASSERT_THAT(
       spec.column_specs,
       ElementsAre(
-          ColumnSpec{Int64{}, NonNull{}, Unsorted{}, NoDuplicates{}},
+          ColumnSpec{Int64{}, NonNull{}, Unsorted{}, HasDuplicates{}},
           ColumnSpec{Uint32{}, SparseNull{}, Unsorted{}, HasDuplicates{}},
           ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
 }
@@ -470,6 +470,18 @@ TEST_F(DataframeBuilderTest, DuplicateState_Int_HasDuplicates_NonNull) {
                   ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
 }
 
+TEST_F(DataframeBuilderTest, DuplicateState_Int_NegativeConsideredDuplicate) {
+  base::StatusOr<Dataframe> df_status =
+      BuildDf({"col_int"}, {{int64_t{-10}}, {int64_t{-20}}, {int64_t{-10}}});
+  ASSERT_OK(df_status.status());
+  Dataframe df = std::move(df_status.value());
+  auto spec = df.CreateSpec();
+  ASSERT_THAT(
+      spec.column_specs,
+      ElementsAre(ColumnSpec{Int32{}, NonNull{}, Unsorted{}, HasDuplicates{}},
+                  ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
+}
+
 TEST_F(DataframeBuilderTest, DuplicateState_Int_NullableBecomesHasDuplicates) {
   base::StatusOr<Dataframe> df_status =
       BuildDf({"col_int"}, {{int64_t{10}}, {std::nullopt}, {int64_t{30}}});
@@ -504,7 +516,7 @@ TEST_F(DataframeBuilderTest, DuplicateState_Double_NoDuplicates_NonNull) {
   auto spec = df.CreateSpec();
   ASSERT_THAT(
       spec.column_specs,
-      ElementsAre(ColumnSpec{Double{}, NonNull{}, Sorted{}, NoDuplicates{}},
+      ElementsAre(ColumnSpec{Double{}, NonNull{}, Sorted{}, HasDuplicates{}},
                   ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
 }
 
@@ -555,7 +567,7 @@ TEST_F(DataframeBuilderTest, DuplicateState_String_NoDuplicates_NonNull) {
   auto spec = df.CreateSpec();
   ASSERT_THAT(
       spec.column_specs,
-      ElementsAre(ColumnSpec{String{}, NonNull{}, Sorted{}, NoDuplicates{}},
+      ElementsAre(ColumnSpec{String{}, NonNull{}, Sorted{}, HasDuplicates{}},
                   ColumnSpec{Id{}, NonNull{}, IdSorted{}, NoDuplicates{}}));
 }
 

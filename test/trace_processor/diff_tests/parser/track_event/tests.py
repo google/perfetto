@@ -310,6 +310,50 @@ class TrackEvent(TestSuite):
         "tid=1","[NULL]"
         """))
 
+  def test_track_event_descriptions(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_tracks.textproto'),
+        query="""
+        WITH track_with_name AS (
+          SELECT
+            COALESCE(
+              t1.name,
+              'thread=' || thread.name,
+              'process=' || process.name,
+              'tid=' || thread.tid,
+              'pid=' || process.pid
+            ) AS full_name,
+            *
+          FROM track t1
+          LEFT JOIN thread_track t2 USING (id)
+          LEFT JOIN thread USING (utid)
+          LEFT JOIN process_track t3 USING (id)
+          LEFT JOIN process ON t3.upid = process.id
+          ORDER BY id
+        )
+        SELECT
+        t1.full_name AS name,
+        EXTRACT_ARG(t1.source_arg_set_id, 'description') AS description
+        FROM track_with_name t1
+        ORDER BY 1, 2;
+        """,
+        out=Csv("""
+        "name","description"
+        "Default Track","[NULL]"
+        "async","Async events for p1"
+        "async2","[NULL]"
+        "async3","Async events for t2"
+        "event_and_track_async3","[NULL]"
+        "process=p1","Chrome process: p1"
+        "process=p2","[NULL]"
+        "process=p2","[NULL]"
+        "thread=t1","Thread t1"
+        "thread=t2","Thread t2"
+        "thread=t3","[NULL]"
+        "thread=t4","[NULL]"
+        "tid=1","[NULL]"
+        """))
+
   # Instant events
   def test_track_event_instant_slices(self):
     return DiffTestBlueprint(
@@ -620,6 +664,27 @@ class TrackEvent(TestSuite):
         "MyDoubleCounter","[NULL]","[NULL]","[NULL]","[NULL]",4500,2.718280
         """))
 
+  def test_incremental_counter_sequences(self):
+    return DiffTestBlueprint(
+        trace=Path('incremental_counter_sequences.textproto'),
+        query="""
+        SELECT
+          ts,
+          value
+        FROM counter
+        JOIN track ON counter.track_id = track.id
+        WHERE
+          track.name = 'MyIncrementalCounter'
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","value"
+        100,100.000000
+        150,50.000000
+        200,110.000000
+        250,55.000000
+        """))
+
   # Clock handling
   def test_track_event_monotonic_trace_clock_slices(self):
     return DiffTestBlueprint(
@@ -786,8 +851,11 @@ class TrackEvent(TestSuite):
     return DiffTestBlueprint(
         trace=Path('experimental_slice_layout_depth.py'),
         query="""
-        SELECT layout_depth FROM experimental_slice_layout
-        WHERE filter_track_ids = (SELECT group_concat(track_id, ',') FROM slice);
+        SELECT layout_depth
+        FROM experimental_slice_layout((
+          SELECT group_concat(track_id, ',')
+          FROM slice
+        ))
         """,
         out=Csv("""
         "layout_depth"

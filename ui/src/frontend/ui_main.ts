@@ -47,7 +47,7 @@ import {
 import {featureFlags} from '../core/feature_flags';
 import {trackMatchesFilter} from '../core/track_manager';
 import {renderStatusBar} from './statusbar';
-import {Time} from '../base/time';
+import {formatTimezone, timezoneOffsetMap} from '../base/time';
 
 const showStatusBarFlag = featureFlags.register({
   id: 'Enable status bar',
@@ -117,11 +117,12 @@ export class UiMainPerTrace implements m.ClassComponent {
         name: 'Set timestamp and duration format',
         callback: async () => {
           const TF = TimestampFormat;
-          const timeZone = Time.formatTimezone(trace.traceInfo.tzOffMin);
+          const timeZone = formatTimezone(trace.traceInfo.tzOffMin);
           const result = await app.omnibox.prompt('Select format...', {
             values: [
               {format: TF.Timecode, name: 'Timecode'},
               {format: TF.UTC, name: 'Realtime (UTC)'},
+
               {format: TF.TraceTz, name: `Realtime (Trace TZ - ${timeZone})`},
               {format: TF.Seconds, name: 'Seconds'},
               {format: TF.Milliseconds, name: 'Milliseconds'},
@@ -131,10 +132,23 @@ export class UiMainPerTrace implements m.ClassComponent {
                 format: TF.TraceNsLocale,
                 name: 'Trace nanoseconds (with locale-specific formatting)',
               },
+              {format: TF.CustomTimezone, name: 'Custom Timezone'},
             ],
             getName: (x) => x.name,
           });
-          result && (trace.timeline.timestampFormat = result.format);
+          if (!result) return;
+
+          if (result.format === TF.CustomTimezone) {
+            const result = await app.omnibox.prompt('Select format...', {
+              values: Object.entries(timezoneOffsetMap),
+              getName: ([key]) => key,
+            });
+
+            if (!result) return;
+            trace.timeline.timezoneOverride.set(result[0]);
+          }
+
+          trace.timeline.timestampFormat = result.format;
         },
       },
       {
@@ -205,14 +219,19 @@ export class UiMainPerTrace implements m.ClassComponent {
       {
         id: 'perfetto.FocusSelection',
         name: 'Focus current selection',
-        callback: () => trace.selection.scrollToCurrentSelection(),
+        callback: () => trace.selection.scrollToSelection(),
         defaultHotkey: 'F',
+      },
+      {
+        id: 'perfetto.ZoomOnSelection',
+        name: 'Zoom in on current selection',
+        callback: () => trace.selection.zoomOnSelection(),
       },
       {
         id: 'perfetto.Deselect',
         name: 'Deselect',
         callback: () => {
-          trace.selection.clear();
+          trace.selection.clearSelection();
         },
         defaultHotkey: 'Escape',
       },
@@ -312,7 +331,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         name: 'Convert selection to area selection',
         callback: () => {
           const selection = trace.selection.selection;
-          const range = trace.selection.findTimeRangeOfSelection();
+          const range = trace.selection.getTimeSpanOfSelection();
           if (selection.kind === 'track_event' && range) {
             trace.selection.selectArea({
               start: range.start,

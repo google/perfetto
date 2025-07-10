@@ -24,8 +24,8 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -50,16 +50,14 @@ class TrackEventTracker {
       StringId category = kNullStringId;
       int64_t unit_multiplier = 1;
       bool is_incremental = false;
-      uint32_t packet_sequence_id = 0;
-      double latest_value = 0;
       StringId unit = kNullStringId;
       StringId builtin_type_str;
 
       bool IsForSameTrack(const CounterDetails& o) const {
         return std::tie(category, unit_multiplier, is_incremental,
-                        packet_sequence_id, builtin_type_str) ==
+                        builtin_type_str) ==
                std::tie(o.category, o.unit_multiplier, o.is_incremental,
-                        o.packet_sequence_id, o.builtin_type_str);
+                        o.builtin_type_str);
       }
     };
 
@@ -68,6 +66,7 @@ class TrackEventTracker {
     std::optional<uint32_t> tid;
     int64_t min_timestamp = 0;
     StringId name = kNullStringId;
+    StringId description = kNullStringId;
     bool use_separate_track = false;
     bool is_counter = false;
 
@@ -125,18 +124,11 @@ class TrackEventTracker {
 
   // Converts the given counter value to an absolute value in the unit of the
   // counter, applying incremental delta encoding or unit multipliers as
-  // necessary. If the counter uses incremental encoding, |packet_sequence_id|
-  // must match the one in its track reservation. Returns std::nullopt if the
-  // counter track is unknown or an invalid |packet_sequence_id| was passed.
+  // necessary.
   std::optional<double> ConvertToAbsoluteCounterValue(
+      PacketSequenceStateGeneration* packet_sequence_state,
       uint64_t counter_track_uuid,
-      uint32_t packet_sequence_id,
       double value);
-
-  // Called by ProtoTraceReader whenever incremental state is cleared on a
-  // packet sequence. Resets counter values for any incremental counters of
-  // the sequence identified by |packet_sequence_id|.
-  void OnIncrementalStateCleared(uint32_t packet_sequence_id);
 
   void OnFirstPacketOnSequence(uint32_t packet_sequence_id);
 
@@ -236,6 +228,7 @@ class TrackEventTracker {
   const StringId sibling_order_rank_key_;
   const StringId descriptor_source_;
   const StringId default_descriptor_track_name_;
+  const StringId description_key_;
 
   std::optional<int64_t> range_of_interest_start_us_;
   TraceProcessorContext* const context_;

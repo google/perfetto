@@ -14,25 +14,37 @@
 """Contains tables for relevant for TODO."""
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import CppAccess
+from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppSelfTableId
 from python.generators.trace_processor_table.public import CppString
-from python.generators.trace_processor_table.public import Table
-from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import Table
+from python.generators.trace_processor_table.public import TableDoc
 
 from src.trace_processor.tables.track_tables import TRACK_TABLE
 
 MEMORY_SNAPSHOT_TABLE = Table(
     python_module=__file__,
     class_name='MemorySnapshotTable',
-    sql_name='memory_snapshot',
+    sql_name='__intrinsic_memory_snapshot',
     columns=[
-        C('timestamp', CppInt64()),
+        C(
+            'timestamp',
+            CppInt64(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C('track_id', CppTableId(TRACK_TABLE)),
-        C('detail_level', CppString()),
+        C(
+            'detail_level',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''''',
@@ -41,15 +53,27 @@ MEMORY_SNAPSHOT_TABLE = Table(
             'timestamp': '''''',
             'track_id': '''''',
             'detail_level': ''''''
-        }))
+        },
+    ),
+)
 
 PROCESS_MEMORY_SNAPSHOT_TABLE = Table(
     python_module=__file__,
     class_name='ProcessMemorySnapshotTable',
-    sql_name='process_memory_snapshot',
+    sql_name='__intrinsic_process_memory_snapshot',
     columns=[
-        C('snapshot_id', CppTableId(MEMORY_SNAPSHOT_TABLE)),
-        C('upid', CppUint32()),
+        C(
+            'snapshot_id',
+            CppTableId(MEMORY_SNAPSHOT_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'upid',
+            CppUint32(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''''',
@@ -57,19 +81,46 @@ PROCESS_MEMORY_SNAPSHOT_TABLE = Table(
         columns={
             'snapshot_id': '''''',
             'upid': ''''''
-        }))
+        },
+    ),
+)
 
 MEMORY_SNAPSHOT_NODE_TABLE = Table(
     python_module=__file__,
     class_name='MemorySnapshotNodeTable',
-    sql_name='memory_snapshot_node',
+    sql_name='__intrinsic_memory_snapshot_node',
     columns=[
-        C('process_snapshot_id', CppTableId(PROCESS_MEMORY_SNAPSHOT_TABLE)),
+        C(
+            'process_snapshot_id',
+            CppTableId(PROCESS_MEMORY_SNAPSHOT_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C('parent_node_id', CppOptional(CppSelfTableId())),
-        C('path', CppString()),
-        C('size', CppInt64()),
-        C('effective_size', CppInt64()),
-        C('arg_set_id', CppOptional(CppUint32())),
+        C(
+            'path',
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'size',
+            CppInt64(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'effective_size',
+            CppInt64(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''''',
@@ -81,16 +132,33 @@ MEMORY_SNAPSHOT_NODE_TABLE = Table(
             'size': '''''',
             'effective_size': '''''',
             'arg_set_id': ''''''
-        }))
+        },
+    ),
+)
 
 MEMORY_SNAPSHOT_EDGE_TABLE = Table(
     python_module=__file__,
     class_name='MemorySnapshotEdgeTable',
-    sql_name='memory_snapshot_edge',
+    sql_name='__intrinsic_memory_snapshot_edge',
     columns=[
-        C('source_node_id', CppTableId(MEMORY_SNAPSHOT_NODE_TABLE)),
-        C('target_node_id', CppTableId(MEMORY_SNAPSHOT_NODE_TABLE)),
-        C('importance', CppUint32()),
+        C(
+            'source_node_id',
+            CppTableId(MEMORY_SNAPSHOT_NODE_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'target_node_id',
+            CppTableId(MEMORY_SNAPSHOT_NODE_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'importance',
+            CppUint32(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''''',
@@ -99,7 +167,9 @@ MEMORY_SNAPSHOT_EDGE_TABLE = Table(
             'source_node_id': '''''',
             'target_node_id': '''''',
             'importance': ''''''
-        }))
+        },
+    ),
+)
 
 # Keep this list sorted.
 ALL_TABLES = [

@@ -77,7 +77,7 @@ jobs:
         run: |
           mkdir /tmp/chrome
           cd /tmp/chrome
-          CHROME_VERSION=136.0.7103.113
+          CHROME_VERSION=138.0.7204.92
           curl -Ls -o chrome.deb https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_${CHROME_VERSION}-1_amd64.deb
           dpkg-deb -x chrome.deb  .
 
@@ -90,7 +90,7 @@ jobs:
         # base_ref is "" in post-submit, skip the presubmit check in postsubmit
         # as there is nothing do diff against.
         if: ${{ github.base_ref != '' }}
-        run: ui/format-sources --check-only
+        run: ui/format-sources --check-only --upstream origin/${{ github.base_ref }}
 
       - name: Upload artifacts to GCS
         if: ${{ always() }}

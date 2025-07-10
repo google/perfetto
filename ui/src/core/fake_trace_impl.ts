@@ -53,6 +53,13 @@ export function initializeAppImplForTesting(): AppImpl {
         defaultValue: DurationPrecision.Full,
         schema: z.nativeEnum(DurationPrecision),
       }),
+      timezoneOverrideSetting: settingsManager.register({
+        id: 'timezoneOverride',
+        name: 'Timezone Override',
+        description: 'What timezone to use for displaying timestamps.',
+        schema: z.enum(['dummy']),
+        defaultValue: 'dummy',
+      }),
     });
   }
   return AppImpl.instance;
@@ -67,9 +74,7 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
     traceUrl: '',
     start: Time.fromSeconds(0),
     end: Time.fromSeconds(10),
-    realtimeOffset: Time.ZERO,
-    utcOffset: Time.ZERO,
-    traceTzOffset: Time.ZERO,
+    unixOffset: Time.ZERO,
     tzOffMin: 0,
     cpus: [],
     importErrors: 0,

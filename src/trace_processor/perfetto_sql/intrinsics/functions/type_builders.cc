@@ -34,6 +34,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/small_vector.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/interval_intersector.h"
@@ -50,7 +51,6 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -330,13 +330,16 @@ struct IntervalTreeIntervalsAgg
           ctx, "Interval intersect requires intervals to be sorted by ts.");
       return;
     }
-    agg_ctx.last_interval_start = interval.start;
     int64_t dur = sqlite::value::Int64(argv[2]);
-    if (dur < 1) {
-      sqlite::result::Error(
-          ctx, "Interval intersect only works on intervals with dur > 0");
+
+    if (dur < 0) {
+      sqlite::result::Error(ctx,
+                            "Interval intersect only works on intervals with "
+                            "non negative duration.");
       return;
     }
+
+    agg_ctx.last_interval_start = interval.start;
     interval.end = interval.start + static_cast<uint64_t>(dur);
 
     // Fast path for no partitions.

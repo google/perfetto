@@ -99,6 +99,7 @@ TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
       descriptor_source_(context->storage->InternString("descriptor")),
       default_descriptor_track_name_(
           context->storage->InternString("Default Track")),
+      description_key_(context->storage->InternString("description")),
       context_(context) {}
 
 void TrackEventTracker::ReserveDescriptorTrack(
@@ -436,8 +437,8 @@ TrackEventTracker::ResolveDescriptorTrack(
 }
 
 std::optional<double> TrackEventTracker::ConvertToAbsoluteCounterValue(
+    PacketSequenceStateGeneration* packet_sequence_state,
     uint64_t counter_track_uuid,
-    uint32_t packet_sequence_id,
     double value) {
   auto* reservation_ptr = reserved_descriptor_tracks_.Find(counter_track_uuid);
   if (!reservation_ptr) {
@@ -455,44 +456,17 @@ std::optional<double> TrackEventTracker::ConvertToAbsoluteCounterValue(
   if (!reservation.counter_details) {
     PERFETTO_FATAL("Counter tracks require `counter_details`.");
   }
+
   DescriptorTrackReservation::CounterDetails& c_details =
       *reservation.counter_details;
-
-  if (c_details.unit_multiplier > 0)
+  if (c_details.unit_multiplier > 0) {
     value *= static_cast<double>(c_details.unit_multiplier);
-
+  }
   if (c_details.is_incremental) {
-    if (c_details.packet_sequence_id != packet_sequence_id) {
-      PERFETTO_DLOG(
-          "Incremental counter track with uuid %" PRIu64
-          " was updated from the wrong packet sequence (expected: %" PRIu32
-          " got:%" PRIu32 ")",
-          counter_track_uuid, c_details.packet_sequence_id, packet_sequence_id);
-      return std::nullopt;
-    }
-
-    c_details.latest_value += value;
-    value = c_details.latest_value;
+    value = packet_sequence_state->IncrementAndGetCounterValue(
+        counter_track_uuid, value);
   }
   return value;
-}
-
-void TrackEventTracker::OnIncrementalStateCleared(uint32_t packet_sequence_id) {
-  // TODO(eseckler): Improve on the runtime complexity of this. At O(hundreds)
-  // of packet sequences, incremental state clearing at O(trace second), and
-  // total number of tracks in O(thousands), a linear scan through all tracks
-  // here might not be fast enough.
-  for (auto it = reserved_descriptor_tracks_.GetIterator(); it; ++it) {
-    DescriptorTrackReservation& reservation = it.value();
-    // Only consider incremental counter tracks for current sequence.
-    if (!reservation.is_counter || !reservation.counter_details ||
-        !reservation.counter_details->is_incremental ||
-        reservation.counter_details->packet_sequence_id != packet_sequence_id) {
-      continue;
-    }
-    // Reset their value to 0, see CounterDescriptor's |is_incremental|.
-    reservation.counter_details->latest_value = 0;
-  }
 }
 
 void TrackEventTracker::OnFirstPacketOnSequence(uint32_t packet_sequence_id) {
@@ -542,6 +516,10 @@ void TrackEventTracker::AddTrackArgs(
   if (reservation.sibling_order_rank) {
     args.AddArg(sibling_order_rank_key_,
                 Variadic::Integer(*reservation.sibling_order_rank));
+  }
+
+  if (!reservation.description.is_null()) {
+    args.AddArg(description_key_, Variadic::String(reservation.description));
   }
 }
 

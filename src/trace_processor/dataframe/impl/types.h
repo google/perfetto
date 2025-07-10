@@ -23,12 +23,11 @@
 #include <utility>
 #include <variant>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
-#include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/type_set.h"
 
@@ -121,8 +120,8 @@ using SparseNullCollapsedNullability = TypeSet<NonNull, SparseNull, DenseNull>;
 
 // TypeSet of all possible sparse nullability states.
 using SparseNullTypes = TypeSet<SparseNull,
-                                SparseNullSupportingCellGetAlways,
-                                SparseNullSupportingCellGetUntilFinalization>;
+                                SparseNullWithPopcountAlways,
+                                SparseNullWithPopcountUntilFinalization>;
 
 // Storage implementation for column data. Provides physical storage
 // for different types of column content.
@@ -140,7 +139,7 @@ class Storage {
   using Double = FlexVector<double>;
   using String = FlexVector<StringPool::Id>;
 
-  using DataPointer = std::variant<nullptr_t,
+  using DataPointer = std::variant<std::nullptr_t,
                                    const uint32_t*,
                                    const int32_t*,
                                    const int64_t*,
@@ -260,12 +259,11 @@ class NullStorage {
   NullStorage(NonNull n) : nullability_(dataframe::NonNull{}), data_(n) {}
   NullStorage(SparseNull s, dataframe::SparseNull = dataframe::SparseNull{})
       : nullability_(dataframe::SparseNull{}), data_(std::move(s)) {}
-  NullStorage(SparseNull s, dataframe::SparseNullSupportingCellGetAlways)
-      : nullability_(dataframe::SparseNullSupportingCellGetAlways{}),
+  NullStorage(SparseNull s, dataframe::SparseNullWithPopcountAlways)
+      : nullability_(dataframe::SparseNullWithPopcountAlways{}),
         data_(std::move(s)) {}
-  NullStorage(SparseNull s,
-              dataframe::SparseNullSupportingCellGetUntilFinalization)
-      : nullability_(dataframe::SparseNullSupportingCellGetUntilFinalization{}),
+  NullStorage(SparseNull s, dataframe::SparseNullWithPopcountUntilFinalization)
+      : nullability_(dataframe::SparseNullWithPopcountUntilFinalization{}),
         data_(std::move(s)) {}
   NullStorage(DenseNull d)
       : nullability_(dataframe::DenseNull{}), data_(std::move(d)) {}
@@ -277,9 +275,8 @@ class NullStorage {
       return base::unchecked_get<NonNull>(data_);
     } else if constexpr (
         std::is_same_v<T, dataframe::SparseNull> ||
-        std::is_same_v<T, dataframe::SparseNullSupportingCellGetAlways> ||
-        std::is_same_v<
-            T, dataframe::SparseNullSupportingCellGetUntilFinalization>) {
+        std::is_same_v<T, dataframe::SparseNullWithPopcountAlways> ||
+        std::is_same_v<T, dataframe::SparseNullWithPopcountUntilFinalization>) {
       return base::unchecked_get<SparseNull>(data_);
     } else if constexpr (std::is_same_v<T, dataframe::DenseNull>) {
       return base::unchecked_get<DenseNull>(data_);
@@ -294,9 +291,8 @@ class NullStorage {
       return base::unchecked_get<NonNull>(data_);
     } else if constexpr (
         std::is_same_v<T, dataframe::SparseNull> ||
-        std::is_same_v<T, dataframe::SparseNullSupportingCellGetAlways> ||
-        std::is_same_v<
-            T, dataframe::SparseNullSupportingCellGetUntilFinalization>) {
+        std::is_same_v<T, dataframe::SparseNullWithPopcountAlways> ||
+        std::is_same_v<T, dataframe::SparseNullWithPopcountUntilFinalization>) {
       return base::unchecked_get<SparseNull>(data_);
     } else if constexpr (std::is_same_v<T, dataframe::DenseNull>) {
       return base::unchecked_get<DenseNull>(data_);
@@ -405,6 +401,7 @@ struct Column {
   SortState sort_state;
   DuplicateState duplicate_state;
   SpecializedStorage specialized_storage = SpecializedStorage{};
+  uint32_t mutations = 0;
 };
 
 // Handle for referring to a filter value during query execution.
@@ -428,15 +425,13 @@ struct CastFilterValueResult {
     return validity == other.validity && value == other.value;
   }
 
-  static constexpr CastFilterValueResult Valid(Value value) {
-    return CastFilterValueResult{Validity::kValid, value};
+  static CastFilterValueResult Valid(Value value) {
+    return CastFilterValueResult{Validity::kValid, std::move(value)};
   }
-
-  static constexpr CastFilterValueResult NoneMatch() {
+  static CastFilterValueResult NoneMatch() {
     return CastFilterValueResult{Validity::kNoneMatch, Id{0}};
   }
-
-  static constexpr CastFilterValueResult AllMatch() {
+  static CastFilterValueResult AllMatch() {
     return CastFilterValueResult{Validity::kAllMatch, Id{0}};
   }
 
@@ -445,6 +440,38 @@ struct CastFilterValueResult {
 
   // Variant of all possible cast value types.
   Value value;
+};
+
+// Result of an operation that yields multiple values (e.g. from an IN clause).
+struct CastFilterValueListResult {
+  using Value = std::variant<CastFilterValueResult::Id,
+                             uint32_t,
+                             int32_t,
+                             int64_t,
+                             double,
+                             StringPool::Id>;
+  using ValueList = std::variant<FlexVector<CastFilterValueResult::Id>,
+                                 FlexVector<uint32_t>,
+                                 FlexVector<int32_t>,
+                                 FlexVector<int64_t>,
+                                 FlexVector<double>,
+                                 FlexVector<StringPool::Id>>;
+
+  static CastFilterValueListResult Valid(ValueList v) {
+    return CastFilterValueListResult{CastFilterValueResult::Validity::kValid,
+                                     std::move(v)};
+  }
+  static CastFilterValueListResult NoneMatch() {
+    return CastFilterValueListResult{
+        CastFilterValueResult::Validity::kNoneMatch,
+        FlexVector<CastFilterValueResult::Id>()};
+  }
+  static CastFilterValueListResult AllMatch() {
+    return CastFilterValueListResult{CastFilterValueResult::Validity::kAllMatch,
+                                     FlexVector<CastFilterValueResult::Id>()};
+  }
+  CastFilterValueResult::Validity validity;
+  ValueList value_list;
 };
 
 // Represents a contiguous range of indices [b, e).

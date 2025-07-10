@@ -16,8 +16,10 @@ Contains tables related to perf data ingestion.
 """
 
 from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import ColumnFlag
+from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppString
@@ -32,8 +34,8 @@ ETM_V4_CONFIGURATION = Table(
     sql_name='__intrinsic_etm_v4_configuration',
     columns=[
         C('set_id', CppUint32(), flags=ColumnFlag.SORTED | ColumnFlag.SET_ID),
-        C('cpu', CppUint32()),
-        C('cs_trace_id', CppUint32()),
+        C('cpu', CppUint32(), cpp_access=CppAccess.READ),
+        C('cs_trace_id', CppUint32(), cpp_access=CppAccess.READ),
         C('core_profile', CppString()),
         C('arch_version', CppString()),
         C('major_version', CppUint32()),
@@ -77,8 +79,18 @@ ETM_V4_SESSION = Table(
     class_name='EtmV4SessionTable',
     sql_name='__intrinsic_etm_v4_session',
     columns=[
-        C('configuration_id', CppTableId(ETM_V4_CONFIGURATION)),
-        C('start_ts', CppOptional(CppInt64())),
+        C(
+            'configuration_id',
+            CppTableId(ETM_V4_CONFIGURATION),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'start_ts',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -101,7 +113,10 @@ ETM_V4_TRACE = Table(
     class_name='EtmV4TraceTable',
     sql_name='__intrinsic_etm_v4_trace',
     columns=[
-        C('session_id', CppTableId(ETM_V4_SESSION)),
+        C('session_id',
+          CppTableId(ETM_V4_SESSION),
+          cpp_access=CppAccess.READ,
+          cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
         C('trace_set_id',
           CppUint32(),
           flags=ColumnFlag.SORTED | ColumnFlag.SET_ID),
@@ -132,7 +147,16 @@ FILE_TABLE = Table(
     sql_name='__intrinsic_file',
     columns=[
         C('name', CppString()),
-        C('size', CppInt64()),
+        C(
+            'size',
+            CppInt64(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'trace_type',
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -162,7 +186,7 @@ ELF_FILE_TABLE = Table(
     class_name='ElfFileTable',
     sql_name='__intrinsic_elf_file',
     columns=[
-        C('file_id', CppTableId(FILE_TABLE)),
+        C('file_id', CppTableId(FILE_TABLE), cpp_access=CppAccess.READ),
         C('load_bias', CppInt64()),
         C('build_id', CppOptional(CppString())),
     ],

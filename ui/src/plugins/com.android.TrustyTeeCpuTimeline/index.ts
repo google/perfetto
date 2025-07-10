@@ -23,8 +23,6 @@ export default class implements PerfettoPlugin {
   static readonly id = 'com.android.TrustyTeeCpuTimeline';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
-    const title = 'Trusty Tee CPU Timeline';
-
     const uri = `com.android.TrustyTeeCpuTimeline#TrustyTeeCpuTimeline`;
     const query = `
       SELECT
@@ -45,7 +43,6 @@ export default class implements PerfettoPlugin {
 
     ctx.tracks.registerTrack({
       uri,
-      title,
       renderer: new DatasetSliceTrack({
         trace: ctx,
         uri,
@@ -69,7 +66,11 @@ export default class implements PerfettoPlugin {
       }),
     });
 
-    const trackNode = new TrackNode({uri, title, sortOrder: -100});
+    const trackNode = new TrackNode({
+      uri,
+      name: 'Trusty Tee CPU Timeline',
+      sortOrder: -100,
+    });
     ctx.workspace.addChildInOrder(trackNode);
   }
 }

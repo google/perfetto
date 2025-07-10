@@ -65,6 +65,7 @@
 
 namespace perfetto::trace_processor {
 namespace {
+
 using ::testing::_;
 using ::testing::Args;
 using ::testing::AtLeast;
@@ -81,6 +82,7 @@ using ::testing::Pointwise;
 using ::testing::Return;
 using ::testing::ReturnRef;
 using ::testing::UnorderedElementsAreArray;
+
 class MockSchedEventTracker : public FtraceSchedEventTracker {
  public:
   explicit MockSchedEventTracker(TraceProcessorContext* context)
@@ -113,14 +115,8 @@ class MockProcessTracker : public ProcessTracker {
                base::StringView cmdline),
               (override));
 
-  MOCK_METHOD(UniqueTid,
-              UpdateThreadName,
-              (int64_t tid,
-               StringId thread_name_id,
-               ThreadNamePriority priority),
-              (override));
   MOCK_METHOD(void,
-              UpdateThreadNameByUtid,
+              UpdateThreadName,
               (UniqueTid utid,
                StringId thread_name_id,
                ThreadNamePriority priority),
@@ -136,7 +132,8 @@ class MockProcessTracker : public ProcessTracker {
 class MockBoundInserter : public ArgsTracker::BoundInserter {
  public:
   MockBoundInserter()
-      : ArgsTracker::BoundInserter(&tracker_, nullptr, 0u), tracker_(nullptr) {
+      : ArgsTracker::BoundInserter(&tracker_, nullptr, 0u, 0u),
+        tracker_(nullptr) {
     ON_CALL(*this, AddArg(_, _, _, _)).WillByDefault(ReturnRef(*this));
   }
 

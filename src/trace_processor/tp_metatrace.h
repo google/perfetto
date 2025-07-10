@@ -23,6 +23,7 @@
 
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/metatrace_events.h"
+#include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/trace_processor/metatrace_config.h"
@@ -41,7 +42,7 @@ namespace metatrace {
 using Category = protos::pbzero::MetatraceCategories;
 
 // Stores whether meta-tracing is enabled.
-extern Category g_enabled_categories;
+extern thread_local Category g_enabled_categories;
 
 inline uint64_t TraceTimeNowNs() {
   return static_cast<uint64_t>(base::GetBootTimeNs().count());
@@ -131,9 +132,9 @@ class RingBuffer {
 
   void ReadAll(std::function<void(Record*)>);
 
-  static RingBuffer* GetInstance() {
-    static RingBuffer* rb = new RingBuffer();
-    return rb;
+  static RingBuffer& GetInstance() {
+    thread_local base::NoDestructor<RingBuffer> rb;
+    return rb.ref();
   }
 
   uint64_t IndexOf(Record* record) {
@@ -166,7 +167,7 @@ class ScopedEvent {
   ~ScopedEvent() {
     if (PERFETTO_LIKELY(!record_))
       return;
-    if (RingBuffer::GetInstance()->HasOverwritten(record_idx_))
+    if (RingBuffer::GetInstance().HasOverwritten(record_idx_))
       return;
     auto now = TraceTimeNowNs();
     record_->duration_ns = now - record_->timestamp_ns;
@@ -186,7 +187,7 @@ class ScopedEvent {
 
     ScopedEvent event;
     std::tie(event.record_idx_, event.record_) =
-        RingBuffer::GetInstance()->AppendRecord(event_id);
+        RingBuffer::GetInstance().AppendRecord(event_id);
     args_fn(event.record_);
     return event;
   }

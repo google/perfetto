@@ -25,32 +25,17 @@
 #include <algorithm>
 #include <iterator>
 #include <limits>
-#include <map>
-#include <optional>
-#include <set>
-#include <string>
-#include <tuple>
-#include <utility>
-#include <vector>
 
-#include "perfetto/base/flat_set.h"
-#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/utils.h"
-#include "perfetto/public/compiler.h"
 #include "protos/perfetto/config/ftrace/ftrace_config.gen.h"
 #include "protos/perfetto/trace/ftrace/generic.pbzero.h"
-#include "src/kernel_utils/syscall_table.h"
 #include "src/traced/probes/ftrace/atrace_wrapper.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
-#include "src/traced/probes/ftrace/event_info_constants.h"
 #include "src/traced/probes/ftrace/ftrace_config_utils.h"
-#include "src/traced/probes/ftrace/ftrace_print_filter.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
-#include "src/traced/probes/ftrace/proto_translation_table.h"
 
 namespace perfetto {
 namespace {
@@ -400,25 +385,21 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
     current_state_.saved_tracing_on = ftrace_->GetTracingOn();
     if (!request.preserve_ftrace_buffer()) {
       ftrace_->SetTracingOn(false);
-      // This will fail on release ("user") builds due to ACLs, but that's
-      // acceptable since the per-event enabling/disabling should still be
-      // balanced.
+      // Android: this will fail on release ("user") builds due to ACLs, but
+      // that's acceptable since the per-event enabling/disabling should still
+      // be balanced.
       ftrace_->DisableAllEvents();
       ftrace_->ClearTrace();
     }
 
-    // Setup the clock: note that we still need to read the clock from ftrace
-    // and set current_state_.ftrace_clock, even if preserve_ftrace_buffer is
-    // false. Note that the clock is not changed if this option is set though.
-    SetupClock(request);
-
-    // Set up the rest of the tracefs state, without starting it.
-    // Notes:
-    // * resizing buffers can be quite slow (up to hundreds of ms).
-    // * resizing buffers may truncate existing contents if the new size is
-    // smaller, which matters to the preserve_ftrace_buffer option.
+    // Set up the new tracefs state, without starting recording.
     if (!request.preserve_ftrace_buffer()) {
+      SetupClock(request);
       SetupBufferSize(request);
+    } else {
+      // If preserving the existing ring buffer contents, we cannot change the
+      // clock or buffer sizes because that clears the kernel buffers.
+      RememberActiveClock();
     }
   }
 
@@ -791,29 +772,28 @@ const FtraceDataSourceConfig* FtraceConfigMuxer::GetDataSourceConfig(
 }
 
 void FtraceConfigMuxer::SetupClock(const FtraceConfig& config) {
-  std::string current_clock = ftrace_->GetClock();
+  std::set<std::string> clocks = ftrace_->AvailableClocks();
 
-  if (!config.preserve_ftrace_buffer()) {
-    std::set<std::string> clocks = ftrace_->AvailableClocks();
-
-    if (config.has_use_monotonic_raw_clock() &&
-        config.use_monotonic_raw_clock() && clocks.count(kClockMonoRaw)) {
-      ftrace_->SetClock(kClockMonoRaw);
-      current_clock = kClockMonoRaw;
-    } else {
-      for (size_t i = 0; i < base::ArraySize(kClocks); i++) {
-        std::string clock = std::string(kClocks[i]);
-        if (!clocks.count(clock))
-          continue;
-        if (current_clock == clock)
-          break;
-        ftrace_->SetClock(clock);
-        current_clock = clock;
+  if (config.use_monotonic_raw_clock() && clocks.count(kClockMonoRaw)) {
+    ftrace_->SetClock(kClockMonoRaw);
+  } else {
+    std::string current_clock = ftrace_->GetClock();
+    for (size_t i = 0; i < base::ArraySize(kClocks); i++) {
+      std::string clock = std::string(kClocks[i]);
+      if (!clocks.count(clock))
+        continue;
+      if (current_clock == clock)
         break;
-      }
+      ftrace_->SetClock(clock);
+      break;
     }
   }
 
+  RememberActiveClock();
+}
+
+void FtraceConfigMuxer::RememberActiveClock() {
+  std::string current_clock = ftrace_->GetClock();
   namespace pb0 = protos::pbzero;
   if (current_clock == "boot") {
     // "boot" is the default expectation on modern kernels, which is why we

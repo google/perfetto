@@ -33,6 +33,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/small_vector.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
@@ -43,7 +44,6 @@
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/types.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::dataframe::impl {
 
@@ -370,6 +370,11 @@ class QueryPlanBuilder {
       const std::vector<RowLayoutParams>& row_layout_params);
 
   void MaybeReleaseScratchSpanRegister();
+
+  void AddLinearFilterEqBytecode(
+      const FilterSpec&,
+      const bytecode::reg::ReadHandle<CastFilterValueResult>&,
+      const NonIdStorageType&);
 
   bool CanUseMinMaxOptimization(const std::vector<SortSpec>&, const LimitSpec&);
 

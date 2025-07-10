@@ -36,6 +36,7 @@
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/ftrace/drm_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
+#include "src/trace_processor/importers/ftrace/generic_ftrace_tracker.h"
 #include "src/trace_processor/importers/ftrace/gpu_work_period_tracker.h"
 #include "src/trace_processor/importers/ftrace/iostat_tracker.h"
 #include "src/trace_processor/importers/ftrace/mali_gpu_event_tracker.h"
@@ -51,7 +52,8 @@ namespace perfetto::trace_processor {
 
 class FtraceParser {
  public:
-  explicit FtraceParser(TraceProcessorContext* context);
+  explicit FtraceParser(TraceProcessorContext* context,
+                        GenericFtraceTracker* generic_tracker);
 
   base::Status ParseFtraceStats(protozero::ConstBytes,
                                 uint32_t packet_sequence_id);
@@ -67,7 +69,12 @@ class FtraceParser {
                                       const InlineSchedWaking& data);
 
  private:
-  void ParseGenericFtrace(int64_t timestamp,
+  void ParseLegacyGenericFtrace(int64_t timestamp,
+                                uint32_t cpu,
+                                uint32_t pid,
+                                protozero::ConstBytes);
+  void ParseGenericFtrace(uint32_t event_proto_id,
+                          int64_t timestamp,
                           uint32_t cpu,
                           uint32_t pid,
                           protozero::ConstBytes);
@@ -334,6 +341,8 @@ class FtraceParser {
   void ParseMaliGpuPowerState(int64_t ts, protozero::ConstBytes blob);
 
   TraceProcessorContext* context_;
+  GenericFtraceTracker* generic_tracker_;
+
   RssStatTracker rss_stat_tracker_;
   DrmTracker drm_tracker_;
   IostatTracker iostat_tracker_;

@@ -70,7 +70,6 @@ source_set("export_json") {
     "storage",
     "tables",
     "types",
-    "util",
   ]
   public_deps = [ "../../include/perfetto/ext/trace_processor:export_json" ]
 }
@@ -174,7 +173,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../base:clock_snapshots",
       "../protozero",
       "dataframe",
-      "db",
       "importers/android_bugreport",
       "importers/archive",
       "importers/art_hprof",
@@ -203,7 +201,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "trace_summary",
       "trace_summary:gen_cc_trace_summary_descriptor",
       "types",
-      "util",
       "util:gzip",
       "util:protozero_to_json",
       "util:protozero_to_text",
@@ -249,7 +246,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "metrics",
       "rpc:stdiod",
       "sqlite",
-      "util",
       "util:stdlib",
     ]
     if (enable_perfetto_trace_processor_linenoise) {
@@ -280,7 +276,7 @@ if (enable_perfetto_trace_processor_sqlite) {
     deps = [
       ":lib",
       "../../gn:default_deps",
-      "util",
+      "../base",
     ]
     sources = [ "minimal_shell.cc" ]
   }
@@ -330,8 +326,6 @@ perfetto_unittest_source_set("unittests") {
     "containers:unittests",
     "dataframe:unittests",
     "dataframe/impl:unittests",
-    "db:unittests",
-    "db/column:unittests",
     "importers/android_bugreport:unittests",
     "importers/common:unittests",
     "importers/ftrace:unittests",
@@ -344,7 +338,6 @@ perfetto_unittest_source_set("unittests") {
     "perfetto_sql/generator:unittests",
     "rpc:unittests",
     "sorter:unittests",
-    "tables:unittests",
     "types:unittests",
     "util:unittests",
   ]
@@ -392,6 +385,7 @@ source_set("integrationtests") {
       "../base",
       "../base:test_support",
       "sqlite",
+      "trace_summary:integrationtests",
     ]
   }
 }

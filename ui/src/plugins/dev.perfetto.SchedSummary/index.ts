@@ -27,7 +27,6 @@ export default class implements PerfettoPlugin {
     const runnableThreadCountUri = `/runnable_thread_count`;
     ctx.tracks.registerTrack({
       uri: runnableThreadCountUri,
-      title: 'Runnable thread count',
       renderer: new RunnableThreadCountTrack(ctx, runnableThreadCountUri),
     });
     ctx.commands.registerCommand({
@@ -40,7 +39,6 @@ export default class implements PerfettoPlugin {
     const uninterruptibleSleepThreadCountUri = `/uninterruptible_sleep_thread_count`;
     ctx.tracks.registerTrack({
       uri: uninterruptibleSleepThreadCountUri,
-      title: 'Uninterruptible Sleep thread count',
       renderer: new UninterruptibleSleepThreadCountTrack(
         ctx,
         uninterruptibleSleepThreadCountUri,
@@ -58,31 +56,29 @@ export default class implements PerfettoPlugin {
     });
 
     const uri = uriForActiveCPUCountTrack();
-    const title = 'Active CPU count';
+    const name = 'Active CPU count';
     ctx.tracks.registerTrack({
       uri,
-      title: title,
       renderer: new ActiveCPUCountTrack({trackUri: uri}, ctx),
     });
     ctx.commands.registerCommand({
       id: 'dev.perfetto.Sched.AddActiveCPUCountTrackCommand',
       name: 'Add track: active CPU count',
-      callback: () => addPinnedTrack(ctx, uri, title),
+      callback: () => addPinnedTrack(ctx, uri, name),
     });
 
     for (const cpuType of Object.values(CPUType)) {
       const uri = uriForActiveCPUCountTrack(cpuType);
-      const title = `Active ${cpuType} CPU count`;
+      const name = `Active ${cpuType} CPU count`;
       ctx.tracks.registerTrack({
         uri,
-        title: title,
         renderer: new ActiveCPUCountTrack({trackUri: uri}, ctx, cpuType),
       });
 
       ctx.commands.registerCommand({
         id: `dev.perfetto.Sched.AddActiveCPUCountTrackCommand.${cpuType}`,
         name: `Add track: active ${cpuType} CPU count`,
-        callback: () => addPinnedTrack(ctx, uri, title),
+        callback: () => addPinnedTrack(ctx, uri, name),
       });
     }
   }
@@ -97,8 +93,8 @@ function uriForActiveCPUCountTrack(cpuType?: CPUType): string {
   }
 }
 
-function addPinnedTrack(ctx: Trace, uri: string, title: string) {
-  const track = new TrackNode({uri, title});
+function addPinnedTrack(ctx: Trace, uri: string, name: string) {
+  const track = new TrackNode({uri, name});
   // Add track to the top of the stack
   ctx.workspace.addChildFirst(track);
   track.pin();

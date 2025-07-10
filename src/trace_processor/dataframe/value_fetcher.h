@@ -38,6 +38,9 @@ struct ValueFetcher {
   static const Type kString;
   static const Type kNull;
 
+  // Functions for operating on scalar values. The caller should know that
+  // the value at the give index is a scalar and not an iterator.
+
   // Fetches an int64_t value at the given index.
   int64_t GetInt64Value(uint32_t);
   // Fetches a double value at the given index.
@@ -46,6 +49,16 @@ struct ValueFetcher {
   const char* GetStringValue(uint32_t);
   // Fetches the type of the value at the given index.
   Type GetValueType(uint32_t);
+
+  // Functions for operating on iterators. The caller should know that
+  // the value at the given index is an iterator and not a scalar.
+
+  // Initializes the iterator at the given index. Returns true if the
+  // iterator has elements, false otherwise.
+  bool IteratorInit(uint32_t);
+  // Forwards the iterator to the next value and returns true if the iterator
+  // has more elements, false otherwise.
+  bool IteratorNext(uint32_t);
 };
 
 // ErrorValueFetcher is a dummy implementation of ValueFetcher that returns
@@ -69,6 +82,8 @@ struct ErrorValueFetcher : public ValueFetcher {
   static Type GetValueType(uint32_t) {
     PERFETTO_FATAL("Dummy implementation; should not be called");
   }
+  static bool IteratorInit(uint32_t) { PERFETTO_FATAL("Unsupported"); }
+  static bool IteratorNext(uint32_t) { PERFETTO_FATAL("Unsupported"); }
 };
 
 }  // namespace perfetto::trace_processor::dataframe

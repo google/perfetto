@@ -14,8 +14,8 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE wattson.estimates;
+INCLUDE PERFETTO MODULE wattson.tasks.task_slices;
 INCLUDE PERFETTO MODULE wattson.utils;
-INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
 
 DROP VIEW IF EXISTS _wattson_period_window;
 CREATE PERFETTO VIEW _wattson_period_window AS

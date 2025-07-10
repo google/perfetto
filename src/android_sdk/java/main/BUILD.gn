@@ -12,7 +12,9 @@ perfetto_android_library("perfetto_trace_lib") {
   ]
   deps = [ "../../jni:libperfetto_jni" ]
   manifest = "AndroidManifest.xml"
-  android_bp_generate_java_target = true
+  android_bp_java_target_name_suffix = "_java"
+  android_bp_copy_java_target_name_suffix = "_framework_java"
+  android_bp_copy_java_target_jarjar = "perfetto-sdk-framework-jarjar-rules.txt"
 }
 
 perfetto_android_app("perfetto_trace_app") {

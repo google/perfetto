@@ -16,7 +16,7 @@ import m from 'mithril';
 import {canvasClip} from '../../base/canvas_utils';
 import {Size2D} from '../../base/geom';
 import {assertUnreachable} from '../../base/logging';
-import {Time, time, toISODateOnly} from '../../base/time';
+import {Time, time, formatDate} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {TimestampFormat} from '../../public/timeline';
 import {Trace} from '../../public/trace';
@@ -56,7 +56,7 @@ export class TimeAxisPanel {
   }
 
   private renderOffsetTimestamp(ctx: CanvasRenderingContext2D): void {
-    const offset = this.trace.timeline.timestampOffset();
+    const timeAxisOrigin = this.trace.timeline.getTimeAxisOrigin();
     const timestampFormat = this.trace.timeline.timestampFormat;
     switch (timestampFormat) {
       case TimestampFormat.TraceNs:
@@ -66,26 +66,52 @@ export class TimeAxisPanel {
       case TimestampFormat.Milliseconds:
       case TimestampFormat.Microseconds:
       case TimestampFormat.Timecode:
-        const width = this.renderTimestamp(ctx, offset, 6, 10, MIN_PX_PER_STEP);
+        const width = this.renderTimestamp(
+          ctx,
+          timeAxisOrigin,
+          6,
+          10,
+          MIN_PX_PER_STEP,
+        );
         ctx.fillText('+', 6 + width + 2, 10, 6);
         break;
       case TimestampFormat.UTC:
-        const offsetDate = Time.toDate(
-          this.trace.traceInfo.utcOffset,
-          this.trace.traceInfo.realtimeOffset,
-        );
-        const dateStr = toISODateOnly(offsetDate);
-        ctx.fillText(`UTC ${dateStr}`, 6, 10);
+        {
+          const originAsDate = Time.toDate(
+            timeAxisOrigin,
+            this.trace.traceInfo.unixOffset,
+          );
+          const originDate = formatDate(originAsDate, {printTime: false});
+          ctx.fillText(originDate, 6, 10);
+        }
+        break;
+      case TimestampFormat.CustomTimezone:
+        {
+          const originAsDate = Time.toDate(
+            timeAxisOrigin,
+            this.trace.traceInfo.unixOffset,
+          );
+          const tzOffsetMins = this.trace.timeline.customTimezoneOffset;
+          const originDate = formatDate(originAsDate, {
+            tzOffsetMins,
+            printTime: false,
+          });
+          ctx.fillText(originDate, 6, 10);
+        }
         break;
       case TimestampFormat.TraceTz:
-        const offsetTzDate = Time.toDate(
-          this.trace.traceInfo.traceTzOffset,
-          this.trace.traceInfo.realtimeOffset,
-        );
-        const dateTzStr = toISODateOnly(offsetTzDate);
-        const tzOffsetMins = this.trace.traceInfo.tzOffMin;
-        const timeZone = Time.formatTimezone(tzOffsetMins);
-        ctx.fillText(`${dateTzStr} ${timeZone}`, 6, 10);
+        {
+          const originAsDate = Time.toDate(
+            timeAxisOrigin,
+            this.trace.traceInfo.unixOffset,
+          );
+          const tzOffsetMins = this.trace.traceInfo.tzOffMin;
+          const originDate = formatDate(originAsDate, {
+            tzOffsetMins,
+            printTime: false,
+          });
+          ctx.fillText(originDate, 6, 10);
+        }
         break;
       default:
         assertUnreachable(timestampFormat);
@@ -99,7 +125,7 @@ export class TimeAxisPanel {
       right: size.width,
     });
     const timespan = visibleWindow.toTimeSpan();
-    const offset = this.trace.timeline.timestampOffset();
+    const offset = this.trace.timeline.getTimeAxisOrigin();
 
     // Draw time axis.
     if (size.width > 0 && timespan.duration > 0n) {
@@ -132,6 +158,7 @@ export class TimeAxisPanel {
     const fmt = this.trace.timeline.timestampFormat;
     switch (fmt) {
       case TimestampFormat.UTC:
+      case TimestampFormat.CustomTimezone:
       case TimestampFormat.TraceTz:
       case TimestampFormat.Timecode:
         return renderTimecode(ctx, time, x, y, minWidth);

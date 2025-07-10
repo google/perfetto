@@ -93,7 +93,7 @@ source_set("common") {
     "../../../base",
     "../../../protozero",
     "../../containers",
-    "../../db:minimal",
+    "../../dataframe",
     "../../storage",
     "../../tables:tables",
     "../../types",

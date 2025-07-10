@@ -31,7 +31,9 @@ template("perfetto_android_jni_library") {
     metadata = {
       perfetto_custom_target_type = [ "perfetto_android_jni_library" ]
       perfetto_argument_binary_name = [ binary_name ]
-      perfetto_bazel_argument_linkopts = [ bazel_linkopts ]
+      if (defined(bazel_linkopts)) {
+        perfetto_bazel_argument_linkopts = [ bazel_linkopts ]
+      }
     }
   }
 }
@@ -41,7 +43,9 @@ template("perfetto_android_library") {
     "sources",
     "deps",
     "manifest",
-    "android_bp_generate_java_target",
+    "android_bp_java_target_name_suffix",
+    "android_bp_copy_java_target_name_suffix",
+    "android_bp_copy_java_target_jarjar",
     "testonly",
     "visibility",
   ]
@@ -62,9 +66,15 @@ template("perfetto_android_library") {
       if (defined(manifest)) {
         perfetto_android_manifest = [ get_path_info(manifest, "abspath") ]
       }
-      if (defined(android_bp_generate_java_target)) {
-        perfetto_android_library_android_bp_generate_java_target =
-            [ android_bp_generate_java_target ]
+      if (defined(android_bp_java_target_name_suffix)) {
+        perfetto_android_library_android_bp_java_target_name_suffix =
+            [ android_bp_java_target_name_suffix ]
+      }
+      if (defined(android_bp_copy_java_target_name_suffix)) {
+        perfetto_android_library_android_bp_copy_java_target_name_suffix =
+            [ android_bp_copy_java_target_name_suffix ]
+        perfetto_android_library_android_bp_copy_java_target_jarjar =
+            [ get_path_info(android_bp_copy_java_target_jarjar, "abspath") ]
       }
     }
   }

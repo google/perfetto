@@ -49,6 +49,7 @@
 #include "perfetto/ext/base/getopt.h"  // IWYU pragma: keep
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/scoped_mmap.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -70,7 +71,6 @@
 #include "src/trace_processor/read_trace_internal.h"
 #include "src/trace_processor/rpc/stdiod.h"
 #include "src/trace_processor/util/sql_modules.h"
-#include "src/trace_processor/util/status_macros.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
@@ -1236,7 +1236,6 @@ base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
         *size_mb = static_cast<double>(parsed_size) / 1E6;
         fprintf(stderr, "\rLoading trace: %.2f MB\r", *size_mb);
       });
-  g_tp->Flush();
   if (!read_status.ok()) {
     return base::ErrStatus("Could not read trace file (path: %s): %s",
                            trace_file_path.c_str(), read_status.c_message());
@@ -1247,6 +1246,7 @@ base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
                                       getenv("PERFETTO_SYMBOLIZER_MODE"));
 
   if (symbolizer) {
+    g_tp->Flush();
     profiling::SymbolizeDatabase(
         g_tp, symbolizer.get(), [](const std::string& trace_proto) {
           std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);
@@ -1258,11 +1258,11 @@ base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
             return;
           }
         });
-    g_tp->Flush();
   }
 
   auto maybe_map = profiling::GetPerfettoProguardMapPath();
   if (!maybe_map.empty()) {
+    g_tp->Flush();
     profiling::ReadProguardMapsToDeobfuscationPackets(
         maybe_map, [](const std::string& trace_proto) {
           std::unique_ptr<uint8_t[]> buf(new uint8_t[trace_proto.size()]);
@@ -1367,10 +1367,10 @@ base::Status IncludeSqlPackage(std::string root, bool allow_override) {
 
   // Get package name
   size_t last_slash = root.rfind('/');
-  if ((last_slash == std::string::npos) ||
-      (root.find('.') != std::string::npos))
-    return base::ErrStatus("Package path must point to the directory: %s",
+  if (last_slash == std::string::npos) {
+    return base::ErrStatus("Package path must point to a directory: %s",
                            root.c_str());
+  }
 
   std::string package_name = root.substr(last_slash + 1);
 
@@ -1378,13 +1378,22 @@ base::Status IncludeSqlPackage(std::string root, bool allow_override) {
   RETURN_IF_ERROR(base::ListFilesRecursive(root, paths));
   sql_modules::NameToPackage modules;
   for (const auto& path : paths) {
-    if (base::GetFileExtension(path) != ".sql")
+    if (base::GetFileExtension(path) != ".sql") {
       continue;
+    }
+
+    std::string path_no_extension = path.substr(0, path.rfind('.'));
+    if (path_no_extension.find('.') != std::string_view::npos) {
+      PERFETTO_ELOG("Skipping module %s as it contains a dot in its path.",
+                    path_no_extension.c_str());
+      continue;
+    }
 
     std::string filename = root + "/" + path;
     std::string file_contents;
-    if (!base::ReadFile(filename, &file_contents))
+    if (!base::ReadFile(filename, &file_contents)) {
       return base::ErrStatus("Cannot read file %s", filename.c_str());
+    }
 
     std::string import_key =
         package_name + "." + sql_modules::GetIncludeKey(path);

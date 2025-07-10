@@ -812,7 +812,8 @@ class PerfettoApiTest : public ::testing::TestWithParam<perfetto::BackendType> {
     perfetto::test::TracingMuxerImplInternalsForTest::
         ClearDataSourceTlsStateOnReset<CustomDataSource>();
     perfetto::test::TracingMuxerImplInternalsForTest::
-        ClearDataSourceTlsStateOnReset<perfetto::TrackEvent>();
+        ClearDataSourceTlsStateOnReset<
+            perfetto::internal::TrackEventDataSource>();
     perfetto::Tracing::ResetForTesting();
   }
 
@@ -1658,6 +1659,7 @@ TEST_P(PerfettoApiTest, ClearIncrementalStateMultipleInstances) {
 }
 
 TEST_P(PerfettoApiTest, TrackEventRegistrationWithModule) {
+  perfetto::internal::TrackEventDataSource::ResetForTesting();
   MockTracingMuxer muxer;
 
   // Each track event namespace registers its own data source.
@@ -1665,20 +1667,15 @@ TEST_P(PerfettoApiTest, TrackEventRegistrationWithModule) {
   EXPECT_EQ(1u, muxer.data_sources.size());
 
   tracing_module::InitializeCategories();
-  EXPECT_EQ(3u, muxer.data_sources.size());
+  EXPECT_EQ(1u, muxer.data_sources.size());
 
   // Both data sources have the same name but distinct static data (i.e.,
   // individual instance states).
   EXPECT_EQ("track_event", muxer.data_sources[0].dsd.name());
-  EXPECT_EQ("track_event", muxer.data_sources[1].dsd.name());
-  EXPECT_EQ("track_event", muxer.data_sources[2].dsd.name());
-  EXPECT_NE(muxer.data_sources[0].static_state,
-            muxer.data_sources[1].static_state);
-  EXPECT_NE(muxer.data_sources[0].static_state,
-            muxer.data_sources[2].static_state);
 }
 
 TEST_P(PerfettoApiTest, TrackEventDescriptor) {
+  perfetto::internal::TrackEventDataSource::ResetForTesting();
   MockTracingMuxer muxer;
 
   perfetto::TrackEvent::Register();
@@ -1818,6 +1815,43 @@ TEST_P(PerfettoApiTest, TrackEventNamespaces) {
                   "B:extra.ExtraNamespaceFromModule",
                   "B:extra.OverrideNamespaceFromModule",
                   "B:extra.DefaultNamespace", "B:cat1.DefaultNamespace"));
+}
+
+TEST_P(PerfettoApiTest, TrackEventNamespacesRegisterAfterStart) {
+  perfetto::TrackEvent::Register();
+  tracing_module::InitializeCategories();
+
+  auto* tracing_session = NewTraceWithCategories({"test", "other_ns"});
+  tracing_session->get()->StartBlocking();
+
+  // Default namespace.
+  TRACE_EVENT_INSTANT("test", "MainNamespaceEvent1");
+  EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("test"));
+
+  // Other namespace in a block scope.
+  {
+    PERFETTO_USE_CATEGORIES_FROM_NAMESPACE_SCOPED(other_ns);
+    TRACE_EVENT_INSTANT("other_ns", "OtherNamespaceEvent1");
+    EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("other_ns"));
+  }
+
+  other_ns::TrackEvent::Register();
+
+  // Default namespace.
+  TRACE_EVENT_INSTANT("test", "MainNamespaceEvent2");
+  EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("test"));
+
+  // Other namespace in a block scope.
+  {
+    PERFETTO_USE_CATEGORIES_FROM_NAMESPACE_SCOPED(other_ns);
+    TRACE_EVENT_INSTANT("other_ns", "OtherNamespaceEvent2");
+    EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("other_ns"));
+  }
+
+  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
+  EXPECT_THAT(slices, ElementsAre("I:test.MainNamespaceEvent1",
+                                  "I:test.MainNamespaceEvent2",
+                                  "I:other_ns.OtherNamespaceEvent2"));
 }
 
 TEST_P(PerfettoApiTest, TrackEventDynamicCategories) {
@@ -2173,14 +2207,14 @@ TEST_P(PerfettoApiTest, TrackEventCustomNamedTrack) {
   TRACE_EVENT_BEGIN("bar", "SubEvent",
                     perfetto::NamedTrack("MyCustomTrack", async_id),
                     [](perfetto::EventContext) {});
-  const auto main_thread_track = perfetto::NamedTrack(
-      "MyCustomTrack", async_id, perfetto::ThreadTrack::Current());
+  const auto main_thread_track =
+      perfetto::NamedTrack::ThreadScoped("MyCustomTrack", async_id);
   std::thread thread([&] {
     TRACE_EVENT_END("bar", perfetto::NamedTrack("MyCustomTrack", async_id));
     TRACE_EVENT_END("bar", perfetto::NamedTrack("MyCustomTrack", async_id),
                     "arg1", false, "arg2", true);
-    const auto thread_track = perfetto::NamedTrack(
-        "MyCustomTrack", async_id, perfetto::ThreadTrack::Current());
+    const auto thread_track =
+        perfetto::NamedTrack::ThreadScoped("MyCustomTrack", async_id);
     // Thread-scoped tracks will have different uuids on different thread even
     // if the id matches.
     ASSERT_NE(main_thread_track.uuid, thread_track.uuid);

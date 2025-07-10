@@ -25,23 +25,12 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/winscope_proto_mapping.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor::winscope {
 
 // Tracks information in the transition table.
-class ShellTransitionsTracker : public Destructible {
+class ShellTransitionsTracker {
  public:
   explicit ShellTransitionsTracker(TraceProcessorContext*);
-  virtual ~ShellTransitionsTracker() override;
-
-  static ShellTransitionsTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->shell_transitions_tracker) {
-      context->shell_transitions_tracker.reset(
-          new ShellTransitionsTracker(context));
-    }
-    return static_cast<ShellTransitionsTracker*>(
-        context->shell_transitions_tracker.get());
-  }
 
   ArgsTracker::BoundInserter AddArgsTo(int32_t transition_id);
 
@@ -74,7 +63,6 @@ class ShellTransitionsTracker : public Destructible {
   std::unordered_map<int32_t, TransitionInfo> transitions_infos_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::winscope
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_SHELL_TRANSITIONS_TRACKER_H_

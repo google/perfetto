@@ -3880,6 +3880,18 @@ class ConsoleFtraceEvent(_message.Message):
     msg: str
     def __init__(self, msg: _Optional[str] = ...) -> None: ...
 
+class CornerRadiiProto(_message.Message):
+    __slots__ = ["bl", "br", "tl", "tr"]
+    BL_FIELD_NUMBER: _ClassVar[int]
+    BR_FIELD_NUMBER: _ClassVar[int]
+    TL_FIELD_NUMBER: _ClassVar[int]
+    TR_FIELD_NUMBER: _ClassVar[int]
+    bl: float
+    br: float
+    tl: float
+    tr: float
+    def __init__(self, tl: _Optional[float] = ..., tr: _Optional[float] = ..., bl: _Optional[float] = ..., br: _Optional[float] = ...) -> None: ...
+
 class CounterDescriptor(_message.Message):
     __slots__ = ["categories", "is_incremental", "type", "unit", "unit_multiplier", "unit_name"]
     class BuiltinCounterType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -3965,6 +3977,22 @@ class CpuInfo(_message.Message):
     cpus: _containers.RepeatedCompositeFieldContainer[CpuInfo.Cpu]
     def __init__(self, cpus: _Optional[_Iterable[_Union[CpuInfo.Cpu, _Mapping]]] = ...) -> None: ...
 
+class CpuPerUidConfig(_message.Message):
+    __slots__ = ["poll_ms"]
+    POLL_MS_FIELD_NUMBER: _ClassVar[int]
+    poll_ms: int
+    def __init__(self, poll_ms: _Optional[int] = ...) -> None: ...
+
+class CpuPerUidData(_message.Message):
+    __slots__ = ["cluster_count", "total_time_ms", "uid"]
+    CLUSTER_COUNT_FIELD_NUMBER: _ClassVar[int]
+    TOTAL_TIME_MS_FIELD_NUMBER: _ClassVar[int]
+    UID_FIELD_NUMBER: _ClassVar[int]
+    cluster_count: int
+    total_time_ms: _containers.RepeatedScalarFieldContainer[int]
+    uid: _containers.RepeatedScalarFieldContainer[int]
+    def __init__(self, cluster_count: _Optional[int] = ..., uid: _Optional[_Iterable[int]] = ..., total_time_ms: _Optional[_Iterable[int]] = ...) -> None: ...
+
 class CpuhpEnterFtraceEvent(_message.Message):
     __slots__ = ["cpu", "fun", "idx", "target"]
     CPU_FIELD_NUMBER: _ClassVar[int]
@@ -4042,7 +4070,7 @@ class CrosEcSensorhubDataFtraceEvent(_message.Message):
     def __init__(self, current_time: _Optional[int] = ..., current_timestamp: _Optional[int] = ..., delta: _Optional[int] = ..., ec_fifo_timestamp: _Optional[int] = ..., ec_sensor_num: _Optional[int] = ..., fifo_timestamp: _Optional[int] = ...) -> None: ...
 
 class DataSourceConfig(_message.Message):
-    __slots__ = ["android_game_intervention_list_config", "android_input_event_config", "android_log_config", "android_polled_state_config", "android_power_config", "android_sdk_sysprop_guard_config", "android_system_property_config", "app_wakelocks_config", "buffer_exhausted_policy", "chrome_config", "chromium_histogram_samples", "chromium_system_metrics", "enable_extra_guardrails", "etw_config", "for_testing", "frozen_ftrace_config", "ftrace_config", "gpu_counter_config", "gpu_renderstages_config", "heapprofd_config", "inode_file_config", "interceptor_config", "java_hprof_config", "kernel_wakelocks_config", "legacy_config", "name", "network_packet_trace_config", "packages_list_config", "perf_event_config", "pixel_modem_config", "prefer_suspend_clock_for_duration", "process_stats_config", "protolog_config", "session_initiator", "statsd_tracing_config", "stop_timeout_ms", "surfaceflinger_layers_config", "surfaceflinger_transactions_config", "sys_stats_config", "system_info_config", "target_buffer", "trace_duration_ms", "tracing_session_id", "track_event_config", "v8_config", "vulkan_memory_config", "windowmanager_config"]
+    __slots__ = ["android_game_intervention_list_config", "android_input_event_config", "android_log_config", "android_polled_state_config", "android_power_config", "android_sdk_sysprop_guard_config", "android_system_property_config", "app_wakelocks_config", "buffer_exhausted_policy", "chrome_config", "chromium_histogram_samples", "chromium_system_metrics", "cpu_per_uid_config", "enable_extra_guardrails", "etw_config", "for_testing", "frozen_ftrace_config", "ftrace_config", "gpu_counter_config", "gpu_renderstages_config", "heapprofd_config", "inode_file_config", "interceptor_config", "java_hprof_config", "kernel_wakelocks_config", "legacy_config", "name", "network_packet_trace_config", "packages_list_config", "perf_event_config", "pixel_modem_config", "prefer_suspend_clock_for_duration", "process_stats_config", "protolog_config", "session_initiator", "statsd_tracing_config", "stop_timeout_ms", "surfaceflinger_layers_config", "surfaceflinger_transactions_config", "sys_stats_config", "system_info_config", "target_buffer", "trace_duration_ms", "tracing_session_id", "track_event_config", "v8_config", "vulkan_memory_config", "windowmanager_config"]
     class BufferExhaustedPolicy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     class SessionInitiator(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -4063,6 +4091,7 @@ class DataSourceConfig(_message.Message):
     CHROME_CONFIG_FIELD_NUMBER: _ClassVar[int]
     CHROMIUM_HISTOGRAM_SAMPLES_FIELD_NUMBER: _ClassVar[int]
     CHROMIUM_SYSTEM_METRICS_FIELD_NUMBER: _ClassVar[int]
+    CPU_PER_UID_CONFIG_FIELD_NUMBER: _ClassVar[int]
     ENABLE_EXTRA_GUARDRAILS_FIELD_NUMBER: _ClassVar[int]
     ETW_CONFIG_FIELD_NUMBER: _ClassVar[int]
     FOR_TESTING_FIELD_NUMBER: _ClassVar[int]
@@ -4112,6 +4141,7 @@ class DataSourceConfig(_message.Message):
     chrome_config: ChromeConfig
     chromium_histogram_samples: ChromiumHistogramSamplesConfig
     chromium_system_metrics: ChromiumSystemMetricsConfig
+    cpu_per_uid_config: CpuPerUidConfig
     enable_extra_guardrails: bool
     etw_config: EtwConfig
     for_testing: TestConfig
@@ -4147,7 +4177,7 @@ class DataSourceConfig(_message.Message):
     v8_config: V8Config
     vulkan_memory_config: VulkanMemoryConfig
     windowmanager_config: WindowManagerConfig
-    def __init__(self, name: _Optional[str] = ..., target_buffer: _Optional[int] = ..., trace_duration_ms: _Optional[int] = ..., prefer_suspend_clock_for_duration: bool = ..., stop_timeout_ms: _Optional[int] = ..., enable_extra_guardrails: bool = ..., session_initiator: _Optional[_Union[DataSourceConfig.SessionInitiator, str]] = ..., tracing_session_id: _Optional[int] = ..., buffer_exhausted_policy: _Optional[_Union[DataSourceConfig.BufferExhaustedPolicy, str]] = ..., ftrace_config: _Optional[_Union[FtraceConfig, _Mapping]] = ..., inode_file_config: _Optional[_Union[InodeFileConfig, _Mapping]] = ..., process_stats_config: _Optional[_Union[ProcessStatsConfig, _Mapping]] = ..., sys_stats_config: _Optional[_Union[SysStatsConfig, _Mapping]] = ..., heapprofd_config: _Optional[_Union[HeapprofdConfig, _Mapping]] = ..., java_hprof_config: _Optional[_Union[JavaHprofConfig, _Mapping]] = ..., android_power_config: _Optional[_Union[AndroidPowerConfig, _Mapping]] = ..., android_log_config: _Optional[_Union[AndroidLogConfig, _Mapping]] = ..., gpu_counter_config: _Optional[_Union[GpuCounterConfig, _Mapping]] = ..., android_game_intervention_list_config: _Optional[_Union[AndroidGameInterventionListConfig, _Mapping]] = ..., packages_list_config: _Optional[_Union[PackagesListConfig, _Mapping]] = ..., perf_event_config: _Optional[_Union[PerfEventConfig, _Mapping]] = ..., vulkan_memory_config: _Optional[_Union[VulkanMemoryConfig, _Mapping]] = ..., track_event_config: _Optional[_Union[TrackEventConfig, _Mapping]] = ..., android_polled_state_config: _Optional[_Union[AndroidPolledStateConfig, _Mapping]] = ..., android_system_property_config: _Optional[_Union[AndroidSystemPropertyConfig, _Mapping]] = ..., statsd_tracing_config: _Optional[_Union[StatsdTracingConfig, _Mapping]] = ..., system_info_config: _Optional[_Union[SystemInfoConfig, _Mapping]] = ..., frozen_ftrace_config: _Optional[_Union[FrozenFtraceConfig, _Mapping]] = ..., chrome_config: _Optional[_Union[ChromeConfig, _Mapping]] = ..., v8_config: _Optional[_Union[V8Config, _Mapping]] = ..., interceptor_config: _Optional[_Union[InterceptorConfig, _Mapping]] = ..., network_packet_trace_config: _Optional[_Union[NetworkPacketTraceConfig, _Mapping]] = ..., surfaceflinger_layers_config: _Optional[_Union[SurfaceFlingerLayersConfig, _Mapping]] = ..., surfaceflinger_transactions_config: _Optional[_Union[SurfaceFlingerTransactionsConfig, _Mapping]] = ..., android_sdk_sysprop_guard_config: _Optional[_Union[AndroidSdkSyspropGuardConfig, _Mapping]] = ..., etw_config: _Optional[_Union[EtwConfig, _Mapping]] = ..., protolog_config: _Optional[_Union[ProtoLogConfig, _Mapping]] = ..., android_input_event_config: _Optional[_Union[AndroidInputEventConfig, _Mapping]] = ..., pixel_modem_config: _Optional[_Union[PixelModemConfig, _Mapping]] = ..., windowmanager_config: _Optional[_Union[WindowManagerConfig, _Mapping]] = ..., chromium_system_metrics: _Optional[_Union[ChromiumSystemMetricsConfig, _Mapping]] = ..., kernel_wakelocks_config: _Optional[_Union[KernelWakelocksConfig, _Mapping]] = ..., gpu_renderstages_config: _Optional[_Union[GpuRenderStagesConfig, _Mapping]] = ..., chromium_histogram_samples: _Optional[_Union[ChromiumHistogramSamplesConfig, _Mapping]] = ..., app_wakelocks_config: _Optional[_Union[AppWakelocksConfig, _Mapping]] = ..., legacy_config: _Optional[str] = ..., for_testing: _Optional[_Union[TestConfig, _Mapping]] = ...) -> None: ...
+    def __init__(self, name: _Optional[str] = ..., target_buffer: _Optional[int] = ..., trace_duration_ms: _Optional[int] = ..., prefer_suspend_clock_for_duration: bool = ..., stop_timeout_ms: _Optional[int] = ..., enable_extra_guardrails: bool = ..., session_initiator: _Optional[_Union[DataSourceConfig.SessionInitiator, str]] = ..., tracing_session_id: _Optional[int] = ..., buffer_exhausted_policy: _Optional[_Union[DataSourceConfig.BufferExhaustedPolicy, str]] = ..., ftrace_config: _Optional[_Union[FtraceConfig, _Mapping]] = ..., inode_file_config: _Optional[_Union[InodeFileConfig, _Mapping]] = ..., process_stats_config: _Optional[_Union[ProcessStatsConfig, _Mapping]] = ..., sys_stats_config: _Optional[_Union[SysStatsConfig, _Mapping]] = ..., heapprofd_config: _Optional[_Union[HeapprofdConfig, _Mapping]] = ..., java_hprof_config: _Optional[_Union[JavaHprofConfig, _Mapping]] = ..., android_power_config: _Optional[_Union[AndroidPowerConfig, _Mapping]] = ..., android_log_config: _Optional[_Union[AndroidLogConfig, _Mapping]] = ..., gpu_counter_config: _Optional[_Union[GpuCounterConfig, _Mapping]] = ..., android_game_intervention_list_config: _Optional[_Union[AndroidGameInterventionListConfig, _Mapping]] = ..., packages_list_config: _Optional[_Union[PackagesListConfig, _Mapping]] = ..., perf_event_config: _Optional[_Union[PerfEventConfig, _Mapping]] = ..., vulkan_memory_config: _Optional[_Union[VulkanMemoryConfig, _Mapping]] = ..., track_event_config: _Optional[_Union[TrackEventConfig, _Mapping]] = ..., android_polled_state_config: _Optional[_Union[AndroidPolledStateConfig, _Mapping]] = ..., android_system_property_config: _Optional[_Union[AndroidSystemPropertyConfig, _Mapping]] = ..., statsd_tracing_config: _Optional[_Union[StatsdTracingConfig, _Mapping]] = ..., system_info_config: _Optional[_Union[SystemInfoConfig, _Mapping]] = ..., frozen_ftrace_config: _Optional[_Union[FrozenFtraceConfig, _Mapping]] = ..., chrome_config: _Optional[_Union[ChromeConfig, _Mapping]] = ..., v8_config: _Optional[_Union[V8Config, _Mapping]] = ..., interceptor_config: _Optional[_Union[InterceptorConfig, _Mapping]] = ..., network_packet_trace_config: _Optional[_Union[NetworkPacketTraceConfig, _Mapping]] = ..., surfaceflinger_layers_config: _Optional[_Union[SurfaceFlingerLayersConfig, _Mapping]] = ..., surfaceflinger_transactions_config: _Optional[_Union[SurfaceFlingerTransactionsConfig, _Mapping]] = ..., android_sdk_sysprop_guard_config: _Optional[_Union[AndroidSdkSyspropGuardConfig, _Mapping]] = ..., etw_config: _Optional[_Union[EtwConfig, _Mapping]] = ..., protolog_config: _Optional[_Union[ProtoLogConfig, _Mapping]] = ..., android_input_event_config: _Optional[_Union[AndroidInputEventConfig, _Mapping]] = ..., pixel_modem_config: _Optional[_Union[PixelModemConfig, _Mapping]] = ..., windowmanager_config: _Optional[_Union[WindowManagerConfig, _Mapping]] = ..., chromium_system_metrics: _Optional[_Union[ChromiumSystemMetricsConfig, _Mapping]] = ..., kernel_wakelocks_config: _Optional[_Union[KernelWakelocksConfig, _Mapping]] = ..., gpu_renderstages_config: _Optional[_Union[GpuRenderStagesConfig, _Mapping]] = ..., chromium_histogram_samples: _Optional[_Union[ChromiumHistogramSamplesConfig, _Mapping]] = ..., app_wakelocks_config: _Optional[_Union[AppWakelocksConfig, _Mapping]] = ..., cpu_per_uid_config: _Optional[_Union[CpuPerUidConfig, _Mapping]] = ..., legacy_config: _Optional[str] = ..., for_testing: _Optional[_Union[TestConfig, _Mapping]] = ...) -> None: ...
 
 class DataSourceDescriptor(_message.Message):
     __slots__ = ["ftrace_descriptor", "gpu_counter_descriptor", "handles_incremental_state_clear", "id", "name", "no_flush", "track_event_descriptor", "will_notify_on_start", "will_notify_on_stop"]
@@ -4979,16 +5009,18 @@ class EtwConfig(_message.Message):
     def __init__(self, kernel_flags: _Optional[_Iterable[_Union[EtwConfig.KernelFlag, str]]] = ...) -> None: ...
 
 class EtwTraceEvent(_message.Message):
-    __slots__ = ["c_switch", "cpu", "ready_thread", "timestamp"]
+    __slots__ = ["c_switch", "cpu", "ready_thread", "thread_id", "timestamp"]
     CPU_FIELD_NUMBER: _ClassVar[int]
     C_SWITCH_FIELD_NUMBER: _ClassVar[int]
     READY_THREAD_FIELD_NUMBER: _ClassVar[int]
+    THREAD_ID_FIELD_NUMBER: _ClassVar[int]
     TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     c_switch: CSwitchEtwEvent
     cpu: int
     ready_thread: ReadyThreadEtwEvent
+    thread_id: int
     timestamp: int
-    def __init__(self, timestamp: _Optional[int] = ..., cpu: _Optional[int] = ..., c_switch: _Optional[_Union[CSwitchEtwEvent, _Mapping]] = ..., ready_thread: _Optional[_Union[ReadyThreadEtwEvent, _Mapping]] = ...) -> None: ...
+    def __init__(self, timestamp: _Optional[int] = ..., cpu: _Optional[int] = ..., thread_id: _Optional[int] = ..., c_switch: _Optional[_Union[CSwitchEtwEvent, _Mapping]] = ..., ready_thread: _Optional[_Union[ReadyThreadEtwEvent, _Mapping]] = ...) -> None: ...
 
 class EtwTraceEventBundle(_message.Message):
     __slots__ = ["cpu", "event"]
@@ -8796,6 +8828,22 @@ class GenericFtraceEvent(_message.Message):
     field: _containers.RepeatedCompositeFieldContainer[GenericFtraceEvent.Field]
     def __init__(self, event_name: _Optional[str] = ..., field: _Optional[_Iterable[_Union[GenericFtraceEvent.Field, _Mapping]]] = ...) -> None: ...
 
+class GenericKernelCpuFrequencyEvent(_message.Message):
+    __slots__ = ["cpu", "freq_hz"]
+    CPU_FIELD_NUMBER: _ClassVar[int]
+    FREQ_HZ_FIELD_NUMBER: _ClassVar[int]
+    cpu: int
+    freq_hz: int
+    def __init__(self, cpu: _Optional[int] = ..., freq_hz: _Optional[int] = ...) -> None: ...
+
+class GenericKernelTaskRenameEvent(_message.Message):
+    __slots__ = ["comm", "tid"]
+    COMM_FIELD_NUMBER: _ClassVar[int]
+    TID_FIELD_NUMBER: _ClassVar[int]
+    comm: str
+    tid: int
+    def __init__(self, tid: _Optional[int] = ..., comm: _Optional[str] = ...) -> None: ...
+
 class GenericKernelTaskStateEvent(_message.Message):
     __slots__ = ["comm", "cpu", "prio", "state", "tid"]
     class TaskStateEnum(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -9159,7 +9207,7 @@ class HeapGraph(_message.Message):
     def __init__(self, pid: _Optional[int] = ..., objects: _Optional[_Iterable[_Union[HeapGraphObject, _Mapping]]] = ..., roots: _Optional[_Iterable[_Union[HeapGraphRoot, _Mapping]]] = ..., types: _Optional[_Iterable[_Union[HeapGraphType, _Mapping]]] = ..., field_names: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., location_names: _Optional[_Iterable[_Union[InternedString, _Mapping]]] = ..., continued: bool = ..., index: _Optional[int] = ...) -> None: ...
 
 class HeapGraphObject(_message.Message):
-    __slots__ = ["heap_type_delta", "id", "id_delta", "native_allocation_registry_size_field", "reference_field_id", "reference_field_id_base", "reference_object_id", "self_size", "type_id"]
+    __slots__ = ["heap_type_delta", "id", "id_delta", "native_allocation_registry_size_field", "reference_field_id", "reference_field_id_base", "reference_object_id", "runtime_internal_object_id", "self_size", "type_id"]
     class HeapType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     HEAP_TYPE_APP: HeapGraphObject.HeapType
@@ -9173,6 +9221,7 @@ class HeapGraphObject(_message.Message):
     REFERENCE_FIELD_ID_BASE_FIELD_NUMBER: _ClassVar[int]
     REFERENCE_FIELD_ID_FIELD_NUMBER: _ClassVar[int]
     REFERENCE_OBJECT_ID_FIELD_NUMBER: _ClassVar[int]
+    RUNTIME_INTERNAL_OBJECT_ID_FIELD_NUMBER: _ClassVar[int]
     SELF_SIZE_FIELD_NUMBER: _ClassVar[int]
     TYPE_ID_FIELD_NUMBER: _ClassVar[int]
     heap_type_delta: HeapGraphObject.HeapType
@@ -9182,9 +9231,10 @@ class HeapGraphObject(_message.Message):
     reference_field_id: _containers.RepeatedScalarFieldContainer[int]
     reference_field_id_base: int
     reference_object_id: _containers.RepeatedScalarFieldContainer[int]
+    runtime_internal_object_id: _containers.RepeatedScalarFieldContainer[int]
     self_size: int
     type_id: int
-    def __init__(self, id: _Optional[int] = ..., id_delta: _Optional[int] = ..., type_id: _Optional[int] = ..., self_size: _Optional[int] = ..., reference_field_id_base: _Optional[int] = ..., reference_field_id: _Optional[_Iterable[int]] = ..., reference_object_id: _Optional[_Iterable[int]] = ..., native_allocation_registry_size_field: _Optional[int] = ..., heap_type_delta: _Optional[_Union[HeapGraphObject.HeapType, str]] = ...) -> None: ...
+    def __init__(self, id: _Optional[int] = ..., id_delta: _Optional[int] = ..., type_id: _Optional[int] = ..., self_size: _Optional[int] = ..., reference_field_id_base: _Optional[int] = ..., reference_field_id: _Optional[_Iterable[int]] = ..., reference_object_id: _Optional[_Iterable[int]] = ..., native_allocation_registry_size_field: _Optional[int] = ..., heap_type_delta: _Optional[_Union[HeapGraphObject.HeapType, str]] = ..., runtime_internal_object_id: _Optional[_Iterable[int]] = ...) -> None: ...
 
 class HeapGraphRoot(_message.Message):
     __slots__ = ["object_ids", "root_type"]
@@ -10662,7 +10712,7 @@ class LayerCreationArgs(_message.Message):
     def __init__(self, layer_id: _Optional[int] = ..., name: _Optional[str] = ..., flags: _Optional[int] = ..., parent_id: _Optional[int] = ..., mirror_from_id: _Optional[int] = ..., add_to_root: bool = ..., layer_stack_to_mirror: _Optional[int] = ...) -> None: ...
 
 class LayerProto(_message.Message):
-    __slots__ = ["active_buffer", "app_id", "background_blur_radius", "background_blur_scale", "barrier_layer", "blur_regions", "bounds", "buffer_transform", "children", "color", "color_transform", "corner_radius", "corner_radius_crop", "crop", "curr_frame", "damage_region", "dataspace", "destination_frame", "effective_scaling_mode", "effective_transform", "final_crop", "flags", "hwc_composition_type", "hwc_crop", "hwc_frame", "hwc_transform", "id", "input_window_info", "invalidate", "is_opaque", "is_protected", "is_relative_of", "is_trusted_overlay", "layer_stack", "metadata", "name", "original_id", "owner_uid", "parent", "pixel_format", "position", "queued_frames", "refresh_pending", "relatives", "requested_color", "requested_corner_radius", "requested_position", "requested_transform", "screen_bounds", "shadow_radius", "size", "source_bounds", "transform", "transparent_region", "trusted_overlay", "type", "visible_region", "window_type", "z", "z_order_relative_of"]
+    __slots__ = ["active_buffer", "app_id", "background_blur_radius", "background_blur_scale", "barrier_layer", "blur_regions", "bounds", "buffer_transform", "children", "client_drawn_corner_radii", "color", "color_transform", "corner_radii", "corner_radius", "corner_radius_crop", "crop", "curr_frame", "damage_region", "dataspace", "destination_frame", "effective_scaling_mode", "effective_transform", "final_crop", "flags", "hwc_composition_type", "hwc_crop", "hwc_frame", "hwc_transform", "id", "input_window_info", "invalidate", "is_opaque", "is_protected", "is_relative_of", "is_trusted_overlay", "layer_stack", "metadata", "name", "original_id", "owner_uid", "parent", "pixel_format", "position", "queued_frames", "refresh_pending", "relatives", "requested_color", "requested_corner_radii", "requested_corner_radius", "requested_position", "requested_transform", "screen_bounds", "shadow_radius", "size", "source_bounds", "transform", "transparent_region", "trusted_overlay", "type", "visible_region", "window_type", "z", "z_order_relative_of"]
     class MetadataEntry(_message.Message):
         __slots__ = ["key", "value"]
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -10679,8 +10729,10 @@ class LayerProto(_message.Message):
     BOUNDS_FIELD_NUMBER: _ClassVar[int]
     BUFFER_TRANSFORM_FIELD_NUMBER: _ClassVar[int]
     CHILDREN_FIELD_NUMBER: _ClassVar[int]
+    CLIENT_DRAWN_CORNER_RADII_FIELD_NUMBER: _ClassVar[int]
     COLOR_FIELD_NUMBER: _ClassVar[int]
     COLOR_TRANSFORM_FIELD_NUMBER: _ClassVar[int]
+    CORNER_RADII_FIELD_NUMBER: _ClassVar[int]
     CORNER_RADIUS_CROP_FIELD_NUMBER: _ClassVar[int]
     CORNER_RADIUS_FIELD_NUMBER: _ClassVar[int]
     CROP_FIELD_NUMBER: _ClassVar[int]
@@ -10715,6 +10767,7 @@ class LayerProto(_message.Message):
     REFRESH_PENDING_FIELD_NUMBER: _ClassVar[int]
     RELATIVES_FIELD_NUMBER: _ClassVar[int]
     REQUESTED_COLOR_FIELD_NUMBER: _ClassVar[int]
+    REQUESTED_CORNER_RADII_FIELD_NUMBER: _ClassVar[int]
     REQUESTED_CORNER_RADIUS_FIELD_NUMBER: _ClassVar[int]
     REQUESTED_POSITION_FIELD_NUMBER: _ClassVar[int]
     REQUESTED_TRANSFORM_FIELD_NUMBER: _ClassVar[int]
@@ -10739,8 +10792,10 @@ class LayerProto(_message.Message):
     bounds: FloatRectProto
     buffer_transform: TransformProto
     children: _containers.RepeatedScalarFieldContainer[int]
+    client_drawn_corner_radii: CornerRadiiProto
     color: ColorProto
     color_transform: ColorTransformProto
+    corner_radii: CornerRadiiProto
     corner_radius: float
     corner_radius_crop: FloatRectProto
     crop: RectProto
@@ -10775,6 +10830,7 @@ class LayerProto(_message.Message):
     refresh_pending: bool
     relatives: _containers.RepeatedScalarFieldContainer[int]
     requested_color: ColorProto
+    requested_corner_radii: CornerRadiiProto
     requested_corner_radius: float
     requested_position: PositionProto
     requested_transform: TransformProto
@@ -10790,10 +10846,10 @@ class LayerProto(_message.Message):
     window_type: int
     z: int
     z_order_relative_of: int
-    def __init__(self, id: _Optional[int] = ..., name: _Optional[str] = ..., children: _Optional[_Iterable[int]] = ..., relatives: _Optional[_Iterable[int]] = ..., type: _Optional[str] = ..., transparent_region: _Optional[_Union[RegionProto, _Mapping]] = ..., visible_region: _Optional[_Union[RegionProto, _Mapping]] = ..., damage_region: _Optional[_Union[RegionProto, _Mapping]] = ..., layer_stack: _Optional[int] = ..., z: _Optional[int] = ..., position: _Optional[_Union[PositionProto, _Mapping]] = ..., requested_position: _Optional[_Union[PositionProto, _Mapping]] = ..., size: _Optional[_Union[SizeProto, _Mapping]] = ..., crop: _Optional[_Union[RectProto, _Mapping]] = ..., final_crop: _Optional[_Union[RectProto, _Mapping]] = ..., is_opaque: bool = ..., invalidate: bool = ..., dataspace: _Optional[str] = ..., pixel_format: _Optional[str] = ..., color: _Optional[_Union[ColorProto, _Mapping]] = ..., requested_color: _Optional[_Union[ColorProto, _Mapping]] = ..., flags: _Optional[int] = ..., transform: _Optional[_Union[TransformProto, _Mapping]] = ..., requested_transform: _Optional[_Union[TransformProto, _Mapping]] = ..., parent: _Optional[int] = ..., z_order_relative_of: _Optional[int] = ..., active_buffer: _Optional[_Union[ActiveBufferProto, _Mapping]] = ..., queued_frames: _Optional[int] = ..., refresh_pending: bool = ..., hwc_frame: _Optional[_Union[RectProto, _Mapping]] = ..., hwc_crop: _Optional[_Union[FloatRectProto, _Mapping]] = ..., hwc_transform: _Optional[int] = ..., window_type: _Optional[int] = ..., app_id: _Optional[int] = ..., hwc_composition_type: _Optional[_Union[HwcCompositionType, str]] = ..., is_protected: bool = ..., curr_frame: _Optional[int] = ..., barrier_layer: _Optional[_Iterable[_Union[BarrierLayerProto, _Mapping]]] = ..., buffer_transform: _Optional[_Union[TransformProto, _Mapping]] = ..., effective_scaling_mode: _Optional[int] = ..., corner_radius: _Optional[float] = ..., metadata: _Optional[_Mapping[int, str]] = ..., effective_transform: _Optional[_Union[TransformProto, _Mapping]] = ..., source_bounds: _Optional[_Union[FloatRectProto, _Mapping]] = ..., bounds: _Optional[_Union[FloatRectProto, _Mapping]] = ..., screen_bounds: _Optional[_Union[FloatRectProto, _Mapping]] = ..., input_window_info: _Optional[_Union[InputWindowInfoProto, _Mapping]] = ..., corner_radius_crop: _Optional[_Union[FloatRectProto, _Mapping]] = ..., shadow_radius: _Optional[float] = ..., color_transform: _Optional[_Union[ColorTransformProto, _Mapping]] = ..., is_relative_of: bool = ..., background_blur_radius: _Optional[int] = ..., owner_uid: _Optional[int] = ..., blur_regions: _Optional[_Iterable[_Union[BlurRegion, _Mapping]]] = ..., is_trusted_overlay: bool = ..., requested_corner_radius: _Optional[float] = ..., destination_frame: _Optional[_Union[RectProto, _Mapping]] = ..., original_id: _Optional[int] = ..., trusted_overlay: _Optional[_Union[TrustedOverlay, str]] = ..., background_blur_scale: _Optional[float] = ...) -> None: ...
+    def __init__(self, id: _Optional[int] = ..., name: _Optional[str] = ..., children: _Optional[_Iterable[int]] = ..., relatives: _Optional[_Iterable[int]] = ..., type: _Optional[str] = ..., transparent_region: _Optional[_Union[RegionProto, _Mapping]] = ..., visible_region: _Optional[_Union[RegionProto, _Mapping]] = ..., damage_region: _Optional[_Union[RegionProto, _Mapping]] = ..., layer_stack: _Optional[int] = ..., z: _Optional[int] = ..., position: _Optional[_Union[PositionProto, _Mapping]] = ..., requested_position: _Optional[_Union[PositionProto, _Mapping]] = ..., size: _Optional[_Union[SizeProto, _Mapping]] = ..., crop: _Optional[_Union[RectProto, _Mapping]] = ..., final_crop: _Optional[_Union[RectProto, _Mapping]] = ..., is_opaque: bool = ..., invalidate: bool = ..., dataspace: _Optional[str] = ..., pixel_format: _Optional[str] = ..., color: _Optional[_Union[ColorProto, _Mapping]] = ..., requested_color: _Optional[_Union[ColorProto, _Mapping]] = ..., flags: _Optional[int] = ..., transform: _Optional[_Union[TransformProto, _Mapping]] = ..., requested_transform: _Optional[_Union[TransformProto, _Mapping]] = ..., parent: _Optional[int] = ..., z_order_relative_of: _Optional[int] = ..., active_buffer: _Optional[_Union[ActiveBufferProto, _Mapping]] = ..., queued_frames: _Optional[int] = ..., refresh_pending: bool = ..., hwc_frame: _Optional[_Union[RectProto, _Mapping]] = ..., hwc_crop: _Optional[_Union[FloatRectProto, _Mapping]] = ..., hwc_transform: _Optional[int] = ..., window_type: _Optional[int] = ..., app_id: _Optional[int] = ..., hwc_composition_type: _Optional[_Union[HwcCompositionType, str]] = ..., is_protected: bool = ..., curr_frame: _Optional[int] = ..., barrier_layer: _Optional[_Iterable[_Union[BarrierLayerProto, _Mapping]]] = ..., buffer_transform: _Optional[_Union[TransformProto, _Mapping]] = ..., effective_scaling_mode: _Optional[int] = ..., corner_radius: _Optional[float] = ..., metadata: _Optional[_Mapping[int, str]] = ..., effective_transform: _Optional[_Union[TransformProto, _Mapping]] = ..., source_bounds: _Optional[_Union[FloatRectProto, _Mapping]] = ..., bounds: _Optional[_Union[FloatRectProto, _Mapping]] = ..., screen_bounds: _Optional[_Union[FloatRectProto, _Mapping]] = ..., input_window_info: _Optional[_Union[InputWindowInfoProto, _Mapping]] = ..., corner_radius_crop: _Optional[_Union[FloatRectProto, _Mapping]] = ..., shadow_radius: _Optional[float] = ..., color_transform: _Optional[_Union[ColorTransformProto, _Mapping]] = ..., is_relative_of: bool = ..., background_blur_radius: _Optional[int] = ..., owner_uid: _Optional[int] = ..., blur_regions: _Optional[_Iterable[_Union[BlurRegion, _Mapping]]] = ..., is_trusted_overlay: bool = ..., requested_corner_radius: _Optional[float] = ..., destination_frame: _Optional[_Union[RectProto, _Mapping]] = ..., original_id: _Optional[int] = ..., trusted_overlay: _Optional[_Union[TrustedOverlay, str]] = ..., background_blur_scale: _Optional[float] = ..., corner_radii: _Optional[_Union[CornerRadiiProto, _Mapping]] = ..., requested_corner_radii: _Optional[_Union[CornerRadiiProto, _Mapping]] = ..., client_drawn_corner_radii: _Optional[_Union[CornerRadiiProto, _Mapping]] = ...) -> None: ...
 
 class LayerState(_message.Message):
-    __slots__ = ["alpha", "api", "auto_refresh", "background_blur_radius", "background_blur_scale", "bg_color_alpha", "bg_color_dataspace", "blur_regions", "buffer_crop", "buffer_data", "change_frame_rate_strategy", "color", "color_space_agnostic", "color_transform", "corner_radius", "crop", "destination_frame", "drop_input_mode", "fixed_transform_hint", "flags", "frame_number", "frame_rate", "frame_rate_compatibility", "frame_rate_selection_priority", "h", "has_sideband_stream", "is_trusted_overlay", "layer_id", "layer_stack", "mask", "matrix", "parent_id", "relative_parent_id", "shadow_radius", "transform", "transform_to_display_inverse", "transparent_region", "trusted_overlay", "w", "what", "window_info_handle", "x", "y", "z"]
+    __slots__ = ["alpha", "api", "auto_refresh", "background_blur_radius", "background_blur_scale", "bg_color_alpha", "bg_color_dataspace", "blur_regions", "buffer_crop", "buffer_data", "change_frame_rate_strategy", "client_drawn_corner_radii", "color", "color_space_agnostic", "color_transform", "corner_radii", "corner_radius", "crop", "destination_frame", "drop_input_mode", "fixed_transform_hint", "flags", "frame_number", "frame_rate", "frame_rate_compatibility", "frame_rate_selection_priority", "h", "has_sideband_stream", "is_trusted_overlay", "layer_id", "layer_stack", "mask", "matrix", "parent_id", "relative_parent_id", "shadow_radius", "transform", "transform_to_display_inverse", "transparent_region", "trusted_overlay", "w", "what", "window_info_handle", "x", "y", "z"]
     class ChangesLsb(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     class ChangesMsb(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -10853,6 +10909,17 @@ class LayerState(_message.Message):
         g: float
         r: float
         def __init__(self, r: _Optional[float] = ..., g: _Optional[float] = ..., b: _Optional[float] = ...) -> None: ...
+    class CornerRadii(_message.Message):
+        __slots__ = ["bl", "br", "tl", "tr"]
+        BL_FIELD_NUMBER: _ClassVar[int]
+        BR_FIELD_NUMBER: _ClassVar[int]
+        TL_FIELD_NUMBER: _ClassVar[int]
+        TR_FIELD_NUMBER: _ClassVar[int]
+        bl: float
+        br: float
+        tl: float
+        tr: float
+        def __init__(self, tl: _Optional[float] = ..., tr: _Optional[float] = ..., bl: _Optional[float] = ..., br: _Optional[float] = ...) -> None: ...
     class Matrix22(_message.Message):
         __slots__ = ["dsdx", "dsdy", "dtdx", "dtdy"]
         DSDX_FIELD_NUMBER: _ClassVar[int]
@@ -10903,9 +10970,11 @@ class LayerState(_message.Message):
     BUFFER_CROP_FIELD_NUMBER: _ClassVar[int]
     BUFFER_DATA_FIELD_NUMBER: _ClassVar[int]
     CHANGE_FRAME_RATE_STRATEGY_FIELD_NUMBER: _ClassVar[int]
+    CLIENT_DRAWN_CORNER_RADII_FIELD_NUMBER: _ClassVar[int]
     COLOR_FIELD_NUMBER: _ClassVar[int]
     COLOR_SPACE_AGNOSTIC_FIELD_NUMBER: _ClassVar[int]
     COLOR_TRANSFORM_FIELD_NUMBER: _ClassVar[int]
+    CORNER_RADII_FIELD_NUMBER: _ClassVar[int]
     CORNER_RADIUS_FIELD_NUMBER: _ClassVar[int]
     CROP_FIELD_NUMBER: _ClassVar[int]
     DESTINATION_FRAME_FIELD_NUMBER: _ClassVar[int]
@@ -10949,9 +11018,11 @@ class LayerState(_message.Message):
     buffer_crop: RectProto
     buffer_data: LayerState.BufferData
     change_frame_rate_strategy: int
+    client_drawn_corner_radii: LayerState.CornerRadii
     color: LayerState.Color3
     color_space_agnostic: bool
     color_transform: ColorTransformProto
+    corner_radii: LayerState.CornerRadii
     corner_radius: float
     crop: RectProto
     destination_frame: RectProto
@@ -10969,6 +11040,7 @@ class LayerState(_message.Message):
     eCachedBufferChanged: LayerState.ChangesMsb
     eChangesLsbNone: LayerState.ChangesLsb
     eChangesMsbNone: LayerState.ChangesMsb
+    eClientDrawnCornerRadiusChanged: LayerState.ChangesMsb
     eColorChanged: LayerState.ChangesLsb
     eColorSpaceAgnosticChanged: LayerState.ChangesMsb
     eColorTransformChanged: LayerState.ChangesLsb
@@ -11034,7 +11106,7 @@ class LayerState(_message.Message):
     x: float
     y: float
     z: int
-    def __init__(self, layer_id: _Optional[int] = ..., what: _Optional[int] = ..., x: _Optional[float] = ..., y: _Optional[float] = ..., z: _Optional[int] = ..., w: _Optional[int] = ..., h: _Optional[int] = ..., layer_stack: _Optional[int] = ..., flags: _Optional[int] = ..., mask: _Optional[int] = ..., matrix: _Optional[_Union[LayerState.Matrix22, _Mapping]] = ..., corner_radius: _Optional[float] = ..., background_blur_radius: _Optional[int] = ..., parent_id: _Optional[int] = ..., relative_parent_id: _Optional[int] = ..., alpha: _Optional[float] = ..., color: _Optional[_Union[LayerState.Color3, _Mapping]] = ..., transparent_region: _Optional[_Union[RegionProto, _Mapping]] = ..., transform: _Optional[int] = ..., transform_to_display_inverse: bool = ..., crop: _Optional[_Union[RectProto, _Mapping]] = ..., buffer_data: _Optional[_Union[LayerState.BufferData, _Mapping]] = ..., api: _Optional[int] = ..., has_sideband_stream: bool = ..., color_transform: _Optional[_Union[ColorTransformProto, _Mapping]] = ..., blur_regions: _Optional[_Iterable[_Union[BlurRegion, _Mapping]]] = ..., window_info_handle: _Optional[_Union[LayerState.WindowInfo, _Mapping]] = ..., bg_color_alpha: _Optional[float] = ..., bg_color_dataspace: _Optional[int] = ..., color_space_agnostic: bool = ..., shadow_radius: _Optional[float] = ..., frame_rate_selection_priority: _Optional[int] = ..., frame_rate: _Optional[float] = ..., frame_rate_compatibility: _Optional[int] = ..., change_frame_rate_strategy: _Optional[int] = ..., fixed_transform_hint: _Optional[int] = ..., frame_number: _Optional[int] = ..., auto_refresh: bool = ..., is_trusted_overlay: bool = ..., buffer_crop: _Optional[_Union[RectProto, _Mapping]] = ..., destination_frame: _Optional[_Union[RectProto, _Mapping]] = ..., drop_input_mode: _Optional[_Union[LayerState.DropInputMode, str]] = ..., trusted_overlay: _Optional[_Union[TrustedOverlay, str]] = ..., background_blur_scale: _Optional[float] = ...) -> None: ...
+    def __init__(self, layer_id: _Optional[int] = ..., what: _Optional[int] = ..., x: _Optional[float] = ..., y: _Optional[float] = ..., z: _Optional[int] = ..., w: _Optional[int] = ..., h: _Optional[int] = ..., layer_stack: _Optional[int] = ..., flags: _Optional[int] = ..., mask: _Optional[int] = ..., matrix: _Optional[_Union[LayerState.Matrix22, _Mapping]] = ..., corner_radius: _Optional[float] = ..., background_blur_radius: _Optional[int] = ..., parent_id: _Optional[int] = ..., relative_parent_id: _Optional[int] = ..., alpha: _Optional[float] = ..., color: _Optional[_Union[LayerState.Color3, _Mapping]] = ..., transparent_region: _Optional[_Union[RegionProto, _Mapping]] = ..., transform: _Optional[int] = ..., transform_to_display_inverse: bool = ..., crop: _Optional[_Union[RectProto, _Mapping]] = ..., buffer_data: _Optional[_Union[LayerState.BufferData, _Mapping]] = ..., api: _Optional[int] = ..., has_sideband_stream: bool = ..., color_transform: _Optional[_Union[ColorTransformProto, _Mapping]] = ..., blur_regions: _Optional[_Iterable[_Union[BlurRegion, _Mapping]]] = ..., window_info_handle: _Optional[_Union[LayerState.WindowInfo, _Mapping]] = ..., bg_color_alpha: _Optional[float] = ..., bg_color_dataspace: _Optional[int] = ..., color_space_agnostic: bool = ..., shadow_radius: _Optional[float] = ..., frame_rate_selection_priority: _Optional[int] = ..., frame_rate: _Optional[float] = ..., frame_rate_compatibility: _Optional[int] = ..., change_frame_rate_strategy: _Optional[int] = ..., fixed_transform_hint: _Optional[int] = ..., frame_number: _Optional[int] = ..., auto_refresh: bool = ..., is_trusted_overlay: bool = ..., buffer_crop: _Optional[_Union[RectProto, _Mapping]] = ..., destination_frame: _Optional[_Union[RectProto, _Mapping]] = ..., drop_input_mode: _Optional[_Union[LayerState.DropInputMode, str]] = ..., trusted_overlay: _Optional[_Union[TrustedOverlay, str]] = ..., background_blur_scale: _Optional[float] = ..., corner_radii: _Optional[_Union[LayerState.CornerRadii, _Mapping]] = ..., client_drawn_corner_radii: _Optional[_Union[LayerState.CornerRadii, _Mapping]] = ...) -> None: ...
 
 class LayersProto(_message.Message):
     __slots__ = ["layers"]
@@ -14944,7 +15016,7 @@ class TraceConfig(_message.Message):
     def __init__(self, buffers: _Optional[_Iterable[_Union[TraceConfig.BufferConfig, _Mapping]]] = ..., data_sources: _Optional[_Iterable[_Union[TraceConfig.DataSource, _Mapping]]] = ..., builtin_data_sources: _Optional[_Union[TraceConfig.BuiltinDataSource, _Mapping]] = ..., duration_ms: _Optional[int] = ..., prefer_suspend_clock_for_duration: bool = ..., enable_extra_guardrails: bool = ..., lockdown_mode: _Optional[_Union[TraceConfig.LockdownModeOperation, str]] = ..., producers: _Optional[_Iterable[_Union[TraceConfig.ProducerConfig, _Mapping]]] = ..., statsd_metadata: _Optional[_Union[TraceConfig.StatsdMetadata, _Mapping]] = ..., write_into_file: bool = ..., output_path: _Optional[str] = ..., file_write_period_ms: _Optional[int] = ..., max_file_size_bytes: _Optional[int] = ..., guardrail_overrides: _Optional[_Union[TraceConfig.GuardrailOverrides, _Mapping]] = ..., deferred_start: bool = ..., flush_period_ms: _Optional[int] = ..., flush_timeout_ms: _Optional[int] = ..., data_source_stop_timeout_ms: _Optional[int] = ..., notify_traceur: bool = ..., bugreport_score: _Optional[int] = ..., bugreport_filename: _Optional[str] = ..., trigger_config: _Optional[_Union[TraceConfig.TriggerConfig, _Mapping]] = ..., activate_triggers: _Optional[_Iterable[str]] = ..., incremental_state_config: _Optional[_Union[TraceConfig.IncrementalStateConfig, _Mapping]] = ..., allow_user_build_tracing: bool = ..., unique_session_name: _Optional[str] = ..., compression_type: _Optional[_Union[TraceConfig.CompressionType, str]] = ..., incident_report_config: _Optional[_Union[TraceConfig.IncidentReportConfig, _Mapping]] = ..., statsd_logging: _Optional[_Union[TraceConfig.StatsdLogging, str]] = ..., trace_uuid_msb: _Optional[int] = ..., trace_uuid_lsb: _Optional[int] = ..., trace_filter: _Optional[_Union[TraceConfig.TraceFilter, _Mapping]] = ..., android_report_config: _Optional[_Union[TraceConfig.AndroidReportConfig, _Mapping]] = ..., cmd_trace_start_delay: _Optional[_Union[TraceConfig.CmdTraceStartDelay, _Mapping]] = ..., session_semaphores: _Optional[_Iterable[_Union[TraceConfig.SessionSemaphore, _Mapping]]] = ...) -> None: ...
 
 class TracePacket(_message.Message):
-    __slots__ = ["android_camera_frame_event", "android_camera_session_stats", "android_energy_estimation_breakdown", "android_game_intervention_list", "android_log", "android_system_property", "app_wakelock_bundle", "battery", "bluetooth_trace_event", "chrome_benchmark_metadata", "chrome_events", "chrome_metadata", "chrome_trigger", "clock_snapshot", "clone_snapshot_trigger", "compressed_packets", "cpu_info", "deobfuscation_mapping", "entity_state_residency", "etw_events", "extension_descriptor", "first_packet_on_sequence", "for_testing", "frame_timeline_event", "ftrace_events", "ftrace_stats", "generic_kernel_task_state_event", "gpu_counter_event", "gpu_log", "gpu_mem_total_event", "gpu_render_stage_event", "graphics_frame_event", "heap_graph", "incremental_state_cleared", "initial_display_state", "inode_file_map", "interned_data", "kernel_wakelock_data", "machine_id", "memory_tracker_snapshot", "module_symbols", "network_packet", "network_packet_bundle", "packages_list", "perf_sample", "perfetto_metatrace", "pixel_modem_events", "pixel_modem_token_database", "power_rails", "previous_packet_dropped", "process_descriptor", "process_stats", "process_tree", "profile_packet", "protolog_message", "protolog_viewer_config", "remote_clock_sync", "sequence_flags", "service_event", "shell_handler_mappings", "shell_transition", "smaps_packet", "statsd_atom", "streaming_allocation", "streaming_free", "streaming_profile_packet", "surfaceflinger_layers_snapshot", "surfaceflinger_transactions", "synchronization_marker", "sys_stats", "system_info", "thread_descriptor", "timestamp", "timestamp_clock_id", "trace_config", "trace_packet_defaults", "trace_stats", "trace_uuid", "track_descriptor", "track_event", "track_event_range_of_interest", "translation_table", "trigger", "trusted_packet_sequence_id", "trusted_pid", "trusted_uid", "ui_state", "v8_code_move", "v8_internal_code", "v8_js_code", "v8_reg_exp_code", "v8_wasm_code", "vulkan_api_event", "vulkan_memory_event", "winscope_extensions"]
+    __slots__ = ["android_camera_frame_event", "android_camera_session_stats", "android_energy_estimation_breakdown", "android_game_intervention_list", "android_log", "android_system_property", "app_wakelock_bundle", "battery", "bluetooth_trace_event", "chrome_benchmark_metadata", "chrome_events", "chrome_metadata", "chrome_trigger", "clock_snapshot", "clone_snapshot_trigger", "compressed_packets", "cpu_info", "cpu_per_uid_data", "deobfuscation_mapping", "entity_state_residency", "etw_events", "extension_descriptor", "first_packet_on_sequence", "for_testing", "frame_timeline_event", "ftrace_events", "ftrace_stats", "generic_kernel_cpu_freq_event", "generic_kernel_task_rename_event", "generic_kernel_task_state_event", "gpu_counter_event", "gpu_log", "gpu_mem_total_event", "gpu_render_stage_event", "graphics_frame_event", "heap_graph", "incremental_state_cleared", "initial_display_state", "inode_file_map", "interned_data", "kernel_wakelock_data", "machine_id", "memory_tracker_snapshot", "module_symbols", "network_packet", "network_packet_bundle", "packages_list", "perf_sample", "perfetto_metatrace", "pixel_modem_events", "pixel_modem_token_database", "power_rails", "previous_packet_dropped", "process_descriptor", "process_stats", "process_tree", "profile_packet", "protolog_message", "protolog_viewer_config", "remote_clock_sync", "sequence_flags", "service_event", "shell_handler_mappings", "shell_transition", "smaps_packet", "statsd_atom", "streaming_allocation", "streaming_free", "streaming_profile_packet", "surfaceflinger_layers_snapshot", "surfaceflinger_transactions", "synchronization_marker", "sys_stats", "system_info", "thread_descriptor", "timestamp", "timestamp_clock_id", "trace_config", "trace_packet_defaults", "trace_stats", "trace_uuid", "track_descriptor", "track_event", "track_event_range_of_interest", "translation_table", "trigger", "trusted_packet_sequence_id", "trusted_pid", "trusted_uid", "ui_state", "v8_code_move", "v8_internal_code", "v8_js_code", "v8_reg_exp_code", "v8_wasm_code", "vulkan_api_event", "vulkan_memory_event", "winscope_extensions"]
     class SequenceFlags(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     ANDROID_CAMERA_FRAME_EVENT_FIELD_NUMBER: _ClassVar[int]
@@ -14964,6 +15036,7 @@ class TracePacket(_message.Message):
     CLONE_SNAPSHOT_TRIGGER_FIELD_NUMBER: _ClassVar[int]
     COMPRESSED_PACKETS_FIELD_NUMBER: _ClassVar[int]
     CPU_INFO_FIELD_NUMBER: _ClassVar[int]
+    CPU_PER_UID_DATA_FIELD_NUMBER: _ClassVar[int]
     DEOBFUSCATION_MAPPING_FIELD_NUMBER: _ClassVar[int]
     ENTITY_STATE_RESIDENCY_FIELD_NUMBER: _ClassVar[int]
     ETW_EVENTS_FIELD_NUMBER: _ClassVar[int]
@@ -14973,6 +15046,8 @@ class TracePacket(_message.Message):
     FRAME_TIMELINE_EVENT_FIELD_NUMBER: _ClassVar[int]
     FTRACE_EVENTS_FIELD_NUMBER: _ClassVar[int]
     FTRACE_STATS_FIELD_NUMBER: _ClassVar[int]
+    GENERIC_KERNEL_CPU_FREQ_EVENT_FIELD_NUMBER: _ClassVar[int]
+    GENERIC_KERNEL_TASK_RENAME_EVENT_FIELD_NUMBER: _ClassVar[int]
     GENERIC_KERNEL_TASK_STATE_EVENT_FIELD_NUMBER: _ClassVar[int]
     GPU_COUNTER_EVENT_FIELD_NUMBER: _ClassVar[int]
     GPU_LOG_FIELD_NUMBER: _ClassVar[int]
@@ -15062,6 +15137,7 @@ class TracePacket(_message.Message):
     clone_snapshot_trigger: Trigger
     compressed_packets: bytes
     cpu_info: CpuInfo
+    cpu_per_uid_data: CpuPerUidData
     deobfuscation_mapping: DeobfuscationMapping
     entity_state_residency: EntityStateResidency
     etw_events: EtwTraceEventBundle
@@ -15071,6 +15147,8 @@ class TracePacket(_message.Message):
     frame_timeline_event: FrameTimelineEvent
     ftrace_events: FtraceEventBundle
     ftrace_stats: FtraceStats
+    generic_kernel_cpu_freq_event: GenericKernelCpuFrequencyEvent
+    generic_kernel_task_rename_event: GenericKernelTaskRenameEvent
     generic_kernel_task_state_event: GenericKernelTaskStateEvent
     gpu_counter_event: GpuCounterEvent
     gpu_log: GpuLog
@@ -15140,7 +15218,7 @@ class TracePacket(_message.Message):
     vulkan_api_event: VulkanApiEvent
     vulkan_memory_event: VulkanMemoryEvent
     winscope_extensions: WinscopeExtensions
-    def __init__(self, timestamp: _Optional[int] = ..., timestamp_clock_id: _Optional[int] = ..., process_tree: _Optional[_Union[ProcessTree, _Mapping]] = ..., process_stats: _Optional[_Union[ProcessStats, _Mapping]] = ..., inode_file_map: _Optional[_Union[InodeFileMap, _Mapping]] = ..., chrome_events: _Optional[_Union[ChromeEventBundle, _Mapping]] = ..., clock_snapshot: _Optional[_Union[ClockSnapshot, _Mapping]] = ..., sys_stats: _Optional[_Union[SysStats, _Mapping]] = ..., track_event: _Optional[_Union[TrackEvent, _Mapping]] = ..., trace_uuid: _Optional[_Union[TraceUuid, _Mapping]] = ..., trace_config: _Optional[_Union[TraceConfig, _Mapping]] = ..., ftrace_stats: _Optional[_Union[FtraceStats, _Mapping]] = ..., trace_stats: _Optional[_Union[TraceStats, _Mapping]] = ..., profile_packet: _Optional[_Union[ProfilePacket, _Mapping]] = ..., streaming_allocation: _Optional[_Union[StreamingAllocation, _Mapping]] = ..., streaming_free: _Optional[_Union[StreamingFree, _Mapping]] = ..., battery: _Optional[_Union[BatteryCounters, _Mapping]] = ..., power_rails: _Optional[_Union[PowerRails, _Mapping]] = ..., android_log: _Optional[_Union[AndroidLogPacket, _Mapping]] = ..., system_info: _Optional[_Union[SystemInfo, _Mapping]] = ..., trigger: _Optional[_Union[Trigger, _Mapping]] = ..., chrome_trigger: _Optional[_Union[ChromeTrigger, _Mapping]] = ..., packages_list: _Optional[_Union[PackagesList, _Mapping]] = ..., chrome_benchmark_metadata: _Optional[_Union[ChromeBenchmarkMetadata, _Mapping]] = ..., perfetto_metatrace: _Optional[_Union[PerfettoMetatrace, _Mapping]] = ..., chrome_metadata: _Optional[_Union[ChromeMetadataPacket, _Mapping]] = ..., gpu_counter_event: _Optional[_Union[GpuCounterEvent, _Mapping]] = ..., gpu_render_stage_event: _Optional[_Union[GpuRenderStageEvent, _Mapping]] = ..., streaming_profile_packet: _Optional[_Union[StreamingProfilePacket, _Mapping]] = ..., heap_graph: _Optional[_Union[HeapGraph, _Mapping]] = ..., graphics_frame_event: _Optional[_Union[GraphicsFrameEvent, _Mapping]] = ..., vulkan_memory_event: _Optional[_Union[VulkanMemoryEvent, _Mapping]] = ..., gpu_log: _Optional[_Union[GpuLog, _Mapping]] = ..., vulkan_api_event: _Optional[_Union[VulkanApiEvent, _Mapping]] = ..., perf_sample: _Optional[_Union[PerfSample, _Mapping]] = ..., cpu_info: _Optional[_Union[CpuInfo, _Mapping]] = ..., smaps_packet: _Optional[_Union[SmapsPacket, _Mapping]] = ..., service_event: _Optional[_Union[TracingServiceEvent, _Mapping]] = ..., initial_display_state: _Optional[_Union[InitialDisplayState, _Mapping]] = ..., gpu_mem_total_event: _Optional[_Union[GpuMemTotalEvent, _Mapping]] = ..., memory_tracker_snapshot: _Optional[_Union[MemoryTrackerSnapshot, _Mapping]] = ..., frame_timeline_event: _Optional[_Union[FrameTimelineEvent, _Mapping]] = ..., android_energy_estimation_breakdown: _Optional[_Union[AndroidEnergyEstimationBreakdown, _Mapping]] = ..., ui_state: _Optional[_Union[UiState, _Mapping]] = ..., android_camera_frame_event: _Optional[_Union[AndroidCameraFrameEvent, _Mapping]] = ..., android_camera_session_stats: _Optional[_Union[AndroidCameraSessionStats, _Mapping]] = ..., translation_table: _Optional[_Union[TranslationTable, _Mapping]] = ..., android_game_intervention_list: _Optional[_Union[AndroidGameInterventionList, _Mapping]] = ..., statsd_atom: _Optional[_Union[StatsdAtom, _Mapping]] = ..., android_system_property: _Optional[_Union[AndroidSystemProperty, _Mapping]] = ..., entity_state_residency: _Optional[_Union[EntityStateResidency, _Mapping]] = ..., module_symbols: _Optional[_Union[ModuleSymbols, _Mapping]] = ..., deobfuscation_mapping: _Optional[_Union[DeobfuscationMapping, _Mapping]] = ..., track_descriptor: _Optional[_Union[TrackDescriptor, _Mapping]] = ..., process_descriptor: _Optional[_Union[ProcessDescriptor, _Mapping]] = ..., thread_descriptor: _Optional[_Union[ThreadDescriptor, _Mapping]] = ..., ftrace_events: _Optional[_Union[FtraceEventBundle, _Mapping]] = ..., synchronization_marker: _Optional[bytes] = ..., compressed_packets: _Optional[bytes] = ..., extension_descriptor: _Optional[_Union[ExtensionDescriptor, _Mapping]] = ..., network_packet: _Optional[_Union[NetworkPacketEvent, _Mapping]] = ..., network_packet_bundle: _Optional[_Union[NetworkPacketBundle, _Mapping]] = ..., track_event_range_of_interest: _Optional[_Union[TrackEventRangeOfInterest, _Mapping]] = ..., surfaceflinger_layers_snapshot: _Optional[_Union[LayersSnapshotProto, _Mapping]] = ..., surfaceflinger_transactions: _Optional[_Union[TransactionTraceEntry, _Mapping]] = ..., shell_transition: _Optional[_Union[ShellTransition, _Mapping]] = ..., shell_handler_mappings: _Optional[_Union[ShellHandlerMappings, _Mapping]] = ..., protolog_message: _Optional[_Union[ProtoLogMessage, _Mapping]] = ..., protolog_viewer_config: _Optional[_Union[ProtoLogViewerConfig, _Mapping]] = ..., winscope_extensions: _Optional[_Union[WinscopeExtensions, _Mapping]] = ..., etw_events: _Optional[_Union[EtwTraceEventBundle, _Mapping]] = ..., v8_js_code: _Optional[_Union[V8JsCode, _Mapping]] = ..., v8_internal_code: _Optional[_Union[V8InternalCode, _Mapping]] = ..., v8_wasm_code: _Optional[_Union[V8WasmCode, _Mapping]] = ..., v8_reg_exp_code: _Optional[_Union[V8RegExpCode, _Mapping]] = ..., v8_code_move: _Optional[_Union[V8CodeMove, _Mapping]] = ..., remote_clock_sync: _Optional[_Union[RemoteClockSync, _Mapping]] = ..., pixel_modem_events: _Optional[_Union[PixelModemEvents, _Mapping]] = ..., pixel_modem_token_database: _Optional[_Union[PixelModemTokenDatabase, _Mapping]] = ..., clone_snapshot_trigger: _Optional[_Union[Trigger, _Mapping]] = ..., bluetooth_trace_event: _Optional[_Union[BluetoothTraceEvent, _Mapping]] = ..., kernel_wakelock_data: _Optional[_Union[KernelWakelockData, _Mapping]] = ..., app_wakelock_bundle: _Optional[_Union[AppWakelockBundle, _Mapping]] = ..., generic_kernel_task_state_event: _Optional[_Union[GenericKernelTaskStateEvent, _Mapping]] = ..., for_testing: _Optional[_Union[TestEvent, _Mapping]] = ..., trusted_uid: _Optional[int] = ..., trusted_packet_sequence_id: _Optional[int] = ..., trusted_pid: _Optional[int] = ..., interned_data: _Optional[_Union[InternedData, _Mapping]] = ..., sequence_flags: _Optional[int] = ..., incremental_state_cleared: bool = ..., trace_packet_defaults: _Optional[_Union[TracePacketDefaults, _Mapping]] = ..., previous_packet_dropped: bool = ..., first_packet_on_sequence: bool = ..., machine_id: _Optional[int] = ...) -> None: ...
+    def __init__(self, timestamp: _Optional[int] = ..., timestamp_clock_id: _Optional[int] = ..., process_tree: _Optional[_Union[ProcessTree, _Mapping]] = ..., process_stats: _Optional[_Union[ProcessStats, _Mapping]] = ..., inode_file_map: _Optional[_Union[InodeFileMap, _Mapping]] = ..., chrome_events: _Optional[_Union[ChromeEventBundle, _Mapping]] = ..., clock_snapshot: _Optional[_Union[ClockSnapshot, _Mapping]] = ..., sys_stats: _Optional[_Union[SysStats, _Mapping]] = ..., track_event: _Optional[_Union[TrackEvent, _Mapping]] = ..., trace_uuid: _Optional[_Union[TraceUuid, _Mapping]] = ..., trace_config: _Optional[_Union[TraceConfig, _Mapping]] = ..., ftrace_stats: _Optional[_Union[FtraceStats, _Mapping]] = ..., trace_stats: _Optional[_Union[TraceStats, _Mapping]] = ..., profile_packet: _Optional[_Union[ProfilePacket, _Mapping]] = ..., streaming_allocation: _Optional[_Union[StreamingAllocation, _Mapping]] = ..., streaming_free: _Optional[_Union[StreamingFree, _Mapping]] = ..., battery: _Optional[_Union[BatteryCounters, _Mapping]] = ..., power_rails: _Optional[_Union[PowerRails, _Mapping]] = ..., android_log: _Optional[_Union[AndroidLogPacket, _Mapping]] = ..., system_info: _Optional[_Union[SystemInfo, _Mapping]] = ..., trigger: _Optional[_Union[Trigger, _Mapping]] = ..., chrome_trigger: _Optional[_Union[ChromeTrigger, _Mapping]] = ..., packages_list: _Optional[_Union[PackagesList, _Mapping]] = ..., chrome_benchmark_metadata: _Optional[_Union[ChromeBenchmarkMetadata, _Mapping]] = ..., perfetto_metatrace: _Optional[_Union[PerfettoMetatrace, _Mapping]] = ..., chrome_metadata: _Optional[_Union[ChromeMetadataPacket, _Mapping]] = ..., gpu_counter_event: _Optional[_Union[GpuCounterEvent, _Mapping]] = ..., gpu_render_stage_event: _Optional[_Union[GpuRenderStageEvent, _Mapping]] = ..., streaming_profile_packet: _Optional[_Union[StreamingProfilePacket, _Mapping]] = ..., heap_graph: _Optional[_Union[HeapGraph, _Mapping]] = ..., graphics_frame_event: _Optional[_Union[GraphicsFrameEvent, _Mapping]] = ..., vulkan_memory_event: _Optional[_Union[VulkanMemoryEvent, _Mapping]] = ..., gpu_log: _Optional[_Union[GpuLog, _Mapping]] = ..., vulkan_api_event: _Optional[_Union[VulkanApiEvent, _Mapping]] = ..., perf_sample: _Optional[_Union[PerfSample, _Mapping]] = ..., cpu_info: _Optional[_Union[CpuInfo, _Mapping]] = ..., smaps_packet: _Optional[_Union[SmapsPacket, _Mapping]] = ..., service_event: _Optional[_Union[TracingServiceEvent, _Mapping]] = ..., initial_display_state: _Optional[_Union[InitialDisplayState, _Mapping]] = ..., gpu_mem_total_event: _Optional[_Union[GpuMemTotalEvent, _Mapping]] = ..., memory_tracker_snapshot: _Optional[_Union[MemoryTrackerSnapshot, _Mapping]] = ..., frame_timeline_event: _Optional[_Union[FrameTimelineEvent, _Mapping]] = ..., android_energy_estimation_breakdown: _Optional[_Union[AndroidEnergyEstimationBreakdown, _Mapping]] = ..., ui_state: _Optional[_Union[UiState, _Mapping]] = ..., android_camera_frame_event: _Optional[_Union[AndroidCameraFrameEvent, _Mapping]] = ..., android_camera_session_stats: _Optional[_Union[AndroidCameraSessionStats, _Mapping]] = ..., translation_table: _Optional[_Union[TranslationTable, _Mapping]] = ..., android_game_intervention_list: _Optional[_Union[AndroidGameInterventionList, _Mapping]] = ..., statsd_atom: _Optional[_Union[StatsdAtom, _Mapping]] = ..., android_system_property: _Optional[_Union[AndroidSystemProperty, _Mapping]] = ..., entity_state_residency: _Optional[_Union[EntityStateResidency, _Mapping]] = ..., module_symbols: _Optional[_Union[ModuleSymbols, _Mapping]] = ..., deobfuscation_mapping: _Optional[_Union[DeobfuscationMapping, _Mapping]] = ..., track_descriptor: _Optional[_Union[TrackDescriptor, _Mapping]] = ..., process_descriptor: _Optional[_Union[ProcessDescriptor, _Mapping]] = ..., thread_descriptor: _Optional[_Union[ThreadDescriptor, _Mapping]] = ..., ftrace_events: _Optional[_Union[FtraceEventBundle, _Mapping]] = ..., synchronization_marker: _Optional[bytes] = ..., compressed_packets: _Optional[bytes] = ..., extension_descriptor: _Optional[_Union[ExtensionDescriptor, _Mapping]] = ..., network_packet: _Optional[_Union[NetworkPacketEvent, _Mapping]] = ..., network_packet_bundle: _Optional[_Union[NetworkPacketBundle, _Mapping]] = ..., track_event_range_of_interest: _Optional[_Union[TrackEventRangeOfInterest, _Mapping]] = ..., surfaceflinger_layers_snapshot: _Optional[_Union[LayersSnapshotProto, _Mapping]] = ..., surfaceflinger_transactions: _Optional[_Union[TransactionTraceEntry, _Mapping]] = ..., shell_transition: _Optional[_Union[ShellTransition, _Mapping]] = ..., shell_handler_mappings: _Optional[_Union[ShellHandlerMappings, _Mapping]] = ..., protolog_message: _Optional[_Union[ProtoLogMessage, _Mapping]] = ..., protolog_viewer_config: _Optional[_Union[ProtoLogViewerConfig, _Mapping]] = ..., winscope_extensions: _Optional[_Union[WinscopeExtensions, _Mapping]] = ..., etw_events: _Optional[_Union[EtwTraceEventBundle, _Mapping]] = ..., v8_js_code: _Optional[_Union[V8JsCode, _Mapping]] = ..., v8_internal_code: _Optional[_Union[V8InternalCode, _Mapping]] = ..., v8_wasm_code: _Optional[_Union[V8WasmCode, _Mapping]] = ..., v8_reg_exp_code: _Optional[_Union[V8RegExpCode, _Mapping]] = ..., v8_code_move: _Optional[_Union[V8CodeMove, _Mapping]] = ..., remote_clock_sync: _Optional[_Union[RemoteClockSync, _Mapping]] = ..., pixel_modem_events: _Optional[_Union[PixelModemEvents, _Mapping]] = ..., pixel_modem_token_database: _Optional[_Union[PixelModemTokenDatabase, _Mapping]] = ..., clone_snapshot_trigger: _Optional[_Union[Trigger, _Mapping]] = ..., bluetooth_trace_event: _Optional[_Union[BluetoothTraceEvent, _Mapping]] = ..., kernel_wakelock_data: _Optional[_Union[KernelWakelockData, _Mapping]] = ..., app_wakelock_bundle: _Optional[_Union[AppWakelockBundle, _Mapping]] = ..., generic_kernel_task_state_event: _Optional[_Union[GenericKernelTaskStateEvent, _Mapping]] = ..., generic_kernel_cpu_freq_event: _Optional[_Union[GenericKernelCpuFrequencyEvent, _Mapping]] = ..., generic_kernel_task_rename_event: _Optional[_Union[GenericKernelTaskRenameEvent, _Mapping]] = ..., cpu_per_uid_data: _Optional[_Union[CpuPerUidData, _Mapping]] = ..., for_testing: _Optional[_Union[TestEvent, _Mapping]] = ..., trusted_uid: _Optional[int] = ..., trusted_packet_sequence_id: _Optional[int] = ..., trusted_pid: _Optional[int] = ..., interned_data: _Optional[_Union[InternedData, _Mapping]] = ..., sequence_flags: _Optional[int] = ..., incremental_state_cleared: bool = ..., trace_packet_defaults: _Optional[_Union[TracePacketDefaults, _Mapping]] = ..., previous_packet_dropped: bool = ..., first_packet_on_sequence: bool = ..., machine_id: _Optional[int] = ...) -> None: ...
 
 class TracePacketDefaults(_message.Message):
     __slots__ = ["perf_sample_defaults", "timestamp_clock_id", "track_event_defaults", "v8_code_defaults"]
@@ -15386,7 +15464,7 @@ class TracingServiceState(_message.Message):
     def __init__(self, producers: _Optional[_Iterable[_Union[TracingServiceState.Producer, _Mapping]]] = ..., data_sources: _Optional[_Iterable[_Union[TracingServiceState.DataSource, _Mapping]]] = ..., tracing_sessions: _Optional[_Iterable[_Union[TracingServiceState.TracingSession, _Mapping]]] = ..., supports_tracing_sessions: bool = ..., num_sessions: _Optional[int] = ..., num_sessions_started: _Optional[int] = ..., tracing_service_version: _Optional[str] = ...) -> None: ...
 
 class TrackDescriptor(_message.Message):
-    __slots__ = ["atrace_name", "child_ordering", "chrome_process", "chrome_thread", "counter", "disallow_merging_with_system_tracks", "name", "parent_uuid", "process", "sibling_order_rank", "static_name", "thread", "uuid"]
+    __slots__ = ["atrace_name", "child_ordering", "chrome_process", "chrome_thread", "counter", "description", "disallow_merging_with_system_tracks", "name", "parent_uuid", "process", "sibling_order_rank", "static_name", "thread", "uuid"]
     class ChildTracksOrdering(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     ATRACE_NAME_FIELD_NUMBER: _ClassVar[int]
@@ -15395,6 +15473,7 @@ class TrackDescriptor(_message.Message):
     CHROME_THREAD_FIELD_NUMBER: _ClassVar[int]
     CHRONOLOGICAL: TrackDescriptor.ChildTracksOrdering
     COUNTER_FIELD_NUMBER: _ClassVar[int]
+    DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
     DISALLOW_MERGING_WITH_SYSTEM_TRACKS_FIELD_NUMBER: _ClassVar[int]
     EXPLICIT: TrackDescriptor.ChildTracksOrdering
     LEXICOGRAPHIC: TrackDescriptor.ChildTracksOrdering
@@ -15411,6 +15490,7 @@ class TrackDescriptor(_message.Message):
     chrome_process: ChromeProcessDescriptor
     chrome_thread: ChromeThreadDescriptor
     counter: CounterDescriptor
+    description: str
     disallow_merging_with_system_tracks: bool
     name: str
     parent_uuid: int
@@ -15419,7 +15499,7 @@ class TrackDescriptor(_message.Message):
     static_name: str
     thread: ThreadDescriptor
     uuid: int
-    def __init__(self, uuid: _Optional[int] = ..., parent_uuid: _Optional[int] = ..., name: _Optional[str] = ..., static_name: _Optional[str] = ..., atrace_name: _Optional[str] = ..., process: _Optional[_Union[ProcessDescriptor, _Mapping]] = ..., chrome_process: _Optional[_Union[ChromeProcessDescriptor, _Mapping]] = ..., thread: _Optional[_Union[ThreadDescriptor, _Mapping]] = ..., chrome_thread: _Optional[_Union[ChromeThreadDescriptor, _Mapping]] = ..., counter: _Optional[_Union[CounterDescriptor, _Mapping]] = ..., disallow_merging_with_system_tracks: bool = ..., child_ordering: _Optional[_Union[TrackDescriptor.ChildTracksOrdering, str]] = ..., sibling_order_rank: _Optional[int] = ...) -> None: ...
+    def __init__(self, uuid: _Optional[int] = ..., parent_uuid: _Optional[int] = ..., name: _Optional[str] = ..., static_name: _Optional[str] = ..., atrace_name: _Optional[str] = ..., description: _Optional[str] = ..., process: _Optional[_Union[ProcessDescriptor, _Mapping]] = ..., chrome_process: _Optional[_Union[ChromeProcessDescriptor, _Mapping]] = ..., thread: _Optional[_Union[ThreadDescriptor, _Mapping]] = ..., chrome_thread: _Optional[_Union[ChromeThreadDescriptor, _Mapping]] = ..., counter: _Optional[_Union[CounterDescriptor, _Mapping]] = ..., disallow_merging_with_system_tracks: bool = ..., child_ordering: _Optional[_Union[TrackDescriptor.ChildTracksOrdering, str]] = ..., sibling_order_rank: _Optional[int] = ...) -> None: ...
 
 class TrackEvent(_message.Message):
     __slots__ = ["categories", "category_iids", "cc_scheduler_state", "chrome_active_processes", "chrome_application_state_info", "chrome_content_settings_event_info", "chrome_frame_reporter", "chrome_histogram_sample", "chrome_keyed_service", "chrome_latency_info", "chrome_legacy_ipc", "chrome_message_pump", "chrome_mojo_event_info", "chrome_renderer_scheduler_state", "chrome_user_event", "chrome_window_handle_event_info", "correlation_id", "correlation_id_str", "correlation_id_str_iid", "counter_value", "debug_annotations", "double_counter_value", "extra_counter_track_uuids", "extra_counter_values", "extra_double_counter_track_uuids", "extra_double_counter_values", "flow_ids", "flow_ids_old", "legacy_event", "log_message", "name", "name_iid", "screenshot", "source_location", "source_location_iid", "task_execution", "terminating_flow_ids", "terminating_flow_ids_old", "thread_instruction_count_absolute", "thread_instruction_count_delta", "thread_time_absolute_us", "thread_time_delta_us", "timestamp_absolute_us", "timestamp_delta_us", "track_uuid", "type"]
@@ -15627,7 +15707,8 @@ class TrackEventRangeOfInterest(_message.Message):
     def __init__(self, start_us: _Optional[int] = ...) -> None: ...
 
 class TransactionState(_message.Message):
-    __slots__ = ["display_changes", "input_event_id", "layer_changes", "merged_transaction_ids", "pid", "post_time", "transaction_id", "uid", "vsync_id"]
+    __slots__ = ["apply_token", "display_changes", "input_event_id", "layer_changes", "merged_transaction_ids", "pid", "post_time", "transaction_id", "uid", "vsync_id"]
+    APPLY_TOKEN_FIELD_NUMBER: _ClassVar[int]
     DISPLAY_CHANGES_FIELD_NUMBER: _ClassVar[int]
     INPUT_EVENT_ID_FIELD_NUMBER: _ClassVar[int]
     LAYER_CHANGES_FIELD_NUMBER: _ClassVar[int]
@@ -15637,6 +15718,7 @@ class TransactionState(_message.Message):
     TRANSACTION_ID_FIELD_NUMBER: _ClassVar[int]
     UID_FIELD_NUMBER: _ClassVar[int]
     VSYNC_ID_FIELD_NUMBER: _ClassVar[int]
+    apply_token: int
     display_changes: _containers.RepeatedCompositeFieldContainer[DisplayState]
     input_event_id: int
     layer_changes: _containers.RepeatedCompositeFieldContainer[LayerState]
@@ -15646,7 +15728,7 @@ class TransactionState(_message.Message):
     transaction_id: int
     uid: int
     vsync_id: int
-    def __init__(self, pid: _Optional[int] = ..., uid: _Optional[int] = ..., vsync_id: _Optional[int] = ..., input_event_id: _Optional[int] = ..., post_time: _Optional[int] = ..., transaction_id: _Optional[int] = ..., layer_changes: _Optional[_Iterable[_Union[LayerState, _Mapping]]] = ..., display_changes: _Optional[_Iterable[_Union[DisplayState, _Mapping]]] = ..., merged_transaction_ids: _Optional[_Iterable[int]] = ...) -> None: ...
+    def __init__(self, pid: _Optional[int] = ..., uid: _Optional[int] = ..., vsync_id: _Optional[int] = ..., input_event_id: _Optional[int] = ..., post_time: _Optional[int] = ..., transaction_id: _Optional[int] = ..., layer_changes: _Optional[_Iterable[_Union[LayerState, _Mapping]]] = ..., display_changes: _Optional[_Iterable[_Union[DisplayState, _Mapping]]] = ..., merged_transaction_ids: _Optional[_Iterable[int]] = ..., apply_token: _Optional[int] = ...) -> None: ...
 
 class TransactionTraceEntry(_message.Message):
     __slots__ = ["added_displays", "added_layers", "destroyed_layer_handles", "destroyed_layers", "displays", "displays_changed", "elapsed_realtime_nanos", "removed_displays", "transactions", "vsync_id"]

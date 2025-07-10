@@ -18,7 +18,7 @@ import m from 'mithril';
 import {AppImpl} from '../../core/app_impl';
 import {z} from 'zod';
 import {Button, ButtonBar, ButtonVariant} from '../../widgets/button';
-import {Card, CardList} from '../../widgets/card';
+import {Card, CardStack} from '../../widgets/card';
 import {SettingsShell as SettingsPageWidget} from '../../widgets/settings_shell';
 import {Switch} from '../../widgets/switch';
 import {Select} from '../../widgets/select';
@@ -89,7 +89,7 @@ export class SettingsPage implements m.ClassComponent {
         filteredSettings.length === 0
           ? this.renderEmptyState(isFiltering)
           : m(
-              CardList,
+              CardStack,
               filteredSettings.map((setting) => {
                 return this.renderSettingCard(setting);
               }),
@@ -128,7 +128,6 @@ export class SettingsPage implements m.ClassComponent {
     return m(
       Card,
       {
-        borderless: true,
         className: classNames(
           'pf-settings-page__card',
           !setting.isDefault && 'pf-settings-page__card--changed',

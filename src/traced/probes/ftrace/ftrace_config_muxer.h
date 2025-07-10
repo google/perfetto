@@ -231,6 +231,7 @@ class FtraceConfigMuxer {
   };
 
   void SetupClock(const FtraceConfig& request);
+  void RememberActiveClock();
   void SetupBufferSize(const FtraceConfig& request);
   bool UpdateBufferPercent();
   void UpdateAtrace(const FtraceConfig& request, std::string* atrace_errors);

@@ -426,11 +426,16 @@ std::map<std::string, base::FlatSet<GroupAndName>>
 GetAccessiblePredefinedTracePoints(const ProtoTranslationTable* table,
                                    FtraceProcfs* ftrace) {
   auto tracepoints = GetPredefinedTracePoints(table, ftrace);
+
+  bool generic_enable = ftrace->IsGenericSetEventWritable();
+
   std::map<std::string, base::FlatSet<GroupAndName>> accessible_tracepoints;
   for (const auto& [category, events] : tracepoints) {
     base::FlatSet<GroupAndName> accessible_events;
     for (const auto& event : events) {
-      if (ftrace->IsEventAccessible(event.group(), event.name())) {
+      if (generic_enable
+              ? ftrace->IsEventFormatReadable(event.group(), event.name())
+              : ftrace->IsEventAccessible(event.group(), event.name())) {
         accessible_events.insert(event);
       }
     }

@@ -32,7 +32,6 @@ source_set("trace_summary") {
     "../../protozero",
     "../../protozero/text_to_proto",
     "../perfetto_sql/generator",
-    "../util",
     "../util:descriptors",
     "../util:protozero_to_text",
   ]
@@ -41,4 +40,19 @@ source_set("trace_summary") {
 perfetto_cc_proto_descriptor("gen_cc_trace_summary_descriptor") {
   descriptor_name = "trace_summary.descriptor"
   descriptor_target = "../../../protos/perfetto/trace_summary:descriptor"
+}
+
+source_set("integrationtests") {
+  testonly = true
+  sources = [ "summary_integrationtest.cc" ]
+  deps = [
+    ":gen_cc_trace_summary_descriptor",
+    ":trace_summary",
+    "../../../gn:default_deps",
+    "../../../gn:gtest_and_gmock",
+    "../../../include/perfetto/trace_processor",
+    "../../base",
+    "../../base:test_support",
+    "../util:descriptors",
+  ]
 }

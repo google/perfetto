@@ -17,11 +17,11 @@
 #include "src/trace_processor/importers/json/json_utils.h"
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/json/json_parser.h"

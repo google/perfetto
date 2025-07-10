@@ -27,10 +27,11 @@
 #include <variant>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/small_vector.h"
+#include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/dataframe/impl/bytecode_core.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
@@ -41,7 +42,6 @@
 #include "src/trace_processor/dataframe/type_set.h"
 #include "src/trace_processor/dataframe/types.h"
 #include "src/trace_processor/util/regex.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::dataframe::impl {
 
@@ -138,9 +138,8 @@ SparseNullCollapsedNullability NullabilityToSparseNullCollapsedNullability(
     case Nullability::GetTypeIndex<DenseNull>():
       return DenseNull{};
     case Nullability::GetTypeIndex<SparseNull>():
-    case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
-    case Nullability::GetTypeIndex<
-        SparseNullSupportingCellGetUntilFinalization>():
+    case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>():
+    case Nullability::GetTypeIndex<SparseNullWithPopcountUntilFinalization>():
       return SparseNull{};
     default:
       PERFETTO_FATAL("Invalid nullability type");
@@ -264,6 +263,35 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
     const Column& col = GetColumn(c.col);
     StorageType ct = col.storage.type();
 
+    if (c.op.Is<In>()) {
+      bytecode::reg::RwHandle<CastFilterValueListResult> value{
+          plan_.params.register_count++};
+      {
+        using B = bytecode::CastFilterValueListBase;
+        auto& bc =
+            AddOpcode<B>(bytecode::Index<bytecode::CastFilterValueList>(ct),
+                         UnchangedRowCount{});
+        bc.arg<B::fval_handle>() = {plan_.params.filter_value_count};
+        bc.arg<B::write_register>() = value;
+        bc.arg<B::op>() = Eq{};
+        c.value_index = plan_.params.filter_value_count++;
+      }
+      auto update = EnsureIndicesAreInSlab();
+      PruneNullIndices(c.col, update);
+      auto source = TranslateNonNullIndices(c.col, update, false);
+      {
+        using B = bytecode::InBase;
+        B& bc = AddOpcode<B>(bytecode::Index<bytecode::In>(col.storage.type()),
+                             RowCountModifier{NonEqualityFilterRowCount{}});
+        bc.arg<B::col>() = c.col;
+        bc.arg<B::value_list_register>() = value;
+        bc.arg<B::source_register>() = source;
+        bc.arg<B::update_register>() = update;
+      }
+      MaybeReleaseScratchSpanRegister();
+      continue;
+    }
+
     // Get the non-null operation (all our ops are non-null at this point)
     auto non_null_op = c.op.TryDowncast<NonNullOp>();
     if (!non_null_op) {
@@ -316,6 +344,32 @@ void QueryPlanBuilder::Distinct(
 void QueryPlanBuilder::Sort(const std::vector<SortSpec>& sort_specs) {
   if (sort_specs.empty()) {
     return;
+  }
+
+  // Optimization: If there's a single sort constraint on a NonNull
+  // column that is already sorted accordingly, skip the sort operation.
+  if (sort_specs.size() == 1) {
+    const auto& single_spec = sort_specs[0];
+    const Column& col = GetColumn(single_spec.col);
+    if (col.null_storage.nullability().Is<NonNull>() &&
+        (col.sort_state.Is<Sorted>() || col.sort_state.Is<IdSorted>() ||
+         col.sort_state.Is<SetIdSorted>())) {
+      switch (single_spec.direction) {
+        case SortDirection::kAscending:
+          // The column is NonNull and already sorted as required.
+          return;
+        case SortDirection::kDescending:
+          // The column is NonNull and sorted in the reverse order. Just
+          // reverse the indices to get the correct order.
+          {
+            auto indices = EnsureIndicesAreInSlab();
+            using B = bytecode::Reverse;
+            auto& op = AddOpcode<B>(UnchangedRowCount{});
+            op.arg<B::update_register>() = indices;
+            return;
+          }
+      }
+    }
   }
 
   // main_indices_span will be modified by the final sort operation.
@@ -462,9 +516,8 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
     const auto& col = GetColumn(i);
     switch (col.null_storage.nullability().index()) {
       case Nullability::GetTypeIndex<SparseNull>():
-      case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
-      case Nullability::GetTypeIndex<
-          SparseNullSupportingCellGetUntilFinalization>():
+      case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>():
+      case Nullability::GetTypeIndex<SparseNullWithPopcountUntilFinalization>():
       case Nullability::GetTypeIndex<DenseNull>(): {
         uint32_t offset = plan_.params.output_per_row++;
         null_cols.emplace_back(ColAndOffset{i, offset});
@@ -516,9 +569,9 @@ void QueryPlanBuilder::Output(const LimitSpec& limit, uint64_t cols_used) {
       const auto& c = GetColumn(col);
       switch (c.null_storage.nullability().index()) {
         case Nullability::GetTypeIndex<SparseNull>():
-        case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
+        case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>():
         case Nullability::GetTypeIndex<
-            SparseNullSupportingCellGetUntilFinalization>(): {
+            SparseNullWithPopcountUntilFinalization>(): {
           using B = bytecode::StrideTranslateAndCopySparseNullIndices;
           auto reg = PrefixPopcountRegisterFor(col);
           auto& bc = AddOpcode<B>(UnchangedRowCount{});
@@ -560,6 +613,15 @@ void QueryPlanBuilder::NonStringConstraint(
     const NonStringOp& op,
     const bytecode::reg::ReadHandle<CastFilterValueResult>& result) {
   const auto& col = GetColumn(c.col);
+  if (std::holds_alternative<bytecode::reg::RwHandle<Range>>(indices_reg_) &&
+      op.Is<Eq>() && col.null_storage.nullability().Is<NonNull>()) {
+    // Non null equality on an id column should have been handled earlier.
+    PERFETTO_CHECK(!type.Is<Id>());
+    auto non_id_type = type.TryDowncast<NonIdStorageType>();
+    PERFETTO_CHECK(non_id_type);
+    AddLinearFilterEqBytecode(c, result, *non_id_type);
+    return;
+  }
   auto update = EnsureIndicesAreInSlab();
   PruneNullIndices(c.col, update);
   auto source = TranslateNonNullIndices(c.col, update, false);
@@ -582,14 +644,19 @@ base::Status QueryPlanBuilder::StringConstraint(
     const FilterSpec& c,
     const StringOp& op,
     const bytecode::reg::ReadHandle<CastFilterValueResult>& result) {
+  const auto& col = GetColumn(c.col);
+  if (op.Is<Eq>() &&
+      std::holds_alternative<bytecode::reg::RwHandle<Range>>(indices_reg_) &&
+      col.null_storage.nullability().Is<NonNull>()) {
+    AddLinearFilterEqBytecode(c, result, NonIdStorageType{String{}});
+    return base::OkStatus();
+  }
   if constexpr (!regex::IsRegexSupported()) {
     if (op.Is<Regex>()) {
       return base::ErrStatus(
           "Regex is not supported on non-Unix platforms (e.g. Windows).");
     }
   }
-
-  const auto& col = GetColumn(c.col);
   auto update = EnsureIndicesAreInSlab();
   PruneNullIndices(c.col, update);
   auto source = TranslateNonNullIndices(c.col, update, false);
@@ -618,9 +685,8 @@ void QueryPlanBuilder::NullConstraint(const NullOp& op, FilterSpec& c) {
   uint32_t nullability_type_index = col.null_storage.nullability().index();
   switch (nullability_type_index) {
     case Nullability::GetTypeIndex<SparseNull>():
-    case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
-    case Nullability::GetTypeIndex<
-        SparseNullSupportingCellGetUntilFinalization>():
+    case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>():
+    case Nullability::GetTypeIndex<SparseNullWithPopcountUntilFinalization>():
     case Nullability::GetTypeIndex<DenseNull>(): {
       auto indices = EnsureIndicesAreInSlab();
       {
@@ -784,9 +850,8 @@ void QueryPlanBuilder::PruneNullIndices(
     bytecode::reg::RwHandle<Span<uint32_t>> indices) {
   switch (GetColumn(col).null_storage.nullability().index()) {
     case Nullability::GetTypeIndex<SparseNull>():
-    case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
-    case Nullability::GetTypeIndex<
-        SparseNullSupportingCellGetUntilFinalization>():
+    case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>():
+    case Nullability::GetTypeIndex<SparseNullWithPopcountUntilFinalization>():
     case Nullability::GetTypeIndex<DenseNull>(): {
       using B = bytecode::NullFilter<IsNotNull>;
       bytecode::NullFilterBase& bc = AddOpcode<B>(NonEqualityFilterRowCount{});
@@ -808,9 +873,8 @@ QueryPlanBuilder::TranslateNonNullIndices(
     bool in_place) {
   switch (GetColumn(col).null_storage.nullability().index()) {
     case Nullability::GetTypeIndex<SparseNull>():
-    case Nullability::GetTypeIndex<SparseNullSupportingCellGetAlways>():
-    case Nullability::GetTypeIndex<
-        SparseNullSupportingCellGetUntilFinalization>(): {
+    case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>():
+    case Nullability::GetTypeIndex<SparseNullWithPopcountUntilFinalization>(): {
       auto update =
           in_place ? table_indices_register
                    : GetOrCreateScratchSpanRegister(plan_.params.max_row_count);
@@ -911,18 +975,23 @@ PERFETTO_NO_INLINE bytecode::Bytecode& QueryPlanBuilder::AddRawOpcode(
     case base::variant_index<RowCountModifier, UnchangedRowCount>():
       break;
     case base::variant_index<RowCountModifier, NonEqualityFilterRowCount>():
-      plan_.params.estimated_row_count =
-          std::min(std::max(1u, plan_.params.estimated_row_count / 2),
-                   plan_.params.estimated_row_count);
+      if (plan_.params.estimated_row_count > 1) {
+        plan_.params.estimated_row_count = plan_.params.estimated_row_count / 2;
+      } else {
+        // Leave the estimated row count as is if it is already 1 or less.
+      }
       break;
     case base::variant_index<RowCountModifier, EqualityFilterRowCount>(): {
       const auto& eq = base::unchecked_get<EqualityFilterRowCount>(rc);
       if (eq.duplicate_state.Is<HasDuplicates>()) {
-        double new_count = plan_.params.estimated_row_count /
-                           (2 * log2(plan_.params.estimated_row_count));
-        plan_.params.estimated_row_count =
-            std::min(std::max(1u, static_cast<uint32_t>(new_count)),
-                     plan_.params.estimated_row_count);
+        if (plan_.params.estimated_row_count > 1) {
+          double new_count = plan_.params.estimated_row_count /
+                             (2 * log2(plan_.params.estimated_row_count));
+          plan_.params.estimated_row_count =
+              std::max(1u, static_cast<uint32_t>(new_count));
+        } else {
+          // Leave the estimated row count as is if it is already 1 or less.
+        }
       } else {
         PERFETTO_CHECK(eq.duplicate_state.Is<NoDuplicates>());
         plan_.params.estimated_row_count =
@@ -1120,6 +1189,49 @@ bytecode::reg::RwHandle<Slab<uint8_t>> QueryPlanBuilder::CopyToRowLayout(
   }
   PERFETTO_CHECK(current_offset == row_stride);
   return new_buffer_reg;
+}
+
+void QueryPlanBuilder::AddLinearFilterEqBytecode(
+    const FilterSpec& c,
+    const bytecode::reg::ReadHandle<CastFilterValueResult>&
+        filter_value_result_reg,
+    const NonIdStorageType& non_id_storage_type) {
+  const auto& col = GetColumn(c.col);
+  PERFETTO_DCHECK(
+      std::holds_alternative<bytecode::reg::RwHandle<Range>>(indices_reg_));
+  PERFETTO_DCHECK(col.null_storage.nullability().Is<NonNull>());
+  PERFETTO_DCHECK(c.op.Is<Eq>());
+
+  using SpanReg = bytecode::reg::RwHandle<Span<uint32_t>>;
+  using SlabReg = bytecode::reg::RwHandle<Slab<uint32_t>>;
+  using RegRange = bytecode::reg::RwHandle<Range>;
+
+  auto range_reg = base::unchecked_get<RegRange>(indices_reg_);
+  SlabReg slab_reg{plan_.params.register_count++};
+  SpanReg span_reg{plan_.params.register_count++};
+  {
+    using B = bytecode::AllocateIndices;
+    auto& bc = AddOpcode<B>(UnchangedRowCount{});
+    bc.arg<B::size>() = plan_.params.max_row_count;
+    bc.arg<B::dest_slab_register>() = slab_reg;
+    bc.arg<B::dest_span_register>() = span_reg;
+  }
+
+  {
+    using B = bytecode::LinearFilterEqBase;
+    B& bc = AddOpcode<B>(
+        bytecode::Index<bytecode::LinearFilterEq>(non_id_storage_type),
+        RowCountModifier{EqualityFilterRowCount{col.duplicate_state}});
+    bc.arg<B::col>() = c.col;
+    bc.arg<B::filter_value_reg>() = filter_value_result_reg;
+    // For NonNull columns, popcount_register is not used by LinearFilterEq
+    // logic. Pass a default-constructed handle.
+    bc.arg<B::popcount_register>() =
+        bytecode::reg::ReadHandle<Slab<uint32_t>>{};
+    bc.arg<B::source_register>() = range_reg;
+    bc.arg<B::update_register>() = span_reg;
+  }
+  indices_reg_ = span_reg;
 }
 
 }  // namespace perfetto::trace_processor::dataframe::impl

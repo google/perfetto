@@ -13,96 +13,33 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.cpu.idle_attribution;
 INCLUDE PERFETTO MODULE wattson.estimates;
+INCLUDE PERFETTO MODULE wattson.tasks.attribution;
+INCLUDE PERFETTO MODULE wattson.tasks.idle_transitions_attribution;
 INCLUDE PERFETTO MODULE wattson.utils;
-INCLUDE PERFETTO MODULE viz.summary.threads_w_processes;
 
 -- Take only the Wattson estimations that are in the window of interest
-DROP VIEW IF EXISTS _windowed_wattson;
-CREATE PERFETTO VIEW _windowed_wattson AS
+DROP VIEW IF EXISTS _windowed_threads_system_state;
+CREATE PERFETTO VIEW _windowed_threads_system_state AS
 SELECT
   ii.ts,
   ii.dur,
-  ii.id_1 as period_id,
-  ss.cpu0_mw,
-  ss.cpu1_mw,
-  ss.cpu2_mw,
-  ss.cpu3_mw,
-  ss.cpu4_mw,
-  ss.cpu5_mw,
-  ss.cpu6_mw,
-  ss.cpu7_mw,
-  ss.dsu_scu_mw
+  ii.id_1 AS period_id,
+  tasks.cpu,
+  tasks.estimated_mw,
+  tasks.thread_name,
+  tasks.process_name,
+  tasks.tid,
+  tasks.pid,
+  tasks.utid
 FROM _interval_intersect!(
   (
-    _ii_subquery!(_system_state_mw),
+    _ii_subquery!(_estimates_w_tasks_attribution),
     (SELECT ts, dur, period_id as id FROM {{window_table}})
   ),
   ()
 ) ii
-JOIN _system_state_mw AS ss ON ss._auto_id = id_0;
-
--- "Unpivot" the table so that table can by PARTITIONED BY cpu
-DROP TABLE IF EXISTS _unioned_windowed_wattson;
-CREATE PERFETTO TABLE _unioned_windowed_wattson AS
-  SELECT ts, dur, 0 as cpu, cpu0_mw as estimated_mw, period_id
-  FROM _windowed_wattson
-  WHERE EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 0 = cpu)
-  UNION ALL
-  SELECT ts, dur, 1 as cpu, cpu1_mw as estimated_mw, period_id
-  FROM _windowed_wattson
-  WHERE EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 1 = cpu)
-  UNION ALL
-  SELECT ts, dur, 2 as cpu, cpu2_mw as estimated_mw, period_id
-  FROM _windowed_wattson
-  WHERE EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 2 = cpu)
-  UNION ALL
-  SELECT ts, dur, 3 as cpu, cpu3_mw as estimated_mw, period_id
-  FROM _windowed_wattson
-  WHERE EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 3 = cpu)
-  UNION ALL
-  SELECT ts, dur, 4 as cpu, cpu4_mw as estimated_mw, period_id
-  FROM _windowed_wattson
-  WHERE EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 4 = cpu)
-  UNION ALL
-  SELECT ts, dur, 5 as cpu, cpu5_mw as estimated_mw, period_id
-  FROM _windowed_wattson
-  WHERE EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 5 = cpu)
-  UNION ALL
-  SELECT ts, dur, 6 as cpu, cpu6_mw as estimated_mw, period_id
-  FROM _windowed_wattson
-  WHERE EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 6 = cpu)
-  UNION ALL
-  SELECT ts, dur, 7 as cpu, cpu7_mw as estimated_mw, period_id
-  FROM _windowed_wattson
-  WHERE EXISTS (SELECT cpu FROM _dev_cpu_policy_map WHERE 7 = cpu)
-  UNION ALL
-  SELECT ts, dur, -1 as cpu, dsu_scu_mw as estimated_mw, period_id
-  FROM _windowed_wattson;
-
-DROP TABLE IF EXISTS _windowed_threads_system_state;
-CREATE PERFETTO TABLE _windowed_threads_system_state AS
-SELECT
-  ii.ts,
-  ii.dur,
-  ii.cpu,
-  uw.estimated_mw,
-  s.thread_name,
-  s.process_name,
-  s.tid,
-  s.pid,
-  s.utid,
-  uw.period_id
-FROM _interval_intersect!(
-  (
-    _ii_subquery!(_unioned_windowed_wattson),
-    _ii_subquery!(_sched_w_thread_process_package_summary)
-  ),
-  (cpu)
-) ii
-JOIN _unioned_windowed_wattson AS uw ON uw._auto_id = id_0
-JOIN _sched_w_thread_process_package_summary AS s ON s._auto_id = id_1;
+JOIN _estimates_w_tasks_attribution AS tasks ON tasks._auto_id = id_0;
 
 -- Get idle overhead attribution per thread
 DROP VIEW IF EXISTS _per_thread_idle_attribution;
@@ -123,7 +60,7 @@ SELECT
   -- active time of thread divided by total time where Wattson is defined
   SUM(estimated_mw * dur) / 1000000000 as estimated_mws,
   (
-    SUM(estimated_mw * dur) / (SELECT SUM(dur) from _windowed_wattson)
+    SUM(estimated_mw * dur) / (SELECT SUM(dur) from {{window_table}})
   ) as estimated_mw,
   -- Output zero idle cost for threads that don't cause wakeup
   COALESCE(idle_cost_mws, 0) as idle_cost_mws,

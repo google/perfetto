@@ -14,15 +14,15 @@
 """Contains tables for tracks."""
 
 from python.generators.trace_processor_table.public import Column as C
-from python.generators.trace_processor_table.public import ColumnDoc
-from python.generators.trace_processor_table.public import CppInt64
+from python.generators.trace_processor_table.public import CppAccess
+from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppSelfTableId
 from python.generators.trace_processor_table.public import CppString
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import SqlAccess
 from python.generators.trace_processor_table.public import Table
-from python.generators.trace_processor_table.public import TableDoc
 
 from src.trace_processor.tables.metadata_tables import MACHINE_TABLE
 from src.trace_processor.tables.metadata_tables import THREAD_TABLE
@@ -33,16 +33,54 @@ TRACK_TABLE = Table(
     class_name="TrackTable",
     sql_name="__intrinsic_track",
     columns=[
-        C("name", CppString()),
-        C("parent_id", CppOptional(CppSelfTableId())),
-        C("source_arg_set_id", CppOptional(CppUint32())),
-        C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
-        C("type", CppString()),
-        C("dimension_arg_set_id", CppOptional(CppUint32())),
+        C(
+            "name",
+            CppString(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            "parent_id",
+            CppOptional(CppSelfTableId()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            "source_arg_set_id",
+            CppOptional(CppUint32()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C("machine_id", CppOptional(CppTableId(MACHINE_TABLE))),
+        C(
+            "type",
+            CppString(),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            "dimension_arg_set_id",
+            CppOptional(CppUint32()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
         C("event_type", CppString()),
         C("counter_unit", CppOptional(CppString())),
-        C("utid", CppOptional(CppTableId(THREAD_TABLE))),
-        C("upid", CppOptional(CppTableId(PROCESS_TABLE))),
+        C(
+            "utid",
+            CppOptional(CppTableId(THREAD_TABLE)),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            "upid",
+            CppOptional(CppTableId(PROCESS_TABLE)),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ])
 
 # Keep this list sorted.
