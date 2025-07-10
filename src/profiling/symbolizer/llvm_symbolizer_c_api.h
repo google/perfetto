@@ -36,7 +36,7 @@ typedef struct {
   // Path to the binary file.
   const char* binary_path;
   // The length of binary_path. If the caller does not know the size and the
-  // string is null-terminated, this should be set to uint32_t::max() - 1.
+  // string is null-terminated, this should be set to uint32_t::max().
   // The implementation currently assumes that the string is null-terminated,
   // but the length is passed for future optimizations.
   uint32_t binary_path_len;
