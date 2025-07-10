@@ -32,6 +32,7 @@
       border-style: solid;
       border-width: 1px;
       border-radius: 2px;
+      user-select: none;
 
       &:hover {
         min-width: fit-content;
