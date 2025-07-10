@@ -76,10 +76,10 @@ message TrackDescriptor {
   // Optional but *strongly recommended* to be specified in a `TrackDescriptor`
   // emitted before any `TrackEvent`s on the same track.
   //
-  // Important: this will be *ignored* for the root thread scoped tracks where
-  // `disallow_merging_with_system_tracks` is not set, as in this case, the name
-  // of the track is shared by many different producers and so is under the
-  // control of trace processor.
+  // Note: any name specified here will be *ignored* for the root thread scoped
+  // tracks when `disallow_merging_with_system_tracks` is not set, as in this
+  // case, the name of the track is shared by many different data sources and so
+  // is centrally controlled by trace processor.
   //
   // It's strongly recommended to only emit the name for a track uuid *once*. If
   // a descriptor *has* to be emitted multiple times (e.g. between different
