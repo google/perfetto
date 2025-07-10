@@ -1380,6 +1380,196 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
             20);
 }
 
+// TODO(eseckler): Also test instant events on separate tracks.
+TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
+  // Sequence 1.
+  {
+    auto* packet = trace_->add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_incremental_state_cleared(true);
+    packet->set_timestamp(1000000);
+    auto* track_desc = packet->set_track_descriptor();
+    track_desc->set_uuid(1234);
+    track_desc->set_name("Thread track 1");
+    track_desc->set_disallow_merging_with_system_tracks(true);
+    auto* thread_desc = track_desc->set_thread();
+    thread_desc->set_pid(15);
+    thread_desc->set_tid(16);
+    auto* chrome_thread = track_desc->set_chrome_thread();
+    chrome_thread->set_thread_type(
+        protos::pbzero::ChromeThreadDescriptor::THREAD_SAMPLING_PROFILER);
+  }
+  {
+    auto* packet = trace_->add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_timestamp(1000000);
+    auto* track_desc = packet->set_track_descriptor();
+    track_desc->set_uuid(5678);
+    track_desc->set_name("Async track 1");
+  }
+  {
+    // Async event started on "Async track 1".
+    auto* packet = trace_->add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_timestamp(1010000);
+    auto* event = packet->set_track_event();
+    event->set_track_uuid(5678);
+    event->set_thread_time_absolute_us(2005);
+    event->set_thread_instruction_count_absolute(3020);
+    event->add_category_iids(1);
+    event->set_name_iid(1);
+    event->set_type(protos::pbzero::TrackEvent::TYPE_SLICE_BEGIN);
+    auto* legacy_event = event->set_legacy_event();
+    legacy_event->set_use_async_tts(true);
+
+    auto* interned_data = packet->set_interned_data();
+    auto* cat1 = interned_data->add_event_categories();
+    cat1->set_iid(1);
+    cat1->set_name("cat1");
+    auto* ev1 = interned_data->add_event_names();
+    ev1->set_iid(1);
+    ev1->set_name("ev1");
+  }
+  {
+    // Instant event on "Thread track 1".
+    auto* packet = trace_->add_packet();
+    packet->set_trusted_packet_sequence_id(1);
+    packet->set_timestamp(1015000);
+    auto* event = packet->set_track_event();
+    event->set_track_uuid(1234);
+    event->set_thread_time_absolute_us(2007);
+    event->add_category_iids(2);
+    event->set_name_iid(2);
+    event->set_type(protos::pbzero::TrackEvent::TYPE_INSTANT);
+
+    auto* interned_data = packet->set_interned_data();
+    auto* cat1 = interned_data->add_event_categories();
+    cat1->set_iid(2);
+    cat1->set_name("cat2");
+    auto* ev1 = interned_data->add_event_names();
+    ev1->set_iid(2);
+    ev1->set_name("ev2");
+  }
+
+  // Sequence 2.
+  {
+    auto* packet = trace_->add_packet();
+    packet->set_trusted_packet_sequence_id(2);
+    packet->set_incremental_state_cleared(true);
+    packet->set_timestamp(1000000);
+    auto* track_desc = packet->set_track_descriptor();
+    track_desc->set_uuid(4321);
+    track_desc->set_name("Thread track 2");
+    track_desc->set_disallow_merging_with_system_tracks(true);
+    auto* thread_desc = track_desc->set_thread();
+    thread_desc->set_pid(15);
+    thread_desc->set_tid(17);
+  }
+  {
+    // Async event completed on "Async track 1".
+    auto* packet = trace_->add_packet();
+    packet->set_trusted_packet_sequence_id(2);
+    packet->set_timestamp(1020000);
+    auto* event = packet->set_track_event();
+    event->set_track_uuid(5678);
+    event->set_thread_time_absolute_us(2010);
+    event->set_thread_instruction_count_absolute(3040);
+    event->set_type(protos::pbzero::TrackEvent::TYPE_SLICE_END);
+    auto* legacy_event = event->set_legacy_event();
+    legacy_event->set_use_async_tts(true);
+  }
+  {
+    // Instant event on "Thread track 2".
+    auto* packet = trace_->add_packet();
+    packet->set_trusted_packet_sequence_id(2);
+    packet->set_timestamp(1016000);
+    auto* event = packet->set_track_event();
+    event->set_track_uuid(4321);
+    event->set_thread_time_absolute_us(2008);
+    event->add_category_iids(1);
+    event->set_name_iid(1);
+    event->set_type(protos::pbzero::TrackEvent::TYPE_INSTANT);
+
+    auto* interned_data = packet->set_interned_data();
+    auto* cat1 = interned_data->add_event_categories();
+    cat1->set_iid(1);
+    cat1->set_name("cat3");
+    auto* ev1 = interned_data->add_event_names();
+    ev1->set_iid(1);
+    ev1->set_name("ev3");
+  }
+
+  EXPECT_CALL(
+      *process_,
+      UpdateThreadName(1u, storage_->InternString("StackSamplingProfiler"),
+                       ThreadNamePriority::kTrackDescriptorThreadType));
+  EXPECT_CALL(*process_,
+              UpdateThreadName(2u, kNullStringId,
+                               ThreadNamePriority::kTrackDescriptor));
+  EXPECT_CALL(*process_,
+              UpdateThreadName(1u, kNullStringId,
+                               ThreadNamePriority::kTrackDescriptor));
+  EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1u));
+  EXPECT_CALL(*process_, UpdateThread(17, 15)).WillRepeatedly(Return(2u));
+
+  tables::ThreadTable::Row t1(16);
+  t1.upid = 1u;
+  storage_->mutable_thread_table()->Insert(t1);
+
+  tables::ThreadTable::Row t2(16);
+  t2.upid = 2u;
+  storage_->mutable_thread_table()->Insert(t2);
+
+  Tokenize();
+
+  InSequence in_sequence;  // Below slices should be sorted by timestamp.
+
+  EXPECT_CALL(*event_,
+              PushCounter(1015000, testing::DoubleEq(2007000), TrackId{3}));
+
+  EXPECT_CALL(*event_,
+              PushCounter(1016000, testing::DoubleEq(2008000), TrackId{4}));
+
+  context_.sorter->ExtractEventsForced();
+
+  // First track is "Thread track 1"; second is "Async track 1", third is global
+  // default track (parent of async track), fourth is "Thread track 2", fifth &
+  // sixth are thread time tracks for thread 1 and 2.
+  EXPECT_EQ(storage_->track_table().row_count(), 5u);
+  EXPECT_EQ(storage_->GetString((storage_->track_table()[0].name())),
+            "Thread track 1");
+  EXPECT_EQ(storage_->GetString((storage_->track_table()[1].name())),
+            "Async track 1");
+  EXPECT_EQ(storage_->GetString((storage_->track_table()[2].name())),
+            "Thread track 2");
+  EXPECT_EQ(storage_->track_table()[3].utid(), 1u);
+  EXPECT_EQ(storage_->track_table()[4].utid(), 2u);
+
+  EXPECT_EQ(storage_->virtual_track_slices().slice_count(), 1u);
+  EXPECT_EQ(storage_->virtual_track_slices().slice_ids()[0], SliceId(0u));
+  EXPECT_EQ(storage_->virtual_track_slices().thread_timestamp_ns()[0], 2005000);
+  EXPECT_EQ(storage_->virtual_track_slices().thread_duration_ns()[0], 5000);
+  EXPECT_EQ(storage_->virtual_track_slices().thread_instruction_counts()[0],
+            3020);
+  EXPECT_EQ(storage_->virtual_track_slices().thread_instruction_deltas()[0],
+            20);
+
+  EXPECT_EQ(storage_->slice_table().row_count(), 3u);
+  auto rr_0 = storage_->slice_table().FindById(SliceId(1u));
+  EXPECT_TRUE(rr_0);
+  EXPECT_EQ(rr_0->thread_ts(), 2007000);
+  EXPECT_EQ(rr_0->thread_dur(), 0);
+  // There was no thread instructions in the packets above.
+  EXPECT_FALSE(rr_0->thread_instruction_count());
+  EXPECT_FALSE(rr_0->thread_instruction_delta());
+  auto rr_1 = storage_->slice_table().FindById(SliceId(2u));
+  EXPECT_TRUE(rr_1);
+  EXPECT_EQ(rr_1->thread_ts(), 2008000);
+  EXPECT_EQ(rr_1->thread_dur(), 0);
+  EXPECT_FALSE(rr_1->thread_instruction_count());
+  EXPECT_FALSE(rr_1->thread_instruction_delta());
+}
+
 TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
   // Descriptors with timestamps after the event below. They will be tokenized
   // in the order they appear here, but then resorted before parsing to appear
