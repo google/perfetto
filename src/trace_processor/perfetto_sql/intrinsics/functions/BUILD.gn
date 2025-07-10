@@ -74,8 +74,6 @@ source_set("functions") {
     "../../../../base",
     "../../../containers",
     "../../../dataframe",
-    "../../../db",
-    "../../../db/column",
     "../../../importers/common",
     "../../../importers/ftrace:ftrace_descriptors",
     "../../../perfetto_sql/intrinsics/table_functions",

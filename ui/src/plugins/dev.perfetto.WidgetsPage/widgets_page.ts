@@ -69,6 +69,8 @@ import {
 import {SQLDataSource} from '../../components/widgets/data_grid/sql_data_source';
 import {App} from '../../public/app';
 import {Engine} from '../../trace_processor/engine';
+import {Card, CardStack} from '../../widgets/card';
+import {Stack} from '../../widgets/stack';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -834,6 +836,43 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           header: true,
           content: true,
         },
+      }),
+      m(WidgetShowcase, {
+        label: 'Card',
+        description: `A card is a simple container with a shadow and rounded
+          corners. It can be used to display grouped content in a visually
+          appealing way.`,
+        renderWidget: () =>
+          m(Card, [
+            m('h1', {style: {margin: 'unset'}}, 'Welcome!'),
+            m('p', 'Would you like to start your journey?'),
+            m(Stack, {orientation: 'horizontal'}, [
+              m(Button, {
+                variant: ButtonVariant.Filled,
+                label: 'No thanks...',
+              }),
+              m(Button, {
+                intent: Intent.Primary,
+                variant: ButtonVariant.Filled,
+                label: "Let's go!",
+              }),
+            ]),
+          ]),
+        initialOpts: {},
+      }),
+      m(WidgetShowcase, {
+        label: 'CardStack',
+        description: `A container component that can be used to display
+          multiple Card elements in a vertical stack. Cards placed in this list
+          automatically have their borders adjusted to appear as one continuous
+          card with thin borders between them.`,
+        renderWidget: () =>
+          m(CardStack, [
+            m(Card, m(Switch, {label: 'Option 1'})),
+            m(Card, m(Switch, {label: 'Option 2'})),
+            m(Card, m(Switch, {label: 'Option 3'})),
+          ]),
+        initialOpts: {},
       }),
       m(WidgetShowcase, {
         label: 'CopyableLink',

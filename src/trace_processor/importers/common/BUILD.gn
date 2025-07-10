@@ -94,7 +94,6 @@ source_set("common") {
     "../../../protozero",
     "../../containers",
     "../../dataframe",
-    "../../db:minimal",
     "../../storage",
     "../../tables:tables",
     "../../types",

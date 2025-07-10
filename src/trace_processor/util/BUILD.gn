@@ -241,7 +241,6 @@ source_set("profile_builder") {
     "../containers",
     "../dataframe",
     "../dataframe",
-    "../db/column",
     "../storage",
     "../tables",
     "../types",
@@ -282,7 +281,6 @@ source_set("winscope_proto_mapping") {
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base:base",
     "../dataframe",
-    "../db",
     "../storage:storage",
     "../tables",
   ]

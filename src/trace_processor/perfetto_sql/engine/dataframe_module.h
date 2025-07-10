@@ -26,7 +26,6 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/dataframe/cursor.h"
 #include "src/trace_processor/dataframe/dataframe.h"
@@ -102,25 +101,17 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     void OnCell(int32_t v) const { sqlite::result::Long(ctx, v); }
     sqlite3_context* ctx;
   };
-  struct Cursor;
-  using DfCursor = dataframe::Cursor<SqliteValueFetcher>;
   struct Vtab : sqlite::Module<DataframeModule>::Vtab {
     const dataframe::Dataframe* dataframe;
     sqlite::ModuleStateManager<DataframeModule>::PerVtabState* state;
     std::string name;
     int best_idx_num = 0;
-
-    // Pool of cursors to be reused within a transaction.
-    std::vector<std::unique_ptr<Cursor>> cursor_pool;
-    std::vector<Cursor*> free_cursors;
-
-    // Pool of dataframe cursors, keyed by the query plan.
-    base::FlatHashMap<int, std::unique_ptr<DfCursor>> df_cursor_pool;
   };
+  using DfCursor = dataframe::Cursor<SqliteValueFetcher>;
   struct Cursor : sqlite::Module<DataframeModule>::Cursor {
-    // L1 cache for the dataframe cursor.
-    DfCursor* df_cursor = nullptr;
-    int idx_num = -1;
+    const dataframe::Dataframe* dataframe;
+    DfCursor df_cursor;
+    const char* last_idx_str = nullptr;
   };
 
   static int Create(sqlite3*,
@@ -156,8 +147,8 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
 
   static int Begin(sqlite3_vtab*) { return SQLITE_OK; }
   static int Sync(sqlite3_vtab*) { return SQLITE_OK; }
-  static int Commit(sqlite3_vtab*);
-  static int Rollback(sqlite3_vtab*);
+  static int Commit(sqlite3_vtab*) { return SQLITE_OK; }
+  static int Rollback(sqlite3_vtab*) { return SQLITE_OK; }
   static int Savepoint(sqlite3_vtab* t, int r) {
     DataframeModule::Vtab* vtab = GetVtab(t);
     sqlite::ModuleStateManager<DataframeModule>::OnSavepoint(vtab->state, r);

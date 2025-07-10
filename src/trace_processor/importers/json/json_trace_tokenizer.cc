@@ -207,17 +207,69 @@ uint32_t CoerceToUint32(double n) {
   return CoerceToUint32(static_cast<int64_t>(n));
 }
 
-inline int64_t CoerceToTs(const json::JsonValue& value) {
+inline bool CoerceToTs(const json::JsonValue& value,
+                       int64_t& ts,
+                       base::Status& status) {
   switch (value.index()) {
     case base::variant_index<json::JsonValue, double>():
-      return static_cast<int64_t>(
+      ts = static_cast<int64_t>(
           std::llround(base::unchecked_get<double>(value) * 1000.0));
+      return true;
     case base::variant_index<json::JsonValue, int64_t>():
-      return base::unchecked_get<int64_t>(value) * 1000;
-    case base::variant_index<json::JsonValue, std::string_view>():
-      return CoerceToTs(base::unchecked_get<std::string_view>(value));
+      ts = base::unchecked_get<int64_t>(value) * 1000;
+      return true;
+    case base::variant_index<json::JsonValue, std::string_view>(): {
+      std::string_view value_str = base::unchecked_get<std::string_view>(value);
+      json::JsonValue str_parsed;
+      std::string temp_str;
+      const char* start = value_str.data();
+      const char* end = value_str.data() + value_str.size();
+
+      // The ParseValue function expects to see the next character after any
+      // number so we need to add one to the end of the string contents (which
+      // should be the quote character) to ensure we don't get
+      // `kIncompleteInput`.
+      const char* quote_end = value_str.data() + value_str.size() + 1;
+      auto ret =
+          json::ParseValue(start, quote_end, str_parsed, temp_str, status);
+      switch (ret) {
+        case json::ReturnCode::kOk:
+          if (start != end) {
+            status = base::ErrStatus(
+                "Unexpected trailing characters when parsing string timestamp "
+                "'%.*s'",
+                static_cast<int>(value_str.size()), value_str.data());
+            return false;
+          }
+          break;
+        case json::ReturnCode::kError:
+          // status is already set by ParseValue.
+          return false;
+        case json::ReturnCode::kIncompleteInput:
+          status = base::ErrStatus(
+              "Unexpected incomplete input when parsing string timestamp "
+              "'%.*s'",
+              static_cast<int>(value_str.size()), value_str.data());
+          return false;
+        case json::ReturnCode::kEndOfScope:
+          status = base::ErrStatus(
+              "Unexpected end of scope when parsing string timestamp '%.*s'",
+              static_cast<int>(value_str.size()), value_str.data());
+          return false;
+      }
+      if (!std::holds_alternative<double>(str_parsed) &&
+          !std::holds_alternative<int64_t>(str_parsed)) {
+        status = base::ErrStatus("Expected a number in string timestamp '%.*s'",
+                                 static_cast<int>(value_str.size()),
+                                 value_str.data());
+        return false;
+      }
+      return CoerceToTs(str_parsed, ts, status);
+    }
     default:
-      return std::numeric_limits<int64_t>::max();
+      status = base::ErrStatus("Expected a number in timestamp, got %zu",
+                               value.index());
+      return false;
   }
 }
 
@@ -438,6 +490,7 @@ base::Status JsonTraceTokenizer::HandleTraceEvent(const char* start,
 
 bool JsonTraceTokenizer::ParseTraceEventContents() {
   JsonEvent event;
+  base::Status status;
   int64_t ts = std::numeric_limits<int64_t>::max();
   std::string_view id2_local;
   std::string_view id2_global;
@@ -457,9 +510,17 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
       std::string_view ph = GetStringValue(it_.value());
       event.phase = ph.size() >= 1 ? ph[0] : '\0';
     } else if (it_.key() == "ts") {
-      ts = CoerceToTs(it_.value());
+      if (!CoerceToTs(it_.value(), ts, status)) {
+        PERFETTO_DLOG("%s", status.c_message());
+        context_->storage->IncrementStats(stats::json_tokenizer_failure);
+        return false;
+      }
     } else if (it_.key() == "dur") {
-      event.dur = CoerceToTs(it_.value());
+      if (!CoerceToTs(it_.value(), event.dur, status)) {
+        PERFETTO_DLOG("%s", status.c_message());
+        context_->storage->IncrementStats(stats::json_tokenizer_failure);
+        return false;
+      }
     } else if (it_.key() == "pid") {
       switch (it_.value().index()) {
         case base::variant_index<json::JsonValue, std::string_view>(): {
@@ -570,9 +631,17 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
     } else if (it_.key() == "bp") {
       event.bind_enclosing_slice = GetStringValue(it_.value()) == "e";
     } else if (it_.key() == "tts") {
-      event.tts = CoerceToTs(it_.value());
+      if (!CoerceToTs(it_.value(), event.tts, status)) {
+        PERFETTO_DLOG("%s", status.c_message());
+        context_->storage->IncrementStats(stats::json_tokenizer_failure);
+        return false;
+      }
     } else if (it_.key() == "tdur") {
-      event.tdur = CoerceToTs(it_.value());
+      if (!CoerceToTs(it_.value(), event.tdur, status)) {
+        PERFETTO_DLOG("%s", status.c_message());
+        context_->storage->IncrementStats(stats::json_tokenizer_failure);
+        return false;
+      }
     } else if (it_.key() == "args") {
       std::string_view args = GetObjectValue(it_.value());
       if (!args.empty()) {
@@ -591,10 +660,14 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
     context_->storage->IncrementStats(stats::json_tokenizer_failure);
     return true;
   }
-  // Metadata events may omit ts. In all other cases error:
-  if (ts == std::numeric_limits<int64_t>::max() && event.phase != 'M') {
-    context_->storage->IncrementStats(stats::json_tokenizer_failure);
-    return true;
+  // Metadata events may omit ts. In all other cases error.
+  if (ts == std::numeric_limits<int64_t>::max()) {
+    if (event.phase != 'M') {
+      context_->storage->IncrementStats(stats::json_tokenizer_failure);
+      return true;
+    }
+    // If the event is a metadata event, we can set ts to 0.
+    ts = 0;
   }
 
   // Make the tid equal to the pid if tid is not set.
@@ -624,7 +697,7 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
         base::Hasher::Combine(event.cat.raw_id(), event.id.id_uint64));
   }
   if (PERFETTO_UNLIKELY(event.phase == 'P')) {
-    if (auto status = ParseV8SampleEvent(event); !status.ok()) {
+    if (status = ParseV8SampleEvent(event); !status.ok()) {
       context_->storage->IncrementStats(stats::json_tokenizer_failure);
       return true;
     }
@@ -636,7 +709,7 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
 
 void JsonTraceTokenizer::ParseId2(std::string_view id2,
                                   std::string_view& id2_local,
-                                  std::string_view id2_global) {
+                                  std::string_view& id2_global) {
   inner_it_.Reset(id2.data(), id2.data() + id2.size());
   if (!inner_it_.ParseStart()) {
     context_->storage->IncrementStats(stats::json_tokenizer_failure);
@@ -658,7 +731,7 @@ void JsonTraceTokenizer::ParseId2(std::string_view id2,
     }
     if (inner_it_.key() == "local") {
       id2_local = GetStringValue(inner_it_.value());
-    } else if (inner_it_.key() == "") {
+    } else if (inner_it_.key() == "global") {
       id2_global = GetStringValue(inner_it_.value());
     }
   }
