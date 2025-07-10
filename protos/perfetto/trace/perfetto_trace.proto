@@ -1449,8 +1449,8 @@ message PriorityBoostConfig {
     // The Real-time policy, Priority range: [1; 99]
     POLICY_SCHED_FIFO = 2;
   };
-  required BoostPolicy policy = 1;
-  required uint32 priority = 2;
+  optional BoostPolicy policy = 1;
+  optional uint32 priority = 2;
 }
 // End of protos/perfetto/config/priority_boost/priority_boost_config.proto
 

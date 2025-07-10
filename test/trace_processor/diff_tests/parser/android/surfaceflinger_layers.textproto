@@ -98,7 +98,7 @@ packet {
         queued_frames: 0
         is_protected: false
         curr_frame: 0
-        corner_radius: 0.000000
+        corner_radii: { tl: 0.100000 bl: 0.300000 br: 0.400000 }
         source_bounds {
           left: -10800.000000
           top: -24000.000000
