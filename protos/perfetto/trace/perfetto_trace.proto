@@ -16305,7 +16305,7 @@ message CounterDescriptor {
 // |TrackEvent::track_uuid|. It is possible but not necessary to emit a
 // TrackDescriptor for this implicit track.
 //
-// Next id: 14.
+// Next id: 15.
 message TrackDescriptor {
   // Unique ID that identifies this track. This ID is global to the whole trace.
   // Producers should ensure that it is unlikely to clash with IDs emitted by
@@ -16351,6 +16351,11 @@ message TrackDescriptor {
     // android.os.Trace.
     string atrace_name = 13;
   }
+
+  // A human-readable description of the track providing more context about its
+  // data. In the UI, this is shown in a popup when the track's help button is
+  // clicked.
+  optional string description = 14;
 
   // Associate the track with a process, making it the process-global track.
   // There should only be one such track per process (usually for instant
