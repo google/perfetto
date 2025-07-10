@@ -231,13 +231,6 @@ class ClockTracker {
         metadata::trace_time_clock_id, Variadic::Integer(trace_time_clock_id_));
   }
 
-  bool HasPathToTraceTime(ClockId clock_id) {
-    if (clock_id == trace_time_clock_id_) {
-      return true;
-    }
-    return FindPath(clock_id, trace_time_clock_id_).valid();
-  }
-
   void set_cache_lookups_disabled_for_testing(bool v) {
     cache_lookups_disabled_for_testing_ = v;
   }
@@ -245,6 +238,8 @@ class ClockTracker {
   const base::FlatHashMap<ClockId, int64_t>& clock_offsets_for_testing() {
     return clock_offsets_;
   }
+
+  uint32_t cache_hits_for_testing() const { return cache_hits_for_testing_; }
 
  private:
   using SnapshotHash = uint32_t;
@@ -356,8 +351,10 @@ class ClockTracker {
           continue;
         int64_t ns = cached_clock_path.src_domain->ToNs(src_timestamp);
         if (ns >= cached_clock_path.min_ts_ns &&
-            ns < cached_clock_path.max_ts_ns)
+            ns < cached_clock_path.max_ts_ns) {
+          cache_hits_for_testing_++;
           return ns + cached_clock_path.translation_ns;
+        }
       }
     }
     return ConvertSlowpath(src_clock_id, src_timestamp, target_clock_id);
@@ -384,8 +381,9 @@ class ClockTracker {
   std::map<ClockId, ClockDomain> clocks_;
   std::set<ClockGraphEdge> graph_;
   std::set<ClockId> non_monotonic_clocks_;
-  std::array<CachedClockPath, 2> cache_{};
+  std::array<CachedClockPath, 8> cache_{};
   bool cache_lookups_disabled_for_testing_ = false;
+  uint32_t cache_hits_for_testing_ = 0;
   std::minstd_rand rnd_;  // For cache eviction.
   uint32_t cur_snapshot_id_ = 0;
   bool trace_time_clock_id_used_for_conversion_ = false;
