@@ -222,6 +222,7 @@ TEST_F(ScopedSchedBoostTest, IgnoreWrongConfig) {
 
 class ScopedSchedBoostLinuxIntegrationTest : public testing::Test {
   void SetUp() override {
+    ScopedSchedBoost::ResetForTesting(SchedOsHooks::GetInstance());
     ASSERT_OK_AND_ASSIGN(initial_config,
                          SchedOsHooks::GetInstance()->GetCurrentSchedConfig());
   }
