@@ -63,7 +63,7 @@ message TrackDescriptor {
   //
   // Note: if the parent is set to a track with `thread` or `process` fields
   // set, the track will *not* be nested under the parent in the UI and in the
-  // trace processor data model. Instead, the track will inherit the parent'
+  // trace processor data model. Instead, the track will inherit the parent's
   // thread/process association and will appear as a *sibling* of the parent.
   // This semantic exists for back-compat reasons as the UI used to work this
   // way for years and changing this leads to a lot of traces subtly breaking.
