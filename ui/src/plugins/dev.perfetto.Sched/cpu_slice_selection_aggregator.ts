@@ -16,7 +16,7 @@ import {ColumnDef, Sorting} from '../../components/aggregation';
 import {
   Aggregation,
   Aggregator,
-  ii,
+  createIITable,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
@@ -43,7 +43,12 @@ export class CpuSliceSelectionAggregator implements Aggregator {
 
     return {
       prepareData: async (engine: Engine) => {
-        const iiDataset = await ii(engine, this.id, dataset, area);
+        await using iiTable = await createIITable(
+          engine,
+          dataset,
+          area.start,
+          area.end,
+        );
 
         await engine.query(`
           create or replace perfetto table ${this.id} as
@@ -57,7 +62,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
             count() as occurrences
           from process
           join thread using (upid)
-          join (${iiDataset.query()}) as sched using (utid)
+          join (${iiTable.name}) as sched using (utid)
           group by utid
         `);
 

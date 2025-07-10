@@ -2,7 +2,8 @@ Unreleased:
   Tracing service and probes:
     *
   SQL Standard library:
-    *
+    * Added `android.bitmaps` module with timeseries information about bitmap
+      usage in Android.
   Trace Processor:
     *
   UI:

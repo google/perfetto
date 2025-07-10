@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {AsyncLimiter} from '../base/async_limiter';
-import {Time} from '../base/time';
+import {time, Time} from '../base/time';
 import {exists} from '../base/utils';
 import {
   AreaSelection,
@@ -23,12 +23,7 @@ import {
 } from '../public/selection';
 import {Trace} from '../public/trace';
 import {Track} from '../public/track';
-import {
-  Dataset,
-  DatasetSchema,
-  SourceDataset,
-  UnionDataset,
-} from '../trace_processor/dataset';
+import {Dataset, DatasetSchema, UnionDataset} from '../trace_processor/dataset';
 import {Engine} from '../trace_processor/engine';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
@@ -36,6 +31,10 @@ import {AggregationPanel} from './aggregation_panel';
 import {DataGridDataSource} from './widgets/data_grid/common';
 import {SQLDataSource} from './widgets/data_grid/sql_data_source';
 import {BarChartData, ColumnDef, Sorting} from './aggregation';
+import {
+  createPerfettoTable,
+  DisposableSqlEntity,
+} from '../trace_processor/sql_utils';
 
 export interface AggregationData {
   readonly tableName: string;
@@ -137,60 +136,81 @@ export function selectTracksAndGetDataset<T extends DatasetSchema>(
 
   if (datasets.length > 0) {
     // TODO(stevegolton): Avoid typecast in UnionDataset.
-    return new UnionDataset(datasets) as unknown as Dataset<T>;
+    return (new UnionDataset(datasets) as unknown as Dataset<T>).optimize();
   } else {
     return undefined;
   }
 }
 
-export async function ii<T extends {ts: bigint; dur: bigint; id: number}>(
+/**
+ * For a given slice-like dataset (ts, dur and id cols), creates a new table
+ * that contains the slices intersected with a given interval.
+ *
+ * @param engine The engine to use to run queries.
+ * @param dataset The source dataset.
+ * @param start The start of the interval to intersect with.
+ * @param end The end of the interval to intersect with.
+ * @returns A disposable SQL entity representing the new table.
+ */
+export async function createIITable<
+  T extends {ts: bigint; dur: bigint; id: number},
+>(
   engine: Engine,
-  id: string,
   dataset: Dataset<T>,
-  area: AreaSelection,
-): Promise<Dataset<T>> {
-  const duration = Time.durationBetween(area.start, area.end);
+  start: time,
+  end: time,
+): Promise<DisposableSqlEntity> {
+  const duration = Time.durationBetween(start, end);
 
   if (duration <= 0n) {
     // Return an empty dataset if the area selection's length is zero or less.
     // II can't handle 0 or negative durations.
-    return new SourceDataset({
-      src: `
-        SELECT * FROM (${dataset.query()})
+    return createPerfettoTable({
+      engine,
+      as: `
+        SELECT * 
+        FROM ${dataset.query()}
         LIMIT 0
       `,
-      schema: dataset.schema,
     });
   }
 
-  // Materialize the source into a perfetto table first.
-  // Note: the `ORDER BY id` is absolutely crucial. Removing this
-  // significantly worsens aggregation results compared to no
-  // materialization at all.
-  const tableName = `__ii_${id}`;
-  await engine.query(`
-    CREATE OR REPLACE PERFETTO TABLE ${tableName} AS
-    ${dataset.query()}
-    ORDER BY id
-  `);
-
-  // Pass the interval intersect to the aggregator.
-  await engine.query('INCLUDE PERFETTO MODULE viz.aggregation');
-  const iiDataset = new SourceDataset({
-    src: `
-      SELECT
-        ii_dur AS dur,
-        *
-      FROM _intersect_slices!(
-        ${area.start},
-        ${duration},
-        ${tableName}
-      )
+  // Materialize the source into a perfetto table first, dropping all incomplete
+  // slices.
+  //
+  // Note: the `ORDER BY id` is absolutely crucial. Removing this significantly
+  // worsens aggregation results compared to no materialization at all.
+  await using tempTable = await createPerfettoTable({
+    engine,
+    as: `
+      WITH slices AS (${dataset.query()})
+      SELECT * FROM slices
+      WHERE dur >= 0
+      ORDER BY id
     `,
-    schema: dataset.schema,
   });
 
-  return iiDataset;
+  // Include all columns from the dataset except for `dur` and `ts`, which
+  // are replaced with the `dur` and `ts` from the interval intersection.
+  const otherCols = Object.keys(dataset.schema).filter(
+    (col) => col !== 'dur' && col !== 'ts',
+  );
+
+  return await createPerfettoTable({
+    engine,
+    as: `
+      SELECT
+        ${otherCols.map((c) => `slices.${c}`).join()},
+        ii.dur AS dur,
+        ii.ts AS ts
+      FROM _interval_intersect_single!(
+        ${start},
+        ${duration},
+        ${tempTable.name}
+      ) AS ii
+      JOIN ${tempTable.name} AS slices USING (id)
+    `,
+  });
 }
 
 /**

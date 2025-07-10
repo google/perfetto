@@ -477,7 +477,7 @@ class PerfettoTable(TestSuite):
         query="""
         SELECT flat_key, key, int_value, string_value, real_value FROM __intrinsic_winscope_proto_to_args_with_defaults('surfaceflinger_layer') AS sfl
         ORDER BY sfl.base64_proto_id, key
-        LIMIT 96
+        LIMIT 99
         """,
         out=Csv("""
         "flat_key","key","int_value","string_value","real_value"
@@ -499,11 +499,13 @@ class PerfettoTable(TestSuite):
         "children","children[4]",44,"[NULL]","[NULL]"
         "children","children[5]",77,"[NULL]","[NULL]"
         "children","children[6]",87,"[NULL]","[NULL]"
+        "client_drawn_corner_radii","client_drawn_corner_radii","[NULL]","[NULL]","[NULL]"
         "color.a","color.a","[NULL]","[NULL]",1.000000
         "color.b","color.b","[NULL]","[NULL]",-1.000000
         "color.g","color.g","[NULL]","[NULL]",-1.000000
         "color.r","color.r","[NULL]","[NULL]",-1.000000
         "color_transform","color_transform","[NULL]","[NULL]","[NULL]"
+        "corner_radii","corner_radii","[NULL]","[NULL]","[NULL]"
         "corner_radius","corner_radius","[NULL]","[NULL]",0.000000
         "corner_radius_crop","corner_radius_crop","[NULL]","[NULL]","[NULL]"
         "crop.bottom","crop.bottom",-1,"[NULL]","[NULL]"
@@ -547,6 +549,7 @@ class PerfettoTable(TestSuite):
         "requested_color.b","requested_color.b","[NULL]","[NULL]",-1.000000
         "requested_color.g","requested_color.g","[NULL]","[NULL]",-1.000000
         "requested_color.r","requested_color.r","[NULL]","[NULL]",-1.000000
+        "requested_corner_radii","requested_corner_radii","[NULL]","[NULL]","[NULL]"
         "requested_corner_radius","requested_corner_radius","[NULL]","[NULL]",0.000000
         "requested_position","requested_position","[NULL]","[NULL]","[NULL]"
         "requested_transform.dsdx","requested_transform.dsdx","[NULL]","[NULL]",0.000000
@@ -575,7 +578,7 @@ class PerfettoTable(TestSuite):
         "visible_region","visible_region","[NULL]","[NULL]","[NULL]"
         "window_type","window_type",0,"[NULL]","[NULL]"
         "z","z",0,"[NULL]","[NULL]"
-        "z_order_relative_of","z_order_relative_of",0,"[NULL]","[NULL]"
+        "z_order_relative_of","z_order_relative_of",5,"[NULL]","[NULL]"
         "active_buffer","active_buffer","[NULL]","[NULL]","[NULL]"
         """))
 
@@ -592,40 +595,40 @@ class PerfettoTable(TestSuite):
         "flat_key","key","int_value","string_value","real_value"
         "displays.dpi_x","displays[0].dpi_x","[NULL]","[NULL]",0.000000
         "displays.dpi_y","displays[0].dpi_y","[NULL]","[NULL]",0.000000
-        "displays.id","displays[0].id",4619827677550801152,"[NULL]","[NULL]"
+        "displays.id","displays[0].id",1,"[NULL]","[NULL]"
         "displays.is_virtual","displays[0].is_virtual",0,"[NULL]","[NULL]"
         "displays.layer_stack","displays[0].layer_stack",0,"[NULL]","[NULL]"
-        "displays.layer_stack_space_rect.bottom","displays[0].layer_stack_space_rect.bottom",2400,"[NULL]","[NULL]"
+        "displays.layer_stack_space_rect.bottom","displays[0].layer_stack_space_rect.bottom",5,"[NULL]","[NULL]"
         "displays.layer_stack_space_rect.left","displays[0].layer_stack_space_rect.left",0,"[NULL]","[NULL]"
-        "displays.layer_stack_space_rect.right","displays[0].layer_stack_space_rect.right",1080,"[NULL]","[NULL]"
+        "displays.layer_stack_space_rect.right","displays[0].layer_stack_space_rect.right",5,"[NULL]","[NULL]"
         "displays.layer_stack_space_rect.top","displays[0].layer_stack_space_rect.top",0,"[NULL]","[NULL]"
-        "displays.name","displays[0].name","[NULL]","Common Panel","[NULL]"
-        "displays.size.h","displays[0].size.h",2400,"[NULL]","[NULL]"
-        "displays.size.w","displays[0].size.w",1080,"[NULL]","[NULL]"
-        "displays.transform.dsdx","displays[0].transform.dsdx","[NULL]","[NULL]",0.000000
-        "displays.transform.dsdy","displays[0].transform.dsdy","[NULL]","[NULL]",0.000000
-        "displays.transform.dtdx","displays[0].transform.dtdx","[NULL]","[NULL]",0.000000
-        "displays.transform.dtdy","displays[0].transform.dtdy","[NULL]","[NULL]",0.000000
-        "displays.transform.type","displays[0].transform.type",0,"[NULL]","[NULL]"
+        "displays.name","displays[0].name","[NULL]","[NULL]","[NULL]"
+        "displays.size.h","displays[0].size.h",1,"[NULL]","[NULL]"
+        "displays.size.w","displays[0].size.w",1,"[NULL]","[NULL]"
+        "displays.transform","displays[0].transform","[NULL]","[NULL]","[NULL]"
         "displays.dpi_x","displays[1].dpi_x","[NULL]","[NULL]",0.000000
         "displays.dpi_y","displays[1].dpi_y","[NULL]","[NULL]",0.000000
-        "displays.id","displays[1].id",4619827677550801153,"[NULL]","[NULL]"
+        "displays.id","displays[1].id",2,"[NULL]","[NULL]"
         "displays.is_virtual","displays[1].is_virtual",0,"[NULL]","[NULL]"
-        "displays.layer_stack","displays[1].layer_stack",0,"[NULL]","[NULL]"
-        "displays.layer_stack_space_rect.bottom","displays[1].layer_stack_space_rect.bottom",2400,"[NULL]","[NULL]"
-        "displays.layer_stack_space_rect.left","displays[1].layer_stack_space_rect.left",0,"[NULL]","[NULL]"
-        "displays.layer_stack_space_rect.right","displays[1].layer_stack_space_rect.right",1080,"[NULL]","[NULL]"
-        "displays.layer_stack_space_rect.top","displays[1].layer_stack_space_rect.top",0,"[NULL]","[NULL]"
-        "displays.name","displays[1].name","[NULL]","Common Panel","[NULL]"
-        "displays.size.h","displays[1].size.h",2400,"[NULL]","[NULL]"
-        "displays.size.w","displays[1].size.w",1080,"[NULL]","[NULL]"
+        "displays.layer_stack","displays[1].layer_stack",1,"[NULL]","[NULL]"
+        "displays.layer_stack_space_rect","displays[1].layer_stack_space_rect","[NULL]","[NULL]","[NULL]"
+        "displays.name","displays[1].name","[NULL]","Display2","[NULL]"
+        "displays.size.h","displays[1].size.h",2,"[NULL]","[NULL]"
+        "displays.size.w","displays[1].size.w",2,"[NULL]","[NULL]"
         "displays.transform","displays[1].transform","[NULL]","[NULL]","[NULL]"
-        "elapsed_realtime_nanos","elapsed_realtime_nanos",2749500341063,"[NULL]","[NULL]"
-        "excludes_composition_state","excludes_composition_state",0,"[NULL]","[NULL]"
-        "missed_entries","missed_entries",0,"[NULL]","[NULL]"
-        "vsync_id","vsync_id",24767,"[NULL]","[NULL]"
-        "where","where","[NULL]","bufferLatched","[NULL]"
-        "displays.dpi_x","displays[0].dpi_x","[NULL]","[NULL]",0.000000
+        "displays.dpi_x","displays[2].dpi_x","[NULL]","[NULL]",0.000000
+        "displays.dpi_y","displays[2].dpi_y","[NULL]","[NULL]",0.000000
+        "displays.id","displays[2].id",3,"[NULL]","[NULL]"
+        "displays.is_virtual","displays[2].is_virtual",0,"[NULL]","[NULL]"
+        "displays.layer_stack","displays[2].layer_stack",2,"[NULL]","[NULL]"
+        "displays.layer_stack_space_rect","displays[2].layer_stack_space_rect","[NULL]","[NULL]","[NULL]"
+        "displays.name","displays[2].name","[NULL]","Display3","[NULL]"
+        "displays.size.h","displays[2].size.h",10,"[NULL]","[NULL]"
+        "displays.size.w","displays[2].size.w",5,"[NULL]","[NULL]"
+        "displays.transform.dsdx","displays[2].transform.dsdx","[NULL]","[NULL]",0.000000
+        "displays.transform.dsdy","displays[2].transform.dsdy","[NULL]","[NULL]",0.000000
+        "displays.transform.dtdx","displays[2].transform.dtdx","[NULL]","[NULL]",0.000000
+        "displays.transform.dtdy","displays[2].transform.dtdy","[NULL]","[NULL]",0.000000
         """))
 
   def test_winscope_proto_to_args_with_defaults_with_multiple_packets_per_proto(

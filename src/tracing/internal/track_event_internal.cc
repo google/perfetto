@@ -88,7 +88,7 @@ class TrackEventSessionObserverRegistry {
   }
 
   void ForEachObserverForRegistries(
-      const std::vector<const TrackEventCategoryRegistry*> registries,
+      const std::vector<const TrackEventCategoryRegistry*>& registries,
       std::function<void(TrackEventSessionObserver*)> callback) {
     std::unique_lock<std::recursive_mutex> lock(mutex_);
     for (auto& registered_observer : observers_) {
@@ -195,13 +195,19 @@ bool TrackEventInternal::Initialize(
       cat->set_name(category->name);
       if (category->description)
         cat->set_description(category->description);
+      bool has_slow_tag = false;
       for (const auto& tag : category->tags) {
-        if (tag)
+        if (tag) {
           cat->add_tags(tag);
+          if (!strcmp(tag, kSlowTag)) {
+            has_slow_tag = true;
+          }
+        }
       }
       // Disabled-by-default categories get a "slow" tag.
       if (!strncmp(category->name, kLegacySlowPrefix,
-                   strlen(kLegacySlowPrefix)))
+                   strlen(kLegacySlowPrefix)) &&
+          !has_slow_tag)
         cat->add_tags(kSlowTag);
     }
   }

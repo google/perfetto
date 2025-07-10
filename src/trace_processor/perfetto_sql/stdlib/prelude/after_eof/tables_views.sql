@@ -1091,7 +1091,7 @@ CREATE PERFETTO VIEW heap_graph_object (
   native_size LONG,
   -- Join key with heap_graph_reference containing all objects referred in this
   -- object's fields.
-  reference_set_id JOINID(heap_graph_reference.id),
+  reference_set_id JOINID(heap_graph_reference.reference_set_id),
   -- Bool whether this object is reachable from a GC root. If false, this object
   -- is uncollected garbage.
   reachable BOOL,
@@ -1125,8 +1125,8 @@ FROM __intrinsic_heap_graph_object;
 CREATE PERFETTO VIEW heap_graph_reference (
   -- Unique identifier for this heap graph reference.
   id ID,
-  -- Join key to heap_graph_object.
-  reference_set_id JOINID(heap_graph_object.id),
+  -- Join key to heap_graph_object reference_set_id.
+  reference_set_id JOINID(heap_graph_object.reference_set_id),
   -- Id of object that has this reference_set_id.
   owner_id JOINID(heap_graph_object.id),
   -- Id of object that is referred to.
