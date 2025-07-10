@@ -181,7 +181,7 @@ SELECT
   app_sf_match.sf_upid,
   app_sf_match.sf_vsync
 FROM android_jank_cuj_do_frame_slice do_frame
-JOIN android_app_to_sf_vsync_match app_sf_match
+JOIN android_app_to_sf_frame_timeline_match app_sf_match
   ON do_frame.vsync = app_sf_match.app_vsync
   AND do_frame.upid = app_sf_match.app_upid;
 

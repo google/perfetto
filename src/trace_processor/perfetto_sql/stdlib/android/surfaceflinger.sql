@@ -36,7 +36,7 @@ WHERE
   thread.is_main_thread;
 
 -- Extract thread and track information for a given thread in the surfaceflinger process.
-CREATE PERFETTO FUNCTION android_sf_thread(
+CREATE PERFETTO FUNCTION _android_sf_thread(
     -- thread_name to fetch information for.
     thread_name STRING
 )
@@ -66,7 +66,7 @@ WHERE
 -- Match the frame timeline on the app side with the frame timeline on the SF side.
 -- In cases where there are multiple layers drawn, there would be separate frame timeline
 -- slice for each of the layers. GROUP BY is used to deduplicate these rows.
-CREATE PERFETTO TABLE android_app_to_sf_vsync_match AS
+CREATE PERFETTO TABLE android_app_to_sf_frame_timeline_match AS
 SELECT
   app_timeline.upid AS app_upid,
   CAST(app_timeline.name AS INTEGER) AS app_vsync,

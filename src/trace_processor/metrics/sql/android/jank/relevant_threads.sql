@@ -59,8 +59,8 @@ SELECT * FROM _android_sf_process;
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_gpu_completion_thread;
 CREATE PERFETTO TABLE android_jank_cuj_sf_gpu_completion_thread AS
-SELECT * FROM ANDROID_SF_THREAD('GPU completion');
+SELECT * FROM _ANDROID_SF_THREAD('GPU completion');
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_render_engine_thread;
 CREATE PERFETTO TABLE android_jank_cuj_sf_render_engine_thread AS
-SELECT * FROM ANDROID_SF_THREAD('RenderEngine');
+SELECT * FROM _ANDROID_SF_THREAD('RenderEngine');
