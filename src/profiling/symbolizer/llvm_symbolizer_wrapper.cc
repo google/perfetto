@@ -66,6 +66,7 @@ BatchSymbolizationResult LlvmSymbolizerImpl::Symbolize(
     uint32_t num_requests) {
   std::vector<llvm::DIInliningInfo> llvm_results;
   llvm_results.reserve(num_requests);
+  std::vector<std::pair<size_t, std::string>> error_results;
 
   uint32_t total_frames = 0;
   size_t total_string_size = 0;
@@ -90,10 +91,8 @@ BatchSymbolizationResult LlvmSymbolizerImpl::Symbolize(
       llvm::raw_string_ostream os(err_msg);
       llvm::logAllUnhandledErrors(res_or_err.takeError(), os,
                                   "LLVM Symbolizer error: ");
-      fprintf(stderr,
-              "Perfetto-LLVM-Wrapper: Failed to symbolize 0x%" PRIx64
-              " in %s: %s\n",
-              request.address, request.binary_path, os.str().c_str());
+      total_string_size += os.str().size() + 1;
+      error_results.emplace_back(i, os.str());
       llvm_results.emplace_back();  // Add empty result for failed ones.
       continue;
     }
@@ -115,15 +114,18 @@ BatchSymbolizationResult LlvmSymbolizerImpl::Symbolize(
       sizeof(SymbolizationResultRange) * static_cast<size_t>(num_requests);
   size_t frames_size =
       sizeof(LlvmSymbolizedFrame) * static_cast<size_t>(total_frames);
-  size_t total_alloc_size = ranges_size + frames_size + total_string_size;
+  size_t errors_size =
+      sizeof(SymbolizationError) * static_cast<size_t>(error_results.size());
+  size_t total_alloc_size =
+      ranges_size + frames_size + errors_size + total_string_size;
 
   if (total_alloc_size == 0) {
-    return {nullptr, 0, nullptr, 0};
+    return {nullptr, 0, nullptr, 0, nullptr, 0};
   }
 
   void* buffer = malloc(total_alloc_size);
   if (!buffer) {
-    return {nullptr, 0, nullptr, 0};
+    return {nullptr, 0, nullptr, 0, nullptr, 0};
   }
 
   // Carve up the single buffer into sections for ranges, frames, and strings.
@@ -131,8 +133,10 @@ BatchSymbolizationResult LlvmSymbolizerImpl::Symbolize(
       static_cast<SymbolizationResultRange*>(buffer);
   LlvmSymbolizedFrame* frames_ptr = reinterpret_cast<LlvmSymbolizedFrame*>(
       ranges_ptr + static_cast<size_t>(num_requests));
-  char* string_ptr =
-      reinterpret_cast<char*>(frames_ptr + static_cast<size_t>(total_frames));
+  SymbolizationError* errors_ptr = reinterpret_cast<SymbolizationError*>(
+      frames_ptr + static_cast<size_t>(total_frames));
+  char* string_ptr = reinterpret_cast<char*>(
+      errors_ptr + static_cast<size_t>(error_results.size()));
 
   uint32_t current_frame_offset = 0;
   for (uint32_t i = 0; i < num_requests; ++i) {
@@ -160,7 +164,17 @@ BatchSymbolizationResult LlvmSymbolizerImpl::Symbolize(
     current_frame_offset += num_frames;
   }
 
-  return {frames_ptr, total_frames, ranges_ptr, num_requests};
+  for (size_t i = 0; i < error_results.size(); ++i) {
+    errors_ptr[i].request_index = error_results[i].first;
+    errors_ptr[i].message = string_ptr;
+    const std::string& err_str = error_results[i].second;
+    memcpy(string_ptr, err_str.c_str(), err_str.size() + 1);
+    string_ptr += err_str.size() + 1;
+  }
+
+  return {frames_ptr, total_frames,
+          ranges_ptr, num_requests,
+          errors_ptr, static_cast<uint32_t>(error_results.size())};
 }
 
 }  // namespace

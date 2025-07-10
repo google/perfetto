@@ -57,7 +57,17 @@ typedef struct {
   uint32_t num_frames;
 } SymbolizationResultRange;
 
+// Represents a single error that occurred during symbolization.
+typedef struct {
+  // The index of the original request that failed.
+  size_t request_index;
+  // A pointer to the null-terminated error message within the single buffer.
+  const char* message;
+} SymbolizationError;
+
 // Represents the result of a batch of symbolization operations.
+// All pointers point into a single contiguous memory block allocated by
+// the symbolizer. The base of this allocation is the `ranges` pointer.
 typedef struct {
   // A flat array of all symbolized frames for the entire batch.
   LlvmSymbolizedFrame* frames;
@@ -68,6 +78,8 @@ typedef struct {
   SymbolizationResultRange* ranges;
   // The number of ranges, corresponding to the number of original requests.
   uint32_t num_ranges;
+  SymbolizationError* errors;
+  uint32_t num_errors;
 } BatchSymbolizationResult;
 
 // Creates an instance of the LLVM symbolizer.

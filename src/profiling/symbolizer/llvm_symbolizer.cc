@@ -39,11 +39,18 @@ SymbolizationResultBatch::SymbolizationResultBatch(
     BatchSymbolizationResult c_api_result,
     decltype(&::LlvmSymbolizer_FreeBatchSymbolizationResult) free_fn) {
   if (c_api_result.ranges) {
-    scoped_result_handle_.reset(new ScopedResult{c_api_result, free_fn});
+    scoped_result_handle_.reset(new (std::nothrow)
+                                    ScopedResult{c_api_result, free_fn});
+    if (!scoped_result_handle_) {
+      free_fn(c_api_result);
+      return;
+    }
     all_frames_ptr_ = c_api_result.frames;
     num_total_frames_ = c_api_result.total_frames;
     ranges_ptr_ = c_api_result.ranges;
     num_ranges_ = c_api_result.num_ranges;
+    errors_ptr_ = c_api_result.errors;
+    num_errors_ = c_api_result.num_errors;
   }
 }
 
@@ -59,6 +66,11 @@ SymbolizationResultBatch::GetFramesForRequest(uint32_t request_index) const {
     return {nullptr, 0};
   }
   return {all_frames_ptr_ + range.offset, range.num_frames};
+}
+
+std::pair<const ::SymbolizationError*, uint32_t>
+SymbolizationResultBatch::GetErrors() const {
+  return {errors_ptr_, num_errors_};
 }
 
 int LlvmSymbolizer::CleanUpSymbolizer(ScopedSymbolizer* s) {
@@ -111,7 +123,18 @@ SymbolizationResultBatch LlvmSymbolizer::SymbolizeBatch(
   BatchSymbolizationResult batch_result =
       symbolize_fn_(scoped_symbolizer_handle_.get()->symbolizer,
                     requests.data(), static_cast<uint32_t>(requests.size()));
-  return SymbolizationResultBatch(batch_result, free_result_fn_);
+  SymbolizationResultBatch result_batch(batch_result, free_result_fn_);
+
+  if (result_batch.has_errors()) {
+    auto errors = result_batch.GetErrors();
+    for (uint32_t i = 0; i < errors.second; ++i) {
+      const auto& err = errors.first[i];
+      PERFETTO_ELOG("LLVM symbolizer failed for request %zu: %s",
+                    err.request_index, err.message);
+    }
+  }
+
+  return result_batch;
 }
 
 }  // namespace profiling

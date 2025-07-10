@@ -40,6 +40,11 @@ class SymbolizationResultBatch {
   // Returns the number of original requests.
   uint32_t size() const { return num_ranges_; }
 
+  // Returns a pair of (pointer, size) for the errors.
+  std::pair<const ::SymbolizationError*, uint32_t> GetErrors() const;
+
+  bool has_errors() const { return num_errors_ > 0; }
+
  private:
   friend class LlvmSymbolizer;
 
@@ -64,6 +69,9 @@ class SymbolizationResultBatch {
 
   const SymbolizationResultRange* ranges_ptr_ = nullptr;
   uint32_t num_ranges_ = 0;
+
+  const ::SymbolizationError* errors_ptr_ = nullptr;
+  uint32_t num_errors_ = 0;
 };
 
 class LlvmSymbolizer {
