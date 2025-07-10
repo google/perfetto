@@ -95,7 +95,7 @@ message TrackDescriptor {
   //   * The *last* non-null name in the whole trace according to trace order
   //     will be used.
   //   * If no non-null name is present in the whole trace, the trace processor
-  //     will fall back to other sources to provide a name for the track (e.g.
+  //     may fall back to other sources to provide a name for the track (e.g.
   //     the first event name for slice tracks, the counter name for counter
   //     tracks). This is implementation defined and may change at any time.
   //
@@ -111,7 +111,7 @@ message TrackDescriptor {
   //     descriptor with the name was emitted before the first event on a
   //     descendant track (B).
   //   * If no non-null name is present before the event is processed, the trace
-  //     processor will fall back to other sources to provide a name for the
+  //     processor may fall back to other sources to provide a name for the
   //     track (e.g. the first event name for slice tracks, the counter name for
   //     counter tracks). This is implementation defined and may change at any
   //     time.

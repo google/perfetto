@@ -169,7 +169,11 @@ TrackEventTracker::GetDescriptorTrack(
   if (PERFETTO_LIKELY(!rr.name().is_null())) {
     return resolved;
   }
-  if (PERFETTO_LIKELY(resolved->is_shared() || resolved->is_counter())) {
+  bool is_root_thread_process =
+      resolved->is_root() &&
+      (resolved->scope() == ResolvedDescriptorTrack::Scope::kThread ||
+       resolved->scope() == ResolvedDescriptorTrack::Scope::kProcess);
+  if (PERFETTO_LIKELY(is_root_thread_process || resolved->is_counter())) {
     return resolved;
   }
   if (PERFETTO_UNLIKELY(event_name.is_null())) {
