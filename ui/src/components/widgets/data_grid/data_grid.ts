@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
-import {Button} from '../../../widgets/button';
+import {Button, ButtonBar} from '../../../widgets/button';
 import {downloadData} from '../../../base/download_utils';
 import {Anchor} from '../../../widgets/anchor';
 import {
@@ -29,7 +29,6 @@ import {
 } from './common';
 import {MenuDivider, MenuItem, PopupMenu} from '../../../widgets/menu';
 import {Chip} from '../../../widgets/chip';
-import {Icon} from '../../../widgets/icon';
 import {Icons} from '../../../base/semantic_icons';
 import {InMemoryDataSource} from './in_memory_data_source';
 import {classNames} from '../../../base/classnames';
@@ -450,9 +449,28 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             currentSortBy.direction !== 'UNSORTED' &&
             (currentSortBy as SortByColumn).column === column.name;
 
-          const currentDirection = isCurrentSortColumn
+          const sortDirection = isCurrentSortColumn
             ? (currentSortBy as SortByColumn).direction
             : undefined;
+
+          function renderSortButton(
+            direction: 'ASC' | 'DESC',
+            isHint: boolean = false,
+          ): m.Children {
+            const oppositeDirection = direction === 'ASC' ? 'DESC' : 'ASC';
+            return m(Button, {
+              className: classNames(
+                isHint && 'pf-visible-on-hover pf-data-grid__button-hint',
+              ),
+              compact: true,
+              icon: direction === 'ASC' ? Icons.SortAsc : Icons.SortDesc,
+              onclick: () =>
+                onSortingChanged({
+                  column: column.name,
+                  direction: isHint ? direction : oppositeDirection,
+                }),
+            });
+          }
 
           return m(
             'th',
@@ -460,12 +478,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               '.pf-data-grid__data-with-btn.pf-data-grid__padded',
               m(
                 'span',
-                column.title ?? column.name,
-                isCurrentSortColumn
-                  ? currentDirection === 'ASC'
-                    ? m(Icon, {icon: Icons.SortAsc})
-                    : m(Icon, {icon: Icons.SortDesc})
-                  : undefined,
+                m(
+                  ButtonBar,
+                  column.title ?? column.name,
+                  sortDirection
+                    ? renderSortButton(sortDirection)
+                    : renderSortButton('ASC', true),
+                ),
               ),
               (sortControls || filterControls) &&
                 m(
@@ -478,7 +497,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     }),
                   },
                   sortControls && [
-                    (!isCurrentSortColumn || currentDirection === 'DESC') &&
+                    (!isCurrentSortColumn || sortDirection === 'DESC') &&
                       m(MenuItem, {
                         label: 'Sort Ascending',
                         icon: Icons.SortAsc,
@@ -489,7 +508,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                           });
                         },
                       }),
-                    (!isCurrentSortColumn || currentDirection === 'ASC') &&
+                    (!isCurrentSortColumn || sortDirection === 'ASC') &&
                       m(MenuItem, {
                         label: 'Sort Descending',
                         icon: Icons.SortDesc,

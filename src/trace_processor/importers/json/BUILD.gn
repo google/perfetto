@@ -62,6 +62,7 @@ if (enable_perfetto_trace_processor_json) {
   perfetto_unittest_source_set("unittests") {
     testonly = true
     sources = [
+      "json_parser_unittest.cc",
       "json_trace_tokenizer_unittest.cc",
       "json_utils_unittest.cc",
     ]
@@ -70,6 +71,7 @@ if (enable_perfetto_trace_processor_json) {
       ":minimal",
       "../../../../gn:default_deps",
       "../../../../gn:gtest_and_gmock",
+      "../../../base",
       "../../types",
     ]
   }

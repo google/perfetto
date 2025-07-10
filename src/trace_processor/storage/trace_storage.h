@@ -41,7 +41,6 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/typed_column_internal.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/counter_tables_py.h"
