@@ -42,20 +42,20 @@
 namespace perfetto {
 namespace base {
 // For ASSERT_EQ()
-inline bool operator==(const SchedOsManager::SchedOsConfig& lhs,
-                       const SchedOsManager::SchedOsConfig& rhs) {
+inline bool operator==(const SchedOsHooks::SchedOsConfig& lhs,
+                       const SchedOsHooks::SchedOsConfig& rhs) {
   return std::tie(lhs.policy, lhs.rt_prio, lhs.nice) ==
          std::tie(rhs.policy, rhs.rt_prio, rhs.nice);
 }
 
 // For ASSERT_EQ()
 inline std::ostream& operator<<(std::ostream& os,
-                                const SchedOsManager::SchedOsConfig& s) {
+                                const SchedOsHooks::SchedOsConfig& s) {
   return os << "SchedOsConfig{policy: " << s.policy << ", prio: " << s.rt_prio
             << ", nice: " << s.nice << "}";
 }
 
-inline std::string ToString(const SchedOsManager::SchedOsConfig& cfg) {
+inline std::string ToString(const SchedOsHooks::SchedOsConfig& cfg) {
   std::stringstream ss;
   ss << cfg;
   return ss.str();
@@ -91,7 +91,7 @@ class PerfettoPriorityBoostIntegrationTest : public ::testing::Test {
 #endif
   }
 
-  base::SchedOsManager::SchedOsConfig GetSchedInfo(int tid) {
+  base::SchedOsHooks::SchedOsConfig GetSchedInfo(int tid) {
 #if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
     PERFETTO_DCHECK(tid == sched_manager_.expected_boosted_thread);
     return sched_manager_.current_config;
@@ -115,9 +115,9 @@ class PerfettoPriorityBoostIntegrationTest : public ::testing::Test {
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
-  class MockSchedOsManager : public base::SchedOsManager {
+  class MockSchedOsHooks : public base::SchedOsHooks {
    public:
-    MockSchedOsManager() : current_config(kInitConfig) {
+    MockSchedOsHooks() : current_config(kInitConfig) {
       ON_CALL(*this, GetCurrentSchedConfig()).WillByDefault(Invoke([&] {
         return current_config;
       }));
@@ -132,12 +132,12 @@ class PerfettoPriorityBoostIntegrationTest : public ::testing::Test {
                 SetSchedConfig,
                 (const SchedOsConfig&),
                 (override));
-    MOCK_METHOD(base::StatusOr<base::SchedOsManager::SchedOsConfig>,
+    MOCK_METHOD(base::StatusOr<base::SchedOsHooks::SchedOsConfig>,
                 GetCurrentSchedConfig,
                 (),
                 (const, override));
 
-    ~MockSchedOsManager() override = default;
+    ~MockSchedOsHooks() override = default;
 
     base::PlatformThreadId expected_boosted_thread = -1;
 
@@ -145,7 +145,7 @@ class PerfettoPriorityBoostIntegrationTest : public ::testing::Test {
     static constexpr SchedOsConfig kInitConfig{SCHED_OTHER, 0, 0};
   };
 
-  NiceMock<MockSchedOsManager> sched_manager_;
+  NiceMock<MockSchedOsHooks> sched_manager_;
 #endif
 };
 
@@ -208,7 +208,7 @@ TEST_F(PerfettoPriorityBoostIntegrationTest, TestTracedProbes) {
 
   ASSERT_NE(traced_probes_tid, -1);
 
-  base::SchedOsManager::SchedOsConfig init_traced_probes_sched_info =
+  base::SchedOsHooks::SchedOsConfig init_traced_probes_sched_info =
       GetSchedInfo(traced_probes_tid);
 
   TestHelperStartTraceAndWaitForTraced(
@@ -224,7 +224,7 @@ TEST_F(PerfettoPriorityBoostIntegrationTest, TestTracedProbes) {
   {
     auto traced_probes_sched_info_boosted = GetSchedInfo(traced_probes_tid);
     ASSERT_THAT(traced_probes_sched_info_boosted,
-                Eq(base::SchedOsManager::SchedOsConfig{SCHED_FIFO, 42, 0}));
+                Eq(base::SchedOsHooks::SchedOsConfig{SCHED_FIFO, 42, 0}));
   }
   helper_fifo_42.DisableTracing();
   helper_fifo_42.WaitForTracingDisabled();
@@ -232,7 +232,7 @@ TEST_F(PerfettoPriorityBoostIntegrationTest, TestTracedProbes) {
   {
     auto traced_probes_sched_info_stopped = GetSchedInfo(traced_probes_tid);
     ASSERT_THAT(traced_probes_sched_info_stopped,
-                Eq(base::SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -7}));
+                Eq(base::SchedOsHooks::SchedOsConfig{SCHED_OTHER, 0, -7}));
   }
 
   helper_other_7.DisableTracing();
@@ -266,7 +266,7 @@ TEST_F(PerfettoPriorityBoostIntegrationTest, TestTraced) {
 
   ASSERT_NE(traced_tid, -1);
 
-  base::SchedOsManager::SchedOsConfig init_traced_sched_info =
+  base::SchedOsHooks::SchedOsConfig init_traced_sched_info =
       GetSchedInfo(traced_tid);
 
   TraceConfig trace_config;
@@ -281,7 +281,7 @@ TEST_F(PerfettoPriorityBoostIntegrationTest, TestTraced) {
   {
     auto traced_sched_info_boosted = GetSchedInfo(traced_tid);
     ASSERT_THAT(traced_sched_info_boosted,
-                Eq(base::SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -13}));
+                Eq(base::SchedOsHooks::SchedOsConfig{SCHED_OTHER, 0, -13}));
   }
 
   helper.FreeBuffers();

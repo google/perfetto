@@ -27,7 +27,6 @@
 
 #include <unistd.h>
 
-#include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/status_macros.h"
 
 namespace perfetto::base {
@@ -37,9 +36,9 @@ constexpr pid_t kCurrentPid = 0;
 
 class ThreadMgr {
  public:
-  static ThreadMgr& GetInstance();
+  static ThreadMgr* GetInstance();
 
-  explicit ThreadMgr(SchedOsManager*);
+  explicit ThreadMgr(SchedOsHooks*);
 
   Status Add(SchedPolicyAndPrio);
   void Remove(SchedPolicyAndPrio);
@@ -50,27 +49,27 @@ class ThreadMgr {
   ThreadMgr(ThreadMgr&&) = delete;
   ThreadMgr& operator=(ThreadMgr&&) = delete;
 
-  void ResetForTesting(SchedOsManager*);
+  void ResetForTesting(SchedOsHooks*);
 
  private:
-  SchedOsManager* os_manager_;
-  SchedOsManager::SchedOsConfig initial_config_{};
+  SchedOsHooks* os_hooks_;
+  SchedOsHooks::SchedOsConfig initial_config_{};
   std::vector<SchedPolicyAndPrio> prios_;
 };
 
-ThreadMgr& ThreadMgr::GetInstance() {
-  static NoDestructor<ThreadMgr> instance(SchedOsManager::GetInstance());
-  return instance.ref();
+ThreadMgr* ThreadMgr::GetInstance() {
+  static auto* instance = new ThreadMgr(SchedOsHooks::GetInstance());
+  return instance;
 }
-ThreadMgr::ThreadMgr(SchedOsManager* os_manager) : os_manager_(os_manager) {
-  auto res = os_manager_->GetCurrentSchedConfig();
+ThreadMgr::ThreadMgr(SchedOsHooks* os_hooks) : os_hooks_(os_hooks) {
+  auto res = os_hooks_->GetCurrentSchedConfig();
   if (!res.ok()) {
     // Should never fail: even without CAP_SYS_NICE we can always get our own
     // policy and prio. If something goes very wrong, log an error and use
     // SCHED_OTHER as initial config.
     PERFETTO_DFATAL_OR_ELOG("Failed to get default sched config: %s",
                             res.status().c_message());
-    initial_config_ = SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, 0};
+    initial_config_ = SchedOsHooks::SchedOsConfig{SCHED_OTHER, 0, 0};
   } else {
     initial_config_ = res.value();
   }
@@ -102,22 +101,22 @@ void ThreadMgr::Remove(SchedPolicyAndPrio spp) {
 
 Status ThreadMgr::RecalcAndUpdatePrio() {
   if (prios_.empty()) {
-    return os_manager_->SetSchedConfig(initial_config_);
+    return os_hooks_->SetSchedConfig(initial_config_);
   }
   // TODO(ktimofeev): Check previously set prio to skip unnecessary syscall?
   auto max_prio = std::max_element(prios_.begin(), prios_.end());
-  SchedOsManager::SchedOsConfig os_config{};
+  SchedOsHooks::SchedOsConfig os_config{};
   switch (max_prio->policy) {
     case SchedPolicyAndPrio::Policy::kSchedOther:
-      os_config = SchedOsManager::SchedOsConfig{
+      os_config = SchedOsHooks::SchedOsConfig{
           SCHED_OTHER, 0, -1 * static_cast<int>(max_prio->prio)};
       break;
     case SchedPolicyAndPrio::Policy::kSchedFifo:
-      os_config = SchedOsManager::SchedOsConfig{
+      os_config = SchedOsHooks::SchedOsConfig{
           SCHED_FIFO, static_cast<int>(max_prio->prio), 0};
       break;
   }
-  Status res = os_manager_->SetSchedConfig(os_config);
+  Status res = os_hooks_->SetSchedConfig(os_config);
   if (!res.ok()) {
     prios_.erase(max_prio);
     return res;
@@ -125,9 +124,9 @@ Status ThreadMgr::RecalcAndUpdatePrio() {
   return OkStatus();
 }
 
-void ThreadMgr::ResetForTesting(SchedOsManager* os_manager) {
-  os_manager_ = os_manager;
-  initial_config_ = os_manager->GetCurrentSchedConfig().value();
+void ThreadMgr::ResetForTesting(SchedOsHooks* os_hooks) {
+  os_hooks_ = os_hooks;
+  initial_config_ = os_hooks_->GetCurrentSchedConfig().value();
   prios_.clear();
 }
 
@@ -136,12 +135,12 @@ void ThreadMgr::ResetForTesting(SchedOsManager* os_manager) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
-SchedOsManager* SchedOsManager::GetInstance() {
-  static auto* instance = new SchedOsManager();
+SchedOsHooks* SchedOsHooks::GetInstance() {
+  static auto* instance = new SchedOsHooks();
   return instance;
 }
 
-Status SchedOsManager::SetSchedConfig(const SchedOsConfig& arg) {
+Status SchedOsHooks::SetSchedConfig(const SchedOsConfig& arg) {
   sched_param param{};
   param.sched_priority = arg.rt_prio;
   int ret = sched_setscheduler(kCurrentPid, arg.policy, &param);
@@ -159,7 +158,7 @@ Status SchedOsManager::SetSchedConfig(const SchedOsConfig& arg) {
   return OkStatus();
 }
 
-StatusOr<SchedOsManager::SchedOsConfig> SchedOsManager::GetCurrentSchedConfig()
+StatusOr<SchedOsHooks::SchedOsConfig> SchedOsHooks::GetCurrentSchedConfig()
     const {
   int policy = sched_getscheduler(kCurrentPid);
   if (policy == -1) {
@@ -185,7 +184,7 @@ StatusOr<SchedOsManager::SchedOsConfig> SchedOsManager::GetCurrentSchedConfig()
 
 // static
 StatusOr<ScopedSchedBoost> ScopedSchedBoost::Boost(SchedPolicyAndPrio spp) {
-  auto res = ThreadMgr::GetInstance().Add(spp);
+  auto res = ThreadMgr::GetInstance()->Add(spp);
   RETURN_IF_ERROR(res);
   return ScopedSchedBoost(spp);
 }
@@ -208,13 +207,13 @@ ScopedSchedBoost::~ScopedSchedBoost() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!policy_and_prio_.has_value())
     return;
-  ThreadMgr::GetInstance().Remove(*policy_and_prio_);
+  ThreadMgr::GetInstance()->Remove(*policy_and_prio_);
   policy_and_prio_ = std::nullopt;
 }
 
 // static
-void ScopedSchedBoost::ResetForTesting(SchedOsManager* os_manager) {
-  ThreadMgr::GetInstance().ResetForTesting(os_manager);
+void ScopedSchedBoost::ResetForTesting(SchedOsHooks* os_manager) {
+  ThreadMgr::GetInstance()->ResetForTesting(os_manager);
 }
 
 #else

@@ -52,7 +52,9 @@ struct SchedPolicyAndPrio {
   uint32_t prio = 0;
 };
 
-class SchedOsManager {
+// Used to mock Linux scheduling policy and parameters API in tests.
+// In production code calls the Linux API, the class is stateless.
+class SchedOsHooks {
  public:
   struct SchedOsConfig {
     int policy;
@@ -60,20 +62,12 @@ class SchedOsManager {
     int nice;
   };
 
-  static SchedOsManager* GetInstance();
+  virtual ~SchedOsHooks() = default;
+  static SchedOsHooks* GetInstance();
   // virtual for testing
   virtual Status SetSchedConfig(const SchedOsConfig& arg);
   // virtual for testing
   virtual StatusOr<SchedOsConfig> GetCurrentSchedConfig() const;
-  virtual ~SchedOsManager() = default;
-
- protected:
-  SchedOsManager() = default;
-
-  SchedOsManager(const SchedOsManager&) = delete;
-  SchedOsManager& operator=(const SchedOsManager&) = delete;
-  SchedOsManager(SchedOsManager&&) = delete;
-  SchedOsManager& operator=(SchedOsManager&&) = delete;
 };
 
 // RAII helper to temporarily boost the scheduler priority of the current
@@ -91,7 +85,7 @@ class ScopedSchedBoost {
   ScopedSchedBoost(const ScopedSchedBoost&) = delete;
   ScopedSchedBoost& operator=(const ScopedSchedBoost&) = delete;
 
-  static void ResetForTesting(SchedOsManager*);
+  static void ResetForTesting(SchedOsHooks*);
 
  private:
   explicit ScopedSchedBoost(SchedPolicyAndPrio p) : policy_and_prio_(p) {}

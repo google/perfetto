@@ -38,15 +38,15 @@ using testing::Return;
 namespace perfetto::base {
 
 // For ASSERT_EQ()
-inline bool operator==(const SchedOsManager::SchedOsConfig& lhs,
-                       const SchedOsManager::SchedOsConfig& rhs) {
+inline bool operator==(const SchedOsHooks::SchedOsConfig& lhs,
+                       const SchedOsHooks::SchedOsConfig& rhs) {
   return std::tie(lhs.policy, lhs.rt_prio, lhs.nice) ==
          std::tie(rhs.policy, rhs.rt_prio, rhs.nice);
 }
 
 // For ASSERT_EQ()
 inline std::ostream& operator<<(std::ostream& os,
-                                const SchedOsManager::SchedOsConfig& s) {
+                                const SchedOsHooks::SchedOsConfig& s) {
   return os << "SchedOsConfig{policy: " << s.policy << ", prio: " << s.rt_prio
             << ", nice: " << s.nice << "}";
 }
@@ -63,9 +63,9 @@ inline std::ostream& operator<<(std::ostream& os,
 
 namespace {
 
-class MockSchedOsManager : public SchedOsManager {
+class MockSchedOsHooks : public SchedOsHooks {
  public:
-  explicit MockSchedOsManager(SchedOsConfig init_config)
+  explicit MockSchedOsHooks(SchedOsConfig init_config)
       : current_config(init_config) {
     ON_CALL(*this, GetCurrentSchedConfig()).WillByDefault(Invoke([&] {
       return current_config;
@@ -77,25 +77,25 @@ class MockSchedOsManager : public SchedOsManager {
         }));
   }
   MOCK_METHOD(base::Status, SetSchedConfig, (const SchedOsConfig&), (override));
-  MOCK_METHOD(base::StatusOr<base::SchedOsManager::SchedOsConfig>,
+  MOCK_METHOD(base::StatusOr<base::SchedOsHooks::SchedOsConfig>,
               GetCurrentSchedConfig,
               (),
               (const, override));
 
-  ~MockSchedOsManager() override = default;
+  ~MockSchedOsHooks() override = default;
   SchedOsConfig current_config;
 };
 
 class ScopedSchedBoostTest : public testing::Test {
  public:
-  void SetUp() override { ScopedSchedBoost::ResetForTesting(&sched_manager_); }
+  void SetUp() override { ScopedSchedBoost::ResetForTesting(&sched_hooks_); }
 
   void TearDown() override {
-    ASSERT_EQ(sched_manager_.current_config, kInitSchedOsConfig);
+    ASSERT_EQ(sched_hooks_.current_config, kInitSchedOsConfig);
   }
 
-  const SchedOsManager::SchedOsConfig kInitSchedOsConfig{SCHED_OTHER, 0, 0};
-  NiceMock<MockSchedOsManager> sched_manager_{kInitSchedOsConfig};
+  const SchedOsHooks::SchedOsConfig kInitSchedOsConfig{SCHED_OTHER, 0, 0};
+  NiceMock<MockSchedOsHooks> sched_hooks_{kInitSchedOsConfig};
 };
 
 TEST_F(ScopedSchedBoostTest, SchedPolicyAndPrioOrder) {
@@ -114,33 +114,33 @@ TEST_F(ScopedSchedBoostTest, ScopeEnterExit) {
     auto boost5 =
         ScopedSchedBoost::Boost({SchedPolicyAndPrio::Policy::kSchedOther, 5});
     ASSERT_OK(boost5);
-    ASSERT_THAT(sched_manager_.current_config,
-                Eq(SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -5}));
+    ASSERT_THAT(sched_hooks_.current_config,
+                Eq(SchedOsHooks::SchedOsConfig{SCHED_OTHER, 0, -5}));
     auto boost3 =
         ScopedSchedBoost::Boost({SchedPolicyAndPrio::Policy::kSchedOther, 3});
     ASSERT_OK(boost3);
     // boost3 is less than boost5, assert we don't change the policy.
-    ASSERT_THAT(sched_manager_.current_config,
-                Eq(SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -5}));
+    ASSERT_THAT(sched_hooks_.current_config,
+                Eq(SchedOsHooks::SchedOsConfig{SCHED_OTHER, 0, -5}));
     {
       auto boost10 = ScopedSchedBoost::Boost(
           {SchedPolicyAndPrio::Policy::kSchedOther, 10});
       ASSERT_OK(boost10);
-      ASSERT_THAT(sched_manager_.current_config,
-                  Eq(SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -10}));
+      ASSERT_THAT(sched_hooks_.current_config,
+                  Eq(SchedOsHooks::SchedOsConfig{SCHED_OTHER, 0, -10}));
       {
         auto boost42 = ScopedSchedBoost::Boost(
             {SchedPolicyAndPrio::Policy::kSchedFifo, 42});
         ASSERT_OK(boost42);
-        ASSERT_THAT(sched_manager_.current_config,
-                    Eq(SchedOsManager::SchedOsConfig{SCHED_FIFO, 42, 0}));
+        ASSERT_THAT(sched_hooks_.current_config,
+                    Eq(SchedOsHooks::SchedOsConfig{SCHED_FIFO, 42, 0}));
         {
           auto boost12 = ScopedSchedBoost::Boost(
               {SchedPolicyAndPrio::Policy::kSchedOther, 12});
           ASSERT_OK(boost12);
           // boost12 is less than boost42, assert we don't change the policy.
-          ASSERT_THAT(sched_manager_.current_config,
-                      Eq(SchedOsManager::SchedOsConfig{SCHED_FIFO, 42, 0}));
+          ASSERT_THAT(sched_hooks_.current_config,
+                      Eq(SchedOsHooks::SchedOsConfig{SCHED_FIFO, 42, 0}));
         }
         {
           auto boost5_nested = ScopedSchedBoost::Boost(
@@ -150,87 +150,87 @@ TEST_F(ScopedSchedBoostTest, ScopeEnterExit) {
           // removed.
         }
       }
-      ASSERT_THAT(sched_manager_.current_config,
-                  Eq(SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -10}));
+      ASSERT_THAT(sched_hooks_.current_config,
+                  Eq(SchedOsHooks::SchedOsConfig{SCHED_OTHER, 0, -10}));
     }
-    ASSERT_THAT(sched_manager_.current_config,
-                Eq(SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -5}));
+    ASSERT_THAT(sched_hooks_.current_config,
+                Eq(SchedOsHooks::SchedOsConfig{SCHED_OTHER, 0, -5}));
   }
-  ASSERT_EQ(sched_manager_.current_config, kInitSchedOsConfig);
+  ASSERT_EQ(sched_hooks_.current_config, kInitSchedOsConfig);
 }
 
 TEST_F(ScopedSchedBoostTest, MoveOperation) {
   std::optional<ScopedSchedBoost> moved_boost;
   {
-    EXPECT_CALL(sched_manager_, SetSchedConfig(SchedOsManager::SchedOsConfig{
-                                    SCHED_OTHER, 0, -5}));
+    EXPECT_CALL(sched_hooks_, SetSchedConfig(SchedOsHooks::SchedOsConfig{
+                                  SCHED_OTHER, 0, -5}));
     auto boost =
         ScopedSchedBoost::Boost({SchedPolicyAndPrio::Policy::kSchedOther, 5});
     ASSERT_OK(boost);
-    ASSERT_THAT(sched_manager_.current_config,
-                Eq(SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -5}));
+    ASSERT_THAT(sched_hooks_.current_config,
+                Eq(SchedOsHooks::SchedOsConfig{SCHED_OTHER, 0, -5}));
     // Assert we don't call system API when move
-    EXPECT_CALL(sched_manager_, SetSchedConfig(_)).Times(0);
+    EXPECT_CALL(sched_hooks_, SetSchedConfig(_)).Times(0);
     moved_boost = std::move(boost.value());
   }
   ASSERT_TRUE(moved_boost.has_value());
-  ASSERT_THAT(sched_manager_.current_config,
-              Eq(SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -5}));
-  EXPECT_CALL(sched_manager_, SetSchedConfig(kInitSchedOsConfig));
+  ASSERT_THAT(sched_hooks_.current_config,
+              Eq(SchedOsHooks::SchedOsConfig{SCHED_OTHER, 0, -5}));
+  EXPECT_CALL(sched_hooks_, SetSchedConfig(kInitSchedOsConfig));
   moved_boost.reset();
-  ASSERT_EQ(sched_manager_.current_config, kInitSchedOsConfig);
+  ASSERT_EQ(sched_hooks_.current_config, kInitSchedOsConfig);
 }
 
 TEST_F(ScopedSchedBoostTest, IgnoreWrongConfig) {
-  ON_CALL(sched_manager_, SetSchedConfig(_))
-      .WillByDefault(Invoke([&](const SchedOsManager::SchedOsConfig& arg) {
+  ON_CALL(sched_hooks_, SetSchedConfig(_))
+      .WillByDefault(Invoke([&](const SchedOsHooks::SchedOsConfig& arg) {
         if (arg.policy == SCHED_FIFO && arg.rt_prio < 1) {
           return ErrStatus("Priority for SCHED_FIFO policy must be >= 1");
         }
-        sched_manager_.current_config = arg;
+        sched_hooks_.current_config = arg;
         return OkStatus();
       }));
 
   auto ok_other_boost = ScopedSchedBoost::Boost(
       SchedPolicyAndPrio{SchedPolicyAndPrio::Policy::kSchedOther, 5});
   ASSERT_OK(ok_other_boost);
-  ASSERT_THAT(sched_manager_.current_config,
-              Eq(SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -5}));
+  ASSERT_THAT(sched_hooks_.current_config,
+              Eq(SchedOsHooks::SchedOsConfig{SCHED_OTHER, 0, -5}));
   {
     auto ok_fifo_boost = ScopedSchedBoost::Boost(
         SchedPolicyAndPrio{SchedPolicyAndPrio::Policy::kSchedFifo, 42});
     ASSERT_OK(ok_fifo_boost);
     std::optional ok_fifo_to_remove(std::move(ok_fifo_boost.value()));
-    ASSERT_THAT(sched_manager_.current_config,
-                Eq(SchedOsManager::SchedOsConfig{SCHED_FIFO, 42, 0}));
+    ASSERT_THAT(sched_hooks_.current_config,
+                Eq(SchedOsHooks::SchedOsConfig{SCHED_FIFO, 42, 0}));
     // This isn't the max prio, so it wasn't validated and returns OK
     auto bad_fifo_boost = ScopedSchedBoost::Boost(
         SchedPolicyAndPrio{SchedPolicyAndPrio::Policy::kSchedFifo, 0});
     ASSERT_OK(bad_fifo_boost);
 
     // After the next line the 'bad_fifo_boost' becomes the max priority.
-    // It will be validated, error logged and the priority set to the nex
+    // It will be validated, error logged and the priority set to the next
     // valid max priority (ok_other_boost)
     ok_fifo_to_remove.reset();
-    ASSERT_THAT(sched_manager_.current_config,
-                Eq(SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -5}));
+    ASSERT_THAT(sched_hooks_.current_config,
+                Eq(SchedOsHooks::SchedOsConfig{SCHED_OTHER, 0, -5}));
   }
 
-  ASSERT_THAT(sched_manager_.current_config,
-              Eq(SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -5}));
+  ASSERT_THAT(sched_hooks_.current_config,
+              Eq(SchedOsHooks::SchedOsConfig{SCHED_OTHER, 0, -5}));
 }
 
 class ScopedSchedBoostLinuxIntegrationTest : public testing::Test {
   void SetUp() override {
-    ASSERT_OK_AND_ASSIGN(
-        initial_config, SchedOsManager::GetInstance()->GetCurrentSchedConfig());
+    ASSERT_OK_AND_ASSIGN(initial_config,
+                         SchedOsHooks::GetInstance()->GetCurrentSchedConfig());
   }
 
   void TearDown() override {
-    ASSERT_OK(SchedOsManager::GetInstance()->SetSchedConfig(initial_config));
+    ASSERT_OK(SchedOsHooks::GetInstance()->SetSchedConfig(initial_config));
   }
 
-  SchedOsManager::SchedOsConfig initial_config{};
+  SchedOsHooks::SchedOsConfig initial_config{};
 };
 
 TEST_F(ScopedSchedBoostLinuxIntegrationTest, LinuxApiCalls) {
@@ -241,24 +241,24 @@ TEST_F(ScopedSchedBoostLinuxIntegrationTest, LinuxApiCalls) {
     auto boost = ScopedSchedBoost::Boost(
         SchedPolicyAndPrio{SchedPolicyAndPrio::Policy::kSchedOther, 5});
     ASSERT_OK(boost);
-    SchedOsManager::SchedOsConfig current{};
-    ASSERT_OK_AND_ASSIGN(
-        current, SchedOsManager::GetInstance()->GetCurrentSchedConfig());
-    ASSERT_THAT(current, Eq(SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -5}));
+    SchedOsHooks::SchedOsConfig current{};
+    ASSERT_OK_AND_ASSIGN(current,
+                         SchedOsHooks::GetInstance()->GetCurrentSchedConfig());
+    ASSERT_THAT(current, Eq(SchedOsHooks::SchedOsConfig{SCHED_OTHER, 0, -5}));
     {
       auto boost_rt = ScopedSchedBoost::Boost(
           SchedPolicyAndPrio{SchedPolicyAndPrio::Policy::kSchedFifo, 42});
       ASSERT_OK(boost_rt);
-      SchedOsManager::SchedOsConfig current_rt{};
+      SchedOsHooks::SchedOsConfig current_rt{};
       ASSERT_OK_AND_ASSIGN(
-          current_rt, SchedOsManager::GetInstance()->GetCurrentSchedConfig());
+          current_rt, SchedOsHooks::GetInstance()->GetCurrentSchedConfig());
       ASSERT_THAT(current_rt,
-                  Eq(SchedOsManager::SchedOsConfig{SCHED_FIFO, 42, 0}));
+                  Eq(SchedOsHooks::SchedOsConfig{SCHED_FIFO, 42, 0}));
     }
 
-    ASSERT_OK_AND_ASSIGN(
-        current, SchedOsManager::GetInstance()->GetCurrentSchedConfig());
-    ASSERT_THAT(current, Eq(SchedOsManager::SchedOsConfig{SCHED_OTHER, 0, -5}));
+    ASSERT_OK_AND_ASSIGN(current,
+                         SchedOsHooks::GetInstance()->GetCurrentSchedConfig());
+    ASSERT_THAT(current, Eq(SchedOsHooks::SchedOsConfig{SCHED_OTHER, 0, -5}));
   }
 }
 
