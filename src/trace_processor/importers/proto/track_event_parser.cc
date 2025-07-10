@@ -33,7 +33,6 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
-#include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
@@ -45,11 +44,9 @@
 #include "src/trace_processor/util/debug_annotation_parser.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
-#include "protos/perfetto/common/android_log_constants.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
-#include "protos/perfetto/trace/track_event/log_message.pbzero.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/source_location.pbzero.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
@@ -282,9 +279,9 @@ void TrackEventParser::ParseTrackDescriptor(
 
   // Ensure that the track and its parents are resolved. This may start a new
   // process and/or thread (i.e. new upid/utid).
-  std::optional<TrackId> track_id = track_event_tracker_->GetDescriptorTrack(
+  auto track = track_event_tracker_->GetDescriptorTrack(
       decoder.uuid(), kNullStringId, packet_sequence_id);
-  if (!track_id) {
+  if (!track) {
     context_->storage->IncrementStats(stats::track_event_parser_errors);
     return;
   }

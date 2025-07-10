@@ -317,42 +317,37 @@ class TrackEventEventImporter {
     //      TrackEvent types), or
     //   b) a default track.
     if (track_uuid_) {
-      std::optional<TrackId> opt_track_id =
-          track_event_tracker_->GetDescriptorTrack(track_uuid_, name_id_,
-                                                   packet_sequence_id_);
-      if (!opt_track_id) {
+      auto opt_resolved = track_event_tracker_->GetDescriptorTrack(
+          track_uuid_, name_id_, packet_sequence_id_);
+      if (!opt_resolved) {
         return base::ErrStatus(
             "track_event_parser: unable to find track matching UUID %" PRIu64,
             track_uuid_);
       }
-      track_id_ = *opt_track_id;
-
-      auto rr = storage_->mutable_track_table()->FindById(track_id_);
-      if (rr && rr->utid()) {
-        utid_ = rr->utid();
-        upid_ = storage_->thread_table()[*utid_].upid();
-      } else if (rr && rr->upid()) {
-        upid_ = rr->upid();
-        if (sequence_state_->pid_and_tid_valid()) {
-          auto pid = static_cast<uint32_t>(sequence_state_->pid());
-          auto tid = static_cast<uint32_t>(sequence_state_->tid());
-          UniqueTid utid_candidate = procs->UpdateThread(tid, pid);
-          if (storage_->thread_table()[utid_candidate].upid() == upid_) {
-            legacy_passthrough_utid_ = utid_candidate;
+      track_id_ = opt_resolved->track_id();
+      switch (opt_resolved->scope()) {
+        case TrackEventTracker::ResolvedDescriptorTrack::Scope::kThread:
+          utid_ = opt_resolved->utid();
+          upid_ = storage_->thread_table()[*utid_].upid();
+          break;
+        case TrackEventTracker::ResolvedDescriptorTrack::Scope::kProcess:
+          upid_ = opt_resolved->upid();
+          if (sequence_state_->pid_and_tid_valid()) {
+            auto pid = static_cast<uint32_t>(sequence_state_->pid());
+            auto tid = static_cast<uint32_t>(sequence_state_->tid());
+            UniqueTid utid_candidate = procs->UpdateThread(tid, pid);
+            if (storage_->thread_table()[utid_candidate].upid() == upid_) {
+              legacy_passthrough_utid_ = utid_candidate;
+            }
           }
-        }
-      } else {
-        if (rr) {
-          StringPool::Id id = rr->name();
-          if (id.is_null()) {
-            rr->set_name(name_id_);
+          break;
+        case TrackEventTracker::ResolvedDescriptorTrack::Scope::kGlobal:
+          if (sequence_state_->pid_and_tid_valid()) {
+            auto pid = static_cast<uint32_t>(sequence_state_->pid());
+            auto tid = static_cast<uint32_t>(sequence_state_->tid());
+            legacy_passthrough_utid_ = procs->UpdateThread(tid, pid);
           }
-        }
-        if (sequence_state_->pid_and_tid_valid()) {
-          auto pid = static_cast<uint32_t>(sequence_state_->pid());
-          auto tid = static_cast<uint32_t>(sequence_state_->tid());
-          legacy_passthrough_utid_ = procs->UpdateThread(tid, pid);
-        }
+          break;
       }
     } else {
       bool pid_tid_state_valid = sequence_state_->pid_and_tid_valid();
@@ -392,8 +387,9 @@ class TrackEventEventImporter {
         upid_ = storage_->thread_table()[*utid_].upid();
         track_id_ = track_tracker->InternThreadTrack(*utid_);
       } else {
-        track_id_ = *track_event_tracker_->GetDescriptorTrack(
+        auto opt_track = track_event_tracker_->GetDescriptorTrack(
             TrackEventTracker::kDefaultDescriptorTrackUuid);
+        track_id_ = opt_track->track_id();
       }
     }
 
@@ -608,16 +604,17 @@ class TrackEventEventImporter {
     PERFETTO_DCHECK(track_uuid_it);
     PERFETTO_DCHECK(index < TrackEventData::kMaxNumExtraCounters);
 
-    std::optional<TrackId> track_id = track_event_tracker_->GetDescriptorTrack(
+    auto opt_resolved = track_event_tracker_->GetDescriptorTrack(
         *track_uuid_it, kNullStringId, packet_sequence_id_);
-    auto counter_row = storage_->track_table().FindById(*track_id);
+    TrackId track_id = opt_resolved->track_id();
 
     double value = event_data_->extra_counter_values[index];
-    context_->event_tracker->PushCounter(ts_, value, *track_id);
+    context_->event_tracker->PushCounter(ts_, value, track_id);
 
     // Also import thread_time and thread_instruction_count counters into
     // slice columns to simplify JSON export.
-    StringId counter_name = counter_row->name();
+    auto counter_track = storage_->track_table().FindById(track_id);
+    StringId counter_name = counter_track->name();
     if (counter_name == parser_->counter_name_thread_time_id_) {
       thread_timestamp_ = static_cast<int64_t>(value);
     } else if (counter_name ==

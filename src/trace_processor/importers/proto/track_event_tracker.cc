@@ -151,7 +151,7 @@ void TrackEventTracker::ReserveDescriptorTrack(
 }
 
 std::optional<TrackEventTracker::ResolvedDescriptorTrack>
-TrackEventTracker::GetDescriptorTrackImpl(
+TrackEventTracker::GetDescriptorTrack(
     uint64_t uuid,
     StringId event_name,
     std::optional<uint32_t> packet_sequence_id) {
@@ -274,7 +274,7 @@ TrackEventTracker::ResolveDescriptorTrack(
   // Try to resolve any parent tracks recursively, too.
   std::optional<ResolvedDescriptorTrack> parent_resolved_track;
   if (reservation.parent_uuid != kDefaultDescriptorTrackUuid) {
-    parent_resolved_track = GetDescriptorTrackImpl(
+    parent_resolved_track = GetDescriptorTrack(
         reservation.parent_uuid, kNullStringId, packet_sequence_id);
   }
 
