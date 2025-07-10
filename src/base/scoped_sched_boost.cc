@@ -16,20 +16,23 @@
 
 #include "perfetto/ext/base/scoped_sched_boost.h"
 
-#include <algorithm>
-#include <vector>
+#include "perfetto/ext/base/status_macros.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <sched.h>         // for 'SCHED_' macros and 'sched_' functions
 #include <sys/resource.h>  // for 'setpriority', 'getpriority', 'PRIO_PROCESS'
-#endif
+#include <sys/types.h>     // for 'pid_t'
 
-#include <unistd.h>
+#include <algorithm>
+#include <vector>
 
-#include "perfetto/ext/base/status_macros.h"
+#endif  // PERFETTO_OS_LINUX || PERFETTO_OS_ANDROID
 
 namespace perfetto::base {
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
 namespace {
 constexpr pid_t kCurrentPid = 0;
@@ -135,9 +138,6 @@ void ThreadMgr::ResetForTesting(SchedOsHooks* os_hooks) {
 
 }  // namespace
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-
 SchedOsHooks* SchedOsHooks::GetInstance() {
   static auto* instance = new SchedOsHooks();
   return instance;
@@ -228,6 +228,20 @@ void ScopedSchedBoost::ResetForTesting(SchedOsHooks* os_manager) {
 #else
 
 // static
+SchedOsHooks* SchedOsHooks::GetInstance() {
+  return nullptr;
+}
+
+Status SchedOsHooks::SetSchedConfig(const SchedOsHooks::SchedOsConfig&) {
+  return ErrStatus("SchedOsHooks is supported only on Linux/Android");
+}
+
+StatusOr<SchedOsHooks::SchedOsConfig> SchedOsHooks::GetCurrentSchedConfig()
+    const {
+  return ErrStatus("SchedOsHooks is supported only on Linux/Android");
+}
+
+// static
 StatusOr<ScopedSchedBoost> ScopedSchedBoost::Boost(SchedPolicyAndPrio) {
   return ErrStatus("ScopedSchedBoost is supported only on Linux/Android");
 }
@@ -237,6 +251,6 @@ ScopedSchedBoost& ScopedSchedBoost::operator=(ScopedSchedBoost&&) noexcept =
     default;
 ScopedSchedBoost::~ScopedSchedBoost() = default;
 
-#endif
+#endif  // PERFETTO_OS_LINUX || PERFETTO_OS_ANDROID
 
 }  // namespace perfetto::base
