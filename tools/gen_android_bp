@@ -123,6 +123,7 @@ target_host_supported = [
 target_vendor_available = [
     '//:libperfetto_client_experimental',
     '//src/shared_lib:libperfetto_c',
+    '//protos/perfetto/trace:perfetto_trace_protos',
 ]
 
 # Library targets that should be exported as "cc_library" instead of

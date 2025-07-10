@@ -16713,6 +16713,7 @@ cc_library_static {
         "libprotobuf-cpp-lite",
     ],
     host_supported: true,
+    vendor_available: true,
     generated_headers: [
         "perfetto_protos_perfetto_common_lite_gen_headers",
         "perfetto_protos_perfetto_config_android_lite_gen_headers",

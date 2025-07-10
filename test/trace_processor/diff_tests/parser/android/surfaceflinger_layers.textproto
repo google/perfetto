@@ -37,7 +37,7 @@ packet {
         is_opaque: false
         invalidate: true
         dataspace: "BT709 sRGB Full range"
-        pixel_format: "Unknown/None"
+        pixel_format: ""
         color { r: -1.000000 g: -1.000000 b: -1.000000 a: 1.000000 }
         requested_color { r: -1.000000 g: -1.000000 b: -1.000000 a: 1.000000 }
         flags: 2
@@ -65,13 +65,12 @@ packet {
           right: 10800.000000
           bottom: 24000.000000
         }
-        shadow_radius: 0.000000
+        shadow_radius: 0.500000
         is_relative_of: false
         background_blur_radius: 0
-        owner_uid: 1000
         is_trusted_overlay: false
-        requested_corner_radius: 0.000000
         destination_frame { left: 0 top: 0 right: -1 bottom: -1 }
+        blur_regions: []
       }
       layers {
         id: 4
@@ -275,7 +274,7 @@ packet {
       size { w: 1080 h: 2400 }
       layer_stack_space_rect { right: 1080 bottom: 2400 }
     }
-    vsync_id: 24767
+    vsync_id: 0
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
@@ -533,7 +532,6 @@ packet {
       layer_stack_space_rect { right: 5 bottom: 10 }
       transform { type: 1024 }
     }
-    vsync_id: 24767
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
