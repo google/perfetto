@@ -1,6 +1,3 @@
 src/perfetto_cmd/perfetto_config.descriptor.h binary
-include/perfetto/public/protos/trace/track_event/track_descriptor.pzc.h binary
 python/perfetto/protos/perfetto/trace/perfetto_trace_pb2.pyi binary
 python/perfetto/protos/perfetto/trace/perfetto_trace_pb2.py binary
-protos/perfetto/trace/perfetto_trace.proto binary
-protos/perfetto/trace/perfetto_config.proto binary
