@@ -2657,7 +2657,7 @@ void TracingServiceImpl::MaybeFilterPackets(TracingSession* tracing_session,
       // Keep the per-buffer stats updated. Also propagate the
       // buffer_index_for_stats in the output packet to allow accounting by
       // other parts of the ReadBuffer pipeline.
-      uint32_t buffer_idx = maybe_buffer_idx.value();
+      uint32_t buffer_idx = *maybe_buffer_idx;
       packet.set_buffer_index_for_stats(buffer_idx);
       auto& vec = tracing_session->filter_bytes_discarded_per_buffer;
       if (static_cast<size_t>(buffer_idx) >= vec.size())
@@ -3927,7 +3927,7 @@ void TracingServiceImpl::MaybeEmitCloneTrigger(
   if (tracing_session->clone_trigger.has_value()) {
     protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
     auto* trigger = packet->set_clone_snapshot_trigger();
-    const auto& info = tracing_session->clone_trigger.value();
+    const auto& info = *(tracing_session->clone_trigger);
     trigger->set_trigger_name(info.trigger_name);
     trigger->set_producer_name(info.producer_name);
     trigger->set_trusted_producer_uid(static_cast<int32_t>(info.producer_uid));

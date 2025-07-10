@@ -155,10 +155,10 @@ ConsoleInterceptor::Delegate::GetSessionState() {
   // kept locked) until we return from OnTracePacket. This avoids having to lock
   // and unlock the instance multiple times per invocation.
   if (locked_self_.has_value())
-    return &locked_self_.value()->session_state_;
+    return &(*locked_self_)->session_state_;
   locked_self_ =
       std::make_optional<SelfHandle>(context_.GetInterceptorLocked());
-  return &locked_self_.value()->session_state_;
+  return &(*locked_self_)->session_state_;
 }
 
 void ConsoleInterceptor::Delegate::OnTrackUpdated(

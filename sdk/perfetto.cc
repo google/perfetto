@@ -2839,7 +2839,7 @@ base::Status SetFilePermissions(const std::string& file_path,
         "The chmod mode bits must be a 4-digit octal number, e.g. 0660");
   }
   if (PERFETTO_EINTR(
-          chmod(file_path.c_str(), static_cast<mode_t>(mode_value.value())))) {
+          chmod(file_path.c_str(), static_cast<mode_t>(*mode_value)))) {
     return base::ErrStatus("Failed to chmod %s", file_path.c_str());
   }
   return base::OkStatus();
@@ -10118,7 +10118,7 @@ void __attribute__((noreturn)) ChildProcess(ChildProcessArgs* args) {
   };
 
   if (args->create_args->posix_proc_group_id.has_value()) {
-    if (setpgid(0 /*self*/, args->create_args->posix_proc_group_id.value())) {
+    if (setpgid(0 /*self*/, *(args->create_args->posix_proc_group_id))) {
       die("setpgid() failed");
     }
   }
@@ -36783,10 +36783,10 @@ ConsoleInterceptor::Delegate::GetSessionState() {
   // kept locked) until we return from OnTracePacket. This avoids having to lock
   // and unlock the instance multiple times per invocation.
   if (locked_self_.has_value())
-    return &locked_self_.value()->session_state_;
+    return &(*locked_self_)->session_state_;
   locked_self_ =
       std::make_optional<SelfHandle>(context_.GetInterceptorLocked());
-  return &locked_self_.value()->session_state_;
+  return &(*locked_self_)->session_state_;
 }
 
 void ConsoleInterceptor::Delegate::OnTrackUpdated(
@@ -41954,11 +41954,13 @@ void TrackEventInternal::ResetIncrementalState(
     // with boot time.
     // TODO(leszeks): Consider allowing synchronization against other clocks
     // than boot time.
-    static os_log_t log_handle = os_log_create(
-        "dev.perfetto.clock_sync", OS_LOG_CATEGORY_POINTS_OF_INTEREST);
-    os_signpost_event_emit(
-        log_handle, OS_SIGNPOST_ID_EXCLUSIVE, "boottime", "%" PRId64,
-        static_cast<uint64_t>(perfetto::base::GetBootTimeNs().count()));
+    if (__builtin_available(macOS 10.14, *)) {
+      static os_log_t log_handle = os_log_create(
+          "dev.perfetto.clock_sync", OS_LOG_CATEGORY_POINTS_OF_INTEREST);
+      os_signpost_event_emit(
+          log_handle, OS_SIGNPOST_ID_EXCLUSIVE, "boottime", "%" PRId64,
+          static_cast<uint64_t>(perfetto::base::GetBootTimeNs().count()));
+    }
 #endif
 
     if (tls_state.default_clock != static_cast<uint32_t>(GetClockId())) {
@@ -44210,8 +44212,8 @@ const char* GetVersionCode();
 #ifndef GEN_PERFETTO_VERSION_GEN_H_
 #define GEN_PERFETTO_VERSION_GEN_H_
 
-#define PERFETTO_VERSION_STRING() "v50.1-05df70503"
-#define PERFETTO_VERSION_SCM_REVISION() "05df70503923f3e7333c4333589959c2698c15d4"
+#define PERFETTO_VERSION_STRING() "v50.1-f21edbd0b"
+#define PERFETTO_VERSION_SCM_REVISION() "f21edbd0bd5ab000c5b0e8a44f78f61061381591"
 
 #endif  // GEN_PERFETTO_VERSION_GEN_H_
 /*
@@ -52546,7 +52548,7 @@ void TracingServiceImpl::MaybeFilterPackets(TracingSession* tracing_session,
       // Keep the per-buffer stats updated. Also propagate the
       // buffer_index_for_stats in the output packet to allow accounting by
       // other parts of the ReadBuffer pipeline.
-      uint32_t buffer_idx = maybe_buffer_idx.value();
+      uint32_t buffer_idx = *maybe_buffer_idx;
       packet.set_buffer_index_for_stats(buffer_idx);
       auto& vec = tracing_session->filter_bytes_discarded_per_buffer;
       if (static_cast<size_t>(buffer_idx) >= vec.size())
@@ -53816,7 +53818,7 @@ void TracingServiceImpl::MaybeEmitCloneTrigger(
   if (tracing_session->clone_trigger.has_value()) {
     protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
     auto* trigger = packet->set_clone_snapshot_trigger();
-    const auto& info = tracing_session->clone_trigger.value();
+    const auto& info = *(tracing_session->clone_trigger);
     trigger->set_trigger_name(info.trigger_name);
     trigger->set_producer_name(info.producer_name);
     trigger->set_trusted_producer_uid(static_cast<int32_t>(info.producer_uid));

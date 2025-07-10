@@ -428,11 +428,13 @@ void TrackEventInternal::ResetIncrementalState(
     // with boot time.
     // TODO(leszeks): Consider allowing synchronization against other clocks
     // than boot time.
-    static os_log_t log_handle = os_log_create(
-        "dev.perfetto.clock_sync", OS_LOG_CATEGORY_POINTS_OF_INTEREST);
-    os_signpost_event_emit(
-        log_handle, OS_SIGNPOST_ID_EXCLUSIVE, "boottime", "%" PRId64,
-        static_cast<uint64_t>(perfetto::base::GetBootTimeNs().count()));
+    if (__builtin_available(macOS 10.14, *)) {
+      static os_log_t log_handle = os_log_create(
+          "dev.perfetto.clock_sync", OS_LOG_CATEGORY_POINTS_OF_INTEREST);
+      os_signpost_event_emit(
+          log_handle, OS_SIGNPOST_ID_EXCLUSIVE, "boottime", "%" PRId64,
+          static_cast<uint64_t>(perfetto::base::GetBootTimeNs().count()));
+    }
 #endif
 
     if (tls_state.default_clock != static_cast<uint32_t>(GetClockId())) {

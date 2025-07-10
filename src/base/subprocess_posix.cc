@@ -83,7 +83,7 @@ void __attribute__((noreturn)) ChildProcess(ChildProcessArgs* args) {
   };
 
   if (args->create_args->posix_proc_group_id.has_value()) {
-    if (setpgid(0 /*self*/, args->create_args->posix_proc_group_id.value())) {
+    if (setpgid(0 /*self*/, *(args->create_args->posix_proc_group_id))) {
       die("setpgid() failed");
     }
   }

@@ -407,7 +407,7 @@ base::Status SetFilePermissions(const std::string& file_path,
         "The chmod mode bits must be a 4-digit octal number, e.g. 0660");
   }
   if (PERFETTO_EINTR(
-          chmod(file_path.c_str(), static_cast<mode_t>(mode_value.value())))) {
+          chmod(file_path.c_str(), static_cast<mode_t>(*mode_value)))) {
     return base::ErrStatus("Failed to chmod %s", file_path.c_str());
   }
   return base::OkStatus();
