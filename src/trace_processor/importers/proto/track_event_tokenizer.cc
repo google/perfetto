@@ -145,6 +145,11 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
   else if (track.has_static_name())
     reservation.name = context_->storage->InternString(track.static_name());
 
+  if (track.has_description()) {
+    reservation.description =
+        context_->storage->InternString(track.description());
+  }
+
   if (packet.has_trusted_pid()) {
     context_->process_tracker->UpdateTrustedPid(
         static_cast<uint32_t>(packet.trusted_pid()), track.uuid());
