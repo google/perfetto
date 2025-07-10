@@ -137,8 +137,9 @@ inline Rect GetBounds(const LayerDecoder& layer) {
 
 // Returns the screen bounds of a layer, cropped by the size of the crop rect if
 // provided, usually given as the layer's associated display.
-inline std::optional<Rect> GetCroppedScreenBounds(const LayerDecoder& layer,
-                                                  Rect* crop) {
+inline std::optional<geometry::Rect> GetCroppedScreenBounds(
+    const LayerDecoder& layer,
+    std::optional<geometry::Rect> crop) {
   if (!layer.has_screen_bounds()) {
     return std::nullopt;
   }
@@ -146,8 +147,8 @@ inline std::optional<Rect> GetCroppedScreenBounds(const LayerDecoder& layer,
       protos::pbzero::FloatRectProto::Decoder(layer.screen_bounds());
   auto screen_bounds_rect = Rect(screen_bounds);
 
-  if (crop && !(crop->IsEmpty())) {
-    screen_bounds_rect = screen_bounds_rect.CropRect(*crop);
+  if (crop.has_value() && !(crop->IsEmpty())) {
+    screen_bounds_rect = screen_bounds_rect.CropRect(crop.value());
   }
   return screen_bounds_rect;
 }

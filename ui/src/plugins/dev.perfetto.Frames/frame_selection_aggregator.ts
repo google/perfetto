@@ -16,7 +16,7 @@ import {ColumnDef, Sorting} from '../../components/aggregation';
 import {
   Aggregation,
   Aggregator,
-  ii,
+  createIITable,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
@@ -44,7 +44,12 @@ export class FrameSelectionAggregator implements Aggregator {
 
     return {
       prepareData: async (engine: Engine) => {
-        const iiDataset = await ii(engine, this.id, dataset, area);
+        await using iiTable = await createIITable(
+          engine,
+          dataset,
+          area.start,
+          area.end,
+        );
         await engine.query(`
           create or replace perfetto table ${this.id} as
           select
@@ -53,7 +58,7 @@ export class FrameSelectionAggregator implements Aggregator {
             min(dur) as minDur,
             avg(dur) as meanDur,
             max(dur) as maxDur
-          from (${iiDataset.query()})
+          from (${iiTable.name})
           group by jank_type
         `);
 
@@ -76,27 +81,25 @@ export class FrameSelectionAggregator implements Aggregator {
     return [
       {
         title: 'Jank Type',
-        kind: 'STRING',
         columnId: 'jank_type',
       },
       {
         title: 'Min duration',
-        kind: 'TIMESTAMP_NS',
+        formatHint: 'DURATION_NS',
         columnId: 'minDur',
       },
       {
         title: 'Max duration',
-        kind: 'TIMESTAMP_NS',
+        formatHint: 'DURATION_NS',
         columnId: 'maxDur',
       },
       {
         title: 'Mean duration',
-        kind: 'TIMESTAMP_NS',
+        formatHint: 'DURATION_NS',
         columnId: 'meanDur',
       },
       {
         title: 'Occurrences',
-        kind: 'NUMBER',
         columnId: 'occurrences',
         sum: true,
       },

@@ -17,7 +17,7 @@ import {ColorScheme} from '../base/color_scheme';
 export interface ColumnDef {
   readonly columnId: string;
   readonly title: string;
-  readonly kind: string;
+  readonly formatHint?: string;
   readonly sum?: boolean;
 }
 

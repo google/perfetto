@@ -16,7 +16,7 @@ import {ColumnDef, Sorting} from '../../components/aggregation';
 import {
   Aggregation,
   Aggregator,
-  ii,
+  createIITable,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
@@ -43,7 +43,12 @@ export class CpuSliceSelectionAggregator implements Aggregator {
 
     return {
       prepareData: async (engine: Engine) => {
-        const iiDataset = await ii(engine, this.id, dataset, area);
+        await using iiTable = await createIITable(
+          engine,
+          dataset,
+          area.start,
+          area.end,
+        );
 
         await engine.query(`
           create or replace perfetto table ${this.id} as
@@ -57,7 +62,7 @@ export class CpuSliceSelectionAggregator implements Aggregator {
             count() as occurrences
           from process
           join thread using (upid)
-          join (${iiDataset.query()}) as sched using (utid)
+          join (${iiTable.name}) as sched using (utid)
           group by utid
         `);
 
@@ -80,38 +85,33 @@ export class CpuSliceSelectionAggregator implements Aggregator {
     return [
       {
         title: 'Process',
-        kind: 'STRING',
         columnId: 'process_name',
       },
       {
         title: 'PID',
-        kind: 'NUMBER',
         columnId: 'pid',
       },
       {
         title: 'Thread',
-        kind: 'STRING',
         columnId: 'thread_name',
       },
       {
         title: 'TID',
-        kind: 'NUMBER',
         columnId: 'tid',
       },
       {
-        title: 'Wall duration (ms)',
-        kind: 'TIMESTAMP_NS',
+        title: 'Wall duration',
+        formatHint: 'DURATION_NS',
         columnId: 'total_dur',
         sum: true,
       },
       {
-        title: 'Avg Wall duration (ms)',
-        kind: 'TIMESTAMP_NS',
+        title: 'Avg Wall duration',
+        formatHint: 'DURATION_NS',
         columnId: 'avg_dur',
       },
       {
         title: 'Occurrences',
-        kind: 'NUMBER',
         columnId: 'occurrences',
         sum: true,
       },

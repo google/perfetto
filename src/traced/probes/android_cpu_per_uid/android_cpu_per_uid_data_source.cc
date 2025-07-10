@@ -73,17 +73,7 @@ const ProbesDataSource::Descriptor AndroidCpuPerUidDataSource::descriptor = {
 // Dynamically loads the libperfetto_android_internal.so library which
 // allows to proxy calls to android hwbinder in in-tree builds.
 struct AndroidCpuPerUidDataSource::DynamicLibLoader {
-  PERFETTO_LAZY_LOAD(android_internal::EnsureCpuTimesAvailable,
-                     ensure_cpu_times_available_);
   PERFETTO_LAZY_LOAD(android_internal::GetCpuTimes, get_cpu_times_);
-
-  bool EnsureCpuTimesAvailable() {
-    if (!ensure_cpu_times_available_) {
-      return false;
-    }
-
-    return ensure_cpu_times_available_();
-  }
 
   std::vector<android_internal::CpuTime> GetCpuTimes(uint64_t* last_update_ns) {
     if (!get_cpu_times_) {
@@ -128,11 +118,7 @@ AndroidCpuPerUidDataSource::~AndroidCpuPerUidDataSource() = default;
 
 void AndroidCpuPerUidDataSource::Start() {
   lib_.reset(new DynamicLibLoader());
-  if (lib_->EnsureCpuTimesAvailable()) {
-    Tick();
-  } else {
-    PERFETTO_ELOG("Could not enable CPU per UID data source");
-  }
+  Tick();
 }
 
 void AndroidCpuPerUidDataSource::Tick() {

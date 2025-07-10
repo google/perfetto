@@ -1,13 +1,5 @@
 
 "tid","name","is_main_thread","canonical_name"
-0,"[NULL]",0,"Unknown"
-0,"[NULL]",0,"Unknown"
-0,"[NULL]",0,"Unknown"
-0,"[NULL]",0,"Unknown"
-0,"[NULL]",0,"Unknown"
-0,"[NULL]",0,"Unknown"
-0,"[NULL]",0,"Unknown"
-0,"[NULL]",0,"Unknown"
 9523,"CrBrowserMain",1,"CrProcessMain"
 9533,"[NULL]",0,"Unknown"
 9534,"[NULL]",0,"Unknown"

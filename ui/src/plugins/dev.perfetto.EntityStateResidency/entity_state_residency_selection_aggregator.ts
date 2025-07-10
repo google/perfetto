@@ -80,29 +80,25 @@ export class EntityStateResidencySelectionAggregator implements Aggregator {
     return [
       {
         title: 'Entity',
-        kind: 'STRING',
         columnId: 'entity_name',
       },
       {
         title: 'State',
-        kind: 'STRING',
         columnId: 'state_name',
       },
       {
         title: 'Time in state (ms)',
-        kind: 'NUMBER',
         columnId: 'delta_value',
         sum: true,
       },
       {
-        title: 'Time in state (%)',
-        kind: 'Number',
+        title: 'Time in state',
+        formatHint: 'PERCENT',
         columnId: 'rate_percent',
         sum: true,
       },
       {
         title: 'Sample Count',
-        kind: 'Number',
         columnId: 'count',
       },
     ];

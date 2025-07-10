@@ -16,7 +16,7 @@ import {ColumnDef, Sorting} from '../../components/aggregation';
 import {
   Aggregation,
   Aggregator,
-  ii,
+  createIITable,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
@@ -43,7 +43,12 @@ export class CpuSliceByProcessSelectionAggregator implements Aggregator {
 
     return {
       prepareData: async (engine: Engine) => {
-        const iiDataset = await ii(engine, this.id, dataset, area);
+        await using iiTable = await createIITable(
+          engine,
+          dataset,
+          area.start,
+          area.end,
+        );
         await engine.query(`
           create or replace perfetto table ${this.id} as
           select
@@ -52,7 +57,7 @@ export class CpuSliceByProcessSelectionAggregator implements Aggregator {
             sum(dur) AS total_dur,
             sum(dur) / count() as avg_dur,
             count() as occurrences
-          from (${iiDataset.query()})
+          from (${iiTable.name})
           join thread USING (utid)
           join process USING (upid)
           group by upid
@@ -77,28 +82,25 @@ export class CpuSliceByProcessSelectionAggregator implements Aggregator {
     return [
       {
         title: 'Process',
-        kind: 'STRING',
         columnId: 'process_name',
       },
       {
         title: 'PID',
-        kind: 'NUMBER',
         columnId: 'pid',
       },
       {
-        title: 'Wall duration (ms)',
-        kind: 'TIMESTAMP_NS',
+        title: 'Wall duration',
+        formatHint: 'DURATION_NS',
         columnId: 'total_dur',
         sum: true,
       },
       {
-        title: 'Avg Wall duration (ms)',
-        kind: 'TIMESTAMP_NS',
+        title: 'Avg Wall duration',
+        formatHint: 'DURATION_NS',
         columnId: 'avg_dur',
       },
       {
         title: 'Occurrences',
-        kind: 'NUMBER',
         columnId: 'occurrences',
         sum: true,
       },

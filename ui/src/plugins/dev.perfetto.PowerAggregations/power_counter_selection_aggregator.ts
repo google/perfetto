@@ -82,22 +82,18 @@ export class PowerCounterSelectionAggregator implements Aggregator {
     return [
       {
         title: 'Rail Name',
-        kind: 'STRING',
         columnId: 'name',
       },
       {
         title: 'Delta energy (uJ)',
-        kind: 'NUMBER',
         columnId: 'delta_value',
       },
       {
         title: 'Avg Power (uW)',
-        kind: 'Number',
         columnId: 'rate',
       },
       {
         title: 'Sample Count',
-        kind: 'Number',
         columnId: 'count',
         sum: true,
       },

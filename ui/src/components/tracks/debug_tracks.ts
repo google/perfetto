@@ -156,7 +156,7 @@ async function createTableForSliceTrack(
     order by ts
   `;
 
-  return await createPerfettoTable(engine, tableName, query);
+  return await createPerfettoTable({engine, name: tableName, as: query});
 }
 
 async function addPivotedSliceTracks(
@@ -328,7 +328,7 @@ async function createTableForCounterTrack(
     order by ts
   `;
 
-  return await createPerfettoTable(engine, tableName, query);
+  return await createPerfettoTable({engine, name: tableName, as: query});
 }
 
 async function addPivotedCounterTracks(

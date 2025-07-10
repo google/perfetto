@@ -13,12 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Duration} from '../base/time';
 import {SqlValue} from '../trace_processor/query_result';
 import {Box} from '../widgets/box';
 import {Stack, StackAuto, StackFixed} from '../widgets/stack';
+import {BarChartData, ColumnDef, Sorting} from './aggregation';
 import {ColumnDefinition, DataGridDataSource} from './widgets/data_grid/common';
 import {DataGrid, renderCell} from './widgets/data_grid/data_grid';
-import {BarChartData, ColumnDef, Sorting} from './aggregation';
 
 export interface AggregationPanelAttrs {
   readonly dataSource: DataGridDataSource;
@@ -44,6 +45,7 @@ export class AggregationPanel
     sorting: Sorting,
     columns: ReadonlyArray<ColumnDef>,
   ) {
+    const columnsById = new Map(columns.map((c) => [c.columnId, c]));
     return m(DataGrid, {
       fillHeight: true,
       showResetButton: false,
@@ -57,8 +59,8 @@ export class AggregationPanel
       data: dataSource,
       initialSorting: sorting,
       cellRenderer: (value: SqlValue, columnName: string) => {
-        const kind = columns.find((c) => c.columnId === columnName)?.kind ?? '';
-        return colKindToRenderer(kind, value, columnName);
+        const formatHint = columnsById.get(columnName)?.formatHint;
+        return this.renderCell(value, columnName, formatHint);
       },
     });
   }
@@ -84,15 +86,14 @@ export class AggregationPanel
       }),
     );
   }
-}
 
-function colKindToRenderer(kind: string, value: SqlValue, colName: string) {
-  if (kind === 'TIMESTAMP_NS' && typeof value === 'bigint') {
-    return m(
-      'span.pf-data-grid__cell--number',
-      (Number(value) / 1_000_000).toFixed(3),
-    );
-  } else {
-    return renderCell(value, colName);
+  private renderCell(value: SqlValue, colName: string, formatHint?: string) {
+    if (formatHint === 'DURATION_NS' && typeof value === 'bigint') {
+      return m('span.pf-data-grid__cell--number', Duration.humanise(value));
+    } else if (formatHint === 'PERCENT') {
+      return m('span.pf-data-grid__cell--number', `${value}%`);
+    } else {
+      return renderCell(value, colName);
+    }
   }
 }

@@ -65,6 +65,31 @@ Now navigate to [localhost:10000](http://localhost:10000/)
 You can request for your plugin to be enabled by default. Follow the
 [default plugins](#default-plugins) section for this.
 
+### Adding Styles
+
+To add custom styles to your plugin, create a `styles.scss` file in your
+plugin's directory, next to your `index.ts` file.
+
+`ui/src/plugins/<your-plugin-name>/styles.scss`
+
+The build system will automatically detect this file and include it in the main
+stylesheet. You can use any standard SCSS syntax in this file.
+
+For example, to change the background color of a component in your plugin:
+
+```scss
+.pf-my-plugin-component {
+  background-color: blue;
+}
+```
+
+All class names should be prefixed with `pf-` to avoid conflicts with other
+libraries.
+
+It's recommended to scope your styles to your plugin to avoid conflicts with
+other plugins or the core UI. A good practice is to wrap your plugin's UI in a
+container with a unique class name.
+
 ### Upload your plugin for review
 
 - Update `ui/src/plugins/<your-plugin-name>/OWNERS` to include your email.
@@ -646,7 +671,7 @@ To add a track use `trace.tracks.registerTrack`.
 registerTrack(track: {
   uri: string;
   track: TrackRenderer;
-  description?: string;
+  description?: string | (() => m.Children);
   subtitle?: string;
   tags?: TrackTags;
   chips?: ReadonlyArray<string>;
@@ -658,7 +683,7 @@ Registers a new track with Perfetto. Pass a `Track` object which includes:
 - `uri`: Unique id for this track.
 - `track`: Track renderer - describes how this track loads data and renders it
   to the canvas.
-- `description`: A short human readable description for this track.
+- `description`: A human readable description or help text for this track.
 - `subtitle`: Shown underneath the track title.
 - `tags`: Arbitrary key-value pairs.
 - `chipd`: A list of strings displayed to the right of the track title.
@@ -736,6 +761,71 @@ export default class implements PerfettoPlugin {
 See
 [the source](https://github.com/google/perfetto/blob/main/ui/src/components/tracks/query_counter_track.ts)
 for detailed usage.
+
+### Track Descriptions / Help Text
+
+If a `description` property is provided when registering a track, any
+`TrackNode` that references that track will display a help button in its shell.
+When clicked, a popup appears containing the content of the `description`.
+
+The `description` can be either a simple string or a function that returns
+Mithril vnodes. Using a function is useful for embedding rich content, such as
+hyperlinks, into the popup.
+
+For example:
+
+```ts
+ctx.tracks.registerTrack({
+  description: () => {
+    return m('', [
+      `Shows which threads were running on CPU ${cpu.toString()} over time.`,
+      m('br'),
+      m(
+        Anchor,
+        {
+          href: 'https://perfetto.dev/docs/data-sources/cpu-scheduling',
+          target: '_blank',
+          icon: Icons.ExternalLink,
+        },
+        'Documentation',
+      ),
+    ]);
+  },
+  // ...
+});
+```
+
+The `description` property is part of the `Track` registration rather than the
+`TrackNode` because `TrackNode`s must be serializable to JSON, and functions
+(which `description` can be) are not.
+
+This has an implication for track groups. If you want to add help text to a
+`TrackNode` that only serves as a group and has no renderable `Track` associated
+with it, you must register a "dummy" track for it. This dummy track can have an
+empty renderer but will carry the `description`.
+
+```ts
+const uri = `com.example.Tracks#GroupWithHelpText`;
+
+trace.tracks.registerTrack({
+  uri,
+  renderer: {
+    // Empty track renderer
+    render: () => {},
+  },
+  description: () => [
+    'This is a group track with some help text.',
+    m('br'),
+    'Use Mithril vnodes for formatting.',
+  ],
+});
+
+// Now create the group node referencing the dummy track's URI.
+const groupNode = new TrackNode({uri, name: 'Group with Help Text'});
+```
+
+Example:
+https://github.com/google/perfetto/blob/main/ui/src/plugins/com.example.Tracks/index.ts
 
 #### Grouping Tracks
 
@@ -939,6 +1029,63 @@ queried, processed, and displayed. Remember to consult the source code of
 [`DatasetSliceTrack`](https://github.com/google/perfetto/blob/main/ui/src/components/tracks/dataset_slice_track.ts)
 and related interfaces for the most up-to-date details and advanced usage
 patterns.
+
+### Timeline Overlays
+
+Timeline overlays allow plugins to draw on top of the timeline, spanning
+multiple tracks. This is useful for drawing annotations that show relationships
+between different tracks, such as flow arrows or vertical lines marking
+important events.
+
+To create a timeline overlay, you need to implement the `Overlay` interface and
+register it with the track manager.
+
+```ts
+import {Overlay, TrackBounds} from '../../public';
+
+class MyOverlay implements Overlay {
+  render(
+    ctx: CanvasRenderingContext2D,
+    timescale: TimeScale,
+    size: Size2D,
+    tracks: ReadonlyArray<TrackBounds>,
+  ): void {
+    // Drawing logic goes here
+  }
+}
+```
+
+The `render` method is called on every frame and provides the following
+arguments:
+
+- `ctx`: The `CanvasRenderingContext2D` for the overlay. This is the main tool
+  for drawing shapes, lines, and text onto the canvas.
+- `timescale`: A `TimeScale` object that helps convert between trace time and
+  horizontal pixel coordinates. Use `timescale.timeToPx(time)` to find the x-
+  coordinate for a given timestamp.
+- `size`: A `Size2D` object containing the `width` and `height` of the entire
+  overlay canvas.
+- `tracks`: A `ReadonlyArray<TrackBounds>`. Each `TrackBounds` object contains
+  the `node` for a visible track and its `verticalBounds` (the `top` and
+  `bottom` y-coordinates of the track on the canvas). This array allows you to
+  find the exact position of any track on the timeline, which is essential for
+  drawing annotations that align with specific tracks.
+
+Once you have your overlay class, register it in your plugin's `onTraceLoad`
+method:
+
+```ts
+export default class implements PerfettoPlugin {
+  static readonly id = 'com.example.MyPlugin';
+  async onTraceLoad(trace: Trace) {
+    trace.tracks.registerOverlay(new MyOverlay());
+  }
+}
+```
+
+A good example of a track overlay is the `WakerOverlay`, which draws arrows
+between a thread's waker and the thread itself. You can find the source for this
+in `ui/src/plugins/dev.perfetto.Sched/waker_overlay.ts`.
 
 ### Tabs
 
