@@ -794,10 +794,11 @@ TEST_F(ExportJsonTest, InstantEvent) {
 
   // Global track.
   TrackEventTracker track_event_tracker(&context_);
-  TrackId track2 = track_event_tracker
-                       .GetDescriptorTrack(
-                           TrackEventTracker::kDefaultDescriptorTrackUuid)
-                       ->track_id();
+  TrackId track2 =
+      track_event_tracker
+          .GetDescriptorTrack(TrackEventTracker::kDefaultDescriptorTrackUuid,
+                              kNullStringId, std::nullopt)
+          ->track_id();
   context_.storage->mutable_slice_table()->Insert(
       {kTimestamp2, 0, track2, cat_id, name_id, 0, 0, 0});
 
@@ -805,7 +806,9 @@ TEST_F(ExportJsonTest, InstantEvent) {
   TrackEventTracker::DescriptorTrackReservation reservation;
   reservation.parent_uuid = 0;
   track_event_tracker.ReserveDescriptorTrack(1234, reservation);
-  TrackId track3 = track_event_tracker.GetDescriptorTrack(1234)->track_id();
+  TrackId track3 =
+      track_event_tracker.GetDescriptorTrack(1234, kNullStringId, std::nullopt)
+          ->track_id();
   context_.storage->mutable_slice_table()->Insert(
       {kTimestamp3, 0, track3, cat_id, name_id, 0, 0, 0});
 

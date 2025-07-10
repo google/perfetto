@@ -388,7 +388,8 @@ class TrackEventEventImporter {
         track_id_ = track_tracker->InternThreadTrack(*utid_);
       } else {
         auto opt_track = track_event_tracker_->GetDescriptorTrack(
-            TrackEventTracker::kDefaultDescriptorTrackUuid);
+            TrackEventTracker::kDefaultDescriptorTrackUuid, kNullStringId,
+            std::nullopt);
         track_id_ = opt_track->track_id();
       }
     }
