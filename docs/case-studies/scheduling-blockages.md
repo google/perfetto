@@ -3,14 +3,14 @@
 In this guide, you'll learn how to:
 
 - Capture combined scheduling and callstack sampling traces.
-- Perform precise callstack sampling based on context switches, rather than
-  time-based sampling.
+- Perform precise callstack sampling based on scheduling events, rather than
+  time-based / random sampling.
 - Use the data to reason about lock contention, priority inversions and other
   scheduling blockage problems.
 
 ## The problem we are after
 
-A bug was causing the Android systemui main thread to
+A bug was causing the Android SystemUI main thread to
 block for 1-10 ms when pulling down the notification shade, causing
 occasional stutter in the shade animation. The bug was fairly reproducible.
 
@@ -30,28 +30,33 @@ wake up a waiter after releasing the lock.
 The actual problem was the following:
 
 - Android's SystemUI uses Kotlin coroutines.
-- Internally, Kotlin coroutines rely on ScheduledThreadPoolExecutor.
-- SystemUI's main thread is trying to schedule future low-priority coroutines.
+- Internally, Kotlin coroutines rely on [ScheduledThreadPoolExecutor][STPE].
+- SystemUI's main thread is trying to schedule low-priority coroutines.
 - Internally, this translates into appending future tasks onto the task
   queue using a background thread pool.
-- Enqueueing a task in ScheduledThreadPoolExecutor requires a ReentrantLock.
+- Enqueueing a task in ScheduledThreadPoolExecutor requires a [ReentrantLock][RL].
 - That same lock is required by the background threads to pull tasks from the
   queue.
 - ReentrantLock isn't aware of the priority of the waiters. When the lock is
   released, it wakes up one waiter thread at a time, in order of lock() calls.
 - There are many background-priority coroutines in SystemUI, so that lock is
   frequently contended by BG threads.
+- ReentrantLock is also not CPU-aware and can end up serializing CPU-affine
+  threads on the same core when waking up waiters after an unlock().
 - This leads to a form of priority inversion, where the main thread ends up
   waiting for a long chain of background threads before being able to acquire
   the lock.
 
+[STPE]: https://cs.android.com/android/platform/superproject/main/+/main:libcore/ojluni/src/main/java/java/util/concurrent/ScheduledThreadPoolExecutor.java?q=ScheduledThreadPoolExecutor
+[RL]: https://cs.android.com/android/platform/superproject/main/+/main:libcore/ojluni/annotations/hiddenapi/java/util/concurrent/locks/ReentrantLock.java
+
 ## Methodology
 
-If you want to jump directly to the trace config, jump to
+If you want to jump directly to the trace config, see
 [Appendix: final trace config used](#appendix-final-trace-config-used).
 
-If instead you want to learn how we got to that config, and our debugging
-journey, read below.
+If instead you want to learn our debugging journey and how we got to that
+config, read below.
 
 Our journey started with a colleague asking if we could record callstack samples
 at 10KHz or higher. The answer was a blanket _"forget about it"_: due to the way
@@ -59,29 +64,29 @@ callstack sampling works on Android, that is simply unachievable.
 _(Need to uncompress debug sections; async unwinding where the kernel copies
 raw stacks over the perf_event buffer for each samples; DWARF-based unwinding)_.
 
-The discussion got interesting when we asked "why do you need it?". Our
-colleague told us about this bug. The rationale was: "I want to know where in
-the code we block and resume. If the samples are frequent enough, with some luck
-I might be able to get the right callstack with the culprit".
+The discussion got interesting when we asked
+_"why do you need hi-rate sampling?"_.
+Our colleague told us about this bug: _"I want to know where the main thread
+blocks and resume execution. If the samples are frequent enough, with some luck
+I might be able to get the right callstack with the culprit"_.
 
 Unfortunately even the most perf-savy engineers often tend to conflate
 "callstack sampling" with _random sampling_ or
-_time-based (or instruction/cycle-based) sampling_, and forget that
+_time-based (or instruction/cycle-based) sampling_, forgetting that
 **callstack sampling is a far more powerful machinery**.
 
-While that is undeniably one of the most popular forms of callstack sampling,
-such methodology is more useful to answer questions of the form "why X takes so
-long?" or "where is a function spending CPU cycles?" or
-"what could I do to reduce the CPU usage of my task?".
-None of these apply here.
+While random sampling is undeniably one of the most popular forms of callstack
+sampling, such methodology is more useful to answer questions of the form
+_"where is a function spending CPU cycles?"_ or _"what could I do to reduce the
+CPU usage of my task?"_. None of these apply here.
 
 Callstack sampling on Linux - and many other OSes - is far more powerful.
 To simplify, you can think of callstack sampling
-as "grab a callstack **every N times a specific event happens**" (see also this
+as _"grab a callstack **every N times a specific event happens**"_ (see also this
 [easyperf.net blogpost](https://easyperf.net/blog/2018/06/01/PMU-counters-and-profiling-basics)
 for an in-depth explanation).
 
-The interesting part is which specific event. Typically this can be
+The interesting part is _which specific event_. Typically this can be:
 
 - The overflow of a timer, to achieve the "grab a callstack every X ms".
 - The overflow of a PMU counter, e.g. to achieve the "grab a callstack every N instructions retired / M cache misses"
@@ -93,9 +98,9 @@ Now, there are a large number of trace points defined in the kernel, but two of
 them are particularly interesting here:
 
 1. `sched_switch`: this is triggered every time a context switch happens.
-   There are many reasons why it happens. The interesting one is
-   the following: you try to acquire a lock → the lock is held → you ask the
-   kernel to put the thread on a wait chain → the kernel schedules you out.
+   The interesting case is when you try to acquire a lock → the lock is held →
+   you ask the kernel to put the thread on a wait chain → the kernel schedules
+   you out.
    Internally this usually ends up in a `sys_futex(FUTEX_WAIT, ...)`.  
    **This is important because it is the moment when the thread we care about
    blocks.**
@@ -106,7 +111,7 @@ them are particularly interesting here:
    milliseconds after it has been woken up. Other threads might be scheduled
    meanwhile.  
    **This is important because it is the moment when another thread eventually
-   unblocks our thread.**
+   wakes up (unblocks) our thread.**
 
 So the overall game is the following: if you can see the callstack where your
 thread gets blocked, and where another thread unblocks your thread, those two
@@ -116,13 +121,14 @@ code search.
 This technique is not particularly novel nor Linux-specific. If you fancy
 reading a more detailed writeup, look at Bruce Dawson's
 [The Lost Xperf Documentation–CPU Usage (Precise)](https://randomascii.wordpress.com/2012/05/11/the-lost-xperf-documentationcpu-scheduling/),
-which explains this use-case in detail on Windows (the same principles apply).
+which explains this use-case in detail on Windows (most of those principles
+apply on Linux as well).
 
 ## Our first failed attempt
 
 At first we got over-excited and wrote a config that grabs a callstack on every
-`sched_switch` and on every `sched_waking`. Here's the full config for reference
-(DO NOT USE THIS) together with some useful commentary.
+`sched_switch` and on every `sched_waking`. The config used is provided below
+for reference (don't use it) together with some useful commentary.
 
 `linux.perf` is the data source in Perfetto that performs callstack sampling
 (the equivalent of Linux's `perf` or Android's `simpleperf` cmdline tools).
@@ -151,8 +157,11 @@ The size is in pages, so 2048 * 4KB -> 8MB.
 Unfortunately higher values seem to fail, because the kernel is unable to find a
 contiguous mlockable region of memory.
 
-
 ```protobuf
+
+# *** DO NOT USE THIS CONFIG ***
+# This overruns the callstack sampler (See commentary). 
+# Improved config below in appendix.
 
 #Part 1
 
@@ -247,9 +256,9 @@ The recording overruns went away and we got a far more useful trace back.
 Now every thread in the trace has three tracks:
 
 1. One with the scheduling state of the thread (Running, Runnable, ...)
-2. One with the usual tracing slices (ChoreographerDoFrame, Animation)
+2. One with the usual tracing slices (Choreographer#doFrame, Animation)
 3. A new one with callstacks (the colored chevrons). Each chevron corresponds to
-   a callstack sample. If you click on it you can see the callstack.
+   a sample. If you click on it you can see the callstack.
 
 ![Callstack tracks](/docs/images/sched-latency/callstack_tracks.png)
 
@@ -307,7 +316,7 @@ Now there is something suspicious here, let's recap:
 
 ![Comic](/docs/images/sched-latency/comic.png)
 
-The priority inversion here is the following:
+This is what's happening:
 
 - The main thread is trying to acquire a lock.
 - The lock is taken by a bg thread (so far so good, this can happen).
@@ -318,6 +327,7 @@ The priority inversion here is the following:
 
 Unfortunately we can't see (yet) callstacks of the BG threads,
 because we were filtering only for sysui main thread (and its wakers).
+We will have to tweak the config one more time for that.
 
 ## Re-capturing the trace
 
@@ -350,20 +360,33 @@ Each worker thread in the ScheduledThreadPoolExecutor does the following:
 
 Unfortunately a few things go wrong here:
 
-- Because of the large number of BG coroutines, there is a long
-  queue of BG threads queued behind the mutex, trying to extract tasks.
+- Because of the large number of BG coroutines, there is a large number of
+  BG threads queued on the lock, trying to extract tasks.
   The underlying ReentrantLock implementation will notify them in queueing
   order, increasing the blocking time of the main thread.
 
-- In several occasions, the next thread being woken up after the unlock was
-  previously running on the same CPU core. The Linux/Android scheduler is NOT
-  [work conserving](https://en.wikipedia.org/wiki/Work-conserving_scheduler)
-  when using the default SCHED_OTHER policy, and will NOT aggressively migrate
-  threads across cores to minimize scheduling latency (it does so to balance
-  power vs latency). Because of this, the woken up thread ends up waiting for
-  the current thread to finish its task, even though the lock is released.
-  This creates serialization of the workload and amplifies even more the
-  blocking time of the main thread.
+- The ReentrantLock implementation is different than a standard
+ `synchronized (x) {...}` monitor. While a monitor is backed by a standard
+ in-kernel futex, ReentrantLock has
+ [its own re-implementation][AbstractQueuedSynchronizer] of the waiters list in
+ Java, which manually parks/unparks threads, somewhat shadowing the job that a
+ kernel would do.
+ Unfortunately this implementation is not aware of CPU affinity of threads, and
+ can lead to suboptimal decisions when waking up a waiters upon unlock().
+ In fact, it can end up unparking a thread that was bound to the same CPU of the
+ current one.
+ The Linux/Android CFS scheduler is NOT
+ [work conserving](https://en.wikipedia.org/wiki/Work-conserving_scheduler)
+ when using the default SCHED_OTHER policy, and will NOT aggressively migrate
+ threads across cores to minimize scheduling latency (it does so to balance
+ power vs latency). Because of this, the woken up thread ends up waiting for
+ the current thread to finish its task, even though the lock is released.
+ The end result is that the two threads end up executing in linear order on the
+ same CPU, despite the fact that the mutex was unlocked most of the time.
+ This serialization of the BG workload and amplifies even more the blocking
+ time of the main thread.
+
+[AbstractQueuedSynchronizer]: https://cs.android.com/android/platform/superproject/main/+/main:libcore/ojluni/src/main/java/java/util/concurrent/locks/AbstractQueuedSynchronizer.java;drc=61197364367c9e404c7da6900658f1b16c42d0da;l=670
 
 
 ## Appendix: final trace config used
