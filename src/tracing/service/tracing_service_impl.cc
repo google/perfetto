@@ -939,13 +939,16 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   if (cfg.has_priority_boost()) {
     auto sched_policy = CreateSchedPolicyFromConfig(cfg.priority_boost());
     if (!sched_policy.ok()) {
-      // TODO(ktimofeev): call MaybeLogUploadEvent
+      MaybeLogUploadEvent(
+          cfg, uuid,
+          PerfettoStatsdAtom::kTracedEnablePriorityBoostInvalidConfig);
       return PERFETTO_SVC_ERR("Invalid priority boost config: %s",
                               sched_policy.status().c_message());
     }
     auto boost = base::ScopedSchedBoost::Boost(sched_policy.value());
     if (!boost.ok()) {
-      // TODO(ktimofeev): call MaybeLogUploadEvent
+      MaybeLogUploadEvent(
+          cfg, uuid, PerfettoStatsdAtom::kTracedEnablePriorityBoostOtherError);
       return PERFETTO_SVC_ERR("Failed to boost priority: %s",
                               boost.status().c_message());
     }
