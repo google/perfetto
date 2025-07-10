@@ -33,7 +33,6 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_processor/dataframe/specs.h"
-#include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"

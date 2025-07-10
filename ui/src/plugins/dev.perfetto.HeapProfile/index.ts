@@ -40,10 +40,10 @@ export default class implements PerfettoPlugin {
   }
 
   private async createHeapProfileTable(trace: Trace) {
-    await createPerfettoTable(
-      trace.engine,
-      EVENT_TABLE_NAME,
-      `
+    await createPerfettoTable({
+      engine: trace.engine,
+      name: EVENT_TABLE_NAME,
+      as: `
         SELECT
           MIN(id) as id,
           graph_sample_ts AS ts,
@@ -66,7 +66,7 @@ export default class implements PerfettoPlugin {
         FROM heap_profile_allocation
         GROUP BY ts, upid
       `,
-    );
+    });
   }
 
   private async addProcessTracks(trace: Trace) {

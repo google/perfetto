@@ -32,8 +32,6 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/dataframe.h"
-#include "src/trace_processor/db/runtime_table.h"
-#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_module.h"
 #include "src/trace_processor/perfetto_sql/engine/dataframe_shared_storage.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
@@ -46,7 +44,6 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_window_function.h"
-#include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/module_state_manager.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
@@ -70,11 +67,6 @@ class PerfettoSqlEngine {
     SqliteEngine::PreparedStatement stmt;
     ExecutionStats stats;
   };
-  struct LegacyStaticTable {
-    Table* table;
-    std::string name;
-    Table::Schema schema;
-  };
   struct UnfinalizedStaticTable {
     dataframe::Dataframe* dataframe;
     std::string name;
@@ -89,7 +81,6 @@ class PerfettoSqlEngine {
 
   // Initializes the static tables and functions in the engine.
   base::Status InitializeStaticTablesAndFunctions(
-      const std::vector<LegacyStaticTable>& legacy_tables,
       const std::vector<UnfinalizedStaticTable>& unfinalized_tables,
       std::vector<FinalizedStaticTable> finalized_tables,
       std::vector<std::unique_ptr<StaticTableFunction>> functions);
@@ -297,14 +288,6 @@ class PerfettoSqlEngine {
            runtime_function_count_ + macros_.size();
   }
 
-  // Find table (Static or Runtime) registered with engine with provided name.
-  const Table* GetTableOrNull(const std::string& name) const {
-    if (const auto* r = GetRuntimeTableOrNull(name); r) {
-      return r;
-    }
-    return GetStaticTableOrNull(name);
-  }
-
   // Find dataframe registered with engine with provided name.
   const dataframe::Dataframe* GetDataframeOrNull(const std::string& name) const;
 
@@ -314,9 +297,6 @@ class PerfettoSqlEngine {
                    dataframe::Dataframe*>;
   void RegisterStaticTable(UnfinalizedOrFinalizedStaticTable,
                            const std::string&);
-  void RegisterStaticTableUsingTable(Table* table,
-                                     const std::string& name,
-                                     Table::Schema schema);
   void RegisterStaticTableFunction(std::unique_ptr<StaticTableFunction> fn);
 
   base::Status ExecuteCreateFunction(const PerfettoSqlParser::CreateFunction&);
@@ -336,15 +316,7 @@ class PerfettoSqlEngine {
 
   base::Status DropIndexBeforeCreate(const PerfettoSqlParser::CreateIndex&);
 
-  static base::Status ExecuteCreateIndexUsingTable(
-      const PerfettoSqlParser::CreateIndex&,
-      Table&);
-
   base::Status ExecuteDropIndex(const PerfettoSqlParser::DropIndex&);
-
-  static base::Status ExecuteDropIndexUsingTable(
-      const PerfettoSqlParser::DropIndex&,
-      Table&);
 
   base::Status ExecuteCreateTableUsingRuntimeTable(
       const PerfettoSqlParser::CreateTable& create_table,
@@ -359,17 +331,6 @@ class PerfettoSqlEngine {
     // views.
     kValidateOnly
   };
-  // |effective_schema| should have been normalised and its column order
-  // should match |column_names|.
-  base::StatusOr<std::unique_ptr<RuntimeTable>>
-  CreateTableUsingRuntimeTableImpl(
-      const char* tag,
-      const std::string& name,
-      SqliteEngine::PreparedStatement source,
-      const std::vector<std::string>& column_names,
-      const std::vector<sql_argument::ArgumentDefinition>& effective_schema,
-      CreateTableType type);
-
   template <typename Function>
   base::Status RegisterFunctionWithSqlite(
       const char* name,
@@ -405,25 +366,6 @@ class PerfettoSqlEngine {
   // transactions in SQLite.
   void OnRollback();
 
-  Table* GetTableOrNull(const std::string& name) {
-    if (auto* maybe_runtime = GetRuntimeTableOrNull(name); maybe_runtime) {
-      return maybe_runtime;
-    }
-    return GetStaticTableOrNull(name);
-  }
-
-  // Find RuntimeTable registered with engine with provided name.
-  RuntimeTable* GetRuntimeTableOrNull(const std::string&);
-
-  // Find static table registered with engine with provided name.
-  Table* GetStaticTableOrNull(const std::string&);
-
-  // Find RuntimeTable registered with engine with provided name.
-  const RuntimeTable* GetRuntimeTableOrNull(const std::string&) const;
-
-  // Find static table registered with engine with provided name.
-  const Table* GetStaticTableOrNull(const std::string&) const;
-
   StringPool* pool_ = nullptr;
 
   // Storage for shared Dataframe objects.
@@ -450,8 +392,6 @@ class PerfettoSqlEngine {
   std::vector<sqlite::ModuleStateManagerBase*> virtual_module_state_managers_;
 
   RuntimeTableFunctionModule::Context* runtime_table_fn_context_ = nullptr;
-  DbSqliteModule::Context* runtime_table_context_ = nullptr;
-  DbSqliteModule::Context* static_table_context_ = nullptr;
   StaticTableFunctionModule::Context* static_table_fn_context_ = nullptr;
   DataframeModule::Context* dataframe_context_ = nullptr;
   base::FlatHashMap<std::string, sql_modules::RegisteredPackage> packages_;

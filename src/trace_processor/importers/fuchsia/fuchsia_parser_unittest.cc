@@ -132,7 +132,8 @@ class MockProcessTracker : public ProcessTracker {
 class MockBoundInserter : public ArgsTracker::BoundInserter {
  public:
   MockBoundInserter()
-      : ArgsTracker::BoundInserter(&tracker_, nullptr, 0u), tracker_(nullptr) {
+      : ArgsTracker::BoundInserter(&tracker_, nullptr, 0u, 0u),
+        tracker_(nullptr) {
     ON_CALL(*this, AddArg(_, _, _, _)).WillByDefault(ReturnRef(*this));
   }
 
