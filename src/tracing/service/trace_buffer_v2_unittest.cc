@@ -122,42 +122,9 @@ class TraceBufferV2Test : public testing::Test {
     }
   }
 
-  // bool IteratorSeqEq(ProducerID p,
-  //                    WriterID w,
-  //                    std::initializer_list<ChunkID> chunk_ids) {
-  //   std::stringstream expected_seq;
-  //   for (const auto& c : chunk_ids)
-  //     expected_seq << "{" << p << "," << w << "," << c << "},";
-
-  //   std::stringstream actual_seq;
-  //   for (auto it = GetReadIterForSequence(p, w); it.is_valid();
-  //   it.MoveNext()) {
-  //     actual_seq << "{" << it.producer_id() << "," << it.writer_id() << ","
-  //                << it.chunk_id() << "},";
-  //   }
-  //   std::string expected_seq_str = expected_seq.str();
-  //   std::string actual_seq_str = actual_seq.str();
-  //   EXPECT_EQ(expected_seq_str, actual_seq_str);
-  //   return expected_seq_str == actual_seq_str;
-  // }
-
-  // SequenceIterator GetReadIterForSequence(ProducerID p, WriterID w) {
-  //   TraceBufferV2::ChunkMeta::Key key(p, w, 0);
-  //   return trace_buffer_->GetReadIterForSequence(
-  //       trace_buffer_->index_.lower_bound(key));
-  // }
-
   void SuppressClientDchecksForTesting() {
     trace_buffer_->suppress_client_dchecks_for_testing_ = true;
   }
-
-  // std::vector<ChunkMetaKey> GetIndex() {
-  //   std::vector<ChunkMetaKey> keys;
-  //   keys.reserve(trace_buffer_->index_.size());
-  //   for (const auto& it : trace_buffer_->index_)
-  //     keys.push_back(it.first);
-  //   return keys;
-  // }
 
   uint8_t* GetBufData(const TraceBufferV2& buf) { return buf.begin(); }
   TraceBufferV2* trace_buffer() { return trace_buffer_.get(); }
@@ -1108,8 +1075,7 @@ TEST_F(TraceBufferV2Test, Malicious_VarintHeaderTooBig) {
 
   // Forge a packet which has a varint header that is just off by one.
   CreateChunk(ProducerID(2), WriterID(1), ChunkID(0))
-      .AddPacket({0x16, '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a',
-      'b',
+      .AddPacket({0x16, '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b',
                   'c', 'd', 'e', 'f'})
       .CopyIntoTraceBuffer();
 
@@ -1124,8 +1090,8 @@ TEST_F(TraceBufferV2Test, Malicious_VarintHeaderTooBig) {
   chunk.back() = 0x7f;
   trace_buffer()->CopyChunkUntrusted(
       ProducerID(4), ClientIdentity(uid_t(0), pid_t(0)), WriterID(1),
-      ChunkID(1), 1 /* num packets */, 0 /* flags*/, true /* chunk_complete
-      */, chunk.data(), chunk.size());
+      ChunkID(1), 1 /* num packets */, 0 /* flags*/, true /* chunk_complete*/,
+      chunk.data(), chunk.size());
 
   // Add a valid chunk.
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(1))
@@ -1462,15 +1428,15 @@ TEST_F(TraceBufferV2Test, Override_ReCommitAfterFullRead) {
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(20, 'a')
       .AddPacket(30, 'b')
+      .AddPacket(5, '_')  // The last frag of an incomplete chunk is ignored.
       .PadTo(512)
-      .CopyIntoTraceBuffer();
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
   trace_buffer()->BeginRead();
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'a')));
   ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'b')));
 
   // Overriding a complete packet here would trigger a DCHECK because the packet
   // was already marked as complete.
-  SuppressClientDchecksForTesting();
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
       .AddPacket(20, 'a')
       .AddPacket(30, 'b')

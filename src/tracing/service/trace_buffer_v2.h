@@ -54,15 +54,14 @@ namespace internal {
 struct TBChunk {
   static constexpr size_t kMaxSize = std::numeric_limits<uint16_t>::max();
 
-  static uint16_t Checksum(size_t off, size_t size) {
-    size_t mixed = off ^ ((off >> 16) | (size << 16));
-    return static_cast<uint16_t>((mixed >> 16) ^ (mixed & 0xFFFF));
+  static uint8_t Checksum(size_t off, size_t size) {
+    return ((off >> 24) ^ (off >> 16) ^ (off >> 8) ^ off ^ (size >> 8) ^ size) &
+           0xFF;
   }
 
-  explicit TBChunk(size_t off, size_t payload_size_)
-      : payload_size(static_cast<uint16_t>(payload_size_)),
-        checksum(Checksum(off, payload_size_)) {
-    PERFETTO_DCHECK(payload_size_ <= kMaxSize);
+  explicit TBChunk(size_t off, size_t size_)
+      : size(static_cast<uint16_t>(size_)), checksum(Checksum(off, size)) {
+    PERFETTO_DCHECK(size_ <= kMaxSize);
   }
 
   // The ChunkID, as specified by the TraceWriter in the original SMB chunk.
@@ -72,15 +71,23 @@ struct TBChunk {
   // look up the corresponding SequenceState from TraceBuffer.sequences_.
   ProducerAndWriterID pri_wri_id = 0;
 
-  // Size of the payload, excluding the TBCHunk header itself, and without
+  // Size of the chunk, excluding the TBCHunk header itself, and without
   // accounting for any alignment. This doesn't change throughout the lifecycle
   // of a chunk.
+  uint16_t size = 0;
+
+  // The size of the valid fragments payload. This is typically == size, with
+  // the exception of incomplete chunks committed while scraping.
+  // The payload of incomplete chunks can increase (up to the original chunk
+  // size). Wheh we scrape we set size = SMB chunk size, and
+  // payload_size = all_frag_size.
   uint16_t payload_size = 0;
 
-  // The size of "unconsumed" payload. This starts at payload_size when a chunk
-  // is created (unless it's a zero padding chunk) and goes down to 0 as we
-  // read/erase chunks. Payload is consumed always in FIFO order, so the offset
-  // of the next unread fragment is (payload_size - payload_avail).
+  // The number of payload bytes unconsumed. This starts at payload_size and
+  // shrinks until it reaches 0 as we consume fragments.
+  // It is always <= size and <= payload_size.
+  // Effectively (payload_size - payload-avail) points to the the next
+  // unconsumed fragment header (the varint with the size).
   uint16_t payload_avail = 0;
 
   // These are == the SharedMemoryABI's chunk flags, with the addition of
@@ -88,8 +95,8 @@ struct TBChunk {
   uint8_t flags = 0;
 
   // This is used only for DCHECKS to verify the integrity of the chunk.
-  // This is a hash of the offset in the buffer and the payload_size.
-  uint16_t checksum = 0;
+  // This is a hash of the offset in the buffer and the size.
+  uint8_t checksum = 0;
 
   // Returns the offset to the next unread fragment in the chunk. Note that this
   // points to the next fragment header (the varint with the size) NOT payload.
@@ -98,10 +105,10 @@ struct TBChunk {
     return payload_size - payload_avail;
   }
 
-  static size_t OuterSize(size_t payload) {
-    return base::AlignUp<alignof(TBChunk)>(sizeof(TBChunk) + payload);
+  static size_t OuterSize(size_t sz) {
+    return base::AlignUp<alignof(TBChunk)>(sizeof(TBChunk) + sz);
   }
-  size_t outer_size() { return OuterSize(payload_size); }
+  size_t outer_size() { return OuterSize(size); }
 
   bool is_padding() const { return pri_wri_id == 0; }
 
@@ -111,9 +118,7 @@ struct TBChunk {
 
   uint8_t* fragments_end() { return fragments_begin() + payload_size; }
 
-  bool IsChecksumValid(size_t off) {
-    return Checksum(off, payload_size) == checksum;
-  }
+  bool IsChecksumValid(size_t off) { return Checksum(off, size) == checksum; }
 };
 
 // Holds the state for each sequence that has TBCHunk(s) in the buffer.
@@ -342,8 +347,7 @@ class TraceBufferV2 {
 
   bool ReadNextTracePacket(TracePacket*,
                            PacketSequenceProperties* sequence_properties,
-                           bool* previous_packet_on_sequence_dropped,
-                           bool force_erase = false);
+                           bool* previous_packet_on_sequence_dropped);
 
   bool TryPatchChunkContents(ProducerID,
                              WriterID,
@@ -380,6 +384,14 @@ class TraceBufferV2 {
   TBChunk* CreateTBChunk(size_t off, size_t payload_size);
   bool DeleteNextChunksFor(size_t bytes_to_clear);
   void ConsumeFragment(Frag*);
+
+  enum ReadPolicy { kStandardRead, kForceErase, kNoOverwrite };
+  enum ReadRes { kFail = 0, kOk, kWouldOverwrite };
+  ReadRes ReadNextTracePacketInternal(
+      TracePacket*,
+      PacketSequenceProperties* sequence_properties,
+      bool* previous_packet_on_sequence_dropped,
+      ReadPolicy);
 
   enum class FragReassemblyResult { kSuccess = 0, kNotEnoughData, kDataLoss };
   FragReassemblyResult ReassembleFragmentedPacket(TracePacket* out_packet,
@@ -418,7 +430,7 @@ class TraceBufferV2 {
     return static_cast<size_t>(addr - buf_start);
   }
 
-  void DiscardWrite() {}  // TODO DNS
+  void DiscardWrite();
 
   uint8_t* begin() const { return reinterpret_cast<uint8_t*>(data_.Get()); }
   uint8_t* end() const { return begin() + size_; }
@@ -448,6 +460,10 @@ class TraceBufferV2 {
 
   // A generation counter incremented every time BeginRead() is called.
   uint64_t read_generation_ = 0;
+
+  // Only used when |overwrite_policy_ == kDiscard|. This is set the first time
+  // a write fails because it would overwrite unread chunks.
+  bool discard_writes_ = false;
 
   // When true disable some DCHECKs that have been put in place to detect
   // bugs in the producers. This is for tests that feed malicious inputs and
