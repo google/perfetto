@@ -199,6 +199,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     return m(DataGrid, {
       // If filters are defined by no onFilterChanged handler, the grid operates
       // in filter read only mode.
+      fillHeight: true,
       filters: [],
       columns: resp.columns.map((c) => ({name: c})),
       data: dataSource,
