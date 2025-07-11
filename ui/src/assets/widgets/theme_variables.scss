@@ -132,6 +132,7 @@
   --pf-notes-panel-color: #3c4b5d;
   --pf-notes-panel-input-border: #dcdcdc;
   --pf-notes-panel-input-shadow: 1px 1px 1px rgba(23, 32, 44, 0.3);
+  --pf-notes-panel-note-text-background: rgba(255, 255, 255, 0.8);
 
   /* Android Logs Panel */
   --pf-android-log-d: hsl(122, 20%, 40%);
@@ -195,6 +196,12 @@
   --pf-track-title-popup-shadow: 1px 1px 2px 2px var(--pf-track-border-color);
   --pf-track-title-popup-background: #fff;
   --pf-track-title-popup-color: hsl(213, 22%, 30%);
+  --pf-track-loading-background: #eee;
+  --pf-track-loading-color: #666;
+  --pf-track-legend-background: rgba(255, 255, 255, 0.6);
+  --pf-track-legend-color: #666;
+  --pf-track-histogram-neutral-color: rgba(240, 240, 240, 1);
+  --pf-track-hatch-pattern-color: rgba(255, 255, 255, 0.3);
   
   /* Tool-tips */
   --pf-tooltip-background: white;
@@ -210,7 +217,9 @@
   /* Viewer Page */
   --pf-viewer-background: white;
   --pf-viewer-header-shadow: 1px 3px 15px rgba(23, 32, 44, 0.3);
-  
+  --pf-viewer-secondary-color: #666;
+  --pf-viewer-dividing-line-color: #999;
+
   /* Trace Info Page */
   --pf-traceinfo-errors-background: #f3e5f5;
   --pf-traceinfo-header-color: #333;

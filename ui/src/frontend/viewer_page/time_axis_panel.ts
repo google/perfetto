@@ -20,7 +20,7 @@ import {Time, time, formatDate} from '../../base/time';
 import {TimeScale} from '../../base/time_scale';
 import {TimestampFormat} from '../../public/timeline';
 import {Trace} from '../../public/trace';
-import {TRACK_SHELL_WIDTH} from '../css_constants';
+import {DIVIDER_COLOR, FONT_NAME, TRACK_SHELL_WIDTH} from '../css_constants';
 import {
   generateTicks,
   getMaxMajorTicks,
@@ -39,9 +39,9 @@ export class TimeAxisPanel {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
-    ctx.fillStyle = '#999';
+    ctx.fillStyle = DIVIDER_COLOR;
     ctx.textAlign = 'left';
-    ctx.font = '11px Roboto Condensed';
+    ctx.font = `11px ${FONT_NAME}`;
 
     this.renderOffsetTimestamp(ctx);
 
@@ -205,7 +205,7 @@ function renderRawTimestamp(
   y: number,
   minWidth: number,
 ) {
-  ctx.font = '11px Roboto Condensed';
+  ctx.font = `11px ${FONT_NAME}`;
   ctx.fillText(time, x, y, minWidth);
   return ctx.measureText(time).width;
 }
@@ -222,7 +222,7 @@ function renderTimecode(
   minWidth: number,
 ): number {
   const timecode = Time.toTimecode(time);
-  ctx.font = '11px Roboto Condensed';
+  ctx.font = `11px ${FONT_NAME}`;
 
   const {dhhmmss} = timecode;
   const thinSpace = '\u2009';
@@ -230,7 +230,7 @@ function renderTimecode(
   ctx.fillText(dhhmmss, x, y, minWidth);
   const {width: firstRowWidth} = ctx.measureText(subsec);
 
-  ctx.font = '10.5px Roboto Condensed';
+  ctx.font = `10.5px ${FONT_NAME}`;
   ctx.fillText(subsec, x, y + 10, minWidth);
   const {width: secondRowWidth} = ctx.measureText(subsec);
 

@@ -32,6 +32,12 @@ import {
 } from '../../trace_processor/sql_utils';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {Trace} from '../../public/trace';
+import {
+  FONT_NAME,
+  TRACK_HISTOGRAM_NEUTRAL_FILL_COLOR,
+  TRACK_LEGEND_BACKGROUND,
+  TRACK_LEGEND_FOREGROUND,
+} from '../../frontend/css_constants';
 
 export interface Data extends TrackData {
   timestamps: BigInt64Array;
@@ -341,7 +347,7 @@ export class CpuFreqTrack implements TrackRenderer {
     }
 
     // Draw CPU idle rectangles that overlay the CPU freq graph.
-    ctx.fillStyle = `rgba(240, 240, 240, 1)`;
+    ctx.fillStyle = TRACK_HISTOGRAM_NEUTRAL_FILL_COLOR;
     {
       for (let i = startIdx; i < endIdx; i++) {
         if (data.lastIdleValues[i] < 0) {
@@ -366,7 +372,7 @@ export class CpuFreqTrack implements TrackRenderer {
       }
     }
 
-    ctx.font = '10px Roboto Condensed';
+    ctx.font = `10px ${FONT_NAME}`;
 
     if (this.hoveredValue !== undefined && this.hoveredTs !== undefined) {
       ctx.fillStyle = color.setHSL({s: 45, l: 75}).cssString;
@@ -402,9 +408,9 @@ export class CpuFreqTrack implements TrackRenderer {
 
     // Write the Y scale on the top left corner.
     ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.fillStyle = TRACK_LEGEND_BACKGROUND;
     ctx.fillRect(0, 0, 42, 18);
-    ctx.fillStyle = '#666';
+    ctx.fillStyle = TRACK_LEGEND_FOREGROUND;
     ctx.textAlign = 'left';
     ctx.fillText(`${yLabel}`, 4, 14);
 
