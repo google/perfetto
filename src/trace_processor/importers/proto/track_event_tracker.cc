@@ -151,43 +151,48 @@ void TrackEventTracker::ReserveDescriptorTrack(
 }
 
 std::optional<TrackEventTracker::ResolvedDescriptorTrack>
+TrackEventTracker::GetDescriptorTrack(
+    uint64_t uuid,
+    StringId event_name,
+    std::optional<uint32_t> packet_sequence_id) {
+  std::optional<TrackEventTracker::ResolvedDescriptorTrack> resolved;
+  if (auto* ptr = resolved_descriptor_tracks_.Find(uuid); ptr) {
+    resolved = *ptr;
+  } else {
+    resolved = GetDescriptorTrackImpl(uuid, event_name, packet_sequence_id);
+  }
+  if (!resolved) {
+    return std::nullopt;
+  }
+  auto* tracks = context_->storage->mutable_track_table();
+  auto rr = *tracks->FindById(resolved->track_id());
+  if (PERFETTO_LIKELY(!rr.name().is_null())) {
+    return resolved;
+  }
+  bool is_root_thread_process =
+      resolved->is_root() &&
+      (resolved->scope() == ResolvedDescriptorTrack::Scope::kThread ||
+       resolved->scope() == ResolvedDescriptorTrack::Scope::kProcess);
+  if (PERFETTO_LIKELY(is_root_thread_process || resolved->is_counter())) {
+    return resolved;
+  }
+  if (PERFETTO_UNLIKELY(event_name.is_null())) {
+    return resolved;
+  }
+  if (resolved->scope() == ResolvedDescriptorTrack::Scope::kProcess) {
+    rr.set_name(
+        context_->process_track_translation_table->TranslateName(event_name));
+  } else {
+    rr.set_name(event_name);
+  }
+  return resolved;
+}
+
+std::optional<TrackEventTracker::ResolvedDescriptorTrack>
 TrackEventTracker::GetDescriptorTrackImpl(
     uint64_t uuid,
     StringId event_name,
     std::optional<uint32_t> packet_sequence_id) {
-  auto* resolved_ptr = resolved_descriptor_tracks_.Find(uuid);
-  if (resolved_ptr) {
-    auto* tracks = context_->storage->mutable_track_table();
-    auto rr = *tracks->FindById(resolved_ptr->track_id());
-    if (PERFETTO_LIKELY(!rr.name().is_null())) {
-      return *resolved_ptr;
-    }
-    if (PERFETTO_UNLIKELY(event_name.is_null())) {
-      return *resolved_ptr;
-    }
-
-    // Update the name to match the first non-null and valid event name. We need
-    // this because TrackEventParser calls |GetDescriptorTrack| with
-    // kNullStringId which means we cannot just have the code below for setting
-    // the name on the first try.
-    DescriptorTrackReservation* reservation_ptr =
-        reserved_descriptor_tracks_.Find(uuid);
-    PERFETTO_CHECK(reservation_ptr);
-    bool is_root_thread_process_or_counter = reservation_ptr->pid ||
-                                             reservation_ptr->tid ||
-                                             reservation_ptr->is_counter;
-    if (PERFETTO_UNLIKELY(is_root_thread_process_or_counter)) {
-      return *resolved_ptr;
-    }
-    if (resolved_ptr->scope() == ResolvedDescriptorTrack::Scope::kProcess) {
-      rr.set_name(
-          context_->process_track_translation_table->TranslateName(event_name));
-    } else {
-      rr.set_name(event_name);
-    }
-    return *resolved_ptr;
-  }
-
   DescriptorTrackReservation* reservation_ptr =
       reserved_descriptor_tracks_.Find(uuid);
   if (!reservation_ptr) {
@@ -227,7 +232,7 @@ TrackEventTracker::GetDescriptorTrackImpl(
         context_->process_tracker->ResolveNamespacedTid(*trusted_pid,
                                                         *reservation.tid);
     if (resolved_tid) {
-      reservation.tid = *resolved_tid;
+      reservation.tid = resolved_tid;
     }
   }
   if (trusted_pid && reservation.pid) {
@@ -235,15 +240,8 @@ TrackEventTracker::GetDescriptorTrackImpl(
         context_->process_tracker->ResolveNamespacedTid(*trusted_pid,
                                                         *reservation.pid);
     if (resolved_pid) {
-      reservation.pid = *resolved_pid;
+      reservation.pid = resolved_pid;
     }
-  }
-
-  bool is_root_thread_process_or_counter = reservation_ptr->pid ||
-                                           reservation_ptr->tid ||
-                                           reservation_ptr->is_counter;
-  if (reservation.name.is_null() && !is_root_thread_process_or_counter) {
-    reservation.name = event_name;
   }
 
   // If the reservation does not have a name specified, name it the same
@@ -274,7 +272,7 @@ TrackEventTracker::ResolveDescriptorTrack(
   // Try to resolve any parent tracks recursively, too.
   std::optional<ResolvedDescriptorTrack> parent_resolved_track;
   if (reservation.parent_uuid != kDefaultDescriptorTrackUuid) {
-    parent_resolved_track = GetDescriptorTrackImpl(
+    parent_resolved_track = GetDescriptorTrack(
         reservation.parent_uuid, kNullStringId, packet_sequence_id);
   }
 
@@ -305,22 +303,26 @@ TrackEventTracker::ResolveDescriptorTrack(
     }
 
     TrackId id;
+    bool is_shared;
     if (reservation.is_counter) {
       id = context_->track_tracker->InternTrack(
           kThreadCounterTrackBlueprint,
           tracks::Dimensions(utid, static_cast<int64_t>(uuid)),
           tracks::DynamicName(reservation.name), args_fn_root,
           tracks::DynamicUnit(reservation.counter_details->unit));
+      is_shared = false;
     } else if (reservation.use_separate_track) {
       id = context_->track_tracker->InternTrack(
           kThreadTrackBlueprint,
           tracks::Dimensions(utid, static_cast<int64_t>(uuid)),
           tracks::DynamicName(reservation.name), args_fn_root);
+      is_shared = false;
     } else {
       id = context_->track_tracker->InternThreadTrack(utid);
+      is_shared = true;
     }
     return ResolvedDescriptorTrack::Thread(id, utid, reservation.is_counter,
-                                           true /* is_root*/);
+                                           true /* is_root*/, is_shared);
   }
 
   if (reservation.pid) {
@@ -401,7 +403,7 @@ TrackEventTracker::ResolveDescriptorTrack(
         }
         return ResolvedDescriptorTrack::Thread(
             id, parent_resolved_track->utid(), reservation.is_counter,
-            false /* is_root*/);
+            false /* is_root */, false /* is_shared */);
       }
       case ResolvedDescriptorTrack::Scope::kProcess: {
         // If parent is a process track, create another process-associated
@@ -594,13 +596,15 @@ TrackEventTracker::ResolvedDescriptorTrack
 TrackEventTracker::ResolvedDescriptorTrack::Thread(TrackId track_id,
                                                    UniqueTid utid,
                                                    bool is_counter,
-                                                   bool is_root) {
+                                                   bool is_root,
+                                                   bool is_shared) {
   ResolvedDescriptorTrack track;
   track.track_id_ = track_id;
   track.scope_ = Scope::kThread;
   track.is_counter_ = is_counter;
   track.utid_ = utid;
   track.is_root_ = is_root;
+  track.is_shared_ = is_shared;
   return track;
 }
 

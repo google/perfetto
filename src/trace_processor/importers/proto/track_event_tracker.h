@@ -102,6 +102,86 @@ class TrackEventTracker {
                       other.sibling_merge_behavior, other.sibling_merge_key);
     }
   };
+
+  // A descriptor track which has been resolved to a concrete track in the
+  // trace.
+  class ResolvedDescriptorTrack {
+   public:
+    // The scope of a descriptor track.
+    enum class Scope {
+      // This track is associated with a thread.
+      kThread,
+      // This track is associated with a process.
+      kProcess,
+      // This track is global.
+      kGlobal,
+    };
+
+    // Creates a process-scoped resolved descriptor track.
+    static ResolvedDescriptorTrack Process(TrackId,
+                                           UniquePid upid,
+                                           bool is_counter,
+                                           bool is_root);
+    // Creates a thread-scoped resolved descriptor track.
+    static ResolvedDescriptorTrack Thread(TrackId,
+                                          UniqueTid utid,
+                                          bool is_counter,
+                                          bool is_root,
+                                          bool is_shared);
+
+    // Creates a global-scoped resolved descriptor track.
+    static ResolvedDescriptorTrack Global(TrackId, bool is_counter);
+
+    // The track id of the resolved track.
+    TrackId track_id() const { return track_id_; }
+
+    // The scope of the resolved track.
+    Scope scope() const { return scope_; }
+
+    // Whether the resolved track is a counter track.
+    bool is_counter() const { return is_counter_; }
+
+    // The UTID of the thread this track is associated with. Only valid when
+    // |scope| == |Scope::kThread|.
+    UniqueTid utid() const {
+      PERFETTO_DCHECK(scope() == Scope::kThread);
+      return utid_;
+    }
+
+    // The UPID of the process this track is associated with. Only valid when
+    // |scope| == |Scope::kProcess|.
+    UniquePid upid() const {
+      PERFETTO_DCHECK(scope() == Scope::kProcess);
+      return upid_;
+    }
+
+    // Whether this is a "shared" track with other non-track_event sources.
+    // Only valid when |scope| == |Scope::kThread|.
+    bool is_shared() const { return is_shared_; }
+
+    // Whether this is a "root" track in its scope.
+    // For example, a track for a given pid/tid is a root track but a track
+    // which has a parent track is not.
+    bool is_root() const { return is_root_; }
+
+   private:
+    friend class TrackEventTracker;
+
+    ResolvedDescriptorTrack() = default;
+
+    TrackId track_id_;
+    Scope scope_;
+    bool is_counter_;
+    bool is_root_;
+    bool is_shared_ = false;
+
+    // Only set when |scope| == |Scope::kThread|.
+    UniqueTid utid_;
+
+    // Only set when |scope| == |Scope::kProcess|.
+    UniquePid upid_;
+  };
+
   explicit TrackEventTracker(TraceProcessorContext*);
 
   // Associate a TrackDescriptor track identified by the given |uuid| with a
@@ -121,16 +201,10 @@ class TrackEventTracker {
   // the |uuid|. If the track is a child track and doesn't have a name yet,
   // updates the track's name to event_name. Returns std::nullopt if no track
   // for a descriptor with this |uuid| has been reserved.
-  std::optional<TrackId> GetDescriptorTrack(
+  std::optional<ResolvedDescriptorTrack> GetDescriptorTrack(
       uint64_t uuid,
-      StringId event_name = kNullStringId,
-      std::optional<uint32_t> packet_sequence_id = std::nullopt) {
-    auto res = GetDescriptorTrackImpl(uuid, event_name, packet_sequence_id);
-    if (!res) {
-      return std::nullopt;
-    }
-    return res->track_id();
-  }
+      StringId event_name,
+      std::optional<uint32_t> packet_sequence_id);
 
   // Converts the given counter value to an absolute value in the unit of the
   // counter, applying incremental delta encoding or unit multipliers as
@@ -151,50 +225,6 @@ class TrackEventTracker {
   }
 
  private:
-  class ResolvedDescriptorTrack {
-   public:
-    enum class Scope {
-      kThread,
-      kProcess,
-      kGlobal,
-    };
-
-    static ResolvedDescriptorTrack Process(TrackId,
-                                           UniquePid upid,
-                                           bool is_counter,
-                                           bool is_root);
-    static ResolvedDescriptorTrack Thread(TrackId,
-                                          UniqueTid utid,
-                                          bool is_counter,
-                                          bool is_root);
-    static ResolvedDescriptorTrack Global(TrackId, bool is_counter);
-
-    TrackId track_id() const { return track_id_; }
-    Scope scope() const { return scope_; }
-    bool is_counter() const { return is_counter_; }
-    UniqueTid utid() const {
-      PERFETTO_DCHECK(scope() == Scope::kThread);
-      return utid_;
-    }
-    UniquePid upid() const {
-      PERFETTO_DCHECK(scope() == Scope::kProcess);
-      return upid_;
-    }
-    bool is_root() const { return is_root_; }
-
-   private:
-    TrackId track_id_;
-    Scope scope_;
-    bool is_counter_;
-    bool is_root_;
-
-    // Only set when |scope| == |Scope::kThread|.
-    UniqueTid utid_;
-
-    // Only set when |scope| == |Scope::kProcess|.
-    UniquePid upid_;
-  };
-
   std::optional<ResolvedDescriptorTrack> GetDescriptorTrackImpl(
       uint64_t uuid,
       StringId event_name,

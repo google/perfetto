@@ -16388,7 +16388,7 @@ message TrackDescriptor {
   //
   // Note: if the parent is set to a track with `thread` or `process` fields
   // set, the track will *not* be nested under the parent in the UI and in the
-  // trace processor data model. Instead, the track will inherit the parent'
+  // trace processor data model. Instead, the track will inherit the parent's
   // thread/process association and will appear as a *sibling* of the parent.
   // This semantic exists for back-compat reasons as the UI used to work this
   // way for years and changing this leads to a lot of traces subtly breaking.
@@ -16396,8 +16396,15 @@ message TrackDescriptor {
   // the parent.
   optional uint64 parent_uuid = 5;
 
-  // Name of the track. Optional but *strongly recommended* to be specified in a
-  // `TrackDescriptor` emitted before any `TrackEvent`s on the same track.
+  // Name of the track.
+  //
+  // Optional but *strongly recommended* to be specified in a `TrackDescriptor`
+  // emitted before any `TrackEvent`s on the same track.
+  //
+  // Note: any name specified here will be *ignored* for the root thread scoped
+  // tracks when `disallow_merging_with_system_tracks` is not set, as in this
+  // case, the name of the track is shared by many different data sources and so
+  // is centrally controlled by trace processor.
   //
   // It's strongly recommended to only emit the name for a track uuid *once*. If
   // a descriptor *has* to be emitted multiple times (e.g. between different
@@ -16416,7 +16423,7 @@ message TrackDescriptor {
   //   * The *last* non-null name in the whole trace according to trace order
   //     will be used.
   //   * If no non-null name is present in the whole trace, the trace processor
-  //     will fall back to other sources to provide a name for the track (e.g.
+  //     may fall back to other sources to provide a name for the track (e.g.
   //     the first event name for slice tracks, the counter name for counter
   //     tracks). This is implementation defined and may change at any time.
   //
@@ -16432,7 +16439,7 @@ message TrackDescriptor {
   //     descriptor with the name was emitted before the first event on a
   //     descendant track (B).
   //   * If no non-null name is present before the event is processed, the trace
-  //     processor will fall back to other sources to provide a name for the
+  //     processor may fall back to other sources to provide a name for the
   //     track (e.g. the first event name for slice tracks, the counter name for
   //     counter tracks). This is implementation defined and may change at any
   //     time.
