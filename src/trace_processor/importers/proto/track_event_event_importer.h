@@ -317,21 +317,23 @@ class TrackEventEventImporter {
     //      TrackEvent types), or
     //   b) a default track.
     if (track_uuid_) {
-      auto opt_resolved = track_event_tracker_->GetDescriptorTrack(
+      auto interned = track_event_tracker_->InternDescriptorTrack(
           track_uuid_, name_id_, packet_sequence_id_);
-      if (!opt_resolved) {
+      if (!interned) {
         return base::ErrStatus(
             "track_event_parser: unable to find track matching UUID %" PRIu64,
             track_uuid_);
       }
-      track_id_ = opt_resolved->track_id();
-      switch (opt_resolved->scope()) {
+      track_id_ = *interned;
+      auto resolved = track_event_tracker_->ResolveDescriptorTrack(track_uuid_);
+      PERFETTO_DCHECK(resolved);
+      switch (resolved->scope()) {
         case TrackEventTracker::ResolvedDescriptorTrack::Scope::kThread:
-          utid_ = opt_resolved->utid();
+          utid_ = resolved->utid();
           upid_ = storage_->thread_table()[*utid_].upid();
           break;
         case TrackEventTracker::ResolvedDescriptorTrack::Scope::kProcess:
-          upid_ = opt_resolved->upid();
+          upid_ = resolved->upid();
           if (sequence_state_->pid_and_tid_valid()) {
             auto pid = static_cast<uint32_t>(sequence_state_->pid());
             auto tid = static_cast<uint32_t>(sequence_state_->tid());
@@ -387,10 +389,10 @@ class TrackEventEventImporter {
         upid_ = storage_->thread_table()[*utid_].upid();
         track_id_ = track_tracker->InternThreadTrack(*utid_);
       } else {
-        auto opt_track = track_event_tracker_->GetDescriptorTrack(
+        auto opt_track = track_event_tracker_->InternDescriptorTrack(
             TrackEventTracker::kDefaultDescriptorTrackUuid, kNullStringId,
             std::nullopt);
-        track_id_ = opt_track->track_id();
+        track_id_ = *opt_track;
       }
     }
 
@@ -605,9 +607,9 @@ class TrackEventEventImporter {
     PERFETTO_DCHECK(track_uuid_it);
     PERFETTO_DCHECK(index < TrackEventData::kMaxNumExtraCounters);
 
-    auto opt_resolved = track_event_tracker_->GetDescriptorTrack(
+    auto opt_resolved = track_event_tracker_->InternDescriptorTrack(
         *track_uuid_it, kNullStringId, packet_sequence_id_);
-    TrackId track_id = opt_resolved->track_id();
+    TrackId track_id = *opt_resolved;
 
     double value = event_data_->extra_counter_values[index];
     context_->event_tracker->PushCounter(ts_, value, track_id);

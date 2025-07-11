@@ -118,22 +118,16 @@ class TrackEventTracker {
     };
 
     // Creates a process-scoped resolved descriptor track.
-    static ResolvedDescriptorTrack Process(TrackId,
-                                           UniquePid upid,
+    static ResolvedDescriptorTrack Process(UniquePid upid,
                                            bool is_counter,
                                            bool is_root);
     // Creates a thread-scoped resolved descriptor track.
-    static ResolvedDescriptorTrack Thread(TrackId,
-                                          UniqueTid utid,
+    static ResolvedDescriptorTrack Thread(UniqueTid utid,
                                           bool is_counter,
-                                          bool is_root,
-                                          bool is_shared);
+                                          bool is_root);
 
     // Creates a global-scoped resolved descriptor track.
-    static ResolvedDescriptorTrack Global(TrackId, bool is_counter);
-
-    // The track id of the resolved track.
-    TrackId track_id() const { return track_id_; }
+    static ResolvedDescriptorTrack Global(bool is_counter);
 
     // The scope of the resolved track.
     Scope scope() const { return scope_; }
@@ -155,10 +149,6 @@ class TrackEventTracker {
       return upid_;
     }
 
-    // Whether this is a "shared" track with other non-track_event sources.
-    // Only valid when |scope| == |Scope::kThread|.
-    bool is_shared() const { return is_shared_; }
-
     // Whether this is a "root" track in its scope.
     // For example, a track for a given pid/tid is a root track but a track
     // which has a parent track is not.
@@ -169,11 +159,9 @@ class TrackEventTracker {
 
     ResolvedDescriptorTrack() = default;
 
-    TrackId track_id_;
     Scope scope_;
     bool is_counter_;
     bool is_root_;
-    bool is_shared_ = false;
 
     // Only set when |scope| == |Scope::kThread|.
     UniqueTid utid_;
@@ -188,20 +176,19 @@ class TrackEventTracker {
   // given track description. This is called during tokenization. If a
   // reservation for the same |uuid| already exists, verifies that the present
   // reservation matches the new one.
-  //
-  // The track will be resolved to the track (see TrackTracker::InternTrack())
-  // upon the first call to GetDescriptorTrack() with the same |uuid|. At this
-  // time, |pid| will be resolved to a |upid| and |tid| to |utid|.
   void ReserveDescriptorTrack(uint64_t uuid, const DescriptorTrackReservation&);
 
-  // Returns the ID of the track for the TrackDescriptor with the given |uuid|.
-  // This is called during parsing. The first call to GetDescriptorTrack() for
-  // each |uuid| resolves and inserts the track (and its parent tracks,
-  // following the parent_uuid chain recursively) based on reservations made for
-  // the |uuid|. If the track is a child track and doesn't have a name yet,
-  // updates the track's name to event_name. Returns std::nullopt if no track
-  // for a descriptor with this |uuid| has been reserved.
-  std::optional<ResolvedDescriptorTrack> GetDescriptorTrack(
+  // Resolves a descriptor track UUID to a `ResolvedDescriptorTrack` object.
+  // This object contains information about the track's scope (global, process,
+  // or thread) and other properties, but it does not create a track in the
+  // `TrackTracker`. This should be called before `InternDescriptorTrack`.
+  std::optional<ResolvedDescriptorTrack> ResolveDescriptorTrack(uint64_t uuid);
+
+  // Interns a descriptor track, creating an actual track in the `TrackTracker`
+  // and returning its `TrackId`. It uses a cached resolution if available,
+  // otherwise it resolves the track first. If the track is a child track and
+  // doesn't have a name yet, updates the track's name to `event_name`.
+  std::optional<TrackId> InternDescriptorTrack(
       uint64_t uuid,
       StringId event_name,
       std::optional<uint32_t> packet_sequence_id);
@@ -225,14 +212,11 @@ class TrackEventTracker {
   }
 
  private:
-  std::optional<ResolvedDescriptorTrack> GetDescriptorTrackImpl(
-      uint64_t uuid,
-      StringId event_name,
-      std::optional<uint32_t> packet_sequence_id);
+  std::optional<ResolvedDescriptorTrack> ResolveDescriptorTrackImpl(
+      uint64_t uuid);
 
-  ResolvedDescriptorTrack ResolveDescriptorTrack(
+  std::optional<TrackId> InternDescriptorTrackImpl(
       uint64_t uuid,
-      const DescriptorTrackReservation& reservation,
       std::optional<uint32_t> packet_sequence_id);
 
   bool IsTrackHierarchyValid(uint64_t uuid);
@@ -247,6 +231,7 @@ class TrackEventTracker {
       reserved_descriptor_tracks_;
   base::FlatHashMap<uint64_t /* uuid */, ResolvedDescriptorTrack>
       resolved_descriptor_tracks_;
+  base::FlatHashMap<uint64_t /* uuid */, TrackId> interned_descriptor_tracks_;
 
   // Stores the descriptor uuid used for the primary process/thread track
   // for the given upid / utid. Used for pid/tid reuse detection.

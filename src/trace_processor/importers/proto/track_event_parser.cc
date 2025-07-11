@@ -279,7 +279,8 @@ void TrackEventParser::ParseTrackDescriptor(
 
   // Ensure that the track and its parents are resolved. This may start a new
   // process and/or thread (i.e. new upid/utid).
-  auto track = track_event_tracker_->GetDescriptorTrack(
+  // TODO(lalitm): switch this to GetDescriptorTrack in a followup CL.
+  auto track = track_event_tracker_->InternDescriptorTrack(
       decoder.uuid(), kNullStringId, packet_sequence_id);
   if (!track) {
     context_->storage->IncrementStats(stats::track_event_parser_errors);
