@@ -125,6 +125,18 @@ SELECT
   id
 FROM expected_frame_timeline_slice;
 
+-- Contains frames with missed SF or HWUI callbacks.
+CREATE PERFETTO TABLE _vsync_missed_callback AS
+SELECT
+  CAST(str_split(name, 'Callback#', 1) AS INTEGER) AS vsync,
+  max(name GLOB '*SF*') AS sf_callback_missed,
+  max(name GLOB '*HWUI*') AS hwui_callback_missed
+FROM slice
+WHERE
+  name GLOB '*FT#Missed*Callback*'
+GROUP BY
+  vsync;
+
 -- TODO(b/384322064) Match actual timeline slice with correct draw frame using layer name.
 -- All slices related to one frame. Aggregates `Choreographer#doFrame`,
 -- `actual_frame_timeline_slice` and `expected_frame_timeline_slice` slices.
