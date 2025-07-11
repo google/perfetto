@@ -44,8 +44,7 @@ import {
 import {AppImpl} from './app_impl';
 import {raf} from './raf_scheduler';
 import {TraceImpl} from './trace_impl';
-import {SerializedAppState} from './state_serialization_schema';
-import {TraceSource} from './trace_source';
+import {TraceSource} from '../public/trace_source';
 import {Router} from '../core/router';
 import {TraceInfoImpl} from './trace_info_impl';
 
@@ -162,15 +161,13 @@ async function loadTraceIntoEngine(
   engine: EngineBase,
 ): Promise<TraceImpl> {
   let traceStream: TraceStream | undefined;
-  let serializedAppState: SerializedAppState | undefined;
-  if (traceSource.type === 'FILE') {
+  if (traceSource.kind === 'FILE') {
     traceStream = new TraceFileStream(traceSource.file);
-  } else if (traceSource.type === 'ARRAY_BUFFER') {
+  } else if (traceSource.kind === 'ARRAY_BUFFER') {
     traceStream = new TraceBufferStream(traceSource.buffer);
-  } else if (traceSource.type === 'URL') {
+  } else if (traceSource.kind === 'URL') {
     traceStream = new TraceHttpStream(traceSource.url);
-    serializedAppState = traceSource.serializedAppState;
-  } else if (traceSource.type === 'HTTP_RPC') {
+  } else if (traceSource.kind === 'HTTP_RPC') {
     traceStream = undefined;
   } else {
     throw new Error(`Unknown source: ${JSON.stringify(traceSource)}`);
@@ -228,6 +225,7 @@ async function loadTraceIntoEngine(
 
   await defineMaxLayoutDepthSqlFunction(engine);
 
+  const serializedAppState = traceSource.serializedAppState;
   if (serializedAppState !== undefined) {
     deserializeAppStatePhase1(serializedAppState, trace);
   }
@@ -414,7 +412,7 @@ async function getTraceInfo(
 
   let traceTitle = '';
   let traceUrl = '';
-  switch (traceSource.type) {
+  switch (traceSource.kind) {
     case 'FILE':
       // Split on both \ and / (because C:\Windows\paths\are\like\this).
       traceTitle = traceSource.file.name.split(/[/\\]/).pop()!;
@@ -451,9 +449,9 @@ async function getTraceInfo(
   const cached = await cacheTrace(traceSource, uuid);
 
   const downloadable =
-    (traceSource.type === 'ARRAY_BUFFER' && !traceSource.localOnly) ||
-    traceSource.type === 'FILE' ||
-    traceSource.type === 'URL';
+    (traceSource.kind === 'ARRAY_BUFFER' && !traceSource.localOnly) ||
+    traceSource.kind === 'FILE' ||
+    traceSource.kind === 'URL';
 
   return {
     ...traceTime,

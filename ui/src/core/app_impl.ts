@@ -37,9 +37,8 @@ import {raf} from './raf_scheduler';
 import {Router} from './router';
 import {SettingsManagerImpl} from './settings_manager';
 import {SidebarManagerImpl} from './sidebar_manager';
-import {SerializedAppState} from './state_serialization_schema';
 import {TraceContext, TraceImpl} from './trace_impl';
-import {PostedTrace, TraceSource} from './trace_source';
+import {TraceSource} from '../public/trace_source';
 
 // The args that frontend/index.ts passes when calling AppImpl.initialize().
 // This is to deal with injections that would otherwise cause circular deps.
@@ -274,24 +273,8 @@ export class AppImpl implements App {
     };
   }
 
-  openTraceFromFile(file: File): void {
-    this.openTrace({type: 'FILE', file});
-  }
-
-  openTraceFromUrl(url: string, serializedAppState?: SerializedAppState) {
-    this.openTrace({type: 'URL', url, serializedAppState});
-  }
-
-  openTraceFromBuffer(postMessageArgs: PostedTrace): void {
-    this.openTrace({type: 'ARRAY_BUFFER', ...postMessageArgs});
-  }
-
-  openTraceFromHttpRpc(): void {
-    this.openTrace({type: 'HTTP_RPC'});
-  }
-
-  private async openTrace(src: TraceSource) {
-    if (src.type === 'ARRAY_BUFFER' && src.buffer instanceof Uint8Array) {
+  openTrace(src: TraceSource) {
+    if (src.kind === 'ARRAY_BUFFER' && src.buffer instanceof Uint8Array) {
       // Even though the type of `buffer` is ArrayBuffer, it's possible to
       // accidentally pass a Uint8Array here, because the interface of
       // Uint8Array is compatible with ArrayBuffer. That can cause subtle bugs
@@ -303,9 +286,9 @@ export class AppImpl implements App {
         src.buffer.byteOffset === 0 &&
         src.buffer.byteLength === src.buffer.buffer.byteLength
       ) {
-        src.buffer = src.buffer.buffer;
+        src = {...src, buffer: src.buffer.buffer};
       } else {
-        src.buffer = src.buffer.slice().buffer;
+        src = {...src, buffer: src.buffer.slice().buffer};
       }
     }
 

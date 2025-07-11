@@ -293,7 +293,7 @@ function onCssLoaded() {
     // Don't allow postMessage or opening trace from route when the user says
     // that they want to reuse the already loaded trace in trace processor.
     const traceSource = AppImpl.instance.trace?.traceInfo.source;
-    if (traceSource && traceSource.type === 'HTTP_RPC') {
+    if (traceSource && traceSource.kind === 'HTTP_RPC') {
       return;
     }
 

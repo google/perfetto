@@ -23,7 +23,7 @@ import {AppImpl} from '../core/app_impl';
 
 function getCurrentTraceUrl(): undefined | string {
   const source = AppImpl.instance.trace?.traceInfo.source;
-  if (source && source.type === 'URL') {
+  if (source && source.kind === 'URL') {
     return source.url;
   }
   return undefined;
@@ -121,7 +121,7 @@ async function maybeOpenCachedTrace(traceUuid: string) {
   // being loaded.
   if (
     curTrace !== undefined &&
-    curTrace.source.type === 'ARRAY_BUFFER' &&
+    curTrace.source.kind === 'ARRAY_BUFFER' &&
     curTrace.source.uuid === traceUuid
   ) {
     return;
@@ -162,7 +162,7 @@ async function maybeOpenCachedTrace(traceUuid: string) {
   // discarding, reloading or pasting a url with a local_cache_key in an empty
   // instance.
   if (curTrace === undefined) {
-    AppImpl.instance.openTraceFromBuffer(maybeTrace);
+    AppImpl.instance.openTrace(maybeTrace);
     return;
   }
 
@@ -199,7 +199,7 @@ async function maybeOpenCachedTrace(traceUuid: string) {
         primary: true,
         action: () => {
           hasOpenedNewTrace = true;
-          AppImpl.instance.openTraceFromBuffer(maybeTrace);
+          AppImpl.instance.openTrace(maybeTrace);
         },
       },
       {text: 'Cancel'},
@@ -227,11 +227,16 @@ function loadTraceFromUrl(url: string) {
     const fileName = url.split('/').pop() ?? 'local_trace.pftrace';
     const request = fetch(url)
       .then((response) => response.blob())
-      .then((b) => AppImpl.instance.openTraceFromFile(new File([b], fileName)))
+      .then((b) =>
+        AppImpl.instance.openTrace({
+          kind: 'FILE',
+          file: new File([b], fileName),
+        }),
+      )
       .catch((e) => alert(`Could not load local trace ${e}`));
     taskTracker.trackPromise(request, 'Downloading local trace');
   } else {
-    AppImpl.instance.openTraceFromUrl(url);
+    AppImpl.instance.openTrace({kind: 'URL', url});
   }
 }
 
@@ -241,6 +246,6 @@ function openTraceFromAndroidBugTool() {
   const loadInfo = loadAndroidBugToolInfo();
   taskTracker.trackPromise(loadInfo, msg);
   loadInfo
-    .then((info) => AppImpl.instance.openTraceFromFile(info.file))
+    .then((info) => AppImpl.instance.openTrace({kind: 'FILE', file: info.file}))
     .catch((e) => console.error(e));
 }

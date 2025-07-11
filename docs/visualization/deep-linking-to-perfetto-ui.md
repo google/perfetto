@@ -62,6 +62,20 @@ print to a URL owned by you that would cause your dashboard to re-open the
 current trace, by re-kicking-off the window.open() process herein described.
 If omitted traces won't be shareable.
 
+`appStateHash` If you want your users to be able to share the UI state (e.g.
+pinned tracks, selections, etc), Perfetto can upload the state to the perfetto
+servers and restore it the next time you load the trace, with a little help from
+you.
+
+In order to get this working, Perfetto needs to be told the hash of the app
+state so that it can find and download it again when re-opening the trace. The
+usual way to do this is to pass the placeholder text
+`perfettoStateHashPlaceholder` in your url some where where your app can receive
+this hash - e.g.
+`http://example.com/?reopen=<someTrace>&state=stateHashPlaceholder`, and inject it
+back into perfetto via the postmessage interface via the `appStateHash` arg.
+Perfetto will open your trace, download and restore the app state.
+
 ### Code samples
 
 See [this example caller](https://bl.ocks.org/chromy/170c11ce30d9084957d7f3aa065e89f8),

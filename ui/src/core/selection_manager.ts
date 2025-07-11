@@ -31,7 +31,7 @@ import {NoteManagerImpl} from './note_manager';
 import {SearchResult} from '../public/search';
 import {AsyncLimiter} from '../base/async_limiter';
 import m from 'mithril';
-import {SerializedSelection} from './state_serialization_schema';
+import {SerializedSelection} from '../public/state_serialization_schema';
 import {showModal} from '../widgets/modal';
 import {NUM, SqlValue, UNKNOWN} from '../trace_processor/query_result';
 import {SourceDataset, UnionDataset} from '../trace_processor/dataset';
