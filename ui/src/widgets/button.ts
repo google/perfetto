@@ -86,7 +86,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       dismissPopup,
       iconFilled,
       intent = Intent.None,
-      variant = ButtonVariant.Minimal,
+      variant = ButtonVariant.Filled,
       ...htmlAttrs
     } = attrs;
 
@@ -152,5 +152,21 @@ function classForVariant(variant: ButtonVariant) {
 export class ButtonBar implements m.ClassComponent<HTMLAttrs> {
   view({attrs, children}: m.CVnode<HTMLAttrs>): m.Children {
     return m('.pf-button-bar', attrs, children);
+  }
+}
+
+/**
+ * A set of buttons that are visually grouped together into one super-widget.
+ * The inside borders are de-duplicated, and the inside rounded corners removed.
+ *
+ * This is useful for when you have a set of radio buttons, or a button with an
+ * additional dropdown button to allow for additional actions to be selected.
+ *
+ * Very similar to the SegmentedButtons widget, but offers more control over the
+ * individual buttons.
+ */
+export class ButtonGroup implements m.ClassComponent<HTMLAttrs> {
+  view({attrs, children}: m.CVnode<HTMLAttrs>): m.Children {
+    return m('.pf-button-group', attrs, children);
   }
 }

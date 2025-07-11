@@ -184,3 +184,20 @@
   gap: 2px;
   align-items: baseline;
 }
+
+.pf-button-group {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+
+  .pf-button:not(:last-child) {
+    border-top-right-radius: unset;
+    border-bottom-right-radius: unset;
+    border-right: unset;
+  }
+
+  .pf-button:not(:first-child) {
+    border-top-left-radius: unset;
+    border-bottom-left-radius: unset;
+  }
+}
