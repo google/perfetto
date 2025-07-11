@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -100,8 +100,7 @@ class PerfettoPriorityBoostIntegrationTest : public ::testing::Test {
 #endif
   }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-  static base::SchedOsManager::SchedOsConfig GetRealSchedInfo(int tid) {
+  static base::SchedOsHooks::SchedOsConfig GetRealSchedInfo(int tid) {
     base::StackString<128> stat_path("/proc/%d/stat", tid);
     std::string line;
     bool ok = base::ReadFile(stat_path.c_str(), &line);
@@ -110,9 +109,8 @@ class PerfettoPriorityBoostIntegrationTest : public ::testing::Test {
     int nice = base::StringToInt32(parts[18]).value();
     int rt_prio = base::StringToInt32(parts[39]).value();
     int policy = base::StringToInt32(parts[40]).value();
-    return base::SchedOsManager::SchedOsConfig{policy, rt_prio, nice};
+    return base::SchedOsHooks::SchedOsConfig{policy, rt_prio, nice};
   }
-#endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS)
   class MockSchedOsHooks : public base::SchedOsHooks {
