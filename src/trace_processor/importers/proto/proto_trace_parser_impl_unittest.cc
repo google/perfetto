@@ -1391,6 +1391,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
     auto* track_desc = packet->set_track_descriptor();
     track_desc->set_uuid(1234);
     track_desc->set_name("Thread track 1");
+    track_desc->set_disallow_merging_with_system_tracks(true);
     auto* thread_desc = track_desc->set_thread();
     thread_desc->set_pid(15);
     thread_desc->set_tid(16);
@@ -1459,6 +1460,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
     auto* track_desc = packet->set_track_descriptor();
     track_desc->set_uuid(4321);
     track_desc->set_name("Thread track 2");
+    track_desc->set_disallow_merging_with_system_tracks(true);
     auto* thread_desc = track_desc->set_thread();
     thread_desc->set_pid(15);
     thread_desc->set_tid(17);

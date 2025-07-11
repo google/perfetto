@@ -301,23 +301,6 @@ void TrackEventParser::ParseTrackDescriptor(
       ParseChromeProcessDescriptor(upid, decoder.chrome_process());
     }
   }
-
-  // Override the name with the most recent name seen (after sorting by ts).
-  ::protozero::ConstChars name = {nullptr, 0};
-  if (decoder.has_name()) {
-    name = decoder.name();
-  } else if (decoder.has_static_name()) {
-    name = decoder.static_name();
-  } else if (decoder.has_atrace_name()) {
-    name = decoder.atrace_name();
-  }
-  if (name.data) {
-    auto* tracks = context_->storage->mutable_track_table();
-    const StringId raw_name_id = context_->storage->InternString(name);
-    const StringId name_id =
-        context_->process_track_translation_table->TranslateName(raw_name_id);
-    tracks->FindById(*track_id)->set_name(name_id);
-  }
 }
 
 UniquePid TrackEventParser::ParseProcessDescriptor(

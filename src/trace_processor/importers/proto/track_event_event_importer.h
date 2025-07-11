@@ -321,18 +321,9 @@ class TrackEventEventImporter {
           track_event_tracker_->GetDescriptorTrack(track_uuid_, name_id_,
                                                    packet_sequence_id_);
       if (!opt_track_id) {
-        TrackEventTracker::DescriptorTrackReservation r;
-        r.parent_uuid = 0;
-        r.name = name_id_;
-        track_event_tracker_->ReserveDescriptorTrack(track_uuid_, r);
-        opt_track_id = track_event_tracker_->GetDescriptorTrack(
-            track_uuid_, name_id_, packet_sequence_id_);
-
-        if (!opt_track_id) {
-          return base::ErrStatus(
-              "track_event_parser: unable to find track matching UUID %" PRIu64,
-              track_uuid_);
-        }
+        return base::ErrStatus(
+            "track_event_parser: unable to find track matching UUID %" PRIu64,
+            track_uuid_);
       }
       track_id_ = *opt_track_id;
 

@@ -1707,7 +1707,9 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                   dur,
                   state,
                   thread.name as thread_name,
-                  dur
+                  dur,
+                  io_wait,
+                  ucpu
                 FROM thread_state ts
                 JOIN thread USING(utid)
               `,
@@ -1726,6 +1728,8 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                 },
                 {name: 'state', title: 'State'},
                 {name: 'thread_name', title: 'Thread'},
+                {name: 'ucpu', title: 'CPU'},
+                {name: 'io_wait', title: 'IO Wait'},
               ],
               maxRowsPerPage: 10,
             });
