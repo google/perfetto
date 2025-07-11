@@ -18,7 +18,13 @@ import {Hotkey, Platform} from '../../base/hotkeys';
 import {isString} from '../../base/object_utils';
 import {Icons} from '../../base/semantic_icons';
 import {Anchor} from '../../widgets/anchor';
-import {Button, ButtonBar, ButtonVariant} from '../../widgets/button';
+import {
+  Button,
+  ButtonAttrs,
+  ButtonBar,
+  ButtonGroup,
+  ButtonVariant,
+} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
 import {Checkbox} from '../../widgets/checkbox';
 import {Editor} from '../../widgets/editor';
@@ -676,6 +682,41 @@ function SegmentedButtonsDemo({attrs}: {attrs: {}}) {
   };
 }
 
+function RadioButtonGroupDemo() {
+  let setting: 'yes' | 'maybe' | 'no' = 'no';
+  console.log(setting);
+  return {
+    view: ({attrs}: m.Vnode<ButtonAttrs>) => {
+      return m(ButtonGroup, [
+        m(Button, {
+          ...attrs,
+          label: 'Yes',
+          active: setting === 'yes',
+          onclick: () => {
+            setting = 'yes';
+          },
+        }),
+        m(Button, {
+          ...attrs,
+          label: 'Maybe',
+          active: setting === 'maybe',
+          onclick: () => {
+            setting = 'maybe';
+          },
+        }),
+        m(Button, {
+          ...attrs,
+          label: 'No',
+          active: setting === 'no',
+          onclick: () => {
+            setting = 'no';
+          },
+        }),
+      ]);
+    },
+  };
+}
+
 export class WidgetsPage implements m.ClassComponent<{app: App}> {
   view({attrs}: m.Vnode<{app: App}>) {
     return m(
@@ -752,6 +793,31 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         renderWidget: (opts) => m(SegmentedButtonsDemo, opts),
         initialOpts: {
           disabled: false,
+        },
+      }),
+      m(WidgetShowcase, {
+        label: 'ButtonGroup',
+        renderWidget: (opts) =>
+          m(Stack, [
+            m(ButtonGroup, [
+              m(Button, {
+                label: 'Commit',
+                ...opts,
+              }),
+              m(Button, {
+                icon: Icons.ContextMenu,
+                ...opts,
+              }),
+            ]),
+            m(RadioButtonGroupDemo, opts),
+          ]),
+        initialOpts: {
+          variant: new EnumOption(
+            ButtonVariant.Filled,
+            Object.values(ButtonVariant),
+          ),
+          disabled: false,
+          intent: new EnumOption(Intent.None, Object.values(Intent)),
         },
       }),
       m(WidgetShowcase, {
