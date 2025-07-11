@@ -86,7 +86,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       dismissPopup,
       iconFilled,
       intent = Intent.None,
-      variant = ButtonVariant.Filled,
+      variant = ButtonVariant.Minimal,
       ...htmlAttrs
     } = attrs;
 
