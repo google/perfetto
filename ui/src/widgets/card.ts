@@ -15,16 +15,37 @@
 import m from 'mithril';
 import {HTMLAttrs} from './common';
 
-export interface CardAttrs extends HTMLAttrs {}
+import {classNames} from '../base/classnames';
+
+export interface CardAttrs extends HTMLAttrs {
+  // Whether the card should have a hover effect.
+  interactive?: boolean;
+}
 
 export class Card implements m.ClassComponent<CardAttrs> {
   view(vnode: m.Vnode<CardAttrs>): m.Children {
-    return m('.pf-card', vnode.attrs, vnode.children);
+    const {interactive, ...attrs} = vnode.attrs;
+    return m(
+      '.pf-card',
+      {
+        ...attrs,
+        class: classNames(attrs.className, interactive && 'pf-interactive'),
+      },
+      vnode.children,
+    );
   }
 }
 
-export class CardStack implements m.ClassComponent<HTMLAttrs> {
-  view(vnode: m.Vnode<{}>): m.Children {
-    return m('.pf-card-stack', vnode.children);
+export interface CardStackAttrs extends HTMLAttrs {
+  // The direction of the stack, defaults to 'vertical'.
+  direction?: 'vertical' | 'horizontal';
+}
+
+export class CardStack implements m.ClassComponent<CardStackAttrs> {
+  view({attrs, children}: m.Vnode<CardStackAttrs>): m.Children {
+    const {direction = 'vertical', ...htmlAttrs} = attrs;
+    const directionClass =
+      direction === 'horizontal' ? '.pf-card-stack--horizontal' : '';
+    return m('.pf-card-stack' + directionClass, htmlAttrs, children);
   }
 }
