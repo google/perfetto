@@ -26,7 +26,6 @@
 #include "perfetto/protozero/proto_utils.h"
 #include "src/base/intrusive_list.h"
 
-// TODO do a pass for uint32_t /uint16_t vs size_t etc etc.
 
 #define TRACE_BUFFER_VERBOSE_LOGGING() 0  // Set to 1 when debugging unittests.
 #if TRACE_BUFFER_VERBOSE_LOGGING()
@@ -93,6 +92,7 @@ BufIterator::BufIterator(TraceBufferV2* buf, size_t limit)
 BufIterator BufIterator::CloneReadOnly(const BufIterator& other) noexcept {
   auto bi = BufIterator(other);
   bi.read_only_iterator_ = true;
+  bi.data_loss_ = false;
   return bi;
 }
 
@@ -226,15 +226,12 @@ bool BufIterator::NextChunkInSequence() {
 
   size_t next_chunk_off = chunk_list.at(next_seq_idx);       // O(1)
   TBChunk* next_chunk = buf_->GetTBChunkAt(next_chunk_off);  // O(1)
-  // ChunkID next_chunk_id = next_chunk->chunk_id;              // O(1)
-
-  // PERFETTO_DCHECK(!last_chunk_id.has_value() ||
-  //               ChunkIdCompare(*last_chunk_id, next_chunk_id) < 0);
 
   return SetNextChunkIfContiguousAndValid(seq_, last_chunk_id, next_chunk,
                                           next_seq_idx);
 }
 
+// TODO remove the IfContiguous part of the name
 bool BufIterator::SetNextChunkIfContiguousAndValid(
     SequenceState* seq,
     const std::optional<ChunkID>& prev_chunk_id,
@@ -257,12 +254,15 @@ bool BufIterator::SetNextChunkIfContiguousAndValid(
 
   bool needs_patching = next_chunk->flags & kChunkNeedsPatching;
 
-  if (chunk_id_gap || needs_patching) {
+  if (/*chunk_id_gap || */ needs_patching) {
     if (PERFETTO_LIKELY(!read_only_iterator_)) {
       seq->skip_in_generation = buf_->read_generation_;
     }
     return false;
   }
+
+  if (chunk_id_gap)
+    data_loss_ = true;
 
   chunk_ = next_chunk;
   seq_ = seq;
@@ -315,6 +315,7 @@ std::optional<TraceBufferV2::Frag> BufIterator::NextFragmentInChunk() {
       static_cast<size_t>(reinterpret_cast<uintptr_t>(frag_begin) -
                           reinterpret_cast<uintptr_t>(hdr_begin));
 
+  // TODO what happens if hdr_size == 0? do we spin loop?
   if (frag_size_u64 > reinterpret_cast<uintptr_t>(chunk_end) -
                           reinterpret_cast<uintptr_t>(frag_begin)) {
     // TODO mark ABI violation in stats.
@@ -355,7 +356,7 @@ bool BufIterator::EraseCurrentChunkAndMoveNext() {
   // forcefully clear the payload_avail.
   PERFETTO_DCHECK(chunk_->payload_avail == 0);
   if (!(chunk_->flags & kChunkComplete)) {
-    seq_->skip_in_generation = buf_->read_generation_;  // TODO why DNS
+    seq_->skip_in_generation = buf_->read_generation_;  // TODO: why?
   } else if (!chunk_->is_padding()) {
     size_t chunk_off = buf_->OffsetOf(chunk_);
     TRACE_BUFFER_DLOG("EraseChunk(%zu)", chunk_off);
@@ -382,9 +383,6 @@ bool BufIterator::EraseCurrentChunkAndMoveNext() {
     uint16_t old_payload_size = chunk_->payload_size;
     TBChunk* cleared_chunk = buf_->CreateTBChunk(chunk_off, chunk_size);
     cleared_chunk->payload_size = old_payload_size;
-
-    // TODO handle compaction by remembering the last erased chunk. But also
-    // remember to not copy it when cloning the iterator.
 
     auto& stats = buf_->stats_;
     stats.set_chunks_overwritten(stats.chunks_overwritten() + 1);
@@ -457,15 +455,14 @@ bool TraceBufferV2::ReadNextTracePacket(
     PacketSequenceProperties* sequence_properties,
     bool* previous_packet_on_sequence_dropped) {
   auto res = ReadNextTracePacketInternal(out_packet, sequence_properties,
-                                         previous_packet_on_sequence_dropped,
                                          ReadPolicy::kStandardRead);
+  *previous_packet_on_sequence_dropped = rd_iter_.data_loss();
   return res == ReadRes::kOk;
 }
 
 TraceBufferV2::ReadRes TraceBufferV2::ReadNextTracePacketInternal(
     TracePacket* out_packet,
     PacketSequenceProperties* sequence_properties,
-    bool* previous_packet_on_sequence_dropped,
     ReadPolicy read_policy) {
   TRACE_BUFFER_DLOG("ReadNextTracePacket(policy=%d)", read_policy);
   bool force_erase = read_policy == kForceErase;
@@ -473,7 +470,6 @@ TraceBufferV2::ReadRes TraceBufferV2::ReadNextTracePacketInternal(
 
   // Just in case we forget to initialize these below.
   *sequence_properties = {0, ClientIdentity(), 0};
-  *previous_packet_on_sequence_dropped = false;  // TODO this
   // TODO DCHECK changed_since_last_read_
   for (;;) {
     if (!rd_iter_.valid())
@@ -529,8 +525,7 @@ TraceBufferV2::ReadRes TraceBufferV2::ReadNextTracePacketInternal(
         // which performs the lookahead. If we hit this code path, instead, a
         // producer emitted a chunk that looks like
         // [kWholePacket, kFragContinue] or [kWholePacket, kFragEnd].
-        // TODO report ABI violation or data loss.
-        // TODO maybe it's an ok error if we have data losses.
+        rd_iter_.set_data_loss();  // TODO This is a bit weird.
         ConsumeFragment(&frag);
         break;
 
@@ -588,7 +583,8 @@ TraceBufferV2::ReadRes TraceBufferV2::ReadNextTracePacketInternal(
           frag.seq->skip_in_generation = read_generation_;
 
           // TODO make thid rd_iter_.InterruptSequence and hanlde the rest above
-          // uniformly
+          // uniformly. Hmm not that easy, we don't want to EraseCurrentChunk
+          // in this case.
           if (!rd_iter_.NextChunkInBuffer()) {
             TRACE_BUFFER_DLOG("  ReadNextTracePacket -> false (reassembly)");
             return ReadRes::kFail;
@@ -621,7 +617,12 @@ TraceBufferV2::FragReassemblyResult TraceBufferV2::ReassembleFragmentedPacket(
       res = FragReassemblyResult::kNotEnoughData;
       break;
     }
-    // TODO DNS check sequence IDs
+    if (it.data_loss()) {
+      // There is a gap in the sequence ID.
+      // TODO reason if we want to delete now also next fragments.
+      res = FragReassemblyResult::kDataLoss;
+      break;
+    }
     // TODO explain why we don't iterate over fragments but only read one.
     std::optional<Frag> frag = it.NextFragmentInChunk();
     if (!frag.has_value()) {
@@ -637,6 +638,7 @@ TraceBufferV2::FragReassemblyResult TraceBufferV2::ReassembleFragmentedPacket(
     }
     if (frag_type == Frag::kFragEnd) {
       frags.emplace_back(*frag);
+
       res = FragReassemblyResult::kSuccess;
       break;
     }
@@ -941,15 +943,14 @@ bool TraceBufferV2::DeleteNextChunksFor(size_t bytes_to_clear) {
   for (;;) {
     TracePacket packet;
     PacketSequenceProperties seq_props{};
-    bool ignored;
     ReadPolicy read_pol = overwrite_policy_ == kDiscard
                               ? ReadPolicy::kNoOverwrite
                               : ReadPolicy::kForceErase;
-    ReadRes res =
-        ReadNextTracePacketInternal(&packet, &seq_props, &ignored, read_pol);
+    ReadRes res = ReadNextTracePacketInternal(&packet, &seq_props, read_pol);
     if (res == ReadRes::kFail) {
       break;
-    } else if (res == ReadRes::kWouldOverwrite) {
+    }
+    if (res == ReadRes::kWouldOverwrite) {
       PERFETTO_DCHECK(overwrite_policy_ == kDiscard);
       return false;
     }

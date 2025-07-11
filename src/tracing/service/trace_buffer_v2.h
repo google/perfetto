@@ -253,6 +253,8 @@ class BufIterator {
   TBChunk* chunk() { return chunk_; }
   TBChunk* end_chunk() { return end_chunk_; }
   SequenceState* sequence_state() { return seq_; }
+  void set_data_loss() { data_loss_ = true; }
+  bool data_loss() { return data_loss_; }
 
  private:
   BufIterator(const BufIterator&) noexcept = default;  // For CopyReadOnly.
@@ -294,6 +296,8 @@ class BufIterator {
   // If true, doesn't make changes to the SequenceState. This is used by the
   // fragment reassembly logic.
   bool read_only_iterator_ = false;
+
+  bool data_loss_ = false;
 };
 }  // namespace internal
 
@@ -390,7 +394,6 @@ class TraceBufferV2 {
   ReadRes ReadNextTracePacketInternal(
       TracePacket*,
       PacketSequenceProperties* sequence_properties,
-      bool* previous_packet_on_sequence_dropped,
       ReadPolicy);
 
   enum class FragReassemblyResult { kSuccess = 0, kNotEnoughData, kDataLoss };
