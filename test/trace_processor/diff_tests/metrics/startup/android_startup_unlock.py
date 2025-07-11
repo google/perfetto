@@ -35,8 +35,8 @@ trace.add_atrace_async_begin(ts=100, tid=2, pid=2, buf='launchingActivity#1')
 trace.add_atrace_async_end(ts=200, tid=2, pid=2, buf='launchingActivity#1')
 
 trace.add_atrace_begin(
-    ts=130, tid=2, pid=4, buf='KeyguardUpdateMonitor#onAuthenticationSucceeded')
-trace.add_atrace_end(ts=133, tid=2, pid=4)
+    ts=130, tid=5, pid=4, buf='KeyguardUpdateMonitor#onAuthenticationSucceeded')
+trace.add_atrace_end(ts=133, tid=5, pid=4)
 
 trace.add_atrace_instant(
     ts=201,

@@ -146,7 +146,10 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
             stats::generic_task_state_invalid_order);
         return std::nullopt;
       }
-      UniqueTid utid = context_->process_tracker->StartNewThread(ts, tid);
+      // No need to clear thread since we are already checking if thread
+      // exists before hand.
+      UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
+      context_->process_tracker->SetThreadStartTs(utid, ts);
       context_->process_tracker->UpdateThreadName(
           utid, comm_id, ThreadNamePriority::kGenericKernelTask);
       return utid;
