@@ -51,15 +51,6 @@ SELECT pi.upid,
 FROM process_info pi WHERE pi.upid IN
   (SELECT DISTINCT upid FROM _android_critical_blocking_calls);
 
-
-DROP TABLE IF EXISTS filtered_processes_with_non_zero_blocking_calls;
-CREATE TABLE filtered_processes_with_non_zero_blocking_calls AS
-SELECT pi.upid,
-  pi.process_name,
-  pi.process_metadata
-FROM process_info pi WHERE pi.upid IN
-  (SELECT DISTINCT upid FROM _android_critical_blocking_calls);
-
 DROP VIEW IF EXISTS android_blocking_calls_unagg_output;
 CREATE PERFETTO VIEW android_blocking_calls_unagg_output AS
 SELECT AndroidBlockingCallsUnagg(
