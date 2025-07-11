@@ -12,61 +12,70 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {assetSrc} from '../../base/assets';
-import {assertExists} from '../../base/logging';
+import {extensions} from '../../components/extensions';
+import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {SqlModules} from './sql_modules';
 import {SQL_MODULES_DOCS_SCHEMA, SqlModulesImpl} from './sql_modules_impl';
-import {extensions} from '../../components/extensions';
+
+let globSqlModules: SqlModules | undefined;
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.SqlModules';
-  private sqlModules?: SqlModules;
-  private tables?: string[];
 
-  async onTraceLoad(ctx: Trace) {
-    await this.loadJson(ctx);
+  static onActivate(_: App): void {
+    // Load the SQL modules JSON file when the plugin when the app starts up,
+    // rather than waiting until trace load.
+    loadJson();
   }
 
-  private async loadJson(ctx: Trace) {
-    const x = await fetch(assetSrc('stdlib_docs.json'));
-    const json = await x.json();
-    const docs = SQL_MODULES_DOCS_SCHEMA.parse(json);
-    const sqlModules = new SqlModulesImpl(docs);
-
-    this.sqlModules = sqlModules;
-    this.tables = sqlModules.listTablesNames();
-
-    ctx.commands.registerCommand({
+  async onTraceLoad(trace: Trace): Promise<void> {
+    trace.commands.registerCommand({
       id: 'perfetto.OpenSqlModulesTable',
       name: 'Open table...',
       callback: async () => {
-        const chosenTable = await ctx.omnibox.prompt(
+        if (!globSqlModules) {
+          window.alert('Sql modules are still loading... Please wait.');
+          return;
+        }
+
+        const tables = globSqlModules.listTablesNames();
+
+        const chosenTable = await trace.omnibox.prompt(
           'Choose a table...',
-          this.tables,
+          tables,
         );
         if (chosenTable === undefined) {
           return;
         }
-        const module = sqlModules.getModuleForTable(chosenTable);
+        const module = globSqlModules.getModuleForTable(chosenTable);
         if (module === undefined) {
           return;
         }
         const sqlTable = module.getSqlTableDescription(chosenTable);
         sqlTable &&
-          extensions.addLegacySqlTableTab(ctx, {
+          extensions.addLegacySqlTableTab(trace, {
             table: sqlTable,
           });
       },
     });
   }
 
-  getSqlModules(): SqlModules {
-    return assertExists(this.sqlModules);
+  getSqlModules(): SqlModules | undefined {
+    return globSqlModules;
   }
+}
 
-  getSqlTables(): string[] {
-    return assertExists(this.tables);
-  }
+async function loadJson() {
+  const x = await fetch(assetSrc('stdlib_docs.json'));
+  const json = await x.json();
+  const docs = SQL_MODULES_DOCS_SCHEMA.parse(json);
+  const sqlModules = new SqlModulesImpl(docs);
+
+  globSqlModules = sqlModules;
+
+  m.redraw();
 }

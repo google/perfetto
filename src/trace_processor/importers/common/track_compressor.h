@@ -80,6 +80,10 @@ class TrackCompressor {
   explicit TrackCompressor(TraceProcessorContext* context);
   ~TrackCompressor() = default;
 
+  /****************************************************************************
+   *                 RECOMMENDED API FOR MOST USE CASES
+   ****************************************************************************/
+
   // Starts a new slice which has the given cookie.
   template <typename BlueprintT>
   TrackId InternBegin(
@@ -87,11 +91,8 @@ class TrackCompressor {
       const internal::uncompressed_dimensions_t<BlueprintT>& dims,
       int64_t cookie,
       const typename BlueprintT::name_t& name = tracks::BlueprintName()) {
-    uint64_t hash = tracks::HashFromBlueprintAndDimensions(bp, dims);
-    auto final_dims = std::tuple_cat(
-        dims, std::make_tuple(BeginInternal(TypeToNestingBehaviour(bp.type),
-                                            hash, cookie)));
-    return context_->track_tracker->InternTrack(bp, final_dims, name);
+    uint64_t hash = ComputeTrackSetId(bp, dims);
+    return Begin(hash, bp, dims, cookie, name);
   }
 
   // Ends a new slice which has the given cookie.
@@ -101,10 +102,8 @@ class TrackCompressor {
       const internal::uncompressed_dimensions_t<BlueprintT>& dims,
       int64_t cookie,
       const typename BlueprintT::name_t& name = tracks::BlueprintName()) {
-    uint64_t hash = tracks::HashFromBlueprintAndDimensions(bp, dims);
-    auto final_dims =
-        std::tuple_cat(dims, std::make_tuple(EndInternal(hash, cookie)));
-    return context_->track_tracker->InternTrack(bp, final_dims, name);
+    uint64_t hash = ComputeTrackSetId(bp, dims);
+    return End(hash, bp, dims, cookie, name);
   }
 
   // Creates a scoped slice.
@@ -117,10 +116,8 @@ class TrackCompressor {
       int64_t ts,
       int64_t dur,
       const typename BlueprintT::name_t& name = tracks::BlueprintName()) {
-    uint64_t hash = tracks::HashFromBlueprintAndDimensions(bp, dims);
-    auto final_dims =
-        std::tuple_cat(dims, std::make_tuple(ScopedInternal(hash, ts, dur)));
-    return context_->track_tracker->InternTrack(bp, final_dims, name);
+    uint64_t hash = ComputeTrackSetId(bp, dims);
+    return Scoped(hash, bp, dims, ts, dur, name);
   }
 
   // Wrapper around tracks::SliceBlueprint which makes the blueprint eligible
@@ -176,6 +173,89 @@ class TrackCompressor {
         typename BT::dimension_blueprints_t());
   }
 
+  /***************************************************************************
+   *         ADVANCED API FOR PERFORMANCE-CRITICAL CODE PATHS
+   ***************************************************************************/
+
+  // Computes a hash of the given blueprint and dimensions which can be used
+  // in the functions below.
+  // This function is intended to be used on hot paths where the hash can be
+  // cached and reused across multiple calls.
+  template <typename BlueprintT>
+  static uint64_t ComputeTrackSetId(
+      const BlueprintT& bp,
+      const internal::uncompressed_dimensions_t<BlueprintT>& dims) {
+    return tracks::HashFromBlueprintAndDimensions(bp, dims);
+  }
+
+  // Starts a new slice which has the given cookie.
+  //
+  // This is an advanced version of |InternBegin| which should only be used
+  // on hot paths where the |hash| is cached. For most usecases, |InternBegin|
+  // should be preferred.
+  template <typename BlueprintT>
+  TrackId Begin(
+      uint64_t hash,
+      const BlueprintT& bp,
+      const internal::uncompressed_dimensions_t<BlueprintT>& dims,
+      int64_t cookie,
+      const typename BlueprintT::name_t& name = tracks::BlueprintName()) {
+    TrackSet& set = sets_[hash];
+    auto [track_id_ptr, idx] =
+        BeginInternal(set, TypeToNestingBehaviour(bp.type), cookie);
+    if (*track_id_ptr != kInvalidTrackId) {
+      return *track_id_ptr;
+    }
+    auto final_dims = std::tuple_cat(dims, std::make_tuple(idx));
+    *track_id_ptr = context_->track_tracker->CreateTrack(bp, final_dims, name);
+    return *track_id_ptr;
+  }
+
+  // Ends a new slice which has the given cookie.
+  //
+  // This is an advanced version of |InternEnd| which should only be used
+  // on hot paths where the |hash| is cached. For most usecases, |InternEnd|
+  // should be preferred.
+  template <typename BlueprintT>
+  TrackId End(
+      uint64_t hash,
+      BlueprintT bp,
+      const internal::uncompressed_dimensions_t<BlueprintT>& dims,
+      int64_t cookie,
+      const typename BlueprintT::name_t& name = tracks::BlueprintName()) {
+    TrackSet& set = sets_[hash];
+    auto [track_id_ptr, idx] = EndInternal(set, cookie);
+    if (*track_id_ptr != kInvalidTrackId) {
+      return *track_id_ptr;
+    }
+    auto final_dims = std::tuple_cat(dims, std::make_tuple(idx));
+    *track_id_ptr = context_->track_tracker->CreateTrack(bp, final_dims, name);
+    return *track_id_ptr;
+  }
+
+  // Creates a scoped slice.
+  //
+  // This is an advanced version of |InternScoped| which should only be used
+  // on hot paths where the |hash| is cached. For most usecases, |InternScoped|
+  // should be preferred.
+  template <typename BlueprintT>
+  TrackId Scoped(
+      uint64_t hash,
+      BlueprintT bp,
+      const internal::uncompressed_dimensions_t<BlueprintT>& dims,
+      int64_t ts,
+      int64_t dur,
+      const typename BlueprintT::name_t& name = tracks::BlueprintName()) {
+    TrackSet& set = sets_[hash];
+    auto [track_id_ptr, idx] = ScopedInternal(set, ts, dur);
+    if (*track_id_ptr != kInvalidTrackId) {
+      return *track_id_ptr;
+    }
+    auto final_dims = std::tuple_cat(dims, std::make_tuple(idx));
+    *track_id_ptr = context_->track_tracker->CreateTrack(bp, final_dims, name);
+    return *track_id_ptr;
+  }
+
  private:
   friend class TrackCompressorUnittest;
 
@@ -212,17 +292,25 @@ class TrackCompressor {
 
     // Only used for |slice_type| == |SliceType::kCookie|.
     uint32_t nest_count;
+
+    // The track id for this state. This is cached because it is expensive to
+    // compute.
+    TrackId track_id = kInvalidTrackId;
   };
 
-  struct TrackSetNew {
+  struct TrackSet {
     std::vector<TrackState> tracks;
   };
 
-  uint32_t BeginInternal(NestingBehaviour, uint64_t hash, int64_t cookie);
+  std::pair<TrackId*, uint32_t> BeginInternal(TrackSet&,
+                                              NestingBehaviour,
+                                              int64_t cookie);
 
-  uint32_t EndInternal(uint64_t hash, int64_t cookie);
+  std::pair<TrackId*, uint32_t> EndInternal(TrackSet&, int64_t cookie);
 
-  uint32_t ScopedInternal(uint64_t hash, int64_t ts, int64_t dur);
+  std::pair<TrackId*, uint32_t> ScopedInternal(TrackSet&,
+                                               int64_t ts,
+                                               int64_t dur);
 
   static constexpr NestingBehaviour TypeToNestingBehaviour(
       std::string_view type) {
@@ -244,10 +332,10 @@ class TrackCompressor {
   // 2. Otherwise, looks for any track in the set which is "open" (i.e.
   //    does not have another slice currently scheduled).
   // 3. Otherwise, creates a new track and adds it to the vector.
-  static TrackState& GetOrCreateTrackForCookie(std::vector<TrackState>& tracks,
-                                               int64_t cookie);
+  static uint32_t GetOrCreateTrackForCookie(std::vector<TrackState>& tracks,
+                                            int64_t cookie);
 
-  base::FlatHashMap<uint64_t, TrackSetNew, base::AlreadyHashed<uint64_t>> sets_;
+  base::FlatHashMap<uint64_t, TrackSet, base::AlreadyHashed<uint64_t>> sets_;
 
   TraceProcessorContext* const context_;
 };

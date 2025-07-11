@@ -19,11 +19,16 @@
 
   &--horiz {
     flex-direction: row;
+    align-items: baseline;
   }
 
   &--fill-height {
     height: 100%;
     overflow-y: hidden;
+  }
+
+  &--gap-none {
+    gap: 0px;
   }
 }
 

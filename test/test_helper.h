@@ -209,6 +209,8 @@ class ProbesProducerThread {
     });
   }
 
+  base::ThreadTaskRunner* runner() { return runner_ ? &*runner_ : nullptr; }
+
  private:
   std::optional<base::ThreadTaskRunner> runner_;  // Keep first.
 

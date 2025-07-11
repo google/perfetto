@@ -12,6 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {exists} from './utils';
+
+declare global {
+  interface Window {
+    showSaveFilePicker: (
+      options?: SaveFilePickerOptions,
+    ) => Promise<FileSystemFileHandle>;
+  }
+
+  interface SaveFilePickerOptions {
+    suggestedName?: string;
+    types?: FilePickerAcceptType[];
+    excludeAcceptAllOption?: boolean;
+  }
+
+  interface FilePickerAcceptType {
+    description?: string;
+    accept: Record<string, string[]>;
+  }
+}
+
 // Initiate download of a resource identified by |url| into |filename|.
 export function downloadUrl(fileName: string, url: string) {
   const a = document.createElement('a');
@@ -29,4 +50,45 @@ export function downloadData(fileName: string, ...data: Uint8Array[]) {
   const blob = new Blob(data, {type: 'application/octet-stream'});
   const url = URL.createObjectURL(blob);
   downloadUrl(fileName, url);
+}
+
+/**
+ * Downloads a url or a File/Blob using the file picker.
+ * The file picker is omitted if the source is a URL to avoid re-fetching
+ * URL-based traces.
+ * @param fileName the suggested file name.
+ * @param data the url or File or blob
+ */
+export async function downloadFileOrUrlWithFilePicker(
+  fileName: string,
+  data: string | File | Blob,
+) {
+  if (typeof data === 'string') {
+    return downloadUrl(fileName, data);
+  }
+  const hasFilePicker = exists(window.showSaveFilePicker);
+  if (!hasFilePicker) {
+    const url = URL.createObjectURL(data);
+    return downloadUrl(fileName, url);
+  }
+
+  let handle: FileSystemFileHandle;
+  try {
+    handle = await window.showSaveFilePicker({
+      suggestedName: fileName,
+      types: [
+        {
+          description: 'Perfetto trace',
+          accept: {'*/*': ['.pftrace']},
+        },
+      ],
+    });
+  } catch (e) {
+    console.error(e);
+    return; // The user pressed cancel.
+  }
+
+  const writable = await handle.createWritable();
+  await writable.write(data);
+  await writable.close();
 }

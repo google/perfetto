@@ -43,6 +43,7 @@ WITH
       USING (upid)
     WHERE
       process.name GLOB '/vendor/bin/hw/android.hardware.graphics.allocator*'
+      OR process.name GLOB '/vendor/bin/hw/*gralloc.allocator*'
   )
 SELECT
   flow.slice_out AS client_slice_id,

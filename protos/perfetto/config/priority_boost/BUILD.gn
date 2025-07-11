@@ -12,11 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../../../gn/perfetto_sql.gni")
+import("../../../../gn/proto_library.gni")
 
-perfetto_sql_source_set("cujs") {
-  sources = [
-    "sysui_cuj_counters.sql",
-    "sysui_cujs.sql",
-  ]
+perfetto_proto_library("@TYPE@") {
+  sources = [ "priority_boost_config.proto" ]
 }

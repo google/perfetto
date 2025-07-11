@@ -197,8 +197,19 @@ tables::SurfaceFlingerLayerTable::Id SurfaceFlingerLayersParser::InsertLayerRow(
   if (layer_decoder.has_parent()) {
     layer.parent = layer_decoder.parent();
   }
-  if (layer_decoder.has_corner_radius()) {
-    layer.corner_radius = static_cast<double>(layer_decoder.corner_radius());
+  if (layer_decoder.has_corner_radii()) {
+    protos::pbzero::CornerRadiiProto::Decoder corner_radii(
+        layer_decoder.corner_radii());
+    layer.corner_radius_tl = static_cast<double>(corner_radii.tl());
+    layer.corner_radius_tr = static_cast<double>(corner_radii.tr());
+    layer.corner_radius_bl = static_cast<double>(corner_radii.bl());
+    layer.corner_radius_br = static_cast<double>(corner_radii.br());
+  } else if (layer_decoder.has_corner_radius()) {
+    auto radius = static_cast<double>(layer_decoder.corner_radius());
+    layer.corner_radius_tl = radius;
+    layer.corner_radius_tr = radius;
+    layer.corner_radius_bl = radius;
+    layer.corner_radius_br = radius;
   }
   if (layer_decoder.has_hwc_composition_type()) {
     layer.hwc_composition_type = layer_decoder.hwc_composition_type();

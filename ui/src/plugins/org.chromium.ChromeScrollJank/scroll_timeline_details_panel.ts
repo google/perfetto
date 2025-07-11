@@ -238,7 +238,7 @@ export class ScrollTimelineDetailsPanel implements TrackEventDetailsPanel {
       const scrollTableDescription = this.trace.plugins
         .getPlugin(SqlModulesPlugin)
         .getSqlModules()
-        .getModuleForTable('chrome_scroll_update_info')
+        ?.getModuleForTable('chrome_scroll_update_info')
         ?.getSqlTableDescription('chrome_scroll_update_info');
       child = m(
         Tree,

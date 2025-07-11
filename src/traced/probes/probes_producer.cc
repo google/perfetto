@@ -26,6 +26,7 @@
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/priority_boost_config.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/core/data_source_config.h"
@@ -444,6 +445,22 @@ void ProbesProducer::SetupDataSource(DataSourceInstanceID instance_id,
   if (!data_source) {
     PERFETTO_ELOG("Failed to create data source '%s'", config.name().c_str());
     return;
+  }
+
+  if (config.has_priority_boost()) {
+    auto sched_policy = CreateSchedPolicyFromConfig(config.priority_boost());
+    if (!sched_policy.ok()) {
+      PERFETTO_ELOG("Invalid priority boost config for data source '%s': %s",
+                    config.name().c_str(), sched_policy.status().c_message());
+    } else {
+      auto boost = base::ScopedSchedBoost::Boost(sched_policy.value());
+      if (!boost.ok()) {
+        PERFETTO_ELOG("Failed to boost priority for data source '%s': %s",
+                      config.name().c_str(), boost.status().c_message());
+      } else {
+        data_source->priority_boost = std::move(*boost);
+      }
+    }
   }
 
   session_data_sources_[session_id].emplace(data_source->descriptor,

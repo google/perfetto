@@ -51,9 +51,6 @@ TrackId TrackTracker::InternLegacyAsyncTrack(StringId raw_name,
                                              int64_t trace_id,
                                              bool trace_id_is_process_scoped,
                                              StringId source_scope) {
-  const StringId name =
-      context_->process_track_translation_table->TranslateName(raw_name);
-
   auto args_fn = [&](ArgsTracker::BoundInserter& inserter) {
     inserter.AddArg(source_key_, Variadic::String(chrome_source_))
         .AddArg(trace_id_key_, Variadic::Integer(trace_id))
@@ -62,42 +59,30 @@ TrackId TrackTracker::InternLegacyAsyncTrack(StringId raw_name,
         .AddArg(upid_, Variadic::UnsignedInteger(upid))
         .AddArg(source_scope_key_, Variadic::String(source_scope));
   };
-  TrackId track_id;
-  bool inserted;
   if (trace_id_is_process_scoped) {
+    const StringId name =
+        context_->process_track_translation_table->TranslateName(raw_name);
     static constexpr auto kBlueprint = tracks::SliceBlueprint(
         "legacy_async_process_slice",
         tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint,
                                     tracks::StringDimensionBlueprint("scope"),
                                     tracks::LongDimensionBlueprint("cookie")),
         tracks::DynamicNameBlueprint());
-    std::tie(track_id, inserted) = InternTrackInner(
+    return InternTrackInner(
         kBlueprint,
         tracks::Dimensions(upid, context_->storage->GetString(source_scope),
                            trace_id),
         tracks::DynamicName(name), args_fn);
-  } else {
-    static constexpr auto kBlueprint = tracks::SliceBlueprint(
-        "legacy_async_global_slice",
-        tracks::DimensionBlueprints(tracks::StringDimensionBlueprint("scope"),
-                                    tracks::LongDimensionBlueprint("cookie")),
-        tracks::DynamicNameBlueprint());
-    std::tie(track_id, inserted) = InternTrackInner(
-        kBlueprint,
-        tracks::Dimensions(context_->storage->GetString(source_scope),
-                           trace_id),
-        tracks::DynamicName(name), args_fn);
   }
-  // The track may have been created for an end event without name. In
-  // that case, update it with this event's name.
-  if (inserted && name != kNullStringId) {
-    auto& tracks = *context_->storage->mutable_track_table();
-    auto rr = *tracks.FindById(track_id);
-    if (rr.name() == kNullStringId) {
-      rr.set_name(name);
-    }
-  }
-  return track_id;
+  static constexpr auto kBlueprint = tracks::SliceBlueprint(
+      "legacy_async_global_slice",
+      tracks::DimensionBlueprints(tracks::StringDimensionBlueprint("scope"),
+                                  tracks::LongDimensionBlueprint("cookie")),
+      tracks::DynamicNameBlueprint());
+  return InternTrackInner(
+      kBlueprint,
+      tracks::Dimensions(context_->storage->GetString(source_scope), trace_id),
+      tracks::DynamicName(raw_name), args_fn);
 }
 
 TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,

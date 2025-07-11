@@ -1,0 +1,28 @@
+# Test for SIBLING_MERGE_BEHAVIOR_NONE with a null name.
+# A null name should not override a previously set name.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 100
+  track_descriptor {
+    uuid: 1
+    name: "First Name"
+    sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 200
+  track_descriptor {
+    uuid: 1
+    sibling_merge_behavior: SIBLING_MERGE_BEHAVIOR_NONE
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 300
+  track_event {
+    track_uuid: 1
+    name: "Event"
+    type: TYPE_INSTANT
+  }
+}

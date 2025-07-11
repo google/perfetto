@@ -26,6 +26,7 @@
 #include <unordered_set>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -117,13 +118,34 @@ void TrackEventTracker::ReserveDescriptorTrack(
   if (inserted) {
     return;
   }
-
   if (!it->IsForSameTrack(reservation)) {
     PERFETTO_DLOG("New track reservation for track with uuid %" PRIu64
                   " doesn't match earlier one",
                   uuid);
     context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
     return;
+  }
+
+  if (!reservation.name.is_null()) {
+    bool is_non_mergable_track =
+        reservation.sibling_merge_behavior ==
+        DescriptorTrackReservation::SiblingMergeBehavior::kNone;
+    // If the previous value was null or this is a non-mergable track, update
+    // the reservation name.
+    if (it->name.is_null() || is_non_mergable_track) {
+      it->name = reservation.name;
+    }
+    // Furthermore, if it's a non-mergable track, also update the name in the
+    // track table if it exists.
+    if (is_non_mergable_track) {
+      auto* resolved_ptr = resolved_descriptor_tracks_.Find(uuid);
+      if (resolved_ptr) {
+        // If the track was already resolved, update the name.
+        auto* tracks = context_->storage->mutable_track_table();
+        auto rr = *tracks->FindById(resolved_ptr->track_id());
+        rr.set_name(reservation.name);
+      }
+    }
   }
   it->min_timestamp = std::min(it->min_timestamp, reservation.min_timestamp);
 }
@@ -135,29 +157,33 @@ TrackEventTracker::GetDescriptorTrackImpl(
     std::optional<uint32_t> packet_sequence_id) {
   auto* resolved_ptr = resolved_descriptor_tracks_.Find(uuid);
   if (resolved_ptr) {
-    if (event_name.is_null()) {
+    auto* tracks = context_->storage->mutable_track_table();
+    auto rr = *tracks->FindById(resolved_ptr->track_id());
+    if (PERFETTO_LIKELY(!rr.name().is_null())) {
+      return *resolved_ptr;
+    }
+    if (PERFETTO_UNLIKELY(event_name.is_null())) {
       return *resolved_ptr;
     }
 
     // Update the name to match the first non-null and valid event name. We need
     // this because TrackEventParser calls |GetDescriptorTrack| with
-    // kNullStringId which means we cannot just have the code below for updating
-    // the name
+    // kNullStringId which means we cannot just have the code below for setting
+    // the name on the first try.
     DescriptorTrackReservation* reservation_ptr =
         reserved_descriptor_tracks_.Find(uuid);
     PERFETTO_CHECK(reservation_ptr);
-    auto* tracks = context_->storage->mutable_track_table();
-    auto rr = *tracks->FindById(resolved_ptr->track_id());
     bool is_root_thread_process_or_counter = reservation_ptr->pid ||
                                              reservation_ptr->tid ||
                                              reservation_ptr->is_counter;
-    if (rr.name().is_null() && !is_root_thread_process_or_counter) {
-      if (resolved_ptr->scope() == ResolvedDescriptorTrack::Scope::kProcess) {
-        rr.set_name(context_->process_track_translation_table->TranslateName(
-            event_name));
-      } else {
-        rr.set_name(event_name);
-      }
+    if (PERFETTO_UNLIKELY(is_root_thread_process_or_counter)) {
+      return *resolved_ptr;
+    }
+    if (resolved_ptr->scope() == ResolvedDescriptorTrack::Scope::kProcess) {
+      rr.set_name(
+          context_->process_track_translation_table->TranslateName(event_name));
+    } else {
+      rr.set_name(event_name);
     }
     return *resolved_ptr;
   }
@@ -165,17 +191,16 @@ TrackEventTracker::GetDescriptorTrackImpl(
   DescriptorTrackReservation* reservation_ptr =
       reserved_descriptor_tracks_.Find(uuid);
   if (!reservation_ptr) {
-    if (uuid != kDefaultDescriptorTrackUuid) {
-      return std::nullopt;
-    }
-
-    // For the default track, if there's no reservation, forcefully create it
-    // as it's always allowed to emit events on it, even without emitting a
-    // descriptor.
+    // If the track is not reserved, create a new reservation.
+    // If the uuid is 0, it is the default descriptor track.
+    // If the uuid is not 0, it is a user-defined descriptor track.
     DescriptorTrackReservation r;
     r.parent_uuid = 0;
-    r.name = default_descriptor_track_name_;
-    ReserveDescriptorTrack(kDefaultDescriptorTrackUuid, r);
+    r.name = event_name.is_null() ? (uuid == kDefaultDescriptorTrackUuid
+                                         ? default_descriptor_track_name_
+                                         : kNullStringId)
+                                  : event_name;
+    ReserveDescriptorTrack(uuid, r);
 
     reservation_ptr = reserved_descriptor_tracks_.Find(uuid);
     PERFETTO_CHECK(reservation_ptr);
