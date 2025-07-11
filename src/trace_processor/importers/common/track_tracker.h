@@ -102,7 +102,7 @@ class TrackTracker {
       const typename BlueprintT::name_t& name = tracks::BlueprintName(),
       const SetArgsCallback& args = {},
       const typename BlueprintT::unit_t& unit = tracks::BlueprintUnit()) {
-    return InternTrackInner(bp, dims, name, args, unit).first;
+    return InternTrackInner(bp, dims, name, args, unit);
   }
 
   // Wrapper function for `InternTrack` in cases where you want the "main"
@@ -190,7 +190,7 @@ class TrackTracker {
                    const SetArgsCallback&);
 
   template <typename BlueprintT>
-  PERFETTO_ALWAYS_INLINE std::pair<TrackId, bool> InternTrackInner(
+  PERFETTO_ALWAYS_INLINE TrackId InternTrackInner(
       const BlueprintT& bp,
       const typename BlueprintT::dimensions_t& dims = {},
       const typename BlueprintT::name_t& name = tracks::BlueprintName(),
@@ -201,7 +201,7 @@ class TrackTracker {
     if (inserted) {
       *it = CreateTrack(bp, dims, name, args, unit);
     }
-    return std::make_pair(*it, inserted);
+    return *it;
   }
 
   template <size_t i, typename TupleDimensions>
