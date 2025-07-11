@@ -119,8 +119,7 @@ if (perfetto_build_standalone || is_perfetto_build_generator) {
   perfetto_root_path = "//"
   import("//gn/standalone/android.gni")  # For android_api_level
   import("//gn/standalone/libc++/libc++.gni")  # For use_custom_libcxx
-  import("//gn/standalone/sanitizers/vars.gni")  # For is_fuzzer,
-                                                 # using_sanitizer
+  import("//gn/standalone/sanitizers/vars.gni")  # For is_fuzzer
   import("//gn/standalone/toolchain/llvm.gni")
 } else if (!defined(perfetto_root_path)) {
   perfetto_root_path = "//third_party/perfetto/"
@@ -270,12 +269,6 @@ declare_args() {
 }
 
 declare_args() {
-  # True if running on a CI.
-  is_ci = getenv("CI") != ""
-  is_x86 = current_cpu == "x86"
-}
-
-declare_args() {
   # When false, it disables system backend consumer support in the Perfetto SDK.
   # Saves ~300KB binary size.
   if (!defined(enable_perfetto_system_consumer)) {
@@ -371,10 +364,7 @@ declare_args() {
       perfetto_build_standalone && !is_perfetto_build_generator
 
   # Enables the use of the LLVM symbolizer in trace_processor.
-  enable_perfetto_llvm_symbolizer =
-      !is_x86 && is_ci && !using_sanitizer && is_linux &&
-      enable_perfetto_trace_processor && perfetto_build_standalone &&
-      !is_perfetto_build_generator && non_hermetic_clang_stdlib != "libc++"
+  enable_perfetto_llvm_symbolizer = false
 
   # Enables Winscope features in trace_processor. These are used by the
   # standalone Winscope tool, Android prebuilts, and trace extractor metrics.
