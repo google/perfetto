@@ -100,6 +100,18 @@ packet {
   }
 }
 
+# Should appear on async track "async3".
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 6000
+  track_event {
+    track_uuid: 14
+    categories: "cat"
+    name: "event1_on_async3"
+    type: 3
+  }
+}
+
 # Should appear on default track "t1".
 packet {
   trusted_packet_sequence_id: 1
