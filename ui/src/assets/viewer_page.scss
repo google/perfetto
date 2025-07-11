@@ -18,7 +18,7 @@
 
   &__overview {
     z-index: 3;
-    background: white;
+    background: var(--pf-viewer-background);
 
     .pf-overview-timeline {
       height: 70px;
@@ -28,9 +28,9 @@
   &__header {
     display: grid;
     grid-template-columns: 1fr auto;
-    box-shadow: 1px 3px 15px rgba(23, 32, 44, 0.3);
+    box-shadow: var(--pf-viewer-header-shadow);
     z-index: 2;
-    background: white;
+    background: var(--pf-viewer-background);
 
     &:after {
       content: "";
@@ -45,7 +45,7 @@
     flex: 0 0 auto;
     max-height: 40%;
     z-index: 1;
-    box-shadow: 1px 3px 15px rgba(23, 32, 44, 0.3);
+    box-shadow: var(--pf-viewer-header-shadow);
     scrollbar-gutter: stable;
   }
 

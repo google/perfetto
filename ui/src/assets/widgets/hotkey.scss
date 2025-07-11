@@ -17,12 +17,12 @@
 .pf-keycap {
   user-select: none;
   line-height: 1;
-  background-color: #fafbfc;
-  border: 1px solid #d1d5da;
-  border-bottom-color: #c6cbd1;
+  background-color: var(--pf-keycap-background);
+  border: 1px solid var(--pf-keycap-border);
+  border-bottom-color: var(--pf-keycap-border-bottom);
   border-radius: 3px;
-  box-shadow: inset 0 -1px 0 #c6cbd1;
-  color: #444d56;
+  box-shadow: inset 0 -1px 0 var(--pf-keycap-border-bottom);
+  color: var(--pf-keycap-color);
   display: inline-block;
   font-family: $pf-font;
   vertical-align: baseline;

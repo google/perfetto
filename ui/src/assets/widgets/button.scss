@@ -19,12 +19,12 @@
   background: $intent-color;
 
   &:hover {
-    background: lighten($intent-color, 5%);
+    background: color-mix(in srgb, $intent-color 95%, white);
   }
 
   &:active,
   &.pf-active {
-    background: darken($intent-color, 5%);
+    background: color-mix(in srgb, $intent-color 95%, black);
   }
 
   &[disabled] {
@@ -33,7 +33,7 @@
     }
 
     &.pf-active {
-      background: darken($intent-color, 5%);
+      background: color-mix(in srgb, $intent-color 95%, black);
     }
   }
 }
@@ -119,19 +119,19 @@
     }
 
     &.pf-intent-primary {
-      @include filled-color-scheme($color-primary, white);
+      @include filled-color-scheme($pf-color-primary, white);
     }
 
     &.pf-intent-success {
-      @include filled-color-scheme($color-success, white);
+      @include filled-color-scheme($pf-color-success, white);
     }
 
     &.pf-intent-danger {
-      @include filled-color-scheme($color-danger, white);
+      @include filled-color-scheme($pf-color-danger, white);
     }
 
     &.pf-intent-warning {
-      @include filled-color-scheme($color-warning, black);
+      @include filled-color-scheme($pf-color-warning, black);
     }
   }
 
@@ -155,15 +155,15 @@
     }
 
     &.pf-intent-success {
-      color: $color-success;
+      color: $pf-color-success;
     }
 
     &.pf-intent-danger {
-      color: $color-danger;
+      color: $pf-color-danger;
     }
 
     &.pf-intent-warning {
-      color: $color-warning;
+      color: $pf-color-warning;
     }
 
     &[disabled] {

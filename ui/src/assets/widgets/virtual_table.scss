@@ -21,7 +21,7 @@
     overflow: auto;
     font-family: $pf-font;
     position: relative;
-    background: white; // Performance tweak - see b/335451611
+    background: var(--pf-vtable-background); // Performance tweak - see b/335451611
 
     .pf-vtable-content {
       display: inline-flex;
@@ -33,12 +33,12 @@
         position: sticky;
         top: 0;
         z-index: 1;
-        background: white;
+        background: var(--pf-vtable-background);
         white-space: nowrap;
         padding-inline: 4px;
 
         // A shadow improves distinction between header and content
-        box-shadow: #0001 0px 0px 8px;
+        box-shadow: var(--pf-vtable-background-header-shadow);
       }
 
       .pf-vtable-data {
@@ -54,15 +54,15 @@
 
         // Necessary trig because we have a 45deg stripes
         $pattern-density: 1px * math.sqrt(2);
-        $pattern-col: #ddd;
+        $pattern-col: var(--pf-vtable-background-pattern);
         overflow: hidden;
 
         background: repeating-linear-gradient(
           -45deg,
-          $pattern-col,
-          $pattern-col $pattern-density,
-          white $pattern-density,
-          white $pattern-density * 2
+          var(--pf-vtable-background-pattern),
+          var(--pf-vtable-background-pattern) $pattern-density,
+          var(--pf-vtable-background) $pattern-density,
+          var(--pf-vtable-background) $pattern-density * 2
         );
 
         .pf-vtable-puck {
@@ -73,11 +73,11 @@
             padding-inline: 4px;
 
             &:nth-child(odd) {
-              background-color: hsl(214, 22%, 95%);
+              background-color: var(--pf-vtable-background-row-odd);
             }
 
             &:nth-child(even) {
-              background-color: white;
+              background-color: var(--pf-vtable-background-row-even);
             }
 
             &:hover {

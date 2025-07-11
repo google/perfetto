@@ -1,0 +1,254 @@
+// Copyright (C) 2023 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Standard theme settings for widgets as overridable variables
+
+:root {
+  /* For the theme.scss Sass variables. */
+  --pf-font: "Roboto Condensed", sans-serif;
+  --pf-heading-font: "Roboto", sans-serif;
+  --pf-monospace-font: "Roboto Mono", monospace;
+  --pf-border-radius: 2px;
+  --pf-anim-timing: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  --pf-primary-foreground: #fff;
+  --pf-primary-foreground-disabled: #aaa;
+  --pf-primary-border: #31466f;
+  --pf-primary-background: #3d5688;
+  --pf-primary-background-hover: #4966a2;
+  --pf-primary-background-active: #243e71;
+  --pf-primary-background-disabled: #666;
+
+  --pf-minimal-foreground: #19212b;
+  --pf-minimal-foreground-disabled: #aaa;
+  --pf-minimal-border: #aaa;
+  --pf-minimal-background: none;
+  --pf-minimal-background-hover: #0001;
+  --pf-minimal-background-active: #0002;
+  --pf-minimal-background-disabled: none;
+
+  --pf-color-primary: #3d5688;
+  --pf-color-danger: #912929;
+  --pf-color-success: #3c832b;
+  --pf-color-warning: #dca612;
+  --pf-colour-thin-border: #aaa;
+  --pf-focus-border: #64b5f6;
+
+  --pf-table-hover-color: hsl(214, 22%, 90%);
+  --pf-table-border-color: rgba(60, 76, 92, 0.4);
+
+  /* Common */
+  --pf-sidebar-width: 230px;
+  --pf-topbar-height: 44px;
+  --pf-track-shell-width: 250px;
+  --pf-track-border-color: #00000025;
+  --pf-anim-easing: cubic-bezier(0.4, 0, 0.2, 1);
+  --pf-selection-stroke-color: #00344596;
+  --pf-selection-fill-color: #8398e64d;
+  --pf-overview-timeline-non-visible-color: #c8c8c8cc;
+  --pf-details-content-height: 308px;
+
+  --pf-main-color: #121212;
+  --pf-filedrag-border-color: #404854;
+  --pf-filedrag-color: #333;
+  --pf-filedrag-background: rgba(255, 255, 255, 0.5);
+  --pf-query-error-color: hsl(-10, 50%, 50%);
+  --pf-overview-header-background: hsl(213, 22%, 82%);
+  --pf-overview-header-color: hsl(213, 22%, 20%);
+  --pf-overview-header-border: hsl(213, 22%, 75%);
+  --pf-overview-header-code: hsl(213, 22%, 40%);
+  --pf-perf-stats-stroke: hsl(217, 39%, 94%);
+  --pf-perf-stats-background: rgba(27, 28, 29, 0.9);
+  --pf-perf-stats-button: hsl(45, 100%, 48%);
+  --pf-perf-stats-button-hover: hsl(6, 70%, 53%);
+  --pf-cookie-background: #19212b;
+  --pf-cookie-color: rgb(180, 183, 186);
+  --pf-cookie-button-color: #fff;
+  --pf-cookie-button-hover-background: #373f4b;
+  --pf-pivot-mode-button-background: #c7d0db;
+  --pf-has-left-border: rgba(60, 76, 92, 0.4);
+  --pf-history-border: hsl(213, 22%, 75%);
+  --pf-history-hover-background: hsl(213, 22%, 94%);
+  --pf-history-hover-color: rgba(0, 0, 0, 0.2);
+
+  /* Top Bar */
+  --pf-topbar-background: hsl(215, 1%, 95%);
+  --pf-topbar-shadow: 0px 1px 2px 1px #00000026;
+  --pf-topbar-error-color: #ef6c00;
+  --pf-stepthrough-color: #aaa;
+  --pf-stepthrough-left-border: rgb(218, 217, 217);
+  --pf-notification-background: hsl(210, 10%, 73%);
+  --pf-notification-background-hover: hsl(210, 10%, 83%);
+  --pf-notification-preferred-background: hsl(210, 98%, 53%);
+  --pf-notification-preferred-background-hover: hsl(210, 98%, 63%);
+  --pf-notification-preferred-color: #fff;
+
+  /* Omnibox */
+  --pf-omnibox-background: white;
+  --pf-omnibox-search-icon: #aaa;
+  --pf-omnibox-input-color: #666;
+  --pf-omnibox-input-placeholder: #b4b7ba;
+  --pf-omnibox-query-background: #111;
+  --pf-omnibox-query-border: #404854;
+  --pf-omnibox-query-input: #9ddc67;
+  --pf-omnibox-message-background: hsl(0, 0%, 89%);
+  --pf-omnibox-message-placeholder: hsl(213, 40%, 50%);
+  --pf-omnibox-focus-shadow: 1px 1px 8px rgba(0, 0, 0, 0.2);
+
+  /* Data Grids */
+  --pf-datagrid-border-color: rgb(225, 225, 225);
+  --pf-datagrid-hover-background: rgb(239, 241, 244);
+  --pf-datagrid-head-background: white;
+  --pf-datagrid-button-hint-color: gray;
+  --pf-datagrid-cell-null-color: gray;
+
+  /* Details Panel */
+  --pf-details-background: white;
+  --pf-details-color: black;
+  --pf-details-border: rgba(0, 0, 0, 0.2);
+  --pf-details-gray-icon: #e8e8e8;
+  --pf-details-gray-icon-hover-border: #475566;
+  --pf-details-header: white;
+  --pf-details-header-no-highlight: white;
+  --pf-details-flow-link: rgb(60, 86, 136);
+  --pf-details-warning-color: hsl(45, 100%, 48%);
+  --pf-details-tooltip-background: white;
+  --pf-details-tooltip-color: #3f4040;
+  --pf-details-tooltip-shadow: 1px 3px 15px rgba(23, 32, 44, 0.3);
+
+  /* Notes Panel */
+  --pf-notes-panel-color: #3c4b5d;
+  --pf-notes-panel-input-border: #dcdcdc;
+  --pf-notes-panel-input-shadow: 1px 1px 1px rgba(23, 32, 44, 0.3);
+
+  /* Android Logs Panel */
+  --pf-android-log-d: hsl(122, 20%, 40%);
+  --pf-android-log-v: hsl(122, 20%, 30%);
+  --pf-android-log-i: hsl(0, 0%, 20%);
+  --pf-android-log-w: hsl(45, 60%, 45%);
+  --pf-android-log-e: hsl(4, 90%, 58%);
+  --pf-android-log-f: hsl(291, 64%, 42%);
+  --pf-android-log-highlighted: #d2efe0;
+
+  /* Keycaps (such as for Hotkeys) */
+  --pf-keycap-color: #444d56;
+  --pf-keycap-background: #fafbfc;
+  --pf-keycap-border: #d1d5da;
+  --pf-keycap-border-bottom: #c6cbd1;
+
+  /* Modal Dialogs */
+  --pf-model-backdrop-background: rgba(0, 0, 0, 0.6);
+  --pf-modal-background: #fff;
+  --pf-modal-title-color: #262f3c;
+  --pf-modal-text-color: rgba(0, 0, 0, 0.8);
+  --pf-modal-logs-background: #eee;
+  --pf-modal-logs-border: #999;
+
+  /* Help Dialog */
+  --pf-help-keycap-background: #fafbfc;
+  --pf-help-keycap-border: #d1d5da;
+  --pf-help-keycap-border-bottom: #c6cbd1;
+  --pf-help-keycap-shadow: inset 0 -1px 0 #c6cbd1;
+  --pf-help-keycap-color: #444d56;
+
+  /* Linear Progress */
+  --pf-linear-progress-background: hsl(219, 50%, 50%);
+
+  /* Split Panels */
+  --pf-split-panel-handle-background: hsl(215, 1%, 95%);
+  --pf-split-panel-handle-border: rgba(0, 0, 0, 0.1);
+  --pf-split-panel-drawer-shadow: #0000003b 0px 0px 3px 1px;
+
+  /* Tabs */
+  --pf-tab-color: #3c4b5d;
+  --pf-tab-background: #0000000f;
+  --pf-tab-border: 1px solid hsla(0, 0%, 75%, 1);
+  --pf-tab-shadow: #0000003b 0px 0px 3px 1px;
+  --pf-tab-hover-background: hsla(0, 0%, 85%, 1);
+  --pf-tab-active-background: white;
+
+  /* Trees */
+  --pf-tree-spinner-color: lightgray;
+  --pf-tree-children-border: rgba(0, 0, 0, 0.2);
+
+  /* Tracks */
+  --pf-track-text-color-dark: hsl(213, 22%, 30%);
+  --pf-track-text-color-light: white;
+  --pf-track-highlight-background: #ffe263;
+  --pf-track-drag-highlight-color: rgb(29, 85, 189);
+  --pf-track-default-background: white;
+  --pf-track-collapsed-background: hsla(190, 49%, 97%, 1);
+  --pf-track-expanded-background: hsl(215, 22%, 19%);
+  --pf-track-indent-size: 8px;
+  --pf-track-indent-background: lightgray;
+  --pf-track-background-pattern-dark: #ddd;
+  --pf-track-background-pattern-light: #fff;
+  --pf-track-title-popup-shadow: 1px 1px 2px 2px var(--pf-track-border-color);
+  --pf-track-title-popup-background: #fff;
+  --pf-track-title-popup-color: hsl(213, 22%, 30%);
+  
+  /* Tool-tips */
+  --pf-tooltip-background: white;
+  --pf-tooltip-shadow: 2px 2px 16px rgba(0, 0, 0, 0.2);
+
+  /* Virtual Tables */
+  --pf-vtable-background: white;
+  --pf-vtable-background-header-shadow: 0px 0px 8px #0001;
+  --pf-vtable-background-pattern: #ddd;
+  --pf-vtable-background-row-odd: hsl(214, 22%, 95%);
+  --pf-vtable-background-row-even: white;
+
+  /* Viewer Page */
+  --pf-viewer-background: white;
+  --pf-viewer-header-shadow: 1px 3px 15px rgba(23, 32, 44, 0.3);
+  
+  /* Trace Info Page */
+  --pf-traceinfo-errors-background: #f3e5f5;
+  --pf-traceinfo-header-color: #333;
+  --pf-traceinfo-help-color: #43a047;
+  --pf-traceinfo-table-header-border: #333;
+  --pf-traceinfo-table-odd-background: rgba(0, 0, 0, 0.04);
+
+  /* Sidebar */
+  --pf-sidebar-background: #262f3c;
+  --pf-sidebar-border-bottom: #404854;
+  --pf-sidebar-header-color: #fff;
+  --pf-sidebar-canary-color: #ffd700;
+  --pf-sidebar-autopush-color: #aed581;
+  --pf-sidebar-hide-sidebar-color: #aaaaaa;
+  --pf-sidebar-scrollbar-background: #19212b;
+  --pf-sidebar-scrollbar-thumb-background: #b4b7ba6e;
+  --pf-sidebar-section-header-h1-color: #fff;
+  --pf-sidebar-section-header-h2-color: rgba(255, 255, 255, 0.5);
+  --pf-sidebar-section-header-before-color: rgba(255, 255, 255, 0.3);
+  --pf-sidebar-section-hover-background: #373f4b;
+  --pf-sidebar-section-expanded-background: #19212b;
+  --pf-sidebar-section-content-color: #b4b7ba;
+  --pf-sidebar-section-content-a-color: #b4b7ba;
+  --pf-sidebar-pending-color: rgba(255, 255, 255, 0.3);
+  --pf-sidebar-pending-spinner-border: #b4b7ba;
+  --pf-sidebar-li-hover-background: #373f4b;
+  --pf-sidebar-trace-file-name-color: #fff;
+  --pf-sidebar-footer-button-color: hsl(217, 39%, 94%);
+  --pf-sidebar-footer-button-hover-color: hsl(45, 100%, 48%);
+  --pf-sidebar-footer-dbg-info-background: #12161b;
+  --pf-sidebar-footer-dbg-info-color: #4e71b3;
+  --pf-sidebar-footer-dbg-info-green-background: #7aca75;
+  --pf-sidebar-footer-dbg-info-green-color: #12161b;
+  --pf-sidebar-footer-dbg-info-amber-background: #ffc107;
+  --pf-sidebar-footer-dbg-info-amber-color: #333;
+  --pf-sidebar-footer-dbg-info-red-background: #d32f2f;
+  --pf-sidebar-footer-dbg-info-red-color: #fff;
+  --pf-sidebar-footer-version-link-color: rgba(255, 255, 255, 0.5);
+}

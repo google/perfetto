@@ -1,6 +1,6 @@
 @import "theme";
 
-$chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='8' width='8'%3E%3Cline x1='2' y1='0' x2='6' y2='4' stroke='black'/%3E%3Cline x1='6' y1='4' x2='2' y2='8' stroke='black'/%3E%3C/svg%3E");
+$chevron-svg: var(--pf-chevron-svg);
 
 .pf-tree {
   font-family: $pf-font;
@@ -39,27 +39,29 @@ $chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
       width: 16px;
       justify-content: center;
       align-items: center;
+      @include icon;
     }
 
     &.pf-collapsed > .pf-tree-left > .pf-tree-gutter {
       cursor: pointer;
-
+      translate: -3px 0;
       &::after {
-        content: $chevron-svg;
+        content: "chevron_right";
       }
     }
     &.pf-expanded > .pf-tree-left > .pf-tree-gutter {
       cursor: pointer;
+      rotate: 90deg;
+      translate: 0 -5px;
       &::after {
-        content: $chevron-svg;
-        rotate: 90deg;
+        content: "chevron_right";
       }
     }
 
     &.pf-loading > .pf-tree-left > .pf-tree-gutter {
       &::after {
         content: "";
-        border: solid 1px lightgray;
+        border: solid 1px var(--pf-tree-spinner-lightgray);
         border-top: solid 1px $pf-primary-background;
         animation: pf-spinner-rotation 1s infinite linear;
         width: 8px;
@@ -82,7 +84,7 @@ $chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
     grid-column: 1 / span 2;
     grid-template-columns: subgrid;
     row-gap: 5px;
-    border-left: solid rgba(0, 0, 0, 0.2) 1px;
+    border-left: solid var(--pf-tree-children-border) 1px;
     margin-left: 6px;
     padding-left: 6px;
   }

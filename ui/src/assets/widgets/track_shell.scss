@@ -16,32 +16,25 @@
 @import "theme";
 
 .pf-track {
-  --text-color-dark: hsl(213, 22%, 30%);
-  --text-color-light: white;
-  --drag-highlight-color: rgb(29, 85, 189);
-  --default-background: white;
-  --collapsed-background: hsla(190, 49%, 97%, 1);
-  --expanded-background: hsl(215, 22%, 19%);
-  --indent-size: 8px;
-
   // Default values - should be overridden from JS
-  --sticky-top: 0;
-  --depth: 0;
+  --pf-track-sticky-top: 0;
+  --pf-track-depth: 0;
+  // --pf-track-height has no default and is set in JS
 
-  font-family: "Roboto Condensed", sans-serif;
+  font-family: var(--pf-font);
   font-weight: 300;
   font-size: 14px;
-  color: var(--text-color-dark);
-  background-color: var(--default-background);
+  color: var(--pf-track-text-color-dark);
+  background-color: var(--pf-track-default-background);
   user-select: none;
-  scroll-margin-top: calc(var(--sticky-top) * 1px);
+  scroll-margin-top: calc(var(--pf-track-sticky-top) * 1px);
 
   &__header {
-    height: calc(var(--height) * 1px);
+    height: calc(var(--pf-track-height) * 1px);
     display: grid;
     grid-template-columns:
-      calc(var(--depth) * var(--indent-size)) calc(
-        var(--pf-track-shell-width) - (var(--depth) * var(--indent-size))
+      calc(var(--pf-track-depth) * var(--pf-track-indent-size)) calc(
+        var(--pf-track-shell-width) - (var(--pf-track-depth) * var(--pf-track-indent-size))
       )
       1fr;
     grid-template-areas: "indent shell canvas";
@@ -49,19 +42,19 @@
     &::before {
       content: "";
       grid-area: indent;
-      background: lightgray;
+      background: var(--pf-track-indent-background);
     }
 
     &--summary {
-      background-color: var(--collapsed-background);
+      background-color: var(--pf-track-collapsed-background);
     }
 
     &--expanded--summary {
       position: sticky;
-      top: calc(var(--sticky-top) * 1px);
-      z-index: calc(16 - var(--depth));
-      background-color: var(--expanded-background);
-      color: var(--text-color-light);
+      top: calc(var(--pf-track-sticky-top) * 1px);
+      z-index: calc(16 - var(--pf-track-depth));
+      background-color: var(--pf-track-expanded-background);
+      color: var(--pf-track-text-color-light);
     }
   }
 
@@ -72,20 +65,20 @@
     border-color: var(--pf-track-border-color);
 
     &--highlight {
-      background-color: #ffe263;
-      color: var(--text-color-dark);
+      background-color: var(--pf-track-highlight-background);
+      color: var(--pf-track-text-color-dark);
     }
 
     &--drag-after {
-      box-shadow: inset 0 -6px 3px -3px var(--drag-highlight-color);
+      box-shadow: inset 0 -6px 3px -3px var(--pf-track-drag-highlight-color);
     }
 
     &--drag-inside {
-      box-shadow: inset -6px 0 3px -3px var(--drag-highlight-color);
+      box-shadow: inset -6px 0 3px -3px var(--pf-track-drag-highlight-color);
     }
 
     &--drag-before {
-      box-shadow: inset 0 6px 3px -3px var(--drag-highlight-color);
+      box-shadow: inset 0 6px 3px -3px var(--pf-track-drag-highlight-color);
     }
 
     &--clickable {
@@ -121,13 +114,13 @@
     &--error {
       // Necessary trig because we have 45deg stripes
       $pattern-density: 1px * math.sqrt(2);
-      $pattern-col: #ddd;
+      $pattern-col: var(--pf-track-background-pattern-dark);
 
       background: repeating-linear-gradient(-45deg,
-          $pattern-col,
-          $pattern-col $pattern-density,
-          white $pattern-density,
-          white $pattern-density * 4);
+          var(--pf-track-background-pattern-dark),
+          var(--pf-track-background-pattern-dark) $pattern-density,
+          var(--pf-track-background-pattern-light) $pattern-density,
+          var(--pf-track-background-pattern-light) $pattern-density * 4);
     }
   }
 
@@ -140,7 +133,7 @@
       "none subtitle subtitle subtitle";
     padding: 1px;
     position: sticky;
-    top: calc(var(--sticky-top) * 1px);
+    top: calc(var(--pf-track-sticky-top) * 1px);
   }
 
   &__title-spacer {
@@ -170,9 +163,9 @@
     }
 
     &:hover &-popup--visible {
-      box-shadow: 1px 1px 2px 2px var(--pf-track-border-color);
-      background: white;
-      color: hsl(213, 22%, 30%);
+      box-shadow: var(--pf-track-title-popup-shadow);
+      background: var(--pf-track-title-popup-background);
+      color: var(--pf-track-title-popup-color);
     }
   }
 

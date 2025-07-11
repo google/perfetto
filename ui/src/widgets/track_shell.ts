@@ -148,9 +148,9 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       {
         id,
         style: {
-          '--height': trackHeight,
-          '--depth': clamp(depth, 0, 16),
-          '--sticky-top': Math.max(0, stickyTop),
+          '--pf-track-height': trackHeight,
+          '--pf-track-depth': clamp(depth, 0, 16),
+          '--pf-track-sticky-top': Math.max(0, stickyTop),
         },
         ref,
       },

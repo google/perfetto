@@ -28,8 +28,8 @@
   }
 
   &__handle {
-    background-color: hsl(215, 1%, 95%);
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    background-color: var(--pf-split-panel-handle-background);
+    border: 1px solid var(--pf-split-panel-handle-border);
     border-bottom: none;
     cursor: row-resize;
     // Disable user selection since this handle is draggable to resize the
@@ -49,6 +49,6 @@
   &__drawer {
     flex-shrink: 0;
     overflow: auto;
-    box-shadow: #0000003b 0px 0px 3px 1px;
+    box-shadow: var(--pf-split-panel-drawer-shadow);
   }
 }

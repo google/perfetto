@@ -12,23 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@import "widgets/theme_variables";
 @import "widgets/theme";
 @import "typefaces";
 @import "fonts";
 @import "base";
-
-:root {
-  --pf-sidebar-width: 230px;
-  --pf-topbar-height: 44px;
-  --pf-monospace-font: "Roboto Mono", monospace;
-  --pf-track-shell-width: 250px;
-  --pf-track-border-color: #00000025;
-  --pf-anim-easing: cubic-bezier(0.4, 0, 0.2, 1);
-  --pf-selection-stroke-color: #00344596;
-  --pf-selection-fill-color: #8398e64d;
-  --pf-overview-timeline-non-visible-color: #c8c8c8cc;
-  --pf-details-content-height: 308px;
-}
 
 @mixin transition($time: 0.1s) {
   transition:
@@ -66,12 +54,12 @@ body.pf-filedrag::after {
   left: 0;
   right: 0;
   bottom: 0;
-  border: 10px dashed #404854;
+  border: 10px dashed var(--pf-filedrag-border-color);
   text-align: center;
   font-size: 3rem;
   line-height: 100vh;
-  color: #333;
-  background: rgba(255, 255, 255, 0.5);
+  color: var(--pf-filedrag-color);
+  background: var(--pf-filedrag-background);
 }
 
 .pf-page {
@@ -83,9 +71,8 @@ body.pf-filedrag::after {
   line-height: 18px;
 }
 
-$table-hover-color: hsl(214, 22%, 90%);
-
-$table-border-color: rgba(60, 76, 92, 0.4);
+$table-hover-color: var(--pf-table-hover-color);
+$table-border-color: var(--pf-table-border-color);
 
 $bottom-tab-padding: 10px;
 
@@ -124,7 +111,7 @@ $bottom-tab-padding: 10px;
     }
 
     &.has-left-border {
-      border-left: 1px solid rgba(60, 76, 92, 0.4);
+      border-left: 1px solid var(--pf-has-left-border);
     }
   }
 }
@@ -169,15 +156,15 @@ $bottom-tab-padding: 10px;
 
 .pf-query-error {
   padding: 20px 10px;
-  color: hsl(-10, 50%, 50%);
-  font-family: "Roboto Mono", sans-serif;
+  color: var(--pf-query-error-color);
+  font-family: var(--pf-monospace-font);
   font-size: 12px;
   font-weight: 300;
   white-space: pre;
 }
 
 .pf-perf-stats {
-  --stroke-color: hsl(217, 39%, 94%);
+  --stroke-color: var(--pf-perf-stats-stroke);
   position: fixed;
   bottom: 0;
   left: 0;
@@ -186,12 +173,12 @@ $bottom-tab-padding: 10px;
   font-family: var(--pf-monospace-font);
   padding: 10px 24px;
   z-index: 100;
-  background-color: rgba(27, 28, 29, 0.9);
+  background-color: var(--pf-perf-stats-background);
   button {
     text-decoration: underline;
-    color: hsl(45, 100%, 48%);
+    color: var(--pf-perf-stats-button);
     &:hover {
-      color: hsl(6, 70%, 53%);
+      color: var(--pf-perf-stats-button-hover);
     }
   }
   .close-button {
@@ -228,9 +215,9 @@ $bottom-tab-padding: 10px;
   left: 10px;
   bottom: 10px;
   width: 550px;
-  background-color: #19212b;
+  background-color: var(--pf-cookie-background);
   font-size: 14px;
-  color: rgb(180, 183, 186);
+  color: var(--pf-cookie-color);
   border-radius: 5px;
   padding: 20px;
 
@@ -244,15 +231,15 @@ $bottom-tab-padding: 10px;
   button {
     padding: 10px;
     border-radius: 3px;
-    color: #fff;
+    color: var(--pf-cookie-button-color);
     margin-left: 5px;
     a {
       text-decoration: none;
-      color: #fff;
+      color: var(--pf-cookie-button-color);
     }
   }
   button:hover {
-    background-color: #373f4b;
+    background-color: var(--pf-cookie-button-hover-background);
     cursor: pointer;
   }
 }
@@ -266,7 +253,7 @@ $bottom-tab-padding: 10px;
     border-radius: 10px;
     padding: 7px;
     margin: 5px;
-    background-color: #c7d0db;
+    background-color: var(--pf-pivot-mode-button-background);
   }
 
   &.pf-query-error {

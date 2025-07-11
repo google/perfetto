@@ -24,8 +24,8 @@
   position: relative;
   z-index: 3;
   overflow: visible;
-  background-color: hsl(215, 1%, 95%);
-  box-shadow: 0px 1px 2px 1px #00000026;
+  background-color: var(--pf-topbar-background);
+  box-shadow: var(--pf-topbar-shadow);
   min-height: var(--pf-topbar-height);
   display: flex;
   justify-content: center;
@@ -37,17 +37,17 @@
     grid-template-areas: "icon input stepthrough";
     grid-template-columns: 34px auto max-content;
     border-radius: $pf-border-radius;
-    background-color: white;
+    background-color: var(--pf-omnibox-background);
     border: solid 1px transparent;
     &:focus-within {
       border-color: $pf-colour-thin-border;
-      box-shadow: 1px 1px 8px rgba(0, 0, 0, 0.2);
+      box-shadow: var(--pf-omnibox-focus-shadow);
     }
     line-height: 34px;
     &:before {
       @include material-icon("search");
       margin: 5px;
-      color: #aaa;
+      color: var(--pf-omnibox-search-icon);
       grid-area: icon;
     }
     input {
@@ -55,35 +55,35 @@
       border: 0;
       padding: 0 10px;
       font-size: 18px;
-      font-family: "Roboto Condensed", sans-serif;
+      font-family: $pf-font;
       font-weight: 300;
-      color: #666;
+      color: var(--pf-omnibox-input-color);
       background-color: transparent;
       &:focus {
         outline: none;
       }
       &::placeholder {
-        color: #b4b7ba;
-        font-family: "Roboto Condensed", sans-serif;
+        color: var(--pf-omnibox-input-placeholder);
+        font-family: $pf-font;
         font-weight: 400;
       }
     }
     &.query-mode {
-      background-color: #111;
+      background-color: var(--pf-omnibox-query-background);
       border-radius: 0;
       width: 100%;
       max-width: 100%;
       margin-top: 0;
-      border-left: 1px solid #404854;
+      border-left: 1px solid var(--pf-omnibox-query-border);
       height: var(--pf-topbar-height);
       input {
-        color: #9ddc67;
+        color: var(--pf-omnibox-query-input);
         font-family: var(--pf-monospace-font);
         padding-left: 0;
       }
       &:before {
         content: "attach_money";
-        color: #9ddc67;
+        color: var(--pf-omnibox-query-input);
         font-size: 26px;
         padding-top: 5px;
       }
@@ -92,7 +92,7 @@
       &:before {
         @include material-icon("chevron_right");
         margin: 5px;
-        color: #aaa;
+        color: var(--pf-omnibox-search-icon);
         grid-area: icon;
       }
     }
@@ -100,17 +100,17 @@
       &:before {
         @include material-icon("question_mark");
         margin: 5px;
-        color: #aaa;
+        color: var(--pf-omnibox-search-icon);
         grid-area: icon;
       }
     }
     &.message-mode {
-      background-color: hsl(0, 0%, 89%);
+      background-color: var(--pf-omnibox-message-background);
       border-radius: $pf-border-radius;
       input::placeholder {
         font-weight: 400;
         font-family: var(--pf-monospace-font);
-        color: hsl(213, 40%, 50%);
+        color: var(--pf-omnibox-message-placeholder);
       }
       &:before {
         content: "info";
@@ -121,14 +121,14 @@
       display: flex;
       font: inherit;
       font-size: 14px;
-      font-family: "Roboto Condensed", sans-serif;
+      font-family: $pf-font;
       font-weight: 300;
-      color: #aaa;
+      color: var(--pf-stepthrough-color);
       .current {
         padding-right: 10px;
       }
       .pf-material-icons.left {
-        border-right: rgb(218, 217, 217) solid 1px;
+        border-right: var(--pf-stepthrough-left-border) solid 1px;
       }
     }
   }
@@ -139,16 +139,16 @@
     padding: 8px 10px;
     margin: 0 10px;
     border-radius: 2px;
-    background: hsl(210, 10%, 73%);
+    background: var(--pf-notification-background);
     &:hover {
-      background: hsl(210, 10%, 83%);
+      background: var(--pf-notification-background-hover);
     }
 
     &.preferred {
-      background: hsl(210, 98%, 53%);
-      color: #fff;
+      background: var(--pf-notification-preferred-background);
+      color: var(--pf-notification-preferred-color);
       &:hover {
-        background: hsl(210, 98%, 63%);
+        background: var(--pf-notification-preferred-background-hover);
       }
     }
   }
@@ -160,7 +160,7 @@
   display: flex;
   align-items: center;
   .error {
-    color: #ef6c00;
+    color: var(--pf-topbar-error-color);
     &:hover {
       cursor: pointer;
     }
@@ -174,7 +174,7 @@
 .pf-error-popup {
   width: 100px;
   font-size: 14px;
-  font-family: "Roboto Condensed", sans-serif;
+  font-family: $pf-font;
 }
 
 .pf-topbar.hide-sidebar {

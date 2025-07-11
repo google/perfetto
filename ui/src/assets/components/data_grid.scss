@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-$border: 1px solid rgb(225, 225, 225);
+$border: 1px solid var(--pf-datagrid-border-color);
 
 .pf-data-grid {
   display: flex;
@@ -41,14 +41,14 @@ $border: 1px solid rgb(225, 225, 225);
   // Highlight rows on hover.
   tr {
     &:hover {
-      background-color: rgb(239, 241, 244);
+      background-color: var(--pf-datagrid-hover-background);
     }
   }
 
   thead {
     position: sticky;
     top: 0;
-    background-color: white;
+    background-color: var(--pf-datagrid-head-background);
 
     tr {
       &:hover {
@@ -121,7 +121,7 @@ $border: 1px solid rgb(225, 225, 225);
   }
 
   &__button-hint {
-    color: gray;
+    color: var(--pf-datagrid-button-hint-color);
   }
 
   &__cell--number {
@@ -130,7 +130,7 @@ $border: 1px solid rgb(225, 225, 225);
 
   &__cell--null {
     text-align: center;
-    color: gray;
+    color: var(--pf-datagrid-cell-null-color);
     font-style: italic;
   }
 

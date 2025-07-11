@@ -58,7 +58,7 @@
         transition: border-color 0.2s ease-in-out;
 
         &:focus {
-          border-color: $color-primary;
+          border-color: $pf-color-primary;
           outline: none;
         }
       }
@@ -99,7 +99,7 @@
 
     .table-name {
       font-weight: 500;
-      color: $color-primary;
+      color: $pf-color-primary;
       margin-bottom: 0.25rem;
     }
 

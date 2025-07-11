@@ -26,10 +26,10 @@
     flex-direction: row;
     align-items: baseline;
     gap: 6px;
-    background-color: white;
-    color: black;
+    background-color: var(--pf-details-background);
+    color: var(--pf-details-color);
     padding: 8px 8px 5px 8px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid var(--pf-details-border);
 
     .pf-header-title {
       font-size: 18px;

@@ -31,10 +31,13 @@
 }
 
 .pf-popup {
-  background: white;
+  --pf-popup-background: white;
+  --pf-popup-shadow: 2px 2px 16px rgba(0, 0, 0, 0.2);
+
+  background: var(--pf-popup-background);
   border: solid 1px $pf-colour-thin-border;
   border-radius: $pf-border-radius;
-  box-shadow: 2px 2px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--pf-popup-shadow);
   max-width: 350px; // Sensible default width for most popups
 
   .pf-popup-content {

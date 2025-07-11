@@ -41,7 +41,7 @@
 .pf-modal-backdrop {
   position: absolute;
   z-index: 99;
-  background-color: rgba(0, 0, 0, 0.6);
+  background-color: var(--pf-model-backdrop-background);
   top: 0;
   left: 0;
   right: 0;
@@ -59,7 +59,7 @@
 .pf-modal-dialog {
   position: absolute;
   z-index: 100;
-  background-color: #fff;
+  background-color: var(--pf-modal-background);
   margin: auto;
   min-width: 25vw;
   min-height: 10vh;
@@ -87,11 +87,11 @@
     h2 {
       margin-top: 0;
       margin-bottom: 0;
-      font-family: "Roboto", sans-serif;
+      font-family: var(--pf-heading-font);
       font-weight: 600;
       font-size: 1.25rem;
       line-height: 1.25;
-      color: #262f3c;
+      color: var(--pf-modal-title-color);
       box-sizing: border-box;
     }
 
@@ -105,7 +105,7 @@
     font-size: 1rem;
     margin-top: 2rem;
     line-height: 1.5;
-    color: rgba(0, 0, 0, 0.8);
+    color: var(--pf-modal-text-color);
 
     .small-font {
       font-size: 0.9rem;
@@ -145,8 +145,8 @@
   .modal-logs,
   .modal-bash {
     white-space: pre-wrap;
-    border: 1px solid #999;
-    background: #eee;
+    border: 1px solid var(--pf-modal-logs-border);
+    background: var(--pf-modal-logs-background);
     font-size: 10px;
     font-family: var(--pf-monospace-font);
     margin-top: 10px;

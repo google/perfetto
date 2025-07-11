@@ -29,9 +29,9 @@
     &.grey {
       border-radius: 3px;
       border: 1px solid transparent;
-      background-color: #e8e8e8;
+      background-color: var(--pf-details-gray-icon);
       &:hover {
-        border: #475566 solid 1px;
+        border: var(--pf-details-gray-icon-hover-border) solid 1px;
       }
     }
   }
@@ -47,7 +47,7 @@
     z-index: 1;
 
     display: flex;
-    background: white;
+    background: var(--pf-details-header);
     h2 {
       font-size: 16px;
       font-weight: 400;
@@ -73,7 +73,7 @@
         background-color: $table-hover-color;
 
         &.no-highlight {
-          background-color: white;
+          background-color: var(--pf-details-header-no-highlight);
         }
       }
     }
@@ -137,13 +137,13 @@
 
 .pf-details-panel {
   .flow-info i.pf-material-icons {
-    color: rgb(60, 86, 136);
+    color: var(--pf-details-flow-link);
   }
 
   .warning {
     position: relative;
     font-size: 13px;
-    color: hsl(45, 100%, 48%);
+    color: var(--pf-details-warning-color);
   }
 
   .warning i.pf-material-icons {
@@ -153,9 +153,9 @@
   .warning .tooltip {
     visibility: hidden;
 
-    background-color: white;
-    color: #3f4040;
-    box-shadow: 1px 3px 15px rgba(23, 32, 44, 0.3);
+    background-color: var(--pf-details-tooltip-background);
+    color: var(--pf-details-tooltip-color);
+    box-shadow: var(--pf-details-tooltip-shadow);
 
     padding: 4px;
     border-radius: 4px;
@@ -174,7 +174,7 @@
   }
 
   .flow-button {
-    color: rgb(60, 86, 136);
+    color: var(--pf-details-flow-link);
   }
 }
 
@@ -183,9 +183,9 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  font-family: "Roboto Condensed", sans-serif;
+  font-family: var(--pf-font);
   font-weight: 300;
-  color: #3c4b5d;
+  color: var(--pf-notes-panel-color);
 
   .notes-editor-panel-heading-bar {
     display: flex;
@@ -202,12 +202,12 @@
   input[type="text"] {
     flex-grow: 1;
     border-radius: 4px;
-    border: 1px solid #dcdcdc;
+    border: 1px solid var(--pf-notes-panel-input-border);
     padding: 3px;
     margin: 0 10px;
     &:focus {
       outline: none;
-      box-shadow: 1px 1px 1px rgba(23, 32, 44, 0.3);
+      box-shadow: var(--pf-notes-panel-input-shadow);
     }
   }
 }
@@ -244,25 +244,25 @@
   font-family: var(--pf-monospace-font);
 
   .D {
-    color: hsl(122, 20%, 40%);
+    color: var(--pf-android-log-d);
   }
   .V {
-    color: hsl(122, 20%, 30%);
+    color: var(--pf-android-log-v);
   }
   .I {
-    color: hsl(0, 0%, 20%);
+    color: var(--pf-android-log-i);
   }
   .W {
-    color: hsl(45, 60%, 45%);
+    color: var(--pf-android-log-w);
   }
   .E {
-    color: hsl(4, 90%, 58%);
+    color: var(--pf-android-log-e);
   }
   .F {
-    color: hsl(291, 64%, 42%);
+    color: var(--pf-android-log-f);
   }
   .pf-highlighted {
-    background: #d2efe0;
+    background: var(--pf-android-log-highlighted);
   }
 }
 

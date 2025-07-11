@@ -36,8 +36,8 @@
 
   &__selected {
     border-width: 2px;
-    border-color: $color-primary;
-    box-shadow: 0 0 12px rgba($color-primary, 0.3);
+    border-color: $pf-color-primary;
+    box-shadow: 0 0 12px rgba($pf-color-primary, 0.3);
     .pf-node-box__warning-icon {
       border-width: 2px;
     }
@@ -45,15 +45,15 @@
 
   &__invalid,
   &__invalid-query {
-    border-color: $color-danger;
-    background-color: lighten($color-danger, 40%);
-    color: $color-danger;
+    border-color: $pf-color-danger;
+    background-color: color-mix(in srgb, $pf-color-danger 60%, white);
+    color: $pf-color-danger;
   }
 
   &__invalid-response {
-    border-color: $color-warning;
-    background-color: lighten($color-warning, 40%);
-    color: $color-warning;
+    border-color: $pf-color-warning;
+    background-color: color-mix(in srgb, $pf-color-warning 60%, white);
+    color: $pf-color-warning;
   }
 
   &__warning-icon {

@@ -45,9 +45,9 @@ export function initCssConstants() {
   BACKGROUND_COLOR = getCssStr('--main-background-color') ?? BACKGROUND_COLOR;
   FOREGROUND_COLOR = getCssStr('--main-foreground-color') ?? FOREGROUND_COLOR;
   COLLAPSED_BACKGROUND =
-    getCssStr('--collapsed-background') ?? COLLAPSED_BACKGROUND;
+    getCssStr('--pf-track-collapsed-background') ?? COLLAPSED_BACKGROUND;
   EXPANDED_BACKGROUND =
-    getCssStr('--expanded-background') ?? EXPANDED_BACKGROUND;
+    getCssStr('--pf-track-expanded-background') ?? EXPANDED_BACKGROUND;
 }
 
 function getCssStr(prop: string): string | undefined {

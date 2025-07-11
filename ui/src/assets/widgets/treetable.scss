@@ -14,7 +14,6 @@
 
 @import "theme";
 
-$chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='8' width='8'%3E%3Cline x1='2' y1='0' x2='6' y2='4' stroke='black'/%3E%3Cline x1='6' y1='4' x2='2' y2='8' stroke='black'/%3E%3C/svg%3E");
 
 .pf-treetable {
   font-family: $pf-font;
@@ -45,19 +44,20 @@ $chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
   }
   td.pf-treetable-node {
     .pf-treetable-gutter {
+      @include icon;
+      rotate: 90deg;
+      translate: 0 -5px;
       &::before {
-        content: $chevron-svg;
+        content: "chevron_right";
         display: inline-block;
         cursor: pointer;
         width: 12px;
-        rotate: 90deg;
       }
     }
     &.pf-collapsed {
       .pf-treetable-gutter {
-        &::before {
-          rotate: 0deg;
-        }
+        rotate: 0deg;
+        translate: -3px 0;
       }
     }
   }

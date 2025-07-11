@@ -15,7 +15,11 @@
 .pf-query-log-table {
   tr:nth-child(even) {
     border-collapse: collapse;
-    background-color: #f0f0f0;
+    background-color: var(--pf-vtable-background-row-even);
+  }
+
+  tr:nth-child(odd) {
+    background-color: var(--pf-vtable-background-row-odd);
   }
 
   td:first-child {

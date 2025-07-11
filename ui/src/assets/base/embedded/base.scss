@@ -29,7 +29,7 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  font-family: Roboto, verdana, sans-serif;
+  font-family: var(--pf-heading-font);
   height: 100%;
   width: 100%;
   touch-action: pan-x pan-y;

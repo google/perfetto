@@ -27,18 +27,18 @@
   user-select: none; // We usually don't expect icons to be selectable.
 
   &.pf-intent-primary {
-    color: $color-primary;
+    color: $pf-color-primary;
   }
 
   &.pf-intent-danger {
-    color: $color-danger;
+    color: $pf-color-danger;
   }
 
   &.pf-intent-success {
-    color: $color-success;
+    color: $pf-color-success;
   }
 
   &.pf-intent-warning {
-    color: $color-warning;
+    color: $pf-color-warning;
   }
 }

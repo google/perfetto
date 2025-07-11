@@ -16,13 +16,13 @@
 
 .pf-cursor-tooltip {
   position: absolute;
-  background: white;
+  background: var(--pf-tooltip-background);
 
   font-family: $pf-font;
   z-index: 10;
   padding: 2px 6px;
   border-radius: $pf-border-radius;
   border: solid 1px $pf-minimal-border;
-  box-shadow: 2px 2px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--pf-tooltip-shadow);
   pointer-events: none;
 }

@@ -16,8 +16,8 @@
 
 @mixin intent_color($color) {
   color: $color;
-  border-color: lighten($color, 30%);
-  background: lighten($color, 50%);
+  border-color: color-mix(in srgb, $color 70%, white);
+  background: color-mix(in srgb, $color 50%, white);
 }
 
 .pf-callout {
@@ -38,18 +38,18 @@
   }
 
   &.pf-intent-primary {
-    @include intent_color($color-primary);
+    @include intent_color($pf-color-primary);
   }
 
   &.pf-intent-danger {
-    @include intent_color($color-danger);
+    @include intent_color($pf-color-danger);
   }
 
   &.pf-intent-success {
-    @include intent_color($color-success);
+    @include intent_color($pf-color-success);
   }
 
   &.pf-intent-warning {
-    @include intent_color($color-warning);
+    @include intent_color($pf-color-warning);
   }
 }

@@ -14,9 +14,9 @@
 
 // Standard theme settings for widgets
 
-$pf-font: "Roboto Condensed", sans-serif;
-$pf-border-radius: 2px;
-$pf-anim-timing: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+$pf-font: var(--pf-font);
+$pf-border-radius: var(--pf-border-radius);
+$pf-anim-timing: var(--pf-anim-timing);
 
 // Here we describe two colour schemes: primary and minimal
 // It is assumed widgets exist on a light background
@@ -26,29 +26,29 @@ $pf-anim-timing: 150ms cubic-bezier(0.4, 0, 0.2, 1);
 // Other controls might use the primary scheme by default, but have a minimal
 // configuration which makes them use the minimal colour scheme.
 
-$pf-primary-foreground: #fff;
-$pf-primary-foreground-disabled: #aaa;
-$pf-primary-border: #31466f;
-$pf-primary-background: #3d5688;
-$pf-primary-background-hover: #4966a2;
-$pf-primary-background-active: #243e71;
-$pf-primary-background-disabled: #666;
+$pf-primary-foreground: var(--pf-primary-foreground);
+$pf-primary-foreground-disabled: var(--pf-primary-foreground-disabled);
+$pf-primary-border: var(--pf-primary-border);
+$pf-primary-background: var(--pf-primary-background);
+$pf-primary-background-hover: var(--pf-primary-background-hover);
+$pf-primary-background-active: var(--pf-primary-background-active);
+$pf-primary-background-disabled: var(--pf-primary-background-disabled);
 
-$pf-minimal-foreground: #19212b;
-$pf-minimal-foreground-disabled: #aaa;
-$pf-minimal-border: #aaa;
-$pf-minimal-background: none;
-$pf-minimal-background-hover: #0001;
-$pf-minimal-background-active: #0002;
-$pf-minimal-background-disabled: none;
+$pf-minimal-foreground: var(--pf-minimal-foreground);
+$pf-minimal-foreground-disabled: var(--pf-minimal-foreground-disabled);
+$pf-minimal-border: var(--pf-minimal-border);
+$pf-minimal-background: var(--pf-minimal-background);
+$pf-minimal-background-hover: var(--pf-minimal-background-hover);
+$pf-minimal-background-active: var(--pf-minimal-background-active);
+$pf-minimal-background-disabled: var(--pf-minimal-background-disabled);
 
-$color-primary: #3d5688;
-$color-danger: #912929;
-$color-success: #3c832b;
-$color-warning: #dca612;
+$pf-color-primary: var(--pf-color-primary);
+$pf-color-danger: var(--pf-color-danger);
+$pf-color-success: var(--pf-color-success);
+$pf-color-warning: var(--pf-color-warning);
 
-$pf-colour-thin-border: #aaa;
+$pf-colour-thin-border: var(--pf-colour-thin-border);
 
 @mixin focus {
-  outline: 2px auto #64b5f6;
+  outline: 2px auto var(--pf-focus-border);
 }

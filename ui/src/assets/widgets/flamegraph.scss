@@ -63,12 +63,12 @@
 .pf-flamegraph-filter-bar-popup-content {
   white-space: pre-line;
   width: max-content;
-  font-family: "Roboto Condensed", sans-serif;
+  font-family: var(--pf-font);
 }
 
 .pf-flamegraph-tooltip-popup {
   width: max-content;
-  font-family: "Roboto Condensed", sans-serif;
+  font-family: var(--pf-font);
   font-size: 15px;
   display: flex;
   flex-direction: column;
