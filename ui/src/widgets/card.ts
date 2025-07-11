@@ -45,7 +45,7 @@ export class CardStack implements m.ClassComponent<CardStackAttrs> {
   view({attrs, children}: m.Vnode<CardStackAttrs>): m.Children {
     const {direction = 'vertical', ...htmlAttrs} = attrs;
     const directionClass =
-      direction === 'horizontal' ? '.pf-card-stack-horizontal' : '';
+      direction === 'horizontal' ? '.pf-card-stack--horizontal' : '';
     return m('.pf-card-stack' + directionClass, htmlAttrs, children);
   }
 }
