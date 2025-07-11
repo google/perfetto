@@ -842,8 +842,8 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         description: `A card is a simple container with a shadow and rounded
           corners. It can be used to display grouped content in a visually
           appealing way.`,
-        renderWidget: () =>
-          m(Card, [
+        renderWidget: ({interactive}) =>
+          m(Card, {interactive}, [
             m('h1', {style: {margin: 'unset'}}, 'Welcome!'),
             m('p', 'Would you like to start your journey?'),
             m(Stack, {orientation: 'horizontal'}, [
@@ -858,7 +858,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
               }),
             ]),
           ]),
-        initialOpts: {},
+        initialOpts: {interactive: true},
       }),
       m(WidgetShowcase, {
         label: 'CardStack',
@@ -866,15 +866,15 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           multiple Card elements in a vertical stack. Cards placed in this list
           automatically have their borders adjusted to appear as one continuous
           card with thin borders between them.`,
-        renderWidget: ({direction, actionable}) =>
+        renderWidget: ({direction, interactive}) =>
           m(CardStack, {direction}, [
-            m(Card, {actionable}, m(Switch, {label: 'Option 1'})),
-            m(Card, {actionable}, m(Switch, {label: 'Option 2'})),
-            m(Card, {actionable}, m(Switch, {label: 'Option 3'})),
+            m(Card, {interactive}, m(Switch, {label: 'Option 1'})),
+            m(Card, {interactive}, m(Switch, {label: 'Option 2'})),
+            m(Card, {interactive}, m(Switch, {label: 'Option 3'})),
           ]),
         initialOpts: {
           direction: new EnumOption('vertical', ['vertical', 'horizontal']),
-          actionable: true,
+          interactive: true,
         },
       }),
       m(WidgetShowcase, {

@@ -19,17 +19,17 @@ import {classNames} from '../base/classnames';
 
 export interface CardAttrs extends HTMLAttrs {
   // Whether the card should have a hover effect.
-  actionable?: boolean;
+  interactive?: boolean;
 }
 
 export class Card implements m.ClassComponent<CardAttrs> {
   view(vnode: m.Vnode<CardAttrs>): m.Children {
-    const {actionable, ...attrs} = vnode.attrs;
+    const {interactive, ...attrs} = vnode.attrs;
     return m(
       '.pf-card',
       {
         ...attrs,
-        class: classNames(attrs.className, actionable && 'pf-actionable'),
+        class: classNames(attrs.className, interactive && 'pf-interactive'),
       },
       vnode.children,
     );
