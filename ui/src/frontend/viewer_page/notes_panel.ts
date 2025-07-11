@@ -26,7 +26,7 @@ import {Note, SpanNote} from '../../public/note';
 import {Button, ButtonBar} from '../../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {Select} from '../../widgets/select';
-import {TRACK_SHELL_WIDTH} from '../css_constants';
+import {DIVIDER_COLOR, NOTES_PANEL_NOTE_TEXT_BACKGROUND, NOTES_PANEL_TEXT_COLOR, TRACK_SHELL_WIDTH} from '../css_constants';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 import {TextInput} from '../../widgets/text_input';
 import {Popup} from '../../widgets/popup';
@@ -418,7 +418,7 @@ export class NotesPanel {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
-    ctx.fillStyle = '#999';
+    ctx.fillStyle = DIVIDER_COLOR;
     ctx.fillRect(TRACK_SHELL_WIDTH - 1, 0, 1, size.height);
 
     const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
@@ -495,14 +495,14 @@ export class NotesPanel {
         const summary = toSummary(note.text);
         const measured = ctx.measureText(summary);
         // Add a white semi-transparent background for the text.
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.fillStyle = NOTES_PANEL_NOTE_TEXT_BACKGROUND;
         ctx.fillRect(
           left + FLAG_WIDTH + 2,
           size.height + 2,
           measured.width + 2,
           -12,
         );
-        ctx.fillStyle = '#3c4b5d';
+        ctx.fillStyle = NOTES_PANEL_TEXT_COLOR;
         ctx.fillText(summary, left + FLAG_WIDTH + 3, size.height + 1);
       }
     }

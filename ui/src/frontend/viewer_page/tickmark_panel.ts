@@ -18,7 +18,7 @@ import {Size2D} from '../../base/geom';
 import {TimeScale} from '../../base/time_scale';
 import {getOrCreate} from '../../base/utils';
 import {TraceImpl} from '../../core/trace_impl';
-import {TRACK_SHELL_WIDTH} from '../css_constants';
+import {DIVIDER_COLOR, TRACK_SHELL_WIDTH} from '../css_constants';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 import {SearchOverviewTrack} from './search_overview_track';
 
@@ -46,7 +46,7 @@ export class TickmarkPanel {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D): void {
-    ctx.fillStyle = '#999';
+    ctx.fillStyle = DIVIDER_COLOR;
     ctx.fillRect(TRACK_SHELL_WIDTH - 1, 0, 1, size.height);
 
     const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};

@@ -30,6 +30,7 @@ import {LONG, NUM} from '../../trace_processor/query_result';
 import {checkerboardExcept} from '../checkerboard';
 import {AsyncDisposableStack} from '../../base/disposable_stack';
 import {Trace} from '../../public/trace';
+import {FONT_NAME, TRACK_LEGEND_BACKGROUND, TRACK_LEGEND_FOREGROUND} from '../../frontend/css_constants';
 
 function roundAway(n: number): number {
   const exp = Math.ceil(Math.log10(Math.max(Math.abs(n), 1)));
@@ -580,7 +581,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       ctx.stroke();
       ctx.setLineDash([]);
     }
-    ctx.font = '10px Roboto Condensed';
+    ctx.font = `10px ${FONT_NAME}`;
 
     const hover = this.hover;
     if (hover !== undefined) {
@@ -624,9 +625,9 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     }
 
     // Write the Y scale on the top left corner.
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.fillStyle = TRACK_LEGEND_BACKGROUND;
     ctx.fillRect(0, 0, 42, 13);
-    ctx.fillStyle = '#666';
+    ctx.fillStyle = TRACK_LEGEND_FOREGROUND;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
     ctx.fillText(`${yLabel}`, 5, 11);

@@ -36,6 +36,7 @@ import {exists} from '../../base/utils';
 import {ThreadMap} from '../dev.perfetto.Thread/threads';
 import {SourceDataset} from '../../trace_processor/dataset';
 import {Cpu} from '../../base/multi_machine_trace';
+import {FONT_NAME, TRACK_HATCH_PATTERN_COLOR} from '../../frontend/css_constants';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -255,7 +256,7 @@ export class CpuSliceTrack implements TrackRenderer {
     const visWindowEndPx = size.width;
 
     ctx.textAlign = 'center';
-    ctx.font = '12px Roboto Condensed';
+    ctx.font = `12px ${FONT_NAME}`;
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
     const timespan = visibleWindow.toTimeSpan();
@@ -363,10 +364,10 @@ export class CpuSliceTrack implements TrackRenderer {
       subTitle = cropText(subTitle, charWidth, visibleWidth);
       const rectXCenter = left + visibleWidth / 2;
       ctx.fillStyle = textColor.cssString;
-      ctx.font = '12px Roboto Condensed';
+      ctx.font = `12px${FONT_NAME}`;
       ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 - 1);
       ctx.fillStyle = textColor.setAlpha(0.6).cssString;
-      ctx.font = '10px Roboto Condensed';
+      ctx.font = `10px ${FONT_NAME}`;
       ctx.fillText(subTitle, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 9);
     }
 
@@ -503,7 +504,7 @@ function getHatchedPattern(mainCtx: CanvasRenderingContext2D): CanvasPattern {
   const SIZE = 8;
   canvas.width = canvas.height = SIZE;
   const ctx = assertExists(canvas.getContext('2d'));
-  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.strokeStyle = TRACK_HATCH_PATTERN_COLOR;
   ctx.beginPath();
   ctx.lineWidth = 1;
   ctx.moveTo(0, SIZE);

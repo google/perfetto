@@ -23,6 +23,8 @@ import {TraceImpl} from '../../core/trace_impl';
 import {TimestampFormat} from '../../public/timeline';
 import {
   BACKGROUND_COLOR,
+  DIVIDER_COLOR,
+  FONT_NAME,
   FOREGROUND_COLOR,
   TRACK_SHELL_WIDTH,
 } from '../css_constants';
@@ -94,7 +96,7 @@ function drawHBar(
 
   ctx.textBaseline = 'middle';
   ctx.fillStyle = FOREGROUND_COLOR;
-  ctx.font = '10px Roboto Condensed';
+  ctx.font = `10px ${FONT_NAME}`;
   ctx.fillText(label, labelXLeft, yMid);
 }
 
@@ -127,7 +129,7 @@ function drawIBar(
 
   ctx.textBaseline = 'middle';
   ctx.fillStyle = FOREGROUND_COLOR;
-  ctx.font = '10px Roboto Condensed';
+  ctx.font = `10px ${FONT_NAME}`;
   ctx.fillText(label, xPosLabel, yMid);
 }
 
@@ -141,7 +143,7 @@ export class TimeSelectionPanel {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
-    ctx.fillStyle = '#999';
+    ctx.fillStyle = DIVIDER_COLOR;
     ctx.fillRect(TRACK_SHELL_WIDTH - 1, 0, 1, size.height);
 
     const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
