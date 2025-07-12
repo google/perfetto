@@ -1525,7 +1525,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
   EXPECT_CALL(*event_,
-              PushCounter(1015000, testing::DoubleEq(2007000), TrackId{3}));
+              PushCounter(1015000, testing::DoubleEq(2007000), TrackId{2}));
 
   EXPECT_CALL(*event_,
               PushCounter(1016000, testing::DoubleEq(2008000), TrackId{4}));
@@ -1537,12 +1537,12 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
   // sixth are thread time tracks for thread 1 and 2.
   EXPECT_EQ(storage_->track_table().row_count(), 5u);
   EXPECT_EQ(storage_->GetString((storage_->track_table()[0].name())),
-            "Thread track 1");
-  EXPECT_EQ(storage_->GetString((storage_->track_table()[1].name())),
             "Async track 1");
-  EXPECT_EQ(storage_->GetString((storage_->track_table()[2].name())),
+  EXPECT_EQ(storage_->GetString((storage_->track_table()[1].name())),
+            "Thread track 1");
+  EXPECT_EQ(storage_->GetString((storage_->track_table()[3].name())),
             "Thread track 2");
-  EXPECT_EQ(storage_->track_table()[3].utid(), 1u);
+  EXPECT_EQ(storage_->track_table()[2].utid(), 1u);
   EXPECT_EQ(storage_->track_table()[4].utid(), 2u);
 
   EXPECT_EQ(storage_->virtual_track_slices().slice_count(), 1u);

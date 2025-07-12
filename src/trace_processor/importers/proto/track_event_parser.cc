@@ -274,14 +274,12 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
 void TrackEventParser::ParseTrackDescriptor(
     int64_t packet_timestamp,
     protozero::ConstBytes track_descriptor,
-    uint32_t packet_sequence_id) {
+    uint32_t) {
   protos::pbzero::TrackDescriptor::Decoder decoder(track_descriptor);
 
   // Ensure that the track and its parents are resolved. This may start a new
   // process and/or thread (i.e. new upid/utid).
-  // TODO(lalitm): switch this to GetDescriptorTrack in a followup CL.
-  auto track = track_event_tracker_->InternDescriptorTrack(
-      decoder.uuid(), kNullStringId, packet_sequence_id);
+  auto track = track_event_tracker_->ResolveDescriptorTrack(decoder.uuid());
   if (!track) {
     context_->storage->IncrementStats(stats::track_event_parser_errors);
     return;
