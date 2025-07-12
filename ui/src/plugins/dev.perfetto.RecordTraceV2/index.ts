@@ -34,6 +34,14 @@ import {TracedWebsocketTargetProvider} from './traced_over_websocket/traced_webs
 import {savedConfigsPage} from './pages/saved_configs';
 import {WebDeviceProxyTargetProvider} from './adb/web_device_proxy/wdp_target_provider';
 import m from 'mithril';
+import {RecordSubpage} from './config/config_interfaces';
+import {
+  DataGrid,
+  renderCell,
+} from '../../components/widgets/data_grid/data_grid';
+import {Stack, StackAuto} from '../../widgets/stack';
+import {Button, ButtonBar, ButtonVariant} from '../../widgets/button';
+import {RowDef} from '../../components/widgets/data_grid/common';
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.RecordTraceV2';
   private static recordingMgr?: RecordingManager;
@@ -86,6 +94,8 @@ export default class implements PerfettoPlugin {
         androidRecordSection(),
         stackSamplingRecordSection(),
         advancedRecordSection(),
+
+        myNewPage(),
       );
       recMgr.restorePluginStateFromLocalstorage();
     }
@@ -93,5 +103,148 @@ export default class implements PerfettoPlugin {
     // For devtools debugging purposes.
     (window as {} as {recordingMgr: unknown}).recordingMgr = this.recordingMgr;
     return this.recordingMgr;
+  }
+}
+
+function myNewPage(): RecordSubpage {
+  return {
+    kind: 'GLOBAL_PAGE',
+    id: 'liveViewer',
+    title: 'System Monitor',
+    subtitle: 'Live process data from the device',
+    icon: 'browse_activity',
+    render: () => {
+      return m(SystemMonitor);
+    },
+    serialize: () => {
+      // No state to save.
+    },
+    deserialize: () => {
+      // No state to restore.
+    },
+  };
+}
+
+function formatBytes(bytes: number, decimals = 2) {
+  if (bytes === 0) {
+    return '0 Bytes';
+  }
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+class SystemMonitor implements m.ClassComponent {
+  private interval?: ReturnType<typeof setInterval>;
+  private readonly procs = [
+    'Chrome',
+    'Firefox',
+    'Google Backup Transport',
+    'Google Backup Transport',
+    'Google One Backup',
+    'Google Play Services',
+    'Google Play Store',
+    'Google Services Framework',
+    'Instagram',
+    'logcat',
+    'Perfetto',
+    'Settings',
+    'SurfaceFlinger',
+    'SysUI',
+    'tachyon',
+    'traced_probes',
+    'traced',
+    'Whatsapp',
+    'Youtube',
+  ];
+  private rows?: RowDef[] = [];
+
+  oninit() {
+    this.randomizeValues();
+  }
+
+  view() {
+    return m('.pf-live-viewer-page', [
+      m(Stack, [
+        m(
+          ButtonBar,
+          m(Button, {
+            label: 'Capture heap dump',
+            variant: ButtonVariant.Filled,
+          }),
+          m(Button, {
+            label: 'Start heap profile',
+            variant: ButtonVariant.Filled,
+          }),
+        ),
+        m(DataGrid, {
+          fillHeight: true,
+          columns: [
+            {name: 'proc', title: 'Process'},
+            {name: 'mem', title: 'Mem'},
+            {name: 'mem.rss', title: 'RSS'},
+            {name: 'mem.anon', title: 'Anon'},
+            {name: 'mem.file', title: 'File'},
+            {name: 'mem.shmem', title: 'Shmem'},
+          ],
+          data: this.rows!,
+          cellRenderer: (value, columnName) => {
+            if (columnName.startsWith('mem')) {
+              const bytes = Number(value);
+              if (isNaN(bytes)) {
+                return m('span.pf-data-grid__cell--number', `${value}`);
+              }
+              return m('span.pf-data-grid__cell--number', formatBytes(bytes));
+            } else if (columnName === 'proc') {
+              return m(
+                Stack,
+                {
+                  orientation: 'horizontal',
+                },
+                m(StackAuto, `${value}`),
+                m(Button, {
+                  className: 'pf-visible-on-hover',
+                  compact: true,
+                  variant: ButtonVariant.Filled,
+                  label: 'Profile',
+                }),
+                m(Button, {
+                  className: 'pf-visible-on-hover',
+                  compact: true,
+                  variant: ButtonVariant.Filled,
+                  label: 'Dump',
+                }),
+              );
+            } else {
+              return renderCell(value, columnName);
+            }
+          },
+        }),
+      ]),
+    ]);
+  }
+
+  oncreate() {
+    this.interval = setInterval(() => {
+      this.randomizeValues();
+      m.redraw();
+    }, 3000);
+  }
+
+  onremove() {
+    clearInterval(this.interval);
+  }
+
+  private randomizeValues() {
+    this.rows = this.procs.map((p) => ({
+      'proc': p,
+      'mem': Math.random() * 1000000,
+      'mem.rss': Math.random() * 1000000,
+      'mem.anon': Math.random() * 1000000,
+      'mem.file': Math.random() * 1000000,
+      'mem.shmem': Math.random() * 1000000,
+    }));
   }
 }
