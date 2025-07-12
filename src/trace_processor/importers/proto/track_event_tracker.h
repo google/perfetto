@@ -223,6 +223,7 @@ class TrackEventTracker {
 
   std::optional<TrackId> InternDescriptorTrackImpl(
       uint64_t uuid,
+      StringId event_name,
       std::optional<uint32_t> packet_sequence_id);
 
   bool IsTrackHierarchyValid(uint64_t uuid);
