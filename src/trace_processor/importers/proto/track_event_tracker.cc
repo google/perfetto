@@ -155,9 +155,10 @@ TrackEventTracker::ResolveDescriptorTrack(uint64_t uuid) {
   if (auto* ptr = descriptor_tracks_state_.Find(uuid); ptr && ptr->resolved) {
     return ptr->resolved;
   }
+  auto resolved = ResolveDescriptorTrackImpl(uuid);
   auto* ptr = descriptor_tracks_state_.Find(uuid);
   PERFETTO_CHECK(ptr);
-  ptr->resolved = ResolveDescriptorTrackImpl(uuid);
+  ptr->resolved = std::move(resolved);
   return ptr->resolved;
 }
 
