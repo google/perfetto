@@ -212,8 +212,14 @@ class TrackEventTracker {
   }
 
  private:
-  std::optional<ResolvedDescriptorTrack> ResolveDescriptorTrackImpl(
-      uint64_t uuid);
+  struct State {
+    DescriptorTrackReservation reservation;
+    std::optional<ResolvedDescriptorTrack> resolved = std::nullopt;
+    std::optional<TrackId> track_id = std::nullopt;
+  };
+
+  std::optional<TrackEventTracker::ResolvedDescriptorTrack>
+  ResolveDescriptorTrackImpl(uint64_t uuid);
 
   std::optional<TrackId> InternDescriptorTrackImpl(
       uint64_t uuid,
@@ -227,11 +233,7 @@ class TrackEventTracker {
                     bool,
                     ArgsTracker::BoundInserter&);
 
-  base::FlatHashMap<uint64_t /* uuid */, DescriptorTrackReservation>
-      reserved_descriptor_tracks_;
-  base::FlatHashMap<uint64_t /* uuid */, ResolvedDescriptorTrack>
-      resolved_descriptor_tracks_;
-  base::FlatHashMap<uint64_t /* uuid */, TrackId> interned_descriptor_tracks_;
+  base::FlatHashMap<uint64_t /* uuid */, State> descriptor_tracks_state_;
 
   // Stores the descriptor uuid used for the primary process/thread track
   // for the given upid / utid. Used for pid/tid reuse detection.
