@@ -98,6 +98,11 @@ constexpr auto StringDimensionBlueprint(const char name[]) {
   return DimensionBlueprintT<base::StringView>{{name}};
 }
 
+// Adds a string dimension with the given name.
+constexpr auto StringIdDimensionBlueprint(const char name[]) {
+  return DimensionBlueprintT<StringPool::Id>{{name}};
+}
+
 // Adds a int64_t dimension with the given name.
 constexpr auto LongDimensionBlueprint(const char name[]) {
   return DimensionBlueprintT<int64_t>{{name}};

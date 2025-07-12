@@ -48,6 +48,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
@@ -264,6 +265,7 @@ class ProtoTraceParserTest : public ::testing::Test {
         kTraceDescriptor.data(), kTraceDescriptor.size());
 
     context_.perf_sample_tracker.reset(new PerfSampleTracker(&context_));
+    context_.track_compressor.reset(new TrackCompressor(&context_));
 
     RegisterDefaultModules(&context_);
     RegisterAdditionalModules(&context_);

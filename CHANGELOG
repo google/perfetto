@@ -5,9 +5,17 @@ Unreleased:
     * Added `android.bitmaps` module with timeseries information about bitmap
       usage in Android.
   Trace Processor:
-    *
+    * Added support for `sibling_merge_behavior` and `sibling_merge_key` in
+      `TrackDescriptor` for TrackEvent, allowing for finer-grained control over
+      how tracks are merged. See UI section for more details.
   UI:
-    *
+    * Added support for controlling TrackEvent track merging through the
+      `TrackDescriptor` proto. This is especially useful for users converting
+      external traces into Perfetto format or using the SDK. Tracks can now
+      specify a `sibling_merge_behavior` and a `sibling_merge_key` to override
+      the default name-based merging. This allows for forcing tracks with the
+      same name to be displayed separately, or forcing tracks with different
+      names to be merged into a single UI track.
   SDK:
     *
 

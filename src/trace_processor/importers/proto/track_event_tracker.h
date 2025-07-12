@@ -25,6 +25,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -184,14 +185,108 @@ class TrackEventTracker {
   // `TrackTracker`. This should be called before `InternDescriptorTrack`.
   std::optional<ResolvedDescriptorTrack> ResolveDescriptorTrack(uint64_t uuid);
 
-  // Interns a descriptor track, creating an actual track in the `TrackTracker`
-  // and returning its `TrackId`. It uses a cached resolution if available,
-  // otherwise it resolves the track first. If the track is a child track and
-  // doesn't have a name yet, updates the track's name to `event_name`.
-  std::optional<TrackId> InternDescriptorTrack(
+  // Interns a descriptor track for a "begin" slice event.
+  //
+  // This function will either return an existing track or create a new one
+  // based on the track's UUID and other properties. For mergeable tracks, this
+  // may involve using the |TrackCompressor| to find an appropriate track to
+  // reuse.
+  std::optional<TrackId> InternDescriptorTrackBegin(
       uint64_t uuid,
       StringId event_name,
-      std::optional<uint32_t> packet_sequence_id);
+      std::optional<uint32_t> packet_sequence_id) {
+    State* s =
+        EnsureDescriptorTrackInterned(uuid, event_name, packet_sequence_id);
+    if (!s) {
+      return std::nullopt;
+    }
+    if (std::holds_alternative<TrackId>(*s->track_id_or_factory)) {
+      return base::unchecked_get<TrackId>(*s->track_id_or_factory);
+    }
+    const auto& factory = base::unchecked_get<TrackCompressor::TrackFactory>(
+        *s->track_id_or_factory);
+    return context_->track_compressor->Begin(factory,
+                                             static_cast<int64_t>(uuid));
+  }
+
+  // Interns a descriptor track for an "end" slice event.
+  //
+  // See |InternDescriptorTrackBegin| for more details.
+  std::optional<TrackId> InternDescriptorTrackEnd(
+      uint64_t uuid,
+      StringId event_name,
+      std::optional<uint32_t> packet_sequence_id) {
+    State* s =
+        EnsureDescriptorTrackInterned(uuid, event_name, packet_sequence_id);
+    if (!s) {
+      return std::nullopt;
+    }
+    if (std::holds_alternative<TrackId>(*s->track_id_or_factory)) {
+      return base::unchecked_get<TrackId>(*s->track_id_or_factory);
+    }
+    const auto& factory = base::unchecked_get<TrackCompressor::TrackFactory>(
+        *s->track_id_or_factory);
+    return context_->track_compressor->End(factory, static_cast<int64_t>(uuid));
+  }
+
+  // Interns a descriptor track for an "instant" slice event.
+  //
+  // See |InternDescriptorTrackBegin| for more details.
+  std::optional<TrackId> InternDescriptorTrackInstant(
+      uint64_t uuid,
+      StringId event_name,
+      std::optional<uint32_t> packet_sequence_id) {
+    State* s =
+        EnsureDescriptorTrackInterned(uuid, event_name, packet_sequence_id);
+    if (!s) {
+      return std::nullopt;
+    }
+    if (std::holds_alternative<TrackId>(*s->track_id_or_factory)) {
+      return base::unchecked_get<TrackId>(*s->track_id_or_factory);
+    }
+    const auto& factory = base::unchecked_get<TrackCompressor::TrackFactory>(
+        *s->track_id_or_factory);
+    TrackId start =
+        context_->track_compressor->Begin(factory, static_cast<int64_t>(uuid));
+    TrackId end =
+        context_->track_compressor->End(factory, static_cast<int64_t>(uuid));
+    PERFETTO_DCHECK(start == end);
+    return end;
+  }
+
+  // Interns a descriptor track for a counter event.
+  //
+  // This is similar to the other |InternDescriptorTrack*| functions but is
+  // specifically for counters.
+  std::optional<TrackId> InternDescriptorTrackCounter(
+      uint64_t uuid,
+      StringId event_name,
+      std::optional<uint32_t> packet_sequence_id) {
+    State* s =
+        EnsureDescriptorTrackInterned(uuid, event_name, packet_sequence_id);
+    if (!s) {
+      return std::nullopt;
+    }
+    auto* track_id = std::get_if<TrackId>(&*s->track_id_or_factory);
+    PERFETTO_CHECK(track_id);
+    return *track_id;
+  }
+
+  // Interns a descriptor track for unspecified events.
+  //
+  // This is similar to the other |InternDescriptorTrack*| functions but is
+  // specifically for unspecified events.
+  std::optional<TrackId> InternDescriptorTrackLegacy(
+      uint64_t uuid,
+      StringId event_name,
+      std::optional<uint32_t> packet_sequence_id) {
+    State* s =
+        EnsureDescriptorTrackInterned(uuid, event_name, packet_sequence_id);
+    if (s && std::holds_alternative<TrackId>(*s->track_id_or_factory)) {
+      return base::unchecked_get<TrackId>(*s->track_id_or_factory);
+    }
+    return std::nullopt;
+  }
 
   // Converts the given counter value to an absolute value in the unit of the
   // counter, applying incremental delta encoding or unit multipliers as
@@ -215,16 +310,57 @@ class TrackEventTracker {
   struct State {
     DescriptorTrackReservation reservation;
     std::optional<ResolvedDescriptorTrack> resolved = std::nullopt;
-    std::optional<TrackId> track_id = std::nullopt;
+    std::optional<std::variant<TrackId, TrackCompressor::TrackFactory>>
+        track_id_or_factory = std::nullopt;
   };
+
+  std::optional<TrackId> InternDescriptorTrackForParent(
+      uint64_t uuid,
+      StringId event_name,
+      std::optional<uint32_t> packet_sequence_id) {
+    State* s =
+        EnsureDescriptorTrackInterned(uuid, event_name, packet_sequence_id);
+    if (!s) {
+      return std::nullopt;
+    }
+    if (std::holds_alternative<TrackId>(*s->track_id_or_factory)) {
+      return base::unchecked_get<TrackId>(*s->track_id_or_factory);
+    }
+    const auto& factory = base::unchecked_get<TrackCompressor::TrackFactory>(
+        *s->track_id_or_factory);
+    return context_->track_compressor->DefaultTrack(factory);
+  }
 
   std::optional<TrackEventTracker::ResolvedDescriptorTrack>
   ResolveDescriptorTrackImpl(uint64_t uuid);
 
-  std::optional<TrackId> InternDescriptorTrackImpl(
+  State* EnsureDescriptorTrackInterned(
       uint64_t uuid,
       StringId event_name,
-      std::optional<uint32_t> packet_sequence_id);
+      std::optional<uint32_t> packet_sequence_id) {
+    auto* s = descriptor_tracks_state_.Find(uuid);
+    if (!s || !s->track_id_or_factory) {
+      auto res =
+          InternDescriptorTrackImpl(uuid, event_name, packet_sequence_id);
+      if (!res) {
+        return nullptr;
+      }
+      s = descriptor_tracks_state_.Find(uuid);
+      PERFETTO_CHECK(s);
+      s->track_id_or_factory = std::move(res);
+    }
+    return s;
+  }
+
+  std::optional<std::variant<TrackId, TrackCompressor::TrackFactory>>
+  InternDescriptorTrackImpl(uint64_t uuid,
+                            StringId event_name,
+                            std::optional<uint32_t> packet_sequence_id);
+
+  std::optional<std::variant<TrackId, TrackCompressor::TrackFactory>>
+  CreateDescriptorTrack(uint64_t uuid,
+                        StringId event_name,
+                        std::optional<uint32_t> packet_sequence_id);
 
   bool IsTrackHierarchyValid(uint64_t uuid);
 
