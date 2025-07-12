@@ -296,7 +296,7 @@ std::optional<TrackId> TrackEventTracker::InternDescriptorTrack(
   if (State* s = descriptor_tracks_state_.Find(uuid); s && s->track_id) {
     interned = *s->track_id;
   } else {
-    auto res = InternDescriptorTrackImpl(uuid, packet_sequence_id);
+    auto res = InternDescriptorTrackImpl(uuid, event_name, packet_sequence_id);
     if (!res) {
       return std::nullopt;
     }
@@ -304,34 +304,12 @@ std::optional<TrackId> TrackEventTracker::InternDescriptorTrack(
     state->track_id = res;
     interned = *res;
   }
-  auto* tracks = context_->storage->mutable_track_table();
-  auto rr = *tracks->FindById(interned);
-  if (PERFETTO_LIKELY(!rr.name().is_null())) {
-    return interned;
-  }
-  if (PERFETTO_UNLIKELY(event_name.is_null())) {
-    return interned;
-  }
-  auto resolved = ResolveDescriptorTrack(uuid);
-  PERFETTO_CHECK(resolved);
-  bool is_root_thread_process =
-      resolved->is_root() &&
-      (resolved->scope() == ResolvedDescriptorTrack::Scope::kThread ||
-       resolved->scope() == ResolvedDescriptorTrack::Scope::kProcess);
-  if (PERFETTO_LIKELY(is_root_thread_process || resolved->is_counter())) {
-    return interned;
-  }
-  if (resolved->scope() == ResolvedDescriptorTrack::Scope::kProcess) {
-    rr.set_name(
-        context_->process_track_translation_table->TranslateName(event_name));
-  } else {
-    rr.set_name(event_name);
-  }
   return interned;
 }
 
 std::optional<TrackId> TrackEventTracker::InternDescriptorTrackImpl(
     uint64_t uuid,
+    StringId event_name,
     std::optional<uint32_t> packet_sequence_id) {
   std::optional<ResolvedDescriptorTrack> resolved =
       ResolveDescriptorTrack(uuid);
@@ -426,7 +404,9 @@ std::optional<TrackId> TrackEventTracker::InternDescriptorTrackImpl(
               kThreadTrackBlueprint,
               tracks::Dimensions(parent_resolved_track->utid(),
                                  static_cast<int64_t>(uuid)),
-              tracks::DynamicName(reservation->name), args_fn_non_root);
+              tracks::DynamicName(
+                  reservation->name.is_null() ? event_name : reservation->name),
+              args_fn_non_root);
         }
         // If the parent has a process descriptor set, promote this track
         // to also be a root thread level track. This is necessary for
@@ -440,11 +420,11 @@ std::optional<TrackId> TrackEventTracker::InternDescriptorTrackImpl(
       case ResolvedDescriptorTrack::Scope::kProcess: {
         // If parent is a process track, create another process-associated
         // track.
-        StringId translated_name =
-            context_->process_track_translation_table->TranslateName(
-                reservation->name);
         TrackId id;
         if (reservation->is_counter) {
+          StringId translated_name =
+              context_->process_track_translation_table->TranslateName(
+                  reservation->name);
           id = context_->track_tracker->InternTrack(
               kProcessCounterTrackBlueprint,
               tracks::Dimensions(parent_resolved_track->upid(),
@@ -452,6 +432,9 @@ std::optional<TrackId> TrackEventTracker::InternDescriptorTrackImpl(
               tracks::DynamicName(translated_name), args_fn_non_root,
               tracks::DynamicUnit(reservation->counter_details->unit));
         } else {
+          StringId translated_name =
+              context_->process_track_translation_table->TranslateName(
+                  reservation->name.is_null() ? event_name : reservation->name);
           id = context_->track_tracker->InternTrack(
               kProcessTrackBlueprint,
               tracks::Dimensions(parent_resolved_track->upid(),
@@ -486,7 +469,8 @@ std::optional<TrackId> TrackEventTracker::InternDescriptorTrackImpl(
   } else {
     id = context_->track_tracker->InternTrack(
         kGlobalTrackBlueprint, tracks::Dimensions(static_cast<int64_t>(uuid)),
-        tracks::DynamicName(reservation->name),
+        tracks::DynamicName(reservation->name.is_null() ? event_name
+                                                        : reservation->name),
         is_root_in_scope ? args_fn_root : args_fn_non_root);
   }
   set_parent_id(id);
