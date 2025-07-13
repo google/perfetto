@@ -133,6 +133,7 @@ LEFT JOIN _track_event_has_children AS c
 LEFT JOIN _min_ts_per_track AS m
   USING (id)
 GROUP BY
+  track.track_group_id,
   coalesce(track.track_group_id, track.id)
 ORDER BY
   track.parent_id,
