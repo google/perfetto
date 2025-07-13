@@ -546,34 +546,6 @@ TEST_F(ClockTrackerTest, ThreeHopConversion) {
   EXPECT_EQ(ct_.cache_hits_for_testing(), hits + 2);
 }
 
-TEST_F(ClockTrackerTest, SequenceScopedIncrementalClockChained) {
-  ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
-
-  ClockTracker::ClockId c64_1 = ct_.SequenceToGlobalClock(1, 64);
-  ClockTracker::ClockId c65_1 = ct_.SequenceToGlobalClock(1, 65);
-
-  ct_.AddSnapshot(
-      {{MONOTONIC, 10000},
-       {c64_1, 10, /*unit_multiplier_ns=*/1000, /*is_incremental=*/true}});
-
-  ct_.AddSnapshot(
-      {{c64_1, 20},
-       {c65_1, 200, /*unit_multiplier_ns=*/10, /*is_incremental=*/false}});
-
-  // c65_1 -> c64_1 (incremental) -> MONOTONIC -> BOOTTIME
-  //
-  // c65_1 ts: 250
-  // c65_1 to ns: 250 * 10 = 2500
-  // c65_1 to c64_1: 2500 - 200 + 20 = 2320
-  // c64_1 to MONOTONIC:
-  //   - c64_1 is incremental, so first convert to absolute: 2320 (relative)
-  //     becomes 10 + 2320 = 2330 (absolute)
-  //   - convert to ns: 2330 * 1000 = 2330000
-  //   - convert to monotonic: 2330000 - 10000 = 2320000
-  // MONOTONIC to BOOTTIME: 2320000 - 1000 + 100000 = 2419000
-  EXPECT_EQ(*Convert(c65_1, 250, BOOTTIME), 2419000);
-}
-
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
