@@ -99,6 +99,7 @@ class ExportJsonTest : public ::testing::Test {
     context_.process_tracker.reset(new ProcessTracker(&context_));
     context_.process_track_translation_table.reset(
         new ProcessTrackTranslationTable(context_.storage.get()));
+    context_.track_compressor.reset(new TrackCompressor(&context_));
   }
 
   std::string ToJson(ArgumentFilterPredicate argument_filter = nullptr,
