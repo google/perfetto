@@ -334,9 +334,11 @@ class ClockTracker {
   ClockTracker(const ClockTracker&) = delete;
   ClockTracker& operator=(const ClockTracker&) = delete;
 
-  base::StatusOr<int64_t> ConvertSlowpath(ClockId src_clock_id,
-                                          int64_t src_timestamp,
-                                          ClockId target_clock_id);
+  base::StatusOr<int64_t> ConvertSlowpath(
+      ClockId src_clock_id,
+      int64_t src_timestamp,
+      std::optional<int64_t> src_timestamp_ns,
+      ClockId target_clock_id);
 
   // Converts a timestamp between two clock domains. Tries to use the cache
   // first (only for single-path resolutions), then falls back on path finding
@@ -344,20 +346,24 @@ class ClockTracker {
   base::StatusOr<int64_t> Convert(ClockId src_clock_id,
                                   int64_t src_timestamp,
                                   ClockId target_clock_id) {
+    std::optional<int64_t> ns;
     if (PERFETTO_LIKELY(!cache_lookups_disabled_for_testing_)) {
       for (const auto& cached_clock_path : cache_) {
         if (cached_clock_path.src != src_clock_id ||
-            cached_clock_path.target != target_clock_id)
+            cached_clock_path.target != target_clock_id) {
           continue;
-        int64_t ns = cached_clock_path.src_domain->ToNs(src_timestamp);
-        if (ns >= cached_clock_path.min_ts_ns &&
-            ns < cached_clock_path.max_ts_ns) {
+        }
+        if (!ns) {
+          ns = cached_clock_path.src_domain->ToNs(src_timestamp);
+        }
+        if (*ns >= cached_clock_path.min_ts_ns &&
+            *ns < cached_clock_path.max_ts_ns) {
           cache_hits_for_testing_++;
-          return ns + cached_clock_path.translation_ns;
+          return *ns + cached_clock_path.translation_ns;
         }
       }
     }
-    return ConvertSlowpath(src_clock_id, src_timestamp, target_clock_id);
+    return ConvertSlowpath(src_clock_id, src_timestamp, ns, target_clock_id);
   }
 
   // Returns whether |global_clock_id| represents a sequence-scoped clock, i.e.

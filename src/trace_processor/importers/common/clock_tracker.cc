@@ -23,7 +23,6 @@
 #include <iterator>
 #include <limits>
 #include <optional>
-#include <queue>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -244,9 +243,11 @@ std::optional<int64_t> ClockTracker::ToTraceTimeFromSnapshot(
   return maybe_found_trace_time_clock->timestamp;
 }
 
-base::StatusOr<int64_t> ClockTracker::ConvertSlowpath(ClockId src_clock_id,
-                                                      int64_t src_timestamp,
-                                                      ClockId target_clock_id) {
+base::StatusOr<int64_t> ClockTracker::ConvertSlowpath(
+    ClockId src_clock_id,
+    int64_t src_timestamp,
+    std::optional<int64_t> src_timestamp_ns,
+    ClockId target_clock_id) {
   PERFETTO_DCHECK(!IsSequenceClock(src_clock_id));
   PERFETTO_DCHECK(!IsSequenceClock(target_clock_id));
   context_->storage->IncrementStats(stats::clock_sync_cache_miss);
@@ -262,7 +263,8 @@ base::StatusOr<int64_t> ClockTracker::ConvertSlowpath(ClockId src_clock_id,
   // Iterate trough the path found and translate timestamps onto the new clock
   // domain on each step, until the target domain is reached.
   ClockDomain* src_domain = GetClock(src_clock_id);
-  int64_t ns = src_domain->ToNs(src_timestamp);
+  int64_t ns =
+      src_timestamp_ns ? *src_timestamp_ns : src_domain->ToNs(src_timestamp);
 
   // These will track the overall translation and valid range for the whole
   // path.
