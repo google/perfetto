@@ -304,6 +304,39 @@ TEST_F(ClockTrackerTest, CacheDoesntAffectResults) {
   }
 }
 
+TEST_F(ClockTrackerTest, CacheDoesntAffectResultsTwoStep) {
+  std::minstd_rand rnd;
+  int last_raw = 0;
+  int last_mono = 0;
+  int last_boot = 0;
+  static const int increments[] = {1, 2, 10};
+  for (int i = 0; i < 1000; i++) {
+    last_raw += increments[rnd() % base::ArraySize(increments)];
+    last_mono += increments[rnd() % base::ArraySize(increments)];
+    ct_.AddSnapshot({{MONOTONIC_RAW, last_raw}, {MONOTONIC, last_mono}});
+
+    last_mono += increments[rnd() % base::ArraySize(increments)];
+    last_boot += increments[rnd() % base::ArraySize(increments)];
+    ct_.AddSnapshot({{MONOTONIC, last_mono}, {BOOTTIME, last_boot}});
+  }
+
+  for (int i = 0; i < 1000; i++) {
+    int64_t val = static_cast<int64_t>(rnd()) % 10000;
+    ClockTracker::ClockId src = MONOTONIC_RAW;
+    ClockTracker::ClockId tgt = BOOTTIME;
+
+    // It will still write the cache, just not lookup.
+    ct_.set_cache_lookups_disabled_for_testing(true);
+    auto not_cached = Convert(src, val, tgt);
+
+    // This should 100% hit the cache.
+    ct_.set_cache_lookups_disabled_for_testing(false);
+    auto cached = Convert(src, val, tgt);
+
+    ASSERT_EQ(not_cached.value(), cached.value());
+  }
+}
+
 // Test clock conversion with offset to the host.
 TEST_F(ClockTrackerTest, ClockOffset) {
   EXPECT_FALSE(ct_.ToTraceTime(REALTIME, 0).ok());
@@ -490,6 +523,55 @@ TEST_F(ClockTrackerTest, CacheInvalidationAndPathReoptimization) {
   // The new path should now be cached.
   EXPECT_EQ(*Convert(MONOTONIC, 400, BOOTTIME), 400 + (6000 - 500));
   EXPECT_EQ(ct_.cache_hits_for_testing(), 2u);
+}
+
+TEST_F(ClockTrackerTest, ThreeHopConversion) {
+  // Path: REALTIME -> MONOTONIC_RAW -> MONOTONIC -> BOOTTIME
+  ct_.AddSnapshot({{REALTIME, 1000}, {MONOTONIC_RAW, 100}});
+  ct_.AddSnapshot({{MONOTONIC_RAW, 200}, {MONOTONIC, 3000}});
+  ct_.AddSnapshot({{MONOTONIC, 4000}, {BOOTTIME, 50000}});
+
+  // First conversion should be a cache miss.
+  uint32_t hits = ct_.cache_hits_for_testing();
+  int64_t expected_ts = 10 + (100 - 1000) + (3000 - 200) + (50000 - 4000);
+  EXPECT_EQ(*Convert(REALTIME, 10, BOOTTIME), expected_ts);
+  EXPECT_EQ(ct_.cache_hits_for_testing(), hits);
+
+  // Second conversion should be a cache hit.
+  EXPECT_EQ(*Convert(REALTIME, 10, BOOTTIME), expected_ts);
+  EXPECT_EQ(ct_.cache_hits_for_testing(), hits + 1);
+
+  // Another conversion within the same range.
+  EXPECT_EQ(*Convert(REALTIME, 20, BOOTTIME), expected_ts + 10);
+  EXPECT_EQ(ct_.cache_hits_for_testing(), hits + 2);
+}
+
+TEST_F(ClockTrackerTest, SequenceScopedIncrementalClockChained) {
+  ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
+
+  ClockTracker::ClockId c64_1 = ct_.SequenceToGlobalClock(1, 64);
+  ClockTracker::ClockId c65_1 = ct_.SequenceToGlobalClock(1, 65);
+
+  ct_.AddSnapshot(
+      {{MONOTONIC, 10000},
+       {c64_1, 10, /*unit_multiplier_ns=*/1000, /*is_incremental=*/true}});
+
+  ct_.AddSnapshot(
+      {{c64_1, 20},
+       {c65_1, 200, /*unit_multiplier_ns=*/10, /*is_incremental=*/false}});
+
+  // c65_1 -> c64_1 (incremental) -> MONOTONIC -> BOOTTIME
+  //
+  // c65_1 ts: 250
+  // c65_1 to ns: 250 * 10 = 2500
+  // c65_1 to c64_1: 2500 - 200 + 20 = 2320
+  // c64_1 to MONOTONIC:
+  //   - c64_1 is incremental, so first convert to absolute: 2320 (relative)
+  //     becomes 10 + 2320 = 2330 (absolute)
+  //   - convert to ns: 2330 * 1000 = 2330000
+  //   - convert to monotonic: 2330000 - 10000 = 2320000
+  // MONOTONIC to BOOTTIME: 2320000 - 1000 + 100000 = 2419000
+  EXPECT_EQ(*Convert(c65_1, 250, BOOTTIME), 2419000);
 }
 
 }  // namespace
