@@ -285,7 +285,7 @@ export class ThreadSliceDetailsPanel implements TrackEventDetailsPanel {
     const description = this.renderDescription();
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (description ?? precFlows ?? followingFlows ?? args) {
-      return m(GridLayoutColumn, precFlows, followingFlows, args, description);
+      return m(GridLayoutColumn, args, description, precFlows, followingFlows);
     } else {
       return undefined;
     }
