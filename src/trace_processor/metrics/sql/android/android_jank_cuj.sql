@@ -41,28 +41,23 @@ expected_timeline_with_vsync AS (
 ),
 frames_in_cuj AS (
 SELECT
-      cuj.upid,
+      frame.upid,
       frame.layer_name AS frame_layer_name,
       frame.frame_id,
       actual_frame.display_frame_token,
-      cuj.cuj_id,
-      frame.ts AS frame_ts,
+      cuj_id,
+      frame_ts,
       (
-        frame.ts + frame.dur
+        frame_ts + frame.dur
       ) AS ts_end,
       jank_type,
       on_time_finish,
       sf_callback_missed,
       hwui_callback_missed
-    FROM android_frames_layers AS frame
-    JOIN android_sysui_jank_cujs AS cuj
-      ON frame.layer_id = cuj.layer_id AND frame.ui_thread_utid = cuj.ui_thread
+    FROM _android_frames_in_cuj frame
     JOIN actual_timeline_with_vsync AS actual_frame
-      ON frame.frame_id = actual_frame.vsync AND cuj.layer_id = CAST(str_split(actual_frame.layer_name, '#', 1) AS INTEGER)
+      ON frame.frame_id = actual_frame.vsync
     LEFT JOIN _vsync_missed_callback AS missed_callback USING(vsync)
-    -- Check whether the frame_id falls within the begin and end vsync of the cuj.
-    -- Also check if the frame start or end timestamp falls within the cuj boundary.
-    WHERE frame.frame_id >= begin_vsync AND frame.frame_id <= end_vsync
       )
   SELECT
       ROW_NUMBER() OVER (PARTITION BY cuj_id ORDER BY frame_id ASC) AS frame_number,

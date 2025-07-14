@@ -138,6 +138,7 @@ SELECT
   cuj.upid,
   cuj.process_name,
   frame.layer_id,
+  frame.layer_name,
   frame.frame_id,
   frame.do_frame_id,
   frame.expected_frame_timeline_id,
