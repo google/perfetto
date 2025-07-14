@@ -114,11 +114,11 @@ void TrackEventTracker::ReserveDescriptorTrack(
     return;
   }
 
-  auto [it, inserted] = reserved_descriptor_tracks_.Insert(uuid, reservation);
+  auto [it, inserted] = descriptor_tracks_state_.Insert(uuid, {reservation});
   if (inserted) {
     return;
   }
-  if (!it->IsForSameTrack(reservation)) {
+  if (!it->reservation.IsForSameTrack(reservation)) {
     PERFETTO_DLOG("New track reservation for track with uuid %" PRIu64
                   " doesn't match earlier one",
                   uuid);
@@ -132,44 +132,40 @@ void TrackEventTracker::ReserveDescriptorTrack(
         DescriptorTrackReservation::SiblingMergeBehavior::kNone;
     // If the previous value was null or this is a non-mergable track, update
     // the reservation name.
-    if (it->name.is_null() || is_non_mergable_track) {
-      it->name = reservation.name;
+    if (it->reservation.name.is_null() || is_non_mergable_track) {
+      it->reservation.name = reservation.name;
     }
     // Furthermore, if it's a non-mergable track, also update the name in the
     // track table if it exists.
     if (is_non_mergable_track) {
-      auto* id = interned_descriptor_tracks_.Find(uuid);
-      if (id) {
+      if (it->track_id) {
         // If the track was already resolved, update the name.
         auto* tracks = context_->storage->mutable_track_table();
-        auto rr = *tracks->FindById(*id);
+        auto rr = *tracks->FindById(*it->track_id);
         rr.set_name(reservation.name);
       }
     }
   }
-  it->min_timestamp = std::min(it->min_timestamp, reservation.min_timestamp);
+  it->reservation.min_timestamp =
+      std::min(it->reservation.min_timestamp, reservation.min_timestamp);
 }
 
 std::optional<TrackEventTracker::ResolvedDescriptorTrack>
 TrackEventTracker::ResolveDescriptorTrack(uint64_t uuid) {
-  if (auto* ptr = resolved_descriptor_tracks_.Find(uuid); ptr) {
-    return *ptr;
+  if (auto* ptr = descriptor_tracks_state_.Find(uuid); ptr && ptr->resolved) {
+    return ptr->resolved;
   }
-  std::optional<TrackEventTracker::ResolvedDescriptorTrack> resolved =
-      ResolveDescriptorTrackImpl(uuid);
-  if (!resolved) {
-    return std::nullopt;
-  }
-  auto [it, inserted] = resolved_descriptor_tracks_.Insert(uuid, *resolved);
-  PERFETTO_CHECK(inserted);
-  return resolved;
+  auto resolved = ResolveDescriptorTrackImpl(uuid);
+  auto* ptr = descriptor_tracks_state_.Find(uuid);
+  PERFETTO_CHECK(ptr);
+  ptr->resolved = std::move(resolved);
+  return ptr->resolved;
 }
 
 std::optional<TrackEventTracker::ResolvedDescriptorTrack>
 TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
-  DescriptorTrackReservation* reservation_ptr =
-      reserved_descriptor_tracks_.Find(uuid);
-  if (!reservation_ptr) {
+  State* state_ptr = descriptor_tracks_state_.Find(uuid);
+  if (!state_ptr) {
     // If the track is not reserved, create a new reservation.
     // If the uuid is 0, it is the default descriptor track.
     // If the uuid is not 0, it is a user-defined descriptor track.
@@ -180,8 +176,8 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
                  : kNullStringId;
     ReserveDescriptorTrack(uuid, r);
 
-    reservation_ptr = reserved_descriptor_tracks_.Find(uuid);
-    PERFETTO_CHECK(reservation_ptr);
+    state_ptr = descriptor_tracks_state_.Find(uuid);
+    PERFETTO_CHECK(state_ptr);
   }
 
   // Before trying to resolve anything, ensure that the hierarchy of tracks is
@@ -197,7 +193,7 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
   // event.
   std::optional<uint32_t> trusted_pid =
       context_->process_tracker->GetTrustedPid(uuid);
-  DescriptorTrackReservation& reservation = *reservation_ptr;
+  DescriptorTrackReservation& reservation = state_ptr->reservation;
 
   // Try to resolve to root-level pid and tid if the process is pid-namespaced.
   if (trusted_pid && reservation.tid) {
@@ -297,20 +293,20 @@ std::optional<TrackId> TrackEventTracker::InternDescriptorTrack(
     uint64_t uuid,
     StringId event_name,
     std::optional<uint32_t> packet_sequence_id) {
-  std::optional<TrackId> interned;
-  if (TrackId* found = interned_descriptor_tracks_.Find(uuid)) {
-    interned = *found;
+  TrackId interned;
+  if (State* s = descriptor_tracks_state_.Find(uuid); s && s->track_id) {
+    interned = *s->track_id;
   } else {
-    interned = InternDescriptorTrackImpl(uuid, packet_sequence_id);
-    if (!interned) {
+    auto res = InternDescriptorTrackImpl(uuid, packet_sequence_id);
+    if (!res) {
       return std::nullopt;
     }
-    auto [it, inserted] = interned_descriptor_tracks_.Insert(uuid, *interned);
-    PERFETTO_CHECK(inserted);
+    State* state = descriptor_tracks_state_.Find(uuid);
+    state->track_id = res;
+    interned = *res;
   }
-
   auto* tracks = context_->storage->mutable_track_table();
-  auto rr = *tracks->FindById(*interned);
+  auto rr = *tracks->FindById(interned);
   if (PERFETTO_LIKELY(!rr.name().is_null())) {
     return interned;
   }
@@ -343,9 +339,10 @@ std::optional<TrackId> TrackEventTracker::InternDescriptorTrackImpl(
   if (!resolved) {
     return std::nullopt;
   }
-  DescriptorTrackReservation* reservation =
-      reserved_descriptor_tracks_.Find(uuid);
-  PERFETTO_CHECK(reservation);
+  State* state = descriptor_tracks_state_.Find(uuid);
+  PERFETTO_CHECK(state);
+
+  DescriptorTrackReservation* reservation = &state->reservation;
 
   // Try to resolve any parent tracks recursively, too.
   std::optional<TrackId> parent_track_id;
@@ -501,14 +498,14 @@ std::optional<double> TrackEventTracker::ConvertToAbsoluteCounterValue(
     PacketSequenceStateGeneration* packet_sequence_state,
     uint64_t counter_track_uuid,
     double value) {
-  auto* reservation_ptr = reserved_descriptor_tracks_.Find(counter_track_uuid);
-  if (!reservation_ptr) {
+  auto* state_ptr = descriptor_tracks_state_.Find(counter_track_uuid);
+  if (!state_ptr) {
     PERFETTO_DLOG("Unknown counter track with uuid %" PRIu64,
                   counter_track_uuid);
     return std::nullopt;
   }
 
-  DescriptorTrackReservation& reservation = *reservation_ptr;
+  DescriptorTrackReservation& reservation = state_ptr->reservation;
   if (!reservation.is_counter) {
     PERFETTO_DLOG("Track with uuid %" PRIu64 " is not a counter track",
                   counter_track_uuid);
@@ -600,13 +597,13 @@ bool TrackEventTracker::IsTrackHierarchyValid(uint64_t uuid) {
         return false;
       }
     }
-    auto* reservation_ptr = reserved_descriptor_tracks_.Find(current_uuid);
-    if (!reservation_ptr) {
+    auto* state_ptr = descriptor_tracks_state_.Find(current_uuid);
+    if (!state_ptr) {
       PERFETTO_ELOG("Missing uuid in hierarchy for track %" PRIu64, uuid);
       return false;
     }
     seen[i] = current_uuid;
-    current_uuid = reservation_ptr->parent_uuid;
+    current_uuid = state_ptr->reservation.parent_uuid;
   }
   PERFETTO_ELOG("Too many ancestors in hierarchy for track %" PRIu64, uuid);
   return false;
