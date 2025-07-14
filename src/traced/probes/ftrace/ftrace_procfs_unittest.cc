@@ -27,9 +27,9 @@ using testing::UnorderedElementsAre;
 namespace perfetto {
 namespace {
 
-class MockFtraceProcfs : public Tracefs {
+class MockTracefs : public Tracefs {
  public:
-  MockFtraceProcfs() : Tracefs("/root/") {}
+  MockTracefs() : Tracefs("/root/") {}
 
   MOCK_METHOD(bool,
               WriteToFile,
@@ -44,8 +44,8 @@ class MockFtraceProcfs : public Tracefs {
   MOCK_METHOD(size_t, NumberOfCpus, (), (const, override));
 };
 
-TEST(FtraceProcfsTest, ParseAvailableClocks) {
-  MockFtraceProcfs ftrace;
+TEST(TracefsTest, ParseAvailableClocks) {
+  MockTracefs ftrace;
 
   EXPECT_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
       .WillOnce(Return("[local] global boot"));
@@ -101,8 +101,8 @@ TEST(FtraceProcfsTest, ParseAvailableClocks) {
   EXPECT_THAT(ftrace.AvailableClocks(), IsEmpty());
 }
 
-TEST(FtraceProcfsTest, ReadBufferSizeInPages) {
-  MockFtraceProcfs ftrace;
+TEST(TracefsTest, ReadBufferSizeInPages) {
+  MockTracefs ftrace;
   uint32_t page_in_kb = base::GetSysPageSize() / 1024ul;
 
   // Boundary checks

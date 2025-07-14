@@ -120,9 +120,9 @@ constexpr uint64_t kNanoInMicro = 1000;
          << "." << expected_us;
 }
 
-class MockFtraceProcfs : public Tracefs {
+class MockTracefs : public Tracefs {
  public:
-  MockFtraceProcfs() : Tracefs("/root/") {
+  MockTracefs() : Tracefs("/root/") {
     ON_CALL(*this, NumberOfCpus()).WillByDefault(Return(1));
     ON_CALL(*this, WriteToFile(_, _)).WillByDefault(Return(true));
     ON_CALL(*this, ClearFile(_)).WillByDefault(Return(true));
@@ -144,7 +144,7 @@ class MockFtraceProcfs : public Tracefs {
 
 class CpuReaderTableTest : public ::testing::Test {
  protected:
-  NiceMock<MockFtraceProcfs> ftrace_;
+  NiceMock<MockTracefs> ftrace_;
 };
 
 // Single class to manage the whole protozero -> scattered stream -> chunks ->
@@ -1255,8 +1255,8 @@ print fmt: "(%lx)", REC->__probe_ip
 )format");
   ftrace.AddFile("trace", "");
 
-  std::unique_ptr<FtraceProcfs> ftrace_procfs =
-      FtraceProcfs::Create(ftrace.path() + "/");
+  std::unique_ptr<Tracefs> ftrace_procfs =
+      Tracefs::Create(ftrace.path() + "/");
   ASSERT_NE(ftrace_procfs.get(), nullptr);
   std::unique_ptr<ProtoTranslationTable> table = ProtoTranslationTable::Create(
       ftrace_procfs.get(), GetStaticEventInfo(), GetStaticCommonFieldsInfo());
@@ -1994,7 +1994,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseAbsoluteTimestamp) {
   std::vector<Event> events;
   events.emplace_back(std::move(sched_switch_event));
 
-  NiceMock<MockFtraceProcfs> mock_ftrace;
+  NiceMock<MockTracefs> mock_ftrace;
   PrintkMap printk_formats;
   ProtoTranslationTable translation_table(
       &mock_ftrace, events, std::move(common_fields),
@@ -2961,7 +2961,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ZeroLengthDataLoc) {
   std::vector<Event> events;
   events.emplace_back(std::move(evt));
 
-  NiceMock<MockFtraceProcfs> mock_ftrace;
+  NiceMock<MockTracefs> mock_ftrace;
   PrintkMap printk_formats;
   ProtoTranslationTable translation_table(
       &mock_ftrace, events, std::move(common_fields),

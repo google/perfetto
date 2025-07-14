@@ -66,9 +66,9 @@ MATCHER_P(FtraceFieldMatcher, expected_struct, "") {
       arg, result_listener);
 }
 
-class MockFtraceProcfs : public Tracefs {
+class MockTracefs : public Tracefs {
  public:
-  MockFtraceProcfs() : Tracefs("/root/") {}
+  MockTracefs() : Tracefs("/root/") {}
 
   MOCK_METHOD(std::string, ReadPageHeaderFormat, (), (const, override));
   MOCK_METHOD(std::string,
@@ -177,7 +177,7 @@ TEST(TranslationTableTest, Seed) {
 }
 
 TEST_P(TranslationTableCreationTest, Create) {
-  MockFtraceProcfs ftrace;
+  MockTracefs ftrace;
   std::vector<Field> common_fields;
   std::vector<Event> events;
 
@@ -406,7 +406,7 @@ TEST(TranslationTableTest, InferFtraceType) {
 }
 
 TEST(TranslationTableTest, Getters) {
-  MockFtraceProcfs ftrace;
+  MockTracefs ftrace;
   std::vector<Field> common_fields;
   std::vector<Event> events;
 
@@ -459,7 +459,7 @@ TEST(TranslationTableTest, Getters) {
 }
 
 TEST(TranslationTableTest, GenericEvent) {
-  MockFtraceProcfs ftrace;
+  MockTracefs ftrace;
   std::vector<Field> common_fields;
   std::vector<Event> events;
 
@@ -659,7 +659,7 @@ TEST(TranslationTableTest, FuncgraphEvents) {
 }
 
 TEST(TranslationTableTest, CreateRemoveKprobeEvent) {
-  NiceMock<MockFtraceProcfs> ftrace;
+  NiceMock<MockTracefs> ftrace;
   ON_CALL(ftrace, ReadEventFormat(_, _)).WillByDefault(Return(""));
   ON_CALL(ftrace, ReadPageHeaderFormat())
       .WillByDefault(Return(

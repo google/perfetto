@@ -70,9 +70,9 @@ FtraceConfig CreateFtraceConfig(const std::set<std::string>& names) {
   return config;
 }
 
-class MockFtraceProcfs : public Tracefs {
+class MockTracefs : public Tracefs {
  public:
-  MockFtraceProcfs() : Tracefs("/root/") {
+  MockTracefs() : Tracefs("/root/") {
     ON_CALL(*this, NumberOfCpus()).WillByDefault(Return(1));
     ON_CALL(*this, WriteToFile(_, _)).WillByDefault(Return(true));
     ON_CALL(*this, AppendToFile(_, _)).WillByDefault(Return(true));
@@ -118,7 +118,7 @@ class MockAtraceWrapper : public AtraceWrapper {
 
 class MockProtoTranslationTable : public ProtoTranslationTable {
  public:
-  MockProtoTranslationTable(NiceMock<MockFtraceProcfs>* ftrace_procfs,
+  MockProtoTranslationTable(NiceMock<MockTracefs>* ftrace_procfs,
                             const std::vector<Event>& events,
                             std::vector<Field> common_fields,
                             FtracePageHeaderSpec ftrace_page_header_spec,
@@ -288,7 +288,7 @@ class FtraceConfigMuxerTest : public ::testing::Test {
         compact_format, PrintkMap()));
   }
 
-  NiceMock<MockFtraceProcfs> ftrace_;
+  NiceMock<MockTracefs> ftrace_;
   NiceMock<MockAtraceWrapper> atrace_wrapper_;
 };
 

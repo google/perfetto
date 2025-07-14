@@ -48,9 +48,9 @@ class MockHal : public AtraceHalWrapper {
   MOCK_METHOD(bool, DisableAllCategories, (), (override));
 };
 
-class MockFtraceProcfs : public Tracefs {
+class MockTracefs : public Tracefs {
  public:
-  MockFtraceProcfs() : Tracefs("/root/") {
+  MockTracefs() : Tracefs("/root/") {
     ON_CALL(*this, NumberOfCpus()).WillByDefault(Return(1));
     ON_CALL(*this, WriteToFile(_, _)).WillByDefault(Return(true));
     ON_CALL(*this, ClearFile(_)).WillByDefault(Return(true));
@@ -82,7 +82,7 @@ class MockFtraceProcfs : public Tracefs {
 
 TEST(DiscoverVendorTracepointsTest, DiscoverVendorTracepointsWithHal) {
   MockHal hal;
-  MockFtraceProcfs ftrace;
+  MockTracefs ftrace;
   Sequence s;
 
   EXPECT_CALL(hal, ListCategories())
@@ -260,7 +260,7 @@ TEST(DiscoverVendorTracepointsTest,
       "memory\n"
       " g/c\n";
   tree.AddFile("vendor_atrace.txt", contents);
-  MockFtraceProcfs ftrace;
+  MockTracefs ftrace;
 
   EXPECT_CALL(ftrace, IsFileWriteable("/root/events/g/a/enable"))
       .WillOnce(Return(false));

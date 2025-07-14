@@ -118,9 +118,9 @@ std::unique_ptr<FtraceConfigMuxer> FakeMuxer(Tracefs* ftrace,
                             SyscallTable(Architecture::kUnknown), {}, {}));
 }
 
-class MockFtraceProcfs : public Tracefs {
+class MockTracefs : public Tracefs {
  public:
-  explicit MockFtraceProcfs(const std::string& root, size_t cpu_count = 1)
+  explicit MockTracefs(const std::string& root, size_t cpu_count = 1)
       : Tracefs(root) {
     ON_CALL(*this, NumberOfCpus()).WillByDefault(Return(cpu_count));
     EXPECT_CALL(*this, NumberOfCpus()).Times(AnyNumber());
@@ -149,16 +149,16 @@ class MockFtraceProcfs : public Tracefs {
     ON_CALL(*this, ClearFile(_)).WillByDefault(Return(true));
 
     ON_CALL(*this, WriteToFile(root + "tracing_on", _))
-        .WillByDefault(Invoke(this, &MockFtraceProcfs::WriteTracingOn));
+        .WillByDefault(Invoke(this, &MockTracefs::WriteTracingOn));
     ON_CALL(*this, ReadOneCharFromFile(root + "tracing_on"))
-        .WillByDefault(Invoke(this, &MockFtraceProcfs::ReadTracingOn));
+        .WillByDefault(Invoke(this, &MockTracefs::ReadTracingOn));
     EXPECT_CALL(*this, ReadOneCharFromFile(root + "tracing_on"))
         .Times(AnyNumber());
 
     ON_CALL(*this, WriteToFile(root + "current_tracer", _))
-        .WillByDefault(Invoke(this, &MockFtraceProcfs::WriteCurrentTracer));
+        .WillByDefault(Invoke(this, &MockTracefs::WriteCurrentTracer));
     ON_CALL(*this, ReadFileIntoString(root + "current_tracer"))
-        .WillByDefault(Invoke(this, &MockFtraceProcfs::ReadCurrentTracer));
+        .WillByDefault(Invoke(this, &MockTracefs::ReadCurrentTracer));
     EXPECT_CALL(*this, ReadFileIntoString(root + "current_tracer"))
         .Times(AnyNumber());
 
@@ -224,12 +224,12 @@ class MockAtraceWrapper : public AtraceWrapper {
 class TestFtraceController : public FtraceController,
                              public FtraceController::Observer {
  public:
-  TestFtraceController(std::unique_ptr<MockFtraceProcfs> ftrace_procfs,
+  TestFtraceController(std::unique_ptr<MockTracefs> ftrace_procfs,
                        std::unique_ptr<Table> table,
                        std::unique_ptr<AtraceWrapper> atrace_wrapper,
                        std::unique_ptr<FtraceConfigMuxer> muxer,
                        std::unique_ptr<MockTaskRunner> runner,
-                       MockFtraceProcfs* raw_procfs)
+                       MockTracefs* raw_procfs)
       : FtraceController(std::move(ftrace_procfs),
                          std::move(table),
                          std::move(atrace_wrapper),
@@ -240,7 +240,7 @@ class TestFtraceController : public FtraceController,
         primary_procfs_(raw_procfs) {}
 
   MockTaskRunner* runner() { return runner_.get(); }
-  MockFtraceProcfs* procfs() { return primary_procfs_; }
+  MockTracefs* procfs() { return primary_procfs_; }
   uint32_t tick_period_ms() { return GetTickPeriodMs(); }
 
   std::unique_ptr<FtraceDataSource> AddFakeDataSource(const FtraceConfig& cfg) {
@@ -260,14 +260,14 @@ class TestFtraceController : public FtraceController,
   }
 
   void PrepareMockProcfsForInstance(const std::string& name,
-                                    std::unique_ptr<MockFtraceProcfs> fs) {
+                                    std::unique_ptr<MockTracefs> fs) {
     pending_instance_procfs_[name] = std::move(fs);
   }
 
-  MockFtraceProcfs* GetInstanceMockProcfs(const std::string& instance_name) {
+  MockTracefs* GetInstanceMockProcfs(const std::string& instance_name) {
     auto* instance = GetInstance(instance_name);
     PERFETTO_CHECK(instance);
-    return reinterpret_cast<MockFtraceProcfs*>(instance->ftrace_procfs.get());
+    return reinterpret_cast<MockTracefs*>(instance->ftrace_procfs.get());
   }
 
   std::unique_ptr<FtraceInstanceState> CreateSecondaryInstance(
@@ -287,8 +287,8 @@ class TestFtraceController : public FtraceController,
   TestFtraceController& operator=(const TestFtraceController&) = delete;
 
   std::unique_ptr<MockTaskRunner> runner_;
-  MockFtraceProcfs* primary_procfs_;
-  std::map<std::string, std::unique_ptr<MockFtraceProcfs>>
+  MockTracefs* primary_procfs_;
+  std::map<std::string, std::unique_ptr<MockTracefs>>
       pending_instance_procfs_;
 };
 
@@ -300,13 +300,13 @@ std::unique_ptr<TestFtraceController> CreateTestController(
   std::unique_ptr<MockTaskRunner> runner =
       std::unique_ptr<MockTaskRunner>(new NiceMock<MockTaskRunner>());
 
-  std::unique_ptr<MockFtraceProcfs> ftrace_procfs;
+  std::unique_ptr<MockTracefs> ftrace_procfs;
   if (procfs_is_nice_mock) {
-    ftrace_procfs = std::unique_ptr<MockFtraceProcfs>(
-        new NiceMock<MockFtraceProcfs>("/root/", cpu_count));
+    ftrace_procfs = std::unique_ptr<MockTracefs>(
+        new NiceMock<MockTracefs>("/root/", cpu_count));
   } else {
-    ftrace_procfs = std::unique_ptr<MockFtraceProcfs>(
-        new MockFtraceProcfs("/root/", cpu_count));
+    ftrace_procfs = std::unique_ptr<MockTracefs>(
+        new MockTracefs("/root/", cpu_count));
   }
 
   auto atrace_wrapper = std::make_unique<NiceMock<MockAtraceWrapper>>();
@@ -316,7 +316,7 @@ std::unique_ptr<TestFtraceController> CreateTestController(
   auto muxer =
       FakeMuxer(ftrace_procfs.get(), atrace_wrapper.get(), table.get());
 
-  MockFtraceProcfs* raw_procfs = ftrace_procfs.get();
+  MockTracefs* raw_procfs = ftrace_procfs.get();
   return std::unique_ptr<TestFtraceController>(new TestFtraceController(
       std::move(ftrace_procfs), std::move(table), std::move(atrace_wrapper),
       std::move(muxer), std::move(runner), raw_procfs));
@@ -750,8 +750,8 @@ TEST(FtraceControllerTest, OnlySecondaryInstance) {
 
   // AddDataSource will initialise the tracefs instance, enable the event
   // through the muxer, but not yet enable tracing_on.
-  auto secondary_procfs = std::unique_ptr<MockFtraceProcfs>(
-      new NiceMock<MockFtraceProcfs>("/root/instances/secondary/", 1));
+  auto secondary_procfs = std::unique_ptr<MockTracefs>(
+      new NiceMock<MockTracefs>("/root/instances/secondary/", 1));
   EXPECT_CALL(*secondary_procfs, WriteToFile(_, _)).Times(AnyNumber());
   EXPECT_CALL(*secondary_procfs,
               WriteToFile("/root/instances/secondary/tracing_on", "0"));
@@ -814,8 +814,8 @@ TEST(FtraceControllerTest, DefaultAndSecondaryInstance) {
   EXPECT_CALL(*controller->procfs(),
               WriteToFile("/root/events/group/foo/enable", "1"));
 
-  auto secondary_procfs = std::unique_ptr<MockFtraceProcfs>(
-      new NiceMock<MockFtraceProcfs>("/root/instances/secondary/", 1));
+  auto secondary_procfs = std::unique_ptr<MockTracefs>(
+      new NiceMock<MockTracefs>("/root/instances/secondary/", 1));
   EXPECT_CALL(*secondary_procfs, WriteToFile(_, _)).Times(AnyNumber());
   EXPECT_CALL(*secondary_procfs,
               WriteToFile("/root/instances/secondary/tracing_on", "0"));
