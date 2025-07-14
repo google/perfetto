@@ -66,7 +66,7 @@ constexpr const char* kClocks[] = {"boot", "global", "local"};
 constexpr const char* kClockMonoRaw = "mono_raw";
 
 std::set<GroupAndName> ReadEventsInGroupFromFs(
-    const FtraceProcfs& ftrace_procfs,
+    const Tracefs& ftrace_procfs,
     const std::string& group) {
   std::set<std::string> names =
       ftrace_procfs.GetEventNamesForGroup("events/" + group);
@@ -361,7 +361,7 @@ void FtraceConfigMuxer::EnableFtraceEvent(const Event* event,
 }
 
 FtraceConfigMuxer::FtraceConfigMuxer(
-    FtraceProcfs* ftrace,
+    Tracefs* ftrace,
     AtraceWrapper* atrace_wrapper,
     ProtoTranslationTable* table,
     SyscallTable syscalls,

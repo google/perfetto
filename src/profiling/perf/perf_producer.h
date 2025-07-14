@@ -284,7 +284,7 @@ class PerfProducer : public Producer,
 
   // Used for tracepoint name -> id lookups. Initialized lazily, and in general
   // best effort - can be null if tracefs isn't accessible.
-  std::unique_ptr<FtraceProcfs> tracefs_;
+  std::unique_ptr<Tracefs> tracefs_;
 
   std::function<void()> all_data_sources_registered_cb_;
 

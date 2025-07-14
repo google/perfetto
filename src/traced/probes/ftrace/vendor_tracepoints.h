@@ -36,7 +36,7 @@ constexpr const char* kCategoriesFile =
 // Returns a map from vendor category to events we should enable. Queries the
 // atrace HAL.
 std::map<std::string, std::vector<GroupAndName>>
-DiscoverVendorTracepointsWithHal(AtraceHalWrapper* hal, FtraceProcfs* ftrace);
+DiscoverVendorTracepointsWithHal(AtraceHalWrapper* hal, Tracefs* ftrace);
 
 // Fills `*categories_map` with a map from vendor category to events we should
 // enable. Queries the vendor categories file at
@@ -51,7 +51,7 @@ base::Status DiscoverVendorTracepointsWithFile(
 base::Status DiscoverAccessibleVendorTracepointsWithFile(
     const std::string& vendor_atrace_categories_path,
     std::map<std::string, std::vector<GroupAndName>>* categories_map,
-    FtraceProcfs* ftrace);
+    Tracefs* ftrace);
 
 }  // namespace vendor_tracepoints
 }  // namespace perfetto

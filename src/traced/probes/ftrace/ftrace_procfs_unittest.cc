@@ -27,9 +27,9 @@ using testing::UnorderedElementsAre;
 namespace perfetto {
 namespace {
 
-class MockFtraceProcfs : public FtraceProcfs {
+class MockFtraceProcfs : public Tracefs {
  public:
-  MockFtraceProcfs() : FtraceProcfs("/root/") {}
+  MockFtraceProcfs() : Tracefs("/root/") {}
 
   MOCK_METHOD(bool,
               WriteToFile,

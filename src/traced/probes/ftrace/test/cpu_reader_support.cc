@@ -35,7 +35,7 @@ namespace perfetto {
 // Note that this breaks test isolation, but we rarely mutate the tables.
 ProtoTranslationTable* GetTable(const std::string& name) {
   static base::NoDestructor<
-      std::map<std::string, std::unique_ptr<FtraceProcfs>>>
+      std::map<std::string, std::unique_ptr<Tracefs>>>
       g_tracefs;
   static base::NoDestructor<
       std::map<std::string, std::unique_ptr<ProtoTranslationTable>>>
@@ -55,7 +55,7 @@ ProtoTranslationTable* GetTable(const std::string& name) {
     path = base::GetTestDataPath(path);
   }
   auto [it, inserted] =
-      g_tracefs.ref().emplace(name, std::make_unique<FtraceProcfs>(path));
+      g_tracefs.ref().emplace(name, std::make_unique<Tracefs>(path));
   PERFETTO_CHECK(inserted);
   auto table = ProtoTranslationTable::Create(
       it->second.get(), GetStaticEventInfo(), GetStaticCommonFieldsInfo());

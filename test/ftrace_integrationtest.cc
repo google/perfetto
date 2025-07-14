@@ -71,7 +71,7 @@ using ::testing::UnorderedElementsAreArray;
 class PerfettoFtraceIntegrationTest : public ::testing::Test {
  public:
   void SetUp() override {
-    ftrace_procfs_ = FtraceProcfs::CreateGuessingMountPoint();
+    ftrace_procfs_ = Tracefs::CreateGuessingMountPoint();
 
 // On android we do expect that tracefs is accessible, both in the case of
 // running as part of traced/probes system daemons and shell. On Linux this is
@@ -91,7 +91,7 @@ class PerfettoFtraceIntegrationTest : public ::testing::Test {
 #endif
   }
 
-  std::unique_ptr<FtraceProcfs> ftrace_procfs_;
+  std::unique_ptr<Tracefs> ftrace_procfs_;
 };
 
 }  // namespace

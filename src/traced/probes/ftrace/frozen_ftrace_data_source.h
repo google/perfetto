@@ -73,7 +73,7 @@ class FrozenFtraceDataSource : public ProbesDataSource {
 
   protos::gen::FrozenFtraceConfig ds_config_;
 
-  std::unique_ptr<FtraceProcfs> tracefs_;
+  std::unique_ptr<Tracefs> tracefs_;
   std::unique_ptr<ProtoTranslationTable> translation_table_;
   std::unique_ptr<FtraceDataSourceConfig> parsing_config_;
   CpuReader::ParsingBuffers parsing_mem_;

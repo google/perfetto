@@ -28,22 +28,22 @@ namespace perfetto {
 
 constexpr std::string_view kKretprobeDefaultMaxactives = "1024";
 
-class FtraceProcfs {
+class Tracefs {
  public:
   static const char* const kTracingPaths[];
 
-  // Tries creating an |FtraceProcfs| at the standard tracefs mount points.
+  // Tries creating an |Tracefs| at the standard tracefs mount points.
   // Takes an optional |instance_path| such as "instances/wifi/", in which case
   // the returned object will be for that ftrace instance path.
-  static std::unique_ptr<FtraceProcfs> CreateGuessingMountPoint(
+  static std::unique_ptr<Tracefs> CreateGuessingMountPoint(
       const std::string& instance_path = "");
 
-  static std::unique_ptr<FtraceProcfs> Create(const std::string& root);
+  static std::unique_ptr<Tracefs> Create(const std::string& root);
 
   static int g_kmesg_fd;
 
-  explicit FtraceProcfs(const std::string& root);
-  virtual ~FtraceProcfs();
+  explicit Tracefs(const std::string& root);
+  virtual ~Tracefs();
 
   // Set the filter for syscall events. If empty, clear the filter.
   bool SetSyscallFilter(const std::set<size_t>& filter);

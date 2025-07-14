@@ -102,7 +102,7 @@ std::optional<int64_t> ReadFtraceNowTs(const base::ScopedFile& cpu_stats_fd) {
 }
 
 std::map<std::string, std::vector<GroupAndName>> GetAtraceVendorEvents(
-    FtraceProcfs* tracefs) {
+    Tracefs* tracefs) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   if (base::FileExists(vendor_tracepoints::kCategoriesFile)) {
     std::map<std::string, std::vector<GroupAndName>> vendor_evts;
@@ -149,7 +149,7 @@ std::optional<AndroidGkiVersion> ParseAndroidGkiVersion(const char* s) {
 // We don't know what state the rest of the system and process is so as far
 // as possible avoid allocations.
 bool HardResetFtraceState() {
-  for (const char* const* item = FtraceProcfs::kTracingPaths; *item; ++item) {
+  for (const char* const* item = Tracefs::kTracingPaths; *item; ++item) {
     std::string prefix(*item);
     PERFETTO_CHECK(base::EndsWith(prefix, "/"));
     bool res = true;
@@ -171,8 +171,8 @@ bool HardResetFtraceState() {
 std::unique_ptr<FtraceController> FtraceController::Create(
     base::TaskRunner* runner,
     Observer* observer) {
-  std::unique_ptr<FtraceProcfs> ftrace_procfs =
-      FtraceProcfs::CreateGuessingMountPoint("");
+  std::unique_ptr<Tracefs> ftrace_procfs =
+      Tracefs::CreateGuessingMountPoint("");
   if (!ftrace_procfs)
     return nullptr;
 
@@ -201,7 +201,7 @@ std::unique_ptr<FtraceController> FtraceController::Create(
 }
 
 FtraceController::FtraceController(
-    std::unique_ptr<FtraceProcfs> ftrace_procfs,
+    std::unique_ptr<Tracefs> ftrace_procfs,
     std::unique_ptr<ProtoTranslationTable> table,
     std::unique_ptr<AtraceWrapper> atrace_wrapper,
     std::unique_ptr<FtraceConfigMuxer> muxer,
@@ -774,7 +774,7 @@ size_t FtraceController::GetStartedDataSourcesCount() {
 }
 
 FtraceController::FtraceInstanceState::FtraceInstanceState(
-    std::unique_ptr<FtraceProcfs> ft,
+    std::unique_ptr<Tracefs> ft,
     std::unique_ptr<ProtoTranslationTable> ptt,
     std::unique_ptr<FtraceConfigMuxer> fcm)
     : ftrace_procfs(std::move(ft)),
@@ -835,7 +835,7 @@ FtraceController::CreateSecondaryInstance(const std::string& instance_name) {
     return nullptr;
   }
 
-  auto ftrace_procfs = FtraceProcfs::Create(*instance_path);
+  auto ftrace_procfs = Tracefs::Create(*instance_path);
   if (!ftrace_procfs) {
     PERFETTO_ELOG("Failed to create ftrace procfs for \"%s\"",
                   instance_path->c_str());

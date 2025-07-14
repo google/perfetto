@@ -70,9 +70,9 @@ FtraceConfig CreateFtraceConfig(const std::set<std::string>& names) {
   return config;
 }
 
-class MockFtraceProcfs : public FtraceProcfs {
+class MockFtraceProcfs : public Tracefs {
  public:
-  MockFtraceProcfs() : FtraceProcfs("/root/") {
+  MockFtraceProcfs() : Tracefs("/root/") {
     ON_CALL(*this, NumberOfCpus()).WillByDefault(Return(1));
     ON_CALL(*this, WriteToFile(_, _)).WillByDefault(Return(true));
     ON_CALL(*this, AppendToFile(_, _)).WillByDefault(Return(true));

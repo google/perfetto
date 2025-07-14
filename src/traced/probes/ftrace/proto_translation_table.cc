@@ -454,7 +454,7 @@ ProtoTranslationTable::DefaultPageHeaderSpecForTesting() {
 
 // static
 std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
-    const FtraceProcfs* ftrace_procfs,
+    const Tracefs* ftrace_procfs,
     std::vector<Event> events,
     std::vector<Field> common_fields) {
   bool common_fields_processed = false;
@@ -555,7 +555,7 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
 }
 
 ProtoTranslationTable::ProtoTranslationTable(
-    const FtraceProcfs* ftrace_procfs,
+    const Tracefs* ftrace_procfs,
     const std::vector<Event>& events,
     std::vector<Field> common_fields,
     FtracePageHeaderSpec ftrace_page_header_spec,

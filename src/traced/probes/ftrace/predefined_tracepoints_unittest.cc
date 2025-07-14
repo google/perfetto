@@ -29,9 +29,9 @@ using testing::Return;
 
 namespace perfetto::predefined_tracepoints {
 namespace {
-class MockFtraceProcfs : public FtraceProcfs {
+class MockFtraceProcfs : public Tracefs {
  public:
-  MockFtraceProcfs() : FtraceProcfs("/root/") {}
+  MockFtraceProcfs() : Tracefs("/root/") {}
   MOCK_METHOD(bool, IsFileWriteable, (const std::string& path), (override));
   MOCK_METHOD(bool, IsFileReadable, (const std::string& path), (override));
 };

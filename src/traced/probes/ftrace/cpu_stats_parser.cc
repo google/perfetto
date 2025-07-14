@@ -73,7 +73,7 @@ bool DumpCpuStats(std::string text, FtraceCpuStats* stats) {
   return true;
 }
 
-bool DumpAllCpuStats(FtraceProcfs* ftrace, FtraceStats* stats) {
+bool DumpAllCpuStats(Tracefs* ftrace, FtraceStats* stats) {
   size_t num_cpus = ftrace->NumberOfCpus();
   stats->cpu_stats.resize(num_cpus, {});
   for (size_t cpu = 0; cpu < num_cpus; cpu++) {

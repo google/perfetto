@@ -120,9 +120,9 @@ constexpr uint64_t kNanoInMicro = 1000;
          << "." << expected_us;
 }
 
-class MockFtraceProcfs : public FtraceProcfs {
+class MockFtraceProcfs : public Tracefs {
  public:
-  MockFtraceProcfs() : FtraceProcfs("/root/") {
+  MockFtraceProcfs() : Tracefs("/root/") {
     ON_CALL(*this, NumberOfCpus()).WillByDefault(Return(1));
     ON_CALL(*this, WriteToFile(_, _)).WillByDefault(Return(true));
     ON_CALL(*this, ClearFile(_)).WillByDefault(Return(true));

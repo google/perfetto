@@ -71,7 +71,7 @@ void FrozenFtraceDataSource::Start() {
     return;
   }
 
-  tracefs_ = FtraceProcfs::CreateGuessingMountPoint("instances/" +
+  tracefs_ = Tracefs::CreateGuessingMountPoint("instances/" +
                                                     raw_instance_name + "/");
   if (!tracefs_)
     return;

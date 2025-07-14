@@ -86,7 +86,7 @@ class MockTaskRunner : public base::TaskRunner {
   MOCK_METHOD(bool, RunsTasksOnCurrentThread, (), (const, override));
 };
 
-std::unique_ptr<Table> FakeTable(FtraceProcfs* ftrace) {
+std::unique_ptr<Table> FakeTable(Tracefs* ftrace) {
   std::vector<Field> common_fields;
   std::vector<Event> events;
   {
@@ -110,7 +110,7 @@ std::unique_ptr<Table> FakeTable(FtraceProcfs* ftrace) {
                 InvalidCompactSchedEventFormatForTesting(), PrintkMap()));
 }
 
-std::unique_ptr<FtraceConfigMuxer> FakeMuxer(FtraceProcfs* ftrace,
+std::unique_ptr<FtraceConfigMuxer> FakeMuxer(Tracefs* ftrace,
                                              AtraceWrapper* atrace_wrapper,
                                              ProtoTranslationTable* table) {
   return std::unique_ptr<FtraceConfigMuxer>(
@@ -118,10 +118,10 @@ std::unique_ptr<FtraceConfigMuxer> FakeMuxer(FtraceProcfs* ftrace,
                             SyscallTable(Architecture::kUnknown), {}, {}));
 }
 
-class MockFtraceProcfs : public FtraceProcfs {
+class MockFtraceProcfs : public Tracefs {
  public:
   explicit MockFtraceProcfs(const std::string& root, size_t cpu_count = 1)
-      : FtraceProcfs(root) {
+      : Tracefs(root) {
     ON_CALL(*this, NumberOfCpus()).WillByDefault(Return(cpu_count));
     EXPECT_CALL(*this, NumberOfCpus()).Times(AnyNumber());
 

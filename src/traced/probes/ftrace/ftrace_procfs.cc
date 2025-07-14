@@ -59,8 +59,8 @@ constexpr char kSuspendResumeMinimalTrigger[] =
 
 void KernelLogWrite(const char* s) {
   PERFETTO_DCHECK(*s && s[strlen(s) - 1] == '\n');
-  if (FtraceProcfs::g_kmesg_fd != -1)
-    base::ignore_result(base::WriteAll(FtraceProcfs::g_kmesg_fd, s, strlen(s)));
+  if (Tracefs::g_kmesg_fd != -1)
+    base::ignore_result(base::WriteAll(Tracefs::g_kmesg_fd, s, strlen(s)));
 }
 
 bool WriteFileInternal(const std::string& path,
@@ -79,18 +79,18 @@ bool WriteFileInternal(const std::string& path,
 }  // namespace
 
 // static
-int FtraceProcfs::g_kmesg_fd = -1;  // Set by ProbesMain() in probes.cc .
+int Tracefs::g_kmesg_fd = -1;  // Set by ProbesMain() in probes.cc .
 
-const char* const FtraceProcfs::kTracingPaths[] = {
+const char* const Tracefs::kTracingPaths[] = {
     "/sys/kernel/tracing/",
     "/sys/kernel/debug/tracing/",
     nullptr,
 };
 
 // static
-std::unique_ptr<FtraceProcfs> FtraceProcfs::CreateGuessingMountPoint(
+std::unique_ptr<Tracefs> Tracefs::CreateGuessingMountPoint(
     const std::string& instance_path) {
-  std::unique_ptr<FtraceProcfs> ftrace_procfs;
+  std::unique_ptr<Tracefs> ftrace_procfs;
   size_t index = 0;
   while (!ftrace_procfs && kTracingPaths[index]) {
     std::string path = kTracingPaths[index++];
@@ -103,16 +103,16 @@ std::unique_ptr<FtraceProcfs> FtraceProcfs::CreateGuessingMountPoint(
 }
 
 // static
-std::unique_ptr<FtraceProcfs> FtraceProcfs::Create(const std::string& root) {
+std::unique_ptr<Tracefs> Tracefs::Create(const std::string& root) {
   if (!CheckRootPath(root))
     return nullptr;
-  return std::unique_ptr<FtraceProcfs>(new FtraceProcfs(root));
+  return std::unique_ptr<Tracefs>(new Tracefs(root));
 }
 
-FtraceProcfs::FtraceProcfs(const std::string& root) : root_(root) {}
-FtraceProcfs::~FtraceProcfs() = default;
+Tracefs::Tracefs(const std::string& root) : root_(root) {}
+Tracefs::~Tracefs() = default;
 
-bool FtraceProcfs::SetSyscallFilter(const std::set<size_t>& filter) {
+bool Tracefs::SetSyscallFilter(const std::set<size_t>& filter) {
   std::vector<std::string> parts;
   for (size_t id : filter) {
     base::StackString<16> m("id == %zu", id);
@@ -134,7 +134,7 @@ bool FtraceProcfs::SetSyscallFilter(const std::set<size_t>& filter) {
   return true;
 }
 
-bool FtraceProcfs::EnableEvent(const std::string& group,
+bool Tracefs::EnableEvent(const std::string& group,
                                const std::string& name) {
   std::string path = root_ + "events/" + group + "/" + name + "/enable";
 
@@ -148,7 +148,7 @@ bool FtraceProcfs::EnableEvent(const std::string& group,
   return AppendToFile(path, group + ":" + name);
 }
 
-bool FtraceProcfs::CreateKprobeEvent(const std::string& group,
+bool Tracefs::CreateKprobeEvent(const std::string& group,
                                      const std::string& name,
                                      bool is_retprobe) {
   std::string path = root_ + "kprobe_events";
@@ -176,19 +176,19 @@ bool FtraceProcfs::CreateKprobeEvent(const std::string& group,
 }
 
 // Utility function to remove kprobe event from the system
-bool FtraceProcfs::RemoveKprobeEvent(const std::string& group,
+bool Tracefs::RemoveKprobeEvent(const std::string& group,
                                      const std::string& name) {
   PERFETTO_DLOG("RemoveKprobeEvent %s::%s", group.c_str(), name.c_str());
   std::string path = root_ + "kprobe_events";
   return AppendToFile(path, "-:" + group + "/" + name);
 }
 
-std::string FtraceProcfs::ReadKprobeStats() const {
+std::string Tracefs::ReadKprobeStats() const {
   std::string path = root_ + "/kprobe_profile";
   return ReadFileIntoString(path);
 }
 
-bool FtraceProcfs::DisableEvent(const std::string& group,
+bool Tracefs::DisableEvent(const std::string& group,
                                 const std::string& name) {
   std::string path = root_ + "events/" + group + "/" + name + "/enable";
 
@@ -204,53 +204,53 @@ bool FtraceProcfs::DisableEvent(const std::string& group,
   return ret;
 }
 
-bool FtraceProcfs::IsEventAccessible(const std::string& group,
+bool Tracefs::IsEventAccessible(const std::string& group,
                                      const std::string& name) {
   std::string path = root_ + "events/" + group + "/" + name + "/enable";
 
   return IsFileWriteable(path);
 }
 
-bool FtraceProcfs::IsEventFormatReadable(const std::string& group,
+bool Tracefs::IsEventFormatReadable(const std::string& group,
                                          const std::string& name) {
   std::string path = root_ + "events/" + group + "/" + name + "/format";
 
   return IsFileReadable(path);
 }
 
-bool FtraceProcfs::DisableAllEvents() {
+bool Tracefs::DisableAllEvents() {
   std::string path = root_ + "events/enable";
   return WriteToFile(path, "0");
 }
 
-bool FtraceProcfs::IsGenericSetEventWritable() {
+bool Tracefs::IsGenericSetEventWritable() {
   std::string path = root_ + "set_event";
 
   return IsFileWriteable(path);
 }
 
-std::string FtraceProcfs::ReadEventFormat(const std::string& group,
+std::string Tracefs::ReadEventFormat(const std::string& group,
                                           const std::string& name) const {
   std::string path = root_ + "events/" + group + "/" + name + "/format";
   return ReadFileIntoString(path);
 }
 
-std::string FtraceProcfs::GetCurrentTracer() {
+std::string Tracefs::GetCurrentTracer() {
   std::string path = root_ + "current_tracer";
   std::string current_tracer = ReadFileIntoString(path);
   return base::StripSuffix(current_tracer, "\n");
 }
 
-bool FtraceProcfs::SetCurrentTracer(const std::string& tracer) {
+bool Tracefs::SetCurrentTracer(const std::string& tracer) {
   std::string path = root_ + "current_tracer";
   return WriteToFile(path, tracer);
 }
 
-bool FtraceProcfs::ResetCurrentTracer() {
+bool Tracefs::ResetCurrentTracer() {
   return SetCurrentTracer("nop");
 }
 
-bool FtraceProcfs::AppendFunctionFilters(
+bool Tracefs::AppendFunctionFilters(
     const std::vector<std::string>& filters) {
   std::string path = root_ + "set_ftrace_filter";
   std::string filter = base::Join(filters, "\n");
@@ -269,34 +269,34 @@ bool FtraceProcfs::AppendFunctionFilters(
   return AppendToFile(path, filter);
 }
 
-bool FtraceProcfs::ClearFunctionFilters() {
+bool Tracefs::ClearFunctionFilters() {
   std::string path = root_ + "set_ftrace_filter";
   return ClearFile(path);
 }
 
-bool FtraceProcfs::SetMaxGraphDepth(uint32_t depth) {
+bool Tracefs::SetMaxGraphDepth(uint32_t depth) {
   std::string path = root_ + "max_graph_depth";
   return WriteNumberToFile(path, depth);
 }
 
-bool FtraceProcfs::ClearMaxGraphDepth() {
+bool Tracefs::ClearMaxGraphDepth() {
   std::string path = root_ + "max_graph_depth";
   return WriteNumberToFile(path, 0);
 }
 
-bool FtraceProcfs::AppendFunctionGraphFilters(
+bool Tracefs::AppendFunctionGraphFilters(
     const std::vector<std::string>& filters) {
   std::string path = root_ + "set_graph_function";
   std::string filter = base::Join(filters, "\n");
   return AppendToFile(path, filter);
 }
 
-bool FtraceProcfs::ClearFunctionGraphFilters() {
+bool Tracefs::ClearFunctionGraphFilters() {
   std::string path = root_ + "set_graph_function";
   return ClearFile(path);
 }
 
-std::vector<std::string> FtraceProcfs::ReadEventTriggers(
+std::vector<std::string> Tracefs::ReadEventTriggers(
     const std::string& group,
     const std::string& name) const {
   std::string path = root_ + "events/" + group + "/" + name + "/trigger";
@@ -316,21 +316,21 @@ std::vector<std::string> FtraceProcfs::ReadEventTriggers(
   return triggers;
 }
 
-bool FtraceProcfs::CreateEventTrigger(const std::string& group,
+bool Tracefs::CreateEventTrigger(const std::string& group,
                                       const std::string& name,
                                       const std::string& trigger) {
   std::string path = root_ + "events/" + group + "/" + name + "/trigger";
   return WriteToFile(path, trigger);
 }
 
-bool FtraceProcfs::RemoveEventTrigger(const std::string& group,
+bool Tracefs::RemoveEventTrigger(const std::string& group,
                                       const std::string& name,
                                       const std::string& trigger) {
   std::string path = root_ + "events/" + group + "/" + name + "/trigger";
   return WriteToFile(path, "!" + trigger);
 }
 
-bool FtraceProcfs::RemoveAllEventTriggers(const std::string& group,
+bool Tracefs::RemoveAllEventTriggers(const std::string& group,
                                           const std::string& name) {
   std::vector<std::string> triggers = ReadEventTriggers(group, name);
 
@@ -342,7 +342,7 @@ bool FtraceProcfs::RemoveAllEventTriggers(const std::string& group,
   return true;
 }
 
-bool FtraceProcfs::MaybeSetUpEventTriggers(const std::string& group,
+bool Tracefs::MaybeSetUpEventTriggers(const std::string& group,
                                            const std::string& name) {
   bool ret = true;
 
@@ -365,7 +365,7 @@ bool FtraceProcfs::MaybeSetUpEventTriggers(const std::string& group,
   return ret;
 }
 
-bool FtraceProcfs::MaybeTearDownEventTriggers(const std::string& group,
+bool Tracefs::MaybeTearDownEventTriggers(const std::string& group,
                                               const std::string& name) {
   bool ret = true;
 
@@ -386,7 +386,7 @@ bool FtraceProcfs::MaybeTearDownEventTriggers(const std::string& group,
   return ret;
 }
 
-bool FtraceProcfs::SupportsRssStatThrottled() {
+bool Tracefs::SupportsRssStatThrottled() {
   std::string group = "synthetic";
   std::string name = "rss_stat_throttled";
 
@@ -414,12 +414,12 @@ bool FtraceProcfs::SupportsRssStatThrottled() {
   return ret && MaybeTearDownEventTriggers(group, name);
 }
 
-std::string FtraceProcfs::ReadPrintkFormats() const {
+std::string Tracefs::ReadPrintkFormats() const {
   std::string path = root_ + "printk_formats";
   return ReadFileIntoString(path);
 }
 
-std::vector<std::string> FtraceProcfs::ReadEnabledEvents() {
+std::vector<std::string> Tracefs::ReadEnabledEvents() {
   std::string path = root_ + "set_event";
   std::string s = ReadFileIntoString(path);
   base::StringSplitter ss(s, '\n');
@@ -433,27 +433,27 @@ std::vector<std::string> FtraceProcfs::ReadEnabledEvents() {
   return events;
 }
 
-std::string FtraceProcfs::ReadPageHeaderFormat() const {
+std::string Tracefs::ReadPageHeaderFormat() const {
   std::string path = root_ + "events/header_page";
   return ReadFileIntoString(path);
 }
 
-base::ScopedFile FtraceProcfs::OpenCpuStats(size_t cpu) const {
+base::ScopedFile Tracefs::OpenCpuStats(size_t cpu) const {
   std::string path = root_ + "per_cpu/cpu" + std::to_string(cpu) + "/stats";
   return base::OpenFile(path, O_RDONLY);
 }
 
-std::string FtraceProcfs::ReadCpuStats(size_t cpu) const {
+std::string Tracefs::ReadCpuStats(size_t cpu) const {
   std::string path = root_ + "per_cpu/cpu" + std::to_string(cpu) + "/stats";
   return ReadFileIntoString(path);
 }
 
-size_t FtraceProcfs::NumberOfCpus() const {
+size_t Tracefs::NumberOfCpus() const {
   static size_t num_cpus = static_cast<size_t>(sysconf(_SC_NPROCESSORS_CONF));
   return num_cpus;
 }
 
-void FtraceProcfs::ClearTrace() {
+void Tracefs::ClearTrace() {
   std::string path = root_ + "trace";
   PERFETTO_CHECK(ClearFile(path));  // Could not clear.
 
@@ -471,24 +471,24 @@ void FtraceProcfs::ClearTrace() {
   }
 }
 
-void FtraceProcfs::ClearPerCpuTrace(size_t cpu) {
+void Tracefs::ClearPerCpuTrace(size_t cpu) {
   if (!ClearFile(root_ + "per_cpu/cpu" + std::to_string(cpu) + "/trace"))
     PERFETTO_ELOG("Failed to clear buffer for CPU %zu", cpu);
 }
 
-bool FtraceProcfs::WriteTraceMarker(const std::string& str) {
+bool Tracefs::WriteTraceMarker(const std::string& str) {
   std::string path = root_ + "trace_marker";
   return WriteToFile(path, str);
 }
 
-bool FtraceProcfs::SetCpuBufferSizeInPages(size_t pages) {
+bool Tracefs::SetCpuBufferSizeInPages(size_t pages) {
   std::string path = root_ + "buffer_size_kb";
   return WriteNumberToFile(path, pages * (base::GetSysPageSize() / 1024ul));
 }
 
 // This returns the rounded up pages of the cpu buffer size.
 // In case of any error, this returns 1.
-size_t FtraceProcfs::GetCpuBufferSizeInPages() {
+size_t Tracefs::GetCpuBufferSizeInPages() {
   std::string path = root_ + "buffer_size_kb";
   auto str = ReadFileIntoString(path);
 
@@ -510,7 +510,7 @@ size_t FtraceProcfs::GetCpuBufferSizeInPages() {
   return (size_kb.value_or(1) + page_in_kb - 1) / page_in_kb;
 }
 
-bool FtraceProcfs::GetTracingOn() {
+bool Tracefs::GetTracingOn() {
   std::string path = root_ + "tracing_on";
   char tracing_on = ReadOneCharFromFile(path);
   if (tracing_on == '\0')
@@ -518,7 +518,7 @@ bool FtraceProcfs::GetTracingOn() {
   return tracing_on == '1';
 }
 
-bool FtraceProcfs::SetTracingOn(bool on) {
+bool Tracefs::SetTracingOn(bool on) {
   std::string path = root_ + "tracing_on";
   if (!WriteToFile(path, on ? "1" : "0")) {
     PERFETTO_PLOG("Failed to write %s", path.c_str());
@@ -535,7 +535,7 @@ bool FtraceProcfs::SetTracingOn(bool on) {
   return true;
 }
 
-bool FtraceProcfs::IsTracingAvailable() {
+bool Tracefs::IsTracingAvailable() {
   std::string current_tracer = GetCurrentTracer();
 
   // Ftrace tracing is available if current_tracer == "nop".
@@ -549,12 +549,12 @@ bool FtraceProcfs::IsTracingAvailable() {
   return current_tracer == "nop" || current_tracer == "";
 }
 
-bool FtraceProcfs::SetClock(const std::string& clock_name) {
+bool Tracefs::SetClock(const std::string& clock_name) {
   std::string path = root_ + "trace_clock";
   return WriteToFile(path, clock_name);
 }
 
-std::string FtraceProcfs::GetClock() {
+std::string Tracefs::GetClock() {
   std::string path = root_ + "trace_clock";
   std::string s = ReadFileIntoString(path);
 
@@ -569,7 +569,7 @@ std::string FtraceProcfs::GetClock() {
   return s.substr(start + 1, end - start - 1);
 }
 
-std::set<std::string> FtraceProcfs::AvailableClocks() {
+std::set<std::string> Tracefs::AvailableClocks() {
   std::string path = root_ + "trace_clock";
   std::string s = ReadFileIntoString(path);
   std::set<std::string> names;
@@ -602,7 +602,7 @@ std::set<std::string> FtraceProcfs::AvailableClocks() {
   return names;
 }
 
-uint32_t FtraceProcfs::ReadBufferPercent() {
+uint32_t Tracefs::ReadBufferPercent() {
   std::string path = root_ + "buffer_percent";
   std::string raw = ReadFileIntoString(path);
   std::optional<uint32_t> percent =
@@ -610,35 +610,35 @@ uint32_t FtraceProcfs::ReadBufferPercent() {
   return percent.has_value() ? *percent : 0;
 }
 
-bool FtraceProcfs::SetBufferPercent(uint32_t percent) {
+bool Tracefs::SetBufferPercent(uint32_t percent) {
   std::string path = root_ + "buffer_percent";
   return WriteNumberToFile(path, percent);
 }
 
-bool FtraceProcfs::WriteNumberToFile(const std::string& path, size_t value) {
+bool Tracefs::WriteNumberToFile(const std::string& path, size_t value) {
   // 2^65 requires 20 digits to write.
   char buf[21];
   snprintf(buf, sizeof(buf), "%zu", value);
   return WriteToFile(path, std::string(buf));
 }
 
-bool FtraceProcfs::WriteToFile(const std::string& path,
+bool Tracefs::WriteToFile(const std::string& path,
                                const std::string& str) {
   return WriteFileInternal(path, str, O_WRONLY);
 }
 
-bool FtraceProcfs::AppendToFile(const std::string& path,
+bool Tracefs::AppendToFile(const std::string& path,
                                 const std::string& str) {
   return WriteFileInternal(path, str, O_WRONLY | O_APPEND);
 }
 
-base::ScopedFile FtraceProcfs::OpenPipeForCpu(size_t cpu) {
+base::ScopedFile Tracefs::OpenPipeForCpu(size_t cpu) {
   std::string path =
       root_ + "per_cpu/cpu" + std::to_string(cpu) + "/trace_pipe_raw";
   return base::OpenFile(path, O_RDONLY | O_NONBLOCK);
 }
 
-char FtraceProcfs::ReadOneCharFromFile(const std::string& path) {
+char Tracefs::ReadOneCharFromFile(const std::string& path) {
   base::ScopedFile fd = base::OpenFile(path, O_RDONLY);
   PERFETTO_CHECK(fd);
   char result = '\0';
@@ -647,20 +647,20 @@ char FtraceProcfs::ReadOneCharFromFile(const std::string& path) {
   return result;
 }
 
-bool FtraceProcfs::ClearFile(const std::string& path) {
+bool Tracefs::ClearFile(const std::string& path) {
   base::ScopedFile fd = base::OpenFile(path, O_WRONLY | O_TRUNC);
   return !!fd;
 }
 
-bool FtraceProcfs::IsFileWriteable(const std::string& path) {
+bool Tracefs::IsFileWriteable(const std::string& path) {
   return access(path.c_str(), W_OK) == 0;
 }
 
-bool FtraceProcfs::IsFileReadable(const std::string& path) {
+bool Tracefs::IsFileReadable(const std::string& path) {
   return access(path.c_str(), R_OK) == 0;
 }
 
-std::string FtraceProcfs::ReadFileIntoString(const std::string& path) const {
+std::string Tracefs::ReadFileIntoString(const std::string& path) const {
   // You can't seek or stat the procfs files on Android.
   // The vast majority (884/886) of format files are under 4k.
   std::string str;
@@ -670,7 +670,7 @@ std::string FtraceProcfs::ReadFileIntoString(const std::string& path) const {
   return str;
 }
 
-const std::set<std::string> FtraceProcfs::GetEventNamesForGroup(
+const std::set<std::string> Tracefs::GetEventNamesForGroup(
     const std::string& path) const {
   std::set<std::string> names;
   std::string full_path = root_ + path;
@@ -697,7 +697,7 @@ const std::set<std::string> FtraceProcfs::GetEventNamesForGroup(
   return names;
 }
 
-uint32_t FtraceProcfs::ReadEventId(const std::string& group,
+uint32_t Tracefs::ReadEventId(const std::string& group,
                                    const std::string& name) const {
   std::string path = root_ + "events/" + group + "/" + name + "/id";
 
@@ -715,7 +715,7 @@ uint32_t FtraceProcfs::ReadEventId(const std::string& group,
 }
 
 // static
-bool FtraceProcfs::CheckRootPath(const std::string& root) {
+bool Tracefs::CheckRootPath(const std::string& root) {
   base::ScopedFile fd = base::OpenFile(root + "trace", O_RDONLY);
   return static_cast<bool>(fd);
 }
