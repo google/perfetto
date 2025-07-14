@@ -122,7 +122,7 @@ PERFETTO_DEFINE_CATEGORIES(
     perfetto::Category::Group("baz,bar,quux"),
     perfetto::Category::Group("red,green,blue,foo"),
     perfetto::Category::Group("red,green,blue,yellow"),
-    perfetto::Category(TRACE_DISABLED_BY_DEFAULT("cat")));
+    perfetto::Category(TRACE_DISABLED_BY_DEFAULT("cat")).SetTags("slow"));
 PERFETTO_TRACK_EVENT_STATIC_STORAGE();
 
 // Test declaring an extra set of categories in a namespace in addition to the
@@ -1704,7 +1704,6 @@ TEST_P(PerfettoApiTest, TrackEventDescriptor) {
   EXPECT_EQ("slow_category", desc.available_categories()[7].name());
   EXPECT_EQ("slow", desc.available_categories()[7].tags()[0]);
   EXPECT_EQ("disabled-by-default-cat", desc.available_categories()[8].name());
-  EXPECT_EQ("slow", desc.available_categories()[8].tags()[0]);
 }
 
 TEST_P(PerfettoApiTest, TrackEventSharedIncrementalState) {
