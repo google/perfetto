@@ -110,8 +110,6 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
 
   bool ParseTraceEventContents();
 
-  void ParseId2(std::string_view, std::string_view&, std::string_view);
-
   base::Status ParseV8SampleEvent(const JsonEvent& event);
 
   base::Status HandleTraceEvent(const char* start,
