@@ -306,10 +306,10 @@ class TraceProcessor:
 
   def close(self):
     if hasattr(self, 'subprocess') and self.subprocess:
-      # On Windows, we need to kill the whole process group.
-      # On other platforms, killing the parent is enough.
+      # On Windows, we need to send a break signal to terminate the whole process group.
+      # On other platforms, killing the parent process is sufficient.
       if sys.platform == 'win32':
-        os.kill(self.subprocess.pid, signal.CTRL_BREAK_EVENT)
+        self.subprocess.send_signal(signal.CTRL_BREAK_EVENT)
       else:
         self.subprocess.kill()
       self.subprocess.wait()
