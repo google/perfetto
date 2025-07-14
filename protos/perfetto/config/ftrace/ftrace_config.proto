@@ -272,7 +272,7 @@ message FtraceConfig {
   // serialise raw tracing pages that the implementation cannot parse.
   optional bool debug_ftrace_abi = 31;
 
-  // No-op in perfetto v28+.Name preserved because of existing references in
+  // No-op in perfetto v28+. Name preserved because of existing references in
   // textproto configs.
   optional bool initialize_ksyms_synchronously_for_testing = 14
       [deprecated = true];
