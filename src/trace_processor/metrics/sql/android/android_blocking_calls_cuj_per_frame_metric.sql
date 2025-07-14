@@ -79,9 +79,7 @@ ON frame.upid = cuj.upid
 -- Check whether the frame_id falls within the begin and end vsync of the cuj.
 -- Also check if the frame start or end timestamp falls within the cuj boundary.
 WHERE
-   -- frame withtin cuj vsync boundary
-   frame_id >= begin_vsync AND frame_id <= end_vsync
-   AND (
+  (
       -- frame start within cuj
       (frame.ts >= cuj.ts AND frame.ts <= cuj.ts_end)
       OR
