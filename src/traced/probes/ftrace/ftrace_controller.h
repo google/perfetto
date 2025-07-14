@@ -107,7 +107,7 @@ class FtraceController {
                         std::unique_ptr<ProtoTranslationTable>,
                         std::unique_ptr<FtraceConfigMuxer>);
 
-    std::unique_ptr<Tracefs> ftrace_procfs;
+    std::unique_ptr<Tracefs> tracefs;
     std::unique_ptr<ProtoTranslationTable> table;
     std::unique_ptr<FtraceConfigMuxer> ftrace_config_muxer;
     std::vector<CpuReader> cpu_readers;  // empty if no started data sources

@@ -53,7 +53,7 @@
 #include "src/traced/probes/ftrace/ftrace_config_utils.h"
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
 #include "src/traced/probes/ftrace/ftrace_metadata.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"
 #include "src/traced/probes/ftrace/predefined_tracepoints.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
@@ -171,13 +171,13 @@ bool HardResetFtraceState() {
 std::unique_ptr<FtraceController> FtraceController::Create(
     base::TaskRunner* runner,
     Observer* observer) {
-  std::unique_ptr<Tracefs> ftrace_procfs =
+  std::unique_ptr<Tracefs> tracefs =
       Tracefs::CreateGuessingMountPoint("");
-  if (!ftrace_procfs)
+  if (!tracefs)
     return nullptr;
 
   std::unique_ptr<ProtoTranslationTable> table = ProtoTranslationTable::Create(
-      ftrace_procfs.get(), GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+      tracefs.get(), GetStaticEventInfo(), GetStaticCommonFieldsInfo());
   if (!table)
     return nullptr;
 
@@ -185,23 +185,23 @@ std::unique_ptr<FtraceController> FtraceController::Create(
 
   std::map<std::string, base::FlatSet<GroupAndName>> predefined_events =
       predefined_tracepoints::GetAccessiblePredefinedTracePoints(
-          table.get(), ftrace_procfs.get());
+          table.get(), tracefs.get());
 
   std::map<std::string, std::vector<GroupAndName>> vendor_evts =
-      GetAtraceVendorEvents(ftrace_procfs.get());
+      GetAtraceVendorEvents(tracefs.get());
 
   SyscallTable syscalls = SyscallTable::FromCurrentArch();
 
   auto muxer = std::make_unique<FtraceConfigMuxer>(
-      ftrace_procfs.get(), atrace_wrapper.get(), table.get(), syscalls,
+      tracefs.get(), atrace_wrapper.get(), table.get(), syscalls,
       predefined_events, vendor_evts);
   return std::unique_ptr<FtraceController>(new FtraceController(
-      std::move(ftrace_procfs), std::move(table), std::move(atrace_wrapper),
+      std::move(tracefs), std::move(table), std::move(atrace_wrapper),
       std::move(muxer), runner, observer));
 }
 
 FtraceController::FtraceController(
-    std::unique_ptr<Tracefs> ftrace_procfs,
+    std::unique_ptr<Tracefs> tracefs,
     std::unique_ptr<ProtoTranslationTable> table,
     std::unique_ptr<AtraceWrapper> atrace_wrapper,
     std::unique_ptr<FtraceConfigMuxer> muxer,
@@ -210,7 +210,7 @@ FtraceController::FtraceController(
     : task_runner_(task_runner),
       observer_(observer),
       atrace_wrapper_(std::move(atrace_wrapper)),
-      primary_(std::move(ftrace_procfs), std::move(table), std::move(muxer)),
+      primary_(std::move(tracefs), std::move(table), std::move(muxer)),
       weak_factory_(this) {}
 
 FtraceController::~FtraceController() {
@@ -253,12 +253,12 @@ void FtraceController::StartIfNeeded(FtraceInstanceState* instance,
   // of multiple ftrace instances, this might already be valid.
   parsing_mem_.AllocateIfNeeded();
 
-  size_t num_cpus = instance->ftrace_procfs->NumberOfCpus();
+  size_t num_cpus = instance->tracefs->NumberOfCpus();
   PERFETTO_CHECK(instance->cpu_readers.empty());
   instance->cpu_readers.reserve(num_cpus);
   for (size_t cpu = 0; cpu < num_cpus; cpu++) {
     instance->cpu_readers.emplace_back(
-        cpu, instance->ftrace_procfs->OpenPipeForCpu(cpu),
+        cpu, instance->tracefs->OpenPipeForCpu(cpu),
         instance->table.get(), &symbolizer_);
   }
 
@@ -268,7 +268,7 @@ void FtraceController::StartIfNeeded(FtraceInstanceState* instance,
   if (instance->ftrace_config_muxer->ftrace_clock() !=
       protos::pbzero::FtraceClock::FTRACE_CLOCK_UNSPECIFIED) {
     instance->cpu_zero_stats_fd =
-        instance->ftrace_procfs->OpenCpuStats(/*cpu=*/0);
+        instance->tracefs->OpenCpuStats(/*cpu=*/0);
   }
 
   // Set up poll callbacks for the buffers if requested by at least one DS.
@@ -678,7 +678,7 @@ void FtraceController::DumpFtraceStats(FtraceDataSource* data_source,
   if (!instance)
     return;
 
-  DumpAllCpuStats(instance->ftrace_procfs.get(), stats_out);
+  DumpAllCpuStats(instance->tracefs.get(), stats_out);
   if (symbolizer_.is_valid()) {
     auto* symbol_map = symbolizer_.GetOrCreateKernelSymbolMap();
     stats_out->kernel_symbols_parsed =
@@ -688,7 +688,7 @@ void FtraceController::DumpFtraceStats(FtraceDataSource* data_source,
   }
 
   if (data_source->parsing_config()->kprobes.size() > 0) {
-    DumpKprobeStats(instance->ftrace_procfs->ReadKprobeStats(), stats_out);
+    DumpKprobeStats(instance->tracefs->ReadKprobeStats(), stats_out);
   }
 }
 
@@ -717,7 +717,7 @@ FtraceController::VerifyKernelSupportForBufferWatermark() {
     return PollSupport::kUnsupported;
 
   // buffer_percent exists and is writable
-  auto* tracefs = primary_.ftrace_procfs.get();
+  auto* tracefs = primary_.tracefs.get();
   uint32_t current = tracefs->ReadBufferPercent();
   if (!tracefs->SetBufferPercent(current ? current : 50)) {
     return PollSupport::kUnsupported;
@@ -777,7 +777,7 @@ FtraceController::FtraceInstanceState::FtraceInstanceState(
     std::unique_ptr<Tracefs> ft,
     std::unique_ptr<ProtoTranslationTable> ptt,
     std::unique_ptr<FtraceConfigMuxer> fcm)
-    : ftrace_procfs(std::move(ft)),
+    : tracefs(std::move(ft)),
       table(std::move(ptt)),
       ftrace_config_muxer(std::move(fcm)) {}
 
@@ -828,22 +828,22 @@ void FtraceController::DestroyIfUnusedSeconaryInstance(
 std::unique_ptr<FtraceController::FtraceInstanceState>
 FtraceController::CreateSecondaryInstance(const std::string& instance_name) {
   std::optional<std::string> instance_path = AbsolutePathForInstance(
-      primary_.ftrace_procfs->GetRootPath(), instance_name);
+      primary_.tracefs->GetRootPath(), instance_name);
   if (!instance_path.has_value()) {
     PERFETTO_ELOG("Invalid ftrace instance name: \"%s\"",
                   instance_name.c_str());
     return nullptr;
   }
 
-  auto ftrace_procfs = Tracefs::Create(*instance_path);
-  if (!ftrace_procfs) {
+  auto tracefs = Tracefs::Create(*instance_path);
+  if (!tracefs) {
     PERFETTO_ELOG("Failed to create ftrace procfs for \"%s\"",
                   instance_path->c_str());
     return nullptr;
   }
 
   auto table = ProtoTranslationTable::Create(
-      ftrace_procfs.get(), GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+      tracefs.get(), GetStaticEventInfo(), GetStaticCommonFieldsInfo());
   if (!table) {
     PERFETTO_ELOG("Failed to create proto translation table for \"%s\"",
                   instance_path->c_str());
@@ -852,7 +852,7 @@ FtraceController::CreateSecondaryInstance(const std::string& instance_name) {
 
   std::map<std::string, base::FlatSet<GroupAndName>> predefined_events =
       predefined_tracepoints::GetAccessiblePredefinedTracePoints(
-          table.get(), ftrace_procfs.get());
+          table.get(), tracefs.get());
 
   // secondary instances don't support atrace and vendor tracepoint HAL
   std::map<std::string, std::vector<GroupAndName>> vendor_evts;
@@ -860,11 +860,11 @@ FtraceController::CreateSecondaryInstance(const std::string& instance_name) {
   auto syscalls = SyscallTable::FromCurrentArch();
 
   auto muxer = std::make_unique<FtraceConfigMuxer>(
-      ftrace_procfs.get(), atrace_wrapper_.get(), table.get(), syscalls,
+      tracefs.get(), atrace_wrapper_.get(), table.get(), syscalls,
       predefined_events, vendor_evts,
       /* secondary_instance= */ true);
   return std::make_unique<FtraceInstanceState>(
-      std::move(ftrace_procfs), std::move(table), std::move(muxer));
+      std::move(tracefs), std::move(table), std::move(muxer));
 }
 
 // TODO(rsavitski): we want to eventually add support for the default

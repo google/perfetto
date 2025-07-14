@@ -28,7 +28,7 @@
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/tracing/default_socket.h"
 
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 #include "src/traced/probes/probes_producer.h"
 
 namespace perfetto {

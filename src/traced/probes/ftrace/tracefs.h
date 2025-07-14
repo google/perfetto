@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACED_PROBES_FTRACE_FTRACE_PROCFS_H_
-#define SRC_TRACED_PROBES_FTRACE_FTRACE_PROCFS_H_
+#ifndef SRC_TRACED_PROBES_FTRACE_TRACEFS_H_
+#define SRC_TRACED_PROBES_FTRACE_TRACEFS_H_
 
 #include <memory>
 #include <set>
@@ -223,4 +223,4 @@ class Tracefs {
 
 }  // namespace perfetto
 
-#endif  // SRC_TRACED_PROBES_FTRACE_FTRACE_PROCFS_H_
+#endif  // SRC_TRACED_PROBES_FTRACE_TRACEFS_H_

@@ -39,7 +39,7 @@
 #include "src/profiling/perf/unwinding.h"
 #include "src/tracing/service/metatrace_writer.h"
 // TODO(rsavitski): move to e.g. src/tracefs/.
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 
 namespace perfetto {
 namespace profiling {

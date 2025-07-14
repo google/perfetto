@@ -30,7 +30,7 @@
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/event_info.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 #include "src/traced/probes/ftrace/test/cpu_reader_support.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
@@ -1255,11 +1255,11 @@ print fmt: "(%lx)", REC->__probe_ip
 )format");
   ftrace.AddFile("trace", "");
 
-  std::unique_ptr<Tracefs> ftrace_procfs =
+  std::unique_ptr<Tracefs> tracefs =
       Tracefs::Create(ftrace.path() + "/");
-  ASSERT_NE(ftrace_procfs.get(), nullptr);
+  ASSERT_NE(tracefs.get(), nullptr);
   std::unique_ptr<ProtoTranslationTable> table = ProtoTranslationTable::Create(
-      ftrace_procfs.get(), GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+      tracefs.get(), GetStaticEventInfo(), GetStaticCommonFieldsInfo());
   table->CreateKprobeEvent(
       GroupAndName("perfetto_kprobes", "fuse_file_write_iter"));
 

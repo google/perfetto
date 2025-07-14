@@ -27,7 +27,7 @@
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/ftrace_config_utils.h"
 #include "src/traced/probes/ftrace/ftrace_print_filter.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 
 #include "protos/perfetto/trace/ftrace/generic.pbzero.h"

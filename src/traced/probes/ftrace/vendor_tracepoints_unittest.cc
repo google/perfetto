@@ -22,7 +22,7 @@
 
 #include "src/base/test/tmp_dir_tree.h"
 #include "src/traced/probes/ftrace/atrace_hal_wrapper.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 
 using testing::_;
 using testing::AnyNumber;

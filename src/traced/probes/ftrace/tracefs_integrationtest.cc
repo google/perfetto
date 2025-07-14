@@ -21,7 +21,7 @@
 
 #include "perfetto/ext/base/file_utils.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 #include "test/gtest_and_gmock.h"
 
 using testing::Contains;
@@ -50,10 +50,10 @@ namespace perfetto {
 namespace {
 
 std::string GetFtracePath() {
-  auto ftrace_procfs = Tracefs::CreateGuessingMountPoint();
-  if (!ftrace_procfs)
+  auto tracefs = Tracefs::CreateGuessingMountPoint();
+  if (!tracefs)
     return "";
-  return ftrace_procfs->GetRootPath();
+  return tracefs->GetRootPath();
 }
 
 std::string ReadFile(const std::string& name) {

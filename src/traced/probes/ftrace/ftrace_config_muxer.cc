@@ -66,10 +66,10 @@ constexpr const char* kClocks[] = {"boot", "global", "local"};
 constexpr const char* kClockMonoRaw = "mono_raw";
 
 std::set<GroupAndName> ReadEventsInGroupFromFs(
-    const Tracefs& ftrace_procfs,
+    const Tracefs& tracefs,
     const std::string& group) {
   std::set<std::string> names =
-      ftrace_procfs.GetEventNamesForGroup("events/" + group);
+      tracefs.GetEventNamesForGroup("events/" + group);
   std::set<GroupAndName> events;
   for (const auto& name : names)
     events.insert(GroupAndName(group, name));

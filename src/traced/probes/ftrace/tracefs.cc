@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 
 #include <string.h>
 #include <sys/stat.h>
@@ -90,16 +90,16 @@ const char* const Tracefs::kTracingPaths[] = {
 // static
 std::unique_ptr<Tracefs> Tracefs::CreateGuessingMountPoint(
     const std::string& instance_path) {
-  std::unique_ptr<Tracefs> ftrace_procfs;
+  std::unique_ptr<Tracefs> tracefs;
   size_t index = 0;
-  while (!ftrace_procfs && kTracingPaths[index]) {
+  while (!tracefs && kTracingPaths[index]) {
     std::string path = kTracingPaths[index++];
     if (!instance_path.empty())
       path += instance_path;
 
-    ftrace_procfs = Create(path);
+    tracefs = Create(path);
   }
-  return ftrace_procfs;
+  return tracefs;
 }
 
 // static

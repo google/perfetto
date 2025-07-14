@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 #include "perfetto/ext/base/utils.h"
 
 #include "test/gtest_and_gmock.h"

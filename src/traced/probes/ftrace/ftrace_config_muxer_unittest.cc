@@ -22,7 +22,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "src/traced/probes/ftrace/atrace_wrapper.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"
 #include "src/traced/probes/ftrace/predefined_tracepoints.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
@@ -118,12 +118,12 @@ class MockAtraceWrapper : public AtraceWrapper {
 
 class MockProtoTranslationTable : public ProtoTranslationTable {
  public:
-  MockProtoTranslationTable(NiceMock<MockTracefs>* ftrace_procfs,
+  MockProtoTranslationTable(NiceMock<MockTracefs>* tracefs,
                             const std::vector<Event>& events,
                             std::vector<Field> common_fields,
                             FtracePageHeaderSpec ftrace_page_header_spec,
                             CompactSchedEventFormat compact_sched_format)
-      : ProtoTranslationTable(ftrace_procfs,
+      : ProtoTranslationTable(tracefs,
                               events,
                               common_fields,
                               ftrace_page_header_spec,

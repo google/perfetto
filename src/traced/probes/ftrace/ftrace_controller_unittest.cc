@@ -28,7 +28,7 @@
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/ftrace_config_utils.h"
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
 #include "test/gtest_and_gmock.h"
@@ -224,13 +224,13 @@ class MockAtraceWrapper : public AtraceWrapper {
 class TestFtraceController : public FtraceController,
                              public FtraceController::Observer {
  public:
-  TestFtraceController(std::unique_ptr<MockTracefs> ftrace_procfs,
+  TestFtraceController(std::unique_ptr<MockTracefs> tracefs,
                        std::unique_ptr<Table> table,
                        std::unique_ptr<AtraceWrapper> atrace_wrapper,
                        std::unique_ptr<FtraceConfigMuxer> muxer,
                        std::unique_ptr<MockTaskRunner> runner,
                        MockTracefs* raw_procfs)
-      : FtraceController(std::move(ftrace_procfs),
+      : FtraceController(std::move(tracefs),
                          std::move(table),
                          std::move(atrace_wrapper),
                          std::move(muxer),
@@ -267,19 +267,19 @@ class TestFtraceController : public FtraceController,
   MockTracefs* GetInstanceMockProcfs(const std::string& instance_name) {
     auto* instance = GetInstance(instance_name);
     PERFETTO_CHECK(instance);
-    return reinterpret_cast<MockTracefs*>(instance->ftrace_procfs.get());
+    return reinterpret_cast<MockTracefs*>(instance->tracefs.get());
   }
 
   std::unique_ptr<FtraceInstanceState> CreateSecondaryInstance(
       const std::string& instance_name) override {
-    auto ftrace_procfs = std::move(pending_instance_procfs_[instance_name]);
-    PERFETTO_CHECK(ftrace_procfs);
+    auto tracefs = std::move(pending_instance_procfs_[instance_name]);
+    PERFETTO_CHECK(tracefs);
 
-    auto table = FakeTable(ftrace_procfs.get());
-    auto muxer = FakeMuxer(ftrace_procfs.get(), atrace_wrapper(), table.get());
+    auto table = FakeTable(tracefs.get());
+    auto muxer = FakeMuxer(tracefs.get(), atrace_wrapper(), table.get());
     return std::unique_ptr<FtraceController::FtraceInstanceState>(
         new FtraceController::FtraceInstanceState(
-            std::move(ftrace_procfs), std::move(table), std::move(muxer)));
+            std::move(tracefs), std::move(table), std::move(muxer)));
   }
 
  private:
@@ -300,25 +300,25 @@ std::unique_ptr<TestFtraceController> CreateTestController(
   std::unique_ptr<MockTaskRunner> runner =
       std::unique_ptr<MockTaskRunner>(new NiceMock<MockTaskRunner>());
 
-  std::unique_ptr<MockTracefs> ftrace_procfs;
+  std::unique_ptr<MockTracefs> tracefs;
   if (procfs_is_nice_mock) {
-    ftrace_procfs = std::unique_ptr<MockTracefs>(
+    tracefs = std::unique_ptr<MockTracefs>(
         new NiceMock<MockTracefs>("/root/", cpu_count));
   } else {
-    ftrace_procfs = std::unique_ptr<MockTracefs>(
+    tracefs = std::unique_ptr<MockTracefs>(
         new MockTracefs("/root/", cpu_count));
   }
 
   auto atrace_wrapper = std::make_unique<NiceMock<MockAtraceWrapper>>();
 
-  auto table = FakeTable(ftrace_procfs.get());
+  auto table = FakeTable(tracefs.get());
 
   auto muxer =
-      FakeMuxer(ftrace_procfs.get(), atrace_wrapper.get(), table.get());
+      FakeMuxer(tracefs.get(), atrace_wrapper.get(), table.get());
 
-  MockTracefs* raw_procfs = ftrace_procfs.get();
+  MockTracefs* raw_procfs = tracefs.get();
   return std::unique_ptr<TestFtraceController>(new TestFtraceController(
-      std::move(ftrace_procfs), std::move(table), std::move(atrace_wrapper),
+      std::move(tracefs), std::move(table), std::move(atrace_wrapper),
       std::move(muxer), std::move(runner), raw_procfs));
 }
 

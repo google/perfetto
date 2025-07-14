@@ -20,7 +20,7 @@
 
 #include "test/gtest_and_gmock.h"
 
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 
 using testing::_;
 using testing::ElementsAre;

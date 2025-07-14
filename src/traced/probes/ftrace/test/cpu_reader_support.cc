@@ -26,7 +26,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "src/base/test/utils.h"
 #include "src/traced/probes/ftrace/event_info.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 
 // TODO(rsavitski): rename to "cpu_reader_test_utils" or similar.
 namespace perfetto {
