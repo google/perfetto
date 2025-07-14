@@ -1044,6 +1044,11 @@ message FtraceConfig {
   // the "track_event" data source. For these categories, the SDK will be
   // preferred, if possible, for this config.
   repeated string atrace_categories_prefer_sdk = 28;
+  // If true, do *not* add in extra ftrace events when |atrace_categories| are
+  // set. This skips the legacy "atrace" behaviour of adding hardcoded ftrace
+  // events for convenience (and the vendor-specific events on top).
+  // Introduced in: perfetto v52.
+  optional bool atrace_userspace_only = 34;
 
   // Size of each per-cpu kernel ftrace ring buffer.
   // Not guaranteed if there are multiple concurrent tracing sessions, as the
