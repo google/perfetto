@@ -3702,7 +3702,6 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
   auto val = (action_name == "timekeeping_freeze") ? 0 : evt.val();
 
   base::StackString<64> str("%s(%d)", action_name.c_str(), val);
-  std::string current_action = str.ToStdString();
 
   StringId slice_name_id = context_->storage->InternString(str.string_view());
   int64_t cookie = slice_name_id.raw_id();
