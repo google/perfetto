@@ -72,7 +72,16 @@ CREATE PERFETTO VIEW track (
   -- expand the args.
   source_arg_set_id ARGSETID,
   -- Machine identifier, non-null for tracks on a remote machine.
-  machine_id LONG
+  machine_id LONG,
+  -- An opaque key indicating that this track belongs to a group of tracks which
+  -- are "conceptually" the same track.
+  --
+  -- Tracks in trace processor don't allow overlapping events to allow for easy
+  -- analysis (i.e. SQL window functions, SPAN JOIN and other similar
+  -- operators). However, in visualization settings (e.g. the UI), the
+  -- distinction doesn't matter and all tracks with the same `track_group_id`
+  -- should be merged together into a single logical "UI track".
+  track_group_id LONG
 ) AS
 SELECT
   id,
@@ -81,7 +90,8 @@ SELECT
   dimension_arg_set_id,
   parent_id,
   source_arg_set_id,
-  machine_id
+  machine_id,
+  track_group_id
 FROM __intrinsic_track;
 
 -- Contains information about the CPUs on the device this trace was taken on.
