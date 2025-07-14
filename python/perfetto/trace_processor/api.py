@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import sys
+import signal
 import dataclasses as dc
 from urllib.parse import urlparse
 from typing import List, Optional, Union
@@ -302,9 +305,16 @@ class TraceProcessor:
     return False
 
   def close(self):
-    if hasattr(self, 'subprocess'):
-      self.subprocess.kill()
+    if hasattr(self, 'subprocess') and self.subprocess:
+      # On Windows, we need to send a break signal to terminate the whole process group.
+      # On other platforms, killing the parent process is sufficient.
+      if sys.platform == 'win32':
+        self.subprocess.send_signal(signal.CTRL_BREAK_EVENT)
+      else:
+        self.subprocess.kill()
       self.subprocess.wait()
+      # Set to None so __del__ doesn't call this again.
+      self.subprocess = None
 
     if hasattr(self, 'http'):
       self.http.conn.close()

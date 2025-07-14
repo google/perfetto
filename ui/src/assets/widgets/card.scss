@@ -22,6 +22,13 @@ $box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.15);
   box-shadow: $box-shadow;
   border-radius: $border-radius;
   border: solid 1px $pf-colour-thin-border;
+
+  &.pf-interactive {
+    transition: all 200ms ease-in-out;
+    &:hover {
+      box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.2);
+    }
+  }
 }
 
 .pf-card-stack {
@@ -40,5 +47,19 @@ $box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.15);
     border-radius: unset;
     border: unset;
     box-shadow: unset;
+  }
+
+  > .pf-card.pf-interactive:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+    box-shadow: unset;
+  }
+
+  &--horizontal {
+    flex-direction: row;
+
+    > .pf-card:not(:last-child) {
+      border-right: 1px solid lightgray;
+      border-bottom: unset;
+    }
   }
 }

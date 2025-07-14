@@ -238,6 +238,7 @@ class TrackEvent(TestSuite):
       "[NULL]","p1","[NULL]","[NULL]",4000,0,"cat","event1_on_p1"
       "async","p1","[NULL]","[NULL]",5000,0,"cat","event1_on_async"
       "async2","p1","[NULL]","[NULL]",5100,100,"cat","event1_on_async2"
+      "async3","[NULL]","t2","p1",6000,0,"cat","event1_on_async3"
       "[NULL]","[NULL]","t1","p1",6000,0,"cat","event3_on_t1"
       "[NULL]","[NULL]","t3","p1",11000,0,"cat","event1_on_t3"
       "[NULL]","p2","[NULL]","[NULL]",21000,0,"cat","event1_on_p2"
@@ -905,24 +906,26 @@ class TrackEvent(TestSuite):
         trace=Path('track_event_tracks_ordering.textproto'),
         query="""
         SELECT
-          id,
-          parent_id,
-          EXTRACT_ARG(source_arg_set_id, 'child_ordering') AS ordering,
-          EXTRACT_ARG(source_arg_set_id, 'sibling_order_rank') AS rank
-        FROM track
+          t.name,
+          p.name AS parent_name,
+          EXTRACT_ARG(t.source_arg_set_id, 'child_ordering') AS ordering,
+          EXTRACT_ARG(t.source_arg_set_id, 'sibling_order_rank') AS rank
+        FROM track t
+        LEFT JOIN track p ON t.parent_id = p.id
+        ORDER BY p.name, t.name
         """,
         out=Csv("""
-        "id","parent_id","ordering","rank"
-        0,"[NULL]","explicit","[NULL]"
-        1,0,"[NULL]",-10
-        2,0,"[NULL]",-2
-        3,0,"[NULL]",1
-        4,"[NULL]","explicit","[NULL]"
-        5,0,"[NULL]",2
-        6,2,"[NULL]","[NULL]"
-        7,0,"[NULL]","[NULL]"
-        8,"[NULL]","[NULL]",-10
-        9,"[NULL]","[NULL]",-2
+        "name","parent_name","ordering","rank"
+        "p1","[NULL]","explicit","[NULL]"
+        "p1_child_1","[NULL]","[NULL]",-10
+        "p1_child_2","[NULL]","[NULL]",-2
+        "parent","[NULL]","explicit","[NULL]"
+        "async3","child_2","[NULL]","[NULL]"
+        "async","parent","[NULL]",1
+        "async2","parent","[NULL]",2
+        "child_1","parent","[NULL]",-10
+        "child_2","parent","[NULL]",-2
+        "child_3","parent","[NULL]","[NULL]"
         """))
 
   def test_track_event_tracks_machine_id(self):
