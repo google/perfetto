@@ -21,6 +21,7 @@ SELECT RUN_METRIC('android/jank/internal/counters.sql');
 
 SELECT RUN_METRIC('android/process_metadata.sql');
 INCLUDE PERFETTO MODULE android.frames.jank_type;
+INCLUDE PERFETTO MODULE android.surfaceflinger;
 INCLUDE PERFETTO MODULE android.frames.timeline;
 
 -- Table captures all frames within a CUJ boundary.
@@ -164,7 +165,7 @@ DROP TABLE IF EXISTS android_jank_cuj_sf_main_thread;
 CREATE PERFETTO TABLE android_jank_cuj_sf_main_thread AS
 SELECT upid, utid, thread.name, thread_track.id AS track_id
 FROM thread
-JOIN _android_jank_cuj_sf_process sf_process USING (upid)
+JOIN _android_sf_process sf_process USING (upid)
 JOIN thread_track USING (utid)
 WHERE thread.is_main_thread;
 
@@ -176,7 +177,7 @@ SELECT
    app_vsync,
    app_sf_match.sf_upid,
    app_sf_match.sf_vsync
-FROM _android_jank_cuj_do_frames do_frame JOIN android_app_to_sf_vsync_match app_sf_match
+FROM _android_jank_cuj_do_frames do_frame JOIN android_app_to_sf_frame_timeline_match app_sf_match
   ON do_frame.frame_id = app_sf_match.app_vsync AND do_frame.upid = app_sf_match.app_upid;
 
 CREATE OR REPLACE PERFETTO FUNCTION find_android_jank_cuj_sf_main_thread_slice(
@@ -251,7 +252,7 @@ SELECT
   main_thread_slice.ts_end,
   main_thread_slice.ts_end - expected_timeline.ts AS dur
 FROM expected_frame_timeline_slice expected_timeline
-JOIN _android_jank_cuj_sf_process USING (upid)
+JOIN _android_sf_process USING (upid)
 JOIN main_thread_slice
   ON main_thread_slice.vsync = CAST(expected_timeline.name AS INTEGER)
   ),
@@ -275,7 +276,7 @@ android_jank_cuj_sf_frame_base AS (
       -- See similar expression in android_jank_cuj_frame_timeline.
       COALESCE(expected_timeline.dur, 16600000) AS dur_expected
     FROM sf_mt_boundary boundary
-    JOIN _android_jank_cuj_sf_process sf_process
+    JOIN _android_sf_process sf_process
     JOIN actual_frame_timeline_slice actual_timeline
       ON actual_timeline.upid = sf_process.upid
         AND boundary.vsync = CAST(actual_timeline.name AS INTEGER)
