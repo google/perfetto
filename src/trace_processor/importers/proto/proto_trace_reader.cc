@@ -250,9 +250,9 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
         converted_clock_id =
             ClockTracker::SequenceToGlobalClock(seq_id, timestamp_clock_id);
       }
-      // If the clock tracker is missing a path to trace time for this clock
-      // then try to save this packet for processing later when a path exists.
-      if (!context_->clock_tracker->HasPathToTraceTime(converted_clock_id)) {
+      auto trace_ts =
+          context_->clock_tracker->ToTraceTime(converted_clock_id, timestamp);
+      if (!trace_ts.ok()) {
         // We need to switch to full sorting mode to ensure that packets with
         // missing timestamp are handled correctly. Don't save the packet unless
         // switching to full sorting mode succeeded.
@@ -261,15 +261,10 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
           eof_deferred_packets_.push_back(std::move(packet));
           return base::OkStatus();
         }
-        // Fall-through and let ToTraceTime fail below.
-      }
-      auto trace_ts =
-          context_->clock_tracker->ToTraceTime(converted_clock_id, timestamp);
-      if (!trace_ts.ok()) {
-        // ToTraceTime() will increase the |clock_sync_failure| stat on failure.
         // We don't return an error here as it will cause the trace to stop
-        // parsing. Instead, we rely on the stat increment in ToTraceTime() to
-        // inform the user about the error.
+        // parsing. Instead, we rely on the stat increment to inform the user
+        // about the error.
+        context_->storage->IncrementStats(stats::clock_sync_failure);
         return base::OkStatus();
       }
       timestamp = trace_ts.value();
