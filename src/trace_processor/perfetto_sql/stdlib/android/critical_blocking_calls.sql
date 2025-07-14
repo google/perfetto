@@ -47,6 +47,7 @@ SELECT
   OR $name GLOB 'GC: Wait For*'
   OR $name GLOB 'Recomposer:*'
   OR $name GLOB 'Compose:*'
+  OR $name GLOB 'draw-VRI*'
   OR (
     -- Some top level handler slices
     $depth = 0
