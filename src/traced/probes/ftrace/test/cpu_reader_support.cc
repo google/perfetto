@@ -34,8 +34,7 @@ namespace perfetto {
 // Caching layer for proto translation tables used in tests
 // Note that this breaks test isolation, but we rarely mutate the tables.
 ProtoTranslationTable* GetTable(const std::string& name) {
-  static base::NoDestructor<
-      std::map<std::string, std::unique_ptr<Tracefs>>>
+  static base::NoDestructor<std::map<std::string, std::unique_ptr<Tracefs>>>
       g_tracefs;
   static base::NoDestructor<
       std::map<std::string, std::unique_ptr<ProtoTranslationTable>>>

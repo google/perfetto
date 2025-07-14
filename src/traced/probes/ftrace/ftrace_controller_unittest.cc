@@ -28,8 +28,8 @@
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/ftrace_config_utils.h"
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
-#include "src/traced/probes/ftrace/tracefs.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
 #include "test/gtest_and_gmock.h"
 
@@ -288,8 +288,7 @@ class TestFtraceController : public FtraceController,
 
   std::unique_ptr<MockTaskRunner> runner_;
   MockTracefs* primary_procfs_;
-  std::map<std::string, std::unique_ptr<MockTracefs>>
-      pending_instance_procfs_;
+  std::map<std::string, std::unique_ptr<MockTracefs>> pending_instance_procfs_;
 };
 
 namespace {
@@ -305,16 +304,15 @@ std::unique_ptr<TestFtraceController> CreateTestController(
     tracefs = std::unique_ptr<MockTracefs>(
         new NiceMock<MockTracefs>("/root/", cpu_count));
   } else {
-    tracefs = std::unique_ptr<MockTracefs>(
-        new MockTracefs("/root/", cpu_count));
+    tracefs =
+        std::unique_ptr<MockTracefs>(new MockTracefs("/root/", cpu_count));
   }
 
   auto atrace_wrapper = std::make_unique<NiceMock<MockAtraceWrapper>>();
 
   auto table = FakeTable(tracefs.get());
 
-  auto muxer =
-      FakeMuxer(tracefs.get(), atrace_wrapper.get(), table.get());
+  auto muxer = FakeMuxer(tracefs.get(), atrace_wrapper.get(), table.get());
 
   MockTracefs* raw_procfs = tracefs.get();
   return std::unique_ptr<TestFtraceController>(new TestFtraceController(

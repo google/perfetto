@@ -485,8 +485,7 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
     PERFETTO_DCHECK(event.proto_field_id);
     PERFETTO_DCHECK(!event.ftrace_event_id);
 
-    std::string contents =
-        tracefs->ReadEventFormat(event.group, event.name);
+    std::string contents = tracefs->ReadEventFormat(event.group, event.name);
     FtraceEvent ftrace_event;
     if (contents.empty() || !ParseFtraceEvent(contents, &ftrace_event)) {
       if (!strcmp(event.group, "ftrace") && !strcmp(event.name, "print")) {
@@ -549,8 +548,8 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
   PrintkMap printk_formats = ParsePrintkFormats(text);
 
   auto table = std::make_unique<ProtoTranslationTable>(
-      tracefs, events, std::move(common_fields), header_spec,
-      compact_sched, std::move(printk_formats));
+      tracefs, events, std::move(common_fields), header_spec, compact_sched,
+      std::move(printk_formats));
   return table;
 }
 
@@ -610,8 +609,8 @@ const Event* ProtoTranslationTable::CreateGenericEventInternal(
     const GroupAndName& group_and_name,
     uint32_t proto_field_id,
     bool keep_proto_descriptor) {
-  std::string contents = tracefs_->ReadEventFormat(group_and_name.group(),
-                                                         group_and_name.name());
+  std::string contents =
+      tracefs_->ReadEventFormat(group_and_name.group(), group_and_name.name());
   if (contents.empty())
     return nullptr;
 

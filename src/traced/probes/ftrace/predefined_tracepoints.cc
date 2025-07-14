@@ -19,8 +19,8 @@
 #include <map>
 #include <set>
 
-#include "src/traced/probes/ftrace/tracefs.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 
 namespace perfetto::predefined_tracepoints {
 namespace {

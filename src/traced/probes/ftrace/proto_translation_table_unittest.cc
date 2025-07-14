@@ -139,8 +139,8 @@ TEST(TranslationTableTest, Seed) {
   std::string path = base::GetTestDataPath(
       "src/traced/probes/ftrace/test/data/android_seed_N2F62_3.10.49/");
   Tracefs tracefs(path);
-  auto table = ProtoTranslationTable::Create(
-      &tracefs, GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+  auto table = ProtoTranslationTable::Create(&tracefs, GetStaticEventInfo(),
+                                             GetStaticCommonFieldsInfo());
   PERFETTO_CHECK(table);
   const Field& pid_field = table->common_fields().at(0);
   EXPECT_EQ(std::string(pid_field.ftrace_name), "common_pid");
@@ -292,8 +292,8 @@ TEST(TranslationTableTest, CompactSchedFormatParsingWalleyeData) {
       "src/traced/probes/ftrace/test/data/"
       "android_walleye_OPM5.171019.017.A1_4.4.88/");
   Tracefs tracefs(path);
-  auto table = ProtoTranslationTable::Create(
-      &tracefs, GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+  auto table = ProtoTranslationTable::Create(&tracefs, GetStaticEventInfo(),
+                                             GetStaticCommonFieldsInfo());
   PERFETTO_CHECK(table);
   const CompactSchedEventFormat& format = table->compact_sched_format();
 
@@ -327,8 +327,8 @@ TEST(TranslationTableTest, CompactSchedFormatParsingSeedData) {
   std::string path =
       "src/traced/probes/ftrace/test/data/android_seed_N2F62_3.10.49/";
   Tracefs tracefs(path);
-  auto table = ProtoTranslationTable::Create(
-      &tracefs, GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+  auto table = ProtoTranslationTable::Create(&tracefs, GetStaticEventInfo(),
+                                             GetStaticCommonFieldsInfo());
   PERFETTO_CHECK(table);
   const CompactSchedEventFormat& format = table->compact_sched_format();
 
@@ -614,8 +614,8 @@ TEST(TranslationTableTest, FuncgraphEvents) {
   std::string path =
       base::GetTestDataPath("src/traced/probes/ftrace/test/data/synthetic/");
   Tracefs tracefs(path);
-  auto table = ProtoTranslationTable::Create(
-      &tracefs, GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+  auto table = ProtoTranslationTable::Create(&tracefs, GetStaticEventInfo(),
+                                             GetStaticCommonFieldsInfo());
   PERFETTO_CHECK(table);
 
   {

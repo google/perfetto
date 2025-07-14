@@ -65,9 +65,8 @@ constexpr const char* kClocks[] = {"boot", "global", "local"};
 // Enabled by the "use_monotonic_raw_clock" option in the ftrace config.
 constexpr const char* kClockMonoRaw = "mono_raw";
 
-std::set<GroupAndName> ReadEventsInGroupFromFs(
-    const Tracefs& tracefs,
-    const std::string& group) {
+std::set<GroupAndName> ReadEventsInGroupFromFs(const Tracefs& tracefs,
+                                               const std::string& group) {
   std::set<std::string> names =
       tracefs.GetEventNamesForGroup("events/" + group);
   std::set<GroupAndName> events;

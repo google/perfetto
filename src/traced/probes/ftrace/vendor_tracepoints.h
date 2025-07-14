@@ -23,8 +23,8 @@
 
 #include "perfetto/base/status.h"
 #include "src/traced/probes/ftrace/atrace_hal_wrapper.h"
-#include "src/traced/probes/ftrace/tracefs.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 
 namespace perfetto {
 namespace vendor_tracepoints {

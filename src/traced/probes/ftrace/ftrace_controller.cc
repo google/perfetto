@@ -53,10 +53,10 @@
 #include "src/traced/probes/ftrace/ftrace_config_utils.h"
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
 #include "src/traced/probes/ftrace/ftrace_metadata.h"
-#include "src/traced/probes/ftrace/tracefs.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"
 #include "src/traced/probes/ftrace/predefined_tracepoints.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 #include "src/traced/probes/ftrace/vendor_tracepoints.h"
 
 namespace perfetto {
@@ -171,8 +171,7 @@ bool HardResetFtraceState() {
 std::unique_ptr<FtraceController> FtraceController::Create(
     base::TaskRunner* runner,
     Observer* observer) {
-  std::unique_ptr<Tracefs> tracefs =
-      Tracefs::CreateGuessingMountPoint("");
+  std::unique_ptr<Tracefs> tracefs = Tracefs::CreateGuessingMountPoint("");
   if (!tracefs)
     return nullptr;
 
@@ -184,8 +183,8 @@ std::unique_ptr<FtraceController> FtraceController::Create(
   auto atrace_wrapper = std::make_unique<AtraceWrapperImpl>();
 
   std::map<std::string, base::FlatSet<GroupAndName>> predefined_events =
-      predefined_tracepoints::GetAccessiblePredefinedTracePoints(
-          table.get(), tracefs.get());
+      predefined_tracepoints::GetAccessiblePredefinedTracePoints(table.get(),
+                                                                 tracefs.get());
 
   std::map<std::string, std::vector<GroupAndName>> vendor_evts =
       GetAtraceVendorEvents(tracefs.get());
@@ -257,9 +256,9 @@ void FtraceController::StartIfNeeded(FtraceInstanceState* instance,
   PERFETTO_CHECK(instance->cpu_readers.empty());
   instance->cpu_readers.reserve(num_cpus);
   for (size_t cpu = 0; cpu < num_cpus; cpu++) {
-    instance->cpu_readers.emplace_back(
-        cpu, instance->tracefs->OpenPipeForCpu(cpu),
-        instance->table.get(), &symbolizer_);
+    instance->cpu_readers.emplace_back(cpu,
+                                       instance->tracefs->OpenPipeForCpu(cpu),
+                                       instance->table.get(), &symbolizer_);
   }
 
   // Special case: if not using the boot clock, cache an fd for taking manual
@@ -267,8 +266,7 @@ void FtraceController::StartIfNeeded(FtraceInstanceState* instance,
   // back to boot.
   if (instance->ftrace_config_muxer->ftrace_clock() !=
       protos::pbzero::FtraceClock::FTRACE_CLOCK_UNSPECIFIED) {
-    instance->cpu_zero_stats_fd =
-        instance->tracefs->OpenCpuStats(/*cpu=*/0);
+    instance->cpu_zero_stats_fd = instance->tracefs->OpenCpuStats(/*cpu=*/0);
   }
 
   // Set up poll callbacks for the buffers if requested by at least one DS.
@@ -827,8 +825,8 @@ void FtraceController::DestroyIfUnusedSeconaryInstance(
 
 std::unique_ptr<FtraceController::FtraceInstanceState>
 FtraceController::CreateSecondaryInstance(const std::string& instance_name) {
-  std::optional<std::string> instance_path = AbsolutePathForInstance(
-      primary_.tracefs->GetRootPath(), instance_name);
+  std::optional<std::string> instance_path =
+      AbsolutePathForInstance(primary_.tracefs->GetRootPath(), instance_name);
   if (!instance_path.has_value()) {
     PERFETTO_ELOG("Invalid ftrace instance name: \"%s\"",
                   instance_name.c_str());
@@ -851,8 +849,8 @@ FtraceController::CreateSecondaryInstance(const std::string& instance_name) {
   }
 
   std::map<std::string, base::FlatSet<GroupAndName>> predefined_events =
-      predefined_tracepoints::GetAccessiblePredefinedTracePoints(
-          table.get(), tracefs.get());
+      predefined_tracepoints::GetAccessiblePredefinedTracePoints(table.get(),
+                                                                 tracefs.get());
 
   // secondary instances don't support atrace and vendor tracepoint HAL
   std::map<std::string, std::vector<GroupAndName>> vendor_evts;
