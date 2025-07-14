@@ -27,7 +27,9 @@ Unreleased:
     * Improved the performance of merging large number of track_event tracks
       both during loading and during panning/zooming operations.
   SDK:
-    *
+    * "slow" tag is no longer implicitly added to trace categories with
+      "disabled-by-default-" prefix. Instead, clients should explicitly specify
+      the tag.
 
 v51.2 - 2025-07-03:
   Trace Processor:
