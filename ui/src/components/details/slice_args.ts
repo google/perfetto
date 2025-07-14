@@ -110,13 +110,16 @@ function renderArgKey(trace: Trace, key: string, value?: Arg): m.Children {
           });
         },
       }),
-      m(MenuItem, {
-        label: 'Visualize argument values',
-        icon: 'query_stats',
-        onclick: () => {
-          extensions.addVisualizedArgTracks(trace, fullKey);
-        },
-      }),
+      (lynxPerfGlobals.state.lynxviewInstances.length <= 0 ||
+        (fullKey !== 'debug.instance_id' && fullKey !== 'args.instance_id') ||
+        !displayValue) &&
+        m(MenuItem, {
+          label: 'Visualize argument values',
+          icon: 'query_stats',
+          onclick: () => {
+            extensions.addVisualizedArgTracks(trace, fullKey);
+          },
+        }),
       lynxPerfGlobals.state.lynxviewInstances.length > 0 &&
         (fullKey === 'debug.instance_id' || fullKey === 'args.instance_id') &&
         displayValue != null &&
