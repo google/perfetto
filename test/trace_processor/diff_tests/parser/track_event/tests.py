@@ -308,7 +308,6 @@ class TrackEvent(TestSuite):
         "thread=t2",1
         "thread=t3",1
         "thread=t4","[NULL]"
-        "tid=1","[NULL]"
         """))
 
   def test_track_event_descriptions(self):
@@ -352,7 +351,6 @@ class TrackEvent(TestSuite):
         "thread=t2","Thread t2"
         "thread=t3","[NULL]"
         "thread=t4","[NULL]"
-        "tid=1","[NULL]"
         """))
 
   # Instant events
@@ -584,8 +582,6 @@ class TrackEvent(TestSuite):
           "trace_id","trace_id",1234,"[NULL]"
           "trace_id_is_process_scoped","trace_id_is_process_scoped",0,"[NULL]"
           "upid","upid",1,"[NULL]"
-          "utid","utid",1,"[NULL]"
-          "utid","utid",2,"[NULL]"
         '''))
 
   # Counters
@@ -791,9 +787,12 @@ class TrackEvent(TestSuite):
           "event.category","event.category","[NULL]","disabled-by-default-histogram_samples"
           "event.name","event.name","[NULL]","[NULL]"
           "is_root_in_scope","is_root_in_scope",1,"[NULL]"
+          "merge_key_type","merge_key_type",0,"[NULL]"
+          "merge_key_value","merge_key_value","[NULL]","Default Track"
+          "parent_track_uuid","parent_track_uuid",0,"[NULL]"
           "source","source","[NULL]","descriptor"
           "trace_id","trace_id",0,"[NULL]"
-          "track_uuid","track_uuid",0,"[NULL]"
+          "track_compressor_idx","track_compressor_idx",0,"[NULL]"
         '''))
 
   # Flow events importing from proto
@@ -973,7 +972,6 @@ class TrackEvent(TestSuite):
         "thread=t2",1
         "thread=t3",1
         "thread=t4","[NULL]"
-        "tid=1","[NULL]"
         """))
 
   # Tests thread_counter_track.machine_id is not null.

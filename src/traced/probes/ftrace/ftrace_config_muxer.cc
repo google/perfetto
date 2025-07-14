@@ -199,7 +199,7 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
   if (RequiresAtrace(request)) {
     InsertEvent("ftrace", "print", &events);
   }
-  if (RequiresAtrace(request) && !request.atrace_userspace_only()) {
+  if (!request.atrace_userspace_only()) {
     // Legacy: some atrace categories enable not just userspace tracing, but
     // also a predefined set of kernel tracepoints, as that's what the original
     // "atrace" binary did.

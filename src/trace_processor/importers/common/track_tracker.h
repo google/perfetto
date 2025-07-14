@@ -30,6 +30,7 @@
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
@@ -215,6 +216,8 @@ class TrackTracker {
         a[i].value = Variadic::Integer(std::get<i>(dimensions));
       } else if constexpr (std::is_integral_v<elem_t>) {
         a[i].value = Variadic::Integer(std::get<i>(dimensions));
+      } else if constexpr (std::is_same_v<elem_t, StringPool::Id>) {
+        a[i].value = Variadic::String(std::get<i>(dimensions));
       } else {
         static_assert(std::is_same_v<elem_t, base::StringView>,
                       "Unknown type for dimension");
