@@ -134,8 +134,7 @@ bool Tracefs::SetSyscallFilter(const std::set<size_t>& filter) {
   return true;
 }
 
-bool Tracefs::EnableEvent(const std::string& group,
-                               const std::string& name) {
+bool Tracefs::EnableEvent(const std::string& group, const std::string& name) {
   std::string path = root_ + "events/" + group + "/" + name + "/enable";
 
   // Create any required triggers for the ftrace event being enabled.
@@ -149,8 +148,8 @@ bool Tracefs::EnableEvent(const std::string& group,
 }
 
 bool Tracefs::CreateKprobeEvent(const std::string& group,
-                                     const std::string& name,
-                                     bool is_retprobe) {
+                                const std::string& name,
+                                bool is_retprobe) {
   std::string path = root_ + "kprobe_events";
   std::string probe =
       (is_retprobe ? std::string("r") + std::string(kKretprobeDefaultMaxactives)
@@ -177,7 +176,7 @@ bool Tracefs::CreateKprobeEvent(const std::string& group,
 
 // Utility function to remove kprobe event from the system
 bool Tracefs::RemoveKprobeEvent(const std::string& group,
-                                     const std::string& name) {
+                                const std::string& name) {
   PERFETTO_DLOG("RemoveKprobeEvent %s::%s", group.c_str(), name.c_str());
   std::string path = root_ + "kprobe_events";
   return AppendToFile(path, "-:" + group + "/" + name);
@@ -188,8 +187,7 @@ std::string Tracefs::ReadKprobeStats() const {
   return ReadFileIntoString(path);
 }
 
-bool Tracefs::DisableEvent(const std::string& group,
-                                const std::string& name) {
+bool Tracefs::DisableEvent(const std::string& group, const std::string& name) {
   std::string path = root_ + "events/" + group + "/" + name + "/enable";
 
   bool ret = WriteToFile(path, "0");
@@ -205,14 +203,14 @@ bool Tracefs::DisableEvent(const std::string& group,
 }
 
 bool Tracefs::IsEventAccessible(const std::string& group,
-                                     const std::string& name) {
+                                const std::string& name) {
   std::string path = root_ + "events/" + group + "/" + name + "/enable";
 
   return IsFileWriteable(path);
 }
 
 bool Tracefs::IsEventFormatReadable(const std::string& group,
-                                         const std::string& name) {
+                                    const std::string& name) {
   std::string path = root_ + "events/" + group + "/" + name + "/format";
 
   return IsFileReadable(path);
@@ -230,7 +228,7 @@ bool Tracefs::IsGenericSetEventWritable() {
 }
 
 std::string Tracefs::ReadEventFormat(const std::string& group,
-                                          const std::string& name) const {
+                                     const std::string& name) const {
   std::string path = root_ + "events/" + group + "/" + name + "/format";
   return ReadFileIntoString(path);
 }
@@ -250,8 +248,7 @@ bool Tracefs::ResetCurrentTracer() {
   return SetCurrentTracer("nop");
 }
 
-bool Tracefs::AppendFunctionFilters(
-    const std::vector<std::string>& filters) {
+bool Tracefs::AppendFunctionFilters(const std::vector<std::string>& filters) {
   std::string path = root_ + "set_ftrace_filter";
   std::string filter = base::Join(filters, "\n");
 
@@ -317,21 +314,21 @@ std::vector<std::string> Tracefs::ReadEventTriggers(
 }
 
 bool Tracefs::CreateEventTrigger(const std::string& group,
-                                      const std::string& name,
-                                      const std::string& trigger) {
+                                 const std::string& name,
+                                 const std::string& trigger) {
   std::string path = root_ + "events/" + group + "/" + name + "/trigger";
   return WriteToFile(path, trigger);
 }
 
 bool Tracefs::RemoveEventTrigger(const std::string& group,
-                                      const std::string& name,
-                                      const std::string& trigger) {
+                                 const std::string& name,
+                                 const std::string& trigger) {
   std::string path = root_ + "events/" + group + "/" + name + "/trigger";
   return WriteToFile(path, "!" + trigger);
 }
 
 bool Tracefs::RemoveAllEventTriggers(const std::string& group,
-                                          const std::string& name) {
+                                     const std::string& name) {
   std::vector<std::string> triggers = ReadEventTriggers(group, name);
 
   // Remove the triggers in reverse order since a trigger can depend
@@ -343,7 +340,7 @@ bool Tracefs::RemoveAllEventTriggers(const std::string& group,
 }
 
 bool Tracefs::MaybeSetUpEventTriggers(const std::string& group,
-                                           const std::string& name) {
+                                      const std::string& name) {
   bool ret = true;
 
   if (group == "synthetic") {
@@ -366,7 +363,7 @@ bool Tracefs::MaybeSetUpEventTriggers(const std::string& group,
 }
 
 bool Tracefs::MaybeTearDownEventTriggers(const std::string& group,
-                                              const std::string& name) {
+                                         const std::string& name) {
   bool ret = true;
 
   if (group == "synthetic") {
@@ -622,13 +619,11 @@ bool Tracefs::WriteNumberToFile(const std::string& path, size_t value) {
   return WriteToFile(path, std::string(buf));
 }
 
-bool Tracefs::WriteToFile(const std::string& path,
-                               const std::string& str) {
+bool Tracefs::WriteToFile(const std::string& path, const std::string& str) {
   return WriteFileInternal(path, str, O_WRONLY);
 }
 
-bool Tracefs::AppendToFile(const std::string& path,
-                                const std::string& str) {
+bool Tracefs::AppendToFile(const std::string& path, const std::string& str) {
   return WriteFileInternal(path, str, O_WRONLY | O_APPEND);
 }
 
@@ -661,7 +656,7 @@ bool Tracefs::IsFileReadable(const std::string& path) {
 }
 
 std::string Tracefs::ReadFileIntoString(const std::string& path) const {
-  // You can't seek or stat the procfs files on Android.
+  // You can't seek or stat the tracefs files on Android.
   // The vast majority (884/886) of format files are under 4k.
   std::string str;
   str.reserve(4096);
@@ -698,7 +693,7 @@ const std::set<std::string> Tracefs::GetEventNamesForGroup(
 }
 
 uint32_t Tracefs::ReadEventId(const std::string& group,
-                                   const std::string& name) const {
+                              const std::string& name) const {
   std::string path = root_ + "events/" + group + "/" + name + "/id";
 
   std::string str;

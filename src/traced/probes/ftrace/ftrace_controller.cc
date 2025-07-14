@@ -835,7 +835,7 @@ FtraceController::CreateSecondaryInstance(const std::string& instance_name) {
 
   auto tracefs = Tracefs::Create(*instance_path);
   if (!tracefs) {
-    PERFETTO_ELOG("Failed to create ftrace procfs for \"%s\"",
+    PERFETTO_ELOG("Failed to create tracefs for \"%s\"",
                   instance_path->c_str());
     return nullptr;
   }

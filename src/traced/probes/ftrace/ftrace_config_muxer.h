@@ -147,13 +147,12 @@ class FtraceConfigMuxer {
   FtraceConfigMuxer(const FtraceConfigMuxer&) = delete;
   FtraceConfigMuxer& operator=(const FtraceConfigMuxer&) = delete;
 
-  // Ask FtraceConfigMuxer to adjust ftrace procfs settings to
-  // match the requested config. Returns true on success and false on failure.
-  // This is best effort. FtraceConfigMuxer may not be able to adjust the
-  // buffer size right now. Events may be missing or there may be extra events
-  // (if you enable an atrace category we try to give you the matching events).
-  // If someone else is tracing we won't touch atrace (since it resets the
-  // buffer).
+  // Ask FtraceConfigMuxer to adjust tracefs settings to match the requested
+  // config. Returns true on success and false on failure. This is best effort.
+  // FtraceConfigMuxer may not be able to adjust the buffer size right now.
+  // Events may be missing or there may be extra events (if you enable an atrace
+  // category we try to give you the matching events). If someone else is
+  // tracing we won't touch atrace (since it resets the buffer).
   bool SetupConfig(FtraceConfigId id,
                    const FtraceConfig& request,
                    FtraceSetupErrors* = nullptr);
