@@ -30,6 +30,7 @@
 
 using testing::_;
 using testing::AnyNumber;
+using testing::AnyOf;
 using testing::Contains;
 using testing::ElementsAre;
 using testing::ElementsAreArray;
@@ -1715,6 +1716,186 @@ TEST_F(FtraceConfigMuxerMockTableTest, AddSameNameEvents) {
   const EventFilter* central_filter = model_.GetCentralEventFilterForTesting();
   ASSERT_THAT(central_filter->GetEnabledEvents(),
               ElementsAreArray({kEventId1, kEventId2}));
+}
+
+// Tests that when no PID filter is specified in the config, the muxer
+// defaults to tracking all PIDs, and no PID-specific files are written.
+TEST_F(FtraceConfigMuxerFakeTableTest, PidFilterAllPids) {
+  FtraceConfigId id = 97;
+  FtraceConfig config = CreateFtraceConfig({"sched/sched_switch"});
+
+  ON_CALL(ftrace_, ReadFileIntoString("/root/current_tracer"))
+      .WillByDefault(Return("nop"));
+
+  // Ignore other calls.
+  EXPECT_CALL(
+      ftrace_,
+      WriteToFile(Not(AnyOf("/root/set_event_pid", "/root/options/event-fork")),
+                  _))
+      .Times(AnyNumber());
+  EXPECT_CALL(ftrace_, ClearFile(Not("/root/set_event_pid")))
+      .Times(AnyNumber());
+
+  // Expect no calls to write to set_event_pid or event-fork.
+  EXPECT_CALL(ftrace_, WriteToFile("/root/set_event_pid", _)).Times(0);
+  EXPECT_CALL(ftrace_, WriteToFile("/root/options/event-fork", _)).Times(0);
+  EXPECT_CALL(ftrace_, ClearFile("/root/set_event_pid")).Times(0);
+
+  ASSERT_TRUE(model_.SetupConfig(id, config));
+  const FtraceDataSourceConfig* ds_config = model_.GetDataSourceConfig(id);
+  ASSERT_TRUE(ds_config);
+  EXPECT_TRUE(
+      std::holds_alternative<TrackAllPids>(ds_config->trace_pid_filter));
+  EXPECT_TRUE(std::holds_alternative<TrackAllPids>(
+      model_.GetTracePidFilterForTesting()));
+  EXPECT_FALSE(ds_config->event_fork_enabled);
+  EXPECT_FALSE(model_.GetEventForkEnabledForTesting());
+
+  ASSERT_TRUE(model_.RemoveConfig(id));
+  EXPECT_TRUE(std::holds_alternative<TrackAllPids>(
+      model_.GetTracePidFilterForTesting()));
+  EXPECT_FALSE(model_.GetEventForkEnabledForTesting());
+}
+
+// Tests that a config with a specific list of PIDs results in the
+// set_event_pid file being written with the correct PIDs.
+TEST_F(FtraceConfigMuxerFakeTableTest, PidFilterListOfPids) {
+  FtraceConfig config = CreateFtraceConfig({"sched/sched_switch"});
+  FtraceConfigId id = 97;
+  config.mutable_pid_filter()->add_pids_to_trace(123);
+  config.mutable_pid_filter()->add_pids_to_trace(456);
+  config.mutable_pid_filter()->set_enable_event_fork(false);
+
+  ON_CALL(ftrace_, ReadFileIntoString("/root/current_tracer"))
+      .WillByDefault(Return("nop"));
+
+  // Ignore other calls.
+  EXPECT_CALL(
+      ftrace_,
+      WriteToFile(Not(AnyOf("/root/set_event_pid", "/root/options/event-fork")),
+                  _))
+      .Times(AnyNumber());
+  EXPECT_CALL(ftrace_, ClearFile(Not("/root/set_event_pid")))
+      .Times(AnyNumber());
+
+  EXPECT_CALL(ftrace_, WriteToFile("/root/set_event_pid", "123 456"));
+  EXPECT_CALL(ftrace_, WriteToFile("/root/options/event-fork", "0"));
+  ASSERT_TRUE(model_.SetupConfig(id, config));
+  const FtraceDataSourceConfig* ds_config = model_.GetDataSourceConfig(id);
+  ASSERT_TRUE(ds_config);
+  EXPECT_THAT(std::get<PidList>(ds_config->trace_pid_filter),
+              ElementsAre("123", "456"));
+  EXPECT_THAT(std::get<PidList>(model_.GetTracePidFilterForTesting()),
+              ElementsAre("123", "456"));
+  EXPECT_FALSE(ds_config->event_fork_enabled);
+  EXPECT_FALSE(model_.GetEventForkEnabledForTesting());
+
+  EXPECT_CALL(ftrace_, ClearFile("/root/set_event_pid"));
+  ASSERT_TRUE(model_.RemoveConfig(id));
+  EXPECT_TRUE(std::holds_alternative<TrackAllPids>(
+      model_.GetTracePidFilterForTesting()));
+  EXPECT_FALSE(model_.GetEventForkEnabledForTesting());
+}
+
+// Tests the interaction of multiple configs with different PID filters:
+// - config_a: Filters for PIDs {123, 456}, event_fork=true
+// - config_b: Tracks all PIDs
+// - config_c: Filters for PIDs {456, 789}, event_fork=false
+// The test verifies that TrackAllPids takes precedence and how the
+// filter and event_fork are updated as configs are added and removed.
+TEST_F(FtraceConfigMuxerFakeTableTest, PidFilterUnion) {
+  FtraceConfigId id_a = 97;
+  FtraceConfig config_a = CreateFtraceConfig({"sched/sched_switch"});
+  config_a.mutable_pid_filter()->add_pids_to_trace(123);
+  config_a.mutable_pid_filter()->add_pids_to_trace(456);
+  config_a.mutable_pid_filter()->set_enable_event_fork(true);
+
+  FtraceConfigId id_b = 98;
+  FtraceConfig config_b = CreateFtraceConfig({"sched/sched_switch"});
+
+  FtraceConfigId id_c = 99;
+  FtraceConfig config_c = CreateFtraceConfig({"sched/sched_switch"});
+  config_c.mutable_pid_filter()->add_pids_to_trace(456);
+  config_c.mutable_pid_filter()->add_pids_to_trace(789);
+  config_c.mutable_pid_filter()->set_enable_event_fork(false);
+
+  const FtraceDataSourceConfig* ds_config = nullptr;
+
+  ON_CALL(ftrace_, ReadFileIntoString("/root/current_tracer"))
+      .WillByDefault(Return("nop"));
+
+  // Ignore other setup calls.
+  EXPECT_CALL(
+      ftrace_,
+      WriteToFile(Not(AnyOf("/root/set_event_pid", "/root/options/event-fork")),
+                  _))
+      .Times(AnyNumber());
+  EXPECT_CALL(ftrace_, ClearFile(Not("/root/set_event_pid")))
+      .Times(AnyNumber());
+
+  // Add config_a {123, 456}, event_fork=true
+  EXPECT_CALL(ftrace_, WriteToFile("/root/set_event_pid", "123 456"));
+  EXPECT_CALL(ftrace_, WriteToFile("/root/options/event-fork", "1"));
+  ASSERT_TRUE(model_.SetupConfig(id_a, config_a));
+  ds_config = model_.GetDataSourceConfig(id_a);
+  ASSERT_TRUE(ds_config);
+  EXPECT_THAT(std::get<PidList>(ds_config->trace_pid_filter),
+              ElementsAre("123", "456"));
+  EXPECT_THAT(std::get<PidList>(model_.GetTracePidFilterForTesting()),
+              ElementsAre("123", "456"));
+  EXPECT_TRUE(ds_config->event_fork_enabled);
+  EXPECT_TRUE(model_.GetEventForkEnabledForTesting());
+
+  // Add config_b (TrackAllPids) - overrides config_a's filter.
+  EXPECT_CALL(ftrace_, ClearFile("/root/set_event_pid"));
+  ASSERT_TRUE(model_.SetupConfig(id_b, config_b));
+  ds_config = model_.GetDataSourceConfig(id_b);
+  ASSERT_TRUE(ds_config);
+  EXPECT_TRUE(
+      std::holds_alternative<TrackAllPids>(ds_config->trace_pid_filter));
+  EXPECT_TRUE(std::holds_alternative<TrackAllPids>(
+      model_.GetTracePidFilterForTesting()));
+  EXPECT_TRUE(
+      model_.GetEventForkEnabledForTesting());  // event_fork not updated.
+
+  // Add config_c {456, 789}, event_fork=false - no change to ftrace files
+  // as TrackAllPids is active.
+  EXPECT_CALL(
+      ftrace_,
+      WriteToFile(AnyOf("/root/set_event_pid", "/root/options/event-fork"), _))
+      .Times(0);
+  EXPECT_CALL(ftrace_, ClearFile("/root/set_event_pid")).Times(0);
+  ASSERT_TRUE(model_.SetupConfig(id_c, config_c));
+  ds_config = model_.GetDataSourceConfig(id_c);
+  ASSERT_TRUE(ds_config);
+  EXPECT_THAT(std::get<PidList>(ds_config->trace_pid_filter),
+              ElementsAre("456", "789"));
+  EXPECT_TRUE(std::holds_alternative<TrackAllPids>(
+      model_.GetTracePidFilterForTesting()));
+  EXPECT_FALSE(ds_config->event_fork_enabled);
+  EXPECT_TRUE(
+      model_.GetEventForkEnabledForTesting());  // event_fork not updated.
+
+  // Remove config_a - no change as TrackAllPids is active.
+  ASSERT_TRUE(model_.RemoveConfig(id_a));
+  EXPECT_TRUE(std::holds_alternative<TrackAllPids>(
+      model_.GetTracePidFilterForTesting()));
+  EXPECT_TRUE(model_.GetEventForkEnabledForTesting());
+
+  // Remove config_b - falls back to config_c's filter.
+  EXPECT_CALL(ftrace_, WriteToFile("/root/set_event_pid", "456 789"));
+  EXPECT_CALL(ftrace_, WriteToFile("/root/options/event-fork", "0"));
+  ASSERT_TRUE(model_.RemoveConfig(id_b));
+  EXPECT_THAT(std::get<PidList>(model_.GetTracePidFilterForTesting()),
+              ElementsAre("456", "789"));
+  EXPECT_FALSE(model_.GetEventForkEnabledForTesting());
+
+  // Remove config_c - back to default TrackAllPids.
+  EXPECT_CALL(ftrace_, ClearFile("/root/set_event_pid"));
+  ASSERT_TRUE(model_.RemoveConfig(id_c));
+  EXPECT_TRUE(std::holds_alternative<TrackAllPids>(
+      model_.GetTracePidFilterForTesting()));
+  EXPECT_FALSE(model_.GetEventForkEnabledForTesting());
 }
 
 }  // namespace

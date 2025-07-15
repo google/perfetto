@@ -7421,7 +7421,7 @@ class FrozenFtraceConfig(_message.Message):
     def __init__(self, instance_name: _Optional[str] = ...) -> None: ...
 
 class FtraceConfig(_message.Message):
-    __slots__ = ["atrace_apps", "atrace_categories", "atrace_categories_prefer_sdk", "atrace_userspace_only", "buffer_size_kb", "buffer_size_lower_bound", "compact_sched", "debug_ftrace_abi", "denser_generic_event_encoding", "disable_generic_events", "drain_buffer_percent", "drain_period_ms", "enable_function_graph", "ftrace_events", "function_filters", "function_graph_max_depth", "function_graph_roots", "initialize_ksyms_synchronously_for_testing", "instance_name", "kprobe_events", "ksyms_mem_policy", "preserve_ftrace_buffer", "print_filter", "symbolize_ksyms", "syscall_events", "throttle_rss_stat", "use_monotonic_raw_clock"]
+    __slots__ = ["atrace_apps", "atrace_categories", "atrace_categories_prefer_sdk", "atrace_userspace_only", "buffer_size_kb", "buffer_size_lower_bound", "compact_sched", "debug_ftrace_abi", "denser_generic_event_encoding", "disable_generic_events", "drain_buffer_percent", "drain_period_ms", "enable_function_graph", "ftrace_events", "function_filters", "function_graph_max_depth", "function_graph_roots", "initialize_ksyms_synchronously_for_testing", "instance_name", "kprobe_events", "ksyms_mem_policy", "pid_filter", "preserve_ftrace_buffer", "print_filter", "symbolize_ksyms", "syscall_events", "throttle_rss_stat", "use_monotonic_raw_clock"]
     class KsymsMemPolicy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     class CompactSchedConfig(_message.Message):
@@ -7442,6 +7442,13 @@ class FtraceConfig(_message.Message):
         probe: str
         type: FtraceConfig.KprobeEvent.KprobeType
         def __init__(self, probe: _Optional[str] = ..., type: _Optional[_Union[FtraceConfig.KprobeEvent.KprobeType, str]] = ...) -> None: ...
+    class PidFilter(_message.Message):
+        __slots__ = ["enable_event_fork", "pids_to_trace"]
+        ENABLE_EVENT_FORK_FIELD_NUMBER: _ClassVar[int]
+        PIDS_TO_TRACE_FIELD_NUMBER: _ClassVar[int]
+        enable_event_fork: bool
+        pids_to_trace: _containers.RepeatedScalarFieldContainer[int]
+        def __init__(self, pids_to_trace: _Optional[_Iterable[int]] = ..., enable_event_fork: bool = ...) -> None: ...
     class PrintFilter(_message.Message):
         __slots__ = ["rules"]
         class Rule(_message.Message):
@@ -7487,6 +7494,7 @@ class FtraceConfig(_message.Message):
     KSYMS_MEM_POLICY_FIELD_NUMBER: _ClassVar[int]
     KSYMS_RETAIN: FtraceConfig.KsymsMemPolicy
     KSYMS_UNSPECIFIED: FtraceConfig.KsymsMemPolicy
+    PID_FILTER_FIELD_NUMBER: _ClassVar[int]
     PRESERVE_FTRACE_BUFFER_FIELD_NUMBER: _ClassVar[int]
     PRINT_FILTER_FIELD_NUMBER: _ClassVar[int]
     SYMBOLIZE_KSYMS_FIELD_NUMBER: _ClassVar[int]
@@ -7514,13 +7522,14 @@ class FtraceConfig(_message.Message):
     instance_name: str
     kprobe_events: _containers.RepeatedCompositeFieldContainer[FtraceConfig.KprobeEvent]
     ksyms_mem_policy: FtraceConfig.KsymsMemPolicy
+    pid_filter: FtraceConfig.PidFilter
     preserve_ftrace_buffer: bool
     print_filter: FtraceConfig.PrintFilter
     symbolize_ksyms: bool
     syscall_events: _containers.RepeatedScalarFieldContainer[str]
     throttle_rss_stat: bool
     use_monotonic_raw_clock: bool
-    def __init__(self, ftrace_events: _Optional[_Iterable[str]] = ..., atrace_categories: _Optional[_Iterable[str]] = ..., atrace_apps: _Optional[_Iterable[str]] = ..., atrace_categories_prefer_sdk: _Optional[_Iterable[str]] = ..., atrace_userspace_only: bool = ..., buffer_size_kb: _Optional[int] = ..., buffer_size_lower_bound: bool = ..., drain_period_ms: _Optional[int] = ..., drain_buffer_percent: _Optional[int] = ..., compact_sched: _Optional[_Union[FtraceConfig.CompactSchedConfig, _Mapping]] = ..., print_filter: _Optional[_Union[FtraceConfig.PrintFilter, _Mapping]] = ..., symbolize_ksyms: bool = ..., ksyms_mem_policy: _Optional[_Union[FtraceConfig.KsymsMemPolicy, str]] = ..., throttle_rss_stat: bool = ..., denser_generic_event_encoding: bool = ..., disable_generic_events: bool = ..., syscall_events: _Optional[_Iterable[str]] = ..., enable_function_graph: bool = ..., function_filters: _Optional[_Iterable[str]] = ..., function_graph_roots: _Optional[_Iterable[str]] = ..., function_graph_max_depth: _Optional[int] = ..., kprobe_events: _Optional[_Iterable[_Union[FtraceConfig.KprobeEvent, _Mapping]]] = ..., preserve_ftrace_buffer: bool = ..., use_monotonic_raw_clock: bool = ..., instance_name: _Optional[str] = ..., debug_ftrace_abi: bool = ..., initialize_ksyms_synchronously_for_testing: bool = ...) -> None: ...
+    def __init__(self, ftrace_events: _Optional[_Iterable[str]] = ..., atrace_categories: _Optional[_Iterable[str]] = ..., atrace_apps: _Optional[_Iterable[str]] = ..., atrace_categories_prefer_sdk: _Optional[_Iterable[str]] = ..., atrace_userspace_only: bool = ..., buffer_size_kb: _Optional[int] = ..., buffer_size_lower_bound: bool = ..., drain_period_ms: _Optional[int] = ..., drain_buffer_percent: _Optional[int] = ..., compact_sched: _Optional[_Union[FtraceConfig.CompactSchedConfig, _Mapping]] = ..., print_filter: _Optional[_Union[FtraceConfig.PrintFilter, _Mapping]] = ..., symbolize_ksyms: bool = ..., ksyms_mem_policy: _Optional[_Union[FtraceConfig.KsymsMemPolicy, str]] = ..., throttle_rss_stat: bool = ..., denser_generic_event_encoding: bool = ..., disable_generic_events: bool = ..., syscall_events: _Optional[_Iterable[str]] = ..., enable_function_graph: bool = ..., function_filters: _Optional[_Iterable[str]] = ..., function_graph_roots: _Optional[_Iterable[str]] = ..., function_graph_max_depth: _Optional[int] = ..., kprobe_events: _Optional[_Iterable[_Union[FtraceConfig.KprobeEvent, _Mapping]]] = ..., preserve_ftrace_buffer: bool = ..., use_monotonic_raw_clock: bool = ..., instance_name: _Optional[str] = ..., debug_ftrace_abi: bool = ..., pid_filter: _Optional[_Union[FtraceConfig.PidFilter, _Mapping]] = ..., initialize_ksyms_synchronously_for_testing: bool = ...) -> None: ...
 
 class FtraceCpuStats(_message.Message):
     __slots__ = ["bytes_read", "commit_overrun", "cpu", "dropped_events", "entries", "now_ts", "oldest_event_ts", "overrun", "read_events"]

@@ -20,6 +20,7 @@
 #include <map>
 #include <optional>
 #include <set>
+#include <variant>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/kernel_utils/syscall_table.h"
@@ -45,6 +46,19 @@ enum FtraceClock : int32_t;
 
 struct FtraceSetupErrors;
 
+// A special value for the pid filter that explicitly means "track all PIDs".
+using TrackAllPids = std::monostate;
+
+// A list of PIDs to trace stored as string instead of int as the sysfs
+// |set_event_pid| expects space separated list of PIDs.
+using PidList = std::vector<std::string>;
+
+// Represents the possible PID filtering configurations:
+// - UnsetPidFilter: Default, no filter set / when no config is active.
+// - TrackAllPids: Trace all processes.
+// - PidList: Trace only the specified PIDs.
+using PidFilterSettings = std::variant<TrackAllPids, PidList>;
+
 // State held by the muxer per data source, used to parse ftrace according to
 // that data source's config.
 struct FtraceDataSourceConfig {
@@ -62,7 +76,9 @@ struct FtraceDataSourceConfig {
       base::FlatHashMap<uint32_t, protos::pbzero::KprobeEvent::KprobeType>
           kprobes_in,
       bool debug_ftrace_abi_in,
-      bool write_generic_evt_descriptors_in)
+      bool write_generic_evt_descriptors_in,
+      PidFilterSettings trace_pid_filter_in,
+      bool event_fork_enabled_in)
       : event_filter(std::move(event_filter_in)),
         syscall_filter(std::move(syscall_filter_in)),
         compact_sched(compact_sched_in),
@@ -76,7 +92,9 @@ struct FtraceDataSourceConfig {
         syscalls_returning_fd(std::move(syscalls_returning_fd_in)),
         kprobes(std::move(kprobes_in)),
         debug_ftrace_abi(debug_ftrace_abi_in),
-        write_generic_evt_descriptors(write_generic_evt_descriptors_in) {}
+        write_generic_evt_descriptors(write_generic_evt_descriptors_in),
+        trace_pid_filter(trace_pid_filter_in),
+        event_fork_enabled(event_fork_enabled_in) {}
 
   // The event filter allows to quickly check if a certain ftrace event with id
   // x is enabled for this data source.
@@ -116,6 +134,15 @@ struct FtraceDataSourceConfig {
 
   // If true, use the newer format for generic events.
   const bool write_generic_evt_descriptors;
+
+  // Specifies the PIDs to trace which can be UnsetPidFilter (default, no filter
+  // set), TrackAllPids (trace all processes), or a vector of specific PIDs to
+  // trace.
+  const PidFilterSettings trace_pid_filter;
+
+  // Specifies event-fork status to let child processes forked from the vector
+  // of specific PIDs listed in |trace_pid_filter| be included in the trace.
+  const bool event_fork_enabled;
 };
 
 // Ftrace is a bunch of globally modifiable persistent state.
@@ -199,6 +226,14 @@ class FtraceConfigMuxer {
     return current_state_.syscall_filter;
   }
 
+  const PidFilterSettings& GetTracePidFilterForTesting() const {
+    return current_state_.trace_pid_filter;
+  }
+
+  bool GetEventForkEnabledForTesting() const {
+    return current_state_.event_fork_enabled;
+  }
+
   size_t GetDataSourcesCount() const { return ds_configs_.size(); }
 
   // Returns the syscall ids for the current architecture
@@ -227,6 +262,12 @@ class FtraceConfigMuxer {
     bool saved_tracing_on;  // Backup for the original tracing_on.
     // Set of kprobes that we've installed, to be cleaned up when tracing stops.
     base::FlatSet<GroupAndName> installed_kprobes;
+    // The current PID filtering settings applied to ftrace. This is the union
+    // of all active data source configs.
+    PidFilterSettings trace_pid_filter = TrackAllPids();
+    // The current event-fork setting applied to ftrace. This is true if any
+    // active data source config requires it.
+    bool event_fork_enabled = false;
   };
 
   void SetupClock(const FtraceConfig& request);
@@ -270,6 +311,10 @@ class FtraceConfigMuxer {
   // see additional events. You may provide a syscall filter during SetUpConfig
   // so the filter can be updated before ds_configs_.
   bool SetSyscallEventFilter(const EventFilter& extra_syscalls);
+
+  // Updates the ftrace pid filter and event-fork settings based on the
+  // union of all active data source configurations.
+  bool UpdatePidFilter();
 
   Tracefs* ftrace_;
   AtraceWrapper* atrace_wrapper_;

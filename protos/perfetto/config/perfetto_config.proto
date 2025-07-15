@@ -1017,7 +1017,7 @@ message FrozenFtraceConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 34
+// Next id: 36
 message FtraceConfig {
   // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
@@ -1270,6 +1270,46 @@ message FtraceConfig {
   // For perfetto developer use. If true and on a debuggable android build,
   // serialise raw tracing pages that the implementation cannot parse.
   optional bool debug_ftrace_abi = 31;
+
+  // Configuration for filtering ftrace events by Process ID (PID).
+  message PidFilter {
+    // A list of Process IDs (PIDs) to include in the trace.
+    // If this list is empty, it implies that all PIDs should be traced for
+    // this specific filter instance.
+    // This interface interacts with |/sys/kernel/tracing/set_event_pid|.
+    repeated int32 pids_to_trace = 1;
+
+    // If set to true, any child processes forked from the PIDs specified
+    // in |pids_to_trace| will also be included in the trace.
+    // This interface interacts with |/sys/kernel/tracing/options/event-fork|.
+    optional bool enable_event_fork = 2;
+  }
+
+  // Specifies a filter for which PIDs to trace.
+  //
+  // Behavior with multiple concurrent sessions:
+  // The effective PID filter applied is the *union* of all |pid_filter|
+  // configurations from all active ftrace sessions.
+  // * If any active session has no |pid_filter| message, or if its
+  //   |pids_to_trace| list is empty, PID filtering is disabled for ALL
+  //   sessions, meaning all PIDs are traced.
+  // * Otherwise, the filter is set to the union of all PIDs listed across all
+  //   |pids_to_trace| fields in all active sessions.
+  // * The |enable_event_fork| option is true if any active session has it set
+  //   to true and has a non-empty |pids_to_trace| list.
+  //
+  // Example:
+  // - Session A: pids_to_trace = [10, 11]
+  // - Session B: pids_to_trace = [11, 12]
+  // - Result: set_event_pid is set to [10, 11, 12].
+  //
+  // Example 2:
+  // - Session A: pids_to_trace = [10, 11]
+  // - Session B: (no pid_filter)
+  // - Result: set_event_pid is cleared, all PIDs traced.
+  //
+  // Introduced in: perfetto v52.
+  optional PidFilter pid_filter = 35;
 
   // No-op in perfetto v28+. Name preserved because of existing references in
   // textproto configs.

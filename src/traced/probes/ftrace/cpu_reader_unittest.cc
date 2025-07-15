@@ -95,7 +95,9 @@ FtraceDataSourceConfig ConfigForTesting(
       /*syscalls_returning_fd=*/{},
       /*kprobes=*/
       base::FlatHashMap<uint32_t, protos::pbzero::KprobeEvent::KprobeType>{0},
-      /*debug_ftrace_abi=*/false, write_generic_evt_descriptors};
+      /*debug_ftrace_abi=*/false, write_generic_evt_descriptors,
+      /*trace_pid_filter=*/TrackAllPids{},
+      /*event_fork_enabled=*/false};
 }
 
 FtraceDataSourceConfig EmptyConfig() {
