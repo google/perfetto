@@ -32,6 +32,7 @@
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/base/periodic_task.h"
+#include "perfetto/ext/base/scoped_sched_boost.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/base/weak_runner.h"
@@ -754,6 +755,8 @@ class TracingServiceImpl : public TracingService {
 
     // This is set when the clone operation was caused by a clone trigger.
     std::optional<TriggerInfo> clone_trigger;
+
+    std::optional<base::ScopedSchedBoost> priority_boost;
 
     // NOTE: when adding new fields here consider whether that state should be
     // copied over in DoCloneSession() or not. Ask yourself: is this a

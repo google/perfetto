@@ -223,6 +223,11 @@ export class UiMainPerTrace implements m.ClassComponent {
         defaultHotkey: 'F',
       },
       {
+        id: 'perfetto.ZoomOnSelection',
+        name: 'Zoom in on current selection',
+        callback: () => trace.selection.zoomOnSelection(),
+      },
+      {
         id: 'perfetto.Deselect',
         name: 'Deselect',
         callback: () => {
@@ -286,7 +291,7 @@ export class UiMainPerTrace implements m.ClassComponent {
           // - If nothing is selected, or all selected tracks are entirely
           //   selected, then select the entire trace. This allows double tapping
           //   Ctrl+A to select the entire track, then select the entire trace.
-          let tracksToSelect: string[];
+          let tracksToSelect: ReadonlyArray<string>;
           const selection = trace.selection.selection;
           if (selection.kind === 'area') {
             // Something is already selected, let's see if it covers the entire

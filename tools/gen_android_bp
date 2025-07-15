@@ -73,6 +73,7 @@ default_targets = [
     '//src/traced/probes:traced_probes',
     '//src/traced/service:traced',
     '//src/traced_relay:traced_relay',
+    '//src/trace_processor:trace_processor',
     '//src/trace_processor:trace_processor_shell',
     '//src/trace_redaction:trace_redactor',
     '//src/java_sdk/main:perfetto_java_sdk_app',
@@ -115,6 +116,7 @@ target_host_supported = [
     '//protos/perfetto/trace/android:perfetto_winscope_extensions_zero',
     '//src/shared_lib:libperfetto_c',
     '//src/trace_processor:demangle',
+    '//src/trace_processor:trace_processor',
     '//src/trace_processor:trace_processor_shell',
     '//src/traced/probes:traced_probes',
     '//src/traced/service:traced',
@@ -123,6 +125,7 @@ target_host_supported = [
 target_vendor_available = [
     '//:libperfetto_client_experimental',
     '//src/shared_lib:libperfetto_c',
+    '//protos/perfetto/trace:perfetto_trace_protos',
 ]
 
 # Library targets that should be exported as "cc_library" instead of
@@ -293,6 +296,10 @@ additional_args = {
         ('test_config', 'PerfettoIntegrationTests.xml'),
     ],
     'libperfetto_android_internal': [('static_libs', {'libhealthhalutils'}),],
+    'trace_processor': [
+        ('whole_static_libs',
+         {'perfetto_src_trace_processor_demangle', 'sqlite_ext_percentile'}),
+    ],
     'trace_processor_shell': [
         ('strip', {
             'all': True

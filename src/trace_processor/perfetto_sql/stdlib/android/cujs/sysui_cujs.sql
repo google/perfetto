@@ -129,12 +129,19 @@ WHERE
 GROUP BY
   cuj_id;
 
+CREATE PERFETTO FUNCTION _extract_cuj_name_from_slice(
+    cuj_slice_name STRING
+)
+RETURNS STRING AS
+SELECT
+  substr($cuj_slice_name, 3, length($cuj_slice_name) - 3);
+
 -- Track all frames that overlap with the CUJ slice.
 CREATE PERFETTO VIEW _android_frames_in_cuj AS
 SELECT
   row_number() OVER (PARTITION BY cuj.cuj_id ORDER BY frame.ts) AS frame_idx,
   count(*) OVER (PARTITION BY cuj.cuj_id) AS frame_cnt,
-  substr(cuj.cuj_slice_name, 3, length(cuj.cuj_slice_name) - 3) AS cuj_name,
+  _extract_cuj_name_from_slice(cuj.cuj_slice_name) AS cuj_name,
   cuj.upid,
   cuj.process_name,
   frame.layer_id,
@@ -248,7 +255,7 @@ SELECT
   cuj.process_name,
   cuj.cuj_slice_name,
   -- Extracts "CUJ_NAME" from "J<CUJ_NAME>"
-  substr(cuj.cuj_slice_name, 3, length(cuj.cuj_slice_name) - 3) AS cuj_name,
+  _extract_cuj_name_from_slice(cuj.cuj_slice_name) AS cuj_name,
   cuj.slice_id,
   min(start_frame_ts) AS ts,
   max(end_frame_ts_end) AS ts_end,
@@ -334,7 +341,7 @@ SELECT
   cuj.process_name,
   cuj.cuj_slice_name,
   -- Extracts "CUJ_NAME" from "L<CUJ_NAME>"
-  substr(cuj.cuj_slice_name, 3, length(cuj.cuj_slice_name) - 3) AS cuj_name,
+  _extract_cuj_name_from_slice(cuj.cuj_slice_name) AS cuj_name,
   cuj.slice_id,
   cuj.ts,
   cuj.ts_end,
