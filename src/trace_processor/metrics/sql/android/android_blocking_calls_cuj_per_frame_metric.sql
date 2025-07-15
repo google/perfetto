@@ -41,6 +41,8 @@ SELECT frame_ts as ts,
 ui_thread_utid,
 frame_id,
 layer_id,
+  -- Calculate the end timestamp (ts_end) by taking the start time (frame_ts) of the next frame in the session.
+  -- For the last frame, fall back to the default ts_end.
   COALESCE(LEAD(frame_ts) OVER (PARTITION BY cuj_id ORDER BY frame_id ASC), ts_end) AS ts_end,
   frame_id
 FROM _android_frames_in_cuj order by frame_id
