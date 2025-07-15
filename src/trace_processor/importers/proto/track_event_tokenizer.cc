@@ -140,10 +140,41 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     reservation.sibling_order_rank = track.sibling_order_rank();
   }
 
-  if (track.has_name())
+  if (track.has_sibling_merge_behavior()) {
+    using B = TrackDescriptorProto::SiblingMergeBehavior;
+    switch (track.sibling_merge_behavior()) {
+      case B::SIBLING_MERGE_BEHAVIOR_UNSPECIFIED:
+      case B::SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME:
+        reservation.sibling_merge_behavior =
+            Reservation::SiblingMergeBehavior::kByName;
+        break;
+      case B::SIBLING_MERGE_BEHAVIOR_NONE:
+        reservation.sibling_merge_behavior =
+            Reservation::SiblingMergeBehavior::kNone;
+        break;
+      case B::SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY:
+        reservation.sibling_merge_behavior =
+            Reservation::SiblingMergeBehavior::kByKey;
+        if (track.has_sibling_merge_key()) {
+          reservation.sibling_merge_key =
+              context_->storage->InternString(track.sibling_merge_key());
+        }
+        break;
+    }
+  }
+
+  if (track.has_name()) {
     reservation.name = context_->storage->InternString(track.name());
-  else if (track.has_static_name())
+  } else if (track.has_static_name()) {
     reservation.name = context_->storage->InternString(track.static_name());
+  } else if (track.has_atrace_name()) {
+    reservation.name = context_->storage->InternString(track.atrace_name());
+  }
+
+  if (track.has_description()) {
+    reservation.description =
+        context_->storage->InternString(track.description());
+  }
 
   if (packet.has_trusted_pid()) {
     context_->process_tracker->UpdateTrustedPid(

@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -79,47 +80,67 @@ class IntervalIntersector {
       return;
     }
 
-    if (mode_ == kBinarySearch) {
-      // Find the first interval that ends after |s|.
-      auto overlap =
-          std::lower_bound(intervals_.begin(), intervals_.end(), s,
-                           [](const Interval& interval, uint64_t start) {
-                             return interval.end <= start;
-                           });
+    bool query_is_instant = s == e;
 
-      for (; overlap != intervals_.end() && overlap->start < e; ++overlap) {
-        UpdateResultVector(s, e, *overlap, res);
+    auto handle_overlap = [&](const Interval& overlap) {
+      if (IsOverlapping(query_is_instant, s, e, overlap)) {
+        if constexpr (std::is_same_v<T, Interval>) {
+          Interval new_int;
+          new_int.id = overlap.id;
+          if (query_is_instant) {
+            new_int.start = s;
+            new_int.end = s;
+          } else if (overlap.start == overlap.end) {
+            new_int.start = overlap.start;
+            new_int.end = overlap.start;
+          } else {
+            new_int.start = std::max(s, overlap.start);
+            new_int.end = std::min(e, overlap.end);
+          }
+          res.push_back(new_int);
+        } else {
+          static_assert(std::is_same_v<T, Id>);
+          res.push_back(overlap.id);
+        }
+      }
+    };
+
+    if (mode_ == kBinarySearch) {
+      // Find the first interval that ends at or after |s|.
+      auto it = std::lower_bound(intervals_.begin(), intervals_.end(), s,
+                                 [](const Interval& interval, uint64_t start) {
+                                   return interval.end < start;
+                                 });
+      // The previous interval could also overlap.
+      if (it != intervals_.begin()) {
+        --it;
+      }
+
+      if (query_is_instant) {
+        // For instant queries, we are interested in intervals that contain
+        // |s|, so we can stop once we are past |s|. For range queries, we can
+        // stop once the interval starts after the end of the query.
+        for (; it != intervals_.end(); ++it) {
+          if (it->start > s) {
+            break;
+          }
+          handle_overlap(*it);
+        }
+        return;
+      }
+
+      for (; it != intervals_.end(); ++it) {
+        if (it->start >= e) {
+          break;
+        }
+        handle_overlap(*it);
       }
       return;
     }
 
-    // When using linear scan, we know only that the that if interval starts
-    // after the |e|, it will not overlap. We need to go through all intervals
-    // up to this point, as we don't know if any of the previous one is not
-    // overlapping.
     PERFETTO_CHECK(mode_ == kLinearScan);
-
-    auto cur_interval = intervals_.begin();
-
-    // Go through all intervals that start before |s|.
-    for (; cur_interval != intervals_.end(); ++cur_interval) {
-      // An interval that ends before |s| can't overlap.
-      if (cur_interval->end <= s) {
-        continue;
-      }
-
-      // Escape if the interval starts after |s|.
-      if (cur_interval->start > s) {
-        break;
-      }
-
-      UpdateResultVector(s, e, *cur_interval, res);
-    }
-
-    // Go through all intervals that start after |s| and before |e|.
-    for (; cur_interval != intervals_.end() && cur_interval->start < e;
-         ++cur_interval) {
-      UpdateResultVector(s, e, *cur_interval, res);
+    for (const auto& interval : intervals_) {
+      handle_overlap(interval);
     }
   }
 
@@ -136,24 +157,6 @@ class IntervalIntersector {
   }
 
  private:
-  void UpdateResultVector(uint64_t s,
-                          uint64_t e,
-                          const Interval& overlap,
-                          std::vector<Interval>& res) const {
-    Interval new_int;
-    new_int.start = std::max(s, overlap.start);
-    new_int.end = std::min(e, overlap.end);
-    new_int.id = overlap.id;
-    res.push_back(new_int);
-  }
-
-  void UpdateResultVector(uint64_t,
-                          uint64_t,
-                          const Interval& overlap,
-
-                          std::vector<Id>& res) const {
-    res.push_back(overlap.id);
-  }
   const std::vector<Interval>& intervals_;
   Mode mode_;
 

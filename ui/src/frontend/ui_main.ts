@@ -223,6 +223,11 @@ export class UiMainPerTrace implements m.ClassComponent {
         defaultHotkey: 'F',
       },
       {
+        id: 'perfetto.ZoomOnSelection',
+        name: 'Zoom in on current selection',
+        callback: () => trace.selection.zoomOnSelection(),
+      },
+      {
         id: 'perfetto.Deselect',
         name: 'Deselect',
         callback: () => {

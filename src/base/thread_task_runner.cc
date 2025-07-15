@@ -113,6 +113,11 @@ uint64_t ThreadTaskRunner::GetThreadCPUTimeNsForTesting() {
   });
   return thread_time_ns;
 }
+PlatformThreadId ThreadTaskRunner::GetThreadIdForTesting() {
+  PlatformThreadId thread_id = static_cast<PlatformThreadId>(-1);
+  PostTaskAndWaitForTesting([&thread_id] { thread_id = GetThreadId(); });
+  return thread_id;
+}
 
 void ThreadTaskRunner::PostTask(std::function<void()> task) {
   task_runner_->PostTask(std::move(task));

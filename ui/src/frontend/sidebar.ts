@@ -18,6 +18,7 @@ import {TRACE_SUFFIX} from '../public/trace';
 import {
   disableMetatracingAndGetTrace,
   enableMetatracing,
+  getEnabledMetatracingCategories,
   isMetatracingEnabled,
 } from '../core/metatracing';
 import {Engine, EngineMode} from '../trace_processor/engine';
@@ -26,7 +27,10 @@ import {raf} from '../core/raf_scheduler';
 import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
 import {showModal} from '../widgets/modal';
 import {Animation} from './animation';
-import {downloadData, downloadUrl} from '../base/download_utils';
+import {
+  downloadData,
+  downloadFileOrUrlWithFilePicker,
+} from '../base/download_utils';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {shareTrace} from './trace_share_utils';
@@ -46,6 +50,7 @@ import {copyToClipboard} from '../base/clipboard';
 import {classNames} from '../base/classnames';
 import {formatHotkey} from '../base/hotkeys';
 import {assetSrc} from '../base/assets';
+import {assertExists} from '../base/logging';
 
 const GITILES_URL = 'https://github.com/google/perfetto';
 
@@ -93,31 +98,23 @@ function downloadTrace(trace: TraceImpl) {
   if (!trace.traceInfo.downloadable) return;
   AppImpl.instance.analytics.logEvent('Trace Actions', 'Download trace');
 
-  let url = '';
+  let urlOrBlob: string | Blob | File = '';
   let fileName = `trace${TRACE_SUFFIX}`;
   const src = trace.traceInfo.source;
   if (src.type === 'URL') {
-    url = src.url;
-    fileName = url.split('/').slice(-1)[0];
+    urlOrBlob = src.url;
+    fileName = src.url.split('/').slice(-1)[0];
   } else if (src.type === 'ARRAY_BUFFER') {
     const blob = new Blob([src.buffer], {type: 'application/octet-stream'});
-    const inputFileName = window.prompt(
-      'Please enter a name for your file or leave blank',
-    );
-    if (inputFileName) {
-      fileName = `${inputFileName}.perfetto_trace.gz`;
-    } else if (src.fileName) {
-      fileName = src.fileName;
-    }
-    url = URL.createObjectURL(blob);
+    fileName = src.fileName ?? fileName;
+    urlOrBlob = blob;
   } else if (src.type === 'FILE') {
-    const file = src.file;
-    url = URL.createObjectURL(file);
-    fileName = file.name;
+    urlOrBlob = src.file;
+    fileName = src.file.name;
   } else {
     throw new Error(`Download from ${JSON.stringify(src)} is not supported`);
   }
-  downloadUrl(fileName, url);
+  downloadFileOrUrlWithFilePicker(fileName, urlOrBlob);
 }
 
 function recordMetatrace(engine: Engine) {
@@ -146,7 +143,9 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
           primary: true,
           action: () => {
             enableMetatracing();
-            engine.enableMetatrace();
+            engine.enableMetatrace(
+              assertExists(getEnabledMetatracingCategories()),
+            );
           },
         },
         {
@@ -155,7 +154,8 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
       ],
     });
   } else {
-    engine.enableMetatrace();
+    enableMetatracing();
+    engine.enableMetatrace(assertExists(getEnabledMetatracingCategories()));
   }
 }
 

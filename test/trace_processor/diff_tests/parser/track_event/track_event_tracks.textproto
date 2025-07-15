@@ -11,6 +11,7 @@ packet {
       tid: 1
       thread_name: "t1"
     }
+    description: "Thread t1"
     disallow_merging_with_system_tracks: true
   }
   trace_packet_defaults {
@@ -32,6 +33,7 @@ packet {
       tid: 2
       thread_name: "t2"
     }
+    description: "Thread t2"
     disallow_merging_with_system_tracks: true
   }
   trace_packet_defaults {
@@ -53,6 +55,7 @@ packet {
     chrome_process {
       host_app_package_name: "host_app"
     }
+    description: "Chrome process: p1"
   }
 }
 # And we have an async track underneath the process too.
@@ -63,6 +66,7 @@ packet {
     uuid: 11
     parent_uuid: 10
     name: "async"
+    description: "Async events for p1"
   }
 }
 packet {
@@ -92,6 +96,19 @@ packet {
     uuid: 14
     parent_uuid: 2
     name: "async3"
+    description: "Async events for t2"
+  }
+}
+
+# Should appear on async track "async3".
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 6000
+  track_event {
+    track_uuid: 14
+    categories: "cat"
+    name: "event1_on_async3"
+    type: 3
   }
 }
 

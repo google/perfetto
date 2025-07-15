@@ -21,7 +21,7 @@ import {
   TrackEventSelection,
   AreaSelectionTab,
 } from '../public/selection';
-import {TimeSpan} from '../base/time';
+import {Time, TimeSpan} from '../base/time';
 import {raf} from './raf_scheduler';
 import {exists, getOrCreate} from '../base/utils';
 import {TrackManagerImpl} from './track_manager';
@@ -36,6 +36,8 @@ import {showModal} from '../widgets/modal';
 import {NUM, SqlValue, UNKNOWN} from '../trace_processor/query_result';
 import {SourceDataset, UnionDataset} from '../trace_processor/dataset';
 import {Track} from '../public/track';
+import {TimelineImpl} from './timeline';
+import {HighPrecisionTime} from '../base/high_precision_time';
 
 interface SelectionDetailsPanel {
   isLoading: boolean;
@@ -62,6 +64,7 @@ export class SelectionManagerImpl implements SelectionManager {
 
   constructor(
     private readonly engine: Engine,
+    private timeline: TimelineImpl,
     private trackManager: TrackManagerImpl,
     private noteManager: NoteManagerImpl,
     private scrollHelper: ScrollHelper,
@@ -384,6 +387,37 @@ export class SelectionManagerImpl implements SelectionManager {
     const range = this.getTimeSpanOfSelection();
     this.scrollHelper.scrollTo({
       time: range ? {...range} : undefined,
+      track: uri ? {uri, expandGroup: true} : undefined,
+    });
+  }
+
+  zoomOnSelection() {
+    const uri = (() => {
+      switch (this.selection.kind) {
+        case 'track_event':
+        case 'track':
+          return this.selection.trackUri;
+        // TODO(stevegolton): Handle scrolling to area and note selections.
+        default:
+          return undefined;
+      }
+    })();
+    const range = this.getTimeSpanOfSelection();
+    if (!range) {
+      // If there is no range, we cannot zoom to selection.
+      // This can happen if the selection is empty or if it is a note without
+      // a time span.
+      return;
+    }
+    const newDuration = this.timeline.visibleWindow.duration / 100;
+    const halfDuration = newDuration / 2;
+    const midEvent = Time.fromRaw(range.start + range.duration / 2n);
+    const newStart = new HighPrecisionTime(midEvent).subNumber(halfDuration);
+    this.scrollHelper.scrollTo({
+      time: {
+        start: newStart.toTime(),
+        end: newStart.addNumber(newDuration).toTime(),
+      },
       track: uri ? {uri, expandGroup: true} : undefined,
     });
   }

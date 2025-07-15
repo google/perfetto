@@ -17,7 +17,7 @@ import {BarChartData, ColumnDef, Sorting} from '../../components/aggregation';
 import {
   Aggregation,
   Aggregator,
-  ii,
+  createIITable,
   selectTracksAndGetDataset,
 } from '../../components/aggregation_adapter';
 import {AreaSelection} from '../../public/selection';
@@ -49,7 +49,12 @@ export class ThreadStateSelectionAggregator implements Aggregator {
 
     return {
       prepareData: async (engine: Engine) => {
-        const iiDataset = await ii(engine, this.id, dataset, area);
+        await using iiTable = await createIITable(
+          engine,
+          dataset,
+          area.start,
+          area.end,
+        );
 
         await engine.query(`
           create or replace perfetto table ${this.id} as
@@ -62,7 +67,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
             sum(tstate.dur) AS total_dur,
             sum(tstate.dur) / count() as avg_dur,
             count() as occurrences
-          from (${iiDataset.query()}) tstate
+          from ${iiTable.name} tstate
           join thread using (utid)
           left join process using (upid)
           group by utid, state
@@ -72,7 +77,7 @@ export class ThreadStateSelectionAggregator implements Aggregator {
           select
             tstate.state as state,
             sum(dur) as totalDur
-          from (${iiDataset.query()}) tstate
+          from (${iiTable.name}) tstate
           join thread using (utid)
           group by tstate.state
         `;

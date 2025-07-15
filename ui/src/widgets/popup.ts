@@ -96,6 +96,11 @@ export interface PopupAttrs {
   // of the popup.
   // If position is not *-end or *-start, this setting has no effect.
   edgeOffset?: number;
+  // If true, the popup will not have a maximum width and will instead fit its
+  // content. This is useful for popups that have a lot of buttons or other
+  // content that should not be constrained by a maximum width.
+  // Defaults to false.
+  fitContent?: boolean;
 }
 
 // A popup is a portal whose position is dynamically updated so that it floats
@@ -163,6 +168,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       onPopupMount = () => {},
       onPopupUnMount = () => {},
       matchWidth,
+      fitContent,
     } = attrs;
 
     const portalAttrs: PortalAttrs = {
@@ -215,6 +221,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
             className,
             createNewGroup && Popup.POPUP_GROUP_CLASS,
             matchWidth && 'pf-popup--match-width',
+            fitContent && 'pf-popup--fit-content',
           ),
           ref: Popup.POPUP_REF,
         },

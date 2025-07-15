@@ -75,10 +75,10 @@ export class CpuFreqTrack implements TrackRenderer {
     `);
     if (this.config.idleTrackId === undefined) {
       this.trash.use(
-        await createView(
-          this.trace.engine,
-          `raw_freq_idle_${this.trackUuid}`,
-          `
+        await createView({
+          engine: this.trace.engine,
+          name: `raw_freq_idle_${this.trackUuid}`,
+          as: `
             select ts, dur, value as freqValue, -1 as idleValue
             from counter_leading_intervals!((
               select id, ts, track_id, value
@@ -86,14 +86,14 @@ export class CpuFreqTrack implements TrackRenderer {
               where track_id = ${this.config.freqTrackId}
             ))
           `,
-        ),
+        }),
       );
     } else {
       this.trash.use(
-        await createPerfettoTable(
-          this.trace.engine,
-          `raw_freq_${this.trackUuid}`,
-          `
+        await createPerfettoTable({
+          engine: this.trace.engine,
+          name: `raw_freq_${this.trackUuid}`,
+          as: `
             select ts, dur, value as freqValue
             from counter_leading_intervals!((
               select id, ts, track_id, value
@@ -101,14 +101,14 @@ export class CpuFreqTrack implements TrackRenderer {
              where track_id = ${this.config.freqTrackId}
             ))
           `,
-        ),
+        }),
       );
 
       this.trash.use(
-        await createPerfettoTable(
-          this.trace.engine,
-          `raw_idle_${this.trackUuid}`,
-          `
+        await createPerfettoTable({
+          engine: this.trace.engine,
+          name: `raw_idle_${this.trackUuid}`,
+          as: `
             select
               ts,
               dur,
@@ -119,42 +119,42 @@ export class CpuFreqTrack implements TrackRenderer {
               where track_id = ${this.config.idleTrackId}
             ))
           `,
-        ),
+        }),
       );
 
       this.trash.use(
-        await createVirtualTable(
-          this.trace.engine,
-          `raw_freq_idle_${this.trackUuid}`,
-          `span_join(raw_freq_${this.trackUuid}, raw_idle_${this.trackUuid})`,
-        ),
+        await createVirtualTable({
+          engine: this.trace.engine,
+          name: `raw_freq_idle_${this.trackUuid}`,
+          using: `span_join(raw_freq_${this.trackUuid}, raw_idle_${this.trackUuid})`,
+        }),
       );
     }
 
     this.trash.use(
-      await createVirtualTable(
-        this.trace.engine,
-        `cpu_freq_${this.trackUuid}`,
-        `
-          __intrinsic_counter_mipmap((
-            select ts, freqValue as value
-            from raw_freq_idle_${this.trackUuid}
-          ))
-        `,
-      ),
+      await createVirtualTable({
+        engine: this.trace.engine,
+        name: `cpu_freq_${this.trackUuid}`,
+        using: `
+        __intrinsic_counter_mipmap((
+          select ts, freqValue as value
+          from raw_freq_idle_${this.trackUuid}
+        ))
+      `,
+      }),
     );
 
     this.trash.use(
-      await createVirtualTable(
-        this.trace.engine,
-        `cpu_idle_${this.trackUuid}`,
-        `
-          __intrinsic_counter_mipmap((
-            select ts, idleValue as value
-            from raw_freq_idle_${this.trackUuid}
-          ))
-        `,
-      ),
+      await createVirtualTable({
+        engine: this.trace.engine,
+        name: `cpu_idle_${this.trackUuid}`,
+        using: `
+        __intrinsic_counter_mipmap((
+          select ts, idleValue as value
+          from raw_freq_idle_${this.trackUuid}
+        ))
+      `,
+      }),
     );
   }
 
