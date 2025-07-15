@@ -1286,17 +1286,21 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
       }),
       m(WidgetShowcase, {
         label: 'Callout',
-        renderWidget: () =>
+        renderWidget: (opts) =>
           m(
             Callout,
             {
               icon: 'info',
+              ...opts,
             },
             'Lorem ipsum dolor sit amet, consectetur adipiscing elit. ' +
               'Nulla rhoncus tempor neque, sed malesuada eros dapibus vel. ' +
               'Aliquam in ligula vitae tortor porttitor laoreet iaculis ' +
               'finibus est.',
           ),
+        initialOpts: {
+          intent: new EnumOption(Intent.None, Object.values(Intent)),
+        },
       }),
       m(WidgetShowcase, {
         label: 'Editor',
