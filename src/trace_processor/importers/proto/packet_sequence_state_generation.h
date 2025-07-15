@@ -213,6 +213,12 @@ class PacketSequenceStateGeneration : public RefCounted {
         .IncrementAndGetTrackEventThreadInstructionCount(delta);
   }
 
+  double IncrementAndGetCounterValue(uint64_t counter_track_uuid,
+                                     double value) {
+    return track_event_sequence_state_.IncrementAndGetCounterValue(
+        counter_track_uuid, value);
+  }
+
   bool track_event_timestamps_valid() const {
     return track_event_sequence_state_.timestamps_valid();
   }

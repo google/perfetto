@@ -39,6 +39,7 @@ import {Cpu} from '../../base/multi_machine_trace';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
+  counts: Float64Array;
   ids: Float64Array;
   startQs: BigInt64Array;
   endQs: BigInt64Array;
@@ -57,6 +58,7 @@ const CPU_SLICE_FLAGS_REALTIME = 2;
 export class CpuSliceTrack implements TrackRenderer {
   private mousePos?: Point2D;
   private utidHoveredInThisTrack?: number;
+  private countHoveredInThisTrack?: number;
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
   private lastRowId = -1;
@@ -78,7 +80,7 @@ export class CpuSliceTrack implements TrackRenderer {
         select
           id,
           ts,
-          iif(dur = -1, lead(ts, 1, trace_end()) over (order by ts) - ts, dur),
+          iif(dur = -1, lead(ts, 1, trace_end()) over (order by ts) - ts, dur) as dur,
           0 as depth
         from sched
         where ucpu = ${this.cpu.ucpu} and
@@ -134,6 +136,7 @@ export class CpuSliceTrack implements TrackRenderer {
       select
         (z.ts / ${resolution}) * ${resolution} as tsQ,
         (((z.ts + z.dur) / ${resolution}) + 1) * ${resolution} as tsEndQ,
+        z.count,
         s.utid,
         s.id,
         s.dur = -1 as isIncomplete,
@@ -149,6 +152,7 @@ export class CpuSliceTrack implements TrackRenderer {
       resolution,
       length: numRows,
       lastRowId: this.lastRowId,
+      counts: new Float64Array(numRows),
       ids: new Float64Array(numRows),
       startQs: new BigInt64Array(numRows),
       endQs: new BigInt64Array(numRows),
@@ -157,6 +161,7 @@ export class CpuSliceTrack implements TrackRenderer {
     };
 
     const it = queryRes.iter({
+      count: NUM,
       tsQ: LONG,
       tsEndQ: LONG,
       utid: NUM,
@@ -165,6 +170,7 @@ export class CpuSliceTrack implements TrackRenderer {
       isRealtime: NUM,
     });
     for (let row = 0; it.valid(); it.next(), row++) {
+      slices.counts[row] = it.count;
       slices.startQs[row] = it.tsQ;
       slices.endQs[row] = it.tsEndQ;
       slices.utids[row] = it.utid;
@@ -207,11 +213,13 @@ export class CpuSliceTrack implements TrackRenderer {
 
     const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
 
+    const count = assertExists(this.countHoveredInThisTrack);
+    const countDiv = count > 1 && m('div', `and ${count - 1} other events`);
     if (hoveredThread.pid !== undefined) {
       const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
-      return m('.tooltip', [m('div', pidText), m('div', tidText)]);
+      return m('.tooltip', [m('div', pidText), m('div', tidText), countDiv]);
     } else {
-      return m('.tooltip', tidText);
+      return m('.tooltip', tidText, countDiv);
     }
   }
 
@@ -304,7 +312,14 @@ export class CpuSliceTrack implements TrackRenderer {
       ctx.fillStyle = color.cssString;
 
       if (data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE) {
-        drawIncompleteSlice(ctx, rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
+        drawIncompleteSlice(
+          ctx,
+          rectStart,
+          MARGIN_TOP,
+          rectWidth,
+          RECT_HEIGHT,
+          color,
+        );
       } else {
         ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
       }
@@ -390,23 +405,28 @@ export class CpuSliceTrack implements TrackRenderer {
     if (data === undefined) return;
     if (y < MARGIN_TOP || y > MARGIN_TOP + RECT_HEIGHT) {
       this.utidHoveredInThisTrack = undefined;
+      this.countHoveredInThisTrack = undefined;
       this.trace.timeline.hoveredUtid = undefined;
       this.trace.timeline.hoveredPid = undefined;
       return;
     }
     const t = timescale.pxToHpTime(x);
     let hoveredUtid = undefined;
+    let hoveredCount = undefined;
 
     for (let i = 0; i < data.startQs.length; i++) {
       const tStart = Time.fromRaw(data.startQs[i]);
       const tEnd = Time.fromRaw(data.endQs[i]);
+      const count = data.counts[i];
       const utid = data.utids[i];
       if (t.gte(tStart) && t.lt(tEnd)) {
         hoveredUtid = utid;
+        hoveredCount = count;
         break;
       }
     }
     this.utidHoveredInThisTrack = hoveredUtid;
+    this.countHoveredInThisTrack = hoveredCount;
     const threadInfo = exists(hoveredUtid) && this.threads.get(hoveredUtid);
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     const hoveredPid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
@@ -419,6 +439,7 @@ export class CpuSliceTrack implements TrackRenderer {
 
   onMouseOut() {
     this.utidHoveredInThisTrack = -1;
+    this.countHoveredInThisTrack = -1;
     this.trace.timeline.hoveredUtid = undefined;
     this.trace.timeline.hoveredPid = undefined;
     this.mousePos = undefined;

@@ -66,36 +66,38 @@ message FtraceEventBundle {
   }
   optional CompactSched compact_sched = 4;
 
-  // traced_probes always sets the ftrace_clock to "boot". That is not available
-  // in older kernels (v3.x). In that case we fallback on "global" or "local".
-  // When we do that, we report the fallback clock in each bundle so we can do
-  // proper clock syncing at parsing time in TraceProcessor. We cannot use the
-  // TracePacket timestamp_clock_id because: (1) there is no per-packet
-  // timestamp for ftrace bundles; (2) "global" does not match CLOCK_MONOTONIC.
-  // Having a dedicated and explicit flag allows us to correct further misakes
-  // in future by looking at the kernel version.
-  // This field has been introduced in perfetto v19 / Android T (13).
-  // This field is omitted when the ftrace clock is just "boot", as that is the
-  // default assumption (and for consistency with the past).
+  // Perfetto will by default try to use the boottime ("boot") clock for ftrace
+  // timestamps as that counts during suspend, is available to userspace, and
+  // is coherent across cpus.
+  //
+  // If this field is set, it means that a different clock was used during
+  // recording. Either because the boot clock is unavailable (e.g. old kernels
+  // before 3.x), or the trace config has set an incompatible option
+  // (use_monotonic_raw_clock / preserve_ftrace_buffer). In that case,
+  // trace_processor will do best-effort clock alignment using timestamp pairs
+  // from |ftrace_timestamp| and |boot_timestamp| fields. This field is omitted
+  // when the ftrace clock is "boot", as that is the default assumption.
+  //
+  // Some clocks (local/global) are technically per-cpu, but we make a
+  // simplifying assumption that they are global, as their inter-cpu skew
+  // should be reasonably bounded on modern systems.
+  //
+  // Added in: perfetto v19. Android T (13).
   optional FtraceClock ftrace_clock = 5;
 
-  // The timestamp according to the ftrace clock, taken at the same instant
-  // as |boot_timestamp|. This is used to sync ftrace events when a non-boot
-  // clock is used as the ftrace clock. We don't use the ClockSnapshot packet
-  // because the ftrace global/local clocks don't match any of the clock_gettime
-  // domains and can be only read by traced_probes.
-  //
-  // Only set when |ftrace_clock| != FTRACE_CLOCK_UNSPECIFIED.
-  //
+  // The timestamp according to the ftrace clock, taken at the same instant as
+  // |boot_timestamp|. Note: timestamping is done at buffer read time, so it
+  // will be in the future relative to the data covered by this bundle.
   // Implementation note: Populated by reading the 'now ts:' field in
-  // tracefs/per_cpu/cpuX/stat.
+  // tracefs/per_cpu/cpu0/stat.
+  //
+  // Set only if |ftrace_clock| != FTRACE_CLOCK_UNSPECIFIED.
   optional int64 ftrace_timestamp = 6;
 
   // The timestamp according to CLOCK_BOOTTIME, taken at the same instant as
-  // |ftrace_timestamp|. See documentation of |ftrace_timestamp| for
-  // more info.
+  // |ftrace_timestamp|.
   //
-  // Only set when |ftrace_clock| != FTRACE_CLOCK_UNSPECIFIED.
+  // Set only if |ftrace_clock| != FTRACE_CLOCK_UNSPECIFIED.
   optional int64 boot_timestamp = 7;
 
   // Errors encountered during parsing of the raw ftrace data. In case of ring

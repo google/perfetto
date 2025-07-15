@@ -22,6 +22,7 @@
 
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/ftrace/generic_ftrace_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -33,8 +34,9 @@ namespace trace_processor {
 
 class FtraceTokenizer {
  public:
-  explicit FtraceTokenizer(TraceProcessorContext* context)
-      : context_(context) {}
+  explicit FtraceTokenizer(TraceProcessorContext* context,
+                           GenericFtraceTracker* generic_tracker)
+      : context_(context), generic_tracker_(generic_tracker) {}
 
   base::Status TokenizeFtraceBundle(TraceBlobView bundle,
                                     RefPtr<PacketSequenceStateGeneration>,
@@ -58,10 +60,9 @@ class FtraceTokenizer {
       ClockTracker::ClockId,
       const protos::pbzero::FtraceEventBundle::CompactSched::Decoder& compact,
       const std::vector<StringId>& string_table);
-
-  void HandleFtraceClockSnapshot(int64_t ftrace_ts,
-                                 int64_t boot_ts,
-                                 uint32_t packet_sequence_id);
+  base::StatusOr<ClockTracker::ClockId> HandleFtraceClockSnapshot(
+      protos::pbzero::FtraceEventBundle::Decoder& decoder,
+      uint32_t packet_sequence_id);
   void TokenizeFtraceGpuWorkPeriod(uint32_t cpu,
                                    TraceBlobView event,
                                    RefPtr<PacketSequenceStateGeneration> state);
@@ -83,9 +84,11 @@ class FtraceTokenizer {
       PERFETTO_DLOG("%s", status.c_message());
   }
 
+  TraceProcessorContext* context_;
+  GenericFtraceTracker* generic_tracker_;
+
   int64_t latest_ftrace_clock_snapshot_ts_ = 0;
   std::vector<bool> per_cpu_seen_first_bundle_;
-  TraceProcessorContext* context_;
 };
 
 }  // namespace trace_processor

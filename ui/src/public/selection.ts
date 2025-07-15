@@ -13,12 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {duration, time, TimeSpan} from '../base/time';
-import {Dataset, DatasetSchema} from '../trace_processor/dataset';
-import {Engine} from '../trace_processor/engine';
-import {ColumnDef, Sorting, BarChartData} from './aggregation';
-import {Track} from './track';
 import {arrayEquals} from '../base/array_utils';
+import {duration, time, TimeSpan} from '../base/time';
+import {Track} from './track';
 
 export interface ContentWithLoadingFlag {
   readonly isLoading: boolean;
@@ -135,58 +132,6 @@ export interface SelectionManager {
   registerAreaSelectionTab(tab: AreaSelectionTab): void;
 }
 
-/**
- * Aggregator tabs are displayed in descending order of specificity, determined
- * by the following precedence hierarchy:
- * 1. Aggregators explicitly defining a `trackKind` string take priority over
- *    those that do not.
- * 2. Otherwise, aggregators with schemas containing a greater number of keys
- *    (higher specificity) are prioritized over those with fewer keys.
- * 3. In cases of identical specificity, tabs are ranked based on their
- *    registration order.
- */
-export interface AreaSelectionAggregator {
-  readonly id: string;
-
-  /**
-   * If defined, the dataset passed to `createAggregateView` will only contain
-   * tracks with a matching `kind` tag.
-   */
-  readonly trackKind?: string;
-
-  /**
-   * If defined, the dataset passed to `createAggregateView` will only contain
-   * tracks that export datasets that implement this schema.
-   */
-  readonly schema?: DatasetSchema;
-
-  /**
-   * Creates a view for the aggregated data corresponding to the selected area.
-   *
-   * The dataset provided will be filtered based on the `trackKind` and `schema`
-   * if these properties are defined.
-   *
-   * @param engine - The query engine used to execute queries.
-   * @param area - The currently selected area to aggregate.
-   * @param dataset - The dataset representing a union of the data in the
-   * selected tracks sliced by the intersection of the area assuming datasets
-   * have a `dur` column. If no tracks have a dataset, this will be undefined.
-   */
-  createAggregateView(
-    engine: Engine,
-    area: AreaSelection,
-    dataset?: Dataset,
-  ): Promise<boolean>;
-  getBarChartData?(
-    engine: Engine,
-    area: AreaSelection,
-    dataset?: Dataset,
-  ): Promise<BarChartData[] | undefined>;
-  getTabName(): string;
-  getDefaultSorting(): Sorting;
-  getColumnDefinitions(): ColumnDef[];
-}
-
 export type Selection =
   | TrackEventSelection
   | TrackSelection
@@ -225,9 +170,7 @@ export interface TrackEventDetails {
 export interface Area {
   readonly start: time;
   readonly end: time;
-  // TODO(primiano): this should be ReadonlyArray<> after the pivot table state
-  // doesn't use State/Immer anymore.
-  readonly trackUris: string[];
+  readonly trackUris: ReadonlyArray<string>;
 }
 
 export interface AreaSelection extends Area {

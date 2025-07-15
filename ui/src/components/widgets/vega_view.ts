@@ -343,6 +343,7 @@ class VegaWrapper {
       this.view = new vega.View(runtime, {
         loader: new EngineLoader(this._engine),
       });
+      this.view.hover();
       this.view.initialize(this.dom);
       for (const [key, value] of Object.entries(this._data)) {
         this.view.data(key, value);

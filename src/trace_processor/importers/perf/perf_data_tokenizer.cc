@@ -31,6 +31,7 @@
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
@@ -61,7 +62,6 @@
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/util/build_id.h"
-#include "src/trace_processor/util/status_macros.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
 namespace perfetto::trace_processor::perf_importer {

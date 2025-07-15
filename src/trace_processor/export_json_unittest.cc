@@ -99,6 +99,7 @@ class ExportJsonTest : public ::testing::Test {
     context_.process_tracker.reset(new ProcessTracker(&context_));
     context_.process_track_translation_table.reset(
         new ProcessTrackTranslationTable(context_.storage.get()));
+    context_.track_compressor.reset(new TrackCompressor(&context_));
   }
 
   std::string ToJson(ArgumentFilterPredicate argument_filter = nullptr,
@@ -283,6 +284,7 @@ TEST_F(ExportJsonTest, StorageWithMetadata) {
   const char* kStoryTag1 = "tag1";
   const char* kStoryTag2 = "tag2";
   const char* kDynamicKey = "dyn_key1";
+  const char* kTraceConfig = "config proto";
   const int64_t kBenchmarkStart = 1000000;
   const int64_t kStoryStart = 2000000;
   const bool kHadFailures = true;
@@ -328,6 +330,11 @@ TEST_F(ExportJsonTest, StorageWithMetadata) {
   context_.metadata_tracker->SetMetadata(metadata::benchmark_had_failures,
                                          had_failures);
 
+  StringId trace_config_id =
+      context_.storage->InternString(base::StringView(kTraceConfig));
+  context_.metadata_tracker->SetMetadata(metadata::trace_config_pbtxt,
+                                         Variadic::String(trace_config_id));
+
   // Metadata entries with dynamic keys are not currently exported from the
   // metadata table (the Chrome metadata is exported directly from the raw
   // table).
@@ -371,6 +378,8 @@ TEST_F(ExportJsonTest, StorageWithMetadata) {
   EXPECT_EQ(telemetry_metadata["hadFailures"][0].asBool(), kHadFailures);
 
   EXPECT_FALSE(result["metadata"].isMember(kDynamicKey));
+
+  EXPECT_EQ(result["metadata"]["trace-config"].asString(), kTraceConfig);
 }
 
 TEST_F(ExportJsonTest, StorageWithStats) {
@@ -786,8 +795,9 @@ TEST_F(ExportJsonTest, InstantEvent) {
 
   // Global track.
   TrackEventTracker track_event_tracker(&context_);
-  TrackId track2 = *track_event_tracker.GetDescriptorTrack(
-      TrackEventTracker::kDefaultDescriptorTrackUuid);
+  TrackId track2 = *track_event_tracker.InternDescriptorTrackInstant(
+      TrackEventTracker::kDefaultDescriptorTrackUuid, kNullStringId,
+      std::nullopt);
   context_.storage->mutable_slice_table()->Insert(
       {kTimestamp2, 0, track2, cat_id, name_id, 0, 0, 0});
 
@@ -795,7 +805,8 @@ TEST_F(ExportJsonTest, InstantEvent) {
   TrackEventTracker::DescriptorTrackReservation reservation;
   reservation.parent_uuid = 0;
   track_event_tracker.ReserveDescriptorTrack(1234, reservation);
-  TrackId track3 = *track_event_tracker.GetDescriptorTrack(1234);
+  TrackId track3 = *track_event_tracker.InternDescriptorTrackInstant(
+      1234, kNullStringId, std::nullopt);
   context_.storage->mutable_slice_table()->Insert(
       {kTimestamp3, 0, track3, cat_id, name_id, 0, 0, 0});
 

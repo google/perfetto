@@ -24,15 +24,16 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/variant.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/dataframe/cursor.h"
+#include "src/trace_processor/dataframe/cursor_impl.h"  // IWYU pragma: keep
 #include "src/trace_processor/dataframe/impl/query_plan.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
+#include "src/trace_processor/dataframe/typed_cursor.h"
 #include "src/trace_processor/dataframe/types.h"
-#include "src/trace_processor/dataframe/value_fetcher.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor::dataframe {
 
@@ -61,7 +62,7 @@ Dataframe::Dataframe(bool finalized,
     column_ptrs_.emplace_back(col.get());
   }
   if (finalized) {
-    MarkFinalized();
+    Finalize();
   }
 }
 
@@ -78,23 +79,67 @@ base::StatusOr<Dataframe::QueryPlan> Dataframe::PlanQuery(
   return QueryPlan(std::move(plan));
 }
 
+void Dataframe::Clear() {
+  PERFETTO_DCHECK(!finalized_);
+  for (const auto& c : columns_) {
+    switch (c->storage.type().index()) {
+      case StorageType::GetTypeIndex<Uint32>():
+        c->storage.unchecked_get<Uint32>().clear();
+        break;
+      case StorageType::GetTypeIndex<Int32>():
+        c->storage.unchecked_get<Int32>().clear();
+        break;
+      case StorageType::GetTypeIndex<Int64>():
+        c->storage.unchecked_get<Int64>().clear();
+        break;
+      case StorageType::GetTypeIndex<Double>():
+        c->storage.unchecked_get<Double>().clear();
+        break;
+      case StorageType::GetTypeIndex<String>():
+        c->storage.unchecked_get<String>().clear();
+        break;
+      case StorageType::GetTypeIndex<Id>():
+        c->storage.unchecked_get<Id>().size = 0;
+        break;
+      default:
+        PERFETTO_FATAL("Invalid storage type");
+    }
+    switch (c->null_storage.nullability().index()) {
+      case Nullability::GetTypeIndex<NonNull>():
+        break;
+      case Nullability::GetTypeIndex<SparseNull>():
+      case Nullability::GetTypeIndex<SparseNullWithPopcountUntilFinalization>():
+      case Nullability::GetTypeIndex<SparseNullWithPopcountAlways>(): {
+        auto& null = c->null_storage.unchecked_get<SparseNull>();
+        null.bit_vector.clear();
+        null.prefix_popcount_for_cell_get.clear();
+        break;
+      }
+      case Nullability::GetTypeIndex<DenseNull>():
+        c->null_storage.unchecked_get<DenseNull>().bit_vector.clear();
+        break;
+      default:
+        PERFETTO_FATAL("Invalid nullability type");
+    }
+  }
+  row_count_ = 0;
+  ++non_column_mutations_;
+}
+
 base::StatusOr<Index> Dataframe::BuildIndex(const uint32_t* columns_start,
                                             const uint32_t* columns_end) const {
   std::vector<uint32_t> cols(columns_start, columns_end);
-  std::vector<FilterSpec> filters;
   std::vector<SortSpec> sorts;
   sorts.reserve(cols.size());
   for (const auto& col : cols) {
     sorts.push_back(SortSpec{col, SortDirection::kAscending});
   }
-  ASSIGN_OR_RETURN(auto plan, PlanQuery(filters, {}, sorts, {}, 0));
 
   // Heap allocate to avoid potential stack overflows due to large cursor
   // object.
-  auto c = std::make_unique<Cursor<ErrorValueFetcher>>();
-  PrepareCursor(plan, *c);
-  ErrorValueFetcher vf{};
-  c->Execute(vf);
+  auto c = std::make_unique<TypedCursor>(this, std::vector<FilterSpec>(),
+                                         std::move(sorts));
+  c->ExecuteUnchecked();
 
   std::vector<uint32_t> permutation;
   permutation.reserve(row_count_);
@@ -108,16 +153,16 @@ base::StatusOr<Index> Dataframe::BuildIndex(const uint32_t* columns_start,
 void Dataframe::AddIndex(Index index) {
   PERFETTO_CHECK(finalized_);
   indexes_.emplace_back(std::move(index));
-  ++mutations_;
+  ++non_column_mutations_;
 }
 
 void Dataframe::RemoveIndexAt(uint32_t index) {
   PERFETTO_CHECK(finalized_);
   indexes_.erase(indexes_.begin() + static_cast<std::ptrdiff_t>(index));
-  ++mutations_;
+  ++non_column_mutations_;
 }
 
-void Dataframe::MarkFinalized() {
+void Dataframe::Finalize() {
   if (finalized_) {
     return;
   }
@@ -173,7 +218,8 @@ void Dataframe::MarkFinalized() {
   }
 }
 
-dataframe::Dataframe Dataframe::Copy() const {
+dataframe::Dataframe Dataframe::CopyFinalized() const {
+  PERFETTO_CHECK(finalized_);
   return *this;
 }
 
@@ -238,13 +284,6 @@ std::vector<std::shared_ptr<impl::Column>> Dataframe::CreateColumnVector(
     }));
   }
   return columns;
-}
-
-void Dataframe::TypedCursorBase::PrepareCursorInternal() {
-  auto plan = dataframe_->PlanQuery(filter_specs_, {}, sort_specs_, {}, 0);
-  PERFETTO_CHECK(plan.ok());
-  dataframe_->PrepareCursor(*plan, cursor_);
-  last_execution_mutation_count_ = dataframe_->mutations_;
 }
 
 }  // namespace perfetto::trace_processor::dataframe

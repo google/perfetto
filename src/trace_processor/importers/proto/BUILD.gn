@@ -58,6 +58,7 @@ source_set("minimal") {
     "proto_trace_tokenizer.h",
     "stack_profile_sequence_state.cc",
     "stack_profile_sequence_state.h",
+    "track_event_event_importer.h",
     "track_event_module.cc",
     "track_event_module.h",
     "track_event_parser.cc",
@@ -200,6 +201,7 @@ source_set("full") {
     "../../../kernel_utils:syscall_table",
     "../../../protozero",
     "../../containers",
+    "../../dataframe",
     "../../sorter",
     "../../storage",
     "../../tables",
@@ -215,8 +217,11 @@ source_set("full") {
     "../ftrace:full",
     "../generic_kernel:full",
     "../syscalls:full",
-    "winscope:full",
   ]
+
+  if (enable_perfetto_winscope) {
+    deps += [ "winscope:full" ]
+  }
 }
 
 source_set("proto_importer_module") {
@@ -314,7 +319,7 @@ source_set("unittests") {
     "../../../base:test_support",
     "../../../protozero",
     "../../containers",
-    "../../db/column",
+    "../../dataframe",
     "../../sorter",
     "../../storage",
     "../../tables",
@@ -325,4 +330,7 @@ source_set("unittests") {
     "../common",
     "../ftrace:full",
   ]
+  if (enable_perfetto_winscope) {
+    deps += [ "winscope:unittests" ]
+  }
 }

@@ -128,8 +128,9 @@ export function bindEventListener<K extends keyof HTMLElementEventMap>(
   element: EventTarget,
   event: K,
   handler: (event: HTMLElementEventMap[K]) => void,
+  options?: AddEventListenerOptions,
 ): Disposable {
-  element.addEventListener(event, handler as EventListener);
+  element.addEventListener(event, handler as EventListener, options);
   return {
     [Symbol.dispose]() {
       element.removeEventListener(event, handler as EventListener);

@@ -29,14 +29,17 @@ from perfetto.trace_processor.platform import PlatformDelegate
 TP_PORT = 9001
 
 
-def load_shell(bin_path: str,
-               unique_port: bool,
-               verbose: bool,
-               ingest_ftrace_in_raw: bool,
-               enable_dev_features: bool,
-               platform_delegate: PlatformDelegate,
-               load_timeout: int = 2,
-               extra_flags: Optional[List[str]] = None):
+def load_shell(
+    bin_path: Optional[str],
+    unique_port: bool,
+    verbose: bool,
+    ingest_ftrace_in_raw: bool,
+    enable_dev_features: bool,
+    platform_delegate: PlatformDelegate,
+    load_timeout: int = 2,
+    extra_flags: Optional[List[str]] = None,
+    add_sql_packages: Optional[List[str]] = None,
+):
   addr, port = platform_delegate.get_bind_addr(
       port=0 if unique_port else TP_PORT)
   url = f'{addr}:{str(port)}'
@@ -61,16 +64,26 @@ def load_shell(bin_path: str,
   if enable_dev_features:
     args.append('--dev')
 
+  if add_sql_packages:
+    for package in add_sql_packages:
+      args.extend(['--add-sql-package', package])
+
   if extra_flags:
     args.extend(extra_flags)
 
   temp_stdout = tempfile.TemporaryFile()
   temp_stderr = tempfile.TemporaryFile()
+
+  creationflags = 0
+  if sys.platform == 'win32':
+    creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
+
   p = subprocess.Popen(
       tp_exec + args,
       stdin=subprocess.DEVNULL,
       stdout=temp_stdout,
-      stderr=None if verbose else temp_stderr)
+      stderr=None if verbose else temp_stderr,
+      creationflags=creationflags)
 
   success = False
   for _ in range(load_timeout + 1):

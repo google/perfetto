@@ -15,7 +15,6 @@
 import dataclasses
 from dataclasses import dataclass
 import importlib
-import sys
 from typing import Dict
 from typing import List
 from typing import Set
@@ -26,6 +25,8 @@ from python.generators.trace_processor_table.public import Alias
 from python.generators.trace_processor_table.public import Column
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import ColumnFlag
+from python.generators.trace_processor_table.public import CppAccess
+from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import CppColumnType
 from python.generators.trace_processor_table.public import CppDouble
 from python.generators.trace_processor_table.public import CppInt32
@@ -35,36 +36,43 @@ from python.generators.trace_processor_table.public import CppSelfTableId
 from python.generators.trace_processor_table.public import CppString
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import SqlAccess
 from python.generators.trace_processor_table.public import Table
 
 
 @dataclass
 class ParsedType:
   """Result of parsing a CppColumnType into its parts."""
-  cpp_type: str
+  raw_cpp_type: str
   is_optional: bool = False
   is_alias: bool = False
   alias_underlying_name: Optional[str] = None
   is_self_id: bool = False
   id_table: Optional[Table] = None
 
-  def cpp_type_with_optionality(self) -> str:
-    """Returns the C++ type wrapping with base::Optional if necessary."""
-
+  def is_no_transform_id(self) -> bool:
+    """Returns true if this is a no-transform id."""
     # ThreadTable and ProcessTable are special for legacy reasons as they were
     # around even before the advent of C++ macro tables. Because of this a lot
     # of code was written assuming that upid and utid were uint32 (e.g. indexing
     # directly into vectors using them) and it was decided this behaviour was
     # too expensive in engineering cost to fix given the trivial benefit. For
     # this reason, continue to maintain this illusion.
-    if self.id_table and self.id_table.class_name in ('ThreadTable',
-                                                      'ProcessTable'):
-      cpp_type = 'uint32_t'
-    else:
-      cpp_type = self.cpp_type
+    return self.id_table is not None and self.id_table.class_name in (
+        'ThreadTable',
+        'ProcessTable',
+    )
+
+  def cpp_type(self) -> str:
+    if self.id_table and self.is_no_transform_id():
+      return 'uint32_t'
+    return self.raw_cpp_type
+
+  def cpp_type_with_optionality(self) -> str:
+    """Returns the C++ type wrapping with base::Optional if necessary."""
     if self.is_optional:
-      return f'std::optional<{cpp_type}>'
-    return cpp_type
+      return f'std::optional<{self.cpp_type()}>'
+    return self.cpp_type()
 
 
 @dataclass(frozen=True)
@@ -109,7 +117,7 @@ def parse_type_with_cols(table: Table, cols: List[Column],
   if isinstance(col_type, Alias):
     col = next(c for c in cols if c.name == col_type.underlying_column)
     return ParsedType(
-        parse_type(table, col.type).cpp_type,
+        parse_type(table, col.type).raw_cpp_type,
         is_alias=True,
         alias_underlying_name=col.name)
 
@@ -139,7 +147,7 @@ def typed_column_type(table: Table, col: ParsedColumn) -> str:
 
   parsed = parse_type(table, col.column.type)
   if col.is_implicit_id:
-    return f'IdColumn<{parsed.cpp_type}>'
+    return f'IdColumn<{parsed.raw_cpp_type}>'
   return f'TypedColumn<{parsed.cpp_type_with_optionality()}>'
 
 
@@ -149,7 +157,7 @@ def data_layer_type(table: Table, col: ParsedColumn) -> str:
   parsed = parse_type(table, col.column.type)
   if col.is_implicit_id:
     return 'column::IdStorage'
-  if parsed.cpp_type == 'StringPool::Id':
+  if parsed.raw_cpp_type == 'StringPool::Id':
     return 'column::StringStorage'
   if ColumnFlag.SET_ID in col.column.flags:
     return 'column::SetIdStorage'
@@ -185,14 +193,20 @@ def public_sql_name(table: Table) -> str:
 
 def _create_implicit_columns_for_root(table: Table) -> List[ParsedColumn]:
   """Given a root table, returns the implicit id and type columns."""
-  assert table.parent is None
+  assert table.add_implicit_column
 
   sql_name = public_sql_name(table)
   id_doc = table.tabledoc.columns.get('id') if table.tabledoc else None
-  type_doc = table.tabledoc.columns.get('type') if table.tabledoc else None
   return [
       ParsedColumn(
-          Column('id', CppSelfTableId(), ColumnFlag.SORTED),
+          Column(
+              'id',
+              CppSelfTableId(),
+              ColumnFlag.SORTED,
+              sql_access=SqlAccess.HIGH_PERF,
+              cpp_access=CppAccess.READ,
+              cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+          ),
           _to_column_doc(id_doc) if id_doc else ColumnDoc(
               doc=f'Unique identifier for this {sql_name}.'),
           is_implicit_id=True),
@@ -253,15 +267,16 @@ def parse_tables_from_modules(modules: List[str]) -> List[ParsedTable]:
 
   parsed_tables: Dict[str, ParsedTable] = {}
   for table in sorted_tables:
-    parsed_columns: List[ParsedColumn]
+    parsed_columns: List[ParsedColumn] = []
     if table.parent:
       parsed_parent = parsed_tables[table.parent.class_name]
-      parsed_columns = [
+      parsed_columns += [
           dataclasses.replace(c, is_ancestor=True)
           for c in parsed_parent.columns
       ]
     else:
-      parsed_columns = _create_implicit_columns_for_root(table)
+      if table.add_implicit_column or table.use_legacy_table_backend:
+        parsed_columns += _create_implicit_columns_for_root(table)
 
     for c in table.columns:
       doc = table.tabledoc.columns.get(c.name) if table.tabledoc else None

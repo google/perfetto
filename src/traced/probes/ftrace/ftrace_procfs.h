@@ -71,8 +71,16 @@ class FtraceProcfs {
   // enable file is writeable.
   bool IsEventAccessible(const std::string& group, const std::string& name);
 
+  // Returns true if the event under the given |group| and |name| exists and its
+  // format is readable.
+  bool IsEventFormatReadable(const std::string& group, const std::string& name);
+
   // Disable all events by writing to the global enable file.
   bool DisableAllEvents();
+
+  // Returns true if the generic "set_event" interface (that can be used as a
+  // falback by EnableEvent) is writable.
+  bool IsGenericSetEventWritable();
 
   // Read the format for event with the given |group| and |name|.
   // virtual for testing.
@@ -200,6 +208,7 @@ class FtraceProcfs {
   virtual bool AppendToFile(const std::string& path, const std::string& str);
   virtual bool ClearFile(const std::string& path);
   virtual bool IsFileWriteable(const std::string& path);
+  virtual bool IsFileReadable(const std::string& path);
   virtual char ReadOneCharFromFile(const std::string& path);
   virtual std::string ReadFileIntoString(const std::string& path) const;
 

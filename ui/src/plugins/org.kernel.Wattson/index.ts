@@ -12,26 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {createAggregationTab} from '../../components/aggregation_adapter';
 import {
   BaseCounterTrack,
   CounterOptions,
 } from '../../components/tracks/base_counter_track';
-import {
-  CPUSS_ESTIMATE_TRACK_KIND,
-  GPUSS_ESTIMATE_TRACK_KIND,
-} from './track_kinds';
-import {createWattsonAggregationToTabAdaptor} from './aggregation_panel';
 import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
+import {PerfettoPlugin} from '../../public/plugin';
+import {Trace} from '../../public/trace';
+import {SLICE_TRACK_KIND} from '../../public/track_kinds';
+import {TrackNode} from '../../public/workspace';
 import {Engine} from '../../trace_processor/engine';
 import {NUM} from '../../trace_processor/query_result';
-import {PerfettoPlugin} from '../../public/plugin';
-import {SLICE_TRACK_KIND} from '../../public/track_kinds';
-import {Trace} from '../../public/trace';
-import {TrackNode} from '../../public/workspace';
 import {WattsonEstimateSelectionAggregator} from './estimate_aggregator';
 import {WattsonPackageSelectionAggregator} from './package_aggregator';
 import {WattsonProcessSelectionAggregator} from './process_aggregator';
 import {WattsonThreadSelectionAggregator} from './thread_aggregator';
+import {
+  CPUSS_ESTIMATE_TRACK_KIND,
+  GPUSS_ESTIMATE_TRACK_KIND,
+} from './track_kinds';
 
 export default class implements PerfettoPlugin {
   static readonly id = `org.kernel.Wattson`;
@@ -70,7 +70,9 @@ class WattsonSubsystemEstimateTrack extends BaseCounterTrack {
   }
 
   async onInit() {
-    await this.engine.query(`INCLUDE PERFETTO MODULE wattson.estimates;`);
+    await this.engine.query(
+      `INCLUDE PERFETTO MODULE wattson.ui.continuous_estimates;`,
+    );
   }
 
   protected getDefaultCounterOptions(): CounterOptions {
@@ -81,7 +83,10 @@ class WattsonSubsystemEstimateTrack extends BaseCounterTrack {
   }
 
   getSqlSource() {
-    return `select ts, ${this.queryKey} as value from _system_state_mw`;
+    return `
+      SELECT ts, ${this.queryKey} AS value
+      FROM _system_state_${this.queryKey}
+    `;
   }
 }
 
@@ -222,29 +227,29 @@ async function addWattsonCpuElements(ctx: Trace, group: TrackNode) {
   // NOTE: the registration order matters because the laste two aggregators
   // depend on views created by the first two.
   ctx.selection.registerAreaSelectionTab(
-    createWattsonAggregationToTabAdaptor(
-      ctx,
-      new WattsonEstimateSelectionAggregator(),
-    ),
+    createAggregationTab(ctx, new WattsonEstimateSelectionAggregator()),
   );
   ctx.selection.registerAreaSelectionTab(
-    createWattsonAggregationToTabAdaptor(
-      ctx,
-      new WattsonThreadSelectionAggregator(),
-    ),
+    createAggregationTab(ctx, new WattsonThreadSelectionAggregator()),
   );
   ctx.selection.registerAreaSelectionTab(
-    createWattsonAggregationToTabAdaptor(
-      ctx,
-      new WattsonProcessSelectionAggregator(),
-    ),
+    createAggregationTab(ctx, new WattsonProcessSelectionAggregator()),
   );
-  ctx.selection.registerAreaSelectionTab(
-    createWattsonAggregationToTabAdaptor(
-      ctx,
-      new WattsonPackageSelectionAggregator(),
-    ),
-  );
+
+  if (await isProcessMetadataPresent(ctx.engine)) {
+    ctx.selection.registerAreaSelectionTab(
+      createAggregationTab(ctx, new WattsonPackageSelectionAggregator()),
+    );
+  }
+}
+
+async function isProcessMetadataPresent(engine: Engine) {
+  const packageInfo = await engine.query(`
+    INCLUDE PERFETTO MODULE android.process_metadata;
+    SELECT COUNT(*) as count FROM android_process_metadata
+    WHERE package_name IS NOT NULL
+  `);
+  return packageInfo.firstRow({count: NUM}).count > 0;
 }
 
 async function addWattsonGpuElements(ctx: Trace, group: TrackNode) {

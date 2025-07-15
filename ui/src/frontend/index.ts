@@ -57,6 +57,7 @@ import {
 } from '../core/settings_manager';
 import {LocalStorage} from '../core/local_storage';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
+import {timezoneOffsetMap} from '../base/time';
 
 const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   id: 'cspAllowAnyWebsocketPort',
@@ -165,6 +166,15 @@ function main() {
     defaultValue: TimestampFormat.Timecode,
   });
 
+  const timezoneOverrideSetting = settingsManager.register({
+    id: 'timezoneOverride',
+    name: 'Timezone Override',
+    description:
+      "When 'Timestamp Format' is set to 'CustomTimezone', this setting controls which timezone is used.",
+    schema: z.enum(Object.keys(timezoneOffsetMap) as [string, ...string[]]),
+    defaultValue: '(UTC+00:00) London, Dublin, Lisbon, Casablanca', // UTC by default.
+  });
+
   const durationPrecisionSetting = settingsManager.register({
     id: 'durationPrecision',
     name: 'Duration precision',
@@ -178,6 +188,7 @@ function main() {
     settingsManager,
     timestampFormatSetting,
     durationPrecisionSetting,
+    timezoneOverrideSetting,
   });
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time

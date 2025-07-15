@@ -24,7 +24,7 @@ import {
 } from '../../trace_processor/sql_utils';
 import {DatasetSliceTrack} from './dataset_slice_track';
 import {
-  ARG_PREFIX,
+  RAW_PREFIX,
   DebugSliceTrackDetailsPanel,
 } from './debug_slice_track_details_panel';
 import {
@@ -44,8 +44,9 @@ export interface DebugSliceTrackArgs {
   readonly data: SqlDataSource;
   readonly title?: string;
   readonly columns?: Partial<SliceColumnMapping>;
-  readonly argColumns?: string[];
+  readonly argColumns?: ReadonlyArray<string>;
   readonly pivotOn?: string;
+  readonly argSetIdColumn?: string;
 }
 
 /**
@@ -88,6 +89,7 @@ export async function addDebugSliceTrack(args: DebugSliceTrackArgs) {
     args.columns,
     args.argColumns,
     args.pivotOn,
+    args.argSetIdColumn,
   );
 
   if (args.pivotOn) {
@@ -99,7 +101,13 @@ export async function addDebugSliceTrack(args: DebugSliceTrackArgs) {
       args.pivotOn,
     );
   } else {
-    addSingleSliceTrack(args.trace, tableName, titleBase, uriBase);
+    addSingleSliceTrack(
+      args.trace,
+      tableName,
+      titleBase,
+      uriBase,
+      args.argSetIdColumn,
+    );
   }
 }
 
@@ -108,8 +116,9 @@ async function createTableForSliceTrack(
   tableName: string,
   data: SqlDataSource,
   columns: Partial<SliceColumnMapping> = {},
-  argColumns?: string[],
+  argColumns?: ReadonlyArray<string>,
   pivotCol?: string,
+  argSetIdColumn?: string,
 ) {
   const {ts = 'ts', dur = 'dur', name = 'name'} = columns;
 
@@ -124,8 +133,9 @@ async function createTableForSliceTrack(
     `${ts} as ts`,
     `ifnull(cast(${dur} as int), -1) as dur`,
     `printf('%s', ${name}) as name`,
-    argColumns && argColumns.map((c) => `${c} as ${ARG_PREFIX}${c}`),
+    argColumns && argColumns.map((c) => `${c} as ${RAW_PREFIX}${c}`),
     pivotCol && `${pivotCol} as pivot`,
+    argSetIdColumn && `${argSetIdColumn} as arg_set_id`,
   ]
     .flat() // Convert to flattened list
     .filter(Boolean) // Remove falsy values
@@ -146,7 +156,7 @@ async function createTableForSliceTrack(
     order by ts
   `;
 
-  return await createPerfettoTable(engine, tableName, query);
+  return await createPerfettoTable({engine, name: tableName, as: query});
 }
 
 async function addPivotedSliceTracks(
@@ -202,6 +212,7 @@ function addSingleSliceTrack(
   tableName: string,
   name: string,
   uri: string,
+  argSetIdCol?: string,
 ) {
   trace.tracks.registerTrack({
     uri,
@@ -218,7 +229,12 @@ function addSingleSliceTrack(
         src: tableName,
       }),
       detailsPanel: (row) => {
-        return new DebugSliceTrackDetailsPanel(trace, tableName, row.id);
+        return new DebugSliceTrackDetailsPanel(
+          trace,
+          tableName,
+          row.id,
+          argSetIdCol,
+        );
       },
     }),
   });
@@ -312,7 +328,7 @@ async function createTableForCounterTrack(
     order by ts
   `;
 
-  return await createPerfettoTable(engine, tableName, query);
+  return await createPerfettoTable({engine, name: tableName, as: query});
 }
 
 async function addPivotedCounterTracks(

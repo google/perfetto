@@ -19,10 +19,12 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-#include "protos/perfetto/trace/generic_kernel/generic_task_state.pbzero.h"
+#include "protos/perfetto/trace/generic_kernel/generic_power.pbzero.h"
+#include "protos/perfetto/trace/generic_kernel/generic_task.pbzero.h"
 
 namespace perfetto::trace_processor {
 
@@ -145,7 +147,7 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
         return std::nullopt;
       }
       UniqueTid utid = context_->process_tracker->StartNewThread(ts, tid);
-      context_->process_tracker->UpdateThreadNameByUtid(
+      context_->process_tracker->UpdateThreadName(
           utid, comm_id, ThreadNamePriority::kGenericKernelTask);
       return utid;
     }
@@ -155,8 +157,9 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
     case TaskStateEnum::TASK_STATE_DEAD: {
       auto utid_opt = context_->process_tracker->GetThreadOrNull(tid);
       if (!utid_opt) {
-        utid_opt = context_->process_tracker->UpdateThreadName(
-            tid, comm_id, ThreadNamePriority::kGenericKernelTask);
+        utid_opt = context_->process_tracker->GetOrCreateThread(tid);
+        context_->process_tracker->UpdateThreadName(
+            *utid_opt, comm_id, ThreadNamePriority::kGenericKernelTask);
       } else if (ThreadStateTracker::GetOrCreate(context_)->GetPrevEndState(
                      *utid_opt) == destroyed_string_id_) {
         context_->storage->IncrementStats(
@@ -166,13 +169,23 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
       context_->process_tracker->EndThread(ts, tid);
       return utid_opt;
     }
+    case TaskStateEnum::TASK_STATE_RUNNING: {
+      auto utid_opt = context_->process_tracker->GetThreadOrNull(tid);
+      if (utid_opt &&
+          ThreadStateTracker::GetOrCreate(context_)->GetPrevEndState(
+              *utid_opt) == running_string_id_) {
+        context_->storage->IncrementStats(
+            stats::generic_task_state_invalid_order);
+        return std::nullopt;
+      }
+      PERFETTO_FALLTHROUGH;
+    }
     case TaskStateEnum::TASK_STATE_RUNNABLE:
-    case TaskStateEnum::TASK_STATE_RUNNING:
     case TaskStateEnum::TASK_STATE_INTERRUPTIBLE_SLEEP:
     case TaskStateEnum::TASK_STATE_UNINTERRUPTIBLE_SLEEP:
     case TaskStateEnum::TASK_STATE_STOPPED: {
       UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
-      context_->process_tracker->UpdateThreadNameByUtid(
+      context_->process_tracker->UpdateThreadName(
           utid, comm_id, ThreadNamePriority::kGenericKernelTask);
       return utid;
     }
@@ -254,4 +267,23 @@ GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
   }
   return kNone;
 }
+
+void GenericKernelParser::ParseGenericTaskRenameEvent(
+    protozero::ConstBytes data) {
+  protos::pbzero::GenericKernelTaskRenameEvent::Decoder task_rename_event(data);
+  StringId comm = context_->storage->InternString(task_rename_event.comm());
+  context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
+      task_rename_event.tid(), comm, ThreadNamePriority::kGenericKernelTask);
+}
+
+void GenericKernelParser::ParseGenericCpuFrequencyEvent(
+    int64_t ts,
+    protozero::ConstBytes data) {
+  protos::pbzero::GenericKernelCpuFrequencyEvent::Decoder cpu_freq_event(data);
+  TrackId track = context_->track_tracker->InternTrack(
+      tracks::kCpuFrequencyBlueprint, tracks::Dimensions(cpu_freq_event.cpu()));
+  context_->event_tracker->PushCounter(
+      ts, static_cast<double>(cpu_freq_event.freq_hz()) / 1000.0, track);
+}
+
 }  // namespace perfetto::trace_processor

@@ -17,16 +17,17 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_DATAFRAME_QUERY_PLAN_DECODER_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_DATAFRAME_QUERY_PLAN_DECODER_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/table.h"
+#include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 
 namespace perfetto::trace_processor {
 
@@ -34,13 +35,23 @@ class TraceProcessorContext;
 
 class DataframeQueryPlanDecoder : public StaticTableFunction {
  public:
+  class Cursor : public StaticTableFunction::Cursor {
+   public:
+    explicit Cursor(StringPool* string_pool);
+    bool Run(const std::vector<SqlValue>& arguments) override;
+
+   private:
+    StringPool* string_pool_;
+    tables::DataframeQueryPlanDecoderTable table_;
+  };
+
   explicit DataframeQueryPlanDecoder(StringPool* string_pool);
 
-  Table::Schema CreateSchema() override;
+  std::unique_ptr<StaticTableFunction::Cursor> MakeCursor() override;
+  dataframe::DataframeSpec CreateSpec() override;
   std::string TableName() override;
+  uint32_t GetArgumentCount() const override;
   uint32_t EstimateRowCount() override;
-  base::StatusOr<std::unique_ptr<Table>> ComputeTable(
-      const std::vector<SqlValue>& arguments) override;
 
  private:
   StringPool* string_pool_;

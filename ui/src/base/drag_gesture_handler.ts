@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {DisposableStack} from './disposable_stack';
+import {convertTouchIntoMouseEvents} from './touchscreen_handler';
 
 export class DragGestureHandler implements Disposable {
   private readonly boundOnMouseDown = this.onMouseDown.bind(this);
@@ -21,6 +23,7 @@ export class DragGestureHandler implements Disposable {
   private clientRect?: DOMRect;
   private pendingMouseDownEvent?: MouseEvent;
   private _isDragging = false;
+  private _trash = new DisposableStack();
 
   constructor(
     private element: HTMLElement,
@@ -29,6 +32,15 @@ export class DragGestureHandler implements Disposable {
     private onDragFinished = () => {},
   ) {
     element.addEventListener('mousedown', this.boundOnMouseDown);
+    this._trash.use(convertTouchIntoMouseEvents(element, ['down-up-move']));
+    this._trash.defer(() => {
+      if (this._isDragging) {
+        this.onMouseUp();
+      }
+      document.body.removeEventListener('mousedown', this.boundOnMouseDown);
+      document.body.removeEventListener('mousemove', this.boundOnMouseMove);
+      document.body.removeEventListener('mouseup', this.boundOnMouseUp);
+    });
   }
 
   private onMouseDown(e: MouseEvent) {
@@ -85,11 +97,6 @@ export class DragGestureHandler implements Disposable {
   }
 
   [Symbol.dispose]() {
-    if (this._isDragging) {
-      this.onMouseUp();
-    }
-    document.body.removeEventListener('mousedown', this.boundOnMouseDown);
-    document.body.removeEventListener('mousemove', this.boundOnMouseMove);
-    document.body.removeEventListener('mouseup', this.boundOnMouseUp);
+    this._trash.dispose();
   }
 }

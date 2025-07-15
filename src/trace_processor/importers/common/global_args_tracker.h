@@ -20,11 +20,11 @@
 #include <cstdint>
 #include <type_traits>
 #include <vector>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/small_vector.h"
-#include "src/trace_processor/db/column.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
@@ -54,7 +54,8 @@ class GlobalArgsTracker {
                 "Args must be trivially destructible");
 
   struct Arg : public CompactArg {
-    ColumnLegacy* column;
+    void* ptr;
+    uint32_t col;
     uint32_t row;
 
     // Object slices this Arg to become a CompactArg.

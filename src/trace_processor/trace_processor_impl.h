@@ -37,7 +37,10 @@
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/descriptors.h"
 
 namespace perfetto::trace_processor {
@@ -140,17 +143,32 @@ class TraceProcessorImpl : public TraceProcessor,
   // Needed for iterators to be able to access the context.
   friend class IteratorImpl;
 
-  template <typename Table>
-  void RegisterStaticTable(Table* table) {
-    engine_->RegisterStaticTable(table, Table::Name(),
-                                 Table::ComputeStaticSchema());
-  }
+  void FlushInternal(bool should_build_bounds_table);
 
   bool IsRootMetricField(const std::string& metric_name);
 
-  void InitPerfettoSqlEngine();
-  void IncludeBeforeEofPrelude();
-  void IncludeAfterEofPrelude();
+  static std::unique_ptr<PerfettoSqlEngine> InitPerfettoSqlEngine(
+      TraceProcessorContext* context,
+      TraceStorage* storage,
+      const Config& config,
+      DataframeSharedStorage* dataframe_shared_storage,
+      const std::vector<SqlPackage>&,
+      std::vector<metrics::SqlMetricFile>& sql_metrics,
+      const DescriptorPool* metrics_descriptor_pool,
+      std::unordered_map<std::string, std::string>* proto_fn_name_to_path,
+      TraceProcessor*,
+      bool notify_eof_called);
+
+  static std::vector<PerfettoSqlEngine::UnfinalizedStaticTable>
+  GetUnfinalizedStaticTables(TraceStorage* storage);
+
+  static std::vector<std::unique_ptr<StaticTableFunction>>
+  CreateStaticTableFunctions(TraceProcessorContext* context,
+                             TraceStorage* storage,
+                             const Config& config,
+                             PerfettoSqlEngine* engine);
+
+  static void IncludeAfterEofPrelude(PerfettoSqlEngine*);
 
   const Config config_;
 
@@ -160,10 +178,7 @@ class TraceProcessorImpl : public TraceProcessor,
   DescriptorPool metrics_descriptor_pool_;
 
   std::vector<metrics::SqlMetricFile> sql_metrics_;
-
-  // Manually registers SQL packages are stored here, to be able to restore
-  // them when running |RestoreInitialTables()|.
-  std::vector<SqlPackage> manually_registered_sql_packages_;
+  std::vector<SqlPackage> registered_sql_packages_;
 
   std::unordered_map<std::string, std::string> proto_field_to_sql_metric_path_;
   std::unordered_map<std::string, std::string> proto_fn_name_to_path_;

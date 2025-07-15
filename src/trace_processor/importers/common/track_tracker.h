@@ -30,6 +30,7 @@
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
@@ -102,7 +103,7 @@ class TrackTracker {
       const typename BlueprintT::name_t& name = tracks::BlueprintName(),
       const SetArgsCallback& args = {},
       const typename BlueprintT::unit_t& unit = tracks::BlueprintUnit()) {
-    return InternTrackInner(bp, dims, name, args, unit).first;
+    return InternTrackInner(bp, dims, name, args, unit);
   }
 
   // Wrapper function for `InternTrack` in cases where you want the "main"
@@ -117,6 +118,53 @@ class TrackTracker {
         "thread_execution",
         tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint));
     return InternTrack(kBlueprint, tracks::Dimensions(utid));
+  }
+
+  // Creates a track with the given blueprint and dimensions, bypassing the
+  // interning logic.
+  // This method should only be used when the caller is managing the interning
+  // of tracks itself (e.g. in |TrackCompressor|). In almost all other cases,
+  // |InternTrack| should be used.
+  template <typename BlueprintT>
+  TrackId CreateTrack(
+      const BlueprintT& bp,
+      const typename BlueprintT::dimensions_t& dims,
+      const typename BlueprintT::name_t& name = tracks::BlueprintName(),
+      const SetArgsCallback& args = {},
+      const typename BlueprintT::unit_t& unit = tracks::BlueprintUnit()) {
+    std::array<GlobalArgsTracker::CompactArg, 8> a;
+    DimensionsToArgs<0>(dims, bp.dimension_blueprints.data(), a.data());
+    StringId n;
+    using NBT = tracks::NameBlueprintT;
+    using name_blueprint_t = typename BlueprintT::name_blueprint_t;
+    if constexpr (std::is_same_v<NBT::Auto, name_blueprint_t>) {
+      n = kNullStringId;
+    } else if constexpr (std::is_same_v<NBT::Static, name_blueprint_t>) {
+      n = context_->storage->InternString(bp.name_blueprint.name);
+    } else if constexpr (std::is_base_of_v<NBT::FnBase, name_blueprint_t>) {
+      n = context_->storage->InternString(
+          std::apply(bp.name_blueprint.fn, dims).string_view());
+    } else {
+      static_assert(std::is_same_v<NBT::Dynamic, name_blueprint_t>);
+      n = name;
+    }
+    using UBT = tracks::UnitBlueprintT;
+    using unit_blueprint_t = typename BlueprintT::unit_blueprint_t;
+    StringId u;
+    if constexpr (std::is_same_v<UBT::Unknown, unit_blueprint_t>) {
+      u = kNullStringId;
+    } else if constexpr (std::is_same_v<UBT::Static, unit_blueprint_t>) {
+      u = context_->storage->InternString(bp.unit_blueprint.name);
+    } else {
+      static_assert(std::is_same_v<UBT::Dynamic, unit_blueprint_t>);
+      u = unit;
+    }
+    // GCC warns about the variables being unused even they are in certain
+    // constexpr branches above. Just use them here to suppress the warning.
+    base::ignore_result(name, unit);
+    static constexpr uint32_t kDimensionCount =
+        std::tuple_size_v<typename BlueprintT::dimensions_t>;
+    return AddTrack(bp, n, u, a.data(), kDimensionCount, args);
   }
 
   // Wrapper function for `InternTrack` for legacy "async" style tracks which
@@ -143,7 +191,7 @@ class TrackTracker {
                    const SetArgsCallback&);
 
   template <typename BlueprintT>
-  PERFETTO_ALWAYS_INLINE std::pair<TrackId, bool> InternTrackInner(
+  PERFETTO_ALWAYS_INLINE TrackId InternTrackInner(
       const BlueprintT& bp,
       const typename BlueprintT::dimensions_t& dims = {},
       const typename BlueprintT::name_t& name = tracks::BlueprintName(),
@@ -152,41 +200,9 @@ class TrackTracker {
     uint64_t hash = tracks::HashFromBlueprintAndDimensions(bp, dims);
     auto [it, inserted] = tracks_.Insert(hash, {});
     if (inserted) {
-      std::array<GlobalArgsTracker::CompactArg, 8> a;
-      DimensionsToArgs<0>(dims, bp.dimension_blueprints.data(), a.data());
-      StringId n;
-      using NBT = tracks::NameBlueprintT;
-      using name_blueprint_t = typename BlueprintT::name_blueprint_t;
-      if constexpr (std::is_same_v<NBT::Auto, name_blueprint_t>) {
-        n = kNullStringId;
-      } else if constexpr (std::is_same_v<NBT::Static, name_blueprint_t>) {
-        n = context_->storage->InternString(bp.name_blueprint.name);
-      } else if constexpr (std::is_base_of_v<NBT::FnBase, name_blueprint_t>) {
-        n = context_->storage->InternString(
-            std::apply(bp.name_blueprint.fn, dims).string_view());
-      } else {
-        static_assert(std::is_same_v<NBT::Dynamic, name_blueprint_t>);
-        n = name;
-      }
-      using UBT = tracks::UnitBlueprintT;
-      using unit_blueprint_t = typename BlueprintT::unit_blueprint_t;
-      StringId u;
-      if constexpr (std::is_same_v<UBT::Unknown, unit_blueprint_t>) {
-        u = kNullStringId;
-      } else if constexpr (std::is_same_v<UBT::Static, unit_blueprint_t>) {
-        u = context_->storage->InternString(bp.unit_blueprint.name);
-      } else {
-        static_assert(std::is_same_v<UBT::Dynamic, unit_blueprint_t>);
-        u = unit;
-      }
-      // GCC warns about the variables being unused even they are in certain
-      // constexpr branches above. Just use them here to suppress the warning.
-      base::ignore_result(name, unit);
-      static constexpr uint32_t kDimensionCount =
-          std::tuple_size_v<typename BlueprintT::dimensions_t>;
-      *it = AddTrack(bp, n, u, a.data(), kDimensionCount, args);
+      *it = CreateTrack(bp, dims, name, args, unit);
     }
-    return std::make_pair(*it, inserted);
+    return *it;
   }
 
   template <size_t i, typename TupleDimensions>
@@ -200,6 +216,8 @@ class TrackTracker {
         a[i].value = Variadic::Integer(std::get<i>(dimensions));
       } else if constexpr (std::is_integral_v<elem_t>) {
         a[i].value = Variadic::Integer(std::get<i>(dimensions));
+      } else if constexpr (std::is_same_v<elem_t, StringPool::Id>) {
+        a[i].value = Variadic::String(std::get<i>(dimensions));
       } else {
         static_assert(std::is_same_v<elem_t, base::StringView>,
                       "Unknown type for dimension");
