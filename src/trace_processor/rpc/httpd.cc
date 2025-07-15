@@ -156,7 +156,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
 
   if (req.uri == "/websocket" && req.is_websocket_handshake) {
     // Will trigger OnWebsocketMessage() when is received.
-    // It returns a 403 if the origin is not one of CORS allowed origins.
+    // It returns a 403 if the origin is not one of the allowed CORS origins.
     return conn.UpgradeToWebsocket(req);
   }
 
