@@ -546,6 +546,16 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
         C(
+            'finish_time_ns',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'shell_abort_time_ns',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
             'handler',
             CppOptional(CppInt64()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
@@ -558,6 +568,16 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
         C(
             'flags',
             CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'start_transaction_id',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'finish_transaction_id',
+            CppOptional(CppInt64()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
     ],
@@ -579,12 +599,20 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
                 'Transition dispatch time',
             'duration_ns':
                 'Transition duration',
+            'finish_time_ns':
+                'Transition finish time',
+            'shell_abort_time_ns':
+                'Transition shell abort time',
             'handler':
                 'Handler id',
             'status':
                 'Transition status',
             'flags':
                 'Transition flags',
+            'start_transaction_id':
+                'Start transaction id',
+            'finish_transaction_id':
+                'Finish transaction id',
         }))
 
 WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE = Table(

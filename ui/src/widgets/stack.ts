@@ -14,8 +14,9 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
+import {HTMLAttrs} from './common';
 
-interface StackAttrs {
+interface StackAttrs extends HTMLAttrs {
   readonly orientation?: 'horizontal' | 'vertical';
   readonly fillHeight?: boolean;
   readonly gap?: 'none' | 'normal';
@@ -27,6 +28,8 @@ export class Stack implements m.ClassComponent<StackAttrs> {
       orientation = 'vertical',
       fillHeight = false,
       gap = 'normal',
+      className,
+      ...htmlAttrs
     } = attrs;
     return m(
       '.pf-stack',
@@ -35,7 +38,9 @@ export class Stack implements m.ClassComponent<StackAttrs> {
           orientation === 'horizontal' && 'pf-stack--horiz',
           fillHeight && 'pf-stack--fill-height',
           gap === 'none' && 'pf-stack--gap-none',
+          className,
         ),
+        ...htmlAttrs,
       },
       children,
     );
