@@ -15,7 +15,6 @@
 import m from 'mithril';
 import {assetSrc} from '../../base/assets';
 import {extensions} from '../../components/extensions';
-import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {SqlModules} from './sql_modules';
@@ -26,13 +25,8 @@ let globSqlModules: SqlModules | undefined;
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.SqlModules';
 
-  static onActivate(_: App): void {
-    // Load the SQL modules JSON file when the plugin when the app starts up,
-    // rather than waiting until trace load.
-    loadJson();
-  }
-
   async onTraceLoad(trace: Trace): Promise<void> {
+    loadJson(trace);
     trace.commands.registerCommand({
       id: 'perfetto.OpenSqlModulesTable',
       name: 'Open table...',
@@ -69,11 +63,11 @@ export default class implements PerfettoPlugin {
   }
 }
 
-async function loadJson() {
+async function loadJson(trace: Trace) {
   const x = await fetch(assetSrc('stdlib_docs.json'));
   const json = await x.json();
   const docs = SQL_MODULES_DOCS_SCHEMA.parse(json);
-  const sqlModules = new SqlModulesImpl(docs);
+  const sqlModules = new SqlModulesImpl(trace, docs);
 
   globSqlModules = sqlModules;
 

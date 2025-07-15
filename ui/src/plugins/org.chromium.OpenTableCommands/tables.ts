@@ -24,32 +24,33 @@ import {
   ThreadStateIdColumn,
   TimestampColumn,
 } from '../../components/widgets/sql/table/columns';
+import {Trace} from '../../public/trace';
 
-export function getThreadTable(): SqlTableDescription {
+export function getThreadTable(trace: Trace): SqlTableDescription {
   return {
     name: 'thread',
     columns: [
-      new ThreadIdColumn('utid', {type: 'id'}),
+      new ThreadIdColumn(trace, 'utid', {type: 'id'}),
       new StandardColumn('tid'),
       new StandardColumn('name'),
-      new TimestampColumn('start_ts'),
-      new TimestampColumn('end_ts'),
-      new ProcessIdColumn('upid', {notNull: true}),
+      new TimestampColumn(trace, 'start_ts'),
+      new TimestampColumn(trace, 'end_ts'),
+      new ProcessIdColumn(trace, 'upid', {notNull: true}),
       new StandardColumn('is_main_thread'),
     ],
   };
 }
 
-export function getProcessTable(): SqlTableDescription {
+export function getProcessTable(trace: Trace): SqlTableDescription {
   return {
     name: 'process',
     columns: [
-      new ProcessIdColumn('upid', {type: 'id'}),
+      new ProcessIdColumn(trace, 'upid', {type: 'id'}),
       new StandardColumn('pid'),
       new StandardColumn('name'),
-      new TimestampColumn('start_ts'),
-      new TimestampColumn('end_ts'),
-      new ProcessIdColumn('parent_upid'),
+      new TimestampColumn(trace, 'start_ts'),
+      new TimestampColumn(trace, 'end_ts'),
+      new ProcessIdColumn(trace, 'parent_upid'),
       new StandardColumn('uid'),
       new StandardColumn('android_appid'),
       new StandardColumn('cmdline', {startsHidden: true}),
@@ -59,37 +60,37 @@ export function getProcessTable(): SqlTableDescription {
   };
 }
 
-export function getSliceTable(): SqlTableDescription {
+export function getSliceTable(trace: Trace): SqlTableDescription {
   return {
     imports: ['viz.slices'],
     name: '_viz_slices_for_ui_table',
     displayName: 'Slices',
     columns: [
-      new SliceIdColumn('id', {notNull: true, type: 'id'}),
-      new TimestampColumn('ts'),
-      new DurationColumn('dur'),
+      new SliceIdColumn(trace, 'id', {notNull: true, type: 'id'}),
+      new TimestampColumn(trace, 'ts'),
+      new DurationColumn(trace, 'dur'),
       new StandardColumn('category'),
       new StandardColumn('name'),
       new StandardColumn('track_id', {startsHidden: true}),
-      new ThreadIdColumn('utid'),
-      new ProcessIdColumn('upid'),
+      new ThreadIdColumn(trace, 'utid'),
+      new ProcessIdColumn(trace, 'upid'),
       new StandardColumn('depth', {startsHidden: true}),
-      new SliceIdColumn('parent_id'),
+      new SliceIdColumn(trace, 'parent_id'),
       new ArgSetIdColumn('arg_set_id'),
     ],
   };
 }
 
-export function getAndroidLogsTable(): SqlTableDescription {
+export function getAndroidLogsTable(trace: Trace): SqlTableDescription {
   return {
     name: 'android_logs',
     columns: [
       new StandardColumn('id'),
-      new TimestampColumn('ts'),
+      new TimestampColumn(trace, 'ts'),
       new StandardColumn('tag'),
       new StandardColumn('prio'),
-      new ThreadIdColumn('utid'),
-      new ProcessIdColumn({
+      new ThreadIdColumn(trace, 'utid'),
+      new ProcessIdColumn(trace, {
         column: 'upid',
         source: {
           table: 'thread',
@@ -101,17 +102,17 @@ export function getAndroidLogsTable(): SqlTableDescription {
   };
 }
 
-export function getSchedTable(): SqlTableDescription {
+export function getSchedTable(trace: Trace): SqlTableDescription {
   return {
     name: 'sched',
     columns: [
-      new SchedIdColumn('id'),
-      new TimestampColumn('ts'),
-      new DurationColumn('dur'),
+      new SchedIdColumn(trace, 'id'),
+      new TimestampColumn(trace, 'ts'),
+      new DurationColumn(trace, 'dur'),
       new StandardColumn('cpu'),
       new StandardColumn('priority'),
-      new ThreadIdColumn('utid'),
-      new ProcessIdColumn({
+      new ThreadIdColumn(trace, 'utid'),
+      new ProcessIdColumn(trace, {
         column: 'upid',
         source: {
           table: 'thread',
@@ -124,17 +125,17 @@ export function getSchedTable(): SqlTableDescription {
   };
 }
 
-export function getThreadStateTable(): SqlTableDescription {
+export function getThreadStateTable(trace: Trace): SqlTableDescription {
   return {
     name: 'thread_state',
     columns: [
-      new ThreadStateIdColumn('id'),
-      new TimestampColumn('ts'),
-      new DurationColumn('dur'),
+      new ThreadStateIdColumn(trace, 'id'),
+      new TimestampColumn(trace, 'ts'),
+      new DurationColumn(trace, 'dur'),
       new StandardColumn('state'),
       new StandardColumn('cpu'),
-      new ThreadIdColumn('utid'),
-      new ProcessIdColumn({
+      new ThreadIdColumn(trace, 'utid'),
+      new ProcessIdColumn(trace, {
         column: 'upid',
         source: {
           table: 'thread',
@@ -143,8 +144,8 @@ export function getThreadStateTable(): SqlTableDescription {
       }),
       new StandardColumn('io_wait'),
       new StandardColumn('blocked_function'),
-      new ThreadIdColumn('waker_utid'),
-      new ThreadStateIdColumn('waker_id'),
+      new ThreadIdColumn(trace, 'waker_utid'),
+      new ThreadStateIdColumn(trace, 'waker_id'),
       new StandardColumn('irq_context'),
       new StandardColumn('ucpu', {startsHidden: true}),
     ],

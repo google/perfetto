@@ -104,7 +104,7 @@ export class CounterDetailsPanel implements TrackEventDetailsPanel {
               m(TreeNode, {left: 'Name', right: `${this.trackName}`}),
               m(TreeNode, {
                 left: 'Start time',
-                right: m(Timestamp, {ts: counterInfo.ts}),
+                right: m(Timestamp, {trace: this.trace, ts: counterInfo.ts}),
               }),
               m(TreeNode, {
                 left: 'Value',
@@ -116,7 +116,7 @@ export class CounterDetailsPanel implements TrackEventDetailsPanel {
               }),
               m(TreeNode, {
                 left: 'Duration',
-                right: m(DurationWidget, {dur: counterInfo.duration}),
+                right: m(DurationWidget, {trace: this.trace, dur: counterInfo.duration}),
               }),
             ),
           ),

@@ -76,7 +76,7 @@ export class FtraceEventDetailsPanel implements TrackEventDetailsPanel {
               }),
               m(TreeNode, {
                 left: 'Timestamp',
-                right: m(Timestamp, {ts: Time.fromRaw(this.row.ts)}),
+                right: m(Timestamp, {trace: this.trace, ts: Time.fromRaw(this.row.ts)}),
               }),
               m(TreeNode, {
                 left: 'CPU',

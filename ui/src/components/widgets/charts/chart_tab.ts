@@ -16,10 +16,11 @@ import m from 'mithril';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {addEphemeralTab} from '../../details/add_ephemeral_tab';
 import {Tab} from '../../../public/tab';
+import {Trace} from '../../../public/trace';
 import {ChartAttrs, renderChart, toTitleCase} from './chart';
 
-export function addChartTab(chart: ChartAttrs): void {
-  addEphemeralTab(`${chart.chartType}Tab`, new ChartTab(chart));
+export function addChartTab(trace: Trace, chart: ChartAttrs): void {
+  addEphemeralTab(trace, `${chart.chartType}Tab`, new ChartTab(chart));
 }
 
 export class ChartTab implements Tab {

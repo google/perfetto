@@ -58,7 +58,7 @@ export class NoteEditor implements m.ClassComponent<NodeDetailsPanelAttrs> {
       m(
         Stack,
         {orientation: 'horizontal'},
-        m('span', `Annotation at `, m(Timestamp, {ts: startTime})),
+        m('span', `Annotation at `, m(Timestamp, {trace, ts: startTime})),
         m('input[type=text]', {
           oncreate: (v: m.VnodeDOM) => {
             // NOTE: due to bad design decisions elsewhere this component is

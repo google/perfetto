@@ -87,8 +87,9 @@ export class StartupDetailsPanel implements TrackEventDetailsPanel {
     details['Activity ID'] = this.data.startupId;
     details['Browser Upid'] = this.data.upid;
     details['Startup Event'] = this.data.eventName;
-    details['Startup Timestamp'] = m(Timestamp, {ts: this.data.startupBeginTs});
+    details['Startup Timestamp'] = m(Timestamp, {trace: this.trace, ts: this.data.startupBeginTs});
     details['Duration to First Visible Content'] = m(DurationWidget, {
+      trace: this.trace,
       dur: this.data.durToFirstVisibleContent,
     });
     if (this.data.launchCause) {

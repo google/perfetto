@@ -128,7 +128,7 @@ export class HeapProfileFlamegraphDetailsPanel
             ],
           ),
           buttons: m(Stack, {orientation: 'horizontal', spacing: 'large'}, [
-            m('span', `Snapshot time: `, m(Timestamp, {ts})),
+            m('span', `Snapshot time: `, m(Timestamp, {trace: this.trace, ts})),
             (type === ProfileType.NATIVE_HEAP_PROFILE ||
               type === ProfileType.JAVA_HEAP_SAMPLES) &&
               m(Button, {
