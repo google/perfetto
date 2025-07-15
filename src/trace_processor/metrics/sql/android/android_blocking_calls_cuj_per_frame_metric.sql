@@ -32,6 +32,21 @@ INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
 -- second case, only the part within the frame is considered.
 DROP TABLE IF EXISTS blocking_calls_per_frame;
 CREATE PERFETTO TABLE blocking_calls_per_frame AS
+-- For cases when a blocking call starts within a frame, but does not end before the actual frame
+-- ends, a part of the blocking call can be missed while calculating the metric. To avoid this
+-- issue, the frame boundary is extended, spanning from the start of the current actual frame, till
+-- the start of the next actual frame.
+WITH extended_frame_boundary AS (
+SELECT frame_ts as ts,
+ui_thread_utid,
+frame_id,
+layer_id,
+  -- Calculate the end timestamp (ts_end) by taking the start time (frame_ts) of the next frame in the session.
+  -- For the last frame, fall back to the default ts_end.
+  COALESCE(LEAD(frame_ts) OVER (PARTITION BY cuj_id ORDER BY frame_id ASC), ts_end) AS ts_end,
+  frame_id
+FROM _android_frames_in_cuj order by frame_id
+)
 SELECT
     MIN(
         bc.dur,
@@ -46,7 +61,7 @@ SELECT
     frame.frame_id,
     frame.layer_id
 FROM _android_critical_blocking_calls bc
-JOIN android_frames_layers frame
+JOIN extended_frame_boundary frame
 ON bc.utid = frame.ui_thread_utid
    -- The following condition to accommodate blocking call crossing frame boundary. The blocking
    -- call starts in a frame and ends in a frame. It can either be the same frame or a different
