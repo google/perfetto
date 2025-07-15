@@ -318,7 +318,12 @@ class TrackEventEventImporter {
     //   b) a default track.
     if (track_uuid_) {
       auto resolved = track_event_tracker_->ResolveDescriptorTrack(track_uuid_);
-      PERFETTO_DCHECK(resolved);
+      if (!resolved) {
+        return base::ErrStatus(
+            "track_event_parser: unable to resolve track matching UUID "
+            "%" PRIu64,
+            track_uuid_);
+      }
       switch (resolved->scope()) {
         case TrackEventTracker::ResolvedDescriptorTrack::Scope::kThread:
           utid_ = resolved->utid();

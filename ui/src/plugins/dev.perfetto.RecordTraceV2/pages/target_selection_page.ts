@@ -261,6 +261,7 @@ type SessionMgmtAttrs = {recMgr: RecordingManager; target: RecordingTarget};
 class SessionMgmtRenderer implements m.ClassComponent<SessionMgmtAttrs> {
   view({attrs}: m.CVnode<SessionMgmtAttrs>) {
     const session = attrs.recMgr.currentSession;
+    const isValid = attrs.recMgr.recordConfig.traceConfig.mode !== 'LONG_TRACE';
     const isRecording = session?.state === 'RECORDING';
     return [
       m('header', 'Tracing session'),
@@ -271,7 +272,7 @@ class SessionMgmtRenderer implements m.ClassComponent<SessionMgmtAttrs> {
           icon: 'not_started',
           iconFilled: true,
           className: 'start',
-          disabled: isRecording,
+          disabled: isRecording || !isValid,
           onclick: () => attrs.recMgr.startTracing().then(() => m.redraw()),
         }),
         m(Button, {
@@ -279,7 +280,7 @@ class SessionMgmtRenderer implements m.ClassComponent<SessionMgmtAttrs> {
           icon: 'stop',
           className: 'stop',
           iconFilled: true,
-          disabled: !isRecording,
+          disabled: !isRecording || !isValid,
           onclick: () => session?.session?.stop().then(() => m.redraw()),
         }),
         m(Button, {
@@ -287,7 +288,7 @@ class SessionMgmtRenderer implements m.ClassComponent<SessionMgmtAttrs> {
           icon: 'cancel',
           className: 'cancel',
           iconFilled: true,
-          disabled: !isRecording,
+          disabled: !isRecording || !isValid,
           onclick: () => session?.session?.cancel().then(() => m.redraw()),
         }),
         m(Checkbox, {
