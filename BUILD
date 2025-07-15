@@ -3101,6 +3101,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/services.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/statsd.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/surfaceflinger.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/suspend.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/thread.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/version.sql",
