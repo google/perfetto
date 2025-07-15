@@ -699,6 +699,7 @@ struct CommandLineOptions {
   bool enable_httpd = false;
   std::string port_number;
   std::string listen_ip;
+  std::vector<std::string> additional_cors_origins;
   bool enable_stdiod = false;
   bool launch_shell = false;
 
@@ -753,6 +754,12 @@ Behavioural:
  -D, --httpd                          Enables the HTTP RPC server.
  --http-port PORT                     Specify what port to run HTTP RPC server.
  --http-ip-address ip                 Specify what ip address to run HTTP RPC server.
+ --http-additional-cors-origins origin1,origin2,...
+                                      Specify a comma-separated list of
+                                      additional CORS allowed origins for the
+                                      HTTP RPC server. These are in addition to
+                                      the default origins: [https://ui.perfetto.dev,
+                                      http://localhost:10000, http://127.0.0.1:10000]
  --stdiod                             Enables the stdio RPC server.
  -i, --interactive                    Starts interactive mode even after
                                       executing some other commands (-q, -Q,
@@ -905,6 +912,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   enum LongOption {
     OPT_HTTP_PORT = 1000,
     OPT_HTTP_IP,
+    OPT_HTTP_ADDITIONAL_CORS_ORIGINS,
     OPT_STDIOD,
 
     OPT_FORCE_FULL_SORT,
@@ -943,6 +951,8 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"httpd", no_argument, nullptr, 'D'},
       {"http-port", required_argument, nullptr, OPT_HTTP_PORT},
       {"http-ip-address", required_argument, nullptr, OPT_HTTP_IP},
+      {"http-additional-cors-origins", required_argument, nullptr,
+       OPT_HTTP_ADDITIONAL_CORS_ORIGINS},
       {"stdiod", no_argument, nullptr, OPT_STDIOD},
       {"interactive", no_argument, nullptr, 'i'},
 
@@ -1043,6 +1053,12 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_HTTP_IP) {
       command_line_options.listen_ip = optarg;
+      continue;
+    }
+
+    if (option == OPT_HTTP_ADDITIONAL_CORS_ORIGINS) {
+      command_line_options.additional_cors_origins =
+          base::SplitString(optarg, ",");
       continue;
     }
 
@@ -2005,8 +2021,11 @@ base::Status TraceProcessorMain(int argc, char** argv) {
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
-    RunHttpRPCServer(std::move(tp), !options.trace_file_path.empty(),
-                     options.listen_ip, options.port_number);
+    RunHttpRPCServer(
+        std::move(tp), !options.trace_file_path.empty(),
+        {.listen_ip = options.listen_ip,
+         .port_number = options.port_number,
+         .additional_cors_origins = options.additional_cors_origins});
     PERFETTO_FATAL("Should never return");
 #else
     PERFETTO_FATAL("HTTP not available");
