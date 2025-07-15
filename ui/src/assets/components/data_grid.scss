@@ -19,16 +19,18 @@ $border: 1px solid rgb(225, 225, 225);
   flex-direction: column;
   font-weight: 300;
   white-space: nowrap;
+  overflow: hidden;
 
   // If fill height is set, the grid should fill the height of its parent, and
   // the table content should scroll, otherwise it takes the height of the table
   // content.
   &--fill-height {
     height: 100%;
+  }
 
-    .pf-data-grid__table {
-      overflow: auto;
-    }
+  &__table {
+    overflow: auto;
+    flex: 1; // Allow the table to grow and fill the available space.
   }
 
   table {
@@ -140,6 +142,7 @@ $border: 1px solid rgb(225, 225, 225);
     display: flex;
     padding: 2px;
     align-items: baseline;
+    gap: 2px;
   }
 
   &__toolbar-filters {

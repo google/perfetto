@@ -15,6 +15,7 @@
 source_set("core") {
   public_deps = [
     "../../../../../protos/perfetto/common:cpp",
+    "../../../../../protos/perfetto/config/priority_boost:cpp",
     "../../../tracing/core",
     "../../base",
   ]
@@ -24,6 +25,7 @@ source_set("core") {
     "commit_data_request.h",
     "consumer.h",
     "observable_events.h",
+    "priority_boost_config.h",
     "producer.h",
     "shared_memory.h",
     "shared_memory_abi.h",

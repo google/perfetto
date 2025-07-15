@@ -274,27 +274,27 @@ async function computeFlamegraphTree(
   await using disposable = new AsyncDisposableStack();
 
   disposable.use(
-    await createPerfettoTable(
+    await createPerfettoTable({
       engine,
-      `_flamegraph_materialized_statement_${uuid}`,
-      statement,
-    ),
+      name: `_flamegraph_materialized_statement_${uuid}`,
+      as: statement,
+    }),
   );
   disposable.use(
-    await createPerfettoIndex(
+    await createPerfettoIndex({
       engine,
-      `_flamegraph_materialized_statement_${uuid}_index`,
-      `_flamegraph_materialized_statement_${uuid}(parentId)`,
-    ),
+      name: `_flamegraph_materialized_statement_${uuid}_index`,
+      on: `_flamegraph_materialized_statement_${uuid}(parentId)`,
+    }),
   );
 
   // TODO(lalitm): this doesn't need to be called unless we have
   // a non-empty set of filters.
   disposable.use(
-    await createPerfettoTable(
+    await createPerfettoTable({
       engine,
-      `_flamegraph_source_${uuid}`,
-      `
+      name: `_flamegraph_source_${uuid}`,
+      as: `
         select *
         from _viz_flamegraph_prepare_filter!(
           (
@@ -322,48 +322,48 @@ async function computeFlamegraphTree(
           ${groupingColumns}
         )
       `,
-    ),
+    }),
   );
   // TODO(lalitm): this doesn't need to be called unless we have
   // a non-empty set of filters.
   disposable.use(
-    await createPerfettoTable(
+    await createPerfettoTable({
       engine,
-      `_flamegraph_filtered_${uuid}`,
-      `
+      name: `_flamegraph_filtered_${uuid}`,
+      as: `
         select *
         from _viz_flamegraph_filter_frames!(
           _flamegraph_source_${uuid},
           ${showFromFrameBits}
         )
       `,
-    ),
+    }),
   );
   disposable.use(
-    await createPerfettoIndex(
+    await createPerfettoIndex({
       engine,
-      `_flamegraph_filtered_${uuid}_index`,
-      `_flamegraph_filtered_${uuid}(parentId)`,
-    ),
+      name: `_flamegraph_filtered_${uuid}_index`,
+      on: `_flamegraph_filtered_${uuid}(parentId)`,
+    }),
   );
   disposable.use(
-    await createPerfettoTable(
+    await createPerfettoTable({
       engine,
-      `_flamegraph_accumulated_${uuid}`,
-      `
+      name: `_flamegraph_accumulated_${uuid}`,
+      as: `
         select *
         from _viz_flamegraph_accumulate!(
           _flamegraph_filtered_${uuid},
           ${showStackBits}
         )
       `,
-    ),
+    }),
   );
   disposable.use(
-    await createPerfettoTable(
+    await createPerfettoTable({
       engine,
-      `_flamegraph_hash_${uuid}`,
-      `
+      name: `_flamegraph_hash_${uuid}`,
+      as: `
         select *
         from _viz_flamegraph_downwards_hash!(
           _flamegraph_source_${uuid},
@@ -384,13 +384,13 @@ async function computeFlamegraphTree(
         )
         order by hash
       `,
-    ),
+    }),
   );
   disposable.use(
-    await createPerfettoTable(
+    await createPerfettoTable({
       engine,
-      `_flamegraph_merged_${uuid}`,
-      `
+      name: `_flamegraph_merged_${uuid}`,
+      as: `
         select *
         from _viz_flamegraph_merge_hashes!(
           _flamegraph_hash_${uuid},
@@ -398,26 +398,26 @@ async function computeFlamegraphTree(
           ${computeGroupedAggExprs(agg)}
         )
       `,
-    ),
+    }),
   );
   disposable.use(
-    await createPerfettoIndex(
+    await createPerfettoIndex({
       engine,
-      `_flamegraph_merged_${uuid}_index`,
-      `_flamegraph_merged_${uuid}(parentId)`,
-    ),
+      name: `_flamegraph_merged_${uuid}_index`,
+      on: `_flamegraph_merged_${uuid}(parentId)`,
+    }),
   );
   disposable.use(
-    await createPerfettoTable(
+    await createPerfettoTable({
       engine,
-      `_flamegraph_layout_${uuid}`,
-      `
+      name: `_flamegraph_layout_${uuid}`,
+      as: `
         select *
         from _viz_flamegraph_local_layout!(
           _flamegraph_merged_${uuid}
         );
       `,
-    ),
+    }),
   );
   const res = await engine.query(`
     select *
