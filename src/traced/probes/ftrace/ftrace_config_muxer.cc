@@ -441,10 +441,8 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
     // Update only in case of PidList based on assumption that
     // TrackAllPids is the default state of device to minimize the number of
     // unnecessary kernel calls.
-    if (std::holds_alternative<PidList>(current_state_.trace_pid_filter)) {
-      needs_pid_filter_update = true;
-      needs_event_fork_update = true;
-    }
+    needs_pid_filter_update = needs_event_fork_update =
+        std::holds_alternative<PidList>(current_state_.trace_pid_filter);
   } else {
     // 1) If current_state_.trace_pid_filter is TrackAllPids, any new request
     // won't change the PID filter.
@@ -460,6 +458,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
                      &current_pids);
         needs_pid_filter_update = num_pids_before_union != current_pids.size();
         // Set event fork if requested by new config and not already enabled.
+        // If already enabled, continue with it to align with union policy.
         if (!current_state_.event_fork_enabled && requested_event_fork) {
           current_state_.event_fork_enabled = true;
           needs_event_fork_update = true;
