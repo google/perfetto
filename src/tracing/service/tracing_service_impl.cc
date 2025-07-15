@@ -353,6 +353,7 @@ TracingServiceImpl::TracingServiceImpl(
     : clock_(std::move(deps.clock)),
       random_(std::move(deps.random)),
       init_opts_(init_opts),
+      machine_name_(init_opts.machine_name),
       shm_factory_(std::move(shm_factory)),
       uid_(base::GetCurrentUserId()),
       buffer_ids_(kMaxTraceBufferID),
@@ -3044,6 +3045,20 @@ bool TracingServiceImpl::IsInitiatorPrivileged(
   return false;
 }
 
+std::optional<std::string> TracingServiceImpl::GetMachineName(
+    MachineID machine_id) {
+  if (machine_id == kDefaultMachineID) {
+    return machine_name_;
+  }
+  auto relay_client = std::find_if(
+      relay_clients_.begin(), relay_clients_.end(), [&](const auto& client) {
+        return client.second->machine_id() == machine_id;
+      });
+  return relay_client != relay_clients_.end()
+             ? std::optional{relay_client->second->machine_name()}
+             : std::nullopt;
+}
+
 TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
     const TraceConfig::DataSource& cfg_data_source,
     const TraceConfig::ProducerConfig& producer_config,
@@ -3057,6 +3072,23 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
   if (lockdown_mode_ && producer->uid() != uid_) {
     PERFETTO_DLOG("Lockdown mode: not enabling producer %hu", producer->id_);
     return nullptr;
+  }
+  if (cfg_data_source.has_machine_filter()) {
+    auto machine_id = producer->client_identity().machine_id();
+    auto machine_name = GetMachineName(machine_id);
+    if (!machine_name.has_value()) {
+      PERFETTO_ELOG("Data source: unable to find machine name");
+      return nullptr;
+    }
+    auto cfg_machine_names = cfg_data_source.machine_filter().machine_names();
+    if (!NameMatchesFilter(*machine_name, cfg_machine_names, {}) &&
+        !(machine_id == kDefaultMachineID &&
+          NameMatchesFilter("host", cfg_machine_names, {}))) {
+      PERFETTO_DLOG("Data source: %s is filtered out for machine: %s",
+                    cfg_data_source.config().name().c_str(),
+                    machine_name->c_str());
+      return nullptr;
+    }
   }
   // TODO(primiano): Add tests for registration ordering (data sources vs
   // consumers).

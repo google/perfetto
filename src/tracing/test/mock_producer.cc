@@ -71,14 +71,15 @@ void MockProducer::Connect(TracingService* svc,
                            const std::string& producer_name,
                            uid_t uid,
                            pid_t pid,
+                           MachineID machine_id,
                            size_t shared_memory_size_hint_bytes,
                            size_t shared_memory_page_size_hint_bytes,
                            std::unique_ptr<SharedMemory> shm,
                            bool in_process) {
   producer_name_ = producer_name;
   service_endpoint_ =
-      svc->ConnectProducer(this, ClientIdentity(uid, pid), producer_name,
-                           shared_memory_size_hint_bytes,
+      svc->ConnectProducer(this, ClientIdentity(uid, pid, machine_id),
+                           producer_name, shared_memory_size_hint_bytes,
                            /*in_process=*/in_process,
                            TracingService::ProducerSMBScrapingMode::kDefault,
                            shared_memory_page_size_hint_bytes, std::move(shm));

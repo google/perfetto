@@ -67,7 +67,8 @@ void RelayIPCService::InitRelay(const protos::gen::InitRelayRequest& req,
     relay_endpoints_.Insert(client_id, std::move(ep));
   }
 
-  endpoint->CacheSystemInfo(req.system_info().SerializeAsArray());
+  endpoint->CacheSystemInfo(req.machine_name(),
+                            req.system_info().SerializeAsArray());
 }
 
 void RelayIPCService::SyncClock(const protos::gen::SyncClockRequest& req,

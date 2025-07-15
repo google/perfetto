@@ -37,6 +37,7 @@ service RelayPort {
 
 message InitRelayRequest {
   optional SystemInfo system_info = 1;
+  optional string machine_name = 2;
 }
 
 message InitRelayResponse {}

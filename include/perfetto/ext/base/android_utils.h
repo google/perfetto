@@ -58,8 +58,14 @@ struct SystemInfo {
   std::string android_serial_console;
 };
 
+// Returns the device's utsname information.
+Utsname GetUtsname();
+
 // Returns the device's system information.
 SystemInfo GetSystemInfo();
+
+// Returns the machine name.
+std::string GetMachineName();
 
 }  // namespace base
 }  // namespace perfetto

@@ -1536,6 +1536,179 @@ TEST_F(TracingServiceImplTest, LockdownMode) {
   consumer->WaitForTracingDisabled();
 }
 
+TEST_F(TracingServiceImplTest, MachineNameFilter) {
+  auto relay_client2 = svc->ConnectRelayClient(
+      std::make_pair<uint32_t, uint64_t>(/*base::MachineID=*/1234, 1));
+
+  relay_client2->CacheSystemInfo("machine2", {});
+
+  auto relay_client3 = svc->ConnectRelayClient(
+      std::make_pair<uint32_t, uint64_t>(/*base::MachineID=*/5678, 2));
+
+  relay_client3->CacheSystemInfo("machine3", {});
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer1 = CreateMockProducer();
+  producer1->Connect(svc.get(), "mock_producer_1");
+  producer1->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
+  producer2->Connect(svc.get(), "mock_producer_2", /*uid=*/42, /*pid=*/1025,
+                     /*machine_id=*/1234);
+  producer2->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer3 = CreateMockProducer();
+  producer3->Connect(svc.get(), "mock_producer_3", /*uid=*/42, /*pid=*/1025,
+                     /*machine_id=*/5678);
+  producer3->RegisterDataSource("data_source");
+  producer3->RegisterDataSource("unused_data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* data_source = trace_config.add_data_sources();
+  data_source->mutable_config()->set_name("data_source");
+  auto* machine_filter = data_source->mutable_machine_filter();
+  *machine_filter->add_machine_names() = "host";
+
+  // Enable tracing with only mock_producer_1 enabled;
+  // the rest should not start up.
+  consumer->EnableTracing(trace_config);
+
+  producer1->WaitForTracingSetup();
+  producer1->WaitForDataSourceSetup("data_source");
+  producer1->WaitForDataSourceStart("data_source");
+
+  EXPECT_CALL(*producer2, OnConnect()).Times(0);
+  EXPECT_CALL(*producer3, OnConnect()).Times(0);
+  task_runner.RunUntilIdle();
+  Mock::VerifyAndClearExpectations(producer2.get());
+  Mock::VerifyAndClearExpectations(producer3.get());
+
+  consumer->DisableTracing();
+  consumer->FreeBuffers();
+  producer1->WaitForDataSourceStop("data_source");
+
+  consumer->WaitForTracingDisabled();
+
+  task_runner.RunUntilIdle();
+}
+
+TEST_F(TracingServiceImplTest, MachineNameFilterWithTwoMachines) {
+  auto relay_client2 = svc->ConnectRelayClient(
+      std::make_pair<uint32_t, uint64_t>(/*base::MachineID=*/1234, 1));
+
+  relay_client2->CacheSystemInfo("machine2", {});
+
+  auto relay_client3 = svc->ConnectRelayClient(
+      std::make_pair<uint32_t, uint64_t>(/*base::MachineID=*/5678, 2));
+
+  relay_client3->CacheSystemInfo("machine3", {});
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer1 = CreateMockProducer();
+  producer1->Connect(svc.get(), "mock_producer_1");
+  producer1->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
+  producer2->Connect(svc.get(), "mock_producer_2", /*uid=*/42, /*pid=*/1025,
+                     /*machine_id=*/1234);
+  producer2->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer3 = CreateMockProducer();
+  producer3->Connect(svc.get(), "mock_producer_3", /*uid=*/42, /*pid=*/1025,
+                     /*machine_id=*/5678);
+  producer3->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* data_source = trace_config.add_data_sources();
+  data_source->mutable_config()->set_name("data_source");
+  auto* machine_filter = data_source->mutable_machine_filter();
+  *machine_filter->add_machine_names() = "host";
+  *machine_filter->add_machine_names() = "machine2";
+
+  // Enable tracing with only mock_producer_1 enabled;
+  // the rest should not start up.
+  consumer->EnableTracing(trace_config);
+
+  producer1->WaitForTracingSetup();
+  producer1->WaitForDataSourceSetup("data_source");
+
+  producer2->WaitForTracingSetup();
+  producer2->WaitForDataSourceSetup("data_source");
+
+  producer1->WaitForDataSourceStart("data_source");
+  producer2->WaitForDataSourceStart("data_source");
+
+  EXPECT_CALL(*producer3, OnConnect()).Times(0);
+  task_runner.RunUntilIdle();
+  Mock::VerifyAndClearExpectations(producer2.get());
+  Mock::VerifyAndClearExpectations(producer3.get());
+
+  consumer->DisableTracing();
+  consumer->FreeBuffers();
+  producer1->WaitForDataSourceStop("data_source");
+  producer2->WaitForDataSourceStop("data_source");
+
+  consumer->WaitForTracingDisabled();
+
+  task_runner.RunUntilIdle();
+}
+
+TEST_F(TracingServiceImplTest, MachineNameFilterWithExternalMachineName) {
+  TracingService::InitOpts init_opts;
+  init_opts.machine_name = "machine1";
+  InitializeSvcWithOpts(init_opts);
+
+  auto relay_client2 = svc->ConnectRelayClient(
+      std::make_pair<uint32_t, uint64_t>(/*base::MachineID=*/1234, 1));
+
+  relay_client2->CacheSystemInfo("machine2", {});
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer1 = CreateMockProducer();
+  producer1->Connect(svc.get(), "mock_producer_1");
+  producer1->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
+  producer2->Connect(svc.get(), "mock_producer_2", /*uid=*/42, /*pid=*/1025,
+                     /*machine_id=*/1234);
+  producer2->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* data_source = trace_config.add_data_sources();
+  data_source->mutable_config()->set_name("data_source");
+  auto* machine_filter = data_source->mutable_machine_filter();
+  *machine_filter->add_machine_names() = "machine1";
+
+  // Enable tracing with only mock_producer_1 enabled;
+  // the rest should not start up.
+  consumer->EnableTracing(trace_config);
+
+  producer1->WaitForTracingSetup();
+  producer1->WaitForDataSourceSetup("data_source");
+  producer1->WaitForDataSourceStart("data_source");
+
+  EXPECT_CALL(*producer2, OnConnect()).Times(0);
+  task_runner.RunUntilIdle();
+  Mock::VerifyAndClearExpectations(producer2.get());
+
+  consumer->DisableTracing();
+  consumer->FreeBuffers();
+  producer1->WaitForDataSourceStop("data_source");
+
+  consumer->WaitForTracingDisabled();
+
+  task_runner.RunUntilIdle();
+}
+
 TEST_F(TracingServiceImplTest, ProducerNameFilterChange) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
@@ -2232,7 +2405,8 @@ TEST_F(TracingServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
     auto name = "mock_producer_" + std::to_string(i);
     producer[i] = CreateMockProducer();
     producer[i]->Connect(svc.get(), name, base::GetCurrentUserId(),
-                         base::GetProcessId(), kSizes[i].hint_size_kb * 1024,
+                         base::GetProcessId(), kDefaultMachineID,
+                         kSizes[i].hint_size_kb * 1024,
                          kSizes[i].hint_page_size_kb * 1024);
     producer[i]->RegisterDataSource("data_source");
   }
@@ -3261,8 +3435,8 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnProducerDisconnect) {
 
   // Service should adopt the SMB provided by the producer.
   producer->Connect(svc.get(), "mock_producer", /*uid=*/42, /*pid=*/1025,
-                    /*shared_memory_size_hint_bytes=*/0, kShmPageSizeBytes,
-                    TestRefSharedMemory::Create(shm.get()),
+                    kDefaultMachineID, /*shared_memory_size_hint_bytes=*/0,
+                    kShmPageSizeBytes, TestRefSharedMemory::Create(shm.get()),
                     /*in_process=*/false);
 
   producer->RegisterDataSource("data_source");
@@ -3390,7 +3564,8 @@ class TracingServiceImplScrapingWithSmbTest : public TracingServiceImplTest {
 
     // Service should adopt the SMB provided by the producer.
     producer_->Connect(svc.get(), "mock_producer", /*uid=*/42, /*pid=*/1025,
-                       /*shared_memory_size_hint_bytes=*/0, kShmPageSizeBytes,
+                       kDefaultMachineID, /*shared_memory_size_hint_bytes=*/0,
+                       kShmPageSizeBytes,
                        TestRefSharedMemory::Create(shm_.get()),
                        /*in_process=*/false);
 
@@ -4654,8 +4829,8 @@ TEST_F(TracingServiceImplTest, ProducerProvidedSMB) {
 
   // Service should adopt the SMB provided by the producer.
   producer->Connect(svc.get(), "mock_producer", /*uid=*/42, /*pid=*/1025,
-                    /*shared_memory_size_hint_bytes=*/0, kShmPageSizeBytes,
-                    std::move(shm));
+                    kDefaultMachineID, /*shared_memory_size_hint_bytes=*/0,
+                    kShmPageSizeBytes, std::move(shm));
   EXPECT_TRUE(producer->endpoint()->IsShmemProvidedByProducer());
   EXPECT_NE(producer->endpoint()->MaybeSharedMemoryArbiter(), nullptr);
   EXPECT_EQ(producer->endpoint()->shared_memory(), shm_raw);
@@ -4709,8 +4884,8 @@ TEST_F(TracingServiceImplTest, ProducerProvidedSMBInvalidSizes) {
   // Service should not adopt the SMB provided by the producer, because the SMB
   // size isn't a multiple of the page size.
   producer->Connect(svc.get(), "mock_producer", /*uid=*/42, /*pid=*/1025,
-                    /*shared_memory_size_hint_bytes=*/0, kShmPageSizeBytes,
-                    std::move(shm));
+                    kDefaultMachineID, /*shared_memory_size_hint_bytes=*/0,
+                    kShmPageSizeBytes, std::move(shm));
   EXPECT_FALSE(producer->endpoint()->IsShmemProvidedByProducer());
   EXPECT_EQ(producer->endpoint()->shared_memory(), nullptr);
 }
