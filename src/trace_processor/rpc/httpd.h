@@ -25,24 +25,21 @@ namespace perfetto::trace_processor {
 
 class TraceProcessor;
 
-struct HttpRPCServerOptions {
-  // listen_ip is the ip address which http server will listen on, it can be an
-  // ipv4 or an ipv6 or a domain.
-  std::string listen_ip;
-  // port_number is the port which http server will listen on.
-  std::string port_number;
-  // Additional origins to allow for CORS requests.
-  std::vector<std::string> additional_cors_origins;
-};
-
 // Starts a RPC server that handles requests using protobuf-over-HTTP.
 // It takes control of the calling thread and does not return.
 // preloaded_instance is optional. If non-null, the HTTP server will adopt
 // an existing instance with a pre-loaded trace. If null, it will create a new
 // instance when pushing data into the /parse endpoint.
+// listen_ip is the ip address which http server will listen on,
+// it can be an ipv4 or an ipv6 or a domain.
+// port_number is the port which http server will listen on.
+// additional_cors_origins is a list of origins to allow for CORS requests, in
+// addition to the default origins defined in httpd.cc.
 void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance,
                       bool is_preloaded_eof,
-                      const HttpRPCServerOptions& options);
+                      const std::string& listen_ip,
+                      const std::string& port_number,
+                      const std::vector<std::string>& additional_cors_origins);
 
 }  // namespace perfetto::trace_processor
 

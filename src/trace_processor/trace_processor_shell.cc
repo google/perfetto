@@ -2022,10 +2022,11 @@ base::Status TraceProcessorMain(int argc, char** argv) {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
     RunHttpRPCServer(
-        std::move(tp), !options.trace_file_path.empty(),
-        {.listen_ip = options.listen_ip,
-         .port_number = options.port_number,
-         .additional_cors_origins = options.additional_cors_origins});
+        /*preloaded_instance=*/std::move(tp),
+        /*is_preloaded_eof=*/!options.trace_file_path.empty(),
+        /*listen_ip=*/options.listen_ip,
+        /*port_number=*/options.port_number,
+        /*additional_cors_origins=*/options.additional_cors_origins);
     PERFETTO_FATAL("Should never return");
 #else
     PERFETTO_FATAL("HTTP not available");

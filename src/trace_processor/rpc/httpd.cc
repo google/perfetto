@@ -275,12 +275,14 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
 
 void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance,
                       bool is_preloaded_eof,
-                      const HttpRPCServerOptions& options) {
+                      const std::string& listen_ip,
+                      const std::string& port_number,
+                      const std::vector<std::string>& additional_cors_origins) {
   Httpd srv(std::move(preloaded_instance), is_preloaded_eof);
-  std::optional<int> port_opt = base::StringToInt32(options.port_number);
-  std::string ip = options.listen_ip.empty() ? "localhost" : options.listen_ip;
+  std::optional<int> port_opt = base::StringToInt32(port_number);
+  std::string ip = listen_ip.empty() ? "localhost" : listen_ip;
   int port = port_opt.has_value() ? *port_opt : kBindPort;
-  srv.Run(ip, port, options.additional_cors_origins);
+  srv.Run(ip, port, additional_cors_origins);
 }
 
 void Httpd::ServeHelpPage(const base::HttpRequest& req) {
