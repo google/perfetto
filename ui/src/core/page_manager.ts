@@ -15,27 +15,33 @@
 import m from 'mithril';
 import {assertExists, assertTrue} from '../base/logging';
 import {Registry} from '../base/registry';
-import {PageHandler} from '../public/page';
+import {PageHandler, PageRenderContext} from '../public/page';
+import {Trace} from '../public/trace';
 import {Router} from './router';
 import {Gate} from '../base/mithril_utils';
+import {createProxy} from '../base/utils';
 
 export class PageManagerImpl {
-  private readonly registry = new Registry<PageHandler>((x) => x.route);
+  private readonly registry: Registry<PageHandler>;
   private readonly previousPages = new Map<
     string,
     {page: string; subpage: string}
   >();
+
+  constructor(parentRegistry?: Registry<PageHandler>) {
+    this.registry = parentRegistry ? parentRegistry.createChild() : new Registry<PageHandler>((x) => x.route);
+  }
 
   registerPage(pageHandler: PageHandler): Disposable {
     assertTrue(/^\/\w*$/.exec(pageHandler.route) !== null);
     // The pluginId is injected by the proxy in AppImpl / TraceImpl. If this is
     // undefined somebody (tests) managed to call this method without proxy.
     assertExists(pageHandler.pluginId);
-    return this.registry.register(pageHandler);
+    return this.registry.register(adapt(pageHandler));
   }
 
   // Called by index.ts upon the main frame redraw callback.
-  renderPageForCurrentRoute(): m.Children {
+  renderPageForCurrentRoute(trace?: Trace): m.Children {
     const route = Router.parseFragment(location.hash);
     this.previousPages.set(route.page, {
       page: route.page,
@@ -49,11 +55,11 @@ export class PageManagerImpl {
     // such as the timeline page.
     return Array.from(this.previousPages.entries())
       .map(([key, {page, subpage}]) => {
-        const maybeRenderedPage = this.renderPageForRoute(page, subpage);
+        const maybeRenderedPage = this.renderPageForRoute(page, subpage, trace);
         // If either the route doesn't exist or requires a trace but the trace
         // is not loaded, fall back on the default route.
         const renderedPage =
-          maybeRenderedPage ?? assertExists(this.renderPageForRoute('/', ''));
+          maybeRenderedPage ?? assertExists(this.renderPageForRoute('/', '', trace));
         return [key, renderedPage];
       })
       .map(([key, page]) => {
@@ -63,11 +69,28 @@ export class PageManagerImpl {
 
   // Will return undefined if either: (1) the route does not exist; (2) the
   // route exists, it requires a trace, but there is no trace loaded.
-  private renderPageForRoute(page: string, subpage: string) {
+  private renderPageForRoute(page: string, subpage: string, trace?: Trace) {
     const handler = this.registry.tryGet(page);
     if (handler === undefined) {
       return undefined;
     }
-    return handler.render(subpage);
+    // Our adapter ensures the existence of this method
+    return handler.renderPage!({subpage, trace});
   }
+
+  /**
+   * Create a subordinate page manager, as for trace-scoped pages.
+   */
+  createChild(): PageManagerImpl {
+    return new PageManagerImpl(this.registry);
+  }
+}
+
+// Proxy a page handler to ensure that it provides the modern renderPage() API.
+function adapt(pageHandler: PageHandler): PageHandler {
+  return createProxy(pageHandler, {
+    renderPage(ctx: PageRenderContext): m.Children {
+      return pageHandler.renderPage?.(ctx) ?? pageHandler.render?.(ctx.subpage);
+    },
+  });
 }

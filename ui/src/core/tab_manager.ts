@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {DisposableStack} from '../base/disposable_stack';
+import {Registry} from '../base/registry';
 import {DetailsPanel} from '../public/details_panel';
 import {TabDescriptor, TabManager} from '../public/tab';
 import {
@@ -31,7 +33,8 @@ export type TabPanelVisibility = 'COLLAPSED' | 'VISIBLE' | 'FULLSCREEN';
  * Keeps track of tab lifecycles.
  */
 export class TabManagerImpl implements TabManager, Disposable {
-  private _registry = new Map<string, TabDescriptor>();
+  private _registry = new Registry<TabDescriptor>((tab) => tab.uri);
+  private _ephemeralTabRegistrations = new Map<string, Disposable>();
   private _defaultTabs = new Set<string>();
   private _detailsPanelRegistry = new Set<DetailsPanel>();
   private _instantiatedTabs = new Map<string, TabDescriptor>();
@@ -49,10 +52,29 @@ export class TabManagerImpl implements TabManager, Disposable {
   }
 
   registerTab(desc: TabDescriptor): Disposable {
-    this._registry.set(desc.uri, desc);
-    return {
-      [Symbol.dispose]: () => this._registry.delete(desc.uri),
-    };
+    const extant = this._registry.tryGet(desc.uri);
+
+    if (extant === desc) {
+      // Already registered. Only the original caller can unregister
+      return {
+        [Symbol.dispose]: () => undefined,
+      };
+    }
+
+    if (extant !== undefined) {
+      // A different instance was registered. Dispose current tab to account for ephemerality
+      this.disposeTab(extant);
+    }
+
+    let result = this._registry.register(desc);
+    if (desc.isEphemeral) {
+      this._ephemeralTabRegistrations.set(desc.uri, result);
+      const andEphemeral = new DisposableStack();
+      andEphemeral.use(result);
+      andEphemeral.defer(() => this._ephemeralTabRegistrations.delete(desc.uri));
+      result = andEphemeral;
+    }
+    return result;
   }
 
   addDefaultTab(uri: string): Disposable {
@@ -221,8 +243,10 @@ export class TabManagerImpl implements TabManager, Disposable {
     tab.onHide?.();
 
     // If ephemeral, also unregister the tab
-    if (tab.isEphemeral) {
-      this._registry.delete(tab.uri);
+    const ephemeralRegistration = this._ephemeralTabRegistrations.get(tab.uri);
+    if (ephemeralRegistration) {
+      this._ephemeralTabRegistrations.delete(tab.uri);
+      ephemeralRegistration[Symbol.dispose]();
     }
   }
 }

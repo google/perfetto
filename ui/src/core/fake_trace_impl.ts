@@ -105,7 +105,10 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
     cached: false,
     downloadable: false,
   };
-  AppImpl.instance.closeCurrentTrace();
+  const active = AppImpl.instance.trace;
+  if (active) {
+    AppImpl.instance.closeTrace(active);
+  }
   const trace = TraceImpl.createInstanceForCore(
     AppImpl.instance,
     new FakeEngine(args.allowQueries ?? false),

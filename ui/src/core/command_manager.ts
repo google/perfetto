@@ -66,8 +66,21 @@ export interface CommandWithMatchInfo extends Command {
 }
 
 export class CommandManagerImpl implements CommandManager {
-  private readonly registry = new Registry<Command>((cmd) => cmd.id);
+  private readonly registry: Registry<Command>;
   private allowlistCheckFn: (id: string) => boolean = () => true;
+
+  constructor(parentRegistry?: Registry<Command>) {
+    this.registry = parentRegistry
+      ? parentRegistry.createChild()
+      : new Registry<Command>((cmd) => cmd.id);
+  }
+
+  /**
+   * Create a subordinate command manager, as for trace-scoped commands.
+   */
+  createChild(): CommandManagerImpl {
+    return new CommandManagerImpl(this.registry);
+  }
 
   getCommand(commandId: string): Command {
     return this.registry.get(commandId);

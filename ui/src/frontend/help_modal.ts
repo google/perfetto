@@ -79,6 +79,7 @@ class KeyMappingsHelp implements m.ClassComponent {
   }
 
   view(): m.Children {
+    const app = AppImpl.instance.trace ?? AppImpl.instance;
     return m(
       '.pf-help-modal',
       m('h2', 'Navigation'),
@@ -158,7 +159,7 @@ class KeyMappingsHelp implements m.ClassComponent {
       m('h2', 'Command Hotkeys'),
       m(
         'table',
-        AppImpl.instance.commands.commands
+        app.commands.commands
           .filter(({defaultHotkey}) => defaultHotkey)
           .sort((a, b) => a.name.localeCompare(b.name))
           .map(({defaultHotkey, name}) => {

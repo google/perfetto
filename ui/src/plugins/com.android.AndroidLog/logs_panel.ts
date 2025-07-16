@@ -57,6 +57,8 @@ export interface LogPanelAttrs {
   cache: LogPanelCache;
   filterStore: Store<LogFilteringCriteria>;
   trace: Trace;
+  /** An async limiter to use to run complex async queries atomically.  */
+  queryLimiter: AsyncLimiter;
 }
 
 interface Pagination {
@@ -88,10 +90,11 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
   };
   private readonly rowsMonitor: Monitor;
   private readonly filterMonitor: Monitor;
-  private readonly queryLimiter = new AsyncLimiter();
+  private readonly queryLimiter: AsyncLimiter;
 
   constructor({attrs}: m.CVnode<LogPanelAttrs>) {
     this.trace = attrs.trace;
+    this.queryLimiter = attrs.queryLimiter;
     this.rowsMonitor = new Monitor([
       () => attrs.filterStore.state,
       () => attrs.trace.timeline.visibleWindow.toTimeSpan().start,

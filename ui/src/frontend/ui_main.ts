@@ -23,7 +23,7 @@ import {AppImpl} from '../core/app_impl';
 import {CookieConsent} from '../core/cookie_consent';
 import {featureFlags} from '../core/feature_flags';
 import {OmniboxMode} from '../core/omnibox_manager';
-import {TraceImpl} from '../core/trace_impl';
+import {OptionalTraceImplAttrs, TraceImpl} from '../core/trace_impl';
 import {Command} from '../public/command';
 import {Button} from '../widgets/button';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
@@ -58,9 +58,11 @@ export class UiMain implements m.ClassComponent {
   }
 }
 
+export interface UiMainPerTraceAttrs extends OptionalTraceImplAttrs {}
+
 // This components gets destroyed and recreated every time the current trace
 // changes. Note that in the beginning the current trace is undefined.
-export class UiMainPerTrace implements m.ClassComponent {
+export class UiMainPerTrace implements m.ClassComponent<UiMainPerTraceAttrs> {
   // NOTE: this should NOT need to be an AsyncDisposableStack. If you feel the
   // need of making it async because you want to clean up SQL resources, that
   // will cause bugs (see comments in oncreate()).
@@ -70,9 +72,8 @@ export class UiMainPerTrace implements m.ClassComponent {
   private trace?: TraceImpl;
 
   // This function is invoked once per trace.
-  constructor() {
-    const app = AppImpl.instance;
-    const trace = app.trace;
+  constructor({attrs}: m.Vnode<UiMainPerTraceAttrs>) {
+    const trace = attrs.trace ?? AppImpl.instance.trace;
     this.trace = trace;
 
     // Register global commands (commands that are useful even without a trace
@@ -81,7 +82,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       {
         id: 'dev.perfetto.OpenCommandPalette',
         name: 'Open command palette',
-        callback: () => app.omnibox.setMode(OmniboxMode.Command),
+        callback: () => AppImpl.instance.omnibox.setMode(OmniboxMode.Command),
         defaultHotkey: '!Mod+Shift+P',
       },
 
@@ -93,7 +94,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       },
     ];
     globalCmds.forEach((cmd) => {
-      this.trash.use(app.commands.registerCommand(cmd));
+      this.trash.use(this.preferredApp.commands.registerCommand(cmd));
     });
 
     // When the UI loads there is no trace. There is no point registering
@@ -173,7 +174,8 @@ export class UiMainPerTrace implements m.ClassComponent {
 
   renderCommandOmnibox(): m.Children {
     // Fuzzy-filter commands by the filter string.
-    const {commands, omnibox} = AppImpl.instance;
+    const {omnibox} = AppImpl.instance;
+    const commands = this.preferredApp.commands;
     const filteredCmds = commands.fuzzyFilterCommands(omnibox.text);
 
     // Create an array of commands with attached heuristics from the recent
@@ -352,10 +354,14 @@ export class UiMainPerTrace implements m.ClassComponent {
     this.maybeFocusOmnibar();
   }
 
+  private get preferredApp(): AppImpl | TraceImpl {
+    return this.trace ?? AppImpl.instance;
+  }
+
   view(): m.Children {
     const app = AppImpl.instance;
     const isSomethingLoading =
-      AppImpl.instance.isLoadingTrace ||
+      (this.trace && app.isTraceLoading(this.trace.traceInfo.source)) ||
       (this.trace?.engine.numRequestsPending ?? 0) > 0 ||
       taskTracker.hasPendingTasks();
 
@@ -369,11 +375,14 @@ export class UiMainPerTrace implements m.ClassComponent {
         className: 'pf-ui-main__loading',
         state: isSomethingLoading ? 'indeterminate' : 'none',
       }),
-      m('.pf-ui-main__page-container', app.pages.renderPageForCurrentRoute()),
+      m(
+        '.pf-ui-main__page-container',
+        this.preferredApp.pages.renderPageForCurrentRoute(this.trace),
+      ),
       m(CookieConsent),
       maybeRenderFullscreenModalDialog(),
-      showStatusBarFlag.get() && renderStatusBar(app.trace),
-      app.perfDebugging.renderPerfStats(),
+      showStatusBarFlag.get() && renderStatusBar(this.trace),
+      this.preferredApp.perfDebugging.renderPerfStats(),
     ]);
   }
 
@@ -407,7 +416,7 @@ export class UiMainPerTrace implements m.ClassComponent {
   }
 
   private maybeFocusOmnibar() {
-    if (AppImpl.instance.omnibox.focusOmniboxNextRender) {
+    if (AppImpl.instance.omnibox.focusOmniboxNextRender && this.trace === AppImpl.instance.trace) {
       const omniboxEl = this.omniboxInputEl;
       if (omniboxEl) {
         omniboxEl.focus();

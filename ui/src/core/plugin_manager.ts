@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertExists} from '../base/logging';
+import {assertExists, assertIsInstance} from '../base/logging';
 import {Registry} from '../base/registry';
 import {App} from '../public/app';
 import {
@@ -44,6 +44,14 @@ export interface PluginAppInterface {
   get trace(): TraceImpl | undefined;
 }
 
+export interface PluginTraceContext {
+  // The concrete plugin instance, created on trace load.
+  readonly instance: PerfettoPlugin;
+
+  // How long it took for the plugin's onTraceLoad() function to run.
+  readonly loadTimeMs: number;
+}
+
 // Contains information about a plugin.
 export interface PluginWrapper {
   // A reference to the plugin descriptor
@@ -73,20 +81,53 @@ export interface PluginWrapper {
 
   // If a trace has been loaded, this object stores the relevant trace-scoped
   // plugin data
-  traceContext?: {
-    // The concrete plugin instance, created on trace load.
-    readonly instance: PerfettoPlugin;
+  traceContext(trace: Trace): PluginTraceContext | undefined;
+}
 
-    // How long it took for the plugin's onTraceLoad() function to run.
-    readonly loadTimeMs: number;
-  };
+class PluginWrapperImpl implements PluginWrapper {
+  private _active?: boolean;
+
+  private readonly traceContexts = new Map<string, PluginTraceContext>();
+
+  constructor(readonly desc: PerfettoPluginStatic<PerfettoPlugin>, readonly enableFlag: Flag, readonly isCore: boolean) {}
+
+  get enabled(): boolean {
+    return this.enableFlag.get();
+  }
+
+  get active(): boolean | undefined {
+    return this._active;
+  }
+
+  activate(appInterface: PluginAppInterface): void {
+    if (this._active) return;
+          const app = appInterface.forkForPlugin(this.desc.id);
+      this.desc.onActivate?.(app);
+      this._active = true;
+  }
+
+  traceContext(trace: Trace): PluginTraceContext | undefined {
+    return this.traceContexts.get(trace.engine.engineId);
+  }
+
+  registerTrace(trace: Trace, ctx: PluginTraceContext): Disposable {
+    const id = trace.engine.engineId;
+    this.traceContexts.set(id, ctx);
+    return {
+      [Symbol.dispose]: () => this.traceContexts.delete(id),
+    };
+  }
 }
 
 export class PluginManagerImpl {
-  private readonly registry = new Registry<PluginWrapper>((x) => x.desc.id);
+  private readonly registry: Registry<PluginWrapper>;
   private orderedPlugins: Array<PluginWrapper> = [];
+  private readonly app: PluginAppInterface;
 
-  constructor(private readonly app: PluginAppInterface) {}
+  constructor(app: PluginAppInterface, parentRegistry?: Registry<PluginWrapper>) {
+    this.app = app;
+    this.registry = parentRegistry ? parentRegistry.createChild() : new Registry<PluginWrapper>((x) => x.desc.id);
+  }
 
   registerPlugin(desc: PerfettoPluginStatic<PerfettoPlugin>, isCore = false) {
     const flagId = `plugin_${desc.id}`;
@@ -97,12 +138,7 @@ export class PluginManagerImpl {
       description: `Overrides '${desc.id}' plugin.`,
       defaultValue: defaultPlugins.includes(desc.id),
     });
-    this.registry.register({
-      desc,
-      enableFlag: flag,
-      enabled: flag.get(),
-      isCore,
-    });
+    this.registry.register(new PluginWrapperImpl(desc, flag, isCore));
   }
 
   /**
@@ -118,12 +154,7 @@ export class PluginManagerImpl {
 
     this.orderedPlugins = this.sortPluginsTopologically(enabledPlugins);
 
-    this.orderedPlugins.forEach((p) => {
-      if (p.active) return;
-      const app = this.app.forkForPlugin(p.desc.id);
-      p.desc.onActivate?.(app);
-      p.active = true;
-    });
+    this.orderedPlugins.forEach((p) => assertIsInstance(p, PluginWrapperImpl).activate(this.app));
   }
 
   async onTraceLoad(
@@ -135,21 +166,20 @@ export class PluginManagerImpl {
     // Running in parallel will have very little performance benefit assuming
     // most plugins use the same engine, which can only process one query at a
     // time.
-    for (const p of this.orderedPlugins) {
-      if (p.active) {
+    for (const next of this.orderedPlugins) {
+      const p = assertIsInstance(next, PluginWrapperImpl);
+
+      if (p.active === true) {
         beforeEach?.(p.desc.id);
         const trace = traceCore.forkForPlugin(p.desc.id);
         const before = performance.now();
         const instance = makePlugin(p.desc, trace);
         await instance.onTraceLoad?.(trace);
         const loadTimeMs = performance.now() - before;
-        p.traceContext = {
+        traceCore.trash.use(p.registerTrace(trace, {
           instance,
           loadTimeMs,
-        };
-        traceCore.trash.defer(() => {
-          p.traceContext = undefined;
-        });
+        }));
       }
     }
   }
@@ -171,9 +201,11 @@ export class PluginManagerImpl {
 
   getPlugin<T extends PerfettoPlugin>(
     pluginDescriptor: PerfettoPluginStatic<T>,
+    trace?: Trace,
   ): T {
+    trace ??= this.app.trace;
     const plugin = this.registry.get(pluginDescriptor.id);
-    return assertExists(plugin.traceContext).instance as T;
+    return assertExists(plugin.traceContext(assertExists(trace))).instance as T;
   }
 
   isCorePlugin(pluginId: string): boolean {
@@ -224,5 +256,12 @@ export class PluginManagerImpl {
     plugins.forEach((p) => visit(p));
 
     return orderedPlugins;
+  }
+
+  /**
+   * Create a subordinate plug-in manager, as for trace-scoped plug-ins.
+   */
+  createChild(): PluginManagerImpl {
+    return new PluginManagerImpl(this.app, this.registry);
   }
 }
