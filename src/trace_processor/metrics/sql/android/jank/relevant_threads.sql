@@ -57,6 +57,14 @@ DROP TABLE IF EXISTS android_jank_cuj_sf_process;
 CREATE PERFETTO TABLE android_jank_cuj_sf_process AS
 SELECT * FROM _android_sf_process;
 
+DROP TABLE IF EXISTS android_jank_cuj_sf_main_thread;
+CREATE PERFETTO TABLE android_jank_cuj_sf_main_thread AS
+SELECT * FROM _android_sf_main_thread;
+
+CREATE OR REPLACE PERFETTO FUNCTION android_jank_cuj_sf_thread(thread_name STRING)
+RETURNS TABLE(upid INT, utid INT, name STRING, track_id INT) AS
+SELECT * FROM _android_sf_thread($thread_name);
+
 DROP TABLE IF EXISTS android_jank_cuj_sf_gpu_completion_thread;
 CREATE PERFETTO TABLE android_jank_cuj_sf_gpu_completion_thread AS
 SELECT * FROM _ANDROID_SF_THREAD('GPU completion');
