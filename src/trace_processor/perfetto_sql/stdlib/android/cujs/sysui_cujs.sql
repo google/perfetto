@@ -144,6 +144,7 @@ SELECT
   _extract_cuj_name_from_slice(cuj.cuj_slice_name) AS cuj_name,
   cuj.upid,
   cuj.process_name,
+  cie.layer_id AS cuj_layer_id,
   frame.layer_id,
   frame.layer_name,
   frame.frame_id,
