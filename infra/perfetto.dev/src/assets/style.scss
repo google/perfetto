@@ -546,10 +546,17 @@ h3 {
 .docs {
   min-height: 100vh;
   display: grid;
-  --nav-min-width: 240px;
-  --toc-min-width: 180px;
+  --nav-width: 240px;
+  --toc-width: 180px;
+  --toc-max-width: 320px;
 
-  grid-template-columns: minmax(var(--nav-min-width), 1fr) 5fr minmax(var(--toc-min-width), 1fr);
+  // 1665px is the clientWidth on a macbook pro. Adjust the layout so that
+  // the max-width of the central .doc fits precisely when the browser is
+  // full-screen on a macbook.
+  --max-doc-width: calc(1665px - var(--toc-width) - var(--nav-width));
+
+  grid-template-columns: var(--nav-width) minmax(auto, var(--max-doc-width)) minmax(var(
+      --toc-width), 1fr);
   grid-template-rows: 1fr max-content;
   grid-template-areas: "nav doc toc" "nav footer toc";
 
@@ -959,6 +966,7 @@ h3 {
   .toc {
     grid-area: toc;
     padding: 20px 16px 20px 0;
+    max-width: var(--toc-max-width);
 
     position: sticky;
     top: var(--site-header-height);
@@ -1003,7 +1011,7 @@ h3 {
   }
 
   @media #{$wide} {
-    grid-template-columns: var(--nav-min-width) auto 0;
+    grid-template-columns: var(--nav-width) auto 0;
     .toc {
       display: none;
     }
