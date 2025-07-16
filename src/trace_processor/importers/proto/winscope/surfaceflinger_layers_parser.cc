@@ -178,21 +178,23 @@ tables::SurfaceFlingerLayerTable::Id SurfaceFlingerLayersParser::InsertLayerRow(
         visibility,
     const std::unordered_map<int32_t, LayerDecoder>& layers_by_id,
     const surfaceflinger_layers::SurfaceFlingerRects& rects) {
+  auto* string_pool =
+      context_->trace_processor_context_->storage->mutable_string_pool();
+
   tables::SurfaceFlingerLayerTable::Row layer;
   layer.snapshot_id = snapshot_id;
-  layer.base64_proto_id =
-      context_->trace_processor_context_->storage->mutable_string_pool()
-          ->InternString(
-              base::StringView(base::Base64Encode(blob.data, blob.size)))
-          .raw_id();
+  layer.base64_proto_id = string_pool
+                              ->InternString(base::StringView(
+                                  base::Base64Encode(blob.data, blob.size)))
+                              .raw_id();
   LayerDecoder layer_decoder(blob);
   if (layer_decoder.has_id()) {
     layer.layer_id = layer_decoder.id();
   }
+
   if (layer_decoder.has_name()) {
     layer.layer_name =
-        context_->trace_processor_context_->storage->mutable_string_pool()
-            ->InternString(base::StringView(layer_decoder.name()));
+        string_pool->InternString(base::StringView(layer_decoder.name()));
   }
   if (layer_decoder.has_parent()) {
     layer.parent = layer_decoder.parent();

@@ -46,6 +46,8 @@ source_set("table_functions") {
     sources += [
       "winscope_proto_to_args_with_defaults.cc",
       "winscope_proto_to_args_with_defaults.h",
+      "winscope_surfaceflinger_hierarchy_paths.cc",
+      "winscope_surfaceflinger_hierarchy_paths.h",
     ]
   }
   deps = [
@@ -70,7 +72,11 @@ source_set("table_functions") {
     "../../engine",
   ]
   if (enable_perfetto_winscope) {
-    deps += [ "../../../util:winscope_proto_mapping" ]
+    deps += [
+      "../../../../../protos/perfetto/trace/android:winscope_regular_zero",
+      "../../../importers/proto/winscope:full",
+      "../../../util:winscope_proto_mapping",
+    ]
   }
   public_deps = [ ":interface" ]
 }
