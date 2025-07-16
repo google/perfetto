@@ -614,7 +614,7 @@ cc_library_shared {
         ":perfetto_src_traced_probes_filesystem_filesystem",
         ":perfetto_src_traced_probes_ftrace_format_parser_format_parser",
         ":perfetto_src_traced_probes_ftrace_ftrace",
-        ":perfetto_src_traced_probes_ftrace_ftrace_procfs",
+        ":perfetto_src_traced_probes_ftrace_tracefs",
         ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
         ":perfetto_src_traced_probes_metatrace_metatrace",
         ":perfetto_src_traced_probes_packages_list_packages_list",
@@ -1723,7 +1723,7 @@ cc_library_static {
         ":perfetto_src_traced_probes_filesystem_filesystem",
         ":perfetto_src_traced_probes_ftrace_format_parser_format_parser",
         ":perfetto_src_traced_probes_ftrace_ftrace",
-        ":perfetto_src_traced_probes_ftrace_ftrace_procfs",
+        ":perfetto_src_traced_probes_ftrace_tracefs",
         ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
         ":perfetto_src_traced_probes_metatrace_metatrace",
         ":perfetto_src_traced_probes_packages_list_packages_list",
@@ -2051,7 +2051,7 @@ cc_library_static {
         ":perfetto_src_traced_probes_filesystem_filesystem",
         ":perfetto_src_traced_probes_ftrace_format_parser_format_parser",
         ":perfetto_src_traced_probes_ftrace_ftrace",
-        ":perfetto_src_traced_probes_ftrace_ftrace_procfs",
+        ":perfetto_src_traced_probes_ftrace_tracefs",
         ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
         ":perfetto_src_traced_probes_metatrace_metatrace",
         ":perfetto_src_traced_probes_packages_list_packages_list",
@@ -2750,9 +2750,9 @@ cc_test {
         ":perfetto_src_traced_probes_filesystem_filesystem",
         ":perfetto_src_traced_probes_ftrace_format_parser_format_parser",
         ":perfetto_src_traced_probes_ftrace_ftrace",
-        ":perfetto_src_traced_probes_ftrace_ftrace_procfs",
         ":perfetto_src_traced_probes_ftrace_integrationtests",
         ":perfetto_src_traced_probes_ftrace_test_support",
+        ":perfetto_src_traced_probes_ftrace_tracefs",
         ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
         ":perfetto_src_traced_probes_metatrace_metatrace",
         ":perfetto_src_traced_probes_packages_list_packages_list",
@@ -14879,6 +14879,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/flamegraph_construction_algorithms.cc",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.cc",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_proto_to_args_with_defaults.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_surfaceflinger_hierarchy_paths.cc",
     ],
 }
 
@@ -15870,19 +15871,11 @@ filegroup {
     ],
 }
 
-// GN: //src/traced/probes/ftrace:ftrace_procfs
-filegroup {
-    name: "perfetto_src_traced_probes_ftrace_ftrace_procfs",
-    srcs: [
-        "src/traced/probes/ftrace/ftrace_procfs.cc",
-    ],
-}
-
 // GN: //src/traced/probes/ftrace:integrationtests
 filegroup {
     name: "perfetto_src_traced_probes_ftrace_integrationtests",
     srcs: [
-        "src/traced/probes/ftrace/ftrace_procfs_integrationtest.cc",
+        "src/traced/probes/ftrace/tracefs_integrationtest.cc",
     ],
 }
 
@@ -16024,6 +16017,14 @@ filegroup {
     ],
 }
 
+// GN: //src/traced/probes/ftrace:tracefs
+filegroup {
+    name: "perfetto_src_traced_probes_ftrace_tracefs",
+    srcs: [
+        "src/traced/probes/ftrace/tracefs.cc",
+    ],
+}
+
 // GN: //src/traced/probes/ftrace:unittests
 filegroup {
     name: "perfetto_src_traced_probes_ftrace_unittests",
@@ -16034,10 +16035,10 @@ filegroup {
         "src/traced/probes/ftrace/ftrace_config_muxer_unittest.cc",
         "src/traced/probes/ftrace/ftrace_controller_unittest.cc",
         "src/traced/probes/ftrace/ftrace_print_filter_unittest.cc",
-        "src/traced/probes/ftrace/ftrace_procfs_unittest.cc",
         "src/traced/probes/ftrace/predefined_tracepoints_unittest.cc",
         "src/traced/probes/ftrace/printk_formats_parser_unittest.cc",
         "src/traced/probes/ftrace/proto_translation_table_unittest.cc",
+        "src/traced/probes/ftrace/tracefs_unittest.cc",
         "src/traced/probes/ftrace/vendor_tracepoints_unittest.cc",
     ],
 }
@@ -17408,11 +17409,11 @@ cc_test {
         ":perfetto_src_traced_probes_ftrace_format_parser_format_parser",
         ":perfetto_src_traced_probes_ftrace_format_parser_unittests",
         ":perfetto_src_traced_probes_ftrace_ftrace",
-        ":perfetto_src_traced_probes_ftrace_ftrace_procfs",
         ":perfetto_src_traced_probes_ftrace_test_messages_cpp_gen",
         ":perfetto_src_traced_probes_ftrace_test_messages_lite_gen",
         ":perfetto_src_traced_probes_ftrace_test_messages_zero_gen",
         ":perfetto_src_traced_probes_ftrace_test_support",
+        ":perfetto_src_traced_probes_ftrace_tracefs",
         ":perfetto_src_traced_probes_ftrace_unittests",
         ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
         ":perfetto_src_traced_probes_initial_display_state_unittests",
@@ -17795,7 +17796,7 @@ cc_library_static {
         ":perfetto_src_traced_probes_filesystem_filesystem",
         ":perfetto_src_traced_probes_ftrace_format_parser_format_parser",
         ":perfetto_src_traced_probes_ftrace_ftrace",
-        ":perfetto_src_traced_probes_ftrace_ftrace_procfs",
+        ":perfetto_src_traced_probes_ftrace_tracefs",
         ":perfetto_src_traced_probes_initial_display_state_initial_display_state",
         ":perfetto_src_traced_probes_metatrace_metatrace",
         ":perfetto_src_traced_probes_packages_list_packages_list",
@@ -19186,7 +19187,7 @@ cc_binary {
         ":perfetto_src_protozero_filtering_message_filter",
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_protozero",
-        ":perfetto_src_traced_probes_ftrace_ftrace_procfs",
+        ":perfetto_src_traced_probes_ftrace_tracefs",
         ":perfetto_src_traced_probes_packages_list_packages_list_parser",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",

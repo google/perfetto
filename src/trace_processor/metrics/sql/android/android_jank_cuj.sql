@@ -74,59 +74,59 @@ expected_timeline_with_vsync AS (
   WHERE dur > 0
 ),
 frames_in_cuj AS (
-SELECT
-      frame.upid,
-      frame.layer_name AS frame_layer_name,
-      frame.frame_id,
-      actual_frame.display_frame_token,
-      cuj_id,
-      frame_ts,
-      (
-        frame_ts + frame.dur
-      ) AS ts_end,
-      jank_type,
-      on_time_finish,
-      sf_callback_missed,
-      hwui_callback_missed
-    FROM _android_frames_in_cuj frame
-    JOIN actual_timeline_with_vsync AS actual_frame
-      ON frame.frame_id = actual_frame.vsync
-    LEFT JOIN _vsync_missed_callback AS missed_callback USING(vsync)
-    WHERE
-      frame.cuj_layer_id IS NULL
-      OR (
-        actual_frame.layer_name GLOB '*#*'
-        AND frame.cuj_layer_id
-          = android_get_layer_id_from_name(actual_frame.layer_name)
-        AND frame.layer_id
-          = android_get_layer_id_from_name(actual_frame.layer_name))
-      )
   SELECT
-      ROW_NUMBER() OVER (PARTITION BY cuj_id ORDER BY frame_id ASC) AS frame_number,
-      cuj_id,
-      -- We use MAX to check if at least one of the layers jank_type matches the pattern
-      MAX(android_is_app_jank_type(jank_type)) AS app_missed,
-      -- We use MAX to check if at least one of the layers jank_type matches the pattern
-      MAX(android_is_sf_jank_type(jank_type)) AS sf_missed,
-      IFNULL(MAX(sf_callback_missed), 0) AS sf_callback_missed,
-      IFNULL(MAX(hwui_callback_missed), 0) AS hwui_callback_missed,
-      -- We use MIN to check if ALL layers finished on time
-      MIN(on_time_finish) AS on_time_finish,
-      frame_id,
-      frame_layer_name,
-      vsync_boundary.display_frame_token,
-      e.ts AS ts_expected,
-      -- In cases where we are drawing multiple layers, there will be  one
-      -- expected frame timeline slice, but multiple actual frame timeline slices.
-      -- As a simplification we just take here the min(ts) and max(ts_end) of
-      -- the actual frame timeline slices.
-      MIN(frame_ts) AS ts_actual_min,
-      MAX(ts_end) AS ts_end_actual_max,
-      COALESCE(MAX(e.dur), 16600000) AS dur_expected
-    FROM frames_in_cuj vsync_boundary
-    JOIN expected_timeline_with_vsync e
-      ON e.upid = vsync_boundary.upid  AND e.vsync = vsync_boundary.frame_id
-    GROUP BY cuj_id, e.vsync, e.ts;
+    frame.upid,
+    frame.layer_name AS frame_layer_name,
+    frame.frame_id,
+    actual_frame.display_frame_token,
+    cuj_id,
+    frame_ts,
+    (
+      frame_ts + frame.dur
+    ) AS ts_end,
+    jank_type,
+    on_time_finish,
+    sf_callback_missed,
+    hwui_callback_missed
+  FROM _android_frames_in_cuj frame
+  JOIN actual_timeline_with_vsync AS actual_frame
+    ON frame.frame_id = actual_frame.vsync
+  LEFT JOIN _vsync_missed_callback AS missed_callback USING(vsync)
+  WHERE
+    frame.cuj_layer_id IS NULL
+    OR (
+      actual_frame.layer_name GLOB '*#*'
+      AND frame.cuj_layer_id
+        = android_get_layer_id_from_name(actual_frame.layer_name)
+      AND frame.layer_id
+        = android_get_layer_id_from_name(actual_frame.layer_name))
+)
+SELECT
+  ROW_NUMBER() OVER (PARTITION BY cuj_id ORDER BY frame_id ASC) AS frame_number,
+  cuj_id,
+  -- We use MAX to check if at least one of the layers jank_type matches the pattern
+  MAX(android_is_app_jank_type(jank_type)) AS app_missed,
+  -- We use MAX to check if at least one of the layers jank_type matches the pattern
+  MAX(android_is_sf_jank_type(jank_type)) AS sf_missed,
+  IFNULL(MAX(sf_callback_missed), 0) AS sf_callback_missed,
+  IFNULL(MAX(hwui_callback_missed), 0) AS hwui_callback_missed,
+  -- We use MIN to check if ALL layers finished on time
+  MIN(on_time_finish) AS on_time_finish,
+  frame_id,
+  frame_layer_name,
+  vsync_boundary.display_frame_token,
+  e.ts AS ts_expected,
+  -- In cases where we are drawing multiple layers, there will be  one
+  -- expected frame timeline slice, but multiple actual frame timeline slices.
+  -- As a simplification we just take here the min(ts) and max(ts_end) of
+  -- the actual frame timeline slices.
+  MIN(frame_ts) AS ts_actual_min,
+  MAX(ts_end) AS ts_end_actual_max,
+  COALESCE(MAX(e.dur), 16600000) AS dur_expected
+FROM frames_in_cuj vsync_boundary
+JOIN expected_timeline_with_vsync e
+  ON e.upid = vsync_boundary.upid  AND e.vsync = vsync_boundary.frame_id
+GROUP BY cuj_id, e.vsync, e.ts;
 
 -- Combine trace frame data with Choreographer#doFrame
 DROP TABLE IF EXISTS android_jank_cuj_frame_trace_data;
@@ -149,23 +149,23 @@ trace_metrics_frame AS (
    FROM do_frame_ordered do_frame
    LEFT JOIN _android_jank_cuj_frames_data timeline USING(cuj_id, frame_id)
 )
-select
-cuj_id,
-frame_number,
-frame_id,
-ts,
-ts_expected,
-ts_do_frame_start,
-app_missed,
-sf_missed,
-sf_callback_missed,
-hwui_callback_missed,
-on_time_finish,
-ts_end_actual_max - ts AS dur,
-ts_end_actual_max - ts_do_frame_start AS dur_unadjusted,
-dur_expected,
-ts_end_actual_max AS ts_end,
-frame_layer_name
+SELECT
+  cuj_id,
+  frame_number,
+  frame_id,
+  ts,
+  ts_expected,
+  ts_do_frame_start,
+  app_missed,
+  sf_missed,
+  sf_callback_missed,
+  hwui_callback_missed,
+  on_time_finish,
+  ts_end_actual_max - ts AS dur,
+  ts_end_actual_max - ts_do_frame_start AS dur_unadjusted,
+  dur_expected,
+  ts_end_actual_max AS ts_end,
+  frame_layer_name
 FROM trace_metrics_frame;
 
 -- Extract app and SF frame vsync scoped to CUJs.
@@ -177,8 +177,10 @@ SELECT
    app_vsync,
    app_sf_match.sf_upid,
    app_sf_match.sf_vsync
-FROM _android_jank_cuj_do_frames do_frame JOIN android_app_to_sf_frame_timeline_match app_sf_match
-  ON do_frame.frame_id = app_sf_match.app_vsync AND do_frame.upid = app_sf_match.app_upid;
+FROM _android_jank_cuj_do_frames do_frame
+JOIN android_app_to_sf_frame_timeline_match app_sf_match
+  ON do_frame.frame_id = app_sf_match.app_vsync
+    AND do_frame.upid = app_sf_match.app_upid;
 
 -- Extract ts and dur for a given slice name from the SF process main thread track.
 CREATE OR REPLACE PERFETTO FUNCTION find_android_jank_cuj_sf_main_thread_slice(
@@ -244,7 +246,7 @@ main_thread_slice AS (
   UNION ALL
   SELECT utid, cuj_id, vsync, ts, dur, ts_end FROM android_jank_cuj_sf_on_message_invalidate_slice
 ),
-sf_mt_boundary AS (
+sf_main_thread_cuj_frame_boundary AS (
 SELECT
   cuj_id,
   utid,
@@ -257,43 +259,44 @@ FROM expected_frame_timeline_slice expected_timeline
 JOIN _android_sf_process USING (upid)
 JOIN main_thread_slice
   ON main_thread_slice.vsync = CAST(expected_timeline.name AS INTEGER)
-  ),
+),
 android_jank_cuj_sf_frame_base AS (
-    SELECT DISTINCT
-      boundary.cuj_id,
-      boundary.vsync,
-      boundary.ts,
-      boundary.ts_main_thread_start,
-      boundary.ts_end,
-      boundary.dur,
-      actual_timeline.jank_tag = 'Self Jank' AS sf_missed,
-      NULL AS app_missed, -- for simplicity align schema with android_jank_cuj_frame
-      jank_tag,
-      jank_type,
-      prediction_type,
-      present_type,
-      gpu_composition,
-      -- In case expected timeline is missing, as a fallback we use the typical frame deadline
-      -- for 60Hz.
-      -- See similar expression in android_jank_cuj_frame_timeline.
-      COALESCE(expected_timeline.dur, 16600000) AS dur_expected
-    FROM sf_mt_boundary boundary
-    JOIN _android_sf_process sf_process
-    JOIN actual_frame_timeline_slice actual_timeline
-      ON actual_timeline.upid = sf_process.upid
-        AND boundary.vsync = CAST(actual_timeline.name AS INTEGER)
-    JOIN _android_jank_cuj_frames_data ft
-      ON CAST(actual_timeline.name AS INTEGER) = ft.display_frame_token
-        AND boundary.cuj_id = ft.cuj_id
-    LEFT JOIN expected_frame_timeline_slice expected_timeline
-      ON expected_timeline.upid = actual_timeline.upid
-        AND expected_timeline.name = actual_timeline.name
+  SELECT DISTINCT
+    boundary.cuj_id,
+    boundary.vsync,
+    boundary.ts,
+    boundary.ts_main_thread_start,
+    boundary.ts_end,
+    boundary.dur,
+    actual_timeline.jank_tag = 'Self Jank' AS sf_missed,
+    NULL AS app_missed, -- for simplicity align schema with android_jank_cuj_frame
+    jank_tag,
+    jank_type,
+    prediction_type,
+    present_type,
+    gpu_composition,
+    -- In case expected timeline is missing, as a fallback we use the typical frame deadline
+    -- for 60Hz.
+    -- See similar expression in android_jank_cuj_frame_timeline.
+    COALESCE(expected_timeline.dur, 16600000) AS dur_expected
+  FROM sf_main_thread_cuj_frame_boundary boundary
+  JOIN _android_sf_process sf_process
+  JOIN actual_frame_timeline_slice actual_timeline
+    ON actual_timeline.upid = sf_process.upid
+      AND boundary.vsync = CAST(actual_timeline.name AS INTEGER)
+  JOIN _android_jank_cuj_frames_data ft
+    ON CAST(actual_timeline.name AS INTEGER) = ft.display_frame_token
+      AND boundary.cuj_id = ft.cuj_id
+  LEFT JOIN expected_frame_timeline_slice expected_timeline
+    ON expected_timeline.upid = actual_timeline.upid
+      AND expected_timeline.name = actual_timeline.name
 )
 SELECT
  *,
  ROW_NUMBER() OVER (PARTITION BY cuj_id ORDER BY vsync ASC) AS frame_number
 FROM android_jank_cuj_sf_frame_base;
 
+-- Table captures various missed frames and callbacks counters from counter tracks in a process.
 DROP TABLE IF EXISTS android_jank_cuj_counter_metrics;
 CREATE PERFETTO TABLE android_jank_cuj_counter_metrics AS
 -- Order CUJs to get the ts of the next CUJ with the same name.

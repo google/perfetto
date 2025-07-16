@@ -3511,9 +3511,10 @@ class ChromeStudyTranslationTable(_message.Message):
     def __init__(self, hash_to_name: _Optional[_Mapping[int, str]] = ...) -> None: ...
 
 class ChromeThreadDescriptor(_message.Message):
-    __slots__ = ["legacy_sort_index", "thread_type"]
+    __slots__ = ["is_sandboxed_tid", "legacy_sort_index", "thread_type"]
     class ThreadType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
+    IS_SANDBOXED_TID_FIELD_NUMBER: _ClassVar[int]
     LEGACY_SORT_INDEX_FIELD_NUMBER: _ClassVar[int]
     THREAD_AUDIO_INPUTDEVICE: ChromeThreadDescriptor.ThreadType
     THREAD_AUDIO_OUTPUTDEVICE: ChromeThreadDescriptor.ThreadType
@@ -3561,9 +3562,10 @@ class ChromeThreadDescriptor(_message.Message):
     THREAD_WEBRTC_SIGNALING: ChromeThreadDescriptor.ThreadType
     THREAD_WEBRTC_WORKER: ChromeThreadDescriptor.ThreadType
     THREAD_WINDOW_OWNER: ChromeThreadDescriptor.ThreadType
+    is_sandboxed_tid: bool
     legacy_sort_index: int
     thread_type: ChromeThreadDescriptor.ThreadType
-    def __init__(self, thread_type: _Optional[_Union[ChromeThreadDescriptor.ThreadType, str]] = ..., legacy_sort_index: _Optional[int] = ...) -> None: ...
+    def __init__(self, thread_type: _Optional[_Union[ChromeThreadDescriptor.ThreadType, str]] = ..., legacy_sort_index: _Optional[int] = ..., is_sandboxed_tid: bool = ...) -> None: ...
 
 class ChromeTraceEvent(_message.Message):
     __slots__ = ["args", "bind_id", "category_group_name", "category_group_name_index", "duration", "flags", "id", "name", "name_index", "phase", "process_id", "scope", "thread_duration", "thread_id", "thread_timestamp", "timestamp"]
