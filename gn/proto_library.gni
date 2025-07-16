@@ -344,15 +344,56 @@ template("perfetto_proto_library") {
   # Generate the descriptor if the option is set.
   if (defined(invoker.generate_descriptor)) {
     target_name_ = string_replace(target_name, expansion_token, "descriptor")
+
+    if (defined(invoker.descriptor_root_source)) {
+      # Copy the single `descriptor_root_source` from the invoker. Assume it's
+      # located in `proto_path` and has no extra deps.
+      descriptor_root_sources_ = [ invoker.descriptor_root_source ]
+      descriptor_root_deps_ = []
+      descriptor_root_imports_ = []
+      proto_in_dir_ = proto_path
+    } else {
+      # protoc only supports one input file with generate_descriptor, so
+      # generate a top-level input that imports all the .proto files.
+      root_source_target_ = "${target_name_}_root_source"
+
+      generated_file(root_source_target_) {
+        forward_variables_from(invoker, [ "sources" ])
+        outputs = [ "$target_gen_dir/${root_source_target_}.proto" ]
+
+        # Start with a proto2 header, and add an import line for each source
+        # file to the generated file contents.
+        contents = [ "syntax = \"proto2\";" ]
+        foreach(source_, sources) {
+          source_path_ = rebase_path(source_, proto_path)
+          contents += [ "import public \"${source_path_}\";" ]
+        }
+      }
+
+      # This group is necessary for Chrome proto_library build rule to work
+      # correctly.
+      group("${root_source_target_}_input_group") {
+        public_deps = [ ":${root_source_target_}" ]
+      }
+
+      # Use the generated output file as the descriptor source. It's located in
+      # `target_gen_dir`, imports files from `proto_path`, and depends on the generator.
+      descriptor_root_sources_ = get_target_outputs(":${root_source_target_}")
+      descriptor_root_deps_ = [ ":${root_source_target_}" ]
+      descriptor_root_imports_ = [ proto_path ]
+      proto_in_dir_ = target_gen_dir
+    }
+
     proto_library(target_name_) {
-      proto_in_dir = proto_path
+      proto_in_dir = proto_in_dir_
       proto_out_dir = proto_path
       generate_python = false
       generate_cc = false
       generate_descriptor = rebase_path(invoker.generate_descriptor, proto_path)
-      sources = [ invoker.descriptor_root_source ]
-      import_dirs = import_dirs_
-      deps = [ ":${source_set_target_name}" ]
+      sources = descriptor_root_sources_
+      proto_deps = descriptor_root_deps_
+      import_dirs = import_dirs_ + descriptor_root_imports_
+      deps = [ ":${source_set_target_name}" ] + descriptor_root_deps_
       forward_variables_from(invoker,
                              [
                                "visibility",
