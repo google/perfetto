@@ -367,7 +367,7 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
   }
 
   view({attrs}: m.CVnode<OptionalTraceImplAttrs>) {
-    const sidebar = AppImpl.instance.sidebar;
+    const sidebar = attrs.trace?.sidebar ?? AppImpl.instance.sidebar;
     if (!sidebar.enabled) return null;
     return m(
       'nav.pf-sidebar',
@@ -399,7 +399,7 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
         m(
           '.pf-sidebar__scroll-container',
           ...(Object.keys(SIDEBAR_SECTIONS) as SidebarSections[]).map((s) =>
-            this.renderSection(s),
+            this.renderSection(s, attrs),
           ),
           m(SidebarFooter, attrs),
         ),
@@ -407,13 +407,17 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
     );
   }
 
-  private renderSection(sectionId: SidebarSections) {
+  private renderSection(
+    sectionId: SidebarSections,
+    attrs: OptionalTraceImplAttrs,
+  ) {
+    const sidebar = attrs.trace?.sidebar ?? AppImpl.instance.sidebar;
     const section = SIDEBAR_SECTIONS[sectionId];
-    const menuItems = AppImpl.instance.sidebar.menuItems
+    const menuItems = sidebar.menuItems
       .valuesAsArray()
       .filter((item) => item.section === sectionId)
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-      .map((item) => this.renderItem(item));
+      .map((item) => this.renderItem(item, attrs.trace));
 
     // Don't render empty sections.
     if (menuItems.length === 0) return undefined;
@@ -435,7 +439,10 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
     );
   }
 
-  private renderItem(item: SidebarMenuItemInternal): m.Child {
+  private renderItem(
+    item: SidebarMenuItemInternal,
+    trace: TraceImpl | undefined,
+  ): m.Child {
     let href = '#';
     let disabled = false;
     let target = null;
@@ -455,7 +462,7 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
     } else if (action !== undefined) {
       onclick = action;
     } else if (commandId !== undefined) {
-      const cmdMgr = AppImpl.instance.commands;
+      const cmdMgr = (trace ?? AppImpl.instance).commands;
       command = cmdMgr.hasCommand(commandId ?? '')
         ? cmdMgr.getCommand(commandId)
         : undefined;

@@ -41,13 +41,18 @@ let sortOrder = SortOrder.Name;
 
 function sortPlugins(registeredPlugins: ReadonlyArray<PluginWrapper>) {
   switch (sortOrder) {
-    case SortOrder.Slowest:
+    case SortOrder.Slowest: {
+      const trace = AppImpl.instance.trace;
+      if (!trace) {
+        return registeredPlugins;
+      }
       return registeredPlugins.concat([]).sort((a, b) => {
         return (
-          (b.traceContext?.loadTimeMs ?? -1) -
-          (a.traceContext?.loadTimeMs ?? -1)
+          (b.traceContext(trace)?.loadTimeMs ?? -1) -
+          (a.traceContext(trace)?.loadTimeMs ?? -1)
         );
       });
+    }
     case SortOrder.Name:
       return registeredPlugins.concat([]).sort((a, b) => {
         return a.desc.id.localeCompare(b.desc.id);
@@ -196,7 +201,8 @@ export class PluginsPage implements m.ClassComponent {
   }
 
   private renderPluginCard(plugin: PluginWrapper): m.Children {
-    const loadTime = plugin.traceContext?.loadTimeMs;
+    const trace = AppImpl.instance.trace;
+    const loadTime = trace && plugin.traceContext(trace)?.loadTimeMs;
     return m(
       Card,
       {

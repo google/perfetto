@@ -325,7 +325,10 @@ function onCssLoaded() {
 
   const pages = AppImpl.instance.pages;
   pages.registerPage({route: '/', render: () => m(HomePage)});
-  pages.registerPage({route: '/viewer', render: () => renderViewerPage()});
+  pages.registerPage({
+    route: '/viewer',
+    renderPage: ({trace}) => renderViewerPage(trace),
+  });
   const router = new Router();
   router.onRouteChanged = routeChange;
 
@@ -350,7 +353,7 @@ function onCssLoaded() {
   // Mount the main mithril component. This also forces a sync render pass.
   raf.mount(document.body, {
     view: () => {
-      const app = AppImpl.instance;
+      const app = AppImpl.instance.trace ?? AppImpl.instance;
       const commands = app.commands;
       const hotkeys: HotkeyConfig[] = [];
       for (const {id, defaultHotkey} of commands.commands) {
