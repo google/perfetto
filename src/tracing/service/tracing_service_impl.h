@@ -288,7 +288,9 @@ class TracingServiceImpl : public TracingService {
                                TracingServiceImpl* service);
     ~RelayEndpointImpl() override;
 
-    void CacheSystemInfo(std::vector<uint8_t> serialized_system_info) override {
+    void CacheSystemInfo(std::string machine_name,
+                         std::vector<uint8_t> serialized_system_info) override {
+      machine_name_ = machine_name;
       serialized_system_info_ = serialized_system_info;
     }
 
@@ -303,6 +305,8 @@ class TracingServiceImpl : public TracingService {
       return synced_clocks_;
     }
 
+    std::string machine_name() { return machine_name_; }
+
     std::vector<uint8_t>& serialized_system_info() {
       return serialized_system_info_;
     }
@@ -313,6 +317,7 @@ class TracingServiceImpl : public TracingService {
 
     RelayClientID relay_client_id_;
     TracingServiceImpl* const service_;
+    std::string machine_name_;
     std::vector<uint8_t> serialized_system_info_;
     base::CircularQueue<SyncedClockSnapshots> synced_clocks_;
 
@@ -913,9 +918,13 @@ class TracingServiceImpl : public TracingService {
                                              uint64_t trigger_name_hash);
   void StopOnDurationMsExpiry(TracingSessionID);
 
+  // Returns the name of a machine based on the machine's id.
+  std::optional<std::string> GetMachineName(MachineID machine_id);
+
   std::unique_ptr<tracing_service::Clock> clock_;
   std::unique_ptr<tracing_service::Random> random_;
   const InitOpts init_opts_;
+  std::string machine_name_;
   std::unique_ptr<SharedMemory::Factory> shm_factory_;
   ProducerID last_producer_id_ = 0;
   DataSourceInstanceID last_data_source_instance_id_ = 0;

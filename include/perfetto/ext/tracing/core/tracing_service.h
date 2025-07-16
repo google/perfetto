@@ -302,6 +302,11 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
 };  // class ConsumerEndpoint.
 
 struct PERFETTO_EXPORT_COMPONENT TracingServiceInitOpts {
+  // Name of machine hosting the tracing service (traced). If this option is
+  // empty the tracing service will use the OS system name (see `uname -s`) as
+  // the default value.
+  std::string machine_name;
+
   // Function used by tracing service to compress packets. Takes a pointer to
   // a vector of TracePackets and replaces the packets in the vector with
   // compressed ones.
@@ -327,7 +332,8 @@ class PERFETTO_EXPORT_COMPONENT RelayEndpoint {
 
   enum class SyncMode : uint32_t { PING = 1, UPDATE = 2 };
 
-  virtual void CacheSystemInfo(std::vector<uint8_t> serialized_system_info) = 0;
+  virtual void CacheSystemInfo(std::string machine_name,
+                               std::vector<uint8_t> serialized_system_info) = 0;
   virtual void SyncClocks(SyncMode sync_mode,
                           base::ClockSnapshotVector client_clocks,
                           base::ClockSnapshotVector host_clocks) = 0;

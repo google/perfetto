@@ -14831,14 +14831,16 @@ class TraceConfig(_message.Message):
         min_delay_ms: int
         def __init__(self, min_delay_ms: _Optional[int] = ..., max_delay_ms: _Optional[int] = ...) -> None: ...
     class DataSource(_message.Message):
-        __slots__ = ["config", "producer_name_filter", "producer_name_regex_filter"]
+        __slots__ = ["config", "machine_filter", "producer_name_filter", "producer_name_regex_filter"]
         CONFIG_FIELD_NUMBER: _ClassVar[int]
+        MACHINE_FILTER_FIELD_NUMBER: _ClassVar[int]
         PRODUCER_NAME_FILTER_FIELD_NUMBER: _ClassVar[int]
         PRODUCER_NAME_REGEX_FILTER_FIELD_NUMBER: _ClassVar[int]
         config: DataSourceConfig
+        machine_filter: TraceConfig.MachineFilter
         producer_name_filter: _containers.RepeatedScalarFieldContainer[str]
         producer_name_regex_filter: _containers.RepeatedScalarFieldContainer[str]
-        def __init__(self, config: _Optional[_Union[DataSourceConfig, _Mapping]] = ..., producer_name_filter: _Optional[_Iterable[str]] = ..., producer_name_regex_filter: _Optional[_Iterable[str]] = ...) -> None: ...
+        def __init__(self, config: _Optional[_Union[DataSourceConfig, _Mapping]] = ..., producer_name_filter: _Optional[_Iterable[str]] = ..., producer_name_regex_filter: _Optional[_Iterable[str]] = ..., machine_filter: _Optional[_Union[TraceConfig.MachineFilter, _Mapping]] = ...) -> None: ...
     class GuardrailOverrides(_message.Message):
         __slots__ = ["max_tracing_buffer_size_kb", "max_upload_per_day_bytes"]
         MAX_TRACING_BUFFER_SIZE_KB_FIELD_NUMBER: _ClassVar[int]
@@ -14864,6 +14866,11 @@ class TraceConfig(_message.Message):
         CLEAR_PERIOD_MS_FIELD_NUMBER: _ClassVar[int]
         clear_period_ms: int
         def __init__(self, clear_period_ms: _Optional[int] = ...) -> None: ...
+    class MachineFilter(_message.Message):
+        __slots__ = ["machine_names"]
+        MACHINE_NAMES_FIELD_NUMBER: _ClassVar[int]
+        machine_names: _containers.RepeatedScalarFieldContainer[str]
+        def __init__(self, machine_names: _Optional[_Iterable[str]] = ...) -> None: ...
     class ProducerConfig(_message.Message):
         __slots__ = ["page_size_kb", "producer_name", "shm_size_kb"]
         PAGE_SIZE_KB_FIELD_NUMBER: _ClassVar[int]

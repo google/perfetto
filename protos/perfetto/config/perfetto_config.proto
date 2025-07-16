@@ -4098,6 +4098,14 @@ message TraceConfig {
   }
   repeated BufferConfig buffers = 1;
 
+  message MachineFilter {
+    // Filter by machine names. The name of a machine is determined by the
+    // persist.traced_relay.machine_name system property. If the sysprop isn't
+    // set, then the machine name by default is set to the utsname sysname
+    // (e.g. Linux), which can be obtained via the 'uname -s' command.
+    repeated string machine_names = 1;
+  }
+
   message DataSource {
     // Filters and data-source specific config. It contains also the unique name
     // of the data source, the one passed in the  DataSourceDescriptor when they
@@ -4115,6 +4123,9 @@ message TraceConfig {
     // "bar"] will enable data sources on both "foo" and "bar" (if they exist).
     repeated string producer_name_filter = 2;
     repeated string producer_name_regex_filter = 3;
+
+    // Filter data sources by the source machine.
+    optional MachineFilter machine_filter = 4;
   }
   repeated DataSource data_sources = 2;
 

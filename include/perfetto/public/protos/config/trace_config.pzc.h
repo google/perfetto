@@ -36,6 +36,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_DataSource);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_GuardrailOverrides);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_IncidentReportConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_IncrementalStateConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_MachineFilter);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_ProducerConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_SessionSemaphore);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TraceConfig_StatsdMetadata);
@@ -568,6 +569,18 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_DataSource,
                   const char*,
                   producer_name_regex_filter,
                   3);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_DataSource,
+                  MSG,
+                  perfetto_protos_TraceConfig_MachineFilter,
+                  machine_filter,
+                  4);
+
+PERFETTO_PB_MSG(perfetto_protos_TraceConfig_MachineFilter);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_MachineFilter,
+                  STRING,
+                  const char*,
+                  machine_names,
+                  1);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_BufferConfig);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BufferConfig,

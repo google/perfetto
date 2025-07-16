@@ -133,6 +133,7 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
   base::UnixTaskRunner task_runner;
   std::unique_ptr<ServiceIPCHost> svc;
   TracingService::InitOpts init_opts = {};
+  init_opts.machine_name = base::GetMachineName();
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
   init_opts.compressor_fn = &ZlibCompressFn;
 #endif
