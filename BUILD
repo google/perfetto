@@ -690,7 +690,7 @@ perfetto_cc_library(
             ":src_traced_probes_filesystem_filesystem",
             ":src_traced_probes_ftrace_format_parser_format_parser",
             ":src_traced_probes_ftrace_ftrace",
-            ":src_traced_probes_ftrace_ftrace_procfs",
+            ":src_traced_probes_ftrace_tracefs",
             ":src_traced_probes_initial_display_state_initial_display_state",
             ":src_traced_probes_metatrace_metatrace",
             ":src_traced_probes_packages_list_packages_list",
@@ -4072,12 +4072,12 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/traced/probes/ftrace:ftrace_procfs
+# GN target: //src/traced/probes/ftrace:tracefs
 perfetto_filegroup(
-    name = "src_traced_probes_ftrace_ftrace_procfs",
+    name = "src_traced_probes_ftrace_tracefs",
     srcs = [
-        "src/traced/probes/ftrace/ftrace_procfs.cc",
-        "src/traced/probes/ftrace/ftrace_procfs.h",
+        "src/traced/probes/ftrace/tracefs.cc",
+        "src/traced/probes/ftrace/tracefs.h",
     ],
 )
 

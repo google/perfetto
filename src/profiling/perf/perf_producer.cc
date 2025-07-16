@@ -440,7 +440,7 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
   auto tracepoint_id_lookup = [this](const std::string& group,
                                      const std::string& name) {
     if (!tracefs_)  // lazy init or retry
-      tracefs_ = FtraceProcfs::CreateGuessingMountPoint();
+      tracefs_ = Tracefs::CreateGuessingMountPoint();
     if (!tracefs_)  // still didn't find an accessible tracefs
       return 0u;
     return tracefs_->ReadEventId(group, name);
