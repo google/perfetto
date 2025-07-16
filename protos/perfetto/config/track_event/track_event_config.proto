@@ -85,14 +85,12 @@ message TrackEventConfig {
   // still be emitted even if set to true.
   optional bool filter_debug_annotations = 7;
 
-  // Default : false (i.e. disabled)
+  // Default: false (i.e. disabled)
   // When true, the SDK samples and emits the current thread time counter value
   // for each event on the current thread's track. This value represents the
-  // total CPU time consumed by that thread since its creation. Note that if a
-  // thread is not scheduled by OS for some duration, that time won't be
-  // included in thread_time.
-  // Learn more : "CLOCK_THREAD_CPUTIME_ID" flag at
-  // https://linux.die.net/man/3/clock_gettime
+  // total CPU time consumed by that thread since its creation.
+  // Learn more: "CLOCK_THREAD_CPUTIME_ID" flag at
+  // https://man7.org/linux/man-pages/man3/clock_gettime.3.html
   optional bool enable_thread_time_sampling = 8;
 
   // Default: false (i.e. dynamic event names are NOT filtered out by default)

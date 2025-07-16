@@ -36,7 +36,7 @@ export default class implements PerfettoPlugin {
           group_concat(distinct t.id) as trackIds,
           count() as trackCount
         from track t
-        where t.name = "Suspend/Resume Latency"
+        where t.type = 'suspend_resume'
       )
       select
         t.trackIds as trackIds,

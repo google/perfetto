@@ -3511,9 +3511,10 @@ class ChromeStudyTranslationTable(_message.Message):
     def __init__(self, hash_to_name: _Optional[_Mapping[int, str]] = ...) -> None: ...
 
 class ChromeThreadDescriptor(_message.Message):
-    __slots__ = ["legacy_sort_index", "thread_type"]
+    __slots__ = ["is_sandboxed_tid", "legacy_sort_index", "thread_type"]
     class ThreadType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
+    IS_SANDBOXED_TID_FIELD_NUMBER: _ClassVar[int]
     LEGACY_SORT_INDEX_FIELD_NUMBER: _ClassVar[int]
     THREAD_AUDIO_INPUTDEVICE: ChromeThreadDescriptor.ThreadType
     THREAD_AUDIO_OUTPUTDEVICE: ChromeThreadDescriptor.ThreadType
@@ -3561,9 +3562,10 @@ class ChromeThreadDescriptor(_message.Message):
     THREAD_WEBRTC_SIGNALING: ChromeThreadDescriptor.ThreadType
     THREAD_WEBRTC_WORKER: ChromeThreadDescriptor.ThreadType
     THREAD_WINDOW_OWNER: ChromeThreadDescriptor.ThreadType
+    is_sandboxed_tid: bool
     legacy_sort_index: int
     thread_type: ChromeThreadDescriptor.ThreadType
-    def __init__(self, thread_type: _Optional[_Union[ChromeThreadDescriptor.ThreadType, str]] = ..., legacy_sort_index: _Optional[int] = ...) -> None: ...
+    def __init__(self, thread_type: _Optional[_Union[ChromeThreadDescriptor.ThreadType, str]] = ..., legacy_sort_index: _Optional[int] = ..., is_sandboxed_tid: bool = ...) -> None: ...
 
 class ChromeTraceEvent(_message.Message):
     __slots__ = ["args", "bind_id", "category_group_name", "category_group_name_index", "duration", "flags", "id", "name", "name_index", "phase", "process_id", "scope", "thread_duration", "thread_id", "thread_timestamp", "timestamp"]
@@ -7419,7 +7421,7 @@ class FrozenFtraceConfig(_message.Message):
     def __init__(self, instance_name: _Optional[str] = ...) -> None: ...
 
 class FtraceConfig(_message.Message):
-    __slots__ = ["atrace_apps", "atrace_categories", "atrace_categories_prefer_sdk", "buffer_size_kb", "buffer_size_lower_bound", "compact_sched", "debug_ftrace_abi", "denser_generic_event_encoding", "disable_generic_events", "drain_buffer_percent", "drain_period_ms", "enable_function_graph", "ftrace_events", "function_filters", "function_graph_max_depth", "function_graph_roots", "initialize_ksyms_synchronously_for_testing", "instance_name", "kprobe_events", "ksyms_mem_policy", "preserve_ftrace_buffer", "print_filter", "symbolize_ksyms", "syscall_events", "throttle_rss_stat", "use_monotonic_raw_clock"]
+    __slots__ = ["atrace_apps", "atrace_categories", "atrace_categories_prefer_sdk", "atrace_userspace_only", "buffer_size_kb", "buffer_size_lower_bound", "compact_sched", "debug_ftrace_abi", "denser_generic_event_encoding", "disable_generic_events", "drain_buffer_percent", "drain_period_ms", "enable_function_graph", "ftrace_events", "function_filters", "function_graph_max_depth", "function_graph_roots", "initialize_ksyms_synchronously_for_testing", "instance_name", "kprobe_events", "ksyms_mem_policy", "preserve_ftrace_buffer", "print_filter", "symbolize_ksyms", "syscall_events", "throttle_rss_stat", "use_monotonic_raw_clock"]
     class KsymsMemPolicy(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     class CompactSchedConfig(_message.Message):
@@ -7464,6 +7466,7 @@ class FtraceConfig(_message.Message):
     ATRACE_APPS_FIELD_NUMBER: _ClassVar[int]
     ATRACE_CATEGORIES_FIELD_NUMBER: _ClassVar[int]
     ATRACE_CATEGORIES_PREFER_SDK_FIELD_NUMBER: _ClassVar[int]
+    ATRACE_USERSPACE_ONLY_FIELD_NUMBER: _ClassVar[int]
     BUFFER_SIZE_KB_FIELD_NUMBER: _ClassVar[int]
     BUFFER_SIZE_LOWER_BOUND_FIELD_NUMBER: _ClassVar[int]
     COMPACT_SCHED_FIELD_NUMBER: _ClassVar[int]
@@ -7493,6 +7496,7 @@ class FtraceConfig(_message.Message):
     atrace_apps: _containers.RepeatedScalarFieldContainer[str]
     atrace_categories: _containers.RepeatedScalarFieldContainer[str]
     atrace_categories_prefer_sdk: _containers.RepeatedScalarFieldContainer[str]
+    atrace_userspace_only: bool
     buffer_size_kb: int
     buffer_size_lower_bound: bool
     compact_sched: FtraceConfig.CompactSchedConfig
@@ -7516,7 +7520,7 @@ class FtraceConfig(_message.Message):
     syscall_events: _containers.RepeatedScalarFieldContainer[str]
     throttle_rss_stat: bool
     use_monotonic_raw_clock: bool
-    def __init__(self, ftrace_events: _Optional[_Iterable[str]] = ..., kprobe_events: _Optional[_Iterable[_Union[FtraceConfig.KprobeEvent, _Mapping]]] = ..., atrace_categories: _Optional[_Iterable[str]] = ..., atrace_apps: _Optional[_Iterable[str]] = ..., atrace_categories_prefer_sdk: _Optional[_Iterable[str]] = ..., buffer_size_kb: _Optional[int] = ..., drain_period_ms: _Optional[int] = ..., drain_buffer_percent: _Optional[int] = ..., compact_sched: _Optional[_Union[FtraceConfig.CompactSchedConfig, _Mapping]] = ..., print_filter: _Optional[_Union[FtraceConfig.PrintFilter, _Mapping]] = ..., symbolize_ksyms: bool = ..., ksyms_mem_policy: _Optional[_Union[FtraceConfig.KsymsMemPolicy, str]] = ..., initialize_ksyms_synchronously_for_testing: bool = ..., throttle_rss_stat: bool = ..., denser_generic_event_encoding: bool = ..., disable_generic_events: bool = ..., syscall_events: _Optional[_Iterable[str]] = ..., enable_function_graph: bool = ..., function_filters: _Optional[_Iterable[str]] = ..., function_graph_roots: _Optional[_Iterable[str]] = ..., preserve_ftrace_buffer: bool = ..., use_monotonic_raw_clock: bool = ..., instance_name: _Optional[str] = ..., buffer_size_lower_bound: bool = ..., debug_ftrace_abi: bool = ..., function_graph_max_depth: _Optional[int] = ...) -> None: ...
+    def __init__(self, ftrace_events: _Optional[_Iterable[str]] = ..., atrace_categories: _Optional[_Iterable[str]] = ..., atrace_apps: _Optional[_Iterable[str]] = ..., atrace_categories_prefer_sdk: _Optional[_Iterable[str]] = ..., atrace_userspace_only: bool = ..., buffer_size_kb: _Optional[int] = ..., buffer_size_lower_bound: bool = ..., drain_period_ms: _Optional[int] = ..., drain_buffer_percent: _Optional[int] = ..., compact_sched: _Optional[_Union[FtraceConfig.CompactSchedConfig, _Mapping]] = ..., print_filter: _Optional[_Union[FtraceConfig.PrintFilter, _Mapping]] = ..., symbolize_ksyms: bool = ..., ksyms_mem_policy: _Optional[_Union[FtraceConfig.KsymsMemPolicy, str]] = ..., throttle_rss_stat: bool = ..., denser_generic_event_encoding: bool = ..., disable_generic_events: bool = ..., syscall_events: _Optional[_Iterable[str]] = ..., enable_function_graph: bool = ..., function_filters: _Optional[_Iterable[str]] = ..., function_graph_roots: _Optional[_Iterable[str]] = ..., function_graph_max_depth: _Optional[int] = ..., kprobe_events: _Optional[_Iterable[_Union[FtraceConfig.KprobeEvent, _Mapping]]] = ..., preserve_ftrace_buffer: bool = ..., use_monotonic_raw_clock: bool = ..., instance_name: _Optional[str] = ..., debug_ftrace_abi: bool = ..., initialize_ksyms_synchronously_for_testing: bool = ...) -> None: ...
 
 class FtraceCpuStats(_message.Message):
     __slots__ = ["bytes_read", "commit_overrun", "cpu", "dropped_events", "entries", "now_ts", "oldest_event_ts", "overrun", "read_events"]

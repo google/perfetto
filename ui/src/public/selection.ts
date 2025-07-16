@@ -170,9 +170,7 @@ export interface TrackEventDetails {
 export interface Area {
   readonly start: time;
   readonly end: time;
-  // TODO(primiano): this should be ReadonlyArray<> after the pivot table state
-  // doesn't use State/Immer anymore.
-  readonly trackUris: string[];
+  readonly trackUris: ReadonlyArray<string>;
 }
 
 export interface AreaSelection extends Area {

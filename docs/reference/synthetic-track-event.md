@@ -519,3 +519,130 @@ your `trace_converter_template.py` script.
 </details>
 
 ![Interning Data for Trace Size Optimization](/docs/images/synthetic-track-event-interning.png)
+
+## {#controlling-track-merging} Controlling Track Merging
+
+By default, the Perfetto UI merges tracks that share the same name. This is
+often the desired behavior for grouping related asynchronous events. However,
+there are scenarios where you need more explicit control. You can override this
+default merging logic using the `sibling_merge_behavior` and `sibling_merge_key`
+fields in the `TrackDescriptor`.
+
+This allows you to:
+
+- **Prevent merging**: Force tracks, even with the same name, to always be
+  displayed separately.
+- **Merge by key**: Force tracks to merge based on a custom key, regardless of
+  their names.
+
+The `sibling_merge_behavior` field can be set to one of the following values:
+
+- `SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME` (the default): Merges sibling tracks
+  that have the same `name`.
+- `SIBLING_MERGE_BEHAVIOR_NONE`: Prevents the track from being merged with any
+  of its siblings.
+- `SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY`: Merges sibling tracks that have
+  the same `sibling_merge_key` string.
+
+### Python Example: Preventing Merging
+
+In this example, we create two tracks with the same name. By setting their
+`sibling_merge_behavior` to `SIBLING_MERGE_BEHAVIOR_NONE`, we ensure they are
+always displayed as distinct tracks in the UI.
+
+<details>
+<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+
+```python
+    TRUSTED_PACKET_SEQUENCE_ID = 9003
+
+    # --- Define Track UUIDs ---
+    track1_uuid = 1
+    track2_uuid = 2
+
+    # Helper to define a TrackDescriptor
+    def define_custom_track(track_uuid, name):
+        packet = builder.add_packet()
+        desc = packet.track_descriptor
+        desc.uuid = track_uuid
+        desc.name = name
+        desc.sibling_merge_behavior = TrackDescriptor.SIBLING_MERGE_BEHAVIOR_NONE
+
+    # 1. Define the tracks
+    define_custom_track(track1_uuid, "My Separate Track")
+    define_custom_track(track2_uuid, "My Separate Track")
+
+    # Helper to add a slice event
+    def add_slice_event(ts, event_type, event_track_uuid, name=None):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = event_type
+        packet.track_event.track_uuid = event_track_uuid
+        if name:
+            packet.track_event.name = name
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # 2. Add events to the tracks
+    add_slice_event(ts=1000, event_type=TrackEvent.TYPE_SLICE_BEGIN, event_track_uuid=track1_uuid, name="Slice 1")
+    add_slice_event(ts=1100, event_type=TrackEvent.TYPE_SLICE_END, event_track_uuid=track1_uuid)
+
+    add_slice_event(ts=1200, event_type=TrackEvent.TYPE_SLICE_BEGIN, event_track_uuid=track2_uuid, name="Slice 2")
+    add_slice_event(ts=1300, event_type=TrackEvent.TYPE_SLICE_END, event_track_uuid=track2_uuid)
+```
+
+</details>
+
+![Preventing Merging](/docs/images/synthetic-track-event-no-merge.png)
+
+### Python Example: Merging by Key
+
+In this example, we create two tracks with different names but the same
+`sibling_merge_key`. By setting their `sibling_merge_behavior` to
+`SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY`, we instruct the UI to merge them
+into a single visual track. The name of the merged group will be taken from one
+of the tracks (usually the one with the lower UUID).
+
+<details>
+<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+
+```python
+    TRUSTED_PACKET_SEQUENCE_ID = 9004
+
+    # --- Define Track UUIDs ---
+    track1_uuid = 1
+    track2_uuid = 2
+
+    # Helper to define a TrackDescriptor
+    def define_custom_track(track_uuid, name, merge_key):
+        packet = builder.add_packet()
+        desc = packet.track_descriptor
+        desc.uuid = track_uuid
+        desc.name = name
+        desc.sibling_merge_behavior = TrackDescriptor.SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY
+        desc.sibling_merge_key = merge_key
+
+    # 1. Define the tracks with the same merge key
+    define_custom_track(track1_uuid, "HTTP GET", "conn-123")
+    define_custom_track(track2_uuid, "HTTP POST", "conn-123")
+
+    # Helper to add a slice event
+    def add_slice_event(ts, event_type, event_track_uuid, name=None):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = event_type
+        packet.track_event.track_uuid = event_track_uuid
+        if name:
+            packet.track_event.name = name
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # 2. Add events to the tracks
+    add_slice_event(ts=1000, event_type=TrackEvent.TYPE_SLICE_BEGIN, event_track_uuid=track1_uuid, name="GET /data")
+    add_slice_event(ts=1100, event_type=TrackEvent.TYPE_SLICE_END, event_track_uuid=track1_uuid)
+
+    add_slice_event(ts=1200, event_type=TrackEvent.TYPE_SLICE_BEGIN, event_track_uuid=track2_uuid, name="POST /submit")
+    add_slice_event(ts=1300, event_type=TrackEvent.TYPE_SLICE_END, event_track_uuid=track2_uuid)
+```
+
+</details>
+
+![Merging by Key](/docs/images/synthetic-track-event-merge-by-key.png)

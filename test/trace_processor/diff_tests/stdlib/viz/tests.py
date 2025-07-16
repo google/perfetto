@@ -443,7 +443,6 @@ class Viz(TestSuite):
           "chrono1","chronological_parent","[NULL]","[NULL]"
           "chrono2","chronological_parent","[NULL]","[NULL]"
           "explicit_child:-5 z-index","explicit_parent","[NULL]",-5
-          "explicit_child:-5 z-index","explicit_parent","[NULL]",-5
           "explicit_child:5 z-index","explicit_parent","[NULL]",5
           "explicit_child:no z-index","explicit_parent","[NULL]","[NULL]"
           "a","lexicographic_parent","[NULL]","[NULL]"
@@ -473,8 +472,8 @@ class Viz(TestSuite):
         "chronological_parent",1
         "event_for_unnamed_child",4
         "explicit_child:-5 z-index",1
-        "explicit_child:5 z-index",4
-        "explicit_child:no z-index",3
+        "explicit_child:5 z-index",3
+        "explicit_child:no z-index",2
         "explicit_parent",2
         "lexicographic_parent",3
         """))

@@ -707,11 +707,6 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
 }
 
 void SystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
-  // Maps a process counter field it to its value.
-  // E.g., 4 := 1024 -> "mem.rss.anon" := 1024.
-  // std::array<int64_t, kProcStatsProcessSize> counter_values{};
-  // std::array<bool, kProcStatsProcessSize> has_counter{};
-
   using Process = protos::pbzero::ProcessStats::Process;
   protos::pbzero::ProcessStats::Decoder stats(blob);
   for (auto it = stats.processes(); it; ++it) {

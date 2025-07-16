@@ -132,10 +132,10 @@ async function addGlobalCounter(ctx: Trace, parent: () => TrackNode) {
 
 async function addGlobalAllocs(ctx: Trace, parent: () => TrackNode) {
   const track = await ctx.engine.query(`
-    select name, group_concat(id) as trackIds
+    select min(name) as name, group_concat(id) as trackIds
     from track
     where type = 'android_dma_allocations'
-    group by name
+    group by track_group_id
   `);
   const it = track.maybeFirstRow({trackIds: STR, name: STR});
   if (!it) {

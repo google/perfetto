@@ -18,6 +18,7 @@ import {TRACE_SUFFIX} from '../public/trace';
 import {
   disableMetatracingAndGetTrace,
   enableMetatracing,
+  getEnabledMetatracingCategories,
   isMetatracingEnabled,
 } from '../core/metatracing';
 import {Engine, EngineMode} from '../trace_processor/engine';
@@ -49,6 +50,7 @@ import {copyToClipboard} from '../base/clipboard';
 import {classNames} from '../base/classnames';
 import {formatHotkey} from '../base/hotkeys';
 import {assetSrc} from '../base/assets';
+import {assertExists} from '../base/logging';
 
 const GITILES_URL = 'https://github.com/google/perfetto';
 
@@ -141,7 +143,9 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
           primary: true,
           action: () => {
             enableMetatracing();
-            engine.enableMetatrace();
+            engine.enableMetatrace(
+              assertExists(getEnabledMetatracingCategories()),
+            );
           },
         },
         {
@@ -150,7 +154,8 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
       ],
     });
   } else {
-    engine.enableMetatrace();
+    enableMetatracing();
+    engine.enableMetatrace(assertExists(getEnabledMetatracingCategories()));
   }
 }
 

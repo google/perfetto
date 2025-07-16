@@ -19,6 +19,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <optional>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
@@ -27,6 +29,7 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
@@ -70,13 +73,39 @@ using uncompressed_dimensions_t = decltype(UncompressedDimensions(
 // however, leads to an explosion of tracks which is undesirable. This class
 // exists to multiplex slices so that multiple events correspond to a single
 // track in a way which minimises the number of tracks.
-//
-// WARNING: the usage of this class SHOULD BE VERY RARE. These days, this class
-// mainly exists for legacy usage due to how the Perfetto UI used to work rather
-// than an active choice. Prefer making tracks peers and adding a UI plugin if
-// you want custom visualization instead of using this class.
 class TrackCompressor {
+ private:
+  struct TrackSet;
+
  public:
+  // Indicates the nesting behaviour of slices associated to a single slice
+  // stack.
+  enum class NestingBehaviour {
+    // Indicates that slices are nestable; that is, a stack of slices with
+    // the same cookie should stack properly, not merely overlap.
+    //
+    // This pattern should be the default behaviour that most async slices
+    // should use.
+    kNestable,
+
+    // Indicates that slices are unnestable but also saturating; that is
+    // calling Begin -> Begin only causes a single Begin to be recorded.
+    // This is only really useful for Android async slices which have this
+    // behaviour for legacy reasons. See the comment in
+    // SystraceParser::ParseSystracePoint for information on why
+    // this behaviour exists.
+    kLegacySaturatingUnnestable,
+  };
+
+  // Contains all the information about a set of tracks which can be merged
+  // together. This is essentially a factory for tracks which will be created
+  // on-demand.
+  struct TrackFactory {
+    uint64_t hash;
+    NestingBehaviour behaviour;
+    std::function<TrackId(const TrackSet&, uint32_t index)> factory;
+  };
+
   explicit TrackCompressor(TraceProcessorContext* context);
   ~TrackCompressor() = default;
 
@@ -91,8 +120,7 @@ class TrackCompressor {
       const internal::uncompressed_dimensions_t<BlueprintT>& dims,
       int64_t cookie,
       const typename BlueprintT::name_t& name = tracks::BlueprintName()) {
-    uint64_t hash = ComputeTrackSetId(bp, dims);
-    return Begin(hash, bp, dims, cookie, name);
+    return Begin(CreateTrackFactory(bp, dims, name), cookie);
   }
 
   // Ends a new slice which has the given cookie.
@@ -102,8 +130,7 @@ class TrackCompressor {
       const internal::uncompressed_dimensions_t<BlueprintT>& dims,
       int64_t cookie,
       const typename BlueprintT::name_t& name = tracks::BlueprintName()) {
-    uint64_t hash = ComputeTrackSetId(bp, dims);
-    return End(hash, bp, dims, cookie, name);
+    return End(CreateTrackFactory(bp, dims, name), cookie);
   }
 
   // Creates a scoped slice.
@@ -116,8 +143,7 @@ class TrackCompressor {
       int64_t ts,
       int64_t dur,
       const typename BlueprintT::name_t& name = tracks::BlueprintName()) {
-    uint64_t hash = ComputeTrackSetId(bp, dims);
-    return Scoped(hash, bp, dims, ts, dur, name);
+    return Scoped(CreateTrackFactory(bp, dims, name), ts, dur);
   }
 
   // Wrapper around tracks::SliceBlueprint which makes the blueprint eligible
@@ -182,10 +208,30 @@ class TrackCompressor {
   // This function is intended to be used on hot paths where the hash can be
   // cached and reused across multiple calls.
   template <typename BlueprintT>
-  static uint64_t ComputeTrackSetId(
+  TrackFactory CreateTrackFactory(
       const BlueprintT& bp,
-      const internal::uncompressed_dimensions_t<BlueprintT>& dims) {
-    return tracks::HashFromBlueprintAndDimensions(bp, dims);
+      const internal::uncompressed_dimensions_t<BlueprintT>& dims,
+      const typename BlueprintT::name_t& name = tracks::BlueprintName(),
+      TrackTracker::SetArgsCallback args = {},
+      std::function<void(TrackId)> on_new_track = {}) {
+    return TrackFactory{
+        tracks::HashFromBlueprintAndDimensions(bp, dims),
+        TypeToNestingBehaviour(bp.type),
+        [this, dims, bp, name, args = std::move(args),
+         on_new_track = std::move(on_new_track)](const TrackSet& state,
+                                                 uint32_t idx) {
+          auto final_dims = std::tuple_cat(dims, std::make_tuple(idx));
+          TrackId track_id =
+              context_->track_tracker->CreateTrack(bp, final_dims, name, args);
+          if (on_new_track) {
+            on_new_track(track_id);
+          }
+          auto rr =
+              context_->storage->mutable_track_table()->FindById(track_id);
+          rr->set_track_group_id(state.set_id);
+          return track_id;
+        },
+    };
   }
 
   // Starts a new slice which has the given cookie.
@@ -193,21 +239,13 @@ class TrackCompressor {
   // This is an advanced version of |InternBegin| which should only be used
   // on hot paths where the |hash| is cached. For most usecases, |InternBegin|
   // should be preferred.
-  template <typename BlueprintT>
-  TrackId Begin(
-      uint64_t hash,
-      const BlueprintT& bp,
-      const internal::uncompressed_dimensions_t<BlueprintT>& dims,
-      int64_t cookie,
-      const typename BlueprintT::name_t& name = tracks::BlueprintName()) {
-    TrackSet& set = sets_[hash];
-    auto [track_id_ptr, idx] =
-        BeginInternal(set, TypeToNestingBehaviour(bp.type), cookie);
-    if (*track_id_ptr != kInvalidTrackId) {
-      return *track_id_ptr;
+  PERFETTO_ALWAYS_INLINE TrackId Begin(const TrackFactory& factory,
+                                       int64_t cookie) {
+    TrackSet& set = GetOrCreateTrackSet(factory.hash);
+    auto [track_id_ptr, idx] = BeginInternal(set, factory.behaviour, cookie);
+    if (*track_id_ptr == kInvalidTrackId) {
+      *track_id_ptr = factory.factory(set, idx);
     }
-    auto final_dims = std::tuple_cat(dims, std::make_tuple(idx));
-    *track_id_ptr = context_->track_tracker->CreateTrack(bp, final_dims, name);
     return *track_id_ptr;
   }
 
@@ -216,20 +254,13 @@ class TrackCompressor {
   // This is an advanced version of |InternEnd| which should only be used
   // on hot paths where the |hash| is cached. For most usecases, |InternEnd|
   // should be preferred.
-  template <typename BlueprintT>
-  TrackId End(
-      uint64_t hash,
-      BlueprintT bp,
-      const internal::uncompressed_dimensions_t<BlueprintT>& dims,
-      int64_t cookie,
-      const typename BlueprintT::name_t& name = tracks::BlueprintName()) {
-    TrackSet& set = sets_[hash];
+  PERFETTO_ALWAYS_INLINE TrackId End(const TrackFactory& factory,
+                                     int64_t cookie) {
+    TrackSet& set = GetOrCreateTrackSet(factory.hash);
     auto [track_id_ptr, idx] = EndInternal(set, cookie);
-    if (*track_id_ptr != kInvalidTrackId) {
-      return *track_id_ptr;
+    if (*track_id_ptr == kInvalidTrackId) {
+      *track_id_ptr = factory.factory(set, idx);
     }
-    auto final_dims = std::tuple_cat(dims, std::make_tuple(idx));
-    *track_id_ptr = context_->track_tracker->CreateTrack(bp, final_dims, name);
     return *track_id_ptr;
   }
 
@@ -238,45 +269,35 @@ class TrackCompressor {
   // This is an advanced version of |InternScoped| which should only be used
   // on hot paths where the |hash| is cached. For most usecases, |InternScoped|
   // should be preferred.
-  template <typename BlueprintT>
-  TrackId Scoped(
-      uint64_t hash,
-      BlueprintT bp,
-      const internal::uncompressed_dimensions_t<BlueprintT>& dims,
-      int64_t ts,
-      int64_t dur,
-      const typename BlueprintT::name_t& name = tracks::BlueprintName()) {
-    TrackSet& set = sets_[hash];
+  PERFETTO_ALWAYS_INLINE TrackId Scoped(const TrackFactory& factory,
+                                        int64_t ts,
+                                        int64_t dur) {
+    TrackSet& set = GetOrCreateTrackSet(factory.hash);
     auto [track_id_ptr, idx] = ScopedInternal(set, ts, dur);
-    if (*track_id_ptr != kInvalidTrackId) {
-      return *track_id_ptr;
+    if (*track_id_ptr == kInvalidTrackId) {
+      *track_id_ptr = factory.factory(set, idx);
     }
-    auto final_dims = std::tuple_cat(dims, std::make_tuple(idx));
-    *track_id_ptr = context_->track_tracker->CreateTrack(bp, final_dims, name);
     return *track_id_ptr;
+  }
+
+  // Returns the track with index 0 for the given factory, creating it if it
+  // doesn't exist.
+  //
+  // This is useful for cases where a "default" track is needed for a given
+  // factory. For example, if we need the "representative" track to act as a
+  // parent for a merged group of tracks.
+  PERFETTO_ALWAYS_INLINE TrackId DefaultTrack(const TrackFactory& factory) {
+    TrackSet& set = GetOrCreateTrackSet(factory.hash);
+    if (set.tracks.empty()) {
+      uint32_t idx = GetOrCreateTrackForCookie(set.tracks, 0);
+      PERFETTO_DCHECK(idx == 0);
+      set.tracks.front().track_id = factory.factory(set, idx);
+    }
+    return set.tracks.front().track_id;
   }
 
  private:
   friend class TrackCompressorUnittest;
-
-  // Indicates the nesting behaviour of slices associated to a single slice
-  // stack.
-  enum class NestingBehaviour {
-    // Indicates that slices are nestable; that is, a stack of slices with
-    // the same cookie should stack properly, not merely overlap.
-    //
-    // This pattern should be the default behaviour that most async slices
-    // should use.
-    kNestable,
-
-    // Indicates that slices are unnestable but also saturating; that is
-    // calling Begin -> Begin only causes a single Begin to be recorded.
-    // This is only really useful for Android async slices which have this
-    // behaviour for legacy reasons. See the comment in
-    // SystraceParser::ParseSystracePoint for information on why
-    // this behaviour exists.
-    kLegacySaturatingUnnestable,
-  };
 
   struct TrackState {
     enum class SliceType { kCookie, kTimestamp };
@@ -299,6 +320,7 @@ class TrackCompressor {
   };
 
   struct TrackSet {
+    uint32_t set_id;
     std::vector<TrackState> tracks;
   };
 
@@ -334,6 +356,14 @@ class TrackCompressor {
   // 3. Otherwise, creates a new track and adds it to the vector.
   static uint32_t GetOrCreateTrackForCookie(std::vector<TrackState>& tracks,
                                             int64_t cookie);
+
+  PERFETTO_ALWAYS_INLINE TrackSet& GetOrCreateTrackSet(uint64_t hash) {
+    auto [it, inserted] = sets_.Insert(hash, {});
+    if (inserted) {
+      it->set_id = static_cast<uint32_t>(sets_.size() - 1);
+    }
+    return *it;
+  }
 
   base::FlatHashMap<uint64_t, TrackSet, base::AlreadyHashed<uint64_t>> sets_;
 

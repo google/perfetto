@@ -194,14 +194,15 @@ export default class implements PerfettoPlugin {
       with grouped as materialized (
         select
           t.type,
-          t.name,
+          min(t.name) as name,
+          lower(min(t.name)) as lower_name,
           extract_arg(t.dimension_arg_set_id, 'utid') as utid,
           extract_arg(t.dimension_arg_set_id, 'upid') as upid,
           group_concat(t.id) as trackIds,
           count() as trackCount
         from _slice_track_summary s
         join track t using (id)
-        group by type, upid, utid, name
+        group by type, upid, utid, t.track_group_id
       )
       select
         s.type,
@@ -221,7 +222,7 @@ export default class implements PerfettoPlugin {
       left join thread using (utid)
       left join _threads_with_kernel_flag k using (utid)
       left join process tp on thread.upid = tp.upid
-      order by lower(s.name)
+      order by lower_name
     `);
 
     const schemas = new Map(SLICE_TRACK_SCHEMAS.map((x) => [x.type, x]));

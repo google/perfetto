@@ -70,6 +70,8 @@ class StringPool {
 
  public:
   struct Id {
+    static constexpr bool kHashable = true;
+
     Id() = default;
 
     constexpr bool operator==(const Id& other) const { return other.id == id; }
@@ -119,6 +121,10 @@ class StringPool {
     }
 
     PERFETTO_ALWAYS_INLINE static constexpr Id Null() { return Id(0u); }
+
+    // For hashing.
+    const char* data() const { return reinterpret_cast<const char*>(&id); }
+    size_t size() const { return sizeof(id); }
 
    private:
     constexpr explicit Id(uint32_t i) : id(i) {}

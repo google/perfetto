@@ -40,7 +40,7 @@ const SELECTION_SCHEMA = z.discriminatedUnion('kind', [
     kind: z.literal('AREA'),
     start: zTime,
     end: zTime,
-    trackUris: z.array(z.string()),
+    trackUris: z.array(z.string()).readonly(),
   }),
 ]);
 
