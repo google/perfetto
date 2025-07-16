@@ -19772,6 +19772,25 @@ filegroup {
     path: "python",
 }
 
+python_library {
+    name: "perfetto-trace-proto-python",
+    srcs: [
+        ":perfetto-trace-proto-python-srcs",
+    ],
+    libs: [
+        "libprotobuf-python",
+    ],
+    host_supported: true,
+}
+
+filegroup {
+    name: "perfetto-trace-proto-python-srcs",
+    srcs: [
+        "python/perfetto/protos/perfetto/trace/*.py",
+    ],
+    path: "python",
+}
+
 // Added automatically by a large-scale-change that took the approach of
 // 'apply every license found to every target'. While this makes sure we respect
 // every license restriction, it may not be entirely correct.
