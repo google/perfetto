@@ -11908,6 +11908,7 @@ genrule {
 genrule {
     name: "perfetto_protos_third_party_chromium_descriptor",
     srcs: [
+        "out/tmp.gn_utils/gcc_like_host/gen/protos/third_party/chromium/descriptor_root_source.proto",
         "protos/perfetto/trace/track_event/chrome_active_processes.proto",
         "protos/perfetto/trace/track_event/chrome_application_state_info.proto",
         "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.proto",
