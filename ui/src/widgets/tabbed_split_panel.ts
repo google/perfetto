@@ -54,6 +54,9 @@ export interface TabbedSplitPanelAttrs {
   // What height should the drawer be initially?
   readonly startingHeight?: number;
 
+  // Whether the drawer height should not be fixed.
+  readonly notFixedHeight?: boolean;
+
   // Called when the active tab is changed.
   onTabChange?(key: string): void;
 
@@ -76,6 +79,7 @@ export class TabbedSplitPanel
       onTabChange,
       leftHandleContent: leftContent,
       startingHeight,
+      notFixedHeight,
       tabs,
       visibility,
       onVisibilityChange,
@@ -89,6 +93,7 @@ export class TabbedSplitPanel
           m(Gate, {open: tab.key === currentTabKey}, tab.content),
         ),
         startingHeight,
+        notFixedHeight,
         visibility,
         onVisibilityChange,
         handleContent: m(

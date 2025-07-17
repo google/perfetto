@@ -71,4 +71,3 @@ message GenericKernelTaskRenameEvent {
   // New command name for the thread.
   optional string comm = 2;
 }
-
