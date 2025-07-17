@@ -94,3 +94,20 @@ export function classForIntent(intent: Intent): string | undefined {
       return assertUnreachable(intent);
   }
 }
+
+export type Spacing = 'none' | 'small' | 'medium' | 'large';
+
+export function classForSpacing(spacing: Spacing): string {
+  switch (spacing) {
+    case 'none':
+      return 'pf-spacing-none';
+    case 'small':
+      return 'pf-spacing-small';
+    case 'medium':
+      return 'pf-spacing-medium';
+    case 'large':
+      return 'pf-spacing-large';
+    default:
+      assertUnreachable(spacing);
+  }
+}
