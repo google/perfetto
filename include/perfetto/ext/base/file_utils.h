@@ -36,9 +36,11 @@ namespace base {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 using FileOpenMode = int;
 inline constexpr char kDevNull[] = "NUL";
+#define FOPEN_READ_FLAG "r"
 #else
 using FileOpenMode = mode_t;
 inline constexpr char kDevNull[] = "/dev/null";
+#define FOPEN_READ_FLAG "re"
 #endif
 
 constexpr FileOpenMode kFileModeInvalid = static_cast<FileOpenMode>(-1);
