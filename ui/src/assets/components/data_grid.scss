@@ -17,7 +17,6 @@ $border: 1px solid rgb(225, 225, 225);
 .pf-data-grid {
   display: flex;
   flex-direction: column;
-  font-weight: 300;
   white-space: nowrap;
   overflow: hidden;
 
@@ -36,6 +35,7 @@ $border: 1px solid rgb(225, 225, 225);
   table {
     min-width: 100%;
     border-spacing: 0;
+    font-weight: 300;
   }
 
   // Highlight rows on hover.
@@ -138,29 +138,7 @@ $border: 1px solid rgb(225, 225, 225);
     visibility: hidden;
   }
 
-  &__toolbar {
-    display: flex;
-    padding: 2px;
-    align-items: baseline;
-    gap: 2px;
-  }
-
-  &__toolbar-filters {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 4px;
-    padding: 2px;
-    flex-grow: 1;
-  }
-
   &__filter-chip {
     cursor: pointer;
-  }
-
-  &__toolbar-pagination {
-    display: flex;
-    gap: 4px;
-    align-items: baseline;
   }
 }
