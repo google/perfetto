@@ -281,8 +281,7 @@ bool Tracefs::ClearMaxGraphDepth() {
   return WriteNumberToFile(path, 0);
 }
 
-bool Tracefs::SetEventPidFilter(
-    const std::vector<std::string>& pids_to_trace) {
+bool Tracefs::SetEventPidFilter(const std::vector<std::string>& pids_to_trace) {
   std::string path = root_ + "set_event_pid";
   std::string filter = base::Join(pids_to_trace, " ");
   return WriteToFile(path, filter);
