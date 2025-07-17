@@ -45,4 +45,3 @@ TEST(Regex, SubmatchOptionalGroup) {
 
 }  // namespace
 }  // namespace perfetto::trace_processor::regex
-
