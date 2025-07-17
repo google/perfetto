@@ -420,7 +420,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
 
   PidFilterSettings requested_trace_pid_filter = TrackAllPids();
   bool requested_event_fork = false;
-  // Enable pid filtering only when a non-empty list of pids is provided.
+
   if (request.has_pid_filter() &&
       !request.pid_filter().pids_to_trace().empty()) {
     const auto& pids_int = request.pid_filter().pids_to_trace();
@@ -428,8 +428,8 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
     std::transform(pids_int.begin(), pids_int.end(),
                    std::inserter(unique_pid_strs, unique_pid_strs.end()),
                    [](uint32_t pid) { return std::to_string(pid); });
-    requested_trace_pid_filter = std::vector<std::string>(
-        unique_pid_strs.begin(), unique_pid_strs.end());
+    requested_trace_pid_filter =
+        PidList(unique_pid_strs.begin(), unique_pid_strs.end());
     requested_event_fork = request.pid_filter().enable_event_fork();
   }
 
@@ -438,11 +438,8 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
   if (ds_configs_.empty()) {
     current_state_.trace_pid_filter = requested_trace_pid_filter;
     current_state_.event_fork_enabled = requested_event_fork;
-    // Update only in case of PidList based on assumption that
-    // TrackAllPids is the default state of device to minimize the number of
-    // unnecessary kernel calls.
-    needs_pid_filter_update = needs_event_fork_update =
-        std::holds_alternative<PidList>(current_state_.trace_pid_filter);
+    // To ensure alignment with the requested state.
+    needs_pid_filter_update = needs_event_fork_update = true;
   } else {
     // 1) If current_state_.trace_pid_filter is TrackAllPids, any new request
     // won't change the PID filter.
@@ -457,16 +454,18 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
         UnionInPlace(std::get<PidList>(requested_trace_pid_filter),
                      &current_pids);
         needs_pid_filter_update = num_pids_before_union != current_pids.size();
-        // Set event fork if requested by new config and not already enabled.
-        // If already enabled, continue with it to align with union policy.
-        if (!current_state_.event_fork_enabled && requested_event_fork) {
-          current_state_.event_fork_enabled = true;
-          needs_event_fork_update = true;
-        }
       } else {
         current_state_.trace_pid_filter = TrackAllPids();
         needs_pid_filter_update = true;
       }
+    }
+
+    // Set event fork if requested by new config and not already enabled.
+    // If already enabled, continue with it to ensure the widest scope of events
+    // is captured for the session.
+    if (!current_state_.event_fork_enabled && requested_event_fork) {
+      current_state_.event_fork_enabled = true;
+      needs_event_fork_update = true;
     }
   }
 
@@ -748,6 +747,42 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
       current_state_.ftrace_events.DisableEvent(event->ftrace_event_id);
   }
 
+  PidFilterSettings new_pid_filter = TrackAllPids();
+  bool new_event_fork_enabled = false;
+
+  if (!ds_configs_.empty()) {
+    PidList merged_pids;
+    bool all_pids = false;
+    for (const auto& id_config : ds_configs_) {
+      const auto& config = id_config.second;
+      if (std::holds_alternative<TrackAllPids>(config.trace_pid_filter)) {
+        all_pids = true;
+        break;
+      }
+      const auto& config_pids = std::get<PidList>(config.trace_pid_filter);
+      UnionInPlace(config_pids, &merged_pids);
+      new_event_fork_enabled |= config.event_fork_enabled;
+    }
+
+    if (!all_pids) {
+      new_pid_filter = std::move(merged_pids);
+    }
+  }
+
+  if (current_state_.trace_pid_filter != new_pid_filter) {
+    current_state_.trace_pid_filter = new_pid_filter;
+    if (!UpdatePidFilter()) {
+      PERFETTO_DPLOG("Failed to update PID filter in RemoveConfig");
+    }
+  }
+
+  if (current_state_.event_fork_enabled != new_event_fork_enabled) {
+    current_state_.event_fork_enabled = new_event_fork_enabled;
+    if (!ftrace_->SetEventFork(current_state_.event_fork_enabled)) {
+      PERFETTO_DPLOG("Failed to update event fork in RemoveConfig");
+    }
+  }
+
   auto active_it = active_configs_.find(config_id);
   if (active_it != active_configs_.end()) {
     active_configs_.erase(active_it);
@@ -804,44 +839,6 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
                            /*atrace_errors=*/nullptr)) {
       current_state_.atrace_categories_prefer_sdk =
           expected_categories_prefer_sdk;
-    }
-  }
-
-  PidFilterSettings new_pid_filter = TrackAllPids();
-  bool new_event_fork_enabled = false;
-
-  if (!ds_configs_.empty()) {
-    PidList merged_pids;
-    bool all_pids = false;
-    for (const auto& id_config : ds_configs_) {
-      const auto& config = id_config.second;
-      if (std::holds_alternative<TrackAllPids>(config.trace_pid_filter)) {
-        all_pids = true;
-        break;
-      }
-      const auto& config_pids = std::get<PidList>(config.trace_pid_filter);
-      UnionInPlace(config_pids, &merged_pids);
-      new_event_fork_enabled |= config.event_fork_enabled;
-    }
-
-    if (!all_pids) {
-      new_pid_filter = std::move(merged_pids);
-    }
-  }
-
-  if (current_state_.trace_pid_filter != new_pid_filter) {
-    current_state_.trace_pid_filter = new_pid_filter;
-    if (!UpdatePidFilter()) {
-      PERFETTO_DPLOG("Failed to update PID filter in RemoveConfig");
-    }
-  }
-
-  if (std::holds_alternative<PidList>(current_state_.trace_pid_filter)) {
-    if (current_state_.event_fork_enabled != new_event_fork_enabled) {
-      current_state_.event_fork_enabled = new_event_fork_enabled;
-      if (!ftrace_->SetEventFork(current_state_.event_fork_enabled)) {
-        PERFETTO_DPLOG("Failed to update event fork in RemoveConfig");
-      }
     }
   }
 
