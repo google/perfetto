@@ -13,10 +13,4 @@ perfetto_proto_library("@TYPE@") {
   # Chrome .proto files have imports relative to the current directory, since
   # the copies in Chrome live at a different file path (//base/tracing/protos).
   import_dirs = [ "./" ]
-
-  # When rolled into Chrome, extension descriptor is going to be linked into
-  # binary, therefore increasing its size. Including imports means that the
-  # full TrackEvent descriptor is going to be included as well, increasing the
-  # binary size unnecessarily. Therefore, exclude_imports is used.
-  exclude_imports = true
 }
