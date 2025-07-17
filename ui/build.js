@@ -393,7 +393,6 @@ function copyUiTestArtifactsAssets(src, dst) {
 }
 
 function compileScss() {
-  console.log('Compiling SCSS to CSS');
   const src = pjoin(ROOT_DIR, 'ui/src/assets/perfetto.scss');
   const dst = pjoin(cfg.outDistDir, 'perfetto.css');
   // In watch mode, don't exit(1) if scss fails. It can easily happen by
