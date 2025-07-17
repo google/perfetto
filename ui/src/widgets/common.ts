@@ -30,6 +30,7 @@ export interface HTMLAttrs {
   readonly onclick?: (e: PointerEvent) => void;
   readonly ondblclick?: (e: PointerEvent) => void;
   readonly onmouseover?: (e: MouseEvent) => void;
+  readonly onmouseenter?: (e: MouseEvent) => void;
   readonly onmouseout?: (e: MouseEvent) => void;
   readonly onmousedown?: (e: MouseEvent) => void;
   readonly onmouseup?: (e: MouseEvent) => void;

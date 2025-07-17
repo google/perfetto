@@ -16,7 +16,6 @@
 @import "common";
 @import "viewer_page";
 @import "home_page";
-@import "query_page";
 @import "metrics_page";
 @import "sidebar";
 @import "topbar";
@@ -49,12 +48,13 @@
 @import "widgets/grid_layout";
 @import "widgets/hotkey";
 @import "widgets/icon";
+@import "widgets/linear_progress";
 @import "widgets/menu";
 @import "widgets/middle_ellipsis";
 @import "widgets/multiselect_input";
 @import "widgets/multiselect";
 @import "widgets/popup";
-@import "widgets/linear_progress";
+@import "widgets/resize_handle";
 @import "widgets/section";
 @import "widgets/segmented_buttons";
 @import "widgets/select";

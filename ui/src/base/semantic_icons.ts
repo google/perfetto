@@ -47,6 +47,7 @@ export class Icons {
   static readonly Warning = 'warning';
   static readonly Help = 'help';
   static readonly Download = 'download';
+  static readonly Check = 'check';
 
   // Page control
   static readonly NextPage = 'chevron_right';

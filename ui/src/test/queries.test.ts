@@ -86,11 +86,11 @@ test('query page', async () => {
 
   // Double click on the 2nd one and expect the query is re-ran.
   page
-    .locator('.query-page .pf-query-history .pf-history-item')
+    .locator('.pf-query-page .pf-query-history .pf-history-item')
     .nth(1)
     .dblclick();
   await pth.waitForPerfettoIdle();
   expect(
-    await page.locator('.query-page .pf-data-grid tbody tr').count(),
+    await page.locator('.pf-query-page .pf-data-grid tbody tr').count(),
   ).toEqual(2);
 });
