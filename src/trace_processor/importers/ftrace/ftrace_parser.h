@@ -47,6 +47,7 @@
 #include "src/trace_processor/importers/ftrace/virtio_gpu_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/version_number.h"
 
 namespace perfetto::trace_processor {
 
@@ -183,6 +184,11 @@ class FtraceParser {
                          protozero::ConstBytes);
   void ParseScmCallEnd(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
   void ParseCmaAllocStart(int64_t timestamp, uint32_t pid);
+  void ParseCmaAllocFinish(int64_t timestamp,
+                           uint32_t pid,
+                           protozero::ConstBytes);
+  Variadic FindMigrationInfo(UniqueTid utid, const char* key);
+  void ParseMmAllocContigMigrateRangeInfo(uint32_t pid, protozero::ConstBytes);
   void ParseCmaAllocInfo(int64_t timestamp,
                          uint32_t pid,
                          protozero::ConstBytes);
@@ -462,6 +468,10 @@ class FtraceParser {
   // Record number of transmitted bytes to the network interface card.
   std::unordered_map<std::string, uint64_t> nic_transmitted_bytes_;
 
+  // Record tid to migrate info.
+  std::unordered_map<UniqueTid, std::unordered_map<std::string, Variadic>>
+      tid_to_migration_info_;
+
   // Record number of kfree_skb with ip protocol.
   uint64_t num_of_kfree_skb_ip_prot = 0;
 
@@ -523,6 +533,8 @@ class FtraceParser {
 
   base::FlatHashMap<std::pair<uint64_t, int64_t>, uint32_t, PairHash>
       inode_offset_thread_map_;
+
+  std::optional<VersionNumber> kernel_version_;
 };
 
 }  // namespace perfetto::trace_processor
