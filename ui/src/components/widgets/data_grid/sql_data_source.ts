@@ -36,6 +36,7 @@ export class SQLDataSource implements DataGridDataSource {
   private pagination?: Pagination;
   private aggregates?: ReadonlyArray<AggregateSpec>;
   private cachedResult?: DataSourceResult;
+  private isLoadingFlag = false;
 
   constructor(engine: Engine, query: string) {
     this.engine = engine;
@@ -49,6 +50,10 @@ export class SQLDataSource implements DataGridDataSource {
     return this.cachedResult;
   }
 
+  get isLoading(): boolean {
+    return this.isLoadingFlag;
+  }
+
   /**
    * Notify of parameter changes and trigger data update
    */
@@ -60,50 +65,56 @@ export class SQLDataSource implements DataGridDataSource {
     aggregates,
   }: DataGridModel): void {
     this.limiter.schedule(async () => {
-      // If the working query has changed, we need to invalidate the cache and
-      // reload everything, including the page count.
-      const workingQuery = this.buildWorkingQuery(columns, filters, sorting);
-      if (workingQuery !== this.workingQuery) {
-        this.workingQuery = workingQuery;
+      this.isLoadingFlag = true;
 
-        // Clear the cache
-        this.cachedResult = undefined;
-        this.pagination = undefined;
-        this.aggregates = undefined;
+      try {
+        // If the working query has changed, we need to invalidate the cache and
+        // reload everything, including the page count.
+        const workingQuery = this.buildWorkingQuery(columns, filters, sorting);
+        if (workingQuery !== this.workingQuery) {
+          this.workingQuery = workingQuery;
 
-        // Update the cache with the total row count
-        const rowCount = await this.getRowCount(workingQuery);
-        this.cachedResult = {
-          rowOffset: 0,
-          totalRows: rowCount,
-          rows: [],
-          aggregates: {},
-        };
-      }
+          // Clear the cache
+          this.cachedResult = undefined;
+          this.pagination = undefined;
+          this.aggregates = undefined;
 
-      if (!areAggregateArraysEqual(this.aggregates, aggregates)) {
-        this.aggregates = aggregates;
-        if (aggregates) {
-          const aggregateResults = await this.getAggregates(
-            workingQuery,
-            aggregates,
-          );
+          // Update the cache with the total row count
+          const rowCount = await this.getRowCount(workingQuery);
           this.cachedResult = {
-            ...this.cachedResult!,
-            aggregates: aggregateResults,
+            rowOffset: 0,
+            totalRows: rowCount,
+            rows: [],
+            aggregates: {},
           };
         }
-      }
 
-      // Fetch data if pagination has changed.
-      if (!comparePagination(this.pagination, pagination)) {
-        this.pagination = pagination;
-        const {offset, rows} = await this.getRows(workingQuery, pagination);
-        this.cachedResult = {
-          ...this.cachedResult!,
-          rowOffset: offset,
-          rows,
-        };
+        if (!areAggregateArraysEqual(this.aggregates, aggregates)) {
+          this.aggregates = aggregates;
+          if (aggregates) {
+            const aggregateResults = await this.getAggregates(
+              workingQuery,
+              aggregates,
+            );
+            this.cachedResult = {
+              ...this.cachedResult!,
+              aggregates: aggregateResults,
+            };
+          }
+        }
+
+        // Fetch data if pagination has changed.
+        if (!comparePagination(this.pagination, pagination)) {
+          this.pagination = pagination;
+          const {offset, rows} = await this.getRows(workingQuery, pagination);
+          this.cachedResult = {
+            ...this.cachedResult!,
+            rowOffset: offset,
+            rows,
+          };
+        }
+      } finally {
+        this.isLoadingFlag = false;
       }
     });
   }
