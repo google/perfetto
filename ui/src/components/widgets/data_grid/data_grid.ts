@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
 import {Button, ButtonBar} from '../../../widgets/button';
-import {downloadData} from '../../../base/download_utils';
+import {download} from '../../../base/download_utils';
 import {Anchor} from '../../../widgets/anchor';
 import {
   ColumnDefinition,
@@ -760,8 +760,12 @@ export function renderCell(value: SqlValue, columnName: string) {
     return m(
       Anchor,
       {
-        onclick: () => downloadData(`${columnName}.blob`, value),
         icon: Icons.Download,
+        onclick: () =>
+          download({
+            fileName: `${columnName}.blob`,
+            content: value,
+          }),
       },
       `Blob (${value.length} bytes)`,
     );

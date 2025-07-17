@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,8 +33,72 @@ declare global {
   }
 }
 
-// Initiate download of a resource identified by |url| into |filename|.
-export function downloadUrl(fileName: string, url: string) {
+// A representation of some content that can be downloaded.
+type Content = string | Uint8Array | File | Blob;
+
+export type FilePickerOptions = {
+  types?: FilePickerAcceptType[];
+};
+
+/**
+ * Downloads some content to a file.
+ *
+ * @param args The arguments for the download.
+ * @param args.content The content to download.
+ * @param args.fileName The name of the file to download.
+ * @param args.mimeType The MIME type of the content.
+ * @param args.filePicker If provided, the file picker will be used to save the file.
+ */
+export async function download({
+  content,
+  fileName,
+  mimeType,
+  filePicker,
+}: {
+  content: Content;
+  fileName: string;
+  mimeType?: string;
+  filePicker?: FilePickerOptions;
+}) {
+  let blob: Blob;
+  if (content instanceof File || content instanceof Blob) {
+    blob = content;
+  } else {
+    const inferredMimeType =
+      typeof content === 'string' ? 'text/plain' : 'application/octet-stream';
+    blob = new Blob([content], {
+      type: mimeType ?? inferredMimeType,
+    });
+  }
+
+  if (filePicker && exists(window.showSaveFilePicker)) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: fileName,
+        types: filePicker.types,
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+    } catch (e) {
+      console.error(e);
+      // The user pressed cancel, do nothing.
+    }
+  } else {
+    // No file picker available or requested, fallback to the old method.
+    using url = createUrl(blob);
+    downloadUrl({url: url.value, fileName});
+  }
+}
+
+/**
+ * Initiate download of a resource identified by a URL.
+ *
+ * @param args The arguments for the download.
+ * @param args.fileName The name of the file to download.
+ * @param args.url The URL of the resource to download.
+ */
+export function downloadUrl({fileName, url}: {fileName: string; url: string}) {
   const a = document.createElement('a');
   a.href = url;
   a.download = fileName;
@@ -42,53 +106,12 @@ export function downloadUrl(fileName: string, url: string) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 }
 
-// Initiate download of |data| a file with a given name.
-export function downloadData(fileName: string, ...data: Uint8Array[]) {
-  const blob = new Blob(data, {type: 'application/octet-stream'});
+function createUrl(blob: Blob): Disposable & {readonly value: string} {
   const url = URL.createObjectURL(blob);
-  downloadUrl(fileName, url);
-}
-
-/**
- * Downloads a url or a File/Blob using the file picker.
- * The file picker is omitted if the source is a URL to avoid re-fetching
- * URL-based traces.
- * @param fileName the suggested file name.
- * @param data the url or File or blob
- */
-export async function downloadFileOrUrlWithFilePicker(
-  fileName: string,
-  data: string | File | Blob,
-) {
-  if (typeof data === 'string') {
-    return downloadUrl(fileName, data);
-  }
-  const hasFilePicker = exists(window.showSaveFilePicker);
-  if (!hasFilePicker) {
-    const url = URL.createObjectURL(data);
-    return downloadUrl(fileName, url);
-  }
-
-  let handle: FileSystemFileHandle;
-  try {
-    handle = await window.showSaveFilePicker({
-      suggestedName: fileName,
-      types: [
-        {
-          description: 'Perfetto trace',
-          accept: {'*/*': ['.pftrace']},
-        },
-      ],
-    });
-  } catch (e) {
-    console.error(e);
-    return; // The user pressed cancel.
-  }
-
-  const writable = await handle.createWritable();
-  await writable.write(data);
-  await writable.close();
+  return {
+    [Symbol.dispose]: () => URL.revokeObjectURL(url),
+    value: url,
+  };
 }
