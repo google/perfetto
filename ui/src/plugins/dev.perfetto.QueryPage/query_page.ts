@@ -21,10 +21,13 @@ import {
 } from '../../components/query_table/queries';
 import {Callout} from '../../widgets/callout';
 import {Editor} from '../../widgets/editor';
-import {QueryHistoryComponent, queryHistoryStorage} from './query_history';
 import {Trace, TraceAttrs} from '../../public/trace';
 import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
 import {QueryTable} from '../../components/query_table/query_table';
+import {
+  QueryHistoryComponent,
+  queryHistoryStorage,
+} from '../../components/widgets/query_history';
 
 interface QueryPageState {
   enteredText: string;
