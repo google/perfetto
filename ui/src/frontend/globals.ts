@@ -26,6 +26,7 @@ class Globals {
 
   // WARNING: do not change/rename/move without considering impact on the
   // internal_user script.
+  // Test test
   get extraSqlPackages() {
     return AppImpl.instance.extraSqlPackages;
   }
