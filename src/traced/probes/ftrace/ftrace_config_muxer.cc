@@ -747,16 +747,16 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
       current_state_.ftrace_events.DisableEvent(event->ftrace_event_id);
   }
 
+  // Default state (as well as when no configs are active) is to trace all PIDs.
   PidFilterSettings new_pid_filter = TrackAllPids();
   bool new_event_fork_enabled = false;
-
   if (!ds_configs_.empty()) {
     PidList merged_pids;
-    bool all_pids = false;
+    bool trace_all_pids = false;
     for (const auto& id_config : ds_configs_) {
       const auto& config = id_config.second;
       if (std::holds_alternative<TrackAllPids>(config.trace_pid_filter)) {
-        all_pids = true;
+        trace_all_pids = true;
         break;
       }
       const auto& config_pids = std::get<PidList>(config.trace_pid_filter);
@@ -764,7 +764,7 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
       new_event_fork_enabled |= config.event_fork_enabled;
     }
 
-    if (!all_pids) {
+    if (!trace_all_pids) {
       new_pid_filter = std::move(merged_pids);
     }
   }

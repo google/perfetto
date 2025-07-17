@@ -355,6 +355,9 @@ TEST(FtraceControllerTest, OneSink) {
   EXPECT_CALL(*controller->tracefs(),
               ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")))
       .WillRepeatedly(Return(true));
+  EXPECT_CALL(*controller->tracefs(), ClearFile("/root/set_event_pid"));
+  EXPECT_CALL(*controller->tracefs(),
+              WriteToFile("/root/options/event-fork", "0"));
   EXPECT_CALL(*controller->tracefs(), WriteToFile("/root/buffer_size_kb", _));
   EXPECT_CALL(*controller->tracefs(), WriteToFile(kFooEnablePath, "1"));
 
@@ -408,6 +411,9 @@ TEST(FtraceControllerTest, MultipleSinks) {
   EXPECT_CALL(*controller->tracefs(),
               ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")))
       .WillRepeatedly(Return(true));
+  EXPECT_CALL(*controller->tracefs(), ClearFile("/root/set_event_pid"));
+  EXPECT_CALL(*controller->tracefs(),
+              WriteToFile("/root/options/event-fork", "0"));
   EXPECT_CALL(*controller->tracefs(), WriteToFile("/root/buffer_size_kb", _));
   EXPECT_CALL(*controller->tracefs(), WriteToFile(kFooEnablePath, "1"));
   auto data_sourceA = controller->AddFakeDataSource(configA);
@@ -461,6 +467,9 @@ TEST(FtraceControllerTest, ControllerMayDieFirst) {
   EXPECT_CALL(*controller->tracefs(),
               ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")))
       .WillRepeatedly(Return(true));
+  EXPECT_CALL(*controller->tracefs(), ClearFile("/root/set_event_pid"));
+  EXPECT_CALL(*controller->tracefs(),
+              WriteToFile("/root/options/event-fork", "0"));
   EXPECT_CALL(*controller->tracefs(), WriteToFile("/root/buffer_size_kb", _));
   EXPECT_CALL(*controller->tracefs(), WriteToFile(kFooEnablePath, "1"));
   EXPECT_CALL(*controller->tracefs(), WriteToFile("/root/buffer_percent", _))
