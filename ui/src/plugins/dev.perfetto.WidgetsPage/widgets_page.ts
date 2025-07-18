@@ -1010,7 +1010,10 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
       m(WidgetShowcase, {
         label: 'Icon',
         renderWidget: (opts) => m(Icon, {icon: 'star', ...opts}),
-        initialOpts: {filled: false},
+        initialOpts: {
+          filled: false,
+          intent: new EnumOption(Intent.None, Object.values(Intent)),
+        },
       }),
       m(WidgetShowcase, {
         label: 'MultiSelect panel',
