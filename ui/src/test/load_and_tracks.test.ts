@@ -51,10 +51,7 @@ test('omnibox search', async () => {
 });
 
 test('mark', async () => {
-  await page.keyboard.press('/');
-  await pth.waitForPerfettoIdle();
-
-  await page.keyboard.type('doFrame');
+  await pth.searchSlice('doFrame');
   await pth.waitForPerfettoIdle();
 
   for (let i = 0; i < 4; i++) {
