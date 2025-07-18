@@ -310,6 +310,7 @@ message FtraceConfig {
   // - Result: set_event_pid is cleared, all PIDs traced.
   //
   // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
   optional PidFilter pid_filter = 35;
 
   // No-op in perfetto v28+. Name preserved because of existing references in

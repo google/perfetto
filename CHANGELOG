@@ -1,6 +1,8 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Added support for filtering ftrace events by PID. This allows tracing
+      only a specific set of processes, and optionally their children.
+      See `FtraceConfig.PidFilter`.
   SQL Standard library:
     * Added `android.bitmaps` module with timeseries information about bitmap
       usage in Android.
