@@ -173,11 +173,13 @@ class TrackTracker {
   //
   // WARNING: this function should *not* be used by any users not explicitly
   // approved and discussed with a trace processor maintainer.
+  enum class AsyncSliceType { kBegin, kEnd, kInstant };
   TrackId InternLegacyAsyncTrack(StringId name,
                                  uint32_t upid,
                                  int64_t trace_id,
                                  bool trace_id_is_process_scoped,
-                                 StringId source_scope);
+                                 StringId source_scope,
+                                 AsyncSliceType slice_type);
 
  private:
   friend class TrackCompressor;

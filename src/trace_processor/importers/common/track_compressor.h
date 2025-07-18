@@ -119,8 +119,9 @@ class TrackCompressor {
       const BlueprintT& bp,
       const internal::uncompressed_dimensions_t<BlueprintT>& dims,
       int64_t cookie,
-      const typename BlueprintT::name_t& name = tracks::BlueprintName()) {
-    return Begin(CreateTrackFactory(bp, dims, name), cookie);
+      const typename BlueprintT::name_t& name = tracks::BlueprintName(),
+      TrackTracker::SetArgsCallback args = {}) {
+    return Begin(CreateTrackFactory(bp, dims, name, args), cookie);
   }
 
   // Ends a new slice which has the given cookie.
@@ -129,8 +130,9 @@ class TrackCompressor {
       BlueprintT bp,
       const internal::uncompressed_dimensions_t<BlueprintT>& dims,
       int64_t cookie,
-      const typename BlueprintT::name_t& name = tracks::BlueprintName()) {
-    return End(CreateTrackFactory(bp, dims, name), cookie);
+      const typename BlueprintT::name_t& name = tracks::BlueprintName(),
+      TrackTracker::SetArgsCallback args = {}) {
+    return End(CreateTrackFactory(bp, dims, name, args), cookie);
   }
 
   // Creates a scoped slice.
@@ -142,8 +144,9 @@ class TrackCompressor {
       const internal::uncompressed_dimensions_t<BlueprintT>& dims,
       int64_t ts,
       int64_t dur,
-      const typename BlueprintT::name_t& name = tracks::BlueprintName()) {
-    return Scoped(CreateTrackFactory(bp, dims, name), ts, dur);
+      const typename BlueprintT::name_t& name = tracks::BlueprintName(),
+      TrackTracker::SetArgsCallback args = {}) {
+    return Scoped(CreateTrackFactory(bp, dims, name, args), ts, dur);
   }
 
   // Wrapper around tracks::SliceBlueprint which makes the blueprint eligible

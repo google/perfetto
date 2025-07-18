@@ -101,6 +101,22 @@ inline std::string NormalizePathSeparators(const protozero::ConstChars& path) {
   return result;
 }
 
+inline TrackTracker::AsyncSliceType AsyncSliceTypeForPhase(int32_t phase) {
+  switch (phase) {
+    case 'b':
+    case 'S':
+      return TrackTracker::AsyncSliceType::kBegin;
+    case 'e':
+    case 'T':
+      return TrackTracker::AsyncSliceType::kEnd;
+    case 'n':
+    case 'p':
+    case 'F':
+      return TrackTracker::AsyncSliceType::kInstant;
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 inline protos::pbzero::AndroidLogPriority ToAndroidLogPriority(
     protos::pbzero::LogMessage::Priority prio) {
   switch (prio) {
@@ -540,7 +556,7 @@ class TrackEventEventImporter {
         }
         return context_->track_tracker->InternLegacyAsyncTrack(
             name_id_, upid_.value_or(0), source_id, source_id_is_process_scoped,
-            id_scope);
+            id_scope, AsyncSliceTypeForPhase(legacy_event_.phase()));
       }
       case 'i':
       case 'I': {

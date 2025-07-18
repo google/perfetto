@@ -78,6 +78,18 @@ inline std::string_view GetStringValue(const json::JsonValue& value) {
   return {};
 }
 
+TrackTracker::AsyncSliceType AsyncSliceTypeForPhase(char phase) {
+  switch (phase) {
+    case 'b':
+      return TrackTracker::AsyncSliceType::kBegin;
+    case 'e':
+      return TrackTracker::AsyncSliceType::kEnd;
+    case 'n':
+      return TrackTracker::AsyncSliceType::kInstant;
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 }  // namespace
 
 JsonTraceParserImpl::JsonTraceParserImpl(TraceProcessorContext* context)
@@ -166,14 +178,16 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
         track_id = context_->track_tracker->InternLegacyAsyncTrack(
             event.name, upid, event.async_cookie,
             false /* source_id_is_process_scoped */,
-            kNullStringId /* source_scope */);
+            kNullStringId /* source_scope */,
+            AsyncSliceTypeForPhase(event.phase));
       } else {
         PERFETTO_DCHECK(event.async_cookie_type ==
                         JsonEvent::AsyncCookieType::kId2Local);
         track_id = context_->track_tracker->InternLegacyAsyncTrack(
             event.name, upid, event.async_cookie,
             true /* source_id_is_process_scoped */,
-            kNullStringId /* source_scope */);
+            kNullStringId /* source_scope */,
+            AsyncSliceTypeForPhase(event.phase));
       }
       if (event.phase == 'b') {
         slice_tracker->Begin(timestamp, track_id, event.cat, slice_name_id,

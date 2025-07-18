@@ -25,6 +25,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
@@ -50,7 +51,8 @@ TrackId TrackTracker::InternLegacyAsyncTrack(StringId raw_name,
                                              uint32_t upid,
                                              int64_t trace_id,
                                              bool trace_id_is_process_scoped,
-                                             StringId source_scope) {
+                                             StringId source_scope,
+                                             AsyncSliceType slice_type) {
   auto args_fn = [&](ArgsTracker::BoundInserter& inserter) {
     inserter.AddArg(source_key_, Variadic::String(chrome_source_))
         .AddArg(trace_id_key_, Variadic::Integer(trace_id))
@@ -62,27 +64,75 @@ TrackId TrackTracker::InternLegacyAsyncTrack(StringId raw_name,
   if (trace_id_is_process_scoped) {
     const StringId name =
         context_->process_track_translation_table->TranslateName(raw_name);
-    static constexpr auto kBlueprint = tracks::SliceBlueprint(
+    static constexpr auto kBlueprint = TrackCompressor::SliceBlueprint(
         "legacy_async_process_slice",
         tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint,
                                     tracks::StringDimensionBlueprint("scope"),
-                                    tracks::LongDimensionBlueprint("cookie")),
+                                    tracks::StringIdDimensionBlueprint("name")),
         tracks::DynamicNameBlueprint());
-    return InternTrackInner(
-        kBlueprint,
-        tracks::Dimensions(upid, context_->storage->GetString(source_scope),
-                           trace_id),
-        tracks::DynamicName(name), args_fn);
+    switch (slice_type) {
+      case AsyncSliceType::kBegin:
+        return context_->track_compressor->InternBegin(
+            kBlueprint,
+            tracks::Dimensions(upid, context_->storage->GetString(source_scope),
+                               name),
+            trace_id, tracks::DynamicName(name), args_fn);
+      case AsyncSliceType::kEnd:
+        return context_->track_compressor->InternEnd(
+            kBlueprint,
+            tracks::Dimensions(upid, context_->storage->GetString(source_scope),
+                               name),
+            trace_id, tracks::DynamicName(name), args_fn);
+      case AsyncSliceType::kInstant: {
+        TrackId begin = context_->track_compressor->InternBegin(
+            kBlueprint,
+            tracks::Dimensions(upid, context_->storage->GetString(source_scope),
+                               name),
+            trace_id, tracks::DynamicName(name), args_fn);
+        TrackId end = context_->track_compressor->InternEnd(
+            kBlueprint,
+            tracks::Dimensions(upid, context_->storage->GetString(source_scope),
+                               name),
+            trace_id, tracks::DynamicName(name), args_fn);
+        PERFETTO_DCHECK(begin == end);
+        return begin;
+      }
+    }
+    PERFETTO_FATAL("For GCC");
   }
-  static constexpr auto kBlueprint = tracks::SliceBlueprint(
+  static constexpr auto kBlueprint = TrackCompressor::SliceBlueprint(
       "legacy_async_global_slice",
       tracks::DimensionBlueprints(tracks::StringDimensionBlueprint("scope"),
-                                  tracks::LongDimensionBlueprint("cookie")),
+                                  tracks::StringIdDimensionBlueprint("name")),
       tracks::DynamicNameBlueprint());
-  return InternTrackInner(
-      kBlueprint,
-      tracks::Dimensions(context_->storage->GetString(source_scope), trace_id),
-      tracks::DynamicName(raw_name), args_fn);
+  switch (slice_type) {
+    case AsyncSliceType::kBegin:
+      return context_->track_compressor->InternBegin(
+          kBlueprint,
+          tracks::Dimensions(context_->storage->GetString(source_scope),
+                             raw_name),
+          trace_id, tracks::DynamicName(raw_name), args_fn);
+    case AsyncSliceType::kEnd:
+      return context_->track_compressor->InternEnd(
+          kBlueprint,
+          tracks::Dimensions(context_->storage->GetString(source_scope),
+                             raw_name),
+          trace_id, tracks::DynamicName(raw_name), args_fn);
+    case AsyncSliceType::kInstant:
+      TrackId begin = context_->track_compressor->InternBegin(
+          kBlueprint,
+          tracks::Dimensions(context_->storage->GetString(source_scope),
+                             raw_name),
+          trace_id, tracks::DynamicName(raw_name), args_fn);
+      TrackId end = context_->track_compressor->InternEnd(
+          kBlueprint,
+          tracks::Dimensions(context_->storage->GetString(source_scope),
+                             raw_name),
+          trace_id, tracks::DynamicName(raw_name), args_fn);
+      PERFETTO_DCHECK(begin == end);
+      return begin;
+  }
+  PERFETTO_FATAL("For GCC");
 }
 
 TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
