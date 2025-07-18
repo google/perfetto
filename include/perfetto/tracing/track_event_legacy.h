@@ -233,6 +233,9 @@ ConvertThreadId(const PerfettoLegacyCurrentThreadId&);
 // Legacy tracing common API (adapted from trace_event_common.h).
 // ----------------------------------------------------------------------------
 
+// disabled-by-default- prefix used to have a special meaning in chrome. This
+// is no longer true and TRACE_DISABLED_BY_DEFAULT merely adds a prefix to the
+// category name.
 #define TRACE_DISABLED_BY_DEFAULT(name) "disabled-by-default-" name
 
 // Scoped events.
