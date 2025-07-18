@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Trace} from '../../public/trace';
+import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Engine} from '../../trace_processor/engine';
 import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
@@ -834,6 +835,8 @@ const BT_ACTIVITY = `
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AndroidLongBatteryTracing';
+  static readonly dependencies = [StandardGroupsPlugin];
+
   private readonly groups = new Map<string, TrackNode>();
 
   private addTrack(
@@ -960,6 +963,10 @@ export default class implements PerfettoPlugin {
     }
 
     const groupName = 'Device State';
+    const deviceStateGroup = ctx.plugins
+      .getPlugin(StandardGroupsPlugin)
+      .getOrCreateStandardGroup(ctx.workspace, 'DEVICE_STATE');
+    this.groups.set(groupName, deviceStateGroup);
 
     const query = (name: string, track: string) =>
       this.addBatteryStatsEvent(ctx, name, track, groupName, features);

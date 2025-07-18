@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,25 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
+import type {Modifier, StrictModifiers} from '@popperjs/core';
 
-.pf-keycap {
-  user-select: none;
-  line-height: 1;
-  background-color: #fafbfc;
-  border: 1px solid #d1d5da;
-  border-bottom-color: #c6cbd1;
-  border-radius: 3px;
-  box-shadow: inset 0 -1px 0 #c6cbd1;
-  color: #444d56;
-  display: inline-block;
-  font-family: $pf-font;
-  vertical-align: baseline;
-  padding: 2px 4px;
-}
-
-.pf-hotkey {
-  display: inline-flex;
-  flex-direction: row;
-  gap: 2px;
-}
+export type CustomModifier = Modifier<'sameWidth', {}>;
+export type ExtendedModifiers = StrictModifiers | CustomModifier;
