@@ -302,11 +302,6 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
 };  // class ConsumerEndpoint.
 
 struct PERFETTO_EXPORT_COMPONENT TracingServiceInitOpts {
-  // Name of machine hosting the tracing service (traced). If this option is
-  // empty the tracing service will use the OS system name (see `uname -s`) as
-  // the default value.
-  std::string machine_name;
-
   // Function used by tracing service to compress packets. Takes a pointer to
   // a vector of TracePackets and replaces the packets in the vector with
   // compressed ones.

@@ -353,7 +353,7 @@ TracingServiceImpl::TracingServiceImpl(
     : clock_(std::move(deps.clock)),
       random_(std::move(deps.random)),
       init_opts_(init_opts),
-      machine_name_(init_opts.machine_name),
+      machine_name_(base::GetPerfettoMachineName()),
       shm_factory_(std::move(shm_factory)),
       uid_(base::GetCurrentUserId()),
       buffer_ids_(kMaxTraceBufferID),
@@ -3073,14 +3073,14 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
     PERFETTO_DLOG("Lockdown mode: not enabling producer %hu", producer->id_);
     return nullptr;
   }
-  if (cfg_data_source.has_machine_filter()) {
+  if (cfg_data_source.machine_name_filter_size()) {
     auto machine_id = producer->client_identity().machine_id();
     auto machine_name = GetMachineName(machine_id);
     if (!machine_name.has_value()) {
       PERFETTO_ELOG("Data source: unable to find machine name");
       return nullptr;
     }
-    auto cfg_machine_names = cfg_data_source.machine_filter().machine_names();
+    auto cfg_machine_names = cfg_data_source.machine_name_filter();
     if (!NameMatchesFilter(*machine_name, cfg_machine_names, {}) &&
         !(machine_id == kDefaultMachineID &&
           NameMatchesFilter("host", cfg_machine_names, {}))) {

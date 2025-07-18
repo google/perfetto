@@ -146,7 +146,7 @@ SystemInfo GetSystemInfo() {
   return info;
 }
 
-std::string GetMachineName() {
+std::string GetPerfettoMachineName() {
   const char* env_name = getenv("PERFETTO_MACHINE_NAME");
   if (env_name) {
     return env_name;

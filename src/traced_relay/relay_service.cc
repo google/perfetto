@@ -187,7 +187,7 @@ void RelayClient::OnServiceDisconnected() {
 void RelayClient::InitRelayRequest() {
   protos::gen::InitRelayRequest request;
 
-  request.set_machine_name(base::GetMachineName());
+  request.set_machine_name(base::GetPerfettoMachineName());
 
   SetSystemInfo(&request);
 

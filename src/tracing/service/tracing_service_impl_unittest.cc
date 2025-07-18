@@ -1569,8 +1569,7 @@ TEST_F(TracingServiceImplTest, MachineNameFilter) {
   trace_config.add_buffers()->set_size_kb(128);
   auto* data_source = trace_config.add_data_sources();
   data_source->mutable_config()->set_name("data_source");
-  auto* machine_filter = data_source->mutable_machine_filter();
-  *machine_filter->add_machine_names() = "host";
+  *data_source->add_machine_name_filter() = "host";
 
   // Enable tracing with only mock_producer_1 enabled;
   // the rest should not start up.
@@ -1627,9 +1626,8 @@ TEST_F(TracingServiceImplTest, MachineNameFilterWithTwoMachines) {
   trace_config.add_buffers()->set_size_kb(128);
   auto* data_source = trace_config.add_data_sources();
   data_source->mutable_config()->set_name("data_source");
-  auto* machine_filter = data_source->mutable_machine_filter();
-  *machine_filter->add_machine_names() = "host";
-  *machine_filter->add_machine_names() = "machine2";
+  *data_source->add_machine_name_filter() = "host";
+  *data_source->add_machine_name_filter() = "machine2";
 
   // Enable tracing with only mock_producer_1 enabled;
   // the rest should not start up.
@@ -1660,9 +1658,8 @@ TEST_F(TracingServiceImplTest, MachineNameFilterWithTwoMachines) {
 }
 
 TEST_F(TracingServiceImplTest, MachineNameFilterWithExternalMachineName) {
-  TracingService::InitOpts init_opts;
-  init_opts.machine_name = "machine1";
-  InitializeSvcWithOpts(init_opts);
+  base::SetEnv("PERFETTO_MACHINE_NAME", "machine1");
+  InitializeSvcWithOpts({});
 
   auto relay_client2 = svc->ConnectRelayClient(
       std::make_pair<uint32_t, uint64_t>(/*base::MachineID=*/1234, 1));
@@ -1685,8 +1682,7 @@ TEST_F(TracingServiceImplTest, MachineNameFilterWithExternalMachineName) {
   trace_config.add_buffers()->set_size_kb(128);
   auto* data_source = trace_config.add_data_sources();
   data_source->mutable_config()->set_name("data_source");
-  auto* machine_filter = data_source->mutable_machine_filter();
-  *machine_filter->add_machine_names() = "machine1";
+  *data_source->add_machine_name_filter() = "machine1";
 
   // Enable tracing with only mock_producer_1 enabled;
   // the rest should not start up.
@@ -1707,6 +1703,7 @@ TEST_F(TracingServiceImplTest, MachineNameFilterWithExternalMachineName) {
   consumer->WaitForTracingDisabled();
 
   task_runner.RunUntilIdle();
+  base::UnsetEnv("PERFETTO_MACHINE_NAME");
 }
 
 TEST_F(TracingServiceImplTest, ProducerNameFilterChange) {
