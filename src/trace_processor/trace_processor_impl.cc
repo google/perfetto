@@ -1245,7 +1245,9 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
                              std::make_unique<ToFtrace::Context>(context));
 
   if constexpr (regex::IsRegexSupported()) {
-    RegisterFunction<Regex>(engine.get(), "regexp", 2);
+    RegisterFunction<Regexp>(engine.get(), "regexp", 2);
+    RegisterFunction<RegexpExtract>(engine.get(), "regexp_extract", 2,
+                                    std::make_unique<RegexpExtract::Context>());
   }
   // Old style function registration.
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate

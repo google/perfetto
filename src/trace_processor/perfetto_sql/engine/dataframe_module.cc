@@ -433,7 +433,7 @@ int DataframeModule::Filter(sqlite3_vtab_cursor* cur,
   if (idxStr != c->last_idx_str) {
     auto plan = dataframe::Dataframe::QueryPlan::Deserialize(idxStr);
     PERFETTO_TP_TRACE(
-        metatrace::Category::QUERY_TIMELINE, "DATAFRAME_FILTER_PREPARE",
+        metatrace::Category::QUERY_DETAILED, "DATAFRAME_FILTER_PREPARE",
         [&plan, idxNum](metatrace::Record* record) {
           record->AddArg("idxNum",
                          base::StackString<32>("%d", idxNum).string_view());

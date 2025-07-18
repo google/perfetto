@@ -11936,6 +11936,7 @@ genrule {
         "protos/perfetto/trace/track_event/track_descriptor.proto",
         "protos/perfetto/trace/track_event/track_event.proto",
         "protos/third_party/chromium/chrome_track_event.proto",
+        "protos/third_party/chromium/chrome_track_event_import_wrapper.proto",
     ],
     tools: [
         "aprotoc",
@@ -15569,6 +15570,7 @@ filegroup {
         "src/trace_processor/util/proto_to_args_parser_unittest.cc",
         "src/trace_processor/util/protozero_to_json_unittests.cc",
         "src/trace_processor/util/protozero_to_text_unittests.cc",
+        "src/trace_processor/util/regex_unittest.cc",
         "src/trace_processor/util/sql_argument_unittest.cc",
         "src/trace_processor/util/streaming_line_reader_unittest.cc",
         "src/trace_processor/util/trace_blob_view_reader_unittest.cc",
@@ -19771,6 +19773,25 @@ filegroup {
 filegroup {
     name: "perfetto-trace-processor-python-data",
     srcs: ["python/perfetto/trace_processor/*.descriptor*"],
+    path: "python",
+}
+
+python_library {
+    name: "perfetto-trace-proto-python",
+    srcs: [
+        ":perfetto-trace-proto-python-srcs",
+    ],
+    libs: [
+        "libprotobuf-python",
+    ],
+    host_supported: true,
+}
+
+filegroup {
+    name: "perfetto-trace-proto-python-srcs",
+    srcs: [
+        "python/perfetto/protos/perfetto/trace/*.py",
+    ],
     path: "python",
 }
 

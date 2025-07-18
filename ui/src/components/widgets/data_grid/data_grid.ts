@@ -515,9 +515,10 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                 m(
                   ButtonBar,
                   column.title ?? column.name,
-                  sortDirection
-                    ? renderSortButton(sortDirection)
-                    : renderSortButton('ASC', true),
+                  sortControls &&
+                    (sortDirection
+                      ? renderSortButton(sortDirection)
+                      : renderSortButton('ASC', true)),
                 ),
               ),
               (sortControls || filterControls) &&
