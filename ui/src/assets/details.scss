@@ -232,13 +232,6 @@
   margin: 10px;
 }
 
-.screenshot-panel {
-  height: 100%;
-  img {
-    max-height: 100%;
-  }
-}
-
 .flamegraph-profile {
   height: 100%;
   // This is required to position locally-scoped (i.e. non-full-screen) modal
