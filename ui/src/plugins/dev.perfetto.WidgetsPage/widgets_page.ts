@@ -77,6 +77,7 @@ import {App} from '../../public/app';
 import {Engine} from '../../trace_processor/engine';
 import {Card, CardStack} from '../../widgets/card';
 import {Stack} from '../../widgets/stack';
+import {Tooltip} from '../../widgets/tooltip';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -1013,6 +1014,28 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         initialOpts: {
           filled: false,
           intent: new EnumOption(Intent.None, Object.values(Intent)),
+        },
+      }),
+      m(WidgetShowcase, {
+        label: 'Tooltip',
+        description: `A tooltip is a hover-only, useful as an alternative to the browser's inbuilt 'title' tooltip.`,
+        renderWidget: (opts) =>
+          m(
+            Tooltip,
+            {
+              trigger: m(Icon, {icon: 'Warning'}),
+              ...opts,
+            },
+            lorem(),
+          ),
+        initialOpts: {
+          position: new EnumOption(
+            PopupPosition.Auto,
+            Object.values(PopupPosition),
+          ),
+          showArrow: true,
+          offset: 0,
+          edgeOffset: 0,
         },
       }),
       m(WidgetShowcase, {
