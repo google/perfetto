@@ -6404,6 +6404,11 @@ message Transform {
   optional float ty = 6;
 }
 
+message TransactionBarrier {
+  optional string barrier_token = 1;
+  optional uint32 kind = 2;
+}
+
 message TransactionState {
   optional int32 pid = 1;
   optional int32 uid = 2;
@@ -6415,6 +6420,7 @@ message TransactionState {
   repeated DisplayState display_changes = 8;
   repeated uint64 merged_transaction_ids = 9;
   optional uint64 apply_token = 10;
+  repeated TransactionBarrier transaction_barriers = 11;
 }
 
 // Keep insync with layer_state_t
@@ -16271,6 +16277,10 @@ message ChromeThreadDescriptor {
 
   // To support old UI. New UI should determine default sorting by thread_type.
   optional int32 legacy_sort_index = 2;
+
+  // Indicates whether the thread's tid specified in the thread descriptor is
+  // namespaced by Chromium's sandbox. Only set on Linux, and from Chrome M140.
+  optional bool is_sandboxed_tid = 3;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_thread_descriptor.proto
