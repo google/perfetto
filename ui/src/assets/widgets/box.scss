@@ -19,4 +19,20 @@
     height: 100%;
     overflow-y: hidden;
   }
+
+  &.pf-spacing-none {
+    padding: 0px;
+  }
+
+  &.pf-spacing-small {
+    padding: 2px;
+  }
+
+  &.pf-spacing-medium {
+    padding: 4px;
+  }
+
+  &.pf-spacing-large {
+    padding: 6px;
+  }
 }
