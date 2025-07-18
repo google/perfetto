@@ -58,6 +58,8 @@ class StringView {
     PERFETTO_DCHECK(cstr != nullptr);
   }
 
+  StringView(std::string_view str) : data_(str.data()), size_(str.size()) {}
+
   // This instead has to be explicit, as creating a StringView out of a
   // std::string can be subtle.
   explicit StringView(const std::string& str)

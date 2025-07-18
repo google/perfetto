@@ -19,11 +19,32 @@
 
   &--horiz {
     flex-direction: row;
+    align-items: baseline;
   }
 
   &--fill-height {
     height: 100%;
     overflow-y: hidden;
+  }
+
+  &.pf-spacing-none {
+    gap: 0px;
+  }
+
+  &.pf-spacing-small {
+    gap: 2px;
+  }
+
+  &.pf-spacing-medium {
+    gap: 4px;
+  }
+
+  &.pf-spacing-large {
+    gap: 6px;
+  }
+
+  &--wrap {
+    flex-wrap: wrap;
   }
 }
 

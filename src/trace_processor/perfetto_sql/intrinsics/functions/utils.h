@@ -18,18 +18,14 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_UTILS_H_
 
 #include <sqlite3.h>
-#include <unordered_map>
+#include <string>
+#include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/status_macros.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/trace_processor/demangle.h"
-#include "protos/perfetto/common/builtin_clock.pbzero.h"
-#include "src/trace_processor/db/column/utils.h"
 #include "src/trace_processor/export_json.h"
-#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/util/regex.h"
@@ -376,7 +372,7 @@ struct Glob : public SqlFunction {
   }
 };
 
-struct Regex : public SqlFunction {
+struct Regexp : public SqlFunction {
   static base::Status Run(void*,
                           size_t,
                           sqlite3_value** argv,
@@ -393,6 +389,88 @@ struct Regex : public SqlFunction {
           return regex.status();
         }
         out = SqlValue::Long(regex->Search(text));
+      }
+      return base::OkStatus();
+    }
+    PERFETTO_FATAL("Regex not supported");
+  }
+};
+struct RegexpExtract : public SqlFunction {
+  struct Context {
+    std::vector<std::string_view> matches;
+    // A buffer used for short string returns to avoid mallocs.
+    char string_return_buffer[128];
+    bool string_return_buffer_used = false;
+    static void ResetBuffer(void* ptr) {
+      // ptr is a pointer to string_return_buffer.
+      // We need to get the pointer to the containing Context struct.
+      uintptr_t buffer_ptr = reinterpret_cast<uintptr_t>(ptr);
+      uintptr_t context_ptr =
+          buffer_ptr - offsetof(RegexpExtract::Context, string_return_buffer);
+      RegexpExtract::Context* ctx =
+          reinterpret_cast<RegexpExtract::Context*>(context_ptr);
+      PERFETTO_DCHECK(ptr == ctx->string_return_buffer);
+      ctx->string_return_buffer_used = false;
+    }
+    std::string cached_pattern;
+    std::optional<regex::Regex> cached_regex;
+  };
+
+  static base::Status Run(Context* ctx,
+                          size_t,
+                          sqlite3_value** argv,
+                          SqlValue& out,
+                          Destructors& destructors) {
+    if constexpr (regex::IsRegexSupported()) {
+      const char* text =
+          reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+      const char* pattern_str =
+          reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
+      if (!text || !pattern_str) {
+        return base::OkStatus();
+      }
+
+      if (!ctx->cached_regex || ctx->cached_pattern != pattern_str) {
+        ASSIGN_OR_RETURN(ctx->cached_regex, regex::Regex::Create(pattern_str));
+        ctx->cached_pattern = pattern_str;
+      }
+      ctx->cached_regex->Submatch(text, ctx->matches);
+      if (ctx->matches.empty()) {
+        return base::OkStatus();
+      }
+
+      // As per re_nsub, groups[0] is the full match. groups[1] is the first
+      // subexpression.
+      if (ctx->matches.size() > 2) {
+        return base::ErrStatus(
+            "REGEXP_EXTRACT: pattern has more than one group.");
+      }
+
+      std::string_view result_sv;
+      if (ctx->matches.size() == 2 && !ctx->matches[1].empty()) {
+        // One group, and it matched.
+        result_sv = ctx->matches[1];
+      } else {
+        // No groups, or optional group did not match. Return full match.
+        result_sv = ctx->matches[0];
+      }
+
+      // If the string is small enough and the buffer is free, use the context
+      // buffer to avoid malloc.
+      if (!ctx->string_return_buffer_used &&
+          result_sv.size() < sizeof(ctx->string_return_buffer)) {
+        ctx->string_return_buffer_used = true;
+        memcpy(ctx->string_return_buffer, result_sv.data(), result_sv.size());
+        ctx->string_return_buffer[result_sv.size()] = '\0';
+        out = SqlValue::String(ctx->string_return_buffer);
+        destructors.string_destructor = &Context::ResetBuffer;
+      } else {
+        // Otherwise, fallback to malloc.
+        char* buffer = static_cast<char*>(malloc(result_sv.size() + 1));
+        memcpy(buffer, result_sv.data(), result_sv.size());
+        buffer[result_sv.size()] = '\0';
+        out = SqlValue::String(buffer);
+        destructors.string_destructor = free;
       }
       return base::OkStatus();
     }

@@ -73,6 +73,7 @@ default_targets = [
     '//src/traced/probes:traced_probes',
     '//src/traced/service:traced',
     '//src/traced_relay:traced_relay',
+    '//src/trace_processor:trace_processor',
     '//src/trace_processor:trace_processor_shell',
     '//src/trace_redaction:trace_redactor',
     '//src/java_sdk/main:perfetto_java_sdk_app',
@@ -115,6 +116,7 @@ target_host_supported = [
     '//protos/perfetto/trace/android:perfetto_winscope_extensions_zero',
     '//src/shared_lib:libperfetto_c',
     '//src/trace_processor:demangle',
+    '//src/trace_processor:trace_processor',
     '//src/trace_processor:trace_processor_shell',
     '//src/traced/probes:traced_probes',
     '//src/traced/service:traced',
@@ -123,6 +125,7 @@ target_host_supported = [
 target_vendor_available = [
     '//:libperfetto_client_experimental',
     '//src/shared_lib:libperfetto_c',
+    '//protos/perfetto/trace:perfetto_trace_protos',
 ]
 
 # Library targets that should be exported as "cc_library" instead of
@@ -293,6 +296,10 @@ additional_args = {
         ('test_config', 'PerfettoIntegrationTests.xml'),
     ],
     'libperfetto_android_internal': [('static_libs', {'libhealthhalutils'}),],
+    'trace_processor': [
+        ('whole_static_libs',
+         {'perfetto_src_trace_processor_demangle', 'sqlite_ext_percentile'}),
+    ],
     'trace_processor_shell': [
         ('strip', {
             'all': True
@@ -334,7 +341,13 @@ additional_args = {
     'perfetto_src_android_sdk_java_test_perfetto_trace_test_lib': [
         ('static_libs', {'perfetto_trace_java_protos'})
     ],
-    'perfetto_trace_lib_java': [('sdk_version', 'module_current')]
+    'perfetto_trace_lib_java': [
+        ('sdk_version', 'module_current'),
+        # Framework should use 'perfetto_trace_lib_framework_java' instead.
+        ('visibility', {':__subpackages__'}),
+    ],
+    # Framework should use 'libperfetto_framework_jni' instead.
+    'libperfetto_jni': [('visibility', {':__subpackages__'}),],
 }
 
 
@@ -630,6 +643,7 @@ class Module(object):
     self.jni_libs: Optional[List[str]] = None
     self.jni_uses_platform_apis: Optional[bool] = None
     self.jarjar_rules: Optional[str] = None
+    self.visibility = set()
 
   def to_string(self, output):
     if self.comment:
@@ -679,6 +693,7 @@ class Module(object):
     self._output_field(output, 'jni_libs')
     self._output_field(output, 'jni_uses_platform_apis')
     self._output_field(output, 'jarjar_rules')
+    self._output_field(output, 'visibility')
 
     target_out = []
     self._output_field(target_out, 'android')
@@ -1236,7 +1251,7 @@ def _extract_defaults(module: Module, blueprint: Blueprint):
                            module.gn_target)
   items_copy = dict(module.__dict__)
   for k, v in items_copy.items():
-    if k not in ('type', 'name', 'comment', 'gn_target'):
+    if k not in ('type', 'name', 'comment', 'gn_target', 'visibility'):
       defaults_module.__dict__[k] = v
       module.__dict__[k] = None
   blueprint.add_module(defaults_module)

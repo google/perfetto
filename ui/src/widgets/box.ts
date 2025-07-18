@@ -14,18 +14,25 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
+import {classForSpacing, HTMLAttrs, Spacing} from './common';
 
-export interface BoxAttrs {
+export interface BoxAttrs extends HTMLAttrs {
   readonly fillHeight?: boolean;
+  readonly spacing?: Spacing;
 }
 
 export class Box implements m.ClassComponent<BoxAttrs> {
   view({attrs, children}: m.CVnode<BoxAttrs>) {
-    const {fillHeight = false} = attrs;
+    const {fillHeight = false, className, spacing = 'medium', ...rest} = attrs;
     return m(
       '.pf-box',
       {
-        className: classNames(fillHeight && 'pf-box--fill-height'),
+        ...rest,
+        className: classNames(
+          className,
+          fillHeight && 'pf-box--fill-height',
+          classForSpacing(spacing),
+        ),
       },
       children,
     );

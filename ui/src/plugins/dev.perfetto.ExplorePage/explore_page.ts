@@ -38,6 +38,7 @@ import {
   SqlSourceNode,
 } from './query_builder/sources/sql_source';
 import {Trace} from '../../public/trace';
+import {SqlModules} from '../dev.perfetto.SqlModules/sql_modules';
 
 export interface ExplorePageState {
   rootNodes: QueryNode[];
@@ -97,6 +98,18 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   view({attrs}: m.CVnode<ExplorePageAttrs>) {
     const {trace, state} = attrs;
 
+    const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+
+    if (!sqlModules) {
+      return m(
+        '.page.explore-page',
+        m(
+          '.explore-page__header',
+          m('h1', 'Loading SQL Modules, please wait...'),
+        ),
+      );
+    }
+
     return m(
       '.page.explore-page',
       m(
@@ -116,7 +129,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
                     variant: ButtonVariant.Filled,
                   }),
                 },
-                addSourcePopupMenu(attrs),
+                addSourcePopupMenu(attrs, sqlModules),
               ),
               m(Button, {
                 label: 'Clear All Query Nodes',
@@ -142,7 +155,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       state.mode === ExplorePageModes.QUERY_BUILDER &&
         m(QueryBuilder, {
           trace,
-          sqlModules: attrs.sqlModulesPlugin.getSqlModules(),
+          sqlModules,
           onRootNodeCreated(arg) {
             state.rootNodes.push(arg);
             state.selectedNode = arg;
@@ -154,7 +167,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
             this.renderNodeActionsMenuItems(node, state),
           rootNodes: state.rootNodes,
           selectedNode: state.selectedNode,
-          addSourcePopupMenu: () => addSourcePopupMenu(attrs),
+          addSourcePopupMenu: () => addSourcePopupMenu(attrs, sqlModules),
         }),
       state.mode === ExplorePageModes.DATA_VISUALISER &&
         state.rootNodes.length !== 0 &&
@@ -166,9 +179,12 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
   }
 }
 
-function addSourcePopupMenu(attrs: ExplorePageAttrs): m.Children {
+function addSourcePopupMenu(
+  attrs: ExplorePageAttrs,
+  sqlModules: SqlModules,
+): m.Children {
   const {trace, state} = attrs;
-  const sqlModules = attrs.sqlModulesPlugin.getSqlModules();
+
   return [
     m(MenuItem, {
       label: 'Standard library table',

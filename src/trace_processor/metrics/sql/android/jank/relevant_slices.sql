@@ -14,6 +14,7 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE android.frames.timeline;
+INCLUDE PERFETTO MODULE android.surfaceflinger;
 
 CREATE OR REPLACE PERFETTO FUNCTION vsync_from_name(slice_name STRING)
 RETURNS STRING AS
@@ -180,7 +181,7 @@ SELECT
   app_sf_match.sf_upid,
   app_sf_match.sf_vsync
 FROM android_jank_cuj_do_frame_slice do_frame
-JOIN android_app_to_sf_vsync_match app_sf_match
+JOIN android_app_to_sf_frame_timeline_match app_sf_match
   ON do_frame.vsync = app_sf_match.app_vsync
   AND do_frame.upid = app_sf_match.app_upid;
 
@@ -203,7 +204,7 @@ SELECT
   slice.dur,
   slice.ts + slice.dur AS ts_end
 FROM slice
-JOIN android_jank_cuj_sf_main_thread main_thread USING (track_id)
+JOIN _android_sf_main_thread main_thread USING (track_id)
 JOIN sf_vsync
   ON vsync_from_name(slice.name) = sf_vsync.vsync
 WHERE slice.name GLOB $slice_name_glob AND slice.dur > 0

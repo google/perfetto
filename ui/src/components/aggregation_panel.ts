@@ -34,7 +34,7 @@ export class AggregationPanel
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
     const {dataSource, sorting, columns, barChartData} = attrs;
 
-    return m(Stack, {fillHeight: true}, [
+    return m(Stack, {fillHeight: true, spacing: 'none'}, [
       barChartData && m(StackFixed, m(Box, this.renderBarChart(barChartData))),
       m(StackAuto, this.renderTable(dataSource, sorting, columns)),
     ]);

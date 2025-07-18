@@ -262,17 +262,20 @@ SURFACE_FLINGER_LAYER_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
-        C('layer_id', CppInt64()),
-        C('layer_name', CppString()),
+        C('layer_id', CppOptional(CppInt64())),
+        C('layer_name', CppOptional(CppString())),
         C('is_visible', CppInt64()),
         C('parent', CppOptional(CppInt64())),
-        C('corner_radius', CppOptional(CppDouble())),
+        C('corner_radius_tl', CppOptional(CppDouble())),
+        C('corner_radius_tr', CppOptional(CppDouble())),
+        C('corner_radius_bl', CppOptional(CppDouble())),
+        C('corner_radius_br', CppOptional(CppDouble())),
         C('hwc_composition_type', CppOptional(CppInt64())),
         C('is_hidden_by_policy', CppInt64()),
         C('z_order_relative_of', CppOptional(CppInt64())),
         C('is_missing_z_parent', CppInt64()),
         C('layer_rect_id', CppOptional(CppTableId(WINSCOPE_TRACE_RECT_TABLE))),
-        C('input_rect_id', CppOptional(CppTableId(WINSCOPE_TRACE_RECT_TABLE)))
+        C('input_rect_id', CppOptional(CppTableId(WINSCOPE_TRACE_RECT_TABLE))),
     ],
     tabledoc=TableDoc(
         doc='SurfaceFlinger layer',
@@ -292,8 +295,14 @@ SURFACE_FLINGER_LAYER_TABLE = Table(
                 'Computed layer visibility',
             'parent':
                 'Parent layer id',
-            'corner_radius':
-                'Layer corner radius',
+            'corner_radius_tl':
+                'Layer corner radius top left',
+            'corner_radius_tr':
+                'Layer corner radius top right',
+            'corner_radius_bl':
+                'Layer corner radius bottom left',
+            'corner_radius_br':
+                'Layer corner radius bottom right',
             'hwc_composition_type':
                 'Hwc composition type',
             'is_hidden_by_policy':
@@ -537,6 +546,16 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
         C(
+            'finish_time_ns',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'shell_abort_time_ns',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
             'handler',
             CppOptional(CppInt64()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
@@ -549,6 +568,16 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
         C(
             'flags',
             CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'start_transaction_id',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'finish_transaction_id',
+            CppOptional(CppInt64()),
             cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
         ),
     ],
@@ -570,12 +599,20 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
                 'Transition dispatch time',
             'duration_ns':
                 'Transition duration',
+            'finish_time_ns':
+                'Transition finish time',
+            'shell_abort_time_ns':
+                'Transition shell abort time',
             'handler':
                 'Handler id',
             'status':
                 'Transition status',
             'flags':
                 'Transition flags',
+            'start_transaction_id':
+                'Start transaction id',
+            'finish_transaction_id':
+                'Finish transaction id',
         }))
 
 WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE = Table(

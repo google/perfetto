@@ -83,10 +83,14 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
                                            transition.send_time_ns());
   }
 
+  if (transition.has_shell_abort_time_ns()) {
+    transition_tracker.SetShellAbortTime(transition.id(),
+                                         transition.shell_abort_time_ns());
+  }
+
   if (transition.has_finish_time_ns()) {
     auto finish_time = transition.finish_time_ns();
-    transition_tracker.TrySetDurationFromFinishTime(transition.id(),
-                                                    finish_time);
+    transition_tracker.SetFinishTime(transition.id(), finish_time);
 
     if (finish_time > 0) {
       transition_tracker.SetStatus(
@@ -140,6 +144,16 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
       }
       participants_table->Insert(participant_row);
     }
+  }
+
+  if (transition.has_start_transaction_id()) {
+    transition_tracker.SetStartTransactionId(transition.id(),
+                                             transition.start_transaction_id());
+  }
+
+  if (transition.has_finish_transaction_id()) {
+    transition_tracker.SetFinishTransactionId(
+        transition.id(), transition.finish_transaction_id());
   }
 }
 

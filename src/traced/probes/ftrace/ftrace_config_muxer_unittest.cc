@@ -22,10 +22,10 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "src/traced/probes/ftrace/atrace_wrapper.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"
 #include "src/traced/probes/ftrace/predefined_tracepoints.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 #include "test/gtest_and_gmock.h"
 
 using testing::_;
@@ -47,6 +47,7 @@ namespace perfetto {
 namespace {
 
 constexpr int kFakeSchedSwitchEventId = 1;
+constexpr int kFakeSchedWakeupEventId = 10;
 constexpr int kCgroupMkdirEventId = 12;
 constexpr int kFakePrintEventId = 20;
 constexpr int kSysEnterId = 329;
@@ -69,9 +70,9 @@ FtraceConfig CreateFtraceConfig(const std::set<std::string>& names) {
   return config;
 }
 
-class MockFtraceProcfs : public FtraceProcfs {
+class MockTracefs : public Tracefs {
  public:
-  MockFtraceProcfs() : FtraceProcfs("/root/") {
+  MockTracefs() : Tracefs("/root/") {
     ON_CALL(*this, NumberOfCpus()).WillByDefault(Return(1));
     ON_CALL(*this, WriteToFile(_, _)).WillByDefault(Return(true));
     ON_CALL(*this, AppendToFile(_, _)).WillByDefault(Return(true));
@@ -117,12 +118,12 @@ class MockAtraceWrapper : public AtraceWrapper {
 
 class MockProtoTranslationTable : public ProtoTranslationTable {
  public:
-  MockProtoTranslationTable(NiceMock<MockFtraceProcfs>* ftrace_procfs,
+  MockProtoTranslationTable(NiceMock<MockTracefs>* tracefs,
                             const std::vector<Event>& events,
                             std::vector<Field> common_fields,
                             FtracePageHeaderSpec ftrace_page_header_spec,
                             CompactSchedEventFormat compact_sched_format)
-      : ProtoTranslationTable(ftrace_procfs,
+      : ProtoTranslationTable(tracefs,
                               events,
                               common_fields,
                               ftrace_page_header_spec,
@@ -229,7 +230,7 @@ class FtraceConfigMuxerTest : public ::testing::Test {
       Event event = {};
       event.name = "sched_wakeup";
       event.group = "sched";
-      event.ftrace_event_id = 10;
+      event.ftrace_event_id = kFakeSchedWakeupEventId;
       events.push_back(event);
     }
 
@@ -287,7 +288,7 @@ class FtraceConfigMuxerTest : public ::testing::Test {
         compact_format, PrintkMap()));
   }
 
-  NiceMock<MockFtraceProcfs> ftrace_;
+  NiceMock<MockTracefs> ftrace_;
   NiceMock<MockAtraceWrapper> atrace_wrapper_;
 };
 
@@ -372,6 +373,93 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfig) {
     EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
                 Not(Contains(kFakeSchedSwitchEventId)));
     EXPECT_FALSE(ds_config->compact_sched.enabled);
+  }
+}
+
+TEST_F(FtraceConfigMuxerTest, AtraceAddedEvents) {
+  // Extra event to enable due to predefined events in legacy atrace.
+  std::map<std::string, base::FlatSet<GroupAndName>> predefined_events = {
+      {"gfx", {GroupAndName("sched", "sched_wakeup")}}};
+
+  // Extra event to enable due to optional vendor mapping.
+  std::map<std::string, std::vector<GroupAndName>> vendor_events = {
+      {"gfx", {GroupAndName("sched", "sched_switch")}}};
+
+  auto fake_table = CreateFakeTable();
+  FtraceConfigMuxer muxer(&ftrace_, &atrace_wrapper_, fake_table.get(),
+                          GetSyscallTable(), predefined_events, vendor_events);
+
+  ON_CALL(ftrace_, ReadFileIntoString("/root/current_tracer"))
+      .WillByDefault(Return("nop"));
+  ON_CALL(ftrace_, ReadFileIntoString("/root/events/enable"))
+      .WillByDefault(Return("0"));
+
+  // Case 1: both predefined and vendor events enabled when the category is
+  // enabled.
+  {
+    FtraceConfig cfg;
+    *cfg.add_atrace_categories() = "gfx";
+
+    // Userspace atrace enabled (the --only_userspace flag is always set,
+    // as we only use that binary to set up the userspace tracing).
+    EXPECT_CALL(atrace_wrapper_,
+                RunAtrace(ElementsAreArray({"atrace", "--async_start",
+                                            "--only_userspace", "gfx"}),
+                          _))
+        .WillOnce(Return(true));
+
+    FtraceConfigId id = 42;
+    ASSERT_TRUE(muxer.SetupConfig(id, cfg));
+
+    // Expected: print (for userspace tracing) + the additional events.
+    const FtraceDataSourceConfig* ds_config = muxer.GetDataSourceConfig(id);
+    ASSERT_TRUE(ds_config);
+    EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
+                UnorderedElementsAre(kFakePrintEventId, kFakeSchedSwitchEventId,
+                                     kFakeSchedWakeupEventId));
+
+    // Cleanup (muxer under test is stateful).
+    EXPECT_CALL(atrace_wrapper_,
+                RunAtrace(ElementsAreArray(
+                              {"atrace", "--async_stop", "--only_userspace"}),
+                          _))
+        .WillOnce(Return(true));
+    ASSERT_TRUE(muxer.RemoveConfig(id));
+
+    testing::Mock::VerifyAndClearExpectations(&atrace_wrapper_);
+  }
+
+  // Case 2: "atrace_userspace_only" suppresses the additional events.
+  {
+    FtraceConfig cfg;
+    *cfg.add_atrace_categories() = "gfx";
+    cfg.set_atrace_userspace_only(true);
+
+    // Userspace atrace enabled.
+    EXPECT_CALL(atrace_wrapper_,
+                RunAtrace(ElementsAreArray({"atrace", "--async_start",
+                                            "--only_userspace", "gfx"}),
+                          _))
+        .WillOnce(Return(true));
+
+    FtraceConfigId id = 43;
+    ASSERT_TRUE(muxer.SetupConfig(id, cfg));
+
+    // Expected: only print.
+    const FtraceDataSourceConfig* ds_config = muxer.GetDataSourceConfig(id);
+    ASSERT_TRUE(ds_config);
+    EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
+                UnorderedElementsAre(kFakePrintEventId));
+
+    // Cleanup (muxer under test is stateful).
+    EXPECT_CALL(atrace_wrapper_,
+                RunAtrace(ElementsAreArray(
+                              {"atrace", "--async_stop", "--only_userspace"}),
+                          _))
+        .WillOnce(Return(true));
+    ASSERT_TRUE(muxer.RemoveConfig(id));
+
+    testing::Mock::VerifyAndClearExpectations(&atrace_wrapper_);
   }
 }
 

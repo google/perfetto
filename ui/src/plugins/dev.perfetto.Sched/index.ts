@@ -322,10 +322,10 @@ export default class implements PerfettoPlugin {
           // TODO(stevegolton): Obtain source data from the track's datasets
           // instead of repeating it here?
           const schedTableName = '__sched_per_cpu';
-          await using _schedTable = await createPerfettoTable(
-            trace.engine,
-            schedTableName,
-            `
+          await using _schedTable = await createPerfettoTable({
+            engine: trace.engine,
+            name: schedTableName,
+            as: `
               SELECT
                 *
               FROM sched
@@ -334,7 +334,7 @@ export default class implements PerfettoPlugin {
                 ucpu = ${cpu} AND
                 NOT utid IN (SELECT utid FROM thread WHERE is_idle)
             `,
-          );
+          });
 
           const entireQuery = `
             SELECT
