@@ -55,7 +55,6 @@ BaseTrackEventInternedDataIndex::~BaseTrackEventInternedDataIndex() = default;
 
 namespace {
 
-static constexpr const char kLegacySlowPrefix[] = "disabled-by-default-";
 static constexpr const char kSlowTag[] = "slow";
 static constexpr const char kDebugTag[] = "debug";
 static constexpr const char kFilteredEventName[] = "FILTERED";
@@ -373,21 +372,6 @@ bool TrackEventInternal::IsCategoryEnabled(
     if (NameMatchesPatternList(config.disabled_categories(), category.name,
                                match_type)) {
       return false;
-    }
-
-    // 2.5. A special case for Chrome's legacy disabled-by-default categories.
-    // We treat them as having a "slow" tag with one exception: they can be
-    // enabled by a pattern if the pattern starts with "disabled-by-default-"
-    // itself.
-    if (match_type == MatchType::kExact &&
-        !strncmp(category.name, kLegacySlowPrefix, strlen(kLegacySlowPrefix))) {
-      for (const auto& pattern : config.enabled_categories()) {
-        if (!strncmp(pattern.c_str(), kLegacySlowPrefix,
-                     strlen(kLegacySlowPrefix)) &&
-            NameMatchesPattern(pattern, category.name, MatchType::kPattern)) {
-          return true;
-        }
-      }
     }
 
     // 3. Disabled tags.
