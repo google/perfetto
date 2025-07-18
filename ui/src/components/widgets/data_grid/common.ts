@@ -56,6 +56,7 @@ export interface DataSourceResult {
   readonly rowOffset: number;
   readonly rows: ReadonlyArray<RowDef>;
   readonly aggregates: RowDef;
+  readonly isLoading?: boolean;
 }
 
 export type RowDef = {[key: string]: SqlValue};
@@ -80,6 +81,7 @@ export interface DataGridModel {
 
 export interface DataGridDataSource {
   readonly rows?: DataSourceResult;
+  readonly isLoading?: boolean;
   notifyUpdate(model: DataGridModel): void;
 }
 
