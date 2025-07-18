@@ -3511,9 +3511,10 @@ class ChromeStudyTranslationTable(_message.Message):
     def __init__(self, hash_to_name: _Optional[_Mapping[int, str]] = ...) -> None: ...
 
 class ChromeThreadDescriptor(_message.Message):
-    __slots__ = ["legacy_sort_index", "thread_type"]
+    __slots__ = ["is_sandboxed_tid", "legacy_sort_index", "thread_type"]
     class ThreadType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
+    IS_SANDBOXED_TID_FIELD_NUMBER: _ClassVar[int]
     LEGACY_SORT_INDEX_FIELD_NUMBER: _ClassVar[int]
     THREAD_AUDIO_INPUTDEVICE: ChromeThreadDescriptor.ThreadType
     THREAD_AUDIO_OUTPUTDEVICE: ChromeThreadDescriptor.ThreadType
@@ -3561,9 +3562,10 @@ class ChromeThreadDescriptor(_message.Message):
     THREAD_WEBRTC_SIGNALING: ChromeThreadDescriptor.ThreadType
     THREAD_WEBRTC_WORKER: ChromeThreadDescriptor.ThreadType
     THREAD_WINDOW_OWNER: ChromeThreadDescriptor.ThreadType
+    is_sandboxed_tid: bool
     legacy_sort_index: int
     thread_type: ChromeThreadDescriptor.ThreadType
-    def __init__(self, thread_type: _Optional[_Union[ChromeThreadDescriptor.ThreadType, str]] = ..., legacy_sort_index: _Optional[int] = ...) -> None: ...
+    def __init__(self, thread_type: _Optional[_Union[ChromeThreadDescriptor.ThreadType, str]] = ..., legacy_sort_index: _Optional[int] = ..., is_sandboxed_tid: bool = ...) -> None: ...
 
 class ChromeTraceEvent(_message.Message):
     __slots__ = ["args", "bind_id", "category_group_name", "category_group_name_index", "duration", "flags", "id", "name", "name_index", "phase", "process_id", "scope", "thread_duration", "thread_id", "thread_timestamp", "timestamp"]
@@ -15735,8 +15737,16 @@ class TrackEventRangeOfInterest(_message.Message):
     start_us: int
     def __init__(self, start_us: _Optional[int] = ...) -> None: ...
 
+class TransactionBarrier(_message.Message):
+    __slots__ = ["barrier_token", "kind"]
+    BARRIER_TOKEN_FIELD_NUMBER: _ClassVar[int]
+    KIND_FIELD_NUMBER: _ClassVar[int]
+    barrier_token: str
+    kind: int
+    def __init__(self, barrier_token: _Optional[str] = ..., kind: _Optional[int] = ...) -> None: ...
+
 class TransactionState(_message.Message):
-    __slots__ = ["apply_token", "display_changes", "input_event_id", "layer_changes", "merged_transaction_ids", "pid", "post_time", "transaction_id", "uid", "vsync_id"]
+    __slots__ = ["apply_token", "display_changes", "input_event_id", "layer_changes", "merged_transaction_ids", "pid", "post_time", "transaction_barriers", "transaction_id", "uid", "vsync_id"]
     APPLY_TOKEN_FIELD_NUMBER: _ClassVar[int]
     DISPLAY_CHANGES_FIELD_NUMBER: _ClassVar[int]
     INPUT_EVENT_ID_FIELD_NUMBER: _ClassVar[int]
@@ -15744,6 +15754,7 @@ class TransactionState(_message.Message):
     MERGED_TRANSACTION_IDS_FIELD_NUMBER: _ClassVar[int]
     PID_FIELD_NUMBER: _ClassVar[int]
     POST_TIME_FIELD_NUMBER: _ClassVar[int]
+    TRANSACTION_BARRIERS_FIELD_NUMBER: _ClassVar[int]
     TRANSACTION_ID_FIELD_NUMBER: _ClassVar[int]
     UID_FIELD_NUMBER: _ClassVar[int]
     VSYNC_ID_FIELD_NUMBER: _ClassVar[int]
@@ -15754,10 +15765,11 @@ class TransactionState(_message.Message):
     merged_transaction_ids: _containers.RepeatedScalarFieldContainer[int]
     pid: int
     post_time: int
+    transaction_barriers: _containers.RepeatedCompositeFieldContainer[TransactionBarrier]
     transaction_id: int
     uid: int
     vsync_id: int
-    def __init__(self, pid: _Optional[int] = ..., uid: _Optional[int] = ..., vsync_id: _Optional[int] = ..., input_event_id: _Optional[int] = ..., post_time: _Optional[int] = ..., transaction_id: _Optional[int] = ..., layer_changes: _Optional[_Iterable[_Union[LayerState, _Mapping]]] = ..., display_changes: _Optional[_Iterable[_Union[DisplayState, _Mapping]]] = ..., merged_transaction_ids: _Optional[_Iterable[int]] = ..., apply_token: _Optional[int] = ...) -> None: ...
+    def __init__(self, pid: _Optional[int] = ..., uid: _Optional[int] = ..., vsync_id: _Optional[int] = ..., input_event_id: _Optional[int] = ..., post_time: _Optional[int] = ..., transaction_id: _Optional[int] = ..., layer_changes: _Optional[_Iterable[_Union[LayerState, _Mapping]]] = ..., display_changes: _Optional[_Iterable[_Union[DisplayState, _Mapping]]] = ..., merged_transaction_ids: _Optional[_Iterable[int]] = ..., apply_token: _Optional[int] = ..., transaction_barriers: _Optional[_Iterable[_Union[TransactionBarrier, _Mapping]]] = ...) -> None: ...
 
 class TransactionTraceEntry(_message.Message):
     __slots__ = ["added_displays", "added_layers", "destroyed_layer_handles", "destroyed_layers", "displays", "displays_changed", "elapsed_realtime_nanos", "removed_displays", "transactions", "vsync_id"]

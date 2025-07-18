@@ -279,7 +279,7 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
       PERFETTO_DCHECK(old_uuid != uuid);  // Every track is only resolved once.
       *it = uuid;
 
-      PERFETTO_DLOG("Detected tid reuse (pid: %" PRIu32 " tid: %" PRIu32
+      PERFETTO_DLOG("Detected tid reuse (pid: %" PRId64 " tid: %" PRId64
                     ") from track descriptors (old uuid: %" PRIu64
                     " new uuid: %" PRIu64 " timestamp: %" PRId64 ")",
                     *reservation.pid, *reservation.tid, old_uuid, uuid,
@@ -307,7 +307,7 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
       PERFETTO_DCHECK(old_uuid != uuid);  // Every track is only resolved once.
       *it = uuid;
 
-      PERFETTO_DLOG("Detected pid reuse (pid: %" PRIu32
+      PERFETTO_DLOG("Detected pid reuse (pid: %" PRId64
                     ") from track descriptors (old uuid: %" PRIu64
                     " new uuid: %" PRIu64 " timestamp: %" PRId64 ")",
                     *reservation.pid, old_uuid, uuid,

@@ -3810,14 +3810,12 @@ message TrackEventConfig {
   // still be emitted even if set to true.
   optional bool filter_debug_annotations = 7;
 
-  // Default : false (i.e. disabled)
+  // Default: false (i.e. disabled)
   // When true, the SDK samples and emits the current thread time counter value
   // for each event on the current thread's track. This value represents the
-  // total CPU time consumed by that thread since its creation. Note that if a
-  // thread is not scheduled by OS for some duration, that time won't be
-  // included in thread_time.
-  // Learn more : "CLOCK_THREAD_CPUTIME_ID" flag at
-  // https://linux.die.net/man/3/clock_gettime
+  // total CPU time consumed by that thread since its creation.
+  // Learn more: "CLOCK_THREAD_CPUTIME_ID" flag at
+  // https://man7.org/linux/man-pages/man3/clock_gettime.3.html
   optional bool enable_thread_time_sampling = 8;
 
   // Default: false (i.e. dynamic event names are NOT filtered out by default)
@@ -6395,6 +6393,11 @@ message Transform {
   optional float ty = 6;
 }
 
+message TransactionBarrier {
+  optional string barrier_token = 1;
+  optional uint32 kind = 2;
+}
+
 message TransactionState {
   optional int32 pid = 1;
   optional int32 uid = 2;
@@ -6406,6 +6409,7 @@ message TransactionState {
   repeated DisplayState display_changes = 8;
   repeated uint64 merged_transaction_ids = 9;
   optional uint64 apply_token = 10;
+  repeated TransactionBarrier transaction_barriers = 11;
 }
 
 // Keep insync with layer_state_t
@@ -16262,6 +16266,10 @@ message ChromeThreadDescriptor {
 
   // To support old UI. New UI should determine default sorting by thread_type.
   optional int32 legacy_sort_index = 2;
+
+  // Indicates whether the thread's tid specified in the thread descriptor is
+  // namespaced by Chromium's sandbox. Only set on Linux, and from Chrome M140.
+  optional bool is_sandboxed_tid = 3;
 }
 
 // End of protos/perfetto/trace/track_event/chrome_thread_descriptor.proto

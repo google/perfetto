@@ -85,4 +85,8 @@ message ChromeThreadDescriptor {
 
   // To support old UI. New UI should determine default sorting by thread_type.
   optional int32 legacy_sort_index = 2;
+
+  // Indicates whether the thread's tid specified in the thread descriptor is
+  // namespaced by Chromium's sandbox. Only set on Linux, and from Chrome M140.
+  optional bool is_sandboxed_tid = 3;
 }
