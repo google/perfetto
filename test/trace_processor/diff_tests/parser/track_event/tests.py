@@ -552,7 +552,6 @@ class TrackEvent(TestSuite):
         """,
         out=Csv('''
           "flat_key","key","int_value","string_value"
-          "cookie","cookie",1234,"[NULL]"
           "debug.debug1.key1","debug.debug1.key1",10,"[NULL]"
           "debug.debug1.key2","debug.debug1.key2[0]",20,"[NULL]"
           "debug.debug1.key2","debug.debug1.key2[1]",21,"[NULL]"
@@ -576,11 +575,13 @@ class TrackEvent(TestSuite):
           "event.name","event.name","[NULL]","[NULL]"
           "event.name","event.name","[NULL]","name1"
           "legacy_event.passthrough_utid","legacy_event.passthrough_utid",1,"[NULL]"
+          "name","name","[NULL]","name1"
           "scope","scope","[NULL]","cat"
           "source","source","[NULL]","chrome"
           "source_scope","source_scope","[NULL]","cat"
           "trace_id","trace_id",1234,"[NULL]"
           "trace_id_is_process_scoped","trace_id_is_process_scoped",0,"[NULL]"
+          "track_compressor_idx","track_compressor_idx",0,"[NULL]"
           "upid","upid",1,"[NULL]"
         '''))
 
