@@ -33,21 +33,21 @@ export function showMultiTraceModal() {
 
   async function addTraces() {
     if (analyzing) return;
-    
+
     const input = document.createElement('input');
     input.setAttribute('type', 'file');
     input.setAttribute('multiple', 'multiple');
     input.style.display = 'none';
-    
+
     input.addEventListener('change', async () => {
       if (!input.files) return;
-      
+
       const newFiles = [...input.files];
       if (newFiles.length === 0) return;
-      
+
       analyzing = true;
       m.redraw();
-      
+
       for (const file of newFiles) {
         const trace = {
           file,
@@ -55,27 +55,27 @@ export function showMultiTraceModal() {
         };
         traces.push(trace);
         m.redraw();
-        
+
         await analyzeTrace(trace);
       }
-      
+
       analyzing = false;
       m.redraw();
     });
-    
+
     input.click();
   }
 
   async function analyzeTrace(trace: TraceFile) {
     if (trace.analyzed) return;
-    
+
     const engine = new WasmEngineProxy(uuidv4());
-    
+
     AppImpl.instance.omnibox.showStatusMessage(
       `Analyzing ${trace.file.name}`,
       3000,
     );
-    
+
     const stream = new TraceFileStream(trace.file);
     engine.resetTraceProcessor({
       tokenizeOnly: true,
@@ -84,7 +84,7 @@ export function showMultiTraceModal() {
       analyzeTraceProtoContent: false,
       ftraceDropUntilAllCpusValid: false,
     });
-    
+
     for (;;) {
       const res = await stream.readChunk();
       await engine.parse(res.data);
@@ -93,17 +93,17 @@ export function showMultiTraceModal() {
         break;
       }
     }
-    
+
     trace.analyzed = true;
     m.redraw();
-    
+
     engine[Symbol.dispose]();
   }
 
   function openTraces() {
     if (traces.length === 0) return;
-    
-    const files = traces.map(t => t.file);
+
+    const files = traces.map((t) => t.file);
     AppImpl.instance.openTraceFromMultipleFiles(files);
   }
 
@@ -118,7 +118,7 @@ export function showMultiTraceModal() {
   }
 
   const modalKey = 'multi-trace-modal';
-  
+
   showModal({
     title: 'Open Multiple Traces',
     key: modalKey,
@@ -143,53 +143,60 @@ export function showMultiTraceModal() {
             intent: Intent.Primary,
           }),
         ]),
-        
-        analyzing && traces.length === 0 ?
-          m('.multi-trace-analyzing', 'Adding traces...') :
-        traces.length === 0 ? 
-          m('.multi-trace-empty', 'No traces added yet. Click "Add Traces" to begin.') :
-          [
-            analyzing && m('.multi-trace-analyzing', 'Analyzing traces...'),
-            m('.multi-trace-list', 
-            traces.map((trace, index) => 
-              m('.multi-trace-item', [
-                m('.multi-trace-info', [
-                  m('.multi-trace-name', trace.file.name),
-                  m('.multi-trace-size', `${(trace.file.size / (1024 * 1024)).toFixed(2)} MB`),
-                  m('.multi-trace-status' + (trace.analyzed ? '.analyzed' : ''), 
-                    trace.analyzed ? 'Analyzed' : 'Not analyzed'),
-                ]),
-                m('.multi-trace-actions', [
-                  m('select.multi-trace-sync', {
-                    onchange: (e: Event) => {
-                      const target = e.target as HTMLSelectElement;
-                      setSyncGroup(index, target.value);
-                    },
-                    value: trace.syncGroup || '',
-                  }, [
-                    m('option', {value: ''}, 'No sync group'),
-                    m('option', {value: 'group1'}, 'Sync group 1'),
-                    m('option', {value: 'group2'}, 'Sync group 2'),
-                    m('option', {value: 'group3'}, 'Sync group 3'),
-                  ]),
-                  m(Button, {
-                    label: 'Remove',
-                    onclick: () => removeTrace(index),
-                    disabled: analyzing,
-                    compact: true,
-                  }),
-                ]),
-              ])
-            )
-            ),
-          ],
-          
-        m('.multi-trace-info-panel', [
-          m('h3', 'Clock Synchronization'),
-          m('p', 'Add traces to the same sync group to synchronize their clocks during analysis. This helps align events from different traces on a common timeline.'),
-          m('h3', 'Multi-machine Analysis'),
-          m('p', 'Traces from different machines can be analyzed together by adding them to this view. This allows you to correlate events across multiple devices or systems.'),
-        ]),
+
+        analyzing && traces.length === 0
+          ? m('.multi-trace-analyzing', 'Adding traces...')
+          : traces.length === 0
+            ? m(
+                '.multi-trace-empty',
+                'No traces added yet. Click "Add Traces" to begin.',
+              )
+            : [
+                analyzing && m('.multi-trace-analyzing', 'Analyzing traces...'),
+                m(
+                  '.multi-trace-list',
+                  traces.map((trace, index) =>
+                    m('.multi-trace-item', [
+                      m('.multi-trace-info', [
+                        m('.multi-trace-name', trace.file.name),
+                        m(
+                          '.multi-trace-size',
+                          `${(trace.file.size / (1024 * 1024)).toFixed(2)} MB`,
+                        ),
+                        m(
+                          '.multi-trace-status' +
+                            (trace.analyzed ? '.analyzed' : ''),
+                          trace.analyzed ? 'Analyzed' : 'Not analyzed',
+                        ),
+                      ]),
+                      m('.multi-trace-actions', [
+                        m(
+                          'select.multi-trace-sync',
+                          {
+                            onchange: (e: Event) => {
+                              const target = e.target as HTMLSelectElement;
+                              setSyncGroup(index, target.value);
+                            },
+                            value: trace.syncGroup || '',
+                          },
+                          [
+                            m('option', {value: ''}, 'No sync group'),
+                            m('option', {value: 'group1'}, 'Sync group 1'),
+                            m('option', {value: 'group2'}, 'Sync group 2'),
+                            m('option', {value: 'group3'}, 'Sync group 3'),
+                          ],
+                        ),
+                        m(Button, {
+                          label: 'Remove',
+                          onclick: () => removeTrace(index),
+                          disabled: analyzing,
+                          compact: true,
+                        }),
+                      ]),
+                    ]),
+                  ),
+                ),
+              ],
       ]);
     },
   });
