@@ -1363,14 +1363,14 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
 
   // First track is for the thread; second first async, third and fourth for
   // thread time and instruction count, others are the async event tracks.
-  EXPECT_EQ(storage_->track_table().row_count(), 6u);
+  EXPECT_EQ(storage_->track_table().row_count(), 5u);
   EXPECT_EQ(storage_->track_table()[2].name(), ev_1);
   EXPECT_EQ(storage_->track_table()[3].name(), ev_2);
   EXPECT_EQ(storage_->track_table()[4].name(), ev_2);
 
   EXPECT_EQ(storage_->track_table()[2].upid(), std::nullopt);
   EXPECT_EQ(storage_->track_table()[3].upid(), std::nullopt);
-  EXPECT_EQ(storage_->track_table()[5].upid(), 1u);
+  EXPECT_EQ(storage_->track_table()[4].upid(), 1u);
 
   EXPECT_EQ(storage_->virtual_track_slices().slice_count(), 1u);
   EXPECT_EQ(storage_->virtual_track_slices().slice_ids()[0], SliceId(0u));
