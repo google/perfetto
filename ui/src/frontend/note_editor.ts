@@ -20,6 +20,8 @@ import {TraceImpl} from '../core/trace_impl';
 import {Note, SpanNote} from '../public/note';
 import {NoteSelection} from '../public/selection';
 import {Button} from '../widgets/button';
+import {Box} from '../widgets/box';
+import {Stack} from '../widgets/stack';
 
 function getStartTimestamp(note: Note | SpanNote) {
   const noteType = note.noteType;
@@ -48,17 +50,15 @@ export class NoteEditor implements m.ClassComponent<NodeDetailsPanelAttrs> {
     }
     const startTime = getStartTimestamp(note);
     return m(
-      '.notes-editor-panel',
+      Box,
       {
-        key: id, // Every note shoul get its own brand new DOM.
+        key: id, // Every note should get its own brand new DOM.
+        className: 'pf-note-editor',
       },
       m(
-        '.notes-editor-panel-heading-bar',
-        m(
-          '.notes-editor-panel-heading',
-          `Annotation at `,
-          m(Timestamp, {ts: startTime}),
-        ),
+        Stack,
+        {orientation: 'horizontal'},
+        m('span', `Annotation at `, m(Timestamp, {ts: startTime})),
         m('input[type=text]', {
           oncreate: (v: m.VnodeDOM) => {
             // NOTE: due to bad design decisions elsewhere this component is
@@ -74,7 +74,7 @@ export class NoteEditor implements m.ClassComponent<NodeDetailsPanelAttrs> {
           },
         }),
         m(
-          'span.color-change',
+          'span',
           `Change color: `,
           m('input[type=color]', {
             value: note.color,

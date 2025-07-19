@@ -1,4 +1,4 @@
-// Copyright (C) 2019 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,18 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.flamegraph-profile {
-  height: 100%;
-  // This is required to position locally-scoped (i.e. non-full-screen) modal
-  // dialogs within the panel, as they use position: absolute.
-  position: relative;
+.pf-note-editor {
+  input[type="text"] {
+    flex-grow: 1;
+    border-radius: 4px;
+    border: 1px solid #dcdcdc;
+    padding: 3px;
+    margin: 0 10px;
 
-  .selected {
-    justify-self: end;
-    margin-right: 10px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    width: 200px;
+    &:focus {
+      outline: none;
+      box-shadow: 1px 1px 1px rgba(23, 32, 44, 0.3);
+    }
   }
 }
