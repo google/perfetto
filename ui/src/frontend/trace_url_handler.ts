@@ -20,6 +20,7 @@ import {loadAndroidBugToolInfo} from './android_bug_tool';
 import {Route, Router} from '../core/router';
 import {taskTracker} from './task_tracker';
 import {AppImpl} from '../core/app_impl';
+import {embedderContext} from '../core/embedder';
 
 function getCurrentTraceUrl(): undefined | string {
   const source = AppImpl.instance.trace?.traceInfo.source;
@@ -30,6 +31,10 @@ function getCurrentTraceUrl(): undefined | string {
 }
 
 export function maybeOpenTraceFromRoute(route: Route) {
+  if (embedderContext?.routingHooks?.openTraceFromRoute?.(route)) {
+    return; // Handled by the embedding application
+  }
+
   if (route.args.s) {
     // /?s=xxxx for permalinks.
     loadPermalink(route.args.s);

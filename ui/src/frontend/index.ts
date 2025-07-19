@@ -64,6 +64,7 @@ import {
   CommandInvocation,
   commandInvocationArraySchema,
 } from '../core/command_manager';
+import {embedderContext} from '../core/embedder';
 
 const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   id: 'cspAllowAnyWebsocketPort',
@@ -143,6 +144,12 @@ function setupContentSecurityPolicy() {
     'style-src': [`'self'`, `'unsafe-inline'`],
     'navigate-to': ['https://*.perfetto.dev', 'self'],
   };
+  // Let embedders revise and install the policy as appropriate for their needs
+  if (embedderContext?.setContentSecurityPolicy) {
+    embedderContext.setContentSecurityPolicy(policy);
+    return;
+  }
+
   const meta = document.createElement('meta');
   meta.httpEquiv = 'Content-Security-Policy';
   let policyStr = '';
@@ -282,13 +289,15 @@ function main() {
     app.analytics.initialize(app.isInternalUser);
   });
 
-  // Route errors to both the UI bugreport dialog and Analytics (if enabled).
-  addErrorHandler(maybeShowErrorDialog);
-  addErrorHandler((e) => AppImpl.instance.analytics.logError(e));
+  if (embedderContext?.suppressErrorHandling !== true) {
+    // Route errors to both the UI bugreport dialog and Analytics (if enabled).
+    addErrorHandler(maybeShowErrorDialog);
+    addErrorHandler((e) => AppImpl.instance.analytics.logError(e));
 
-  // Add Error handlers for JS error and for uncaught exceptions in promises.
-  window.addEventListener('error', (e) => reportError(e));
-  window.addEventListener('unhandledrejection', (e) => reportError(e));
+    // Add Error handlers for JS error and for uncaught exceptions in promises.
+    window.addEventListener('error', (e) => reportError(e));
+    window.addEventListener('unhandledrejection', (e) => reportError(e));
+  }
 
   initWasm();
   AppImpl.instance.serviceWorkerController.install();
@@ -317,9 +326,11 @@ function main() {
 }
 
 function onCssLoaded() {
-  // Clear all the contents of the initial page (e.g. the <pre> error message)
-  // And replace it with the root <main> element which will be used by mithril.
-  document.body.innerHTML = '';
+  if (!embedderContext?.suppressMainUi) {
+    // Clear all the contents of the initial page (e.g. the <pre> error message)
+    // And replace it with the root <main> element which will be used by mithril.
+    document.body.innerHTML = '';
+  }
 
   const pages = AppImpl.instance.pages;
   pages.registerPage({route: '/', render: () => m(HomePage)});
@@ -345,15 +356,17 @@ function onCssLoaded() {
     },
   });
 
-  // Mount the main mithril component. This also forces a sync render pass.
-  raf.mount(document.body, {
-    view: () =>
-      m(ThemeProvider, {theme: themeSetting.get() as 'dark' | 'light'}, [
-        m(OverlayContainer, {fillParent: true}, [
-          m(UiMain, {key: themeSetting.get()}),
+  if (!embedderContext?.suppressMainUi) {
+    // Mount the main mithril component. This also forces a sync render pass.
+    raf.mount(document.body, {
+      view: () =>
+        m(ThemeProvider, {theme: themeSetting.get() as 'dark' | 'light'}, [
+          m(OverlayContainer, {fillParent: true}, [
+            m(UiMain, {key: themeSetting.get()}),
+          ]),
         ]),
-      ]),
-  });
+    });
+  }
 
   if (
     (location.origin.startsWith('http://localhost:') ||
