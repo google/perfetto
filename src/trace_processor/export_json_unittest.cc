@@ -1375,7 +1375,8 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
   constexpr int64_t kSourceId = 235;
   TrackId track = context_.track_compressor->InternLegacyAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
-      /*source_scope=*/kNullStringId, TrackCompressor::AsyncSliceType::kInstant);
+      /*source_scope=*/kNullStringId,
+      TrackCompressor::AsyncSliceType::kInstant);
   context_.args_tracker->Flush();  // Flush track args.
 
   context_.storage->mutable_slice_table()->Insert(
