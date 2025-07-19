@@ -231,6 +231,11 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
     return NamedTrack(std::forward<TrackEventName>(name), id, parent);
   }
 
+  template <class TrackEventName>
+  static NamedTrack Global(TrackEventName&& name, uint64_t id = 0) {
+    return NamedTrack(std::forward<TrackEventName>(name), id, Track());
+  }
+
   void Serialize(protos::pbzero::TrackDescriptor*) const;
   protos::gen::TrackDescriptor Serialize() const;
 
