@@ -70,6 +70,7 @@ export interface ModalButton {
   text: string;
   primary?: boolean;
   id?: string;
+  disabled?: boolean;
   action?: () => void;
 }
 
@@ -136,6 +137,7 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
             if (button.action !== undefined) button.action();
           },
           label: button.text,
+          disabled: button.disabled,
         }),
       );
     }

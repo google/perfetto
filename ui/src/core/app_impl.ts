@@ -278,6 +278,10 @@ export class AppImpl implements App {
     this.openTrace({type: 'FILE', file});
   }
 
+  openTraceFromMultipleFiles(files: ReadonlyArray<File>): void {
+    this.openTrace({type: 'MULTIPLE_FILES', files});
+  }
+
   openTraceFromUrl(url: string, serializedAppState?: SerializedAppState) {
     this.openTrace({type: 'URL', url, serializedAppState});
   }
