@@ -18,6 +18,7 @@
  * containing it is discarded by Chrome (e.g. because the tab was not used for
  * a long time) or when the user accidentally hits reload.
  */
+import {embedderContext} from './embedder';
 import {TraceArrayBufferSource, TraceSource} from './trace_source';
 
 const TRACE_CACHE_NAME = 'cached_traces';
@@ -129,7 +130,8 @@ export async function cacheTrace(
     ],
   ]);
   await deleteStaleEntries();
-  const key = `/_${TRACE_CACHE_NAME}/${traceUuid}`;
+  const cachePrefix = embedderContext?.cachePrefix ?? '';
+  const key = `${cachePrefix}/_${TRACE_CACHE_NAME}/${traceUuid}`;
   await cachePut(key, new Response(trace, {headers}));
 
   // Verify the file was actually cached, large files can silently fail.
@@ -151,7 +153,10 @@ export async function tryGetTrace(
   traceUuid: string,
 ): Promise<TraceArrayBufferSource | undefined> {
   await deleteStaleEntries();
-  const response = await cacheMatch(`/_${TRACE_CACHE_NAME}/${traceUuid}`);
+  const cachePrefix = embedderContext?.cachePrefix ?? '';
+  const response = await cacheMatch(
+    `${cachePrefix}/_${TRACE_CACHE_NAME}/${traceUuid}`,
+  );
 
   if (!response) return undefined;
   return {

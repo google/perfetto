@@ -21,6 +21,7 @@ import {AppImpl} from '../core/app_impl';
 import {SerializedAppState} from '../core/state_serialization_schema';
 import {parseAppState} from '../core/state_serialization';
 import {BUCKET_NAME} from '../base/gcs_uploader';
+import {embedderContext} from '../core/embedder';
 
 const TRUSTED_ORIGINS_KEY = 'trustedOrigins';
 
@@ -208,6 +209,8 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     }
   } else if (messageEvent.data instanceof ArrayBuffer) {
     postedTrace = {title: 'External trace', buffer: messageEvent.data};
+  } else if (embedderContext?.postMessageHandler?.(messageEvent) === true) {
+    return;
   } else {
     console.warn(
       'Unknown postMessage() event received. If you are trying to open a ' +

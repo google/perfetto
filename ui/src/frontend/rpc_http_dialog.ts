@@ -19,6 +19,7 @@ import {VERSION} from '../gen/perfetto_version';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
 import {AppImpl} from '../core/app_impl';
+import {embedderContext, PreloadedTraceOption} from '../core/embedder';
 
 const CURRENT_API_VERSION =
   protos.TraceProcessorApiVersion.TRACE_PROCESSOR_CURRENT_API_VERSION;
@@ -201,12 +202,19 @@ export async function checkHttpRpcConnection(): Promise<void> {
     }
   }
 
-  // Check if pre-loaded:
+  // Check if pre-loaded
   if (tpStatus.loadedTraceName) {
     // If a trace is already loaded in the trace processor (e.g., the user
     // launched trace_processor_shell -D trace_file.pftrace), prompt the user to
-    // initialize the UI with the already-loaded trace.
-    const result = await showDialogToUsePreloadedTrace(tpStatus);
+    // initialize the UI with the already-loaded trace, if an embedding application
+    // doesn't handle it
+    const embedderResult = toPreloadedDialogResult(
+      await embedderContext?.shouldUsePreloadedTrace?.(
+        tpStatus.loadedTraceName,
+      ),
+    );
+    const result =
+      embedderResult ?? (await showDialogToUsePreloadedTrace(tpStatus));
     switch (result) {
       case PreloadedDialogResult.Dismissed:
       case PreloadedDialogResult.UseRpcWithPreloadedTrace:
@@ -302,6 +310,24 @@ enum PreloadedDialogResult {
   UseRpc = 'useRpc',
   UseWasm = 'useWasm',
   Dismissed = 'dismissed',
+}
+
+function toPreloadedDialogResult(
+  option: PreloadedTraceOption | undefined,
+): PreloadedDialogResult | undefined {
+  if (!option) {
+    return undefined;
+  }
+  switch (option) {
+    case 'use_trace':
+      return PreloadedDialogResult.UseRpcWithPreloadedTrace;
+    case 'reset_rpc':
+      return PreloadedDialogResult.UseRpc;
+    case 'use_wasm':
+      return PreloadedDialogResult.UseWasm;
+    default:
+      throw new Error(`Unrecognized pre-loaded trace option: ${option}`);
+  }
 }
 
 async function showDialogToUsePreloadedTrace(
