@@ -13,25 +13,23 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  ColumnController,
-  ColumnControllerDiff,
-  ColumnControllerRow,
-} from '../column_controller';
-import {Section} from '../../../../widgets/section';
+import {ColumnInfo} from '../column_info';
+import {MultiselectInput} from '../../../../widgets/multiselect_input';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
 import {Button} from '../../../../widgets/button';
+import {Icon} from '../../../../widgets/icon';
 import protos from '../../../../protos';
 
 export interface GroupByAgg {
-  column?: ColumnControllerRow;
-  aggregationOp: string;
+  column?: ColumnInfo;
+  aggregationOp?: string;
   newColumnName?: string;
+  isValid?: boolean;
 }
 
 export interface GroupByAttrs {
-  groupByColumns: ColumnControllerRow[];
+  groupByColumns: ColumnInfo[];
   aggregations: GroupByAgg[];
 }
 
@@ -50,24 +48,42 @@ export class GroupByOperation implements m.ClassComponent<GroupByAttrs> {
       return;
     }
 
+    if (
+      attrs.aggregations.length === 0 ||
+      (attrs.aggregations[attrs.aggregations.length - 1].column !== undefined &&
+        attrs.aggregations[attrs.aggregations.length - 1].aggregationOp !==
+          undefined)
+    ) {
+      attrs.aggregations.push({});
+    }
+
     const selectGroupByColumns = (): m.Child => {
-      return m(ColumnController, {
-        options: attrs.groupByColumns,
-        allowAlias: false,
-        onChange: (diffs: ColumnControllerDiff[]) => {
-          for (const diff of diffs) {
-            const column = attrs.groupByColumns.find((c) => c.id === diff.id);
+      return m(
+        'div',
+        {style: {display: 'flex', alignItems: 'center', gap: '10px'}},
+        m('label', 'Group by:'),
+        m(MultiselectInput, {
+          options: attrs.groupByColumns.map((col) => ({
+            key: col.name,
+            label: col.name,
+          })),
+          selectedOptions: attrs.groupByColumns
+            .filter((c) => c.checked)
+            .map((c) => c.name),
+          onOptionAdd: (key: string) => {
+            const column = attrs.groupByColumns.find((c) => c.name === key);
             if (column) {
-              column.checked = diff.checked;
-              if (!diff.checked) {
-                attrs.aggregations = attrs.aggregations?.filter(
-                  (agg) => agg.column?.id !== diff.id,
-                );
-              }
+              column.checked = true;
             }
-          }
-        },
-      });
+          },
+          onOptionRemove: (key: string) => {
+            const column = attrs.groupByColumns.find((c) => c.name === key);
+            if (column) {
+              column.checked = false;
+            }
+          },
+        }),
+      );
     };
 
     const selectAggregationForColumn = (
@@ -78,54 +94,32 @@ export class GroupByOperation implements m.ClassComponent<GroupByAttrs> {
         m(
           'option',
           {
-            value: col.id,
-            selected: agg.column?.id === col.id,
+            value: col.name,
+            selected: agg.column?.name === col.name,
           },
-          col.id,
+          col.name,
         ),
       );
 
       return m(
-        Section,
-        {
-          title: `Aggregation ${index + 1}`,
-          key: index,
-        },
-        m(Button, {
-          label: 'X',
-          onclick: () => {
-            attrs.aggregations?.splice(index, 1);
-          },
+        '',
+        m(Icon, {
+          icon: agg.isValid ? 'check_circle' : 'warning',
+          style: {marginRight: '5px'},
         }),
-        m(
-          'Column:',
-          m(
-            Select,
-            {
-              onchange: (e: Event) => {
-                const target = e.target as HTMLSelectElement;
-                const selectedColumn = attrs.groupByColumns.find(
-                  (c) => c.id === target.value,
-                );
-                agg.column = selectedColumn;
-              },
-            },
-            m(
-              'option',
-              {disabled: true, selected: !agg.column},
-              'Select a column',
-            ),
-            columnOptions,
-          ),
-        ),
         m(
           Select,
           {
-            title: 'Aggregation type: ',
+            title: 'Aggregation: ',
             onchange: (e: Event) => {
               agg.aggregationOp = (e.target as HTMLSelectElement).value;
             },
           },
+          m(
+            'option',
+            {disabled: true, selected: !agg.aggregationOp},
+            'Operation',
+          ),
           AGGREGATION_OPS.map((op) =>
             m(
               'option',
@@ -137,25 +131,41 @@ export class GroupByOperation implements m.ClassComponent<GroupByAttrs> {
             ),
           ),
         ),
+        m(
+          'Column:',
+          m(
+            Select,
+            {
+              onchange: (e: Event) => {
+                const target = e.target as HTMLSelectElement;
+                const selectedColumn = attrs.groupByColumns.find(
+                  (c) => c.name === target.value,
+                );
+                agg.column = selectedColumn;
+              },
+            },
+            m('option', {disabled: true, selected: !agg.column}, 'Column'),
+            columnOptions,
+          ),
+        ),
+        ' AS ',
         m(TextInput, {
           title: 'New column name',
           placeholder: agg.column
             ? placeholderNewColumnName(agg)
-            : 'Enter column name',
+            : 'Column name',
           onchange: (e: Event) => {
             agg.newColumnName = (e.target as HTMLInputElement).value.trim();
           },
           value: agg.newColumnName,
         }),
+        m(Button, {
+          label: 'X',
+          onclick: () => {
+            attrs.aggregations?.splice(index, 1);
+          },
+        }),
       );
-    };
-
-    const onAddAggregation = () => {
-      attrs.aggregations.push({
-        aggregationOp: AGGREGATION_OPS[0],
-        column: undefined,
-        newColumnName: undefined,
-      });
     };
 
     const selectAggregations = (): m.Child => {
@@ -164,18 +174,10 @@ export class GroupByOperation implements m.ClassComponent<GroupByAttrs> {
         attrs.aggregations.map((agg, index) =>
           selectAggregationForColumn(agg, index),
         ),
-        m(Button, {
-          label: 'Add Aggregation',
-          onclick: onAddAggregation,
-        }),
       );
     };
 
-    return m(
-      '',
-      m(Section, {title: 'Columns for group by'}, selectGroupByColumns()),
-      m(Section, {title: 'Aggregations'}, selectAggregations()),
-    );
+    return m('', selectGroupByColumns(), selectAggregations());
   }
 }
 
@@ -195,13 +197,13 @@ export function GroupByAggregationAttrsToProto(
 ): protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate {
   const newAgg = new protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate();
   newAgg.columnName = agg.column!.column.name;
-  newAgg.op = stringToAggregateOp(agg.aggregationOp);
+  newAgg.op = stringToAggregateOp(agg.aggregationOp!);
   newAgg.resultColumnName = agg.newColumnName ?? placeholderNewColumnName(agg);
   return newAgg;
 }
 
 export function placeholderNewColumnName(agg: GroupByAgg) {
-  return agg.column
-    ? `${agg.column.id}_${agg.aggregationOp}`
-    : `agg_${agg.aggregationOp}`;
+  return agg.column && agg.aggregationOp
+    ? `${agg.column.name}_${agg.aggregationOp}`
+    : `agg_${agg.aggregationOp ?? ''}`;
 }

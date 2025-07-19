@@ -12,16 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../assets/widgets/theme";
-@import "./query_builder/builder.scss";
+@import "../../../../assets/widgets/theme";
 
-.pf-explore-page {
-  position: relative;
-  overflow: auto;
-  padding: 0.25rem;
+.pf-slice-source-label {
+  display: flex;
+  align-items: center;
+  font-family: "Roboto Condensed", sans-serif;
 
-  &__header {
-    display: flex;
-    align-items: center;
+  span {
+    display: inline-block;
+    margin-right: 0.625rem;
+    min-width: 6.25rem;
   }
+}
+
+.pf-slice-source-box {
+  padding: 0.625rem;
+  margin-bottom: 0.625rem;
+  border: 1px solid $pf-minimal-border;
 }

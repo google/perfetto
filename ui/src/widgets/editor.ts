@@ -41,11 +41,18 @@ export interface EditorAttrs extends HTMLAttrs {
 
   // Callback for every change to the editor's content.
   onUpdate?: (text: string) => void;
+
+  // Whether the editor should be focused on creation.
+  autofocus?: boolean;
 }
 
 export class Editor implements m.ClassComponent<EditorAttrs> {
   private editorView?: EditorView;
   private latestText?: string;
+
+  focus() {
+    this.editorView?.focus();
+  }
 
   oncreate({dom, attrs}: m.CVnodeDOM<EditorAttrs>) {
     const keymaps = [indentWithTab];
