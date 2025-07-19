@@ -66,34 +66,26 @@ TrackId TrackTracker::InternLegacyAsyncTrack(StringId raw_name,
         context_->process_track_translation_table->TranslateName(raw_name);
     static constexpr auto kBlueprint = TrackCompressor::SliceBlueprint(
         "legacy_async_process_slice",
-        tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint,
-                                    tracks::StringDimensionBlueprint("scope"),
-                                    tracks::StringIdDimensionBlueprint("name")),
+        tracks::DimensionBlueprints(
+            tracks::kProcessDimensionBlueprint,
+            tracks::StringIdDimensionBlueprint("scope")),
         tracks::DynamicNameBlueprint());
     switch (slice_type) {
       case AsyncSliceType::kBegin:
         return context_->track_compressor->InternBegin(
-            kBlueprint,
-            tracks::Dimensions(upid, context_->storage->GetString(source_scope),
-                               name),
-            trace_id, tracks::DynamicName(name), args_fn);
+            kBlueprint, tracks::Dimensions(upid, source_scope), trace_id,
+            tracks::DynamicName(name), args_fn);
       case AsyncSliceType::kEnd:
         return context_->track_compressor->InternEnd(
-            kBlueprint,
-            tracks::Dimensions(upid, context_->storage->GetString(source_scope),
-                               name),
-            trace_id, tracks::DynamicName(name), args_fn);
+            kBlueprint, tracks::Dimensions(upid, source_scope), trace_id,
+            tracks::DynamicName(name), args_fn);
       case AsyncSliceType::kInstant: {
         TrackId begin = context_->track_compressor->InternBegin(
-            kBlueprint,
-            tracks::Dimensions(upid, context_->storage->GetString(source_scope),
-                               name),
-            trace_id, tracks::DynamicName(name), args_fn);
+            kBlueprint, tracks::Dimensions(upid, source_scope), trace_id,
+            tracks::DynamicName(name), args_fn);
         TrackId end = context_->track_compressor->InternEnd(
-            kBlueprint,
-            tracks::Dimensions(upid, context_->storage->GetString(source_scope),
-                               name),
-            trace_id, tracks::DynamicName(name), args_fn);
+            kBlueprint, tracks::Dimensions(upid, source_scope), trace_id,
+            tracks::DynamicName(name), args_fn);
         PERFETTO_DCHECK(begin == end);
         return begin;
       }
@@ -102,33 +94,24 @@ TrackId TrackTracker::InternLegacyAsyncTrack(StringId raw_name,
   }
   static constexpr auto kBlueprint = TrackCompressor::SliceBlueprint(
       "legacy_async_global_slice",
-      tracks::DimensionBlueprints(tracks::StringDimensionBlueprint("scope"),
-                                  tracks::StringIdDimensionBlueprint("name")),
+      tracks::DimensionBlueprints(tracks::StringIdDimensionBlueprint("scope")),
       tracks::DynamicNameBlueprint());
   switch (slice_type) {
     case AsyncSliceType::kBegin:
       return context_->track_compressor->InternBegin(
-          kBlueprint,
-          tracks::Dimensions(context_->storage->GetString(source_scope),
-                             raw_name),
-          trace_id, tracks::DynamicName(raw_name), args_fn);
+          kBlueprint, tracks::Dimensions(source_scope), trace_id,
+          tracks::DynamicName(raw_name), args_fn);
     case AsyncSliceType::kEnd:
       return context_->track_compressor->InternEnd(
-          kBlueprint,
-          tracks::Dimensions(context_->storage->GetString(source_scope),
-                             raw_name),
-          trace_id, tracks::DynamicName(raw_name), args_fn);
+          kBlueprint, tracks::Dimensions(source_scope), trace_id,
+          tracks::DynamicName(raw_name), args_fn);
     case AsyncSliceType::kInstant:
       TrackId begin = context_->track_compressor->InternBegin(
-          kBlueprint,
-          tracks::Dimensions(context_->storage->GetString(source_scope),
-                             raw_name),
-          trace_id, tracks::DynamicName(raw_name), args_fn);
+          kBlueprint, tracks::Dimensions(source_scope), trace_id,
+          tracks::DynamicName(raw_name), args_fn);
       TrackId end = context_->track_compressor->InternEnd(
-          kBlueprint,
-          tracks::Dimensions(context_->storage->GetString(source_scope),
-                             raw_name),
-          trace_id, tracks::DynamicName(raw_name), args_fn);
+          kBlueprint, tracks::Dimensions(source_scope), trace_id,
+          tracks::DynamicName(raw_name), args_fn);
       PERFETTO_DCHECK(begin == end);
       return begin;
   }
