@@ -19,15 +19,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <tuple>
 
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
-#include "src/trace_processor/importers/common/process_track_translation_table.h"
-#include "src/trace_processor/importers/common/track_compressor.h"
-#include "src/trace_processor/importers/common/tracks.h"
-#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/track_tables_py.h"
@@ -37,86 +32,7 @@
 namespace perfetto::trace_processor {
 
 TrackTracker::TrackTracker(TraceProcessorContext* context)
-    : source_key_(context->storage->InternString("source")),
-      trace_id_key_(context->storage->InternString("trace_id")),
-      trace_id_is_process_scoped_key_(
-          context->storage->InternString("trace_id_is_process_scoped")),
-      upid_(context->storage->InternString("upid")),
-      source_scope_key_(context->storage->InternString("source_scope")),
-      chrome_source_(context->storage->InternString("chrome")),
-      context_(context),
-      args_tracker_(context) {}
-
-TrackId TrackTracker::InternLegacyAsyncTrack(StringId raw_name,
-                                             uint32_t upid,
-                                             int64_t trace_id,
-                                             bool trace_id_is_process_scoped,
-                                             StringId source_scope,
-                                             AsyncSliceType slice_type) {
-  auto args_fn = [&](ArgsTracker::BoundInserter& inserter) {
-    inserter.AddArg(source_key_, Variadic::String(chrome_source_))
-        .AddArg(trace_id_key_, Variadic::Integer(trace_id))
-        .AddArg(trace_id_is_process_scoped_key_,
-                Variadic::Boolean(trace_id_is_process_scoped))
-        .AddArg(upid_, Variadic::UnsignedInteger(upid))
-        .AddArg(source_scope_key_, Variadic::String(source_scope));
-  };
-  if (trace_id_is_process_scoped) {
-    const StringId name =
-        context_->process_track_translation_table->TranslateName(raw_name);
-    static constexpr auto kBlueprint = TrackCompressor::SliceBlueprint(
-        "legacy_async_process_slice",
-        tracks::DimensionBlueprints(
-            tracks::kProcessDimensionBlueprint,
-            tracks::StringIdDimensionBlueprint("scope")),
-        tracks::DynamicNameBlueprint());
-    switch (slice_type) {
-      case AsyncSliceType::kBegin:
-        return context_->track_compressor->InternBegin(
-            kBlueprint, tracks::Dimensions(upid, source_scope), trace_id,
-            tracks::DynamicName(name), args_fn);
-      case AsyncSliceType::kEnd:
-        return context_->track_compressor->InternEnd(
-            kBlueprint, tracks::Dimensions(upid, source_scope), trace_id,
-            tracks::DynamicName(name), args_fn);
-      case AsyncSliceType::kInstant: {
-        TrackId begin = context_->track_compressor->InternBegin(
-            kBlueprint, tracks::Dimensions(upid, source_scope), trace_id,
-            tracks::DynamicName(name), args_fn);
-        TrackId end = context_->track_compressor->InternEnd(
-            kBlueprint, tracks::Dimensions(upid, source_scope), trace_id,
-            tracks::DynamicName(name), args_fn);
-        PERFETTO_DCHECK(begin == end);
-        return begin;
-      }
-    }
-    PERFETTO_FATAL("For GCC");
-  }
-  static constexpr auto kBlueprint = TrackCompressor::SliceBlueprint(
-      "legacy_async_global_slice",
-      tracks::DimensionBlueprints(tracks::StringIdDimensionBlueprint("scope")),
-      tracks::DynamicNameBlueprint());
-  switch (slice_type) {
-    case AsyncSliceType::kBegin:
-      return context_->track_compressor->InternBegin(
-          kBlueprint, tracks::Dimensions(source_scope), trace_id,
-          tracks::DynamicName(raw_name), args_fn);
-    case AsyncSliceType::kEnd:
-      return context_->track_compressor->InternEnd(
-          kBlueprint, tracks::Dimensions(source_scope), trace_id,
-          tracks::DynamicName(raw_name), args_fn);
-    case AsyncSliceType::kInstant:
-      TrackId begin = context_->track_compressor->InternBegin(
-          kBlueprint, tracks::Dimensions(source_scope), trace_id,
-          tracks::DynamicName(raw_name), args_fn);
-      TrackId end = context_->track_compressor->InternEnd(
-          kBlueprint, tracks::Dimensions(source_scope), trace_id,
-          tracks::DynamicName(raw_name), args_fn);
-      PERFETTO_DCHECK(begin == end);
-      return begin;
-  }
-  PERFETTO_FATAL("For GCC");
-}
+    : context_(context), args_tracker_(context) {}
 
 TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
                                StringId name,

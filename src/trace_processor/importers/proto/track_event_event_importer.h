@@ -101,18 +101,18 @@ inline std::string NormalizePathSeparators(const protozero::ConstChars& path) {
   return result;
 }
 
-inline TrackTracker::AsyncSliceType AsyncSliceTypeForPhase(int32_t phase) {
+inline TrackCompressor::AsyncSliceType AsyncSliceTypeForPhase(int32_t phase) {
   switch (phase) {
     case 'b':
     case 'S':
-      return TrackTracker::AsyncSliceType::kBegin;
+      return TrackCompressor::AsyncSliceType::kBegin;
     case 'e':
     case 'T':
-      return TrackTracker::AsyncSliceType::kEnd;
+      return TrackCompressor::AsyncSliceType::kEnd;
     case 'n':
     case 'p':
     case 'F':
-      return TrackTracker::AsyncSliceType::kInstant;
+      return TrackCompressor::AsyncSliceType::kInstant;
   }
   PERFETTO_FATAL("For GCC");
 }
@@ -554,7 +554,7 @@ class TrackEventEventImporter {
                                ":" + legacy_event_.id_scope().ToStdString();
           id_scope = storage_->InternString(base::StringView(concat));
         }
-        return context_->track_tracker->InternLegacyAsyncTrack(
+        return context_->track_compressor->InternLegacyAsyncTrack(
             name_id_, upid_.value_or(0), source_id, source_id_is_process_scoped,
             id_scope, AsyncSliceTypeForPhase(legacy_event_.phase()));
       }

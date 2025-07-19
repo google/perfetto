@@ -37,6 +37,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -78,14 +79,14 @@ inline std::string_view GetStringValue(const json::JsonValue& value) {
   return {};
 }
 
-TrackTracker::AsyncSliceType AsyncSliceTypeForPhase(char phase) {
+TrackCompressor::AsyncSliceType AsyncSliceTypeForPhase(char phase) {
   switch (phase) {
     case 'b':
-      return TrackTracker::AsyncSliceType::kBegin;
+      return TrackCompressor::AsyncSliceType::kBegin;
     case 'e':
-      return TrackTracker::AsyncSliceType::kEnd;
+      return TrackCompressor::AsyncSliceType::kEnd;
     case 'n':
-      return TrackTracker::AsyncSliceType::kInstant;
+      return TrackCompressor::AsyncSliceType::kInstant;
   }
   PERFETTO_FATAL("For GCC");
 }
@@ -175,7 +176,7 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
       TrackId track_id;
       if (event.async_cookie_type == JsonEvent::AsyncCookieType::kId ||
           event.async_cookie_type == JsonEvent::AsyncCookieType::kId2Global) {
-        track_id = context_->track_tracker->InternLegacyAsyncTrack(
+        track_id = context_->track_compressor->InternLegacyAsyncTrack(
             event.name, upid, event.async_cookie,
             false /* source_id_is_process_scoped */,
             kNullStringId /* source_scope */,
@@ -183,7 +184,7 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
       } else {
         PERFETTO_DCHECK(event.async_cookie_type ==
                         JsonEvent::AsyncCookieType::kId2Local);
-        track_id = context_->track_tracker->InternLegacyAsyncTrack(
+        track_id = context_->track_compressor->InternLegacyAsyncTrack(
             event.name, upid, event.async_cookie,
             true /* source_id_is_process_scoped */,
             kNullStringId /* source_scope */,

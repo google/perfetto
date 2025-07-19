@@ -575,6 +575,7 @@ class TrackEvent(TestSuite):
           "event.name","event.name","[NULL]","[NULL]"
           "event.name","event.name","[NULL]","name1"
           "legacy_event.passthrough_utid","legacy_event.passthrough_utid",1,"[NULL]"
+          "name","name","[NULL]","name1"
           "scope","scope","[NULL]","cat"
           "source","source","[NULL]","chrome"
           "source_scope","source_scope","[NULL]","cat"

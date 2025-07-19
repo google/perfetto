@@ -149,6 +149,20 @@ class TrackCompressor {
     return Scoped(CreateTrackFactory(bp, dims, name, args), ts, dur);
   }
 
+  // Wrapper function for `InternTrack` for legacy "async" style tracks which
+  // is supported by the Chrome JSON format and other derivative formats
+  // (e.g. Fuchsia).
+  //
+  // WARNING: this function should *not* be used by any users not explicitly
+  // approved and discussed with a trace processor maintainer.
+  enum class AsyncSliceType { kBegin, kEnd, kInstant };
+  TrackId InternLegacyAsyncTrack(StringId name,
+                                 uint32_t upid,
+                                 int64_t trace_id,
+                                 bool trace_id_is_process_scoped,
+                                 StringId source_scope,
+                                 AsyncSliceType slice_type);
+
   // Wrapper around tracks::SliceBlueprint which makes the blueprint eligible
   // for compression with TrackCompressor. Please see documentation of
   // tracks::SliceBlueprint for usage.
@@ -369,8 +383,17 @@ class TrackCompressor {
   }
 
   base::FlatHashMap<uint64_t, TrackSet, base::AlreadyHashed<uint64_t>> sets_;
+  base::FlatHashMap<uint64_t, StringId, base::AlreadyHashed<uint64_t>>
+      async_tracks_to_root_string_id_;
 
   TraceProcessorContext* const context_;
+
+  const StringId source_key_;
+  const StringId trace_id_key_;
+  const StringId trace_id_is_process_scoped_key_;
+  const StringId upid_;
+  const StringId source_scope_key_;
+  const StringId chrome_source_;
 };
 
 }  // namespace perfetto::trace_processor
