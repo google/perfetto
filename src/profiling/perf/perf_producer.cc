@@ -94,6 +94,74 @@ bool IsCpuOnline(uint32_t cpu) {
   return base::StartsWith(res, "1");
 }
 
+// Return a vector that contains the ARM CPUID of each CPU in the system
+// This information can be used for filtering based on the CPUID
+std::vector<std::string> GetArmCpuIDs() {
+  // Parse /proc/cpuinfo which contains groups of "key\t: value" lines separated
+  // by an empty line. Each group represents a CPU.
+  std::string proc_cpu_info;
+  if (!base::ReadFile("/proc/cpuinfo", &proc_cpu_info))
+    return std::vector<std::string>{};
+
+  std::string::iterator line_start = proc_cpu_info.begin();
+  std::string::iterator line_end = proc_cpu_info.end();
+  std::string cpu_index = "";
+  std::optional<uint32_t> implementer = UINT32_MAX;
+  std::optional<uint32_t> part = UINT32_MAX;
+  std::optional<uint32_t> variant = UINT32_MAX;
+  std::optional<uint32_t> revision = UINT32_MAX;
+  std::vector<std::string> result;
+
+  while (line_start != proc_cpu_info.end()) {
+    line_end = find(line_start, proc_cpu_info.end(), '\n');
+    if (line_end == proc_cpu_info.end())
+      break;
+    std::string line = std::string(line_start, line_end);
+    line_start = line_end + 1;
+    if (line.empty() && !cpu_index.empty()) {
+      PERFETTO_DCHECK(cpu_index == std::to_string(result.size()));
+      if (implementer && part) {
+        std::string cpuid =
+            base::Uint64ToHexStringNoPrefix(implementer.value()) +
+            base::Uint64ToHexStringNoPrefix(part.value());
+        if (variant) {
+          cpuid += base::Uint64ToHexStringNoPrefix(variant.value());
+          if (revision) {
+            cpuid += base::Uint64ToHexStringNoPrefix(revision.value());
+          }
+        }
+        result.push_back(cpuid);
+      }
+
+      cpu_index = "";
+      implementer.reset();
+      variant.reset();
+      part.reset();
+      revision.reset();
+      continue;
+    }
+    auto splits = base::SplitString(line, ":");
+    if (splits.size() != 2)
+      continue;
+    std::string key =
+        base::StripSuffix(base::StripChars(splits[0], "\t", ' '), " ");
+    std::string value = base::StripPrefix(splits[1], " ");
+    if (key == "processor")
+      cpu_index = value;
+    else if (key == "CPU implementer") {
+      implementer = static_cast<uint32_t>(strtoul(value.data(), nullptr, 0));
+    } else if (key == "CPU variant") {
+      variant = static_cast<uint32_t>(strtol(value.data(), nullptr, 0));
+    } else if (key == "CPU part") {
+      part = static_cast<uint32_t>(strtol(value.data(), nullptr, 0));
+    } else if (key == "CPU revision") {
+      revision = static_cast<uint32_t>(strtol(value.data(), nullptr, 0));
+    }
+  }
+
+  return result;
+}
+
 // TODO(rsavitski): one thing that perf tool does is consult the cpumask
 // from the sysfs pmu description (/sys/bus/event_source/.../cpumask) to
 // automatically downscope events to the cpus that they're present on (matters
@@ -103,6 +171,8 @@ std::vector<uint32_t> CreateCpuMask(const protos::gen::PerfEventConfig& cfg) {
   const auto& target_cpus_raw = cfg.target_cpu();
   std::set<uint32_t> target_cpus(target_cpus_raw.begin(),
                                  target_cpus_raw.end());
+  const auto& target_cpuids = cfg.target_cpuid();
+  auto machine_cpuids = GetArmCpuIDs();
 
   std::vector<uint32_t> ret;
   uint32_t num_cpus = NumberOfCpus();
@@ -110,6 +180,18 @@ std::vector<uint32_t> CreateCpuMask(const protos::gen::PerfEventConfig& cfg) {
     // check explicit mask from cfg, or allow all by default
     if (!target_cpus.empty() && target_cpus.count(cpu) == 0)
       continue;
+    // check explicit cpuid from cfg, or allow all by default
+    if (!target_cpuids.empty() && !machine_cpuids.empty()) {
+      const auto& current_cpuid = machine_cpuids[cpu];
+      bool allowed = std::any_of(
+          target_cpuids.begin(), target_cpuids.end(), [&](const auto& cpuid) {
+            return base::StartsWith(current_cpuid, cpuid);
+          });
+      if (!allowed) {
+        continue;
+      }
+    }
+
     // consider cpu0 to always be online
     if (cpu > 0 && !IsCpuOnline(cpu))
       continue;
