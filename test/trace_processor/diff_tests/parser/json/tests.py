@@ -258,9 +258,9 @@ class JsonParser(TestSuite):
         ''',
         out=Csv("""
           "ts","dur","name","flat_key","key","string_value","int_value"
-          100000,-1,"BeginEvent","args.arg_bool","args.arg_bool","[NULL]",1
-          100000,-1,"BeginEvent","args.arg_int","args.arg_int","[NULL]",123
           100000,-1,"BeginEvent","args.arg_str","args.arg_str","hello","[NULL]"
+          100000,-1,"BeginEvent","args.arg_int","args.arg_int","[NULL]",123
+          100000,-1,"BeginEvent","args.arg_bool","args.arg_bool","[NULL]",1
           320000,0,"InstantThread","[NULL]","[NULL]","[NULL]","[NULL]"
           350000,0,"Instanti","[NULL]","[NULL]","[NULL]","[NULL]"
           250000,50000,"CompleteEvent","args.another_int","args.another_int","[NULL]",-5
