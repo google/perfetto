@@ -295,12 +295,16 @@ source_set("unittests") {
     "proto_to_args_parser_unittest.cc",
     "protozero_to_json_unittests.cc",
     "protozero_to_text_unittests.cc",
-    "regex_unittest.cc",
     "sql_argument_unittest.cc",
     "streaming_line_reader_unittest.cc",
     "trace_blob_view_reader_unittest.cc",
     "zip_reader_unittest.cc",
   ]
+
+  if (!is_win) {
+    sources += [ "regex_unittest.cc" ]
+  }
+
   testonly = true
   deps = [
     ":bump_allocator",
