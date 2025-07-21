@@ -35,6 +35,7 @@ source_set("impl") {
     "../../../base",
     "../../containers",
     "../../util:glob",
+    "../../util:hyper_log_log",
     "../../util:regex",
   ]
 }
