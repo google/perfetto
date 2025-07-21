@@ -2222,14 +2222,14 @@ TEST_P(PerfettoApiTest, TrackEventCustomNamedTrack) {
   thread.join();
 
   const auto global_track = perfetto::NamedTrack::Global("GlobalTrack");
-  const auto global_track_with_id = perfetto::NamedTrack("MyCustomTrack", 1);
+  const auto named_track_with_id = perfetto::NamedTrack("MyCustomTrack", 1);
   // These two global tracks should have different non-trivial uuids.
-  ASSERT_NE(global_track.uuid, global_track_with_id.uuid);
+  ASSERT_NE(global_track.uuid, named_track_with_id.uuid);
   ASSERT_NE(global_track.uuid, 0u);
-  ASSERT_NE(global_track_with_id.uuid, 0u);
+  ASSERT_NE(named_track_with_id.uuid, 0u);
 
   TRACE_EVENT_INSTANT("bar", "InstantEvent", global_track);
-  TRACE_EVENT_INSTANT("bar", "InstantEvent2", global_track_with_id);
+  TRACE_EVENT_INSTANT("bar", "InstantEvent2", named_track_with_id);
 
   auto trace = StopSessionAndReturnParsedTrace(tracing_session);
 
@@ -2290,9 +2290,9 @@ TEST_P(PerfettoApiTest, TrackEventCustomNamedTrack) {
               std::to_string(global_track.uuid) + " parent_uuid=0",
           "Instant track_uuid=" + std::to_string(global_track.uuid),
           "TrackDescriptor name=MyCustomTrack uuid=" +
-              std::to_string(global_track_with_id.uuid) +
+              std::to_string(named_track_with_id.uuid) +
               " parent_uuid=" + process_uuid_str,
-          "Instant track_uuid=" + std::to_string(global_track_with_id.uuid),
+          "Instant track_uuid=" + std::to_string(named_track_with_id.uuid),
           "TrackDescriptor name=MyCustomTrack uuid=" +
               std::to_string(track.uuid) + " parent_uuid=" + process_uuid_str,
           "SliceEnd track_uuid=" + std::to_string(track.uuid) +
