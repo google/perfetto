@@ -99,6 +99,7 @@ class ExportJsonTest : public ::testing::Test {
     context_.process_tracker.reset(new ProcessTracker(&context_));
     context_.process_track_translation_table.reset(
         new ProcessTrackTranslationTable(context_.storage.get()));
+    context_.track_compressor.reset(new TrackCompressor(&context_));
   }
 
   std::string ToJson(ArgumentFilterPredicate argument_filter = nullptr,
@@ -794,7 +795,7 @@ TEST_F(ExportJsonTest, InstantEvent) {
 
   // Global track.
   TrackEventTracker track_event_tracker(&context_);
-  TrackId track2 = *track_event_tracker.InternDescriptorTrack(
+  TrackId track2 = *track_event_tracker.InternDescriptorTrackInstant(
       TrackEventTracker::kDefaultDescriptorTrackUuid, kNullStringId,
       std::nullopt);
   context_.storage->mutable_slice_table()->Insert(
@@ -804,7 +805,7 @@ TEST_F(ExportJsonTest, InstantEvent) {
   TrackEventTracker::DescriptorTrackReservation reservation;
   reservation.parent_uuid = 0;
   track_event_tracker.ReserveDescriptorTrack(1234, reservation);
-  TrackId track3 = *track_event_tracker.InternDescriptorTrack(
+  TrackId track3 = *track_event_tracker.InternDescriptorTrackInstant(
       1234, kNullStringId, std::nullopt);
   context_.storage->mutable_slice_table()->Insert(
       {kTimestamp3, 0, track3, cat_id, name_id, 0, 0, 0});
@@ -1001,13 +1002,13 @@ TEST_F(ExportJsonTest, AsyncEvents) {
   StringId name3_id = context_.storage->InternString(base::StringView(kName3));
 
   constexpr int64_t kSourceId = 235;
-  TrackId track = context_.track_tracker->InternLegacyAsyncTrack(
+  TrackId track = context_.track_compressor->InternLegacyAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
-      /*source_scope=*/kNullStringId);
+      /*source_scope=*/kNullStringId, TrackCompressor::AsyncSliceType::kBegin);
   constexpr int64_t kSourceId2 = 236;
-  TrackId track2 = context_.track_tracker->InternLegacyAsyncTrack(
+  TrackId track2 = context_.track_compressor->InternLegacyAsyncTrack(
       name3_id, upid, kSourceId2, /*trace_id_is_process_scoped=*/true,
-      /*source_scope=*/kNullStringId);
+      /*source_scope=*/kNullStringId, TrackCompressor::AsyncSliceType::kBegin);
   context_.args_tracker->Flush();  // Flush track args.
 
   context_.storage->mutable_slice_table()->Insert(
@@ -1148,13 +1149,13 @@ TEST_F(ExportJsonTest, LegacyAsyncEvents) {
   };
 
   constexpr int64_t kSourceId = 235;
-  TrackId track = context_.track_tracker->InternLegacyAsyncTrack(
+  TrackId track = context_.track_compressor->InternLegacyAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
-      /*source_scope=*/kNullStringId);
+      /*source_scope=*/kNullStringId, TrackCompressor::AsyncSliceType::kBegin);
   constexpr int64_t kSourceId2 = 236;
-  TrackId track2 = context_.track_tracker->InternLegacyAsyncTrack(
+  TrackId track2 = context_.track_compressor->InternLegacyAsyncTrack(
       name3_id, upid, kSourceId2, /*trace_id_is_process_scoped=*/true,
-      /*source_scope=*/kNullStringId);
+      /*source_scope=*/kNullStringId, TrackCompressor::AsyncSliceType::kBegin);
   context_.args_tracker->Flush();  // Flush track args.
 
   context_.storage->mutable_slice_table()->Insert(
@@ -1271,9 +1272,9 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   StringId name_id = context_.storage->InternString(base::StringView(kName));
 
   constexpr int64_t kSourceId = 235;
-  TrackId track = context_.track_tracker->InternLegacyAsyncTrack(
+  TrackId track = context_.track_compressor->InternLegacyAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
-      /*source_scope=*/kNullStringId);
+      /*source_scope=*/kNullStringId, TrackCompressor::AsyncSliceType::kBegin);
   context_.args_tracker->Flush();  // Flush track args.
 
   auto* slices = context_.storage->mutable_slice_table();
@@ -1327,9 +1328,9 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
   StringId name_id = context_.storage->InternString(base::StringView(kName));
 
   constexpr int64_t kSourceId = 235;
-  TrackId track = context_.track_tracker->InternLegacyAsyncTrack(
+  TrackId track = context_.track_compressor->InternLegacyAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
-      /*source_scope=*/kNullStringId);
+      /*source_scope=*/kNullStringId, TrackCompressor::AsyncSliceType::kBegin);
   context_.args_tracker->Flush();  // Flush track args.
 
   auto slice_id =
@@ -1372,9 +1373,10 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
   StringId name_id = context_.storage->InternString(base::StringView(kName));
 
   constexpr int64_t kSourceId = 235;
-  TrackId track = context_.track_tracker->InternLegacyAsyncTrack(
+  TrackId track = context_.track_compressor->InternLegacyAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
-      /*source_scope=*/kNullStringId);
+      /*source_scope=*/kNullStringId,
+      TrackCompressor::AsyncSliceType::kInstant);
   context_.args_tracker->Flush();  // Flush track args.
 
   context_.storage->mutable_slice_table()->Insert(

@@ -238,6 +238,7 @@ class TrackEvent(TestSuite):
       "[NULL]","p1","[NULL]","[NULL]",4000,0,"cat","event1_on_p1"
       "async","p1","[NULL]","[NULL]",5000,0,"cat","event1_on_async"
       "async2","p1","[NULL]","[NULL]",5100,100,"cat","event1_on_async2"
+      "async3","[NULL]","t2","p1",6000,0,"cat","event1_on_async3"
       "[NULL]","[NULL]","t1","p1",6000,0,"cat","event3_on_t1"
       "[NULL]","[NULL]","t3","p1",11000,0,"cat","event1_on_t3"
       "[NULL]","p2","[NULL]","[NULL]",21000,0,"cat","event1_on_p2"
@@ -307,7 +308,6 @@ class TrackEvent(TestSuite):
         "thread=t2",1
         "thread=t3",1
         "thread=t4","[NULL]"
-        "tid=1","[NULL]"
         """))
 
   def test_track_event_descriptions(self):
@@ -351,7 +351,6 @@ class TrackEvent(TestSuite):
         "thread=t2","Thread t2"
         "thread=t3","[NULL]"
         "thread=t4","[NULL]"
-        "tid=1","[NULL]"
         """))
 
   # Instant events
@@ -553,7 +552,6 @@ class TrackEvent(TestSuite):
         """,
         out=Csv('''
           "flat_key","key","int_value","string_value"
-          "cookie","cookie",1234,"[NULL]"
           "debug.debug1.key1","debug.debug1.key1",10,"[NULL]"
           "debug.debug1.key2","debug.debug1.key2[0]",20,"[NULL]"
           "debug.debug1.key2","debug.debug1.key2[1]",21,"[NULL]"
@@ -577,14 +575,14 @@ class TrackEvent(TestSuite):
           "event.name","event.name","[NULL]","[NULL]"
           "event.name","event.name","[NULL]","name1"
           "legacy_event.passthrough_utid","legacy_event.passthrough_utid",1,"[NULL]"
+          "name","name","[NULL]","name1"
           "scope","scope","[NULL]","cat"
           "source","source","[NULL]","chrome"
           "source_scope","source_scope","[NULL]","cat"
           "trace_id","trace_id",1234,"[NULL]"
           "trace_id_is_process_scoped","trace_id_is_process_scoped",0,"[NULL]"
+          "track_compressor_idx","track_compressor_idx",0,"[NULL]"
           "upid","upid",1,"[NULL]"
-          "utid","utid",1,"[NULL]"
-          "utid","utid",2,"[NULL]"
         '''))
 
   # Counters
@@ -790,9 +788,12 @@ class TrackEvent(TestSuite):
           "event.category","event.category","[NULL]","disabled-by-default-histogram_samples"
           "event.name","event.name","[NULL]","[NULL]"
           "is_root_in_scope","is_root_in_scope",1,"[NULL]"
+          "merge_key_type","merge_key_type",0,"[NULL]"
+          "merge_key_value","merge_key_value","[NULL]","Default Track"
+          "parent_track_uuid","parent_track_uuid",0,"[NULL]"
           "source","source","[NULL]","descriptor"
           "trace_id","trace_id",0,"[NULL]"
-          "track_uuid","track_uuid",0,"[NULL]"
+          "track_compressor_idx","track_compressor_idx",0,"[NULL]"
         '''))
 
   # Flow events importing from proto
@@ -905,24 +906,26 @@ class TrackEvent(TestSuite):
         trace=Path('track_event_tracks_ordering.textproto'),
         query="""
         SELECT
-          id,
-          parent_id,
-          EXTRACT_ARG(source_arg_set_id, 'child_ordering') AS ordering,
-          EXTRACT_ARG(source_arg_set_id, 'sibling_order_rank') AS rank
-        FROM track
+          t.name,
+          p.name AS parent_name,
+          EXTRACT_ARG(t.source_arg_set_id, 'child_ordering') AS ordering,
+          EXTRACT_ARG(t.source_arg_set_id, 'sibling_order_rank') AS rank
+        FROM track t
+        LEFT JOIN track p ON t.parent_id = p.id
+        ORDER BY p.name, t.name
         """,
         out=Csv("""
-        "id","parent_id","ordering","rank"
-        0,"[NULL]","explicit","[NULL]"
-        1,0,"[NULL]",-10
-        2,0,"[NULL]",-2
-        3,0,"[NULL]",1
-        4,"[NULL]","explicit","[NULL]"
-        5,0,"[NULL]",2
-        6,2,"[NULL]","[NULL]"
-        7,0,"[NULL]","[NULL]"
-        8,"[NULL]","[NULL]",-10
-        9,"[NULL]","[NULL]",-2
+        "name","parent_name","ordering","rank"
+        "p1","[NULL]","explicit","[NULL]"
+        "p1_child_1","[NULL]","[NULL]",-10
+        "p1_child_2","[NULL]","[NULL]",-2
+        "parent","[NULL]","explicit","[NULL]"
+        "async3","child_2","[NULL]","[NULL]"
+        "async","parent","[NULL]",1
+        "async2","parent","[NULL]",2
+        "child_1","parent","[NULL]",-10
+        "child_2","parent","[NULL]",-2
+        "child_3","parent","[NULL]","[NULL]"
         """))
 
   def test_track_event_tracks_machine_id(self):
@@ -970,7 +973,6 @@ class TrackEvent(TestSuite):
         "thread=t2",1
         "thread=t3",1
         "thread=t4","[NULL]"
-        "tid=1","[NULL]"
         """))
 
   # Tests thread_counter_track.machine_id is not null.

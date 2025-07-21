@@ -48,7 +48,7 @@ The actual problem was the following:
   the lock.
 
 [STPE]: https://cs.android.com/android/platform/superproject/main/+/main:libcore/ojluni/src/main/java/java/util/concurrent/ScheduledThreadPoolExecutor.java?q=ScheduledThreadPoolExecutor
-[RL]: https://cs.android.com/android/platform/superproject/main/+/main:libcore/ojluni/annotations/hiddenapi/java/util/concurrent/locks/ReentrantLock.java
+[RL]: https://cs.android.com/android/platform/superproject/main/+/main:libcore/ojluni/src/main/java/java/util/concurrent/locks/ReentrantLock.java;l=108
 
 ## Methodology
 

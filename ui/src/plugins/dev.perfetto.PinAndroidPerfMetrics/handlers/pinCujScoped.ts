@@ -74,7 +74,7 @@ class PinCujScopedJank implements MetricHandler {
     metricData: CujScopedMetricData,
     ctx: Trace,
   ) {
-    let jankTypeFilter;
+    let jankTypeFilter = 'AND (app_missed > 0 OR sf_missed > 0)';
     let jankTypeDisplayName = 'all';
     if (metricData.jankType?.includes('app')) {
       jankTypeFilter = ' AND app_missed > 0';
@@ -115,7 +115,7 @@ class PinCujScopedJank implements MetricHandler {
       },
       columns: {ts: 'ts', dur: 'dur', name: 'id'},
       argColumns: ['id', 'ts', 'dur'],
-      trackName,
+      title: trackName,
     };
 
     return {

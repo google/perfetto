@@ -22,6 +22,7 @@ import {Trace} from '../../public/trace';
 const QUERY_HISTORY_KEY = 'queryHistory';
 
 export interface QueryHistoryComponentAttrs {
+  readonly className?: string;
   trace: Trace;
   runQuery: (query: string) => void;
   setQuery: (query: string) => void;
@@ -30,18 +31,20 @@ export interface QueryHistoryComponentAttrs {
 export class QueryHistoryComponent
   implements m.ClassComponent<QueryHistoryComponentAttrs>
 {
-  view({attrs}: m.CVnode<QueryHistoryComponentAttrs>): m.Child {
-    const runQuery = attrs.runQuery;
-    const setQuery = attrs.setQuery;
+  view({attrs}: m.CVnode<QueryHistoryComponentAttrs>) {
+    const {trace, runQuery, setQuery, ...rest} = attrs;
     const unstarred: HistoryItemComponentAttrs[] = [];
     const starred: HistoryItemComponentAttrs[] = [];
     for (let i = queryHistoryStorage.data.length - 1; i >= 0; i--) {
       const entry = queryHistoryStorage.data[i];
       const arr = entry.starred ? starred : unstarred;
-      arr.push({trace: attrs.trace, index: i, entry, runQuery, setQuery});
+      arr.push({trace, index: i, entry, runQuery, setQuery});
     }
     return m(
-      '.query-history',
+      '.pf-query-history',
+      {
+        ...rest,
+      },
       m(
         'header.overview',
         `Query history (${queryHistoryStorage.data.length} queries)`,
@@ -66,9 +69,9 @@ export class HistoryItemComponent
   view(vnode: m.Vnode<HistoryItemComponentAttrs>): m.Child {
     const query = vnode.attrs.entry.query;
     return m(
-      '.history-item',
+      '.pf-history-item',
       m(
-        '.history-item-buttons',
+        '.pf-history-item-buttons',
         m(
           'button',
           {

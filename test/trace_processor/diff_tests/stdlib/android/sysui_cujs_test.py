@@ -33,9 +33,9 @@ class SystemUICujs(TestSuite):
         """,
         out=Csv("""
         "cuj_id","upid","process_name","cuj_slice_name","cuj_name","slice_id","ts","ts_end","dur","state","ui_thread","layer_id","begin_vsync","end_vsync"
-        1,1,"com.android.systemui","J<BACK_PANEL_ARROW>","BACK_PANEL_ARROW",4,10000000,65000000,55000000,"completed",3,0,20,30
+        1,1,"com.android.systemui","J<BACK_PANEL_ARROW>","BACK_PANEL_ARROW",4,27000000,65000000,38000000,"completed",3,0,20,30
         2,1,"com.android.systemui","J<BACK_PANEL_ARROW>","BACK_PANEL_ARROW",24,85000000,89000000,4000000,"completed",3,2,60,70
-        3,2,"com.google.android.apps.nexuslauncher","J<CUJ_NAME>","CUJ_NAME",38,104000000,143000000,39000000,"completed",5,1,80,90
+        3,2,"com.google.android.apps.nexuslauncher","J<CUJ_NAME>","CUJ_NAME",38,121000000,143000000,22000000,"completed",5,1,80,90
         """))
 
   def test_android_sysui_latency_cujs(self):

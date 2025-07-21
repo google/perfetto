@@ -1704,7 +1704,6 @@ TEST_P(PerfettoApiTest, TrackEventDescriptor) {
   EXPECT_EQ("slow_category", desc.available_categories()[7].name());
   EXPECT_EQ("slow", desc.available_categories()[7].tags()[0]);
   EXPECT_EQ("disabled-by-default-cat", desc.available_categories()[8].name());
-  EXPECT_EQ("slow", desc.available_categories()[8].tags()[0]);
 }
 
 TEST_P(PerfettoApiTest, TrackEventSharedIncrementalState) {
@@ -3955,7 +3954,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     TRACE_EVENT_BEGIN("cat.verbose", "DebugEvent");
     TRACE_EVENT_BEGIN("test", "TagEvent");
     TRACE_EVENT_BEGIN("test.verbose", "VerboseTagEvent");
-    TRACE_EVENT_BEGIN(TRACE_DISABLED_BY_DEFAULT("cat"), "SlowDisabledEvent");
+    TRACE_EVENT_BEGIN(TRACE_DISABLED_BY_DEFAULT("cat"), "NotDisabledEvent");
     perfetto::DynamicCategory dyn_foo{"dynamic,foo"};
     TRACE_EVENT_BEGIN(dyn_foo, "DynamicGroupFooEvent");
     perfetto::DynamicCategory dyn_bar{"dynamic,bar"};
@@ -3975,7 +3974,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
       EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo,bar"));
       perfetto::DynamicCategory dyn{"dynamic"};
       EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED(dyn));
-      EXPECT_FALSE(
+      EXPECT_TRUE(
           TRACE_EVENT_CATEGORY_ENABLED(TRACE_DISABLED_BY_DEFAULT("cat")));
       EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("cat.verbose"));
     });
@@ -3984,6 +3983,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
         ElementsAre("B:foo.FooEvent", "B:bar.BarEvent", "B:foo,bar.MultiFooBar",
                     "B:baz,bar,quux.MultiBar", "B:red,green,blue,foo.MultiFoo",
                     "B:red,green,blue,yellow.MultiNone", "B:test.TagEvent",
+                    "B:disabled-by-default-cat.NotDisabledEvent",
                     "B:$dynamic,$foo.DynamicGroupFooEvent",
                     "B:$dynamic,$bar.DynamicGroupBarEvent"));
   }
@@ -4054,7 +4054,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     te_cfg.add_enabled_categories("*");
     auto slices = run_config(te_cfg, []() {
       EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
-      EXPECT_FALSE(
+      EXPECT_TRUE(
           TRACE_EVENT_CATEGORY_ENABLED(TRACE_DISABLED_BY_DEFAULT("cat")));
       EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("cat.verbose"));
     });
@@ -4063,6 +4063,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
         ElementsAre("B:foo.FooEvent", "B:bar.BarEvent", "B:foo,bar.MultiFooBar",
                     "B:baz,bar,quux.MultiBar", "B:red,green,blue,foo.MultiFoo",
                     "B:red,green,blue,yellow.MultiNone", "B:test.TagEvent",
+                    "B:disabled-by-default-cat.NotDisabledEvent",
                     "B:$dynamic,$foo.DynamicGroupFooEvent",
                     "B:$dynamic,$bar.DynamicGroupBarEvent"));
   }
@@ -4104,9 +4105,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
       EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
       EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("cat"));
     });
-    EXPECT_THAT(slices,
-                ElementsAre("B:cat.SlowEvent",
-                            "B:disabled-by-default-cat.SlowDisabledEvent"));
+    EXPECT_THAT(slices, ElementsAre("B:cat.SlowEvent"));
   }
 
   // Enable all legacy disabled-by-default categories by a pattern
@@ -4120,7 +4119,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
           TRACE_EVENT_CATEGORY_ENABLED(TRACE_DISABLED_BY_DEFAULT("cat")));
     });
     EXPECT_THAT(slices,
-                ElementsAre("B:disabled-by-default-cat.SlowDisabledEvent"));
+                ElementsAre("B:disabled-by-default-cat.NotDisabledEvent"));
   }
 
   // Enable everything including slow/debug categories.
@@ -4143,7 +4142,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
                     "B:red,green,blue,yellow.MultiNone", "B:cat.SlowEvent",
                     "B:cat.verbose.DebugEvent", "B:test.TagEvent",
                     "B:test.verbose.VerboseTagEvent",
-                    "B:disabled-by-default-cat.SlowDisabledEvent",
+                    "B:disabled-by-default-cat.NotDisabledEvent",
                     "B:$dynamic,$foo.DynamicGroupFooEvent",
                     "B:$dynamic,$bar.DynamicGroupBarEvent"));
   }

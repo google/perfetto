@@ -39,7 +39,7 @@
 #include "src/profiling/perf/unwinding.h"
 #include "src/tracing/service/metatrace_writer.h"
 // TODO(rsavitski): move to e.g. src/tracefs/.
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 
 namespace perfetto {
 namespace profiling {
@@ -284,7 +284,7 @@ class PerfProducer : public Producer,
 
   // Used for tracepoint name -> id lookups. Initialized lazily, and in general
   // best effort - can be null if tracefs isn't accessible.
-  std::unique_ptr<FtraceProcfs> tracefs_;
+  std::unique_ptr<Tracefs> tracefs_;
 
   std::function<void()> all_data_sources_registered_cb_;
 

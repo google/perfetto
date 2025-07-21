@@ -27,8 +27,8 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "src/traced/probes/ftrace/atrace_hal_wrapper.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 
 namespace perfetto {
 namespace vendor_tracepoints {
@@ -37,7 +37,7 @@ namespace {
 using EmptyTokenMode = ::perfetto::base::StringSplitter::EmptyTokenMode;
 
 std::vector<GroupAndName> DiscoverTracepoints(AtraceHalWrapper* hal,
-                                              FtraceProcfs* ftrace,
+                                              Tracefs* ftrace,
                                               const std::string& category) {
   ftrace->DisableAllEvents();
   hal->EnableCategories({category});
@@ -90,7 +90,7 @@ base::Status ParseEventLine(base::StringView line,
 }  // namespace
 
 std::map<std::string, std::vector<GroupAndName>>
-DiscoverVendorTracepointsWithHal(AtraceHalWrapper* hal, FtraceProcfs* ftrace) {
+DiscoverVendorTracepointsWithHal(AtraceHalWrapper* hal, Tracefs* ftrace) {
   std::map<std::string, std::vector<GroupAndName>> results;
   for (const auto& category : hal->ListCategories()) {
     results.emplace(category, DiscoverTracepoints(hal, ftrace, category));
@@ -148,7 +148,7 @@ base::Status DiscoverVendorTracepointsWithFile(
 base::Status DiscoverAccessibleVendorTracepointsWithFile(
     const std::string& vendor_atrace_categories_path,
     std::map<std::string, std::vector<GroupAndName>>* categories_map,
-    FtraceProcfs* ftrace) {
+    Tracefs* ftrace) {
   categories_map->clear();
   base::Status status = DiscoverVendorTracepointsWithFile(
       vendor_atrace_categories_path, categories_map);

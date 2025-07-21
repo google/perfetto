@@ -20,7 +20,7 @@
 
 #include "test/gtest_and_gmock.h"
 
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 
 using testing::_;
 using testing::ElementsAre;
@@ -29,16 +29,16 @@ using testing::Return;
 
 namespace perfetto::predefined_tracepoints {
 namespace {
-class MockFtraceProcfs : public FtraceProcfs {
+class MockTracefs : public Tracefs {
  public:
-  MockFtraceProcfs() : FtraceProcfs("/root/") {}
+  MockTracefs() : Tracefs("/root/") {}
   MOCK_METHOD(bool, IsFileWriteable, (const std::string& path), (override));
   MOCK_METHOD(bool, IsFileReadable, (const std::string& path), (override));
 };
 
 class MockProtoTranslationTable : public ProtoTranslationTable {
  public:
-  explicit MockProtoTranslationTable(const MockFtraceProcfs* ftrace)
+  explicit MockProtoTranslationTable(const MockTracefs* ftrace)
       : ProtoTranslationTable(ftrace,
                               {},
                               {},
@@ -52,7 +52,7 @@ class MockProtoTranslationTable : public ProtoTranslationTable {
 };
 
 TEST(PredefinedTracepointsTest, GetAccessiblePredefinedTracePoints) {
-  MockFtraceProcfs ftrace;
+  MockTracefs ftrace;
 
   MockProtoTranslationTable table(&ftrace);
   Event unaccessible_proto_event{};
@@ -95,7 +95,7 @@ TEST(PredefinedTracepointsTest, GetAccessiblePredefinedTracePoints) {
 }
 
 TEST(PredefinedTracepointsTest, GetAccessiblePredefinedTracePointsSetEvent) {
-  MockFtraceProcfs ftrace;
+  MockTracefs ftrace;
 
   MockProtoTranslationTable table(&ftrace);
   Event unaccessible_proto_event{};

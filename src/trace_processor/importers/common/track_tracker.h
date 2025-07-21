@@ -23,13 +23,13 @@
 #include <functional>
 #include <tuple>
 #include <type_traits>
-#include <utility>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
@@ -166,18 +166,6 @@ class TrackTracker {
     return AddTrack(bp, n, u, a.data(), kDimensionCount, args);
   }
 
-  // Wrapper function for `InternTrack` for legacy "async" style tracks which
-  // is supported by the Chrome JSON format and other derivative formats
-  // (e.g. Fuchsia).
-  //
-  // WARNING: this function should *not* be used by any users not explicitly
-  // approved and discussed with a trace processor maintainer.
-  TrackId InternLegacyAsyncTrack(StringId name,
-                                 uint32_t upid,
-                                 int64_t trace_id,
-                                 bool trace_id_is_process_scoped,
-                                 StringId source_scope);
-
  private:
   friend class TrackCompressor;
   friend class TrackEventTracker;
@@ -215,6 +203,8 @@ class TrackTracker {
         a[i].value = Variadic::Integer(std::get<i>(dimensions));
       } else if constexpr (std::is_integral_v<elem_t>) {
         a[i].value = Variadic::Integer(std::get<i>(dimensions));
+      } else if constexpr (std::is_same_v<elem_t, StringPool::Id>) {
+        a[i].value = Variadic::String(std::get<i>(dimensions));
       } else {
         static_assert(std::is_same_v<elem_t, base::StringView>,
                       "Unknown type for dimension");
@@ -228,13 +218,6 @@ class TrackTracker {
   }
 
   base::FlatHashMap<uint64_t, TrackId, base::AlreadyHashed<uint64_t>> tracks_;
-
-  const StringId source_key_;
-  const StringId trace_id_key_;
-  const StringId trace_id_is_process_scoped_key_;
-  const StringId upid_;
-  const StringId source_scope_key_;
-  const StringId chrome_source_;
 
   TraceProcessorContext* const context_;
   ArgsTracker args_tracker_;
