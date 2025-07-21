@@ -183,6 +183,7 @@ class BlockingCallMetricHandler implements MetricHandler {
           process_name = "${processName}"
           AND name = "${blockingCallName}"
           AND cuj_name = "${cuj}"
+          -- select frame_id for the metric with the maximum duration.
         ORDER BY dur DESC limit 1`);
     const row = result.firstRow({frame_id: LONG});
     // Fetch the ts and dur of the frame corresponding to the above frame_id.
