@@ -353,7 +353,6 @@ TracingServiceImpl::TracingServiceImpl(
     : clock_(std::move(deps.clock)),
       random_(std::move(deps.random)),
       init_opts_(init_opts),
-      machine_name_(base::GetPerfettoMachineName()),
       shm_factory_(std::move(shm_factory)),
       uid_(base::GetCurrentUserId()),
       buffer_ids_(kMaxTraceBufferID),
@@ -374,7 +373,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
                                     ProducerSMBScrapingMode smb_scraping_mode,
                                     size_t shared_memory_page_size_hint_bytes,
                                     std::unique_ptr<SharedMemory> shm,
-                                    const std::string& sdk_version) {
+                                    const std::string& sdk_version,
+                                    const std::string& machine_name) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
   auto uid = client_identity.uid();
@@ -405,7 +405,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
 
   std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
       id, client_identity, this, weak_runner_.task_runner(), producer,
-      producer_name, sdk_version, in_process, smb_scraping_enabled));
+      producer_name, machine_name, sdk_version, in_process,
+      smb_scraping_enabled));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
   endpoint->shmem_size_hint_bytes_ = shared_memory_size_hint_bytes;
@@ -3045,20 +3046,6 @@ bool TracingServiceImpl::IsInitiatorPrivileged(
   return false;
 }
 
-std::optional<std::string> TracingServiceImpl::GetMachineName(
-    MachineID machine_id) {
-  if (machine_id == kDefaultMachineID) {
-    return machine_name_;
-  }
-  auto relay_client = std::find_if(
-      relay_clients_.begin(), relay_clients_.end(), [&](const auto& client) {
-        return client.second->machine_id() == machine_id;
-      });
-  return relay_client != relay_clients_.end()
-             ? std::optional{relay_client->second->machine_name()}
-             : std::nullopt;
-}
-
 TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
     const TraceConfig::DataSource& cfg_data_source,
     const TraceConfig::ProducerConfig& producer_config,
@@ -3075,18 +3062,13 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
   }
   if (cfg_data_source.machine_name_filter_size()) {
     auto machine_id = producer->client_identity().machine_id();
-    auto machine_name = GetMachineName(machine_id);
-    if (!machine_name.has_value()) {
-      PERFETTO_ELOG("Data source: unable to find machine name");
-      return nullptr;
-    }
     auto cfg_machine_names = cfg_data_source.machine_name_filter();
-    if (!NameMatchesFilter(*machine_name, cfg_machine_names, {}) &&
+    if (!NameMatchesFilter(producer->machine_name_, cfg_machine_names, {}) &&
         !(machine_id == kDefaultMachineID &&
           NameMatchesFilter("host", cfg_machine_names, {}))) {
       PERFETTO_DLOG("Data source: %s is filtered out for machine: %s",
                     cfg_data_source.config().name().c_str(),
-                    machine_name->c_str());
+                    producer->machine_name_.c_str());
       return nullptr;
     }
   }
@@ -4804,6 +4786,7 @@ TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
     base::TaskRunner* task_runner,
     Producer* producer,
     const std::string& producer_name,
+    const std::string& machine_name,
     const std::string& sdk_version,
     bool in_process,
     bool smb_scraping_enabled)
@@ -4812,6 +4795,7 @@ TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
       service_(service),
       producer_(producer),
       name_(producer_name),
+      machine_name_(machine_name),
       sdk_version_(sdk_version),
       in_process_(in_process),
       smb_scraping_enabled_(smb_scraping_enabled),

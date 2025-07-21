@@ -327,8 +327,7 @@ class PERFETTO_EXPORT_COMPONENT RelayEndpoint {
 
   enum class SyncMode : uint32_t { PING = 1, UPDATE = 2 };
 
-  virtual void CacheSystemInfo(std::string machine_name,
-                               std::vector<uint8_t> serialized_system_info) = 0;
+  virtual void CacheSystemInfo(std::vector<uint8_t> serialized_system_info) = 0;
   virtual void SyncClocks(SyncMode sync_mode,
                           base::ClockSnapshotVector client_clocks,
                           base::ClockSnapshotVector host_clocks) = 0;
@@ -429,7 +428,8 @@ class PERFETTO_EXPORT_COMPONENT TracingService {
           ProducerSMBScrapingMode::kDefault,
       size_t shared_memory_page_size_hint_bytes = 0,
       std::unique_ptr<SharedMemory> shm = nullptr,
-      const std::string& sdk_version = {}) = 0;
+      const std::string& sdk_version = {},
+      const std::string& machine_name = {}) = 0;
 
   // Connects a Consumer instance and obtains a ConsumerEndpoint, which is
   // essentially a 1:1 channel between one Consumer and the Service.

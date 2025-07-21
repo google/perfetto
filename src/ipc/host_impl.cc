@@ -25,6 +25,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/crash_keys.h"
 #include "perfetto/ext/base/sys_types.h"
 #include "perfetto/ext/base/unix_socket.h"
@@ -215,6 +216,9 @@ void HostImpl::OnNewIncomingConnection(
   client->id = client_id;
   client->sock = std::move(new_conn);
   client->sock->SetTxTimeout(socket_tx_timeout_ms_);
+  if (client->sock->family() == base::SockFamily::kUnix) {
+    client->machine_name = base::GetPerfettoMachineName();
+  }
   clients_[client_id] = std::move(client);
 }
 
@@ -327,8 +331,9 @@ void HostImpl::OnInvokeMethod(ClientConnection* client,
 
   auto peer_uid = client->GetPosixPeerUid();
   auto scoped_key = g_crash_key_uid.SetScoped(static_cast<int64_t>(peer_uid));
-  service->client_info_ = ClientInfo(
-      client->id, peer_uid, client->GetLinuxPeerPid(), client->GetMachineID());
+  service->client_info_ =
+      ClientInfo(client->id, peer_uid, client->GetLinuxPeerPid(),
+                 client->GetMachineID(), client->GetMachineName());
   service->received_fd_ = &client->received_fd;
   method.invoker(service, *decoded_req_args, std::move(deferred_reply));
   service->received_fd_ = nullptr;
@@ -355,6 +360,7 @@ void HostImpl::OnSetPeerIdentity(ClientConnection* client,
 
   client->machine_id = GenerateMachineID(client->sock.get(),
                                          set_peer_identity.machine_id_hint());
+  client->machine_name = set_peer_identity.machine_name();
 }
 
 void HostImpl::ReplyToMethodInvocation(ClientID client_id,
@@ -420,7 +426,8 @@ void HostImpl::OnDisconnect(base::UnixSocket* sock) {
   ClientID client_id = client->id;
 
   ClientInfo client_info(client_id, client->GetPosixPeerUid(),
-                         client->GetLinuxPeerPid(), client->GetMachineID());
+                         client->GetLinuxPeerPid(), client->GetMachineID(),
+                         client->GetMachineName());
 
   clients_by_socket_.erase(it);
   PERFETTO_DCHECK(clients_.count(client_id));

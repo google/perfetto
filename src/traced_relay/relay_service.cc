@@ -66,7 +66,8 @@ namespace {
 
 std::string GenerateSetPeerIdentityRequest(int32_t pid,
                                            int32_t uid,
-                                           const std::string& machine_id_hint) {
+                                           const std::string& machine_id_hint,
+                                           const std::string& machine_name) {
   IPCFrame ipc_frame;
   ipc_frame.set_request_id(0);
 
@@ -79,6 +80,7 @@ std::string GenerateSetPeerIdentityRequest(int32_t pid,
 #endif
   set_peer_identity->set_uid(uid);
   set_peer_identity->set_machine_id_hint(machine_id_hint);
+  set_peer_identity->set_machine_name(machine_name);
 
   return ipc::BufferedFrameDeserializer::Serialize(ipc_frame);
 }
@@ -128,12 +130,14 @@ void SetSystemInfo(protos::gen::InitRelayRequest* request) {
 RelayClient::~RelayClient() = default;
 RelayClient::RelayClient(const std::string& client_sock_name,
                          const std::string& machine_id_hint,
+                         const std::string& machine_name,
                          base::TaskRunner* task_runner,
                          OnErrorCallback on_error_callback)
     : task_runner_(task_runner),
       on_error_callback_(on_error_callback),
       client_sock_name_(client_sock_name),
-      machine_id_hint_(machine_id_hint) {
+      machine_id_hint_(machine_id_hint),
+      machine_name_(machine_name) {
   Connect();
 }
 
@@ -159,8 +163,9 @@ void RelayClient::OnConnect(base::UnixSocket* self, bool connected) {
   }
 
   // The RelayClient needs to send its peer identity to the host.
-  auto req = GenerateSetPeerIdentityRequest(
-      getpid(), static_cast<int32_t>(geteuid()), machine_id_hint_);
+  auto req =
+      GenerateSetPeerIdentityRequest(getpid(), static_cast<int32_t>(geteuid()),
+                                     machine_id_hint_, machine_name_);
   if (!self->SendStr(req)) {
     return NotifyError();
   }
@@ -186,8 +191,6 @@ void RelayClient::OnServiceDisconnected() {
 
 void RelayClient::InitRelayRequest() {
   protos::gen::InitRelayRequest request;
-
-  request.set_machine_name(base::GetPerfettoMachineName());
 
   SetSystemInfo(&request);
 
@@ -246,7 +249,9 @@ void RelayClient::OnSyncClockResponse(const protos::gen::SyncClockResponse&) {
 }
 
 RelayService::RelayService(base::TaskRunner* task_runner)
-    : task_runner_(task_runner), machine_id_hint_(GetMachineIdHint()) {}
+    : task_runner_(task_runner),
+      machine_id_hint_(GetMachineIdHint()),
+      machine_name_(base::GetPerfettoMachineName()) {}
 
 void RelayService::Start(const char* listening_socket_name,
                          std::string client_socket_name) {
@@ -312,7 +317,7 @@ void RelayService::OnNewIncomingConnection(
 #endif
   auto req = GenerateSetPeerIdentityRequest(
       pid, static_cast<int32_t>(server_conn->peer_uid_posix()),
-      machine_id_hint_);
+      machine_id_hint_, machine_name_);
   // Buffer the SetPeerIdentity request.
   SocketWithBuffer server, client;
   PERFETTO_CHECK(server.available_bytes() >= req.size());
@@ -374,7 +379,7 @@ void RelayService::ConnectRelayClient() {
     return;
 
   relay_client_ = std::make_unique<RelayClient>(
-      client_socket_name_, machine_id_hint_, task_runner_,
+      client_socket_name_, machine_id_hint_, machine_name_, task_runner_,
       [this]() { this->ReconnectRelayClient(); });
 }
 

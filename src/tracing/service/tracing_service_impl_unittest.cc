@@ -1537,16 +1537,6 @@ TEST_F(TracingServiceImplTest, LockdownMode) {
 }
 
 TEST_F(TracingServiceImplTest, MachineNameFilter) {
-  auto relay_client2 = svc->ConnectRelayClient(
-      std::make_pair<uint32_t, uint64_t>(/*base::MachineID=*/1234, 1));
-
-  relay_client2->CacheSystemInfo("machine2", {});
-
-  auto relay_client3 = svc->ConnectRelayClient(
-      std::make_pair<uint32_t, uint64_t>(/*base::MachineID=*/5678, 2));
-
-  relay_client3->CacheSystemInfo("machine3", {});
-
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
 
@@ -1556,12 +1546,12 @@ TEST_F(TracingServiceImplTest, MachineNameFilter) {
 
   std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
   producer2->Connect(svc.get(), "mock_producer_2", /*uid=*/42, /*pid=*/1025,
-                     /*machine_id=*/1234);
+                     /*machine_id=*/1234, "machine2");
   producer2->RegisterDataSource("data_source");
 
   std::unique_ptr<MockProducer> producer3 = CreateMockProducer();
   producer3->Connect(svc.get(), "mock_producer_3", /*uid=*/42, /*pid=*/1025,
-                     /*machine_id=*/5678);
+                     /*machine_id=*/5678, "machine3");
   producer3->RegisterDataSource("data_source");
   producer3->RegisterDataSource("unused_data_source");
 
@@ -1595,16 +1585,6 @@ TEST_F(TracingServiceImplTest, MachineNameFilter) {
 }
 
 TEST_F(TracingServiceImplTest, MachineNameFilterWithTwoMachines) {
-  auto relay_client2 = svc->ConnectRelayClient(
-      std::make_pair<uint32_t, uint64_t>(/*base::MachineID=*/1234, 1));
-
-  relay_client2->CacheSystemInfo("machine2", {});
-
-  auto relay_client3 = svc->ConnectRelayClient(
-      std::make_pair<uint32_t, uint64_t>(/*base::MachineID=*/5678, 2));
-
-  relay_client3->CacheSystemInfo("machine3", {});
-
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
 
@@ -1614,12 +1594,12 @@ TEST_F(TracingServiceImplTest, MachineNameFilterWithTwoMachines) {
 
   std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
   producer2->Connect(svc.get(), "mock_producer_2", /*uid=*/42, /*pid=*/1025,
-                     /*machine_id=*/1234);
+                     /*machine_id=*/1234, "machine2");
   producer2->RegisterDataSource("data_source");
 
   std::unique_ptr<MockProducer> producer3 = CreateMockProducer();
   producer3->Connect(svc.get(), "mock_producer_3", /*uid=*/42, /*pid=*/1025,
-                     /*machine_id=*/5678);
+                     /*machine_id=*/5678, "machine3");
   producer3->RegisterDataSource("data_source");
 
   TraceConfig trace_config;
@@ -1657,25 +1637,18 @@ TEST_F(TracingServiceImplTest, MachineNameFilterWithTwoMachines) {
   task_runner.RunUntilIdle();
 }
 
-TEST_F(TracingServiceImplTest, MachineNameFilterWithExternalMachineName) {
-  base::SetEnv("PERFETTO_MACHINE_NAME", "machine1");
-  InitializeSvcWithOpts({});
-
-  auto relay_client2 = svc->ConnectRelayClient(
-      std::make_pair<uint32_t, uint64_t>(/*base::MachineID=*/1234, 1));
-
-  relay_client2->CacheSystemInfo("machine2", {});
-
+TEST_F(TracingServiceImplTest, MachineNameFilterWithHostExternalName) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
 
   std::unique_ptr<MockProducer> producer1 = CreateMockProducer();
-  producer1->Connect(svc.get(), "mock_producer_1");
+  producer1->Connect(svc.get(), "mock_producer_1", /*uid=*/42, /*pid=*/1025,
+                     kDefaultMachineID, "machine1");
   producer1->RegisterDataSource("data_source");
 
   std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
   producer2->Connect(svc.get(), "mock_producer_2", /*uid=*/42, /*pid=*/1025,
-                     /*machine_id=*/1234);
+                     /*machine_id=*/1234, "machine2");
   producer2->RegisterDataSource("data_source");
 
   TraceConfig trace_config;
@@ -2403,7 +2376,7 @@ TEST_F(TracingServiceImplTest, ProducerShmAndPageSizeOverriddenByTraceConfig) {
     producer[i] = CreateMockProducer();
     producer[i]->Connect(svc.get(), name, base::GetCurrentUserId(),
                          base::GetProcessId(), kDefaultMachineID,
-                         kSizes[i].hint_size_kb * 1024,
+                         /*machine_name=*/{}, kSizes[i].hint_size_kb * 1024,
                          kSizes[i].hint_page_size_kb * 1024);
     producer[i]->RegisterDataSource("data_source");
   }
@@ -3432,8 +3405,9 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnProducerDisconnect) {
 
   // Service should adopt the SMB provided by the producer.
   producer->Connect(svc.get(), "mock_producer", /*uid=*/42, /*pid=*/1025,
-                    kDefaultMachineID, /*shared_memory_size_hint_bytes=*/0,
-                    kShmPageSizeBytes, TestRefSharedMemory::Create(shm.get()),
+                    kDefaultMachineID, /*machine_name=*/{},
+                    /*shared_memory_size_hint_bytes=*/0, kShmPageSizeBytes,
+                    TestRefSharedMemory::Create(shm.get()),
                     /*in_process=*/false);
 
   producer->RegisterDataSource("data_source");
@@ -3561,8 +3535,8 @@ class TracingServiceImplScrapingWithSmbTest : public TracingServiceImplTest {
 
     // Service should adopt the SMB provided by the producer.
     producer_->Connect(svc.get(), "mock_producer", /*uid=*/42, /*pid=*/1025,
-                       kDefaultMachineID, /*shared_memory_size_hint_bytes=*/0,
-                       kShmPageSizeBytes,
+                       kDefaultMachineID, /*machine_name=*/{},
+                       /*shared_memory_size_hint_bytes=*/0, kShmPageSizeBytes,
                        TestRefSharedMemory::Create(shm_.get()),
                        /*in_process=*/false);
 
@@ -4826,8 +4800,9 @@ TEST_F(TracingServiceImplTest, ProducerProvidedSMB) {
 
   // Service should adopt the SMB provided by the producer.
   producer->Connect(svc.get(), "mock_producer", /*uid=*/42, /*pid=*/1025,
-                    kDefaultMachineID, /*shared_memory_size_hint_bytes=*/0,
-                    kShmPageSizeBytes, std::move(shm));
+                    kDefaultMachineID, /*machine_name=*/{},
+                    /*shared_memory_size_hint_bytes=*/0, kShmPageSizeBytes,
+                    std::move(shm));
   EXPECT_TRUE(producer->endpoint()->IsShmemProvidedByProducer());
   EXPECT_NE(producer->endpoint()->MaybeSharedMemoryArbiter(), nullptr);
   EXPECT_EQ(producer->endpoint()->shared_memory(), shm_raw);
@@ -4881,8 +4856,9 @@ TEST_F(TracingServiceImplTest, ProducerProvidedSMBInvalidSizes) {
   // Service should not adopt the SMB provided by the producer, because the SMB
   // size isn't a multiple of the page size.
   producer->Connect(svc.get(), "mock_producer", /*uid=*/42, /*pid=*/1025,
-                    kDefaultMachineID, /*shared_memory_size_hint_bytes=*/0,
-                    kShmPageSizeBytes, std::move(shm));
+                    kDefaultMachineID, /*machine_name=*/{},
+                    /*shared_memory_size_hint_bytes=*/0, kShmPageSizeBytes,
+                    std::move(shm));
   EXPECT_FALSE(producer->endpoint()->IsShmemProvidedByProducer());
   EXPECT_EQ(producer->endpoint()->shared_memory(), nullptr);
 }

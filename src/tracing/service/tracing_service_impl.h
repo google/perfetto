@@ -103,6 +103,7 @@ class TracingServiceImpl : public TracingService {
                          base::TaskRunner*,
                          Producer*,
                          const std::string& producer_name,
+                         const std::string& machine_name,
                          const std::string& sdk_version,
                          bool in_process,
                          bool smb_scraping_enabled);
@@ -175,6 +176,7 @@ class TracingServiceImpl : public TracingService {
     size_t shmem_page_size_hint_bytes_ = 0;
     bool is_shmem_provided_by_producer_ = false;
     const std::string name_;
+    const std::string machine_name_;
     std::string sdk_version_;
     bool in_process_;
     bool smb_scraping_enabled_;
@@ -288,9 +290,7 @@ class TracingServiceImpl : public TracingService {
                                TracingServiceImpl* service);
     ~RelayEndpointImpl() override;
 
-    void CacheSystemInfo(std::string machine_name,
-                         std::vector<uint8_t> serialized_system_info) override {
-      machine_name_ = machine_name;
+    void CacheSystemInfo(std::vector<uint8_t> serialized_system_info) override {
       serialized_system_info_ = serialized_system_info;
     }
 
@@ -305,8 +305,6 @@ class TracingServiceImpl : public TracingService {
       return synced_clocks_;
     }
 
-    std::string machine_name() { return machine_name_; }
-
     std::vector<uint8_t>& serialized_system_info() {
       return serialized_system_info_;
     }
@@ -317,7 +315,6 @@ class TracingServiceImpl : public TracingService {
 
     RelayClientID relay_client_id_;
     TracingServiceImpl* const service_;
-    std::string machine_name_;
     std::vector<uint8_t> serialized_system_info_;
     base::CircularQueue<SyncedClockSnapshots> synced_clocks_;
 
@@ -407,7 +404,8 @@ class TracingServiceImpl : public TracingService {
           ProducerSMBScrapingMode::kDefault,
       size_t shared_memory_page_size_hint_bytes = 0,
       std::unique_ptr<SharedMemory> shm = nullptr,
-      const std::string& sdk_version = {}) override;
+      const std::string& sdk_version = {},
+      const std::string& machine_name = {}) override;
 
   std::unique_ptr<TracingService::ConsumerEndpoint> ConnectConsumer(
       Consumer*,
@@ -924,7 +922,6 @@ class TracingServiceImpl : public TracingService {
   std::unique_ptr<tracing_service::Clock> clock_;
   std::unique_ptr<tracing_service::Random> random_;
   const InitOpts init_opts_;
-  std::string machine_name_;
   std::unique_ptr<SharedMemory::Factory> shm_factory_;
   ProducerID last_producer_id_ = 0;
   DataSourceInstanceID last_data_source_instance_id_ = 0;

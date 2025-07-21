@@ -50,6 +50,7 @@ class MockProducer : public Producer {
                uid_t uid = 42,
                pid_t pid = 1025,
                MachineID machine_id = kDefaultMachineID,
+               const std::string& machine_name = {},
                size_t shared_memory_size_hint_bytes = 0,
                size_t shared_memory_page_size_hint_bytes = 0,
                std::unique_ptr<SharedMemory> shm = nullptr,
