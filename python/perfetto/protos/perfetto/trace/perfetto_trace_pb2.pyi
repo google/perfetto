@@ -14869,14 +14869,16 @@ class TraceConfig(_message.Message):
         min_delay_ms: int
         def __init__(self, min_delay_ms: _Optional[int] = ..., max_delay_ms: _Optional[int] = ...) -> None: ...
     class DataSource(_message.Message):
-        __slots__ = ["config", "producer_name_filter", "producer_name_regex_filter"]
+        __slots__ = ["config", "machine_name_filter", "producer_name_filter", "producer_name_regex_filter"]
         CONFIG_FIELD_NUMBER: _ClassVar[int]
+        MACHINE_NAME_FILTER_FIELD_NUMBER: _ClassVar[int]
         PRODUCER_NAME_FILTER_FIELD_NUMBER: _ClassVar[int]
         PRODUCER_NAME_REGEX_FILTER_FIELD_NUMBER: _ClassVar[int]
         config: DataSourceConfig
+        machine_name_filter: _containers.RepeatedScalarFieldContainer[str]
         producer_name_filter: _containers.RepeatedScalarFieldContainer[str]
         producer_name_regex_filter: _containers.RepeatedScalarFieldContainer[str]
-        def __init__(self, config: _Optional[_Union[DataSourceConfig, _Mapping]] = ..., producer_name_filter: _Optional[_Iterable[str]] = ..., producer_name_regex_filter: _Optional[_Iterable[str]] = ...) -> None: ...
+        def __init__(self, config: _Optional[_Union[DataSourceConfig, _Mapping]] = ..., producer_name_filter: _Optional[_Iterable[str]] = ..., producer_name_regex_filter: _Optional[_Iterable[str]] = ..., machine_name_filter: _Optional[_Iterable[str]] = ...) -> None: ...
     class GuardrailOverrides(_message.Message):
         __slots__ = ["max_tracing_buffer_size_kb", "max_upload_per_day_bytes"]
         MAX_TRACING_BUFFER_SIZE_KB_FIELD_NUMBER: _ClassVar[int]
