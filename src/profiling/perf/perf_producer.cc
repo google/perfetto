@@ -110,8 +110,8 @@ std::vector<uint32_t> CreateCpuMask(const protos::gen::PerfEventConfig& cfg) {
     // check explicit mask from cfg, or allow all by default
     if (!target_cpus.empty() && target_cpus.count(cpu) == 0)
       continue;
-    // consider cpu0 to always be online
-    if (cpu > 0 && !IsCpuOnline(cpu))
+
+    if (!IsCpuOnline(cpu))
       continue;
     ret.push_back(cpu);
   }
