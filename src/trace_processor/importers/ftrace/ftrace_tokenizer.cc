@@ -173,7 +173,14 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
   if (cpu >= per_cpu_seen_first_bundle_.size()) {
     per_cpu_seen_first_bundle_.resize(cpu + 1);
   }
-  if (!per_cpu_seen_first_bundle_[cpu]) {
+  // Consider bundles only if they contain events. Otherwise if a cpu
+  // contributes no events outside of indication of kernel overruns
+  // (lost_events), we'll end up cropping based on the first timestamp of data
+  // loss on that per-cpu buffer. That is technically correct, but can produce
+  // surprising visualisations. With this skip, any per-cpu buffer that contains
+  // only data loss bundles will end up not contributing to the timestamp
+  // windowing at all.
+  if (!per_cpu_seen_first_bundle_[cpu] && decoder.has_event()) {
     per_cpu_seen_first_bundle_[cpu] = true;
 
     // If this cpu's timestamp is the new max, update the metadata table entry.
