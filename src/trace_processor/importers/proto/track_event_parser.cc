@@ -372,6 +372,7 @@ UniqueTid TrackEventParser::ParseThreadDescriptor(
     protozero::ConstBytes thread_descriptor,
     bool is_sandboxed) {
   protos::pbzero::ThreadDescriptor::Decoder decoder(thread_descriptor);
+  // TODO: b/175152326 - Should pid namespace translation also be done here?
   auto pid = static_cast<int64_t>(decoder.pid());
   auto tid = static_cast<int64_t>(decoder.tid());
   // If tid is sandboxed then use a unique synthetic tid, to avoid

@@ -347,6 +347,8 @@ class TrackEventEventImporter {
           break;
         case TrackEventTracker::ResolvedDescriptorTrack::Scope::kProcess:
           upid_ = resolved->upid();
+          // TODO: b/175152326 - Should pid namespace translation also be done
+          // here?
           if (sequence_state_->pid_and_tid_valid()) {
             auto pid = static_cast<uint32_t>(sequence_state_->pid());
             auto tid = static_cast<uint32_t>(sequence_state_->tid());
@@ -357,6 +359,8 @@ class TrackEventEventImporter {
           }
           break;
         case TrackEventTracker::ResolvedDescriptorTrack::Scope::kGlobal:
+          // TODO: b/175152326 - Should pid namespace translation also be done
+          // here?
           if (sequence_state_->pid_and_tid_valid()) {
             auto pid = static_cast<uint32_t>(sequence_state_->pid());
             auto tid = static_cast<uint32_t>(sequence_state_->tid());
@@ -384,14 +388,22 @@ class TrackEventEventImporter {
           legacy_event_.has_tid_override() && pid_tid_state_valid;
 
       if (fallback_to_legacy_pid_tid_tracks_) {
+        // TODO: b/175152326 - Should pid namespace translation also be done
+        // here?
         auto pid = static_cast<uint32_t>(sequence_state_->pid());
-        auto tid = static_cast<uint32_t>(sequence_state_->tid());
+        auto tid = sequence_state_->tid();
         if (legacy_event_.has_pid_override()) {
           pid = static_cast<uint32_t>(legacy_event_.pid_override());
-          tid = static_cast<uint32_t>(-1);
+          // Create a synthetic tid while avoiding using the exact same tid in
+          // different processes.
+          tid = ProcessTracker::CreateSyntheticTid(-1, pid);
         }
-        if (legacy_event_.has_tid_override())
+        if (legacy_event_.has_tid_override()) {
           tid = static_cast<uint32_t>(legacy_event_.tid_override());
+          if (ProcessTracker::IsSyntheticTid(sequence_state_->tid())) {
+            tid = ProcessTracker::CreateSyntheticTid(tid, pid);
+          }
+        }
 
         if (!pid || !tid) {
           return base::ErrStatus(
@@ -595,19 +607,6 @@ class TrackEventEventImporter {
     }
 
     if (!track_uuid_ && fallback_to_legacy_pid_tid_tracks_) {
-      auto pid = static_cast<uint32_t>(sequence_state_->pid());
-      auto tid = static_cast<uint32_t>(sequence_state_->tid());
-      if (legacy_event_.has_pid_override()) {
-        pid = static_cast<uint32_t>(legacy_event_.pid_override());
-        tid = static_cast<uint32_t>(-1);
-      }
-      if (legacy_event_.has_tid_override())
-        tid = static_cast<uint32_t>(legacy_event_.tid_override());
-
-      if (!pid || !tid) {
-        return base::ErrStatus(
-            "track_event_parser: pid/tid 0 is reserved for swapper thread");
-      }
       return track_tracker->InternThreadTrack(*utid_);
     }
     if (!opt_id) {
