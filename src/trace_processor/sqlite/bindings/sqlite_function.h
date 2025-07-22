@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_SQLITE_BINDINGS_SQLITE_FUNCTION_H_
 
 #include <sqlite3.h>  // IWYU pragma: export
+#include <memory>
 
 namespace perfetto::trace_processor::sqlite {
 
@@ -32,6 +33,10 @@ class Function {
   // Can be redefined in any sub-classes to override the context.
   using UserData = void;
 
+  // The type of the auxilary object which can be read from and written to
+  // by the function.
+  using AuxData = void;
+
   // The xStep function which will be executed by SQLite to add a row of values
   // to the current window.
   //
@@ -43,6 +48,35 @@ class Function {
   // creating the function.
   static auto GetUserData(sqlite3_context* ctx) {
     return static_cast<typename Impl::UserData*>(sqlite3_user_data(ctx));
+  }
+
+  // Returns the pointer to the auxilary data structure which is passed from
+  // SQLite.
+  //
+  // See https://sqlite.org/c3ref/get_auxdata.html for details on how to
+  // use this function.
+  static auto GetAuxData(sqlite3_context* ctx, int N) {
+    return static_cast<typename Impl::AuxData*>(sqlite3_get_auxdata(ctx, N));
+  }
+
+  // Sets the pointer to the auxilary data structure which is passed to SQLite.
+  //
+  // See https://sqlite.org/c3ref/get_auxdata.html for details on how to
+  // use this function.
+  template <typename I = Impl>
+  static void SetAuxData(sqlite3_context* ctx,
+                         int N,
+                         std::unique_ptr<typename I::AuxData> data) {
+    SetAuxData(ctx, N, data.release(), [](void* ptr) {
+      delete static_cast<typename Impl::AuxData*>(ptr);
+    });
+  }
+  template <typename I = Impl>
+  static void SetAuxData(sqlite3_context* ctx,
+                         int N,
+                         typename I::AuxData* data,
+                         void (*destructor)(void*)) {
+    sqlite3_set_auxdata(ctx, N, data, destructor);
   }
 };
 
