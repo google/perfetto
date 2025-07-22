@@ -2629,9 +2629,11 @@ void FtraceParser::ParseCmaAllocStart(int64_t timestamp, uint32_t pid) {
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
 
-  // clear migration info for the new allocation sequence.
+  // Erase any stale entry for this thread and initialize a fresh, zeroed
+  // struct for the new allocation sequence. This handles cases where a
+  // MmAllocContigMigrateRangeInfo event is skipped.
   if (kernel_version >= VersionNumber{6, 1}) {
-    tid_to_migration_info_.erase(utid);
+    tid_to_cma_migration_info_[utid] = CmaMigrationInfo{};
   }
 
   context_->slice_tracker->Begin(timestamp, track_id, kNullStringId,
@@ -2649,25 +2651,8 @@ void FtraceParser::ParseMmAllocContigMigrateRangeInfo(uint32_t pid,
   protos::pbzero::MmAllocContigMigrateRangeInfoFtraceEvent::Decoder info(blob);
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
-  tid_to_migration_info_[utid].emplace(
-      "contig_nr_migrated", Variadic::UnsignedInteger(info.nr_migrated()));
-  tid_to_migration_info_[utid].emplace(
-      "contig_nr_reclaimed", Variadic::UnsignedInteger(info.nr_reclaimed()));
-  tid_to_migration_info_[utid].emplace(
-      "contig_nr_mapped", Variadic::UnsignedInteger(info.nr_mapped()));
-}
-
-Variadic FtraceParser::FindMigrationInfo(UniqueTid utid, const char* key) {
-  auto outer_it = tid_to_migration_info_.find(utid);
-  if (outer_it == tid_to_migration_info_.end()) {
-    return Variadic::Null();
-  }
-  const auto& inner_map = outer_it->second;
-  auto inner_it = inner_map.find(key);
-  if (inner_it == inner_map.end()) {
-    return Variadic::Null();
-  }
-  return inner_it->second;
+  tid_to_cma_migration_info_[utid] = CmaMigrationInfo{
+      info.nr_migrated(), info.nr_reclaimed(), info.nr_mapped()};
 }
 
 void FtraceParser::ParseCmaAllocFinish(int64_t timestamp,
@@ -2682,8 +2667,12 @@ void FtraceParser::ParseCmaAllocFinish(int64_t timestamp,
   protos::pbzero::CmaAllocFinishFtraceEvent::Decoder cma_alloc_finish(blob);
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+
+  CmaMigrationInfo* info_ptr = tid_to_cma_migration_info_.Find(utid);
+  CmaMigrationInfo info = info_ptr ? *info_ptr : CmaMigrationInfo{};
+
   auto args_inserter = [this, &cma_alloc_finish,
-                        utid](ArgsTracker::BoundInserter* inserter) {
+                        &info](ArgsTracker::BoundInserter* inserter) {
     inserter->AddArg(cma_name_id_,
                      Variadic::String(context_->storage->InternString(
                          cma_alloc_finish.name())));
@@ -2692,11 +2681,11 @@ void FtraceParser::ParseCmaAllocFinish(int64_t timestamp,
     inserter->AddArg(cma_req_pages_id_,
                      Variadic::UnsignedInteger(cma_alloc_finish.count()));
     inserter->AddArg(cma_nr_migrated_id_,
-                     FindMigrationInfo(utid, "contig_nr_migrated"));
+                     Variadic::UnsignedInteger(info.nr_migrated));
     inserter->AddArg(cma_nr_reclaimed_id_,
-                     FindMigrationInfo(utid, "contig_nr_reclaimed"));
+                     Variadic::UnsignedInteger(info.nr_reclaimed));
     inserter->AddArg(cma_nr_mapped_id_,
-                     FindMigrationInfo(utid, "contig_nr_mapped"));
+                     Variadic::UnsignedInteger(info.nr_mapped));
   };
   context_->slice_tracker->End(timestamp, track_id, kNullStringId,
                                kNullStringId, args_inserter);
