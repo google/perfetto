@@ -257,7 +257,7 @@ base::StatusOr<sql_modules::RegisteredPackage> ToRegisteredPackage(
   return std::move(new_package);
 }
 
-class ValueAtMaxTs : public SqliteAggregateFunction<ValueAtMaxTs> {
+class ValueAtMaxTs : public sqlite::AggregateFunction<ValueAtMaxTs> {
  public:
   static constexpr char kName[] = "VALUE_AT_MAX_TS";
   static constexpr int kArgCount = 2;
