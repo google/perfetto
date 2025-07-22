@@ -92,6 +92,11 @@ source_set("protozero_to_text") {
   ]
 }
 
+source_set("murmur_hash") {
+  sources = [ "murmur_hash.h" ]
+  deps = [ "../../../gn:default_deps" ]
+}
+
 source_set("protozero_to_json") {
   sources = [
     "protozero_to_json.cc",
