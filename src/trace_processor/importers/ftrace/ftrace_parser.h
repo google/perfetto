@@ -472,9 +472,7 @@ class FtraceParser {
     uint64_t nr_reclaimed = 0;
     uint64_t nr_mapped = 0;
   };
-
-  // Record tid to migrate info.
-  base::FlatHashMap<UniqueTid, CmaMigrationInfo> tid_to_cma_migration_info_;
+  base::FlatHashMap<UniqueTid, CmaMigrationInfo> utid_to_cma_migration_info_;
 
   // Record number of kfree_skb with ip protocol.
   uint64_t num_of_kfree_skb_ip_prot = 0;

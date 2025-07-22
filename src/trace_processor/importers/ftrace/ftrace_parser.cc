@@ -2609,16 +2609,14 @@ void FtraceParser::ParseScmCallEnd(int64_t timestamp,
   context_->slice_tracker->End(timestamp, track_id);
 }
 
-/*
- * The ftrace event sequence for a Contiguous Memory Allocator (CMA)
- * allocation changes depending on the kernel version.
- *
- * - Versions 5.10 to 6.0 (i.e., 5.10 <= v < 6.1):
- * CmaAllocStart -> CmaAllocInfo
- *
- * - Versions 6.1 and newer (i.e., v >= 6.1):
- * CmaAllocStart -> MmAllocContigMigrateRangeInfo -> CmaAllocFinish
- */
+// The ftrace event sequence for a Contiguous Memory Allocator (CMA)
+// allocation changes depending on the kernel version.
+//
+// - Versions 5.10 to 6.0 (i.e., 5.10 <= v < 6.1):
+// CmaAllocStart -> CmaAllocInfo
+//
+// - Versions 6.1 and newer (i.e., v >= 6.1):
+// CmaAllocStart -> MmAllocContigMigrateRangeInfo -> CmaAllocFinish
 void FtraceParser::ParseCmaAllocStart(int64_t timestamp, uint32_t pid) {
   std::optional<VersionNumber> kernel_version =
       SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
@@ -2633,7 +2631,7 @@ void FtraceParser::ParseCmaAllocStart(int64_t timestamp, uint32_t pid) {
   // struct for the new allocation sequence. This handles cases where a
   // MmAllocContigMigrateRangeInfo event is skipped.
   if (kernel_version >= VersionNumber{6, 1}) {
-    tid_to_cma_migration_info_[utid] = CmaMigrationInfo{};
+    utid_to_cma_migration_info_[utid] = CmaMigrationInfo{};
   }
 
   context_->slice_tracker->Begin(timestamp, track_id, kNullStringId,
@@ -2651,7 +2649,7 @@ void FtraceParser::ParseMmAllocContigMigrateRangeInfo(uint32_t pid,
   protos::pbzero::MmAllocContigMigrateRangeInfoFtraceEvent::Decoder info(blob);
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
-  tid_to_cma_migration_info_[utid] = CmaMigrationInfo{
+  utid_to_cma_migration_info_[utid] = CmaMigrationInfo{
       info.nr_migrated(), info.nr_reclaimed(), info.nr_mapped()};
 }
 
@@ -2668,8 +2666,8 @@ void FtraceParser::ParseCmaAllocFinish(int64_t timestamp,
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
 
-  CmaMigrationInfo* info_ptr = tid_to_cma_migration_info_.Find(utid);
-  CmaMigrationInfo info = info_ptr ? *info_ptr : CmaMigrationInfo{};
+  CmaMigrationInfo* info_ptr = utid_to_cma_migration_info_.Find(utid);
+  const CmaMigrationInfo& info = info_ptr ? *info_ptr : CmaMigrationInfo{};
 
   auto args_inserter = [this, &cma_alloc_finish,
                         &info](ArgsTracker::BoundInserter* inserter) {
@@ -2698,8 +2696,9 @@ void FtraceParser::ParseCmaAllocInfo(int64_t timestamp,
       SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
   // CmaAllocInfo event: Kernel 5.10 <= version < 6.1
   if (kernel_version < VersionNumber{5, 10} ||
-      kernel_version >= VersionNumber{6, 1})
+      kernel_version >= VersionNumber{6, 1}) {
     return;
+  }
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
