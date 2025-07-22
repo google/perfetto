@@ -283,8 +283,5 @@ std::string ExperimentalFlatSlice::TableName() {
 uint32_t ExperimentalFlatSlice::GetArgumentCount() const {
   return 2;
 }
-uint32_t ExperimentalFlatSlice::EstimateRowCount() {
-  return context_->storage->slice_table().row_count();
-}
 
 }  // namespace perfetto::trace_processor
