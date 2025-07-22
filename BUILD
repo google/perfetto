@@ -344,8 +344,10 @@ perfetto_cc_library(
         ":src_trace_processor_importers_art_hprof_art_hprof",
         ":src_trace_processor_importers_art_method_art_method",
         ":src_trace_processor_importers_art_method_art_method_event",
+        ":src_trace_processor_importers_common_args_tracker_hdr",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
+        ":src_trace_processor_importers_common_process_tracker_hdr",
         ":src_trace_processor_importers_common_trace_parser_hdr",
         ":src_trace_processor_importers_etw_full",
         ":src_trace_processor_importers_etw_minimal",
@@ -1804,13 +1806,20 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/importers/common:args_tracker_hdr
+perfetto_filegroup(
+    name = "src_trace_processor_importers_common_args_tracker_hdr",
+    srcs = [
+        "src/trace_processor/importers/common/args_tracker.h",
+    ],
+)
+
 # GN target: //src/trace_processor/importers/common:common
 perfetto_filegroup(
     name = "src_trace_processor_importers_common_common",
     srcs = [
         "src/trace_processor/importers/common/address_range.h",
         "src/trace_processor/importers/common/args_tracker.cc",
-        "src/trace_processor/importers/common/args_tracker.h",
         "src/trace_processor/importers/common/args_translation_table.cc",
         "src/trace_processor/importers/common/args_translation_table.h",
         "src/trace_processor/importers/common/chunked_trace_reader.h",
@@ -1842,7 +1851,6 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/process_track_translation_table.cc",
         "src/trace_processor/importers/common/process_track_translation_table.h",
         "src/trace_processor/importers/common/process_tracker.cc",
-        "src/trace_processor/importers/common/process_tracker.h",
         "src/trace_processor/importers/common/sched_event_state.h",
         "src/trace_processor/importers/common/sched_event_tracker.cc",
         "src/trace_processor/importers/common/sched_event_tracker.h",
@@ -1876,6 +1884,14 @@ perfetto_filegroup(
     name = "src_trace_processor_importers_common_parser_types",
     srcs = [
         "src/trace_processor/importers/common/parser_types.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/common:process_tracker_hdr
+perfetto_filegroup(
+    name = "src_trace_processor_importers_common_process_tracker_hdr",
+    srcs = [
+        "src/trace_processor/importers/common/process_tracker.h",
     ],
 )
 
@@ -7308,8 +7324,10 @@ perfetto_cc_library(
         ":src_trace_processor_importers_art_hprof_art_hprof",
         ":src_trace_processor_importers_art_method_art_method",
         ":src_trace_processor_importers_art_method_art_method_event",
+        ":src_trace_processor_importers_common_args_tracker_hdr",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
+        ":src_trace_processor_importers_common_process_tracker_hdr",
         ":src_trace_processor_importers_common_trace_parser_hdr",
         ":src_trace_processor_importers_etw_full",
         ":src_trace_processor_importers_etw_minimal",
@@ -7514,8 +7532,10 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_art_hprof_art_hprof",
         ":src_trace_processor_importers_art_method_art_method",
         ":src_trace_processor_importers_art_method_art_method_event",
+        ":src_trace_processor_importers_common_args_tracker_hdr",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
+        ":src_trace_processor_importers_common_process_tracker_hdr",
         ":src_trace_processor_importers_common_trace_parser_hdr",
         ":src_trace_processor_importers_etw_full",
         ":src_trace_processor_importers_etw_minimal",
@@ -7712,8 +7732,10 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_art_hprof_art_hprof",
         ":src_trace_processor_importers_art_method_art_method",
         ":src_trace_processor_importers_art_method_art_method_event",
+        ":src_trace_processor_importers_common_args_tracker_hdr",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
+        ":src_trace_processor_importers_common_process_tracker_hdr",
         ":src_trace_processor_importers_common_trace_parser_hdr",
         ":src_trace_processor_importers_etw_full",
         ":src_trace_processor_importers_etw_minimal",
