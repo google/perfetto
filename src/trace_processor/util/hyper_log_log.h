@@ -23,7 +23,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/hash.h"
+#include "src/trace_processor/util/murmurhash.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -65,7 +65,7 @@ class HyperLogLog {
   // Adds a value to the sketch. The value is hashed before being added.
   template <typename T>
   void Add(const T& value) {
-    AddPrehashed(base::Hasher::Combine(value));
+    AddPrehashed(util::MurmurHash(value));
   }
 
   // Adds a pre-hashed value to the sketch.
