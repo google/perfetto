@@ -203,7 +203,7 @@ source_set("regex") {
 source_set("hyper_log_log") {
   sources = [ "hyper_log_log.h" ]
   deps = [
-    ":murmurhash",
+    ":murmur_hash",
     "../../../gn:default_deps",
     "../../base",
   ]

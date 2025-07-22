@@ -23,7 +23,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "src/trace_processor/util/murmurhash.h"
+#include "src/trace_processor/util/murmur_hash.h"
 
 namespace perfetto {
 namespace trace_processor {
