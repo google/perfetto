@@ -666,74 +666,10 @@ TEST(ProtoDecoderTest, RepeatedMaxFieldIdStack) {
   }
 }
 
-TEST(ProtoDecoderTest, CppMessageDecoder) {
-  std::vector<uint8_t> proto = CreateExtensionMessage();
-
-  pbgen::LegacyFakeEvent legacy_msg;
-  ASSERT_TRUE(legacy_msg.ParseFromArray(proto.data(), proto.size()));
-  EXPECT_TRUE(legacy_msg.has_base_int());
-  EXPECT_EQ(legacy_msg.base_int(), 100u);
-  EXPECT_TRUE(legacy_msg.has_extension_a());
-  EXPECT_TRUE(legacy_msg.extension_a().has_int_a());
-  EXPECT_EQ(legacy_msg.extension_a().int_a(), 101u);
-  EXPECT_FALSE(legacy_msg.has_extension_b());
-
-  // Convert to protozero LegacyFakeEvent.
-  CppMessageDecoder<pbtest::LegacyFakeEvent::Decoder> legacy_decoder(
-      legacy_msg);
-  EXPECT_TRUE(legacy_decoder.decoder().has_base_int());
-  EXPECT_EQ(legacy_decoder.decoder().base_int(), 100u);
-  EXPECT_TRUE(legacy_decoder.decoder().has_extension_a());
-  pbtest::SystemA::Decoder legacy_decoder_a(
-      legacy_decoder.decoder().extension_a());
-  EXPECT_TRUE(legacy_decoder_a.has_int_a());
-  EXPECT_EQ(legacy_decoder_a.int_a(), 101u);
-  EXPECT_FALSE(legacy_decoder.decoder().has_extension_b());
-
-  // Convert to protozero RealFakeEvent. This should work because it has the
-  // same wire format as LegacyFakeEvent.
-  CppMessageDecoder<pbtest::RealFakeEvent::Decoder> real_decoder(legacy_msg);
-  EXPECT_TRUE(real_decoder.decoder().has_base_int());
-  EXPECT_EQ(real_decoder.decoder().base_int(), 100u);
-
-  // BrowserExtension inherits RealFakeEvent's decoder, so can't be used to
-  // decode extension fields. They should still be available as unknown fields.
-  // TODO(crbug.com/433549151): Implement decoders for extension messages in the
-  // pbzero generator.
-  static_assert(std::is_same_v<pbtest::RealFakeEvent::Decoder,
-                               pbtest::BrowserExtension::Decoder>,
-                "BrowserExtension::Decoder implementation has changed. Update "
-                "the unit test.");
-
-  protozero::Field extension_field_a = real_decoder.decoder().FindField(10);
-  ASSERT_TRUE(extension_field_a.valid());
-  ASSERT_EQ(extension_field_a.type(),
-            proto_utils::ProtoWireType::kLengthDelimited);
-  pbtest::SystemA::Decoder extension_decoder_a(extension_field_a.as_bytes());
-  EXPECT_TRUE(extension_decoder_a.has_int_a());
-  EXPECT_EQ(extension_decoder_a.int_a(), 101u);
-
-  protozero::Field extension_field_b = real_decoder.decoder().FindField(11);
-  EXPECT_FALSE(extension_field_b.valid());
-
-  // Convert to an unrelated message type. This will succeed, because the
-  // compiler has no way to know whether the protozero and cpp messages are
-  // related. The fields that were set in `legacy_msg` will be set in the
-  // decoder, but reading them as the wrong types will DCHECK.
-  CppMessageDecoder<pbtest::TransgalacticParcel::Decoder> wrong_decoder(
-      legacy_msg);
-  EXPECT_TRUE(wrong_decoder.decoder().at<1>().valid());
-  EXPECT_FALSE(wrong_decoder.decoder().at<2>().valid());
-  // TransgalacticParcel has no generated accessor for field 10 or 11, but the
-  // fields can be accessed through FindField.
-  EXPECT_TRUE(wrong_decoder.decoder().FindField(10).valid());
-  EXPECT_FALSE(wrong_decoder.decoder().FindField(11).valid());
-}
-
 TEST(ProtoDecoderTest, GetFieldWithMetadata) {
   std::vector<uint8_t> proto = CreateExtensionMessage();
 
-  // Interpret message as LegacyFakeRevent. `extension_a` and `extension_b` are
+  // Interpret message as LegacyFakeEvent. `extension_a` and `extension_b` are
   // non-extension fields, but can also be accessed through
   // GetFieldWithMetadata.
   pbtest::LegacyFakeEvent::Decoder legacy_decoder(proto.data(), proto.size());
@@ -759,26 +695,12 @@ TEST(ProtoDecoderTest, GetFieldWithMetadata) {
       real_decoder, pbtest::BrowserExtension::kExtensionA));
   EXPECT_FALSE(protozero::GetFieldWithMetadata<pbtest::RealFakeEvent>(
       real_decoder, pbtest::BrowserExtension::kExtensionB));
-
-  // CppMessageObj subclasses, which don't have accessors for extensions, should
-  // automatically be serialized through a CppMessageDecoder.
-  // TODO(crbug.com/433549151): Add extension support to CppMessageObj.
-  pbgen::RealFakeEvent msg;
-  ASSERT_TRUE(msg.ParseFromArray(proto.data(), proto.size()));
-  EXPECT_TRUE(msg.has_base_int());
-
-  EXPECT_TRUE(protozero::GetFieldWithMetadata<pbtest::RealFakeEvent>(
-      msg, pbtest::RealFakeEvent::kBaseInt));
-  EXPECT_TRUE(protozero::GetFieldWithMetadata<pbtest::RealFakeEvent>(
-      msg, pbtest::BrowserExtension::kExtensionA));
-  EXPECT_FALSE(protozero::GetFieldWithMetadata<pbtest::RealFakeEvent>(
-      msg, pbtest::BrowserExtension::kExtensionB));
 }
 
 TEST(ProtoDecoderTest, DecodeFieldWithMetadata) {
   std::vector<uint8_t> proto = CreateExtensionMessage();
 
-  // Interpret message as LegacyFakeRevent. `extension_a` and `extension_b` are
+  // Interpret message as LegacyFakeEvent. `extension_a` and `extension_b` are
   // non-extension fields, but can also be accessed through
   // DecodeFieldWithMetadata.
   pbtest::LegacyFakeEvent::Decoder legacy_decoder(proto.data(), proto.size());
@@ -812,23 +734,6 @@ TEST(ProtoDecoderTest, DecodeFieldWithMetadata) {
       protozero::DecodeFieldWithMetadata<pbtest::RealFakeEvent>(
           real_decoder, pbtest::BrowserExtension::kExtensionB);
   EXPECT_FALSE(extension_decoder_b.has_value());
-
-  // CppMessageObj subclasses, which don't have accessors for extensions, should
-  // automatically be serialized through a CppMessageDecoder.
-  // TODO(crbug.com/433549151): Add extension support to CppMessageObj.
-  pbgen::RealFakeEvent msg;
-  ASSERT_TRUE(msg.ParseFromArray(proto.data(), proto.size()));
-
-  std::optional<pbtest::SystemA::Decoder> cpp_decoder_a =
-      protozero::DecodeFieldWithMetadata<pbtest::RealFakeEvent>(
-          msg, pbtest::BrowserExtension::kExtensionA);
-  ASSERT_TRUE(cpp_decoder_a.has_value());
-  EXPECT_TRUE(cpp_decoder_a->has_int_a());
-  EXPECT_EQ(cpp_decoder_a->int_a(), 101u);
-  std::optional<pbtest::SystemB::Decoder> cpp_decoder_b =
-      protozero::DecodeFieldWithMetadata<pbtest::RealFakeEvent>(
-          msg, pbtest::BrowserExtension::kExtensionB);
-  EXPECT_FALSE(cpp_decoder_b.has_value());
 }
 
 }  // namespace

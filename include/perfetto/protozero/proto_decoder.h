@@ -26,7 +26,6 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/protozero/cpp_message_obj.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_utils.h"
 
@@ -468,37 +467,6 @@ class TypedProtoDecoder : public TypedProtoDecoderBase {
   Field on_stack_storage_[PROTOZERO_DECODER_INITIAL_STACK_CAPACITY];
 };
 
-// A wrapper to convert a "cpp" generated message to a generic "pbzero" decoder.
-// This requires re-serializing the message so has some overhead, but is useful
-// for messages with extension fields that aren't supported by the "cpp"
-// generator.
-template <typename DecoderType>
-class CppMessageDecoder {
- public:
-  static_assert(std::is_base_of_v<ProtoDecoder, DecoderType>,
-                "DecoderType must inherit ProtoDecoder");
-
-  using Decoder = DecoderType;
-
-  explicit CppMessageDecoder(const CppMessageObj& msg)
-      : bytes_(msg.SerializeAsArray()),
-        decoder_(bytes_.data(), bytes_.size()) {}
-
-  ~CppMessageDecoder() = default;
-
-  // Not copyable or movable because the wrapped decoder exposes pointers into
-  // `bytes_`.
-  CppMessageDecoder(const CppMessageDecoder&) = delete;
-  CppMessageDecoder& operator=(const CppMessageDecoder&) = delete;
-
-  Decoder& decoder() { return decoder_; }
-  const Decoder& decoder() const { return decoder_; }
-
- private:
-  std::vector<uint8_t> bytes_;
-  Decoder decoder_;
-};
-
 // Returns the field from `decoder` matching the given `metadata`. Doesn't
 // affect the decoder's read cursor. This is useful for extension fields that
 // have generated FieldMetadata but no generated accessors. Prefer this to
@@ -515,17 +483,6 @@ Field GetFieldWithMetadata(typename MessageType::Decoder& decoder,
       Metadata::kRepetitionType == proto_utils::RepetitionType::kNotRepeated,
       "repeated fields aren't supported");
   return decoder.FindField(metadata.kFieldId);
-}
-
-// Returns the field from `msg` matching the given `metadata`. This is useful
-// for extension fields that have generated FieldMetadata but no generated
-// accessors. However it requires re-serializing `msg`, so to read multiple
-// fields prefer to create one CppMessageDecoder and reuse it.
-template <typename MessageType, typename Metadata>
-Field GetFieldWithMetadata(const CppMessageObj& msg, const Metadata& metadata) {
-  return GetFieldWithMetadata<MessageType, Metadata>(
-      CppMessageDecoder<typename MessageType::Decoder>(msg).decoder(),
-      metadata);
 }
 
 // Returns a nested message decoder for the field from `decoder` matching the
@@ -546,21 +503,6 @@ std::optional<FieldDecoder> DecodeFieldWithMetadata(
     return std::nullopt;
   }
   return FieldDecoder(field.as_bytes());
-}
-
-// Returns a nested message decoder for the field from `msg` matching the given
-// `metadata`, or nullopt if no such field is found. This is useful for
-// extension fields that have generated FieldMetadata but no generated
-// accessors. However it requires re-serializing `msg`, so to read multiple
-// fields prefer to create one CppMessageDecoder and reuse it.
-template <typename MessageType,
-          typename Metadata,
-          typename FieldDecoder = typename Metadata::cpp_field_type::Decoder>
-std::optional<FieldDecoder> DecodeFieldWithMetadata(const CppMessageObj& msg,
-                                                    const Metadata& metadata) {
-  return DecodeFieldWithMetadata<MessageType, Metadata, FieldDecoder>(
-      CppMessageDecoder<typename MessageType::Decoder>(msg).decoder(),
-      metadata);
 }
 
 }  // namespace protozero
