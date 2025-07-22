@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_EXT_BASE_RADIX_SORT_H_
-#define INCLUDE_PERFETTO_EXT_BASE_RADIX_SORT_H_
+#ifndef SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_SORT_H_
+#define SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_SORT_H_
 
 #include <algorithm>
 #include <cstddef>
@@ -99,6 +99,23 @@ void CountingSortPass(T* source_begin,
 
 }  // namespace internal
 
+// A simple, stable Insertion Sort implementation.
+template <typename T, typename Comparator>
+inline void StableInsertionSort(T* begin, T* end, Comparator comp) {
+  if (begin == end)
+    return;
+  for (T* i = begin + 1; i != end; ++i) {
+    T key = std::move(*i);
+    T* j = i;
+    // Move elements greater than key one position ahead
+    while (j != begin && comp(key, *(j - 1))) {
+      *j = std::move(*(j - 1));
+      --j;
+    }
+    *j = std::move(key);
+  }
+}
+
 // Sorts a collection of elements using a stable, in-place, Least Significant
 // Digit (LSD) radix sort. This implementation is designed for fixed-width,
 // unsigned integer keys.
@@ -146,6 +163,8 @@ T* RadixSort(T* begin,
   T* source = begin;
   T* dest = scratch_begin;
   size_t num_elements = static_cast<size_t>(end - begin);
+
+  // Early return for small number of elements.
   if (num_elements <= 1) {
     return source;
   }
@@ -289,4 +308,4 @@ T* MsdRadixSort(T* begin,
 
 }  // namespace perfetto::base
 
-#endif  // INCLUDE_PERFETTO_EXT_BASE_RADIX_SORT_H_
+#endif  // SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_SORT_H_
