@@ -449,7 +449,7 @@ void WrapSqlFunction(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
         sqlite::result::Double(ctx, value.double_value);
         break;
       case SqlValue::Type::kString: {
-        sqlite::result::RawString(ctx, value.string_value,
+        sqlite::result::RawString(ctx, value.string_value, -1,
                                   destructors.string_destructor);
         break;
       }
