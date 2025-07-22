@@ -140,7 +140,7 @@ inline void ReportSqlValue(
       sqlite::result::Double(ctx, value.double_value);
       break;
     case SqlValue::Type::kString: {
-      sqlite::result::RawString(ctx, value.string_value, string_destructor);
+      sqlite::result::RawString(ctx, value.string_value, -1, string_destructor);
       break;
     }
     case SqlValue::Type::kBytes:
