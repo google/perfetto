@@ -280,7 +280,6 @@ class Fuchsia(TestSuite):
         "somepointer",3285933758964,"[NULL]","[NULL]","pointer","0x2fd10ea19f4"
         "source","[NULL]","chrome","[NULL]","string","chrome"
         "source_scope","[NULL]","[NULL]","[NULL]","string","[NULL]"
-        "trace_id",658,"[NULL]","[NULL]","int","658"
         "trace_id_is_process_scoped",0,"[NULL]","[NULL]","bool","false"
         "track_compressor_idx",0,"[NULL]","[NULL]","int","0"
         "upid",1,"[NULL]","[NULL]","int","1"
