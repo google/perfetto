@@ -205,6 +205,8 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
       event_category_key_id_(context_->storage->InternString("event.category")),
       event_name_key_id_(context_->storage->InternString("event.name")),
       correlation_id_key_id_(context->storage->InternString("correlation_id")),
+      legacy_trace_source_id_key_id_(
+          context_->storage->InternString("legacy_trace_source_id")),
       chrome_string_lookup_(context->storage.get()),
       active_chrome_processes_tracker_(context) {
   args_parser_.AddParsingOverrideForField(
