@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <string>
 #include "perfetto/public/compiler.h"
 
 // This file implements a 64-bit variant of the MurmurHash algorithm.
@@ -156,6 +157,9 @@ inline uint64_t MurmurHash(const void* input, size_t len) {
   // Finalize the hash by calling the integer-based MurmurHash function to
   // perform the final mixing.
   return MurmurHash(hash_value);
+}
+inline uint64_t MurmurHash(const std::string& res) {
+  return MurmurHash(res.data(), res.size());
 }
 
 }  // namespace perfetto::trace_processor::util
