@@ -53,46 +53,88 @@ bool IsBenchmarkFunctionalOnly() {
   return getenv("BENCHMARK_FUNCTIONAL_TEST_ONLY") != nullptr;
 }
 
-// --- Benchmarks for LSD Radix Sort ---
+// --- Sorter Implementations ---
 
-// Benchmarks the performance of LSD RadixSort on objects with uint64_t keys.
-static void RadixSortLsdArgs(benchmark::internal::Benchmark* b) {
-  if (IsBenchmarkFunctionalOnly()) {
-    b->Arg(16);
-  } else {
-    for (int i = 16; i <= 1 << 22; i *= 64) {
-      b->Arg(i);
-    }
-  }
-}
+struct RadixSortTag {};
+struct StdSortTag {};
+struct StdUnstableSortTag {};
 
-static void BM_RadixSortLsd(benchmark::State& state) {
-  const auto n = static_cast<size_t>(state.range(0));
+template <typename Tag>
+struct LsdSorter;
 
-  std::vector<PodObject> data(n);
-  std::mt19937_64 engine(0);
-  std::uniform_int_distribution<uint64_t> dist;
-  for (size_t i = 0; i < n; ++i) {
-    data[i] = {dist(engine), static_cast<uint32_t>(i)};
-  }
-
-  std::vector<PodObject> scratch(n);
-  std::vector<uint32_t> counts(1 << 16);
-
-  for (auto _ : state) {
-    std::vector<PodObject> working_copy = data;
+template <>
+struct LsdSorter<RadixSortTag> {
+  static void Sort(std::vector<PodObject>& data) {
+    std::vector<PodObject> scratch(data.size());
+    std::vector<uint32_t> counts(1 << 16);
     perfetto::base::RadixSort(
-        working_copy.data(), working_copy.data() + n, scratch.data(),
-        counts.data(), sizeof(uint64_t), [](const PodObject& obj) {
+        data.data(), data.data() + data.size(), scratch.data(), counts.data(),
+        sizeof(uint64_t), [](const PodObject& obj) {
           return reinterpret_cast<const uint8_t*>(&obj.key);
         });
   }
-  state.SetItemsProcessed(static_cast<int64_t>(state.iterations() * n));
-}
-BENCHMARK(BM_RadixSortLsd)->Apply(RadixSortLsdArgs);
+};
 
-// Baseline benchmark using std::sort for comparison with LSD RadixSort.
-static void BM_RadixSortLsdStd(benchmark::State& state) {
+template <>
+struct LsdSorter<StdSortTag> {
+  static void Sort(std::vector<PodObject>& data) {
+    std::stable_sort(
+        data.begin(), data.end(),
+        [](const PodObject& a, const PodObject& b) { return a.key < b.key; });
+  }
+};
+
+template <>
+struct LsdSorter<StdUnstableSortTag> {
+  static void Sort(std::vector<PodObject>& data) {
+    // Note: this is an unfair comparison as std::sort is not stable. This is
+    // included to understand the performance cost of stability.
+    std::sort(
+        data.begin(), data.end(),
+        [](const PodObject& a, const PodObject& b) { return a.key < b.key; });
+  }
+};
+
+template <typename Tag>
+struct MsdSorter;
+
+template <>
+struct MsdSorter<RadixSortTag> {
+  static void Sort(std::vector<StringPtr>& data) {
+    std::vector<StringPtr> scratch(data.size());
+    perfetto::base::MsdRadixSort(
+        data.data(), data.data() + data.size(), scratch.data(),
+        [](const StringPtr& s) { return std::string_view(s.data, s.size); });
+  }
+};
+
+template <>
+struct MsdSorter<StdSortTag> {
+  static void Sort(std::vector<StringPtr>& data) {
+    std::sort(data.begin(), data.end(),
+              [](const StringPtr& a, const StringPtr& b) {
+                return std::string_view(a.data, a.size) <
+                       std::string_view(b.data, b.size);
+              });
+  }
+};
+
+// --- Benchmarks for LSD Radix Sort ---
+
+static void SortLsdArgs(benchmark::internal::Benchmark* b) {
+  if (IsBenchmarkFunctionalOnly()) {
+    b->Arg(16);
+  } else {
+    b->Arg(16);
+    b->Arg(4096);
+    b->Arg(16384);
+    b->Arg(65536);
+    b->Arg(4194304);
+  }
+}
+
+template <typename SorterTag>
+static void BM_DataframeSortLsd(benchmark::State& state) {
   const auto n = static_cast<size_t>(state.range(0));
 
   std::vector<PodObject> data(n);
@@ -104,22 +146,27 @@ static void BM_RadixSortLsdStd(benchmark::State& state) {
 
   for (auto _ : state) {
     std::vector<PodObject> working_copy = data;
-    std::stable_sort(
-        working_copy.begin(), working_copy.end(),
-        [](const PodObject& a, const PodObject& b) { return a.key < b.key; });
+    LsdSorter<SorterTag>::Sort(working_copy);
   }
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations() * n));
 }
-BENCHMARK(BM_RadixSortLsdStd)->Apply(RadixSortLsdArgs);
+BENCHMARK_TEMPLATE(BM_DataframeSortLsd, RadixSortTag)
+    ->Apply(SortLsdArgs)
+    ->Name("BM_DataframeSortLsdRadix");
+BENCHMARK_TEMPLATE(BM_DataframeSortLsd, StdSortTag)
+    ->Apply(SortLsdArgs)
+    ->Name("BM_DataframeSortLsdStd");
+BENCHMARK_TEMPLATE(BM_DataframeSortLsd, StdUnstableSortTag)
+    ->Apply(SortLsdArgs)
+    ->Name("BM_DataframeSortLsdStdUnstable");
 
 // --- Benchmarks for MSD Radix Sort ---
 
-// Benchmarks the performance of MSD RadixSort on string keys.
-static void RadixSortMsdArgs(benchmark::internal::Benchmark* b) {
+static void SortMsdArgs(benchmark::internal::Benchmark* b) {
   if (IsBenchmarkFunctionalOnly()) {
     b->Args({16, 8});
   } else {
-    for (int i = 16; i <= 1 << 22; i *= 64) {
+    for (int i : {16, 64, 256, 1024, 262144}) {
       for (int j : {8, 64}) {
         b->Args({i, j});
       }
@@ -127,32 +174,8 @@ static void RadixSortMsdArgs(benchmark::internal::Benchmark* b) {
   }
 }
 
-static void BM_RadixSortMsd(benchmark::State& state) {
-  const auto n = static_cast<size_t>(state.range(0));
-  const auto str_len = static_cast<size_t>(state.range(1));
-
-  std::vector<std::string> string_data(n);
-  std::vector<StringPtr> data(n);
-  std::mt19937 engine(0);
-  for (size_t i = 0; i < n; ++i) {
-    string_data[i] = RandomString(engine, str_len);
-    data[i] = {string_data[i].data(), string_data[i].size()};
-  }
-
-  std::vector<StringPtr> scratch(n);
-
-  for (auto _ : state) {
-    std::vector<StringPtr> working_copy = data;
-    perfetto::base::MsdRadixSort(
-        working_copy.data(), working_copy.data() + n, scratch.data(),
-        [](const StringPtr& s) { return std::string_view(s.data, s.size); });
-  }
-  state.SetItemsProcessed(static_cast<int64_t>(state.iterations() * n));
-}
-BENCHMARK(BM_RadixSortMsd)->Apply(RadixSortMsdArgs);
-
-// Baseline benchmark using std::sort for comparison with MSD RadixSort.
-static void BM_RadixSortStdStringPtr(benchmark::State& state) {
+template <typename SorterTag>
+static void BM_DataframeSortMsd(benchmark::State& state) {
   const auto n = static_cast<size_t>(state.range(0));
   const auto str_len = static_cast<size_t>(state.range(1));
 
@@ -166,14 +189,15 @@ static void BM_RadixSortStdStringPtr(benchmark::State& state) {
 
   for (auto _ : state) {
     std::vector<StringPtr> working_copy = data;
-    std::sort(working_copy.begin(), working_copy.end(),
-              [](const StringPtr& a, const StringPtr& b) {
-                return std::string_view(a.data, a.size) <
-                       std::string_view(b.data, b.size);
-              });
+    MsdSorter<SorterTag>::Sort(working_copy);
   }
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations() * n));
 }
-BENCHMARK(BM_RadixSortStdStringPtr)->Apply(RadixSortMsdArgs);
+BENCHMARK_TEMPLATE(BM_DataframeSortMsd, RadixSortTag)
+    ->Apply(SortMsdArgs)
+    ->Name("BM_DataframeSortMsdRadix");
+BENCHMARK_TEMPLATE(BM_DataframeSortMsd, StdSortTag)
+    ->Apply(SortMsdArgs)
+    ->Name("BM_DataframeSortMsdStd");
 
 }  // namespace

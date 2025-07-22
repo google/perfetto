@@ -1080,16 +1080,35 @@ class InterpreterImpl {
       uint32_t index;
       uint32_t buf_offset;
     };
-    // Initally do *not* default initialize the array for performance.
+
     std::unique_ptr<SortToken[]> p(new SortToken[num_indices]);
-    std::unique_ptr<SortToken[]> q(new SortToken[num_indices]);
-    std::unique_ptr<uint32_t[]> counts(new uint32_t[1 << 16]);
     for (uint32_t i = 0; i < num_indices; ++i) {
       p[i] = {indices.b[i], i * stride};
     }
-    auto* res = base::RadixSort(
-        p.get(), p.get() + num_indices, q.get(), counts.get(), stride,
-        [buf](const SortToken& token) { return buf + token.buf_offset; });
+
+    // Crossover point where our custom RadixSort starts becoming faster that
+    // std::stable_sort.
+    //
+    // Empirically chosen by looking at the crossover point of benchmarks
+    // BM_DataframeSortLsdRadix and BM_DataframeSortLsdStd.
+    static constexpr uint32_t kStableSortCutoff = 4096;
+    SortToken* res;
+    if (num_indices < kStableSortCutoff) {
+      std::stable_sort(p.get(), p.get() + num_indices,
+                       [&](const SortToken& a, const SortToken& b) {
+                         return memcmp(buf + a.buf_offset, buf + b.buf_offset,
+                                       stride) < 0;
+                       });
+      res = p.get();
+    } else {
+      // Initally do *not* default initialize the array for performance.
+      std::unique_ptr<SortToken[]> q(new SortToken[num_indices]);
+      std::unique_ptr<uint32_t[]> counts(new uint32_t[1 << 16]);
+      res = base::RadixSort(
+          p.get(), p.get() + num_indices, q.get(), counts.get(), stride,
+          [buf](const SortToken& token) { return buf + token.buf_offset; });
+    }
+
     for (uint32_t i = 0; i < num_indices; ++i) {
       indices.b[i] = res[i].index;
     }
