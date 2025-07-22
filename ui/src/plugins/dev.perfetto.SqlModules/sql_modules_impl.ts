@@ -81,6 +81,10 @@ export class SqlModulesImpl implements SqlModules {
     }
     return undefined;
   }
+
+  listModules(): SqlModule[] {
+    return this.packages.flatMap((p) => p.modules);
+  }
 }
 
 export class StdlibPackageImpl implements SqlPackage {
@@ -97,9 +101,9 @@ export class StdlibPackageImpl implements SqlPackage {
 
   getTable(tableName: string): SqlTable | undefined {
     for (const module of this.modules) {
-      for (const dataObj of module.dataObjects) {
-        if (dataObj.name == tableName) {
-          return dataObj;
+      for (const t of module.tables) {
+        if (t.name == tableName) {
+          return t;
         }
       }
     }
@@ -107,7 +111,7 @@ export class StdlibPackageImpl implements SqlPackage {
   }
 
   listTables(): SqlTable[] {
-    return this.modules.flatMap((module) => module.dataObjects);
+    return this.modules.flatMap((module) => module.tables);
   }
 
   listTablesNames(): string[] {
@@ -116,8 +120,8 @@ export class StdlibPackageImpl implements SqlPackage {
 
   getModuleForTable(tableName: string): SqlModule | undefined {
     for (const module of this.modules) {
-      for (const dataObj of module.dataObjects) {
-        if (dataObj.name == tableName) {
+      for (const t of module.tables) {
+        if (t.name == tableName) {
           return module;
         }
       }
@@ -127,8 +131,8 @@ export class StdlibPackageImpl implements SqlPackage {
 
   getSqlTableDescription(tableName: string): SqlTableDescription | undefined {
     for (const module of this.modules) {
-      for (const dataObj of module.dataObjects) {
-        if (dataObj.name == tableName) {
+      for (const t of module.tables) {
+        if (t.name == tableName) {
           return module.getSqlTableDescription(tableName);
         }
       }
@@ -139,7 +143,7 @@ export class StdlibPackageImpl implements SqlPackage {
 
 export class StdlibModuleImpl implements SqlModule {
   readonly includeKey: string;
-  readonly dataObjects: SqlTable[];
+  readonly tables: SqlTable[];
   readonly functions: SqlFunction[];
   readonly tableFunctions: SqlTableFunction[];
   readonly macros: SqlMacro[];
@@ -150,7 +154,7 @@ export class StdlibModuleImpl implements SqlModule {
     const neededInclude = this.includeKey.startsWith('prelude')
       ? undefined
       : this.includeKey;
-    this.dataObjects = docs.data_objects.map(
+    this.tables = docs.data_objects.map(
       (json) => new SqlTableImpl(json, neededInclude),
     );
 
@@ -162,9 +166,9 @@ export class StdlibModuleImpl implements SqlModule {
   }
 
   getTable(tableName: string): SqlTable | undefined {
-    for (const obj of this.dataObjects) {
-      if (obj.name == tableName) {
-        return obj;
+    for (const t of this.tables) {
+      if (t.name == tableName) {
+        return t;
       }
     }
     return undefined;

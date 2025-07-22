@@ -20,26 +20,87 @@ import {runQueryForQueryTable} from '../../../components/query_table/queries';
 import {AsyncLimiter} from '../../../base/async_limiter';
 import {QueryResponse} from '../../../components/query_table/queries';
 import {Trace} from '../../../public/trace';
-import {Query, queryToRun} from './query_node_explorer';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {Button} from '../../../widgets/button';
 import {Icons} from '../../../base/semantic_icons';
+import {Query, queryToRun} from '../query_node';
 
 export interface NodeDataViewerAttrs {
   readonly query?: Query | Error;
   readonly executeQuery: boolean;
   readonly trace: Trace;
-  readonly onQueryExecuted: () => void;
+  readonly onQueryExecuted: (result: {
+    columns: string[];
+    queryError?: Error;
+    responseError?: Error;
+    dataError?: Error;
+  }) => void;
   readonly onPositionChange: (pos: 'left' | 'right' | 'bottom') => void;
 }
 
 export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
-  private readonly tableAsyncLimiter = new AsyncLimiter();
-  private queryResult?: QueryResponse;
+  private readonly asyncLimiter = new AsyncLimiter();
+  private resp?: QueryResponse;
 
   view({attrs}: m.CVnode<NodeDataViewerAttrs>) {
+    const isQueryInvalid = (): Error | undefined => {
+      if (attrs.query instanceof Error) {
+        return attrs.query;
+      }
+      if (!this.resp) {
+        return undefined;
+      }
+
+      if (this.resp.error) {
+        return new Error(this.resp.error);
+      }
+      return undefined;
+    };
+
+    const isResponseInvalid = (): Error | undefined => {
+      // Those are the checks that should be handled by isQueryInvalid().
+      if (!this.resp || this.resp.error) {
+        return undefined;
+      }
+
+      if (
+        this.resp.statementCount > 0 &&
+        this.resp.statementWithOutputCount === 0 &&
+        this.resp.columns.length === 0
+      ) {
+        return new Error('The last statement must produce an output.');
+      }
+
+      if (this.resp.statementWithOutputCount > 1) {
+        return new Error('Only the last statement can produce an output.');
+      }
+
+      if (this.resp.statementCount > 1) {
+        // Statements are broken by semicolon. We trim and remove empty statements
+        // that can result from the query ending with a semicolon.
+        // TODO(mayzner): This logic has to be implemented in Trace Processor.
+        const statements = this.resp.query
+          .split(';')
+          .map((x) => x.trim())
+          .filter((x) => x.length > 0);
+        const allButLast = statements.slice(0, statements.length - 1);
+        const moduleIncludeRegex =
+          /^\s*INCLUDE\s+PERFETTO\s+MODULE\s+[\w._]+\s*$/i;
+        for (const stmt of allButLast) {
+          if (!moduleIncludeRegex.test(stmt)) {
+            return new Error(
+              `Only 'INCLUDE PERFETTO MODULE ...;' statements are ` +
+                `allowed before the final statement. Error on: "${stmt}"`,
+            );
+          }
+        }
+      }
+
+      return undefined;
+    };
+
     const runQuery = () => {
-      this.tableAsyncLimiter.schedule(async () => {
+      this.asyncLimiter.schedule(async () => {
         if (
           attrs.query === undefined ||
           attrs.query instanceof Error ||
@@ -48,39 +109,46 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
           return;
         }
 
-        this.queryResult = await runQueryForQueryTable(
+        this.resp = await runQueryForQueryTable(
           queryToRun(attrs.query),
           attrs.trace.engine,
         );
-        attrs.onQueryExecuted();
+
+        let dataError: Error | undefined = undefined;
+        if (this.resp.totalRowCount === 0) {
+          dataError = new Error('Query returned no rows');
+        }
+
+        attrs.onQueryExecuted({
+          columns: this.resp.columns,
+          queryError: isQueryInvalid(),
+          responseError: isResponseInvalid(),
+          dataError,
+        });
       });
-    };
-    const queryErrors = () => {
-      if (attrs.query === undefined) {
-        return `No data to display}`;
-      }
-      if (attrs.query instanceof Error) {
-        return `Error: ${attrs.query.message}`;
-      }
-      if (this.queryResult === undefined) {
-        runQuery();
-        return `No data to display`;
-      }
-      if (this.queryResult.error !== undefined) {
-        return `Error: ${this.queryResult.error}`;
-      }
-      return undefined;
     };
 
     runQuery();
-    const errors = queryErrors();
+    const queryError = isQueryInvalid();
+    const responseError = isResponseInvalid();
+    const error = queryError ?? responseError;
+
+    let statusText: string | undefined = undefined;
+    if (attrs.query === undefined) {
+      statusText = 'No data to display';
+    } else if (this.resp === undefined) {
+      statusText = 'Typing...';
+    }
+
+    const message = error ? `Error: ${error.message}` : statusText;
+
     return [
       m(
         '.pf-node-data-viewer',
         m(
           '.pf-node-data-viewer__title-row',
           m('.title', 'Query data'),
-          m('span.spacer'), // Added spacer to push menu to the right
+          m('span.spacer'), // Push menu to the right
           m(
             PopupMenu,
             {
@@ -110,17 +178,26 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
             ],
           ),
         ),
-        errors
-          ? m(TextParagraph, {text: errors ?? ''})
+        message && !responseError
+          ? m(TextParagraph, {text: message})
           : m(
               'article',
-              m(QueryTable, {
-                trace: attrs.trace,
-                query:
-                  attrs.query instanceof Error ? '' : queryToRun(attrs.query),
-                resp: this.queryResult,
-                fillParent: false,
-              }),
+              {
+                style: {
+                  display: 'flex',
+                  flexDirection: 'column',
+                  flexGrow: 1,
+                },
+              },
+              [
+                m(QueryTable, {
+                  trace: attrs.trace,
+                  query:
+                    attrs.query instanceof Error ? '' : queryToRun(attrs.query),
+                  resp: this.resp,
+                  fillParent: true,
+                }),
+              ],
             ),
       ),
     ];

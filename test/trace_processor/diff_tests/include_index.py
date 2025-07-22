@@ -143,6 +143,7 @@ from diff_tests.stdlib.pixel.tests import PixelStdlib
 from diff_tests.stdlib.pkvm.tests import Pkvm
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
+from diff_tests.stdlib.prelude.regexp_extract import RegexpExtract
 from diff_tests.stdlib.prelude.slices_tests import PreludeSlices
 from diff_tests.stdlib.prelude.window_functions_tests import PreludeWindowFunctions
 from diff_tests.stdlib.sched.tests import StdlibSched
@@ -291,6 +292,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       HeapGraph,
       PreludePprofFunctions,
       PreludeWindowFunctions,
+      RegexpExtract,
       Pkvm,
       PreludeSlices,
       StdlibSmoke,
