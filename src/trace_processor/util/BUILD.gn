@@ -92,8 +92,8 @@ source_set("protozero_to_text") {
   ]
 }
 
-source_set("murmurhash") {
-  sources = [ "murmurhash.h" ]
+source_set("murmur_hash") {
+  sources = [ "murmur_hash.h" ]
   deps = [ "../../../gn:default_deps" ]
 }
 
