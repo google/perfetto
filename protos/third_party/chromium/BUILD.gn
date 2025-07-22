@@ -9,8 +9,4 @@ perfetto_proto_library("@TYPE@") {
   generate_descriptor = "chrome_track_event.descriptor"
   generator_visibility = [ "../../../src/trace_processor/importers/proto:gen_cc_chrome_track_event_descriptor" ]
   descriptor_root_source = chrome_track_event_descriptor_source
-
-  # Chrome .proto files have imports relative to the current directory, since
-  # the copies in Chrome live at a different file path (//base/tracing/protos).
-  import_dirs = [ "./" ]
 }
