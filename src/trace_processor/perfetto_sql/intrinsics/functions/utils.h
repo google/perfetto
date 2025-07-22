@@ -353,7 +353,7 @@ struct Glob : public sqlite::Function<Glob> {
   static void Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
     const char* text =
         reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
-    auto* aux = GetAuxData(ctx, 1);
+    auto* aux = GetAuxData(ctx, 0);
     if (PERFETTO_UNLIKELY(!aux || !text)) {
       const char* pattern_str =
           reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
@@ -363,7 +363,7 @@ struct Glob : public sqlite::Function<Glob> {
       auto ptr = std::make_unique<util::GlobMatcher>(
           util::GlobMatcher::FromPattern(pattern_str));
       aux = ptr.get();
-      SetAuxData(ctx, 1, std::move(ptr));
+      SetAuxData(ctx, 0, std::move(ptr));
     }
     return sqlite::result::Long(ctx, aux->Matches(text));
   }
@@ -378,7 +378,7 @@ struct Regexp : public sqlite::Function<Regexp> {
     if constexpr (regex::IsRegexSupported()) {
       const char* text =
           reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
-      auto* aux = GetAuxData(ctx, 1);
+      auto* aux = GetAuxData(ctx, 0);
       if (PERFETTO_UNLIKELY(!aux || !text)) {
         const char* pattern_str =
             reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
@@ -389,7 +389,7 @@ struct Regexp : public sqlite::Function<Regexp> {
                                 regex::Regex::Create(pattern_str));
         auto ptr = std::make_unique<AuxData>(std::move(regex));
         aux = ptr.get();
-        SetAuxData(ctx, 1, std::move(ptr));
+        SetAuxData(ctx, 0, std::move(ptr));
       }
       return sqlite::result::Long(ctx, aux->Search(text));
     } else {
