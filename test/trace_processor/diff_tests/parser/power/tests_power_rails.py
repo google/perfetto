@@ -150,3 +150,42 @@ class PowerPowerRails(TestSuite):
         "power.rails.cpu.mid",333.000000,3
         "power.rails.gpu",999.000000,1
         """))
+
+  def test_android_power_rails_metadata(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          power_rails {
+            rail_descriptor {
+              index: 4
+              rail_name: "S3M_VDD_CPUCL1"
+              subsys_name: "cpu"
+              sampling_rate: 1023
+            }
+          }
+        }
+        packet {
+          power_rails {
+            rail_descriptor {
+              index: 3
+              rail_name: "S2S_VDD_G3D"
+              subsys_name: "gpu"
+              sampling_rate: 1022
+            }
+          }
+        }
+        """),
+        query="""
+        INCLUDE PERFETTO MODULE android.power_rails;
+        SELECT
+          power_rail_name,
+          raw_power_rail_name,
+          subsystem_name
+        FROM android_power_rails_metadata
+        ORDER BY power_rail_name;
+        """,
+        out=Csv("""
+        "power_rail_name","raw_power_rail_name","subsystem_name"
+        "power.rails.cpu.mid","S3M_VDD_CPUCL1","cpu"
+        "power.rails.gpu","S2S_VDD_G3D","gpu"
+        """))
