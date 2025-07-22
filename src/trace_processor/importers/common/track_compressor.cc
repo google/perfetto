@@ -31,7 +31,6 @@ namespace perfetto::trace_processor {
 TrackCompressor::TrackCompressor(TraceProcessorContext* context)
     : context_(context),
       source_key_(context->storage->InternString("source")),
-      trace_id_key_(context->storage->InternString("trace_id")),
       trace_id_is_process_scoped_key_(
           context->storage->InternString("trace_id_is_process_scoped")),
       upid_(context->storage->InternString("upid")),
@@ -137,7 +136,6 @@ TrackId TrackCompressor::InternLegacyAsyncTrack(StringId raw_name,
                                                 AsyncSliceType slice_type) {
   auto args_fn = [&](ArgsTracker::BoundInserter& inserter) {
     inserter.AddArg(source_key_, Variadic::String(chrome_source_))
-        .AddArg(trace_id_key_, Variadic::Integer(trace_id))
         .AddArg(trace_id_is_process_scoped_key_,
                 Variadic::Boolean(trace_id_is_process_scoped))
         .AddArg(upid_, Variadic::UnsignedInteger(upid))

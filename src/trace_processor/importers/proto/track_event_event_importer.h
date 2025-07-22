@@ -534,12 +534,12 @@ class TrackEventEventImporter {
             return base::ErrStatus(
                 "TrackEvent with local_id without process association");
           }
-
           source_id = static_cast<int64_t>(legacy_event_.local_id());
           source_id_is_process_scoped = true;
         } else {
           return base::ErrStatus("Async LegacyEvent without ID");
         }
+        legacy_trace_source_id_ = source_id;
 
         // Catapult treats nestable async events of different categories with
         // the same ID as separate tracks. We replicate the same behavior
@@ -1261,6 +1261,10 @@ class TrackEventEventImporter {
                            reinterpret_cast<const char*>(decoder->str().data),
                            decoder->str().size))));
     }
+    if (legacy_trace_source_id_) {
+      inserter->AddArg(parser_->legacy_trace_source_id_key_id_,
+                       Variadic::Integer(*legacy_trace_source_id_));
+    }
 
     ArgsParser args_writer(ts_, *inserter, *storage_, sequence_state_,
                            /*support_json=*/true);
@@ -1452,6 +1456,7 @@ class TrackEventEventImporter {
   std::optional<int64_t> thread_timestamp_;
   std::optional<int64_t> thread_instruction_count_;
   bool fallback_to_legacy_pid_tid_tracks_ = false;
+  std::optional<int64_t> legacy_trace_source_id_;
 
   // All events in legacy JSON require a thread ID, but for some types of
   // events (e.g. async events or process/global-scoped instants), we don't
