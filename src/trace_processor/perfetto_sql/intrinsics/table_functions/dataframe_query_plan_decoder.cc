@@ -80,8 +80,5 @@ std::string DataframeQueryPlanDecoder::TableName() {
 uint32_t DataframeQueryPlanDecoder::GetArgumentCount() const {
   return 1;
 }
-uint32_t DataframeQueryPlanDecoder::EstimateRowCount() {
-  return 20;
-}
 
 }  // namespace perfetto::trace_processor

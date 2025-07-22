@@ -154,10 +154,7 @@ int StaticTableFunctionModule::BestIndex(sqlite3_vtab* tab,
     // plan after that, we can throw a proper error message in xFilter.
     return SQLITE_CONSTRAINT;
   }
-  uint32_t estimate = v->function->EstimateRowCount();
   info->needToFreeIdxStr = true;
-  info->estimatedCost = estimate;
-  info->estimatedRows = estimate;
   info->idxNum = v->best_idx_num++;
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE,
                     "STATIC_TABLE_FUNCTION_BEST_INDEX");
