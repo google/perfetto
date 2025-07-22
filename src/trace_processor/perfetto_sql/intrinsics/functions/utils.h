@@ -33,7 +33,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-struct ExportJson : public SqlFunction {
+struct ExportJson : public LegacySqlFunction {
   using Context = TraceStorage;
   static base::Status Run(TraceStorage* storage,
                           size_t /*argc*/,
@@ -66,7 +66,7 @@ base::Status ExportJson::Run(TraceStorage* storage,
   return json::ExportJson(storage, output.get());
 }
 
-struct Hash : public SqlFunction {
+struct Hash : public LegacySqlFunction {
   static base::Status Run(void*,
                           size_t argc,
                           sqlite3_value** argv,
@@ -101,7 +101,7 @@ base::Status Hash::Run(void*,
   return base::OkStatus();
 }
 
-struct Reverse : public SqlFunction {
+struct Reverse : public LegacySqlFunction {
   static base::Status Run(void*,
                           size_t argc,
                           sqlite3_value** argv,
@@ -139,7 +139,7 @@ base::Status Reverse::Run(void*,
   return base::OkStatus();
 }
 
-struct Base64Encode : public SqlFunction {
+struct Base64Encode : public LegacySqlFunction {
   static base::Status Run(void*,
                           size_t argc,
                           sqlite3_value** argv,
@@ -172,7 +172,7 @@ base::Status Base64Encode::Run(void*,
   return base::OkStatus();
 }
 
-struct Demangle : public SqlFunction {
+struct Demangle : public LegacySqlFunction {
   static base::Status Run(void*,
                           size_t argc,
                           sqlite3_value** argv,
@@ -207,7 +207,7 @@ base::Status Demangle::Run(void*,
   return base::OkStatus();
 }
 
-struct WriteFile : public SqlFunction {
+struct WriteFile : public LegacySqlFunction {
   using Context = TraceStorage;
   static base::Status Run(TraceStorage* storage,
                           size_t,
@@ -263,7 +263,7 @@ base::Status WriteFile::Run(TraceStorage*,
   return base::OkStatus();
 }
 
-struct ExtractArg : public SqlFunction {
+struct ExtractArg : public LegacySqlFunction {
   using Context = TraceStorage;
   static base::Status Run(TraceStorage* storage,
                           size_t argc,
@@ -332,7 +332,7 @@ base::Status ExtractArg::Run(TraceStorage* storage,
   PERFETTO_FATAL("For GCC");
 }
 
-struct SourceGeq : public SqlFunction {
+struct SourceGeq : public LegacySqlFunction {
   static base::Status Run(void*,
                           size_t,
                           sqlite3_value**,
@@ -343,7 +343,7 @@ struct SourceGeq : public SqlFunction {
   }
 };
 
-struct TablePtrBind : public SqlFunction {
+struct TablePtrBind : public LegacySqlFunction {
   static base::Status Run(void*,
                           size_t,
                           sqlite3_value**,
@@ -355,7 +355,7 @@ struct TablePtrBind : public SqlFunction {
   }
 };
 
-struct Glob : public SqlFunction {
+struct Glob : public LegacySqlFunction {
   static base::Status Run(void*,
                           size_t,
                           sqlite3_value** argv,
@@ -372,7 +372,7 @@ struct Glob : public SqlFunction {
   }
 };
 
-struct Regexp : public SqlFunction {
+struct Regexp : public LegacySqlFunction {
   static base::Status Run(void*,
                           size_t,
                           sqlite3_value** argv,
@@ -395,7 +395,7 @@ struct Regexp : public SqlFunction {
     PERFETTO_FATAL("Regex not supported");
   }
 };
-struct RegexpExtract : public SqlFunction {
+struct RegexpExtract : public LegacySqlFunction {
   struct Context {
     std::vector<std::string_view> matches;
     // A buffer used for short string returns to avoid mallocs.

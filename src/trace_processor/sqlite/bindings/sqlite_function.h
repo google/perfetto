@@ -19,18 +19,18 @@
 
 #include <sqlite3.h>  // IWYU pragma: export
 
-namespace perfetto::trace_processor {
+namespace perfetto::trace_processor::sqlite {
 
 // Prototype for a function which can be registered with SQLite.
 //
 // See https://www.sqlite.org/c3ref/create_function.html for details on how
 // to implement the methods of this class.
 template <typename Impl>
-class SqliteFunction {
+class Function {
  public:
   // The type of the context object which will be passed to the function.
   // Can be redefined in any sub-classes to override the context.
-  using UserDataContext = void;
+  using UserData = void;
 
   // The xStep function which will be executed by SQLite to add a row of values
   // to the current window.
@@ -42,10 +42,10 @@ class SqliteFunction {
   // Returns the pointer to the user data structure which is passed when
   // creating the function.
   static auto GetUserData(sqlite3_context* ctx) {
-    return static_cast<typename Impl::UserDataContext*>(sqlite3_user_data(ctx));
+    return static_cast<typename Impl::UserData*>(sqlite3_user_data(ctx));
   }
 };
 
-}  // namespace perfetto::trace_processor
+}  // namespace perfetto::trace_processor::sqlite
 
 #endif  // SRC_TRACE_PROCESSOR_SQLITE_BINDINGS_SQLITE_FUNCTION_H_
