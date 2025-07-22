@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_UTIL_MURMURHASH_H_
-#define SRC_TRACE_PROCESSOR_UTIL_MURMURHASH_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_MURMUR_HASH_H_
+#define SRC_TRACE_PROCESSOR_UTIL_MURMUR_HASH_H_
 
 #include <cmath>
 #include <cstddef>
@@ -164,4 +164,4 @@ inline uint64_t MurmurHash(const std::string& res) {
 
 }  // namespace perfetto::trace_processor::util
 
-#endif  // SRC_TRACE_PROCESSOR_UTIL_MURMURHASH_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_MURMUR_HASH_H_
