@@ -441,8 +441,27 @@ void WrapSqlFunction(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     static char kVoidValue[] = "";
     sqlite::result::StaticPointer(ctx, kVoidValue, "VOID");
   } else {
-    sqlite::utils::ReportSqlValue(ctx, value, destructors.string_destructor,
-                                  destructors.bytes_destructor);
+    switch (value.type) {
+      case SqlValue::Type::kLong:
+        sqlite::result::Long(ctx, value.long_value);
+        break;
+      case SqlValue::Type::kDouble:
+        sqlite::result::Double(ctx, value.double_value);
+        break;
+      case SqlValue::Type::kString: {
+        sqlite::result::RawString(ctx, value.string_value,
+                                  destructors.string_destructor);
+        break;
+      }
+      case SqlValue::Type::kBytes:
+        sqlite::result::RawBytes(ctx, value.bytes_value,
+                                 static_cast<int>(value.bytes_count),
+                                 destructors.bytes_destructor);
+        break;
+      case SqlValue::Type::kNull:
+        sqlite::result::Null(ctx);
+        break;
+    }
   }
 
   status = Function::VerifyPostConditions(ud);
