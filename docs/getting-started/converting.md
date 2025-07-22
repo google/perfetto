@@ -866,3 +866,6 @@ you can:
   [Trace Processor](/docs/analysis/getting-started.md) to query your custom
   trace data. Your custom tracks and events will populate standard tables like
   `slice`, `track`, `counter`, etc.
+- **Handle large datasets:** If you are generating very large traces and want to
+  avoid high memory usage, learn how to stream data directly to a file in the
+  [Advanced Guide's section on streaming](/docs/reference/synthetic-track-event.md#handling-large-traces-with-streaming).
