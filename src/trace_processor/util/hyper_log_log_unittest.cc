@@ -26,18 +26,18 @@ namespace util {
 namespace {
 
 TEST(HyperLogLogTest, Empty) {
-  HyperLogLog hll(4);
+  HyperLogLog hll;
   ASSERT_NEAR(hll.Estimate(), 0, 0.01);
 }
 
 TEST(HyperLogLogTest, Single) {
-  HyperLogLog hll(4);
+  HyperLogLog hll;
   hll.Add(1);
   ASSERT_NEAR(hll.Estimate(), 1, 0.1);
 }
 
 TEST(HyperLogLogTest, Distinct) {
-  HyperLogLog hll(10);
+  HyperLogLog hll;
   for (int i = 0; i < 10000; ++i) {
     hll.Add(i);
   }
@@ -45,7 +45,7 @@ TEST(HyperLogLogTest, Distinct) {
 }
 
 TEST(HyperLogLogTest, Repeated) {
-  HyperLogLog hll(10);
+  HyperLogLog hll;
   for (int i = 0; i < 10000; ++i) {
     hll.Add(i % 100);
   }
@@ -53,14 +53,14 @@ TEST(HyperLogLogTest, Repeated) {
 }
 
 TEST(HyperLogLogTest, String) {
-  HyperLogLog hll(10);
+  HyperLogLog hll;
   hll.Add(std::string("hello"));
   hll.Add(std::string("world"));
   ASSERT_NEAR(hll.Estimate(), 2, 0.2);
 }
 
 TEST(HyperLogLogTest, Double) {
-  HyperLogLog hll(10);
+  HyperLogLog hll;
   hll.Add(1.23);
   hll.Add(4.56);
   ASSERT_NEAR(hll.Estimate(), 2, 0.2);

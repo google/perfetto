@@ -79,7 +79,16 @@ class HyperLogLog {
 
     // The rank is the number of leading zeros in the remaining bits of the
     // hash, plus one.
-    uint8_t rank = static_cast<uint8_t>(Lzcnt64(hash << p_)) + 1;
+    uint64_t w_shifted = hash << p_;
+    uint8_t rank;
+    if (w_shifted == 0) {
+      // Handle the case where the last (64 - p_) bits are all zero.
+      // The rank is the number of bits in w + 1.
+      rank = (64 - p_) + 1;
+    } else {
+      // The rank is the number of leading zeros in the shifted hash + 1.
+      rank = static_cast<uint8_t>(Lzcnt64(w_shifted)) + 1;
+    }
 
     // Store the maximum rank seen for this register.
     registers_[index] = std::max(registers_[index], rank);
@@ -91,36 +100,24 @@ class HyperLogLog {
       return 0.0;
     }
 
-    // Calculate the harmonic mean of the register values. This is the core of
-    // the HLL algorithm.
     double sum = 0.0;
+    uint32_t zeros = 0;
     for (uint8_t rank : registers_) {
+      zeros += rank == 0;
       sum += 1.0 / static_cast<double>(1ull << rank);
     }
 
-    // Raw HLL estimate.
     double estimate = alpha_ * m_ * m_ / sum;
 
-    // The original HLL paper describes a correction for large cardinalities.
-    // However, this is only necessary when the estimate is close to the total
-    // number of possible hash values (2^64), which is not a practical concern
-    // for our use cases. Therefore, we only apply the small cardinality
-    // correction.
-    if (estimate > 2.5 * m_) {
-      return estimate;
+    // ONLY apply small-range correction if registers are still empty
+    // AND the estimate is within the HLL's known biased range.
+    if (zeros != 0 && estimate <= 2.5 * m_) {
+      return m_ * std::log(static_cast<double>(m_) / zeros);
     }
 
-    // Small range correction using linear counting.
-    uint32_t zeros = 0;
-    for (uint8_t rank : registers_) {
-      if (rank == 0) {
-        zeros++;
-      }
-    }
-    if (zeros == 0) {
-      return estimate;
-    }
-    return m_ * std::log(static_cast<double>(m_) / zeros);
+    // Otherwise, for medium and large cardinalities, always trust the raw
+    // estimate.
+    return estimate;
   }
 
   // Resets the sketch to its initial state, allowing for reuse of the
