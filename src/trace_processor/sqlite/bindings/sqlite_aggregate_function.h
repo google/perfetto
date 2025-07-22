@@ -21,12 +21,12 @@
 
 #include "perfetto/ext/base/scoped_file.h"
 
-namespace perfetto::trace_processor {
+namespace perfetto::trace_processor::sqlite {
 
 // Prototype for an aggregate context which can be fetched from an aggregate
 // function in SQLite.
 template <typename Impl>
-struct SqliteAggregateContext {
+struct AggregateContext {
   static int ScopedDestructor(Impl* impl) {
     if (impl) {
       impl->~Impl();
@@ -62,10 +62,10 @@ struct SqliteAggregateContext {
 // See https://www.sqlite.org/c3ref/create_function.html for details on how to
 // implement the methods of this class.
 template <typename Impl>
-struct SqliteAggregateFunction {
+struct AggregateFunction {
   // The type of the context object which will be passed to the function.
   // Can be redefined in any sub-classes to override the context.
-  using UserDataContext = void;
+  using UserData = void;
 
   // The xStep function which will be executed by SQLite to add a row of values
   // to the aggregate.
@@ -85,10 +85,10 @@ struct SqliteAggregateFunction {
   // Returns the pointer to the user data structure which is passed when
   // creating the function.
   static auto GetUserData(sqlite3_context* ctx) {
-    return static_cast<typename Impl::UserDataContext*>(sqlite3_user_data(ctx));
+    return static_cast<typename Impl::UserData*>(sqlite3_user_data(ctx));
   }
 };
 
-}  // namespace perfetto::trace_processor
+}  // namespace perfetto::trace_processor::sqlite
 
 #endif  // SRC_TRACE_PROCESSOR_SQLITE_BINDINGS_SQLITE_AGGREGATE_FUNCTION_H_

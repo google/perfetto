@@ -26,19 +26,11 @@
   display: inline-block;
   font-family: $pf-font;
   vertical-align: baseline;
-
-  i {
-    font-size: inherit;
-    vertical-align: baseline;
-    line-height: 1;
-    float: left;
-  }
-
   padding: 2px 4px;
 }
 
 .pf-hotkey {
-  display: flex;
+  display: inline-flex;
   flex-direction: row;
   gap: 2px;
 }

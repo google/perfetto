@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_SQL_FUNCTION_H_
 
 #include <sqlite3.h>
-#include <memory>
 
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -26,12 +25,15 @@
 namespace perfetto {
 namespace trace_processor {
 
+// LEGACY DO NOT CREATE ANY MORE IMPLEMENTATIONS OF THIS FUNCTION. Use
+// sqlite::Function instead.
+//
 // Prototype for a C++ function which can be registered with SQLite.
 //
 // Usage
 //
 // Define a subclass of this struct as follows:
-// struct YourFunction : public SqlFunction {
+// struct YourFunction : public LegacySqlFunction {
 //   // Optional if you want a custom context object (i.e. an object
 //   // passed in at registration time which will be passed to Run on
 //   // every invocation)
@@ -49,7 +51,7 @@ namespace trace_processor {
 // Then, register this function with SQLite using RegisterFunction (see below);
 // you'll likely want to do this in TraceProcessorImpl:
 // RegisterFunction<YourFunction>(/* see arguments below */)
-struct SqlFunction {
+struct LegacySqlFunction {
   // The type of the context object which will be passed to the function.
   // Can be redefined in any sub-classes to override the context.
   using Context = void;

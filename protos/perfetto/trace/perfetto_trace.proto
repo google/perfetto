@@ -8034,6 +8034,14 @@ message CmaAllocInfoFtraceEvent {
   optional uint64 nr_reclaimed = 9;
   optional uint64 pfn = 10;
 }
+message CmaAllocFinishFtraceEvent {
+  optional string name = 1;
+  optional uint64 pfn = 2;
+  optional uint64 page = 3;
+  optional uint64 count = 4;
+  optional uint32 align = 5;
+  optional int32 errorno = 6;
+}
 
 // End of protos/perfetto/trace/ftrace/cma.proto
 
@@ -10109,6 +10117,14 @@ message IonBufferCreateFtraceEvent {
 message IonBufferDestroyFtraceEvent {
   optional uint64 addr = 1;
   optional uint64 len = 2;
+}
+message MmAllocContigMigrateRangeInfoFtraceEvent {
+  optional uint64 start = 1;
+  optional uint64 end = 2;
+  optional uint64 nr_migrated = 3;
+  optional uint64 nr_reclaimed = 4;
+  optional uint64 nr_mapped = 5;
+  optional int32 migratetype = 6;
 }
 
 // End of protos/perfetto/trace/ftrace/kmem.proto
@@ -12275,6 +12291,9 @@ message FtraceEvent {
     Dwc3PrepareTrbFtraceEvent dwc3_prepare_trb = 573;
     Dwc3ReadlFtraceEvent dwc3_readl = 574;
     Dwc3WritelFtraceEvent dwc3_writel = 575;
+    CmaAllocFinishFtraceEvent cma_alloc_finish = 576;
+    MmAllocContigMigrateRangeInfoFtraceEvent
+        mm_alloc_contig_migrate_range_info = 577;
   }
 }
 

@@ -50,11 +50,11 @@ namespace perfetto::trace_processor {
 //
 // [1] https://en.wikipedia.org/wiki/Dominator_(graph_theory)
 // [2] https://dl.acm.org/doi/10.1145/357062.357071
-class DominatorTree : public SqliteAggregateFunction<DominatorTree> {
+class DominatorTree : public sqlite::AggregateFunction<DominatorTree> {
  public:
   static constexpr char kName[] = "__intrinsic_dominator_tree";
   static constexpr int kArgCount = 3;
-  using UserDataContext = StringPool;
+  using UserData = StringPool;
 
   static void Step(sqlite3_context*, int argc, sqlite3_value** argv);
   static void Final(sqlite3_context* ctx);

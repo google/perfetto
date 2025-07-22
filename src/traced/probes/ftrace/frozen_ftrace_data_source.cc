@@ -26,9 +26,9 @@
 #include "src/traced/probes/ftrace/cpu_stats_parser.h"
 #include "src/traced/probes/ftrace/event_info.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -71,8 +71,8 @@ void FrozenFtraceDataSource::Start() {
     return;
   }
 
-  tracefs_ = FtraceProcfs::CreateGuessingMountPoint("instances/" +
-                                                    raw_instance_name + "/");
+  tracefs_ =
+      Tracefs::CreateGuessingMountPoint("instances/" + raw_instance_name + "/");
   if (!tracefs_)
     return;
 

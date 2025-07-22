@@ -19,3 +19,12 @@ test('stringifyJsonWithBigints', () => {
   const expected = '{"foo":"bar","baz":"123"}';
   expect(stringifyJsonWithBigints(obj)).toEqual(expected);
 });
+
+test('stringifyJsonWithBigints with space', () => {
+  const obj = {foo: 'bar', baz: 123n};
+  const expected = `{
+  "foo": "bar",
+  "baz": "123"
+}`;
+  expect(stringifyJsonWithBigints(obj, 2)).toEqual(expected);
+});

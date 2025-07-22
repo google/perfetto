@@ -59,9 +59,10 @@ Create a new directory and the following files:
 ```c
 // ticker.c
 
-#include <linux/module.h>
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/timer.h>
+#include <linux/version.h>
 
 #define CREATE_TRACE_POINTS
 #include "trace/events/ticker.h"
@@ -101,7 +102,13 @@ static int __init ticker_init(void)
 static void __exit ticker_exit(void)
 {
     pr_info("Ticker: Exiting...\n");
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+    timer_delete_sync(&my_timer);
+#else
     del_timer_sync(&my_timer);
+#endif
+
     pr_info("Ticker: Timer stopped and module unloaded.\n");
 }
 
@@ -409,7 +416,7 @@ void FtraceParser::ParseTickerEvent(uint32_t cpu,
 ```
 
 Note: You'll also need to add the `ParseTickerEvent` to the header file
-ftrace_parser.h
+ftrace\_parser.h
 
 Build perfetto and run the trace again. You should now see a ticker track in the
 tracks table and ticker counter samples in the counter table.

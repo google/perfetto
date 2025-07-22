@@ -27,8 +27,24 @@
     overflow-y: hidden;
   }
 
-  &--gap-none {
+  &.pf-spacing-none {
     gap: 0px;
+  }
+
+  &.pf-spacing-small {
+    gap: 2px;
+  }
+
+  &.pf-spacing-medium {
+    gap: 4px;
+  }
+
+  &.pf-spacing-large {
+    gap: 6px;
+  }
+
+  &--wrap {
+    flex-wrap: wrap;
   }
 }
 

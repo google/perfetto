@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {assetSrc} from '../base/assets';
-import {download} from '../base/clipboard';
 import {defer} from '../base/deferred';
+import {download} from '../base/download_utils';
 import {ErrorDetails} from '../base/logging';
 import {utf8Decode} from '../base/string_utils';
 import {time} from '../base/time';
@@ -72,7 +72,10 @@ async function makeWorkerAndPost(
     } else if (args.kind === 'jobCompleted') {
       promise.resolve();
     } else if (args.kind === 'downloadFile') {
-      download(new File([new Blob([args.buffer])], args.name));
+      download({
+        content: args.buffer,
+        fileName: args.name,
+      });
     } else if (args.kind === 'openTraceInLegacy') {
       const str = utf8Decode(args.buffer);
       openTraceInLegacy?.('trace.json', str, 0);

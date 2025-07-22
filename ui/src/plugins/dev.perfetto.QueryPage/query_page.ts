@@ -1,4 +1,4 @@
-// Copyright (C) 2020 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,133 +12,322 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+/*
+TODO(stevegolton):
+- Add debug track button....
+*/
+
 import m from 'mithril';
-import {SimpleResizeObserver} from '../../base/resize_observer';
-import {undoCommonChatAppReplacements} from '../../base/string_utils';
+import {findRef, toHTMLElement} from '../../base/dom_utils';
+import {download} from '../../base/download_utils';
+import {stringifyJsonWithBigints} from '../../base/json_utils';
+import {assertExists} from '../../base/logging';
+import {Icons} from '../../base/semantic_icons';
 import {
+  formatAsDelimited,
+  formatAsMarkdownTable,
   QueryResponse,
-  runQueryForQueryTable,
 } from '../../components/query_table/queries';
+import {DataGridDataSource} from '../../components/widgets/data_grid/common';
+import {DataGrid} from '../../components/widgets/data_grid/data_grid';
+import {InMemoryDataSource} from '../../components/widgets/data_grid/in_memory_data_source';
+import {QueryHistoryComponent} from '../../components/widgets/query_history';
+import {Trace} from '../../public/trace';
+import {Box} from '../../widgets/box';
+import {Button, ButtonVariant} from '../../widgets/button';
 import {Callout} from '../../widgets/callout';
+import {Intent} from '../../widgets/common';
 import {Editor} from '../../widgets/editor';
-import {QueryHistoryComponent, queryHistoryStorage} from './query_history';
-import {Trace, TraceAttrs} from '../../public/trace';
-import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
-import {QueryTable} from '../../components/query_table/query_table';
+import {HotkeyGlyphs} from '../../widgets/hotkey_glyphs';
+import {MenuItem, PopupMenu} from '../../widgets/menu';
+import {ResizeHandle} from '../../widgets/resize_handle';
+import {Stack, StackAuto} from '../../widgets/stack';
+import {Icon} from '../../widgets/icon';
 
-interface QueryPageState {
-  enteredText: string;
-  executedQuery?: string;
-  queryResult?: QueryResponse;
-  heightPx: string;
-  generation: number;
-}
+class CopyHelper {
+  private _copied = false;
+  private timeoutId: ReturnType<typeof setTimeout> | undefined;
+  private readonly timeout: number;
 
-const state: QueryPageState = {
-  enteredText: '',
-  heightPx: '100px',
-  generation: 0,
-};
-
-function runManualQuery(trace: Trace, query: string) {
-  state.executedQuery = query;
-  state.queryResult = undefined;
-  runQueryForQueryTable(
-    undoCommonChatAppReplacements(query),
-    trace.engine,
-  ).then((resp: QueryResponse) => {
-    addQueryResultsTab(
-      trace,
-      {
-        query: query,
-        title: 'Standalone Query',
-        prefetchedResponse: resp,
-      },
-      'analyze_page_query',
-    );
-    // We might have started to execute another query. Ignore it in that
-    // case.
-    if (state.executedQuery !== query) {
-      return;
-    }
-    state.queryResult = resp;
-  });
-}
-
-export type QueryInputAttrs = TraceAttrs;
-
-class QueryInput implements m.ClassComponent<QueryInputAttrs> {
-  private resize?: Disposable;
-
-  oncreate({dom}: m.CVnodeDOM<QueryInputAttrs>): void {
-    this.resize = new SimpleResizeObserver(dom, () => {
-      state.heightPx = (dom as HTMLElement).style.height;
-    });
-    (dom as HTMLElement).style.height = state.heightPx;
+  constructor(timeout = 2000) {
+    this.timeout = timeout;
   }
 
-  onremove(): void {
-    if (this.resize) {
-      this.resize[Symbol.dispose]();
-      this.resize = undefined;
-    }
+  get copied(): boolean {
+    return this._copied;
   }
 
-  view({attrs}: m.CVnode<QueryInputAttrs>) {
-    return m(Editor, {
-      language: 'perfetto-sql',
-      generation: state.generation,
-      initialText: state.enteredText,
+  async copy(text: string) {
+    await navigator.clipboard.writeText(text);
+    this._copied = true;
+    m.redraw();
 
-      onExecute: (text: string) => {
-        if (!text) {
-          return;
-        }
-        queryHistoryStorage.saveQuery(text);
-        runManualQuery(attrs.trace, text);
-      },
-
-      onUpdate: (text: string) => {
-        state.enteredText = text;
-      },
-    });
+    clearTimeout(this.timeoutId);
+    this.timeoutId = setTimeout(() => {
+      this._copied = false;
+      m.redraw();
+    }, this.timeout);
   }
 }
 
 export interface QueryPageAttrs {
   readonly trace: Trace;
+  readonly editorText: string;
+  readonly executedQuery?: string;
+  readonly queryResult?: QueryResponse;
+  onEditorContentUpdate?(content: string): void;
+  onExecute?(query: string): void;
 }
 
 export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
+  private dataSource?: DataGridDataSource;
+  private editorHeight: number = 0;
+  private editorElement?: HTMLElement;
+  private dataGridCopyHelper = new CopyHelper();
+
+  oncreate({dom}: m.VnodeDOM<QueryPageAttrs>) {
+    this.editorElement = toHTMLElement(assertExists(findRef(dom, 'editor')));
+    this.editorElement.style.height = '200px';
+  }
+
+  onbeforeupdate(
+    vnode: m.Vnode<QueryPageAttrs>,
+    oldVnode: m.Vnode<QueryPageAttrs>,
+  ) {
+    // Update the datasource if present
+    if (vnode.attrs.queryResult !== oldVnode.attrs.queryResult) {
+      if (vnode.attrs.queryResult) {
+        this.dataSource = new InMemoryDataSource(vnode.attrs.queryResult.rows);
+      } else {
+        this.dataSource = undefined;
+      }
+    }
+  }
+
   view({attrs}: m.CVnode<QueryPageAttrs>) {
     return m(
-      '.query-page',
-      m(Callout, 'Enter query and press Cmd/Ctrl + Enter'),
-      state.enteredText.includes('"') &&
-        m(
-          Callout,
-          {icon: 'warning'},
-          `" (double quote) character observed in query; if this is being used to ` +
-            `define a string, please use ' (single quote) instead. Using double quotes ` +
-            `can cause subtle problems which are very hard to debug.`,
-        ),
-      m(QueryInput, attrs),
-      state.executedQuery === undefined
-        ? null
-        : m(QueryTable, {
-            trace: attrs.trace,
-            query: state.executedQuery,
-            resp: state.queryResult,
-            fillParent: false,
+      '.pf-query-page.page',
+      m(Box, {className: 'pf-query-page__toolbar'}, [
+        m(Stack, {orientation: 'horizontal'}, [
+          m(Button, {
+            label: 'Run Query',
+            icon: 'play_arrow',
+            intent: Intent.Primary,
+            variant: ButtonVariant.Filled,
+            onclick: () => {
+              attrs.onExecute?.(attrs.editorText);
+            },
           }),
+          m(
+            Stack,
+            {orientation: 'horizontal', className: 'pf-query-page__hotkeys'},
+            'or press',
+            m(HotkeyGlyphs, {hotkey: 'Mod+Enter'}),
+          ),
+          m(StackAuto), // The spacer pushes the following buttons to the right.
+          m(CopyToClipboardButton, {
+            textToCopy: attrs.editorText,
+            title: 'Copy query to clipboard',
+            label: 'Copy Query',
+          }),
+        ]),
+      ]),
+      attrs.editorText.includes('"') &&
+        m(
+          Box,
+          m(
+            Callout,
+            {icon: 'warning', intent: Intent.None},
+            `" (double quote) character observed in query; if this is being used to ` +
+              `define a string, please use ' (single quote) instead. Using double quotes ` +
+              `can cause subtle problems which are very hard to debug.`,
+          ),
+        ),
+      m(Editor, {
+        ref: 'editor',
+        language: 'perfetto-sql',
+        text: attrs.editorText,
+        onUpdate: attrs.onEditorContentUpdate,
+        onExecute: attrs.onExecute,
+      }),
+      m(ResizeHandle, {
+        onResize: (deltaPx: number) => {
+          this.editorHeight += deltaPx;
+          this.editorElement!.style.height = `${this.editorHeight}px`;
+        },
+        onResizeStart: () => {
+          this.editorHeight = this.editorElement!.clientHeight;
+        },
+      }),
+      this.dataSource &&
+        attrs.queryResult &&
+        this.renderQueryResult(attrs.queryResult, this.dataSource),
       m(QueryHistoryComponent, {
+        className: 'pf-query-page__history',
         trace: attrs.trace,
-        runQuery: (q: string) => runManualQuery(attrs.trace, q),
-        setQuery: (q: string) => {
-          state.enteredText = q;
-          state.generation++;
+        runQuery: (query: string) => {
+          attrs.onExecute?.(query);
+        },
+        setQuery: (query: string) => {
+          attrs.onEditorContentUpdate?.(query);
         },
       }),
     );
   }
+
+  private renderQueryResult(
+    queryResult: QueryResponse,
+    dataSource: DataGridDataSource,
+  ) {
+    const queryTimeString = `${queryResult.durationMs.toFixed(1)} ms`;
+    if (queryResult.error) {
+      return m('.query-error', `SQL error: ${queryResult.error}`);
+    } else {
+      return [
+        queryResult.statementWithOutputCount > 1 &&
+          m(
+            '.pf-query-warning',
+            m(
+              Box,
+              m(
+                Callout,
+                {icon: 'warning', intent: Intent.None},
+                `${queryResult.statementWithOutputCount} out of ${queryResult.statementCount} `,
+                'statements returned a result. ',
+                'Only the results for the last statement are displayed.',
+              ),
+            ),
+          ),
+        m(DataGrid, {
+          className: 'pf-query-page__results',
+          data: dataSource,
+          columns: queryResult.columns.map((c) => ({name: c})),
+          toolbarItemsLeft: m(
+            'span.pf-query-page__elapsed-time',
+            {title: `This query returned in ${queryTimeString}`},
+            [m(Icon, {icon: 'timer'}), ' ', queryTimeString],
+          ),
+          toolbarItemsRight: [
+            this.renderCopyButton(queryResult),
+            this.renderDownloadButton(queryResult),
+          ],
+        }),
+      ];
+    }
+  }
+
+  private renderCopyButton(resp: QueryResponse) {
+    const helper = this.dataGridCopyHelper;
+    const label = helper.copied ? 'Copied' : 'Copy';
+    const icon = helper.copied ? Icons.Check : Icons.Copy;
+    const intent = helper.copied ? Intent.Success : Intent.None;
+
+    return m(
+      PopupMenu,
+      {
+        trigger: m(Button, {
+          icon,
+          intent,
+          title: 'Copy results to clipboard',
+          label,
+        }),
+      },
+      [
+        m(MenuItem, {
+          label: 'TSV',
+          onclick: async () => {
+            const content = formatAsDelimited(resp);
+            await helper.copy(content);
+          },
+        }),
+        m(MenuItem, {
+          label: 'Markdown',
+          onclick: async () => {
+            const content = formatAsMarkdownTable(resp);
+            await helper.copy(content);
+          },
+        }),
+        m(MenuItem, {
+          label: 'JSON',
+          onclick: async () => {
+            const content = stringifyJsonWithBigints(resp.rows);
+            await helper.copy(content);
+          },
+        }),
+      ],
+    );
+  }
+
+  private renderDownloadButton(resp: QueryResponse) {
+    return m(
+      PopupMenu,
+      {
+        trigger: m(Button, {
+          icon: Icons.Download,
+          title: 'Download data',
+          label: 'Download',
+        }),
+      },
+      [
+        m(MenuItem, {
+          label: 'TSV',
+          onclick: () => {
+            const content = formatAsDelimited(resp);
+            download({
+              content,
+              mimeType: 'text/tab-separated-values',
+              fileName: 'query_result.tsv',
+            });
+          },
+        }),
+        m(MenuItem, {
+          label: 'Markdown',
+          onclick: () => {
+            const content = formatAsMarkdownTable(resp);
+            download({
+              content,
+              mimeType: 'text/markdown',
+              fileName: 'query_result.md',
+            });
+          },
+        }),
+        m(MenuItem, {
+          label: 'JSON',
+          onclick: () => {
+            const content = stringifyJsonWithBigints(resp.rows, 2);
+            download({
+              content,
+              mimeType: 'text/json',
+              fileName: 'query_result.json',
+            });
+          },
+        }),
+      ],
+    );
+  }
+}
+
+interface CopyToClipboardButtonAttrs {
+  readonly textToCopy: string;
+  readonly title?: string;
+  readonly label?: string;
+}
+
+function CopyToClipboardButton() {
+  const helper = new CopyHelper();
+
+  return {
+    view({attrs}: m.Vnode<CopyToClipboardButtonAttrs>): m.Children {
+      const label = helper.copied ? 'Copied' : attrs.label;
+      return m(Button, {
+        title: attrs.title ?? 'Copy to clipboard',
+        icon: helper.copied ? Icons.Check : Icons.Copy,
+        intent: helper.copied ? Intent.Success : Intent.None,
+        label,
+        onclick: async () => {
+          await helper.copy(attrs.textToCopy);
+        },
+      });
+    },
+  };
 }

@@ -186,3 +186,69 @@ class ChromeParser(TestSuite):
         "log_message","function_name","file_name","line_number"
         "log message","func","foo.cc",123
         """))
+
+  def test_chrome_thread_is_sandboxed_tid(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1234
+            parent_uuid: 5678
+            thread {
+              pid: 1234
+              tid: 1
+              thread_name: "thread1"
+            }
+            chrome_thread {
+              is_sandboxed_tid: true
+            }
+          }
+          trusted_uid: 0
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          timestamp: 0
+          track_descriptor {
+            uuid: 5678
+            process {
+              pid: 1234
+              process_name: "process1"
+            }
+            chrome_process {
+              process_type: PROCESS_SERVICE_TRACING
+            }
+          }
+          trusted_uid: 0
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          timestamp: 0
+          sequence_flags: 2
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            extra_counter_values: 75275
+            category_iids: 1
+          }
+          interned_data {
+            event_categories {
+              iid: 1
+              name: "category1"
+            }
+          }
+          trusted_uid: 0
+          trusted_packet_sequence_id: 1
+        }
+        """),
+        query="""
+        SELECT utid, tid, thread.name, upid, pid, is_main_thread
+        FROM thread LEFT JOIN process USING (upid);
+        """,
+        # A synthetic TID should be used for the sandboxed tid
+        out=Csv("""
+        "utid","tid","name","upid","pid","is_main_thread"
+        0,0,"swapper",0,0,1
+        1,1234,"[NULL]",1,1234,1
+        2,5299989643265,"thread1",1,1234,0
+        """))

@@ -54,7 +54,7 @@ class SystraceSerializer {
   tables::ArgTable::ConstCursor cursor_;
 };
 
-struct ToFtrace : public SqlFunction {
+struct ToFtrace : public LegacySqlFunction {
   struct Context {
     explicit Context(TraceProcessorContext* ctx)
         : storage(ctx->storage.get()), serializer(ctx) {}

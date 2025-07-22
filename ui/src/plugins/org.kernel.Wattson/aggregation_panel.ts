@@ -51,7 +51,7 @@ export class WattsonAggregationPanel
   ) {
     const columnsById = new Map(columns.map((c) => [c.columnId, c]));
     return m(DataGrid, {
-      toolbarItems: m(
+      toolbarItemsLeft: m(
         Box,
         m(SegmentedButtons, {
           options: [{label: 'µW'}, {label: 'mW'}],

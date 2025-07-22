@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 #include "perfetto/ext/base/utils.h"
 
 #include "test/gtest_and_gmock.h"
@@ -27,9 +27,9 @@ using testing::UnorderedElementsAre;
 namespace perfetto {
 namespace {
 
-class MockFtraceProcfs : public FtraceProcfs {
+class MockTracefs : public Tracefs {
  public:
-  MockFtraceProcfs() : FtraceProcfs("/root/") {}
+  MockTracefs() : Tracefs("/root/") {}
 
   MOCK_METHOD(bool,
               WriteToFile,
@@ -44,8 +44,8 @@ class MockFtraceProcfs : public FtraceProcfs {
   MOCK_METHOD(size_t, NumberOfCpus, (), (const, override));
 };
 
-TEST(FtraceProcfsTest, ParseAvailableClocks) {
-  MockFtraceProcfs ftrace;
+TEST(TracefsTest, ParseAvailableClocks) {
+  MockTracefs ftrace;
 
   EXPECT_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
       .WillOnce(Return("[local] global boot"));
@@ -101,8 +101,8 @@ TEST(FtraceProcfsTest, ParseAvailableClocks) {
   EXPECT_THAT(ftrace.AvailableClocks(), IsEmpty());
 }
 
-TEST(FtraceProcfsTest, ReadBufferSizeInPages) {
-  MockFtraceProcfs ftrace;
+TEST(TracefsTest, ReadBufferSizeInPages) {
+  MockTracefs ftrace;
   uint32_t page_in_kb = base::GetSysPageSize() / 1024ul;
 
   // Boundary checks

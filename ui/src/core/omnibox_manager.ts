@@ -37,7 +37,7 @@ export class OmniboxManagerImpl implements OmniboxManager {
   private _pendingPrompt?: Prompt;
   private _omniboxSelectionIndex = 0;
   private _forceShortTextSearch = false;
-  private _textForMode = new Map<OmniboxMode, string>();
+  private _text = '';
   private _statusMessageContainer: {msg?: string} = {};
 
   get mode(): OmniboxMode {
@@ -49,7 +49,7 @@ export class OmniboxManagerImpl implements OmniboxManager {
   }
 
   get text(): string {
-    return this._textForMode.get(this._mode) ?? '';
+    return this._text;
   }
 
   get selectionIndex(): number {
@@ -69,7 +69,7 @@ export class OmniboxManagerImpl implements OmniboxManager {
   }
 
   setText(value: string): void {
-    this._textForMode.set(this._mode, value);
+    this._text = value;
   }
 
   setSelectionIndex(index: number): void {
@@ -90,6 +90,7 @@ export class OmniboxManagerImpl implements OmniboxManager {
     this._mode = mode;
     this._focusOmniboxNextRender = focus;
     this._omniboxSelectionIndex = 0;
+    this._text = '';
     this.rejectPendingPrompt();
   }
 

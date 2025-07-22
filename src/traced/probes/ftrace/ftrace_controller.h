@@ -37,7 +37,7 @@ namespace perfetto {
 
 class FtraceConfigMuxer;
 class FtraceDataSource;
-class FtraceProcfs;
+class Tracefs;
 class LazyKernelSymbolizer;
 class ProtoTranslationTable;
 struct FtraceStats;
@@ -95,7 +95,7 @@ class FtraceController {
  protected:
   // Everything protected/virtual for testing:
 
-  FtraceController(std::unique_ptr<FtraceProcfs>,
+  FtraceController(std::unique_ptr<Tracefs>,
                    std::unique_ptr<ProtoTranslationTable>,
                    std::unique_ptr<AtraceWrapper>,
                    std::unique_ptr<FtraceConfigMuxer>,
@@ -103,11 +103,11 @@ class FtraceController {
                    Observer*);
 
   struct FtraceInstanceState {
-    FtraceInstanceState(std::unique_ptr<FtraceProcfs>,
+    FtraceInstanceState(std::unique_ptr<Tracefs>,
                         std::unique_ptr<ProtoTranslationTable>,
                         std::unique_ptr<FtraceConfigMuxer>);
 
-    std::unique_ptr<FtraceProcfs> ftrace_procfs;
+    std::unique_ptr<Tracefs> tracefs;
     std::unique_ptr<ProtoTranslationTable> table;
     std::unique_ptr<FtraceConfigMuxer> ftrace_config_muxer;
     std::vector<CpuReader> cpu_readers;  // empty if no started data sources

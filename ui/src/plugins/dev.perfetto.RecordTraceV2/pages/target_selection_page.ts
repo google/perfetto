@@ -25,7 +25,7 @@ import {PreflightCheckRenderer} from './preflight_check_renderer';
 import {Select} from '../../../widgets/select';
 import {DisposableStack} from '../../../base/disposable_stack';
 import {CurrentTracingSession, RecordingManager} from '../recording_manager';
-import {downloadData} from '../../../base/download_utils';
+import {download} from '../../../base/download_utils';
 import {RecordSubpage} from '../config/config_interfaces';
 import {RecordPluginSchema} from '../serialization_schema';
 import {Checkbox} from '../../../widgets/checkbox';
@@ -369,7 +369,11 @@ class SessionStateRenderer implements m.ClassComponent<SessionStateAttrs> {
             m(Button, {
               label: 'Download',
               icon: 'download',
-              onclick: () => downloadData(this.session.fileName, traceData),
+              onclick: () =>
+                download({
+                  fileName: this.session.fileName,
+                  content: traceData,
+                }),
             }),
           ),
         ),

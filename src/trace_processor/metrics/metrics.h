@@ -149,7 +149,7 @@ int TemplateReplace(
     std::string* out);
 
 // Implements the NULL_IF_EMPTY SQL function.
-struct NullIfEmpty : public SqlFunction {
+struct NullIfEmpty : public LegacySqlFunction {
   static base::Status Run(void* ctx,
                           size_t argc,
                           sqlite3_value** argv,
@@ -158,7 +158,7 @@ struct NullIfEmpty : public SqlFunction {
 };
 
 // Implements all the proto creation functions.
-struct BuildProto : public SqlFunction {
+struct BuildProto : public LegacySqlFunction {
   struct Context {
     TraceProcessor* tp;
     const DescriptorPool* pool;
@@ -172,7 +172,7 @@ struct BuildProto : public SqlFunction {
 };
 
 // Implements the RUN_METRIC SQL function.
-struct RunMetric : public SqlFunction {
+struct RunMetric : public LegacySqlFunction {
   struct Context {
     PerfettoSqlEngine* engine;
     std::vector<SqlMetricFile>* metrics;
@@ -186,7 +186,7 @@ struct RunMetric : public SqlFunction {
 };
 
 // Implements the UNWRAP_METRIC_PROTO SQL function.
-struct UnwrapMetricProto : public SqlFunction {
+struct UnwrapMetricProto : public LegacySqlFunction {
   static base::Status Run(Context* ctx,
                           size_t argc,
                           sqlite3_value** argv,
@@ -195,7 +195,7 @@ struct UnwrapMetricProto : public SqlFunction {
 };
 
 // These functions implement the RepeatedField SQL aggregate functions.
-struct RepeatedField : public SqliteAggregateFunction<RepeatedField> {
+struct RepeatedField : public sqlite::AggregateFunction<RepeatedField> {
   static constexpr char kName[] = "RepeatedField";
   static constexpr int kArgCount = 1;
 

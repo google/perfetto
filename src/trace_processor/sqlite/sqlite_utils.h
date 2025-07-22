@@ -20,7 +20,6 @@
 #include <sqlite3.h>
 #include <bitset>
 #include <cstddef>
-#include <cstdint>
 #include <cstring>
 #include <functional>
 #include <optional>
@@ -61,31 +60,6 @@ inline bool IsOpEq(int op) {
 inline bool IsOpLe(int op) {
   return op == SQLITE_INDEX_CONSTRAINT_LE;
 }
-inline bool IsOpLt(int op) {
-  return op == SQLITE_INDEX_CONSTRAINT_LT;
-}
-inline bool IsOpGe(int op) {
-  return op == SQLITE_INDEX_CONSTRAINT_GE;
-}
-inline bool IsOpGt(int op) {
-  return op == SQLITE_INDEX_CONSTRAINT_GT;
-}
-
-inline SqlValue::Type SqliteTypeToSqlValueType(int sqlite_type) {
-  switch (sqlite_type) {
-    case SQLITE_NULL:
-      return SqlValue::Type::kNull;
-    case SQLITE_BLOB:
-      return SqlValue::Type::kBytes;
-    case SQLITE_INTEGER:
-      return SqlValue::Type::kLong;
-    case SQLITE_FLOAT:
-      return SqlValue::Type::kDouble;
-    case SQLITE_TEXT:
-      return SqlValue::Type::kString;
-  }
-  PERFETTO_FATAL("Unknown SQLite type %d", sqlite_type);
-}
 
 inline SqlValue SqliteValueToSqlValue(sqlite3_value* value) {
   SqlValue sql_value;
@@ -125,33 +99,6 @@ inline std::optional<std::string> SqlValueToString(SqlValue value) {
       return std::nullopt;
   }
   PERFETTO_FATAL("For GCC");
-}
-
-inline void ReportSqlValue(
-    sqlite3_context* ctx,
-    const SqlValue& value,
-    sqlite3_destructor_type string_destructor = kSqliteTransient,
-    sqlite3_destructor_type bytes_destructor = kSqliteTransient) {
-  switch (value.type) {
-    case SqlValue::Type::kLong:
-      sqlite::result::Long(ctx, value.long_value);
-      break;
-    case SqlValue::Type::kDouble:
-      sqlite::result::Double(ctx, value.double_value);
-      break;
-    case SqlValue::Type::kString: {
-      sqlite::result::RawString(ctx, value.string_value, string_destructor);
-      break;
-    }
-    case SqlValue::Type::kBytes:
-      sqlite::result::RawBytes(ctx, value.bytes_value,
-                               static_cast<int>(value.bytes_count),
-                               bytes_destructor);
-      break;
-    case SqlValue::Type::kNull:
-      sqlite::result::Null(ctx);
-      break;
-  }
 }
 
 inline int SetError(sqlite3_vtab* tab, const char* status) {
@@ -228,22 +175,6 @@ inline base::Status ValidateFunctionArguments(
   return base::OkStatus();
 }
 
-inline const char* SqlValueTypeToString(SqlValue::Type type) {
-  switch (type) {
-    case SqlValue::Type::kString:
-      return "STRING";
-    case SqlValue::Type::kDouble:
-      return "DOUBLE";
-    case SqlValue::Type::kLong:
-      return "LONG";
-    case SqlValue::Type::kBytes:
-      return "BYTES";
-    case SqlValue::Type::kNull:
-      return "NULL";
-  }
-  PERFETTO_FATAL("For GCC");
-}
-
 // Converts the given SqlValue type to the type string SQLite understands.
 inline std::string SqlValueTypeToSqliteTypeName(SqlValue::Type type) {
   switch (type) {
@@ -264,32 +195,11 @@ inline std::string SqlValueTypeToSqliteTypeName(SqlValue::Type type) {
   PERFETTO_FATAL("Not reached");  // For gcc
 }
 
-// Exracts the given type from the SqlValue if |value| can fit
-// in the provided optional. Note that SqlValue::kNull will always
-// succeed and cause std::nullopt to be set.
-//
-// Returns base::ErrStatus if the type does not match or does not
-// fit in the width of the provided optional type (i.e. int64 value
-// not fitting in int32 optional).
-base::Status ExtractFromSqlValue(const SqlValue& value,
-                                 std::optional<int64_t>&);
-base::Status ExtractFromSqlValue(const SqlValue& value,
-                                 std::optional<int32_t>&);
-base::Status ExtractFromSqlValue(const SqlValue& value,
-                                 std::optional<uint32_t>&);
-base::Status ExtractFromSqlValue(const SqlValue& value, std::optional<double>&);
-base::Status ExtractFromSqlValue(const SqlValue& value,
-                                 std::optional<const char*>&);
-
 // Returns the column names for the table named by |raw_table_name|.
 base::Status GetColumnsForTable(
     sqlite3* db,
     const std::string& raw_table_name,
     std::vector<std::pair<SqlValue::Type, std::string>>& columns);
-
-// Reads a `SQLITE_TEXT` value and returns it as a wstring (UTF-16) in the
-// default byte order. `value` must be a `SQLITE_TEXT`.
-std::wstring SqliteValueToWString(sqlite3_value* value);
 
 // Given an SqlValue::Type, converts it to a human-readable string.
 // This should really only be used for debugging messages.
@@ -303,12 +213,6 @@ base::Status CheckArgCount(const char* function_name,
 
 // Type-safe helpers to extract an arg value from a sqlite3_value*, returning an
 // appropriate message if it fails.
-base::StatusOr<int64_t> ExtractIntArg(const char* function_name,
-                                      const char* arg_name,
-                                      sqlite3_value* value);
-base::StatusOr<double> ExtractDoubleArg(const char* function_name,
-                                        const char* arg_name,
-                                        sqlite3_value* value);
 base::StatusOr<std::string> ExtractStringArg(const char* function_name,
                                              const char* arg_name,
                                              sqlite3_value* value);

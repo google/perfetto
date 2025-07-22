@@ -1002,13 +1002,13 @@ TEST_F(ExportJsonTest, AsyncEvents) {
   StringId name3_id = context_.storage->InternString(base::StringView(kName3));
 
   constexpr int64_t kSourceId = 235;
-  TrackId track = context_.track_tracker->InternLegacyAsyncTrack(
+  TrackId track = context_.track_compressor->InternLegacyAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
-      /*source_scope=*/kNullStringId);
+      /*source_scope=*/kNullStringId, TrackCompressor::AsyncSliceType::kBegin);
   constexpr int64_t kSourceId2 = 236;
-  TrackId track2 = context_.track_tracker->InternLegacyAsyncTrack(
+  TrackId track2 = context_.track_compressor->InternLegacyAsyncTrack(
       name3_id, upid, kSourceId2, /*trace_id_is_process_scoped=*/true,
-      /*source_scope=*/kNullStringId);
+      /*source_scope=*/kNullStringId, TrackCompressor::AsyncSliceType::kBegin);
   context_.args_tracker->Flush();  // Flush track args.
 
   context_.storage->mutable_slice_table()->Insert(
@@ -1019,17 +1019,31 @@ TEST_F(ExportJsonTest, AsyncEvents) {
   arg.flat_key = arg_key_id;
   arg.key = arg_key_id;
   arg.value = Variadic::Integer(kArgValue);
-  ArgSetId args = context_.global_args_tracker->AddArgSet({arg}, 0, 1);
+  StringId legacy_source_id_key =
+      context_.storage->InternString("legacy_trace_source_id");
+  GlobalArgsTracker::Arg source_id_arg;
+  source_id_arg.flat_key = legacy_source_id_key;
+  source_id_arg.key = legacy_source_id_key;
+  source_id_arg.value = Variadic::Integer(kSourceId);
+  ArgSetId args =
+      context_.global_args_tracker->AddArgSet({arg, source_id_arg}, 0, 2);
   auto& slice = *context_.storage->mutable_slice_table();
   slice[0].set_arg_set_id(args);
 
   // Child event with same timestamps as first one.
   context_.storage->mutable_slice_table()->Insert(
       {kTimestamp, kDuration, track, cat_id, name2_id, 0, 0, 0});
+  ArgSetId args2 =
+      context_.global_args_tracker->AddArgSet({source_id_arg}, 0, 1);
+  slice[1].set_arg_set_id(args2);
 
   // Another overlapping async event on a different track.
   context_.storage->mutable_slice_table()->Insert(
       {kTimestamp3, kDuration3, track2, cat_id, name3_id, 0, 0, 0});
+  source_id_arg.value = Variadic::Integer(kSourceId2);
+  ArgSetId args3 =
+      context_.global_args_tracker->AddArgSet({source_id_arg}, 0, 1);
+  slice[2].set_arg_set_id(args3);
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
@@ -1149,13 +1163,13 @@ TEST_F(ExportJsonTest, LegacyAsyncEvents) {
   };
 
   constexpr int64_t kSourceId = 235;
-  TrackId track = context_.track_tracker->InternLegacyAsyncTrack(
+  TrackId track = context_.track_compressor->InternLegacyAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
-      /*source_scope=*/kNullStringId);
+      /*source_scope=*/kNullStringId, TrackCompressor::AsyncSliceType::kBegin);
   constexpr int64_t kSourceId2 = 236;
-  TrackId track2 = context_.track_tracker->InternLegacyAsyncTrack(
+  TrackId track2 = context_.track_compressor->InternLegacyAsyncTrack(
       name3_id, upid, kSourceId2, /*trace_id_is_process_scoped=*/true,
-      /*source_scope=*/kNullStringId);
+      /*source_scope=*/kNullStringId, TrackCompressor::AsyncSliceType::kBegin);
   context_.args_tracker->Flush();  // Flush track args.
 
   context_.storage->mutable_slice_table()->Insert(
@@ -1163,7 +1177,14 @@ TEST_F(ExportJsonTest, LegacyAsyncEvents) {
   std::vector<Arg> args1;
   arg_inserter("arg1", "value1", args1);
   arg_inserter("legacy_event.phase", "S", args1);
-  ArgSetId arg_id1 = context_.global_args_tracker->AddArgSet(args1, 0, 2);
+  StringId legacy_source_id_key =
+      context_.storage->InternString("legacy_trace_source_id");
+  GlobalArgsTracker::Arg source_id_arg;
+  source_id_arg.flat_key = legacy_source_id_key;
+  source_id_arg.key = legacy_source_id_key;
+  source_id_arg.value = Variadic::Integer(kSourceId);
+  args1.push_back(source_id_arg);
+  ArgSetId arg_id1 = context_.global_args_tracker->AddArgSet(args1, 0, 3);
   auto& slice = *context_.storage->mutable_slice_table();
   slice[0].set_arg_set_id(arg_id1);
 
@@ -1174,7 +1195,8 @@ TEST_F(ExportJsonTest, LegacyAsyncEvents) {
   arg_inserter("arg2", "value2", step_args);
   arg_inserter("legacy_event.phase", "T", step_args);
   arg_inserter("debug.step", "Step1", step_args);
-  ArgSetId arg_id2 = context_.global_args_tracker->AddArgSet(step_args, 0, 3);
+  step_args.push_back(source_id_arg);
+  ArgSetId arg_id2 = context_.global_args_tracker->AddArgSet(step_args, 0, 4);
   slice[1].set_arg_set_id(arg_id2);
 
   // Another overlapping async event on a different track.
@@ -1182,7 +1204,9 @@ TEST_F(ExportJsonTest, LegacyAsyncEvents) {
       {kTimestamp3, kDuration3, track2, cat_id, name3_id, 0, 0, 0});
   std::vector<Arg> args3;
   arg_inserter("legacy_event.phase", "S", args3);
-  ArgSetId arg_id3 = context_.global_args_tracker->AddArgSet(args3, 0, 1);
+  source_id_arg.value = Variadic::Integer(kSourceId2);
+  args3.push_back(source_id_arg);
+  ArgSetId arg_id3 = context_.global_args_tracker->AddArgSet(args3, 0, 2);
   slice[2].set_arg_set_id(arg_id3);
 
   base::TempFile temp_file = base::TempFile::Create();
@@ -1272,14 +1296,23 @@ TEST_F(ExportJsonTest, AsyncEventWithThreadTimestamp) {
   StringId name_id = context_.storage->InternString(base::StringView(kName));
 
   constexpr int64_t kSourceId = 235;
-  TrackId track = context_.track_tracker->InternLegacyAsyncTrack(
+  TrackId track = context_.track_compressor->InternLegacyAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
-      /*source_scope=*/kNullStringId);
+      /*source_scope=*/kNullStringId, TrackCompressor::AsyncSliceType::kBegin);
   context_.args_tracker->Flush();  // Flush track args.
 
   auto* slices = context_.storage->mutable_slice_table();
   auto id_and_row =
       slices->Insert({kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0});
+  StringId legacy_source_id_key =
+      context_.storage->InternString("legacy_trace_source_id");
+  GlobalArgsTracker::Arg source_id_arg;
+  source_id_arg.flat_key = legacy_source_id_key;
+  source_id_arg.key = legacy_source_id_key;
+  source_id_arg.value = Variadic::Integer(kSourceId);
+  ArgSetId args =
+      context_.global_args_tracker->AddArgSet({source_id_arg}, 0, 1);
+  id_and_row.row_reference.set_arg_set_id(args);
   context_.storage->mutable_virtual_track_slices()->AddVirtualTrackSlice(
       id_and_row.id, kThreadTimestamp, kThreadDuration, 0, 0);
 
@@ -1328,17 +1361,24 @@ TEST_F(ExportJsonTest, UnfinishedAsyncEvent) {
   StringId name_id = context_.storage->InternString(base::StringView(kName));
 
   constexpr int64_t kSourceId = 235;
-  TrackId track = context_.track_tracker->InternLegacyAsyncTrack(
+  TrackId track = context_.track_compressor->InternLegacyAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
-      /*source_scope=*/kNullStringId);
+      /*source_scope=*/kNullStringId, TrackCompressor::AsyncSliceType::kBegin);
   context_.args_tracker->Flush();  // Flush track args.
 
-  auto slice_id =
-      context_.storage->mutable_slice_table()
-          ->Insert({kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0})
-          .id;
+  auto slice_id_and_row = context_.storage->mutable_slice_table()->Insert(
+      {kTimestamp, kDuration, track, cat_id, name_id, 0, 0, 0});
+  StringId legacy_source_id_key =
+      context_.storage->InternString("legacy_trace_source_id");
+  GlobalArgsTracker::Arg source_id_arg;
+  source_id_arg.flat_key = legacy_source_id_key;
+  source_id_arg.key = legacy_source_id_key;
+  source_id_arg.value = Variadic::Integer(kSourceId);
+  ArgSetId args =
+      context_.global_args_tracker->AddArgSet({source_id_arg}, 0, 1);
+  slice_id_and_row.row_reference.set_arg_set_id(args);
   context_.storage->mutable_virtual_track_slices()->AddVirtualTrackSlice(
-      slice_id, kThreadTimestamp, kThreadDuration, 0, 0);
+      slice_id_and_row.id, kThreadTimestamp, kThreadDuration, 0, 0);
 
   base::TempFile temp_file = base::TempFile::Create();
   FILE* output = fopen(temp_file.path().c_str(), "w+e");
@@ -1373,9 +1413,10 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
   StringId name_id = context_.storage->InternString(base::StringView(kName));
 
   constexpr int64_t kSourceId = 235;
-  TrackId track = context_.track_tracker->InternLegacyAsyncTrack(
+  TrackId track = context_.track_compressor->InternLegacyAsyncTrack(
       name_id, upid, kSourceId, /*trace_id_is_process_scoped=*/true,
-      /*source_scope=*/kNullStringId);
+      /*source_scope=*/kNullStringId,
+      TrackCompressor::AsyncSliceType::kInstant);
   context_.args_tracker->Flush();  // Flush track args.
 
   context_.storage->mutable_slice_table()->Insert(
@@ -1386,7 +1427,14 @@ TEST_F(ExportJsonTest, AsyncInstantEvent) {
   arg.flat_key = arg_key_id;
   arg.key = arg_key_id;
   arg.value = Variadic::Integer(kArgValue);
-  ArgSetId args = context_.global_args_tracker->AddArgSet({arg}, 0, 1);
+  StringId legacy_source_id_key =
+      context_.storage->InternString("legacy_trace_source_id");
+  GlobalArgsTracker::Arg source_id_arg;
+  source_id_arg.flat_key = legacy_source_id_key;
+  source_id_arg.key = legacy_source_id_key;
+  source_id_arg.value = Variadic::Integer(kSourceId);
+  ArgSetId args =
+      context_.global_args_tracker->AddArgSet({arg, source_id_arg}, 0, 2);
   auto& slice = *context_.storage->mutable_slice_table();
   slice[0].set_arg_set_id(args);
 

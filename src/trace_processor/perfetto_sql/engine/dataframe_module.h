@@ -102,7 +102,6 @@ struct DataframeModule : sqlite::Module<DataframeModule> {
     sqlite3_context* ctx;
   };
   struct Vtab : sqlite::Module<DataframeModule>::Vtab {
-    const dataframe::Dataframe* dataframe;
     sqlite::ModuleStateManager<DataframeModule>::PerVtabState* state;
     std::string name;
     int best_idx_num = 0;

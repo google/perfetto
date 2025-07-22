@@ -119,8 +119,9 @@ class TrackCompressor {
       const BlueprintT& bp,
       const internal::uncompressed_dimensions_t<BlueprintT>& dims,
       int64_t cookie,
-      const typename BlueprintT::name_t& name = tracks::BlueprintName()) {
-    return Begin(CreateTrackFactory(bp, dims, name), cookie);
+      const typename BlueprintT::name_t& name = tracks::BlueprintName(),
+      TrackTracker::SetArgsCallback args = {}) {
+    return Begin(CreateTrackFactory(bp, dims, name, args), cookie);
   }
 
   // Ends a new slice which has the given cookie.
@@ -129,8 +130,9 @@ class TrackCompressor {
       BlueprintT bp,
       const internal::uncompressed_dimensions_t<BlueprintT>& dims,
       int64_t cookie,
-      const typename BlueprintT::name_t& name = tracks::BlueprintName()) {
-    return End(CreateTrackFactory(bp, dims, name), cookie);
+      const typename BlueprintT::name_t& name = tracks::BlueprintName(),
+      TrackTracker::SetArgsCallback args = {}) {
+    return End(CreateTrackFactory(bp, dims, name, args), cookie);
   }
 
   // Creates a scoped slice.
@@ -142,9 +144,24 @@ class TrackCompressor {
       const internal::uncompressed_dimensions_t<BlueprintT>& dims,
       int64_t ts,
       int64_t dur,
-      const typename BlueprintT::name_t& name = tracks::BlueprintName()) {
-    return Scoped(CreateTrackFactory(bp, dims, name), ts, dur);
+      const typename BlueprintT::name_t& name = tracks::BlueprintName(),
+      TrackTracker::SetArgsCallback args = {}) {
+    return Scoped(CreateTrackFactory(bp, dims, name, args), ts, dur);
   }
+
+  // Wrapper function for `InternTrack` for legacy "async" style tracks which
+  // is supported by the Chrome JSON format and other derivative formats
+  // (e.g. Fuchsia).
+  //
+  // WARNING: this function should *not* be used by any users not explicitly
+  // approved and discussed with a trace processor maintainer.
+  enum class AsyncSliceType { kBegin, kEnd, kInstant };
+  TrackId InternLegacyAsyncTrack(StringId name,
+                                 uint32_t upid,
+                                 int64_t trace_id,
+                                 bool trace_id_is_process_scoped,
+                                 StringId source_scope,
+                                 AsyncSliceType slice_type);
 
   // Wrapper around tracks::SliceBlueprint which makes the blueprint eligible
   // for compression with TrackCompressor. Please see documentation of
@@ -366,8 +383,16 @@ class TrackCompressor {
   }
 
   base::FlatHashMap<uint64_t, TrackSet, base::AlreadyHashed<uint64_t>> sets_;
+  base::FlatHashMap<uint64_t, StringId, base::AlreadyHashed<uint64_t>>
+      async_tracks_to_root_string_id_;
 
   TraceProcessorContext* const context_;
+
+  const StringId source_key_;
+  const StringId trace_id_is_process_scoped_key_;
+  const StringId upid_;
+  const StringId source_scope_key_;
+  const StringId chrome_source_;
 };
 
 }  // namespace perfetto::trace_processor

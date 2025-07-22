@@ -19,8 +19,8 @@
 #include <map>
 #include <set>
 
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 
 namespace perfetto::predefined_tracepoints {
 namespace {
@@ -346,7 +346,7 @@ base::FlatSet<GroupAndName> GeneratePagecacheTracePoints(
   return events;
 }
 
-base::FlatSet<GroupAndName> GenerateMemoryTracePoints(FtraceProcfs* ftrace) {
+base::FlatSet<GroupAndName> GenerateMemoryTracePoints(Tracefs* ftrace) {
   base::FlatSet<GroupAndName> events;
   // Use rss_stat_throttled if supported
   if (ftrace->SupportsRssStatThrottled()) {
@@ -381,7 +381,7 @@ base::FlatSet<GroupAndName> GenerateCameraTracePoints(
 
 std::map<std::string, base::FlatSet<GroupAndName>>
 GeneratePredefinedTracePoints(const ProtoTranslationTable* table,
-                              FtraceProcfs* ftrace) {
+                              Tracefs* ftrace) {
   // Ideally we should keep this code in sync with:
   // platform/frameworks/native/cmds/atrace/atrace.cpp
   // It's not a disaster if they go out of sync, we can always add the ftrace
@@ -418,13 +418,13 @@ GeneratePredefinedTracePoints(const ProtoTranslationTable* table,
 
 std::map<std::string, base::FlatSet<GroupAndName>> GetPredefinedTracePoints(
     const ProtoTranslationTable* table,
-    FtraceProcfs* ftrace) {
+    Tracefs* ftrace) {
   return GeneratePredefinedTracePoints(table, ftrace);
 }
 
 std::map<std::string, base::FlatSet<GroupAndName>>
 GetAccessiblePredefinedTracePoints(const ProtoTranslationTable* table,
-                                   FtraceProcfs* ftrace) {
+                                   Tracefs* ftrace) {
   auto tracepoints = GetPredefinedTracePoints(table, ftrace);
 
   bool generic_enable = ftrace->IsGenericSetEventWritable();

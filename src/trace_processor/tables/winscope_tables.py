@@ -275,7 +275,7 @@ SURFACE_FLINGER_LAYER_TABLE = Table(
         C('z_order_relative_of', CppOptional(CppInt64())),
         C('is_missing_z_parent', CppInt64()),
         C('layer_rect_id', CppOptional(CppTableId(WINSCOPE_TRACE_RECT_TABLE))),
-        C('input_rect_id', CppOptional(CppTableId(WINSCOPE_TRACE_RECT_TABLE)))
+        C('input_rect_id', CppOptional(CppTableId(WINSCOPE_TRACE_RECT_TABLE))),
     ],
     tabledoc=TableDoc(
         doc='SurfaceFlinger layer',

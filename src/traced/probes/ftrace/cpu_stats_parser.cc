@@ -19,8 +19,8 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 
 namespace perfetto {
 namespace {
@@ -73,7 +73,7 @@ bool DumpCpuStats(std::string text, FtraceCpuStats* stats) {
   return true;
 }
 
-bool DumpAllCpuStats(FtraceProcfs* ftrace, FtraceStats* stats) {
+bool DumpAllCpuStats(Tracefs* ftrace, FtraceStats* stats) {
   size_t num_cpus = ftrace->NumberOfCpus();
   stats->cpu_stats.resize(num_cpus, {});
   for (size_t cpu = 0; cpu < num_cpus; cpu++) {

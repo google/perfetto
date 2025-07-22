@@ -24,7 +24,7 @@
 
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 
 #include "protos/perfetto/common/descriptor.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
@@ -454,13 +454,13 @@ ProtoTranslationTable::DefaultPageHeaderSpecForTesting() {
 
 // static
 std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
-    const FtraceProcfs* ftrace_procfs,
+    const Tracefs* tracefs,
     std::vector<Event> events,
     std::vector<Field> common_fields) {
   bool common_fields_processed = false;
   uint16_t common_fields_end = 0;
 
-  std::string page_header = ftrace_procfs->ReadPageHeaderFormat();
+  std::string page_header = tracefs->ReadPageHeaderFormat();
   bool ftrace_header_parsed = false;
   FtracePageHeaderSpec header_spec{};
   if (!page_header.empty()) {
@@ -485,8 +485,7 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
     PERFETTO_DCHECK(event.proto_field_id);
     PERFETTO_DCHECK(!event.ftrace_event_id);
 
-    std::string contents =
-        ftrace_procfs->ReadEventFormat(event.group, event.name);
+    std::string contents = tracefs->ReadEventFormat(event.group, event.name);
     FtraceEvent ftrace_event;
     if (contents.empty() || !ParseFtraceEvent(contents, &ftrace_event)) {
       if (!strcmp(event.group, "ftrace") && !strcmp(event.name, "print")) {
@@ -545,23 +544,23 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
   CompactSchedEventFormat compact_sched =
       ValidateFormatForCompactSched(events, common_fields);
 
-  std::string text = ftrace_procfs->ReadPrintkFormats();
+  std::string text = tracefs->ReadPrintkFormats();
   PrintkMap printk_formats = ParsePrintkFormats(text);
 
   auto table = std::make_unique<ProtoTranslationTable>(
-      ftrace_procfs, events, std::move(common_fields), header_spec,
-      compact_sched, std::move(printk_formats));
+      tracefs, events, std::move(common_fields), header_spec, compact_sched,
+      std::move(printk_formats));
   return table;
 }
 
 ProtoTranslationTable::ProtoTranslationTable(
-    const FtraceProcfs* ftrace_procfs,
+    const Tracefs* tracefs,
     const std::vector<Event>& events,
     std::vector<Field> common_fields,
     FtracePageHeaderSpec ftrace_page_header_spec,
     CompactSchedEventFormat compact_sched_format,
     PrintkMap printk_formats)
-    : ftrace_procfs_(ftrace_procfs),
+    : tracefs_(tracefs),
       events_(BuildEventsDeque(events)),
       common_fields_(std::move(common_fields)),
       ftrace_page_header_spec_(std::move(ftrace_page_header_spec)),
@@ -610,8 +609,8 @@ const Event* ProtoTranslationTable::CreateGenericEventInternal(
     const GroupAndName& group_and_name,
     uint32_t proto_field_id,
     bool keep_proto_descriptor) {
-  std::string contents = ftrace_procfs_->ReadEventFormat(group_and_name.group(),
-                                                         group_and_name.name());
+  std::string contents =
+      tracefs_->ReadEventFormat(group_and_name.group(), group_and_name.name());
   if (contents.empty())
     return nullptr;
 

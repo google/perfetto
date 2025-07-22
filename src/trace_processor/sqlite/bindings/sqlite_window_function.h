@@ -20,13 +20,13 @@
 struct sqlite3_context;
 struct sqlite3_value;
 
-namespace perfetto::trace_processor {
+namespace perfetto::trace_processor::sqlite {
 
 // Prototype for a window function which can be registered with SQLite.
 //
 // See https://www.sqlite.org/windowfunctions.html#udfwinfunc for details on how
 // to implement the methods of this class.
-class SqliteWindowFunction {
+class WindowFunction {
  public:
   // The type of the context object which will be passed to the function.
   // Can be redefined in any sub-classes to override the context.
@@ -62,6 +62,6 @@ class SqliteWindowFunction {
   static void Final(sqlite3_context* ctx);
 };
 
-}  // namespace perfetto::trace_processor
+}  // namespace perfetto::trace_processor::sqlite
 
 #endif  // SRC_TRACE_PROCESSOR_SQLITE_BINDINGS_SQLITE_WINDOW_FUNCTION_H_

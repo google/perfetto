@@ -150,7 +150,7 @@ android_frame_timeline_metric {
     frame_dur_p99: 1980000
     frame_dur_ms_p50: 0.500000
     frame_dur_ms_p90: 1.800000
-    frame_dur_ms_p95: 1.9000000000000001
+    frame_dur_ms_p95: 1.9
     frame_dur_ms_p99: 1.980000
     dropped_frames: 0
     jank_types {

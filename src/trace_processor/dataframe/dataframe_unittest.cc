@@ -1011,6 +1011,35 @@ TEST_F(DataframeBytecodeTest,
   RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode);
 }
 
+TEST_F(DataframeBytecodeTest, PlanQuery_SingleColIndex_EqFilter_DenseNullInt) {
+  static constexpr auto kSpec = CreateTypedDataframeSpec(
+      {"col_dense_nullable"},
+      CreateTypedColumnSpec(Uint32(), DenseNull(), Unsorted()));
+
+  Dataframe df = Dataframe::CreateFromTypedSpec(kSpec, &string_pool_);
+  df.InsertUnchecked(kSpec, std::make_optional(10u));
+  df.InsertUnchecked(kSpec, std::nullopt);
+  df.InsertUnchecked(kSpec, std::make_optional(20u));
+  df.InsertUnchecked(kSpec, std::make_optional(10u));
+  df.Finalize();
+  df.AddIndex(Index({0}, std::make_shared<std::vector<uint32_t>>(
+                             std::vector<uint32_t>{1, 0, 3, 2})));
+
+  std::vector<FilterSpec> filters = {{0, 0, Eq{}, std::nullopt}};
+  std::string expected_bytecode = R"(
+    InitRange: [size=4, dest_register=Register(0)]
+    IndexPermutationVectorToSpan: [index=0, write_register=Register(1)]
+    CastFilterValue<Uint32>: [fval_handle=FilterValue(0), write_register=Register(2), op=NonNullOp(0)]
+    IndexedFilterEq<Uint32, DenseNull>: [col=0, filter_value_reg=Register(2), popcount_register=Register(3), update_register=Register(1)]
+    AllocateIndices: [size=4, dest_slab_register=Register(4), dest_span_register=Register(5)]
+    CopySpanIntersectingRange: [source_register=Register(1), source_range_register=Register(0), update_register=Register(5)]
+    AllocateIndices: [size=8, dest_slab_register=Register(6), dest_span_register=Register(7)]
+    StrideCopy: [source_register=Register(5), update_register=Register(7), stride=2]
+    StrideCopyDenseNullIndices: [col=0, update_register=Register(7), offset=1, stride=2]
+  )";
+  RunBytecodeTest(df, filters, {}, {}, {}, expected_bytecode);
+}
+
 TEST_F(DataframeBytecodeTest, PlanQuery_MultiColIndex_PrefixEqFilters) {
   static constexpr auto kSpec = CreateTypedDataframeSpec(
       {"col0_uint32", "col1_uint32"},

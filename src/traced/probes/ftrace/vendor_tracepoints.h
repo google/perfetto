@@ -23,8 +23,8 @@
 
 #include "perfetto/base/status.h"
 #include "src/traced/probes/ftrace/atrace_hal_wrapper.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 
 namespace perfetto {
 namespace vendor_tracepoints {
@@ -36,7 +36,7 @@ constexpr const char* kCategoriesFile =
 // Returns a map from vendor category to events we should enable. Queries the
 // atrace HAL.
 std::map<std::string, std::vector<GroupAndName>>
-DiscoverVendorTracepointsWithHal(AtraceHalWrapper* hal, FtraceProcfs* ftrace);
+DiscoverVendorTracepointsWithHal(AtraceHalWrapper* hal, Tracefs* ftrace);
 
 // Fills `*categories_map` with a map from vendor category to events we should
 // enable. Queries the vendor categories file at
@@ -51,7 +51,7 @@ base::Status DiscoverVendorTracepointsWithFile(
 base::Status DiscoverAccessibleVendorTracepointsWithFile(
     const std::string& vendor_atrace_categories_path,
     std::map<std::string, std::vector<GroupAndName>>* categories_map,
-    FtraceProcfs* ftrace);
+    Tracefs* ftrace);
 
 }  // namespace vendor_tracepoints
 }  // namespace perfetto

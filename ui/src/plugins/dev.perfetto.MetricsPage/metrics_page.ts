@@ -285,8 +285,7 @@ query: {
       '.pf-metricsv2-page',
       'Provide metric v2 spec in prototext format ',
       m(Editor, {
-        generation: attrs.editorGeneration,
-        initialText: this.text,
+        text: this.text,
         onExecute: (text: string) => {
           this.text = text;
           getMetricV2(attrs.engine, `metric_spec: {${text}}`, 'prototext')

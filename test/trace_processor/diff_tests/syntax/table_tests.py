@@ -708,3 +708,25 @@ class PerfettoTable(TestSuite):
         "class_name_iid","class_name_iid",3,"[NULL]"
         "view_id","view_id","[NULL]","NO_ID"
         """))
+
+  def test_winscope_surfaceflinger_hierarchy_paths(self):
+    return DiffTestBlueprint(
+        trace=Path('../parser/android/surfaceflinger_layers.textproto'),
+        query="""
+          SELECT * FROM __intrinsic_winscope_surfaceflinger_hierarchy_path() as tbl
+          ORDER BY tbl.id
+          LIMIT 10
+          """,
+        out=Csv("""
+          "id","snapshot_id","layer_id","ancestor_id"
+          0,0,3,3
+          1,0,4,3
+          2,0,4,4
+          3,1,3,3
+          4,1,4,3
+          5,1,4,4
+          6,2,4294967294,4294967294
+          7,2,1,1
+          8,2,2,2
+          9,2,3,3
+          """))

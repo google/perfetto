@@ -28,6 +28,7 @@ from src.trace_processor.tables.profiler_tables import STACK_PROFILE_CALLSITE_TA
 from src.trace_processor.tables.profiler_tables import STACK_PROFILE_FRAME_TABLE
 from src.trace_processor.tables.slice_tables import SLICE_TABLE
 from src.trace_processor.tables.track_tables import TRACK_TABLE
+from src.trace_processor.tables.winscope_tables import SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE
 
 TABLE_INFO_TABLE = Table(
     python_module=__file__,
@@ -182,6 +183,17 @@ DATAFRAME_QUERY_PLAN_DECODER_TABLE_TABLE = Table(
     ],
 )
 
+SURFACE_FLINGER_HIERARCHY_PATH_TABLE = Table(
+    python_module=__file__,
+    class_name="WinscopeSurfaceFlingerHierarchyPathTable",
+    sql_name="__intrinsic_winscope_surfaceflinger_hierarchy_path",
+    columns=[
+        C('snapshot_id', CppUint32()),
+        C('layer_id', CppUint32()),
+        C('ancestor_id', CppUint32()),
+    ],
+)
+
 # Keep this list sorted.
 ALL_TABLES = [
     ANCESTOR_STACK_PROFILE_CALLSITE_TABLE,
@@ -192,5 +204,6 @@ ALL_TABLES = [
     EXPERIMENTAL_ANNOTATED_CALLSTACK_TABLE,
     EXPERIMENTAL_SLICE_LAYOUT_TABLE,
     SLICE_SUBSET_TABLE,
+    SURFACE_FLINGER_HIERARCHY_PATH_TABLE,
     TABLE_INFO_TABLE,
 ]

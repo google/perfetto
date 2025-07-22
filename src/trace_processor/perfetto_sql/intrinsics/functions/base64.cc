@@ -29,7 +29,7 @@ namespace perfetto::trace_processor {
 
 namespace {
 
-struct Base64Decode : public SqlFunction {
+struct Base64Decode : public LegacySqlFunction {
   static base::Status Run(Context*,
                           size_t argc,
                           sqlite3_value** argv,

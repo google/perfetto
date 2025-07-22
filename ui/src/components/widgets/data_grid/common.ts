@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {SqlValue} from '../../../trace_processor/query_result';
 
 export type AggregationFunction = 'SUM' | 'AVG' | 'COUNT' | 'MIN' | 'MAX';
@@ -20,7 +21,7 @@ export interface ColumnDefinition {
   readonly name: string;
 
   // Human readable title to display instead of the name.
-  readonly title?: string;
+  readonly title?: m.Children;
 
   // An optional aggregation for data in this column displayed in the header
   // bar.
@@ -56,6 +57,7 @@ export interface DataSourceResult {
   readonly rowOffset: number;
   readonly rows: ReadonlyArray<RowDef>;
   readonly aggregates: RowDef;
+  readonly isLoading?: boolean;
 }
 
 export type RowDef = {[key: string]: SqlValue};
@@ -80,6 +82,7 @@ export interface DataGridModel {
 
 export interface DataGridDataSource {
   readonly rows?: DataSourceResult;
+  readonly isLoading?: boolean;
   notifyUpdate(model: DataGridModel): void;
 }
 

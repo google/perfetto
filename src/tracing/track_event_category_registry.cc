@@ -17,6 +17,12 @@
 #include "perfetto/tracing/track_event_category_registry.h"
 
 namespace perfetto {
+namespace {
+
+static constexpr const char kLegacySlowPrefix[] = "disabled-by-default-";
+static constexpr const char kSlowTag[] = "slow";
+
+}  // namespace
 
 // static
 Category Category::FromDynamicCategory(const char* name) {
@@ -27,6 +33,10 @@ Category Category::FromDynamicCategory(const char* name) {
   }
   Category category(name);
   PERFETTO_DCHECK(category.name);
+  // Disabled-by-default categories get a "slow" tag.
+  if (!strncmp(name, kLegacySlowPrefix, strlen(kLegacySlowPrefix))) {
+    return category.SetTags(kSlowTag);
+  }
   return category;
 }
 

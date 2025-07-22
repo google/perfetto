@@ -111,19 +111,6 @@ table {
   user-select: text;
 }
 
-body > main {
-  display: grid;
-  grid-template-areas:
-    "sidebar topbar"
-    "sidebar alerts"
-    "sidebar page"
-    "statusbar statusbar";
-  grid-template-rows: auto auto 1fr auto;
-  grid-template-columns: auto 1fr;
-  color: #121212;
-  overflow: hidden;
-}
-
 body.filedrag::after {
   content: "Drop the trace file to open it";
   position: fixed;
@@ -321,41 +308,6 @@ $bottom-tab-padding: 10px;
   overflow-x: auto;
 }
 
-header.overview {
-  position: sticky;
-  top: 0;
-  left: 0;
-  display: flex;
-  align-content: baseline;
-  background-color: hsl(213, 22%, 82%);
-  color: hsl(213, 22%, 20%);
-  font-family: "Roboto Condensed", sans-serif;
-  font-size: 15px;
-  font-weight: 400;
-  padding: 4px 10px;
-  vertical-align: middle;
-  border-color: hsl(213, 22%, 75%);
-  border-style: solid;
-  border-width: 1px 0;
-  .code {
-    font-family: var(--monospace-font);
-    font-size: 12px;
-    margin-left: 10px;
-    color: hsl(213, 22%, 40%);
-  }
-  span {
-    white-space: nowrap;
-  }
-  span.code {
-    text-overflow: ellipsis;
-    max-width: 50vw;
-    overflow: hidden;
-  }
-  span.spacer {
-    flex-grow: 1;
-  }
-}
-
 .text-select {
   user-select: text;
   -webkit-user-select: text;
@@ -525,57 +477,6 @@ button.query-ctrl {
 
   &.highlight-right {
     background: linear-gradient(270deg, $table-border-color, transparent 20%);
-  }
-}
-
-.history-item {
-  border-bottom: 1px solid hsl(213, 22%, 75%);
-  padding: 0.25em 0.5em;
-  max-height: 150px;
-  overflow-y: auto;
-  position: relative;
-
-  pre {
-    font-size: 10pt;
-    margin: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    white-space: pre-wrap;
-    position: relative;
-    cursor: pointer;
-
-    &:hover::after {
-      content: "Doubleclick to re-run";
-      font-size: 12px;
-      color: rgba(0, 0, 0, 20%);
-      position: absolute;
-      top: 0;
-      margin: auto;
-      right: 0;
-    }
-  }
-
-  &:hover {
-    background-color: hsl(213, 22%, 94%);
-    .history-item-buttons {
-      visibility: visible;
-    }
-  }
-}
-
-.history-item-buttons {
-  position: sticky;
-  float: right;
-  top: 0;
-  visibility: hidden;
-
-  button {
-    margin: 0 0.5rem;
-
-    i.material-icons,
-    i.material-icons-filled {
-      font-size: 18px;
-    }
   }
 }
 
