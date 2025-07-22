@@ -81,10 +81,10 @@ using Array = std::variant<perfetto_sql::IntArray,
                            perfetto_sql::StringArray>;
 
 // An SQL aggregate-function which creates an array.
-struct ArrayAgg : public SqliteAggregateFunction<ArrayAgg> {
+struct ArrayAgg : public sqlite::AggregateFunction<ArrayAgg> {
   static constexpr char kName[] = "__intrinsic_array_agg";
   static constexpr int kArgCount = 1;
-  struct AggCtx : SqliteAggregateContext<AggCtx> {
+  struct AggCtx : sqlite::AggregateContext<AggCtx> {
     template <typename T>
     void Push(sqlite3_context* ctx, T value) {
       if (PERFETTO_UNLIKELY(!array)) {
@@ -150,10 +150,10 @@ struct ArrayAgg : public SqliteAggregateFunction<ArrayAgg> {
 };
 
 // An SQL aggregate function which creates a graph.
-struct NodeAgg : public SqliteAggregateFunction<NodeAgg> {
+struct NodeAgg : public sqlite::AggregateFunction<NodeAgg> {
   static constexpr char kName[] = "__intrinsic_graph_agg";
   static constexpr int kArgCount = 2;
-  struct AggCtx : SqliteAggregateContext<AggCtx> {
+  struct AggCtx : sqlite::AggregateContext<AggCtx> {
     perfetto_sql::Graph graph;
   };
 
@@ -181,7 +181,7 @@ struct NodeAgg : public SqliteAggregateFunction<NodeAgg> {
 };
 
 // An SQL scalar function which creates an struct.
-struct Struct : public SqliteFunction<Struct> {
+struct Struct : public sqlite::Function<Struct> {
   static constexpr char kName[] = "__intrinsic_struct";
   static constexpr int kArgCount = -1;
 
@@ -229,10 +229,10 @@ struct Struct : public SqliteFunction<Struct> {
 };
 
 // An SQL aggregate function which creates a RowDataframe.
-struct RowDataframeAgg : public SqliteAggregateFunction<Struct> {
+struct RowDataframeAgg : public sqlite::AggregateFunction<Struct> {
   static constexpr char kName[] = "__intrinsic_row_dataframe_agg";
   static constexpr int kArgCount = -1;
-  struct AggCtx : SqliteAggregateContext<AggCtx> {
+  struct AggCtx : sqlite::AggregateContext<AggCtx> {
     perfetto_sql::RowDataframe dataframe;
     std::optional<uint32_t> argc_index;
   };
@@ -301,11 +301,11 @@ struct RowDataframeAgg : public SqliteAggregateFunction<Struct> {
 };
 
 struct IntervalTreeIntervalsAgg
-    : public SqliteAggregateFunction<perfetto_sql::PartitionedTable> {
+    : public sqlite::AggregateFunction<perfetto_sql::PartitionedTable> {
   static constexpr char kName[] = "__intrinsic_interval_tree_intervals_agg";
   static constexpr int kArgCount = -1;
   static constexpr int kMinArgCount = 3;
-  struct AggCtx : SqliteAggregateContext<AggCtx> {
+  struct AggCtx : sqlite::AggregateContext<AggCtx> {
     perfetto_sql::PartitionedTable partitions;
     std::vector<SqlValue> tmp_vals;
     uint64_t last_interval_start = 0;
@@ -420,10 +420,10 @@ struct IntervalTreeIntervalsAgg
 };
 
 struct CounterPerTrackAgg
-    : public SqliteAggregateFunction<perfetto_sql::PartitionedCounter> {
+    : public sqlite::AggregateFunction<perfetto_sql::PartitionedCounter> {
   static constexpr char kName[] = "__intrinsic_counter_per_track_agg";
   static constexpr int kArgCount = 4;
-  struct AggCtx : SqliteAggregateContext<AggCtx> {
+  struct AggCtx : sqlite::AggregateContext<AggCtx> {
     perfetto_sql::PartitionedCounter tracks;
   };
 
