@@ -99,23 +99,6 @@ void CountingSortPass(T* source_begin,
 
 }  // namespace internal
 
-// A simple, stable Insertion Sort implementation.
-template <typename T, typename Comparator>
-inline void StableInsertionSort(T* begin, T* end, Comparator comp) {
-  if (begin == end)
-    return;
-  for (T* i = begin + 1; i != end; ++i) {
-    T key = std::move(*i);
-    T* j = i;
-    // Move elements greater than key one position ahead
-    while (j != begin && comp(key, *(j - 1))) {
-      *j = std::move(*(j - 1));
-      --j;
-    }
-    *j = std::move(key);
-  }
-}
-
 // Sorts a collection of elements using a stable, in-place, Least Significant
 // Digit (LSD) radix sort. This implementation is designed for fixed-width,
 // unsigned integer keys.
