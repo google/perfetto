@@ -845,7 +845,6 @@ perfetto_filegroup(
         "include/perfetto/ext/base/periodic_task.h",
         "include/perfetto/ext/base/pipe.h",
         "include/perfetto/ext/base/platform.h",
-        "include/perfetto/ext/base/radix_sort.h",
         "include/perfetto/ext/base/scoped_file.h",
         "include/perfetto/ext/base/scoped_mmap.h",
         "include/perfetto/ext/base/scoped_sched_boost.h",
@@ -1686,6 +1685,7 @@ perfetto_filegroup(
         "src/trace_processor/dataframe/impl/query_plan.cc",
         "src/trace_processor/dataframe/impl/query_plan.h",
         "src/trace_processor/dataframe/impl/slab.h",
+        "src/trace_processor/dataframe/impl/sort.h",
         "src/trace_processor/dataframe/impl/types.h",
     ],
 )
