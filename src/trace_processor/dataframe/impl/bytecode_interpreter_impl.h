@@ -1095,7 +1095,7 @@ class InterpreterImpl {
     SortToken* res;
     if (num_indices < kStableSortCutoff) {
       std::stable_sort(p.get(), p.get() + num_indices,
-                       [&](const SortToken& a, const SortToken& b) {
+                       [buf, stride](const SortToken& a, const SortToken& b) {
                          return memcmp(buf + a.buf_offset, buf + b.buf_offset,
                                        stride) < 0;
                        });
