@@ -23,6 +23,7 @@
 #include <cstring>
 #include <limits>
 #include <string>
+
 #include "perfetto/public/compiler.h"
 
 // This file implements a 64-bit variant of the MurmurHash algorithm.
