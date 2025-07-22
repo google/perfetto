@@ -201,7 +201,9 @@ class ProcessTracker {
     return (pid << 32) | tid;
   }
 
-  static bool IsSyntheticTid(int64_t tid) { return tid & (0xffffffffl << 32); }
+  static bool IsSyntheticTid(int64_t tid) {
+    return tid & static_cast<int64_t>(0xffffffff00000000);
+  }
 
  private:
   // Returns the utid of a thread having |tid| and |pid| as the parent process.

@@ -18,7 +18,6 @@ source_set("common") {
   sources = [
     "address_range.h",
     "args_tracker.cc",
-    "args_tracker.h",
     "args_translation_table.cc",
     "args_translation_table.h",
     "chunked_trace_reader.h",
@@ -50,7 +49,6 @@ source_set("common") {
     "process_track_translation_table.cc",
     "process_track_translation_table.h",
     "process_tracker.cc",
-    "process_tracker.h",
     "sched_event_state.h",
     "sched_event_tracker.cc",
     "sched_event_tracker.h",
@@ -78,6 +76,8 @@ source_set("common") {
     "virtual_memory_mapping.h",
   ]
   public_deps = [
+    ":args_tracker_hdr",
+    ":process_tracker_hdr",
     ":trace_parser_hdr",
     "../../util:proto_to_args_parser",
     "../../util:protozero_to_text",
@@ -123,6 +123,24 @@ source_set("parser_types") {
   ]
 }
 
+source_set("args_tracker_hdr") {
+  sources = [ "args_tracker.h" ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../storage",
+    "../../types",
+  ]
+}
+
+source_set("process_tracker_hdr") {
+  sources = [ "process_tracker.h" ]
+  deps = [
+    ":args_tracker_hdr",
+    "../../../../gn:default_deps",
+    "../../storage",
+    "../../types",
+  ]
+}
 source_set("unittests") {
   sources = [
     "address_range_unittest.cc",
