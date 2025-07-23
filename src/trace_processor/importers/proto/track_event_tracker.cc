@@ -290,11 +290,9 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
                     reservation.min_timestamp);
 
       // Associate the new thread with its process.
-      utid = context_->process_tracker->StartNewThread(std::nullopt,
-                                                       *reservation.tid);
-      UniqueTid updated_utid = context_->process_tracker->UpdateThread(
-          *reservation.tid, *reservation.pid);
-      PERFETTO_CHECK(updated_utid == utid);
+      context_->process_tracker->ClearThread(*reservation.tid);
+      utid = context_->process_tracker->UpdateThread(*reservation.tid,
+                                                     *reservation.pid);
     }
     return ResolvedDescriptorTrack::Thread(utid, reservation.is_counter, true);
   }

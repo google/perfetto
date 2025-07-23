@@ -68,28 +68,6 @@ ProcessTracker::ProcessTracker(TraceProcessorContext* context)
 
 ProcessTracker::~ProcessTracker() = default;
 
-UniqueTid ProcessTracker::StartNewThread(std::optional<int64_t> timestamp,
-                                         int64_t tid) {
-  tables::ThreadTable::Row row;
-  row.tid = tid;
-  row.start_ts = timestamp;
-  row.machine_id = context_->machine_id();
-
-  auto* thread_table = context_->storage->mutable_thread_table();
-  UniqueTid new_utid = thread_table->Insert(row).row;
-  tids_[tid].emplace_back(new_utid);
-
-  if (PERFETTO_UNLIKELY(thread_name_priorities_.size() <= new_utid)) {
-    // This condition can happen in a multi-machine tracing session:
-    // Machine 1 gets utid 0, 1
-    // Machine 2 gets utid 2, 3
-    // Machine 1 gets utid 4: where thread_name_priorities_.size() == 2.
-    thread_name_priorities_.resize(new_utid + 1);
-  }
-  thread_name_priorities_[new_utid] = ThreadNamePriority::kOther;
-  return new_utid;
-}
-
 void ProcessTracker::EndThread(int64_t timestamp, int64_t tid) {
   auto& thread_table = *context_->storage->mutable_thread_table();
   auto& process_table = *context_->storage->mutable_process_table();
@@ -138,7 +116,33 @@ std::optional<UniqueTid> ProcessTracker::GetThreadOrNull(int64_t tid) {
 
 UniqueTid ProcessTracker::GetOrCreateThread(int64_t tid) {
   auto utid = GetThreadOrNull(tid);
-  return utid ? *utid : StartNewThread(std::nullopt, tid);
+  if (utid) {
+    return *utid;
+  }
+
+  tables::ThreadTable::Row row;
+  row.tid = tid;
+  row.machine_id = context_->machine_id();
+
+  auto* thread_table = context_->storage->mutable_thread_table();
+  UniqueTid new_utid = thread_table->Insert(row).row;
+  tids_[tid].emplace_back(new_utid);
+
+  if (PERFETTO_UNLIKELY(thread_name_priorities_.size() <= new_utid)) {
+    // This condition can happen in a multi-machine tracing session:
+    // Machine 1 gets utid 0, 1
+    // Machine 2 gets utid 2, 3
+    // Machine 1 gets utid 4: where thread_name_priorities_.size() == 2.
+    thread_name_priorities_.resize(new_utid + 1);
+  }
+  thread_name_priorities_[new_utid] = ThreadNamePriority::kOther;
+  return new_utid;
+}
+
+void ProcessTracker::SetThreadStartTs(UniqueTid utid, int64_t timestamp) {
+  auto& thread_table = *context_->storage->mutable_thread_table();
+  auto td = thread_table[utid];
+  td.set_start_ts(timestamp);
 }
 
 void ProcessTracker::UpdateThreadName(UniqueTid utid,
@@ -237,7 +241,7 @@ UniqueTid ProcessTracker::UpdateThread(int64_t tid, int64_t pid) {
   std::optional<UniqueTid> opt_utid = GetThreadOrNull(tid, pid);
 
   // If no matching thread was found, create a new one.
-  UniqueTid utid = opt_utid ? *opt_utid : StartNewThread(std::nullopt, tid);
+  UniqueTid utid = opt_utid ? *opt_utid : GetOrCreateThread(tid);
   auto rr = thread_table[utid];
   PERFETTO_DCHECK(rr.tid() == tid);
   // Ensure that the thread's machine ID matches the context's machine ID.
@@ -249,6 +253,33 @@ UniqueTid ProcessTracker::UpdateThread(int64_t tid, int64_t pid) {
   }
   ResolvePendingAssociations(utid, *rr.upid());
   return utid;
+}
+
+void ProcessTracker::ClearThread(int64_t tid) {
+  std::optional<UniqueTid> opt_utid = GetThreadOrNull(tid);
+  if (!opt_utid)
+    return;
+
+  // Remove the tid completely
+  tids_.Erase(tid);
+
+  auto& thread_table = *context_->storage->mutable_thread_table();
+  auto& process_table = *context_->storage->mutable_process_table();
+
+  auto td = thread_table[*opt_utid];
+  auto opt_upid = td.upid();
+  if (!opt_upid) {
+    return;
+  }
+  auto ps = process_table[*opt_upid];
+  if (ps.pid() != tid) {
+    return;
+  }
+
+  // If the process pid and thread tid are equal then, as is the main thread
+  // of the process, we should also finish the process itself.
+  PERFETTO_DCHECK(*td.is_main_thread());
+  pids_.Erase(tid);
 }
 
 void ProcessTracker::UpdateTrustedPid(int64_t trusted_pid, uint64_t uuid) {
@@ -299,14 +330,13 @@ UniquePid ProcessTracker::StartNewProcess(std::optional<int64_t> timestamp,
                                           StringId main_thread_name,
                                           ThreadNamePriority priority) {
   pids_.Erase(pid);
-  // TODO(eseckler): Consider erasing all old entries in |tids_| that match the
-  // |pid| (those would be for an older process with the same pid). Right now,
-  // we keep them in |tids_| (if they weren't erased by EndThread()), but ignore
-  // them in GetThreadOrNull().
+  // Clear the old UTIDs, so we don't end up reusing an old entry in case of
+  // TID recycling.
+  ClearThread(/*tid=*/pid);
 
-  // Create a new UTID for the main thread, so we don't end up reusing an old
-  // entry in case of TID recycling.
-  UniqueTid utid = StartNewThread(timestamp, /*tid=*/pid);
+  UniqueTid utid = GetOrCreateThread(/*tid=*/pid);
+  if (timestamp.has_value())
+    SetThreadStartTs(utid, *timestamp);
   UpdateThreadName(utid, main_thread_name, priority);
 
   // Note that we erased the pid above so this should always return a new
@@ -435,10 +465,10 @@ UniquePid ProcessTracker::GetOrCreateProcess(int64_t pid) {
   UniquePid upid = process_table.Insert(row).row;
   *it_and_ins.first = upid;  // Update the newly inserted hashmap entry.
 
-  // Create an entry for the main thread.
-  // We cannot call StartNewThread() here, because threads for this process
-  // (including the main thread) might have been seen already prior to this
-  // call. This call usually comes from the ProcessTree dump which is delayed.
+  // Create an entry for the main thread if it doesn't already exists.
+  // The threads for this process (including the main thread) might have been
+  // seen already prior to this call. This call usually comes from the
+  // ProcessTree dump which is delayed.
   UpdateThread(/*tid=*/pid, pid);
   return upid;
 }
