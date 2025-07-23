@@ -463,31 +463,31 @@ bool Tracefs::GetOfflineCpus(std::vector<uint32_t>* offline_cpus) {
   // Source: https://docs.kernel.org/admin-guide/cputopology.html
   std::vector<uint32_t> offline_cpus_tmp;
   for (base::StringSplitter ss(offline_cpus_str, ','); ss.Next();) {
-    std::string offline_cpu_range(ss.cur_token(), ss.cur_token_size());
-    auto dash_pos = offline_cpu_range.find('-');
-    if (dash_pos == std::string::npos) {
+    base::StringView offline_cpu_range(ss.cur_token(), ss.cur_token_size());
+    size_t dash_pos = offline_cpu_range.find('-');
+    if (dash_pos == base::StringView::npos) {
       // Single CPU in the format of "%d".
-      std::optional<uint32_t> cpu = base::StringToUInt32(offline_cpu_range);
+      std::optional<uint32_t> cpu = base::StringViewToUInt32(offline_cpu_range);
       if (cpu.has_value()) {
         offline_cpus_tmp.push_back(cpu.value());
       } else {
         PERFETTO_ELOG("Failed to parse single CPU from offline CPU range: %s",
-                      offline_cpu_range.c_str());
+                      offline_cpu_range.data());
         return false;
       }
     } else {
       // Range of CPUs in the format of "%d-%d".
       std::optional<uint32_t> start_cpu =
-          base::StringToUInt32(offline_cpu_range.substr(0, dash_pos));
+          base::StringViewToUInt32(offline_cpu_range.substr(0, dash_pos));
       std::optional<uint32_t> end_cpu =
-          base::StringToUInt32(offline_cpu_range.substr(dash_pos + 1));
+          base::StringViewToUInt32(offline_cpu_range.substr(dash_pos + 1));
       if (start_cpu.has_value() && end_cpu.has_value()) {
         for (auto cpu = start_cpu.value(); cpu <= end_cpu.value(); ++cpu) {
           offline_cpus_tmp.push_back(cpu);
         }
       } else {
         PERFETTO_ELOG("Failed to parse CPU range from offline CPU range: %s",
-                      offline_cpu_range.c_str());
+                      offline_cpu_range.data());
         return false;
       }
     }

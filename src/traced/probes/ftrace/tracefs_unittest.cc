@@ -25,6 +25,7 @@ namespace {
 using testing::_;
 using testing::AnyNumber;
 using testing::DoAll;
+using testing::ElementsAre;
 using testing::IsEmpty;
 using testing::Return;
 using testing::SetArgPointee;
@@ -179,7 +180,7 @@ TEST(TracefsTest, GetOfflineCpus) {
   EXPECT_CALL(ftrace, ReadFile("/sys/devices/system/cpu/offline", _))
       .WillOnce(DoAll(SetArgPointee<1>("1,3\n"), Return(true)));
   EXPECT_TRUE(ftrace.Tracefs::GetOfflineCpus(&cpus));
-  EXPECT_THAT(cpus, UnorderedElementsAre(1, 3));
+  EXPECT_THAT(cpus, ElementsAre(1, 3));
   cpus.clear();
   testing::Mock::VerifyAndClearExpectations(&ftrace);
 
@@ -187,7 +188,7 @@ TEST(TracefsTest, GetOfflineCpus) {
   EXPECT_CALL(ftrace, ReadFile("/sys/devices/system/cpu/offline", _))
       .WillOnce(DoAll(SetArgPointee<1>("0-2,4-5\n"), Return(true)));
   EXPECT_TRUE(ftrace.Tracefs::GetOfflineCpus(&cpus));
-  EXPECT_THAT(cpus, UnorderedElementsAre(0, 1, 2, 4, 5));
+  EXPECT_THAT(cpus, ElementsAre(0, 1, 2, 4, 5));
   cpus.clear();
   testing::Mock::VerifyAndClearExpectations(&ftrace);
 
@@ -195,7 +196,7 @@ TEST(TracefsTest, GetOfflineCpus) {
   EXPECT_CALL(ftrace, ReadFile("/sys/devices/system/cpu/offline", _))
       .WillOnce(DoAll(SetArgPointee<1>("0,2-3,5\n"), Return(true)));
   EXPECT_TRUE(ftrace.Tracefs::GetOfflineCpus(&cpus));
-  EXPECT_THAT(cpus, UnorderedElementsAre(0, 2, 3, 5));
+  EXPECT_THAT(cpus, ElementsAre(0, 2, 3, 5));
   cpus.clear();
   testing::Mock::VerifyAndClearExpectations(&ftrace);
 }
