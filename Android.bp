@@ -2664,10 +2664,9 @@ cc_test {
         ":perfetto_src_trace_processor_importers_art_hprof_art_hprof",
         ":perfetto_src_trace_processor_importers_art_method_art_method",
         ":perfetto_src_trace_processor_importers_art_method_art_method_event",
-        ":perfetto_src_trace_processor_importers_common_args_tracker_hdr",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
-        ":perfetto_src_trace_processor_importers_common_process_tracker_hdr",
+        ":perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",
         ":perfetto_src_trace_processor_importers_common_trace_parser_hdr",
         ":perfetto_src_trace_processor_importers_etw_full",
         ":perfetto_src_trace_processor_importers_etw_minimal",
@@ -13893,11 +13892,6 @@ filegroup {
     name: "perfetto_src_trace_processor_importers_art_method_art_method_event",
 }
 
-// GN: //src/trace_processor/importers/common:args_tracker_hdr
-filegroup {
-    name: "perfetto_src_trace_processor_importers_common_args_tracker_hdr",
-}
-
 // GN: //src/trace_processor/importers/common:common
 filegroup {
     name: "perfetto_src_trace_processor_importers_common_common",
@@ -13937,9 +13931,9 @@ filegroup {
     name: "perfetto_src_trace_processor_importers_common_parser_types",
 }
 
-// GN: //src/trace_processor/importers/common:process_tracker_hdr
+// GN: //src/trace_processor/importers/common:synthetic_tid_hdr
 filegroup {
-    name: "perfetto_src_trace_processor_importers_common_process_tracker_hdr",
+    name: "perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",
 }
 
 // GN: //src/trace_processor/importers/common:trace_parser_hdr
@@ -17301,10 +17295,9 @@ cc_test {
         ":perfetto_src_trace_processor_importers_art_hprof_art_hprof",
         ":perfetto_src_trace_processor_importers_art_method_art_method",
         ":perfetto_src_trace_processor_importers_art_method_art_method_event",
-        ":perfetto_src_trace_processor_importers_common_args_tracker_hdr",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
-        ":perfetto_src_trace_processor_importers_common_process_tracker_hdr",
+        ":perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",
         ":perfetto_src_trace_processor_importers_common_trace_parser_hdr",
         ":perfetto_src_trace_processor_importers_common_unittests",
         ":perfetto_src_trace_processor_importers_etw_full",
@@ -18137,10 +18130,9 @@ cc_library_static {
         ":perfetto_src_trace_processor_importers_art_hprof_art_hprof",
         ":perfetto_src_trace_processor_importers_art_method_art_method",
         ":perfetto_src_trace_processor_importers_art_method_art_method_event",
-        ":perfetto_src_trace_processor_importers_common_args_tracker_hdr",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
-        ":perfetto_src_trace_processor_importers_common_process_tracker_hdr",
+        ":perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",
         ":perfetto_src_trace_processor_importers_common_trace_parser_hdr",
         ":perfetto_src_trace_processor_importers_etw_full",
         ":perfetto_src_trace_processor_importers_etw_minimal",
@@ -18466,10 +18458,9 @@ cc_binary {
         ":perfetto_src_trace_processor_importers_art_hprof_art_hprof",
         ":perfetto_src_trace_processor_importers_art_method_art_method",
         ":perfetto_src_trace_processor_importers_art_method_art_method_event",
-        ":perfetto_src_trace_processor_importers_common_args_tracker_hdr",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
-        ":perfetto_src_trace_processor_importers_common_process_tracker_hdr",
+        ":perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",
         ":perfetto_src_trace_processor_importers_common_trace_parser_hdr",
         ":perfetto_src_trace_processor_importers_etw_full",
         ":perfetto_src_trace_processor_importers_etw_minimal",
@@ -18725,10 +18716,9 @@ cc_binary {
         ":perfetto_src_trace_processor_importers_android_bugreport_android_dumpstate_event",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_log_event",
         ":perfetto_src_trace_processor_importers_art_method_art_method_event",
-        ":perfetto_src_trace_processor_importers_common_args_tracker_hdr",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
-        ":perfetto_src_trace_processor_importers_common_process_tracker_hdr",
+        ":perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",
         ":perfetto_src_trace_processor_importers_common_trace_parser_hdr",
         ":perfetto_src_trace_processor_importers_etw_minimal",
         ":perfetto_src_trace_processor_importers_ftrace_minimal",
@@ -18914,10 +18904,9 @@ cc_binary_host {
         ":perfetto_src_trace_processor_importers_art_hprof_art_hprof",
         ":perfetto_src_trace_processor_importers_art_method_art_method",
         ":perfetto_src_trace_processor_importers_art_method_art_method_event",
-        ":perfetto_src_trace_processor_importers_common_args_tracker_hdr",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
-        ":perfetto_src_trace_processor_importers_common_process_tracker_hdr",
+        ":perfetto_src_trace_processor_importers_common_synthetic_tid_hdr",
         ":perfetto_src_trace_processor_importers_common_trace_parser_hdr",
         ":perfetto_src_trace_processor_importers_etw_full",
         ":perfetto_src_trace_processor_importers_etw_minimal",
