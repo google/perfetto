@@ -45,6 +45,7 @@ class PkvmHypervisorCpuTracker {
   void ParseHostHcall(uint32_t cpu, protozero::ConstBytes blob);
   void ParseHostSmc(uint32_t cpu, protozero::ConstBytes blob);
   void ParseHostMemAbort(uint32_t cpu, protozero::ConstBytes blob);
+  void ParseHostFfaCall(uint32_t cpu, protozero::ConstBytes blob);
 
   TraceProcessorContext* context_;
   const StringId category_;

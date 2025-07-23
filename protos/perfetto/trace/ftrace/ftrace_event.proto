@@ -725,5 +725,6 @@ message FtraceEvent {
     CmaAllocFinishFtraceEvent cma_alloc_finish = 576;
     MmAllocContigMigrateRangeInfoFtraceEvent
         mm_alloc_contig_migrate_range_info = 577;
+    HostFfaCallFtraceEvent host_ffa_call = 578;
   }
 }

@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 578> descriptors{{
+std::array<FtraceMessageDescriptor, 579> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -5296,6 +5296,20 @@ std::array<FtraceMessageDescriptor, 578> descriptors{{
         },
     },
     {
+        "host_ffa_call",
+        7,
+        {
+            {},
+            {"func_id", ProtoSchemaType::kUint64},
+            {"res_a1", ProtoSchemaType::kUint64},
+            {"res_a2", ProtoSchemaType::kUint64},
+            {"res_a3", ProtoSchemaType::kUint64},
+            {"res_a4", ProtoSchemaType::kUint64},
+            {"handled", ProtoSchemaType::kInt32},
+            {"err", ProtoSchemaType::kInt32},
+        },
+    },
+    {
         "suspend_resume_minimal",
         1,
         {
@@ -5986,6 +6000,15 @@ std::array<FtraceMessageDescriptor, 578> descriptors{{
         },
     },
     {
+        "kprobe_event",
+        2,
+        {
+            {},
+            {"name", ProtoSchemaType::kString},
+            {"type", ProtoSchemaType::kInt32},
+        },
+    },
+    {
         "devfreq_frequency",
         5,
         {
@@ -5995,15 +6018,6 @@ std::array<FtraceMessageDescriptor, 578> descriptors{{
             {"prev_freq", ProtoSchemaType::kUint64},
             {"busy_time", ProtoSchemaType::kUint64},
             {"total_time", ProtoSchemaType::kUint64},
-        },
-    },
-    {
-        "kprobe_event",
-        2,
-        {
-            {},
-            {"name", ProtoSchemaType::kString},
-            {"type", ProtoSchemaType::kInt32},
         },
     },
     {
