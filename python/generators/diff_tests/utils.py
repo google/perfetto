@@ -119,13 +119,15 @@ def serialize_textproto_trace(trace_descriptor_path, extension_descriptor_paths,
   out_stream.flush()
 
 
-def serialize_python_trace(root_dir, trace_descriptor_path, python_trace_path,
+def serialize_python_trace(root_dir, trace_descriptor_path,
+                           extension_descriptor_paths, python_trace_path,
                            out_stream):
   python_cmd = [
       'python3',
       python_trace_path,
       trace_descriptor_path,
   ]
+  python_cmd.extend(extension_descriptor_paths)
 
   # Add the test dir to the PYTHONPATH to allow synth_common to be found.
   env = os.environ.copy()
