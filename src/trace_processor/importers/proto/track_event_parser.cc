@@ -302,9 +302,14 @@ void TrackEventParser::ParseTrackDescriptor(
     UniquePid upid =
         ParseProcessDescriptor(packet_timestamp, decoder.process());
     // `chrome_process` is a field in the ChromeTrackDescriptor extension, which
-    // has no generated accessors.
-    if (protozero::Field chrome_process = decoder.FindField(
-            protos::pbzero::ChromeTrackDescriptor::kChromeProcessFieldNumber)) {
+    // has no generated accessors. However the field ID is less than
+    // TrackDescriptor::Decoder::kMaxFieldId, because it was converted from an
+    // inline field, so it can be looked up quickly with `at()` instead of
+    // falling back to `FindField()` which is O(n). `at()` contains a
+    // static_assert that will enforce this.
+    if (const protozero::Field& chrome_process =
+            decoder.at<protos::pbzero::ChromeTrackDescriptor::
+                           kChromeProcessFieldNumber>()) {
       ParseChromeProcessDescriptor(upid, chrome_process.as_bytes());
     }
   }
