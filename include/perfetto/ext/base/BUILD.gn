@@ -37,7 +37,6 @@ source_set("base") {
     "periodic_task.h",
     "pipe.h",
     "platform.h",
-    "radix_sort.h",
     "scoped_file.h",
     "scoped_mmap.h",
     "scoped_sched_boost.h",

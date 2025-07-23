@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE prelude.after_eof.indexes;
+
 INCLUDE PERFETTO MODULE prelude.after_eof.views;
 
 -- Lists all metrics built-into trace processor.

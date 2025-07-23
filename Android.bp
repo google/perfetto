@@ -12330,7 +12330,6 @@ filegroup {
         "src/base/no_destructor_unittest.cc",
         "src/base/paged_memory_unittest.cc",
         "src/base/periodic_task_unittest.cc",
-        "src/base/radix_sort_unittest.cc",
         "src/base/scoped_file_unittest.cc",
         "src/base/scoped_mmap_unittest.cc",
         "src/base/scoped_sched_boost_unittest.cc",
@@ -13800,6 +13799,7 @@ filegroup {
         "src/trace_processor/dataframe/impl/bytecode_interpreter_unittest.cc",
         "src/trace_processor/dataframe/impl/flex_vector_unittest.cc",
         "src/trace_processor/dataframe/impl/slab_unittest.cc",
+        "src/trace_processor/dataframe/impl/sort_unittest.cc",
     ],
 }
 

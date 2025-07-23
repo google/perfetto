@@ -219,7 +219,6 @@ perfetto_unittest_source_set("unittests") {
     "no_destructor_unittest.cc",
     "paged_memory_unittest.cc",
     "periodic_task_unittest.cc",
-    "radix_sort_unittest.cc",
     "scoped_file_unittest.cc",
     "scoped_mmap_unittest.cc",
     "scoped_sched_boost_unittest.cc",
