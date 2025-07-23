@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_UTIL_MURMUR_HASH_H_
-#define SRC_TRACE_PROCESSOR_UTIL_MURMUR_HASH_H_
+#ifndef INCLUDE_PERFETTO_EXT_BASE_MURMUR_HASH_H_
+#define INCLUDE_PERFETTO_EXT_BASE_MURMUR_HASH_H_
 
 #include <cmath>
 #include <cstddef>
@@ -49,11 +49,11 @@
 // In summary, it makes a performance-oriented trade-off: a simpler main loop
 // combined with a high-quality final mixing stage.
 //
-// ⚠️ NOTE: This implementation is NOT cryptographically secure. It must not be
+// NOTE: This implementation is NOT cryptographically secure. It must not be
 // used for security-sensitive applications like password storage or digital
 // signatures, as it is not designed to be resistant to malicious attacks.
 
-namespace perfetto::trace_processor::util {
+namespace perfetto::base {
 
 // Finalizes an intermediate hash value using the `fmix64` routine from
 // MurmurHash3.
@@ -165,4 +165,4 @@ inline uint64_t MurmurHash(const std::string& res) {
 
 }  // namespace perfetto::trace_processor::util
 
-#endif  // SRC_TRACE_PROCESSOR_UTIL_MURMUR_HASH_H_
+#endif  // INCLUDE_PERFETTO_EXT_BASE_MURMUR_HASH_H_
