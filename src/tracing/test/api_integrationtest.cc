@@ -757,13 +757,6 @@ bool WaitForOneProducerConnected(perfetto::TracingSession* session) {
   return false;
 }
 
-protozero::Field GetExtensionField(const protozero::CppMessageObj& msg,
-                                   uint32_t field_id) {
-  std::vector<uint8_t> bytes = msg.SerializeAsArray();
-  protozero::ProtoDecoder decoder(bytes.data(), bytes.size());
-  return decoder.FindField(field_id);
-}
-
 // -------------------------
 // Declaration of test class
 // -------------------------
@@ -2129,14 +2122,21 @@ TEST_P(PerfettoApiTest, CustomTrackDescriptor) {
         continue;
       EXPECT_NE(0, td.process().pid());
       EXPECT_EQ("testing.exe", td.process().process_name());
-      auto chrome_process_field = GetExtensionField(
-          td, perfetto::protos::pbzero::ChromeTrackDescriptor::
-                  kChromeProcessFieldNumber);
+
+      // Only pbzero supports extensions, so convert to a pbzero decoder for
+      // `chrome_process`. Note FindField() returns pointers into `td_bytes` so
+      // it must outlive the returned field.
+      std::vector<uint8_t> td_bytes = td.SerializeAsArray();
+      protozero::ProtoDecoder td_decoder(td_bytes.data(), td_bytes.size());
+      protozero::Field chrome_process_field =
+          td_decoder.FindField(perfetto::protos::pbzero::ChromeTrackDescriptor::
+                                   kChromeProcessFieldNumber);
       ASSERT_TRUE(chrome_process_field.valid());
       perfetto::protos::pbzero::ChromeProcessDescriptor::Decoder chrome_process(
           chrome_process_field.as_bytes());
       EXPECT_TRUE(chrome_process.has_process_priority());
       EXPECT_EQ(123, chrome_process.process_priority());
+
       found_desc = true;
     }
   }
