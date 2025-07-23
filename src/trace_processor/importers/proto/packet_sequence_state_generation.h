@@ -94,7 +94,7 @@ class PacketSequenceStateGeneration : public RefCounted {
 
     bool pid_and_tid_valid() const { return generation_->pid_and_tid_valid(); }
     int32_t pid() const { return generation_->pid(); }
-    int32_t tid() const { return generation_->tid(); }
+    int64_t tid() const { return generation_->tid(); }
 
    private:
     friend PacketSequenceStateGeneration;
