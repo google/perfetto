@@ -32,7 +32,8 @@ enum class NonAndroidPlatformDefault {
 // in `perfetto_flags.aconfig`.
 // The second argument is the default value of the flag in non-Android platform
 // contexts.
-#define PERFETTO_READ_ONLY_FLAGS(X) \
-  X(test_read_only_flag, NonAndroidPlatformDefault::kFalse)
+#define PERFETTO_READ_ONLY_FLAGS(X)                         \
+  X(test_read_only_flag, NonAndroidPlatformDefault::kFalse) \
+  X(use_murmur_hash_for_flat_hash_map, NonAndroidPlatformDefault::kFalse)
 
 #endif  // INCLUDE_PERFETTO_EXT_BASE_FLAGS_LIST_H_

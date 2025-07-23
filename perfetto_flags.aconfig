@@ -14,3 +14,10 @@ flag {
   bug: "433766726"
   is_fixed_read_only: true
 }
+flag {
+  name: "use_murmur_hash_for_flat_hash_map"
+  namespace: "perfetto"
+  description: "Controls whether we will use the new MurmurHash implementation for FlatHashMap. false = use FNV1A (used for ~5 years) true = use MurmurHash"
+  bug: "433766726"
+  is_fixed_read_only: true
+}
