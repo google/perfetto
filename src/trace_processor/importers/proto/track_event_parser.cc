@@ -306,7 +306,7 @@ void TrackEventParser::ParseTrackDescriptor(
     // TrackDescriptor::Decoder::kMaxFieldId, because it was converted from an
     // inline field, so it can be looked up quickly with `at()` instead of
     // falling back to `FindField()` which is O(n). `at()` contains a
-    // static_assert that will enforce this.
+    // static_assert that ensures this is safe.
     if (const protozero::Field& chrome_process =
             decoder.at<protos::pbzero::ChromeTrackDescriptor::
                            kChromeProcessFieldNumber>()) {

@@ -2097,7 +2097,7 @@ TEST_P(PerfettoApiTest, CustomTrackDescriptor) {
 
   auto track = perfetto::ProcessTrack::Current();
 
-  // Only pbzero support extensions.
+  // Only pbzero supports extensions.
   protozero::HeapBuffered<perfetto::protos::pbzero::ChromeTrackDescriptor> desc;
   track.Serialize(desc.get());
   desc->set_process()->set_process_name("testing.exe");
