@@ -21,7 +21,7 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
-#include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/synthetic_tid.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -43,8 +43,8 @@ class TrackEventSequenceState {
   int32_t pid() const { return persistent_state_.pid; }
   int64_t tid() const {
     return persistent_state_.use_synthetic_tid
-               ? ProcessTracker::CreateSyntheticTid(persistent_state_.tid,
-                                                    persistent_state_.pid)
+               ? CreateSyntheticTid(persistent_state_.tid,
+                                    persistent_state_.pid)
                : persistent_state_.tid;
   }
 

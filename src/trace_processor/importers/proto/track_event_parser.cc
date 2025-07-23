@@ -34,6 +34,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
 #include "src/trace_processor/importers/proto/track_event_event_importer.h"
@@ -378,7 +379,7 @@ UniqueTid TrackEventParser::ParseThreadDescriptor(
   // If tid is sandboxed then use a unique synthetic tid, to avoid
   // having concurrent threads with the same tid.
   if (is_sandboxed) {
-    tid = ProcessTracker::CreateSyntheticTid(tid, pid);
+    tid = CreateSyntheticTid(tid, pid);
   }
   UniqueTid utid = context_->process_tracker->UpdateThread(tid, pid);
   StringId name_id = kNullStringId;

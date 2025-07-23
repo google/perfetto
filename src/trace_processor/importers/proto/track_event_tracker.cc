@@ -32,6 +32,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
@@ -261,8 +262,7 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
     reservation.tid = resolved_tid;
   } else if (reservation.use_synthetic_tid && reservation.tid &&
              reservation.pid) {
-    reservation.tid =
-        ProcessTracker::CreateSyntheticTid(*reservation.tid, *reservation.pid);
+    reservation.tid = CreateSyntheticTid(*reservation.tid, *reservation.pid);
   }
 
   // Try to resolve any parent tracks recursively, too.

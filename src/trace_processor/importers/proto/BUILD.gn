@@ -252,7 +252,7 @@ source_set("packet_sequence_state_generation_hdr") {
     "../../../../protos/perfetto/trace/track_event:zero",
     "../../types:types",
     "../../util:interned_message_view",
-    "../common:process_tracker_hdr",
+    "../common:synthetic_tid_hdr",
   ]
 }
 

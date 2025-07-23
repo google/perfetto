@@ -18,6 +18,7 @@ source_set("common") {
   sources = [
     "address_range.h",
     "args_tracker.cc",
+    "args_tracker.h",
     "args_translation_table.cc",
     "args_translation_table.h",
     "chunked_trace_reader.h",
@@ -35,6 +36,7 @@ source_set("common") {
     "flow_tracker.cc",
     "flow_tracker.h",
     "global_args_tracker.cc",
+    "global_args_tracker.h",
     "jit_cache.cc",
     "jit_cache.h",
     "legacy_v8_cpu_profile_tracker.cc",
@@ -48,6 +50,7 @@ source_set("common") {
     "process_track_translation_table.cc",
     "process_track_translation_table.h",
     "process_tracker.cc",
+    "process_tracker.h",
     "sched_event_state.h",
     "sched_event_tracker.cc",
     "sched_event_tracker.h",
@@ -75,8 +78,7 @@ source_set("common") {
     "virtual_memory_mapping.h",
   ]
   public_deps = [
-    ":args_tracker_hdr",
-    ":process_tracker_hdr",
+    ":synthetic_tid_hdr",
     ":trace_parser_hdr",
     "../../util:proto_to_args_parser",
     "../../util:protozero_to_text",
@@ -122,30 +124,9 @@ source_set("parser_types") {
   ]
 }
 
-source_set("args_tracker_hdr") {
-  sources = [
-    "args_tracker.h",
-    "global_args_tracker.h",
-  ]
-  deps = [
-    "../../../../gn:default_deps",
-    "../../../../include/perfetto/ext/base:base",
-    "../../dataframe",
-    "../../storage",
-    "../../tables:tables",
-    "../../types",
-  ]
-}
-
-source_set("process_tracker_hdr") {
-  sources = [ "process_tracker.h" ]
-  deps = [
-    ":args_tracker_hdr",
-    "../../../../gn:default_deps",
-    "../../../../include/perfetto/ext/base:base",
-    "../../storage",
-    "../../types",
-  ]
+source_set("synthetic_tid_hdr") {
+  sources = [ "synthetic_tid.h" ]
+  deps = [ "../../../../gn:default_deps" ]
 }
 
 source_set("unittests") {

@@ -45,6 +45,7 @@
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -396,12 +397,12 @@ class TrackEventEventImporter {
           pid = static_cast<uint32_t>(legacy_event_.pid_override());
           // Create a synthetic tid while avoiding using the exact same tid in
           // different processes.
-          tid = ProcessTracker::CreateSyntheticTid(-1, pid);
+          tid = CreateSyntheticTid(-1, pid);
         }
         if (legacy_event_.has_tid_override()) {
           tid = static_cast<uint32_t>(legacy_event_.tid_override());
-          if (ProcessTracker::IsSyntheticTid(sequence_state_->tid())) {
-            tid = ProcessTracker::CreateSyntheticTid(tid, pid);
+          if (IsSyntheticTid(sequence_state_->tid())) {
+            tid = CreateSyntheticTid(tid, pid);
           }
         }
 
