@@ -35,7 +35,6 @@ source_set("common") {
     "flow_tracker.cc",
     "flow_tracker.h",
     "global_args_tracker.cc",
-    "global_args_tracker.h",
     "jit_cache.cc",
     "jit_cache.h",
     "legacy_v8_cpu_profile_tracker.cc",
@@ -124,10 +123,16 @@ source_set("parser_types") {
 }
 
 source_set("args_tracker_hdr") {
-  sources = [ "args_tracker.h" ]
+  sources = [
+    "args_tracker.h",
+    "global_args_tracker.h",
+  ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/base:base",
+    "../../dataframe",
     "../../storage",
+    "../../tables:tables",
     "../../types",
   ]
 }
@@ -137,6 +142,7 @@ source_set("process_tracker_hdr") {
   deps = [
     ":args_tracker_hdr",
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/base:base",
     "../../storage",
     "../../types",
   ]

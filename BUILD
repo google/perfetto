@@ -1811,6 +1811,7 @@ perfetto_filegroup(
     name = "src_trace_processor_importers_common_args_tracker_hdr",
     srcs = [
         "src/trace_processor/importers/common/args_tracker.h",
+        "src/trace_processor/importers/common/global_args_tracker.h",
     ],
 )
 
@@ -1837,7 +1838,6 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/flow_tracker.cc",
         "src/trace_processor/importers/common/flow_tracker.h",
         "src/trace_processor/importers/common/global_args_tracker.cc",
-        "src/trace_processor/importers/common/global_args_tracker.h",
         "src/trace_processor/importers/common/jit_cache.cc",
         "src/trace_processor/importers/common/jit_cache.h",
         "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.cc",
