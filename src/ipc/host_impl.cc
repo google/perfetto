@@ -142,14 +142,18 @@ std::unique_ptr<Host> Host::CreateInstance_Fuchsia(
 
 HostImpl::HostImpl(base::ScopedSocketHandle socket_fd,
                    base::TaskRunner* task_runner)
-    : task_runner_(task_runner), weak_ptr_factory_(this) {
+    : task_runner_(task_runner),
+      machine_name_(base::GetPerfettoMachineName()),
+      weak_ptr_factory_(this) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   sock_ = base::UnixSocket::Listen(std::move(socket_fd), this, task_runner_,
                                    kHostSockFamily, base::SockType::kStream);
 }
 
 HostImpl::HostImpl(const char* socket_name, base::TaskRunner* task_runner)
-    : task_runner_(task_runner), weak_ptr_factory_(this) {
+    : task_runner_(task_runner),
+      machine_name_(base::GetPerfettoMachineName()),
+      weak_ptr_factory_(this) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   sock_ = base::UnixSocket::Listen(socket_name, this, task_runner_,
                                    base::GetSockFamily(socket_name),
@@ -160,7 +164,9 @@ HostImpl::HostImpl(const char* socket_name, base::TaskRunner* task_runner)
 }
 
 HostImpl::HostImpl(base::TaskRunner* task_runner)
-    : task_runner_(task_runner), weak_ptr_factory_(this) {
+    : task_runner_(task_runner),
+      machine_name_(base::GetPerfettoMachineName()),
+      weak_ptr_factory_(this) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 }
 
@@ -217,7 +223,7 @@ void HostImpl::OnNewIncomingConnection(
   client->sock = std::move(new_conn);
   client->sock->SetTxTimeout(socket_tx_timeout_ms_);
   if (client->sock->family() == base::SockFamily::kUnix) {
-    client->machine_name = base::GetPerfettoMachineName();
+    client->machine_name = machine_name_;
   }
   clients_[client_id] = std::move(client);
 }

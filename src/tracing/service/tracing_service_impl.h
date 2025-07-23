@@ -916,9 +916,6 @@ class TracingServiceImpl : public TracingService {
                                              uint64_t trigger_name_hash);
   void StopOnDurationMsExpiry(TracingSessionID);
 
-  // Returns the name of a machine based on the machine's id.
-  std::optional<std::string> GetMachineName(MachineID machine_id);
-
   std::unique_ptr<tracing_service::Clock> clock_;
   std::unique_ptr<tracing_service::Random> random_;
   const InitOpts init_opts_;

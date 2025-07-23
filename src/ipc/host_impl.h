@@ -113,6 +113,7 @@ class HostImpl : public Host, public base::UnixSocket::EventListener {
   std::unique_ptr<base::UnixSocket> sock_;  // The listening socket.
   std::map<ClientID, std::unique_ptr<ClientConnection>> clients_;
   std::map<base::UnixSocket*, ClientConnection*> clients_by_socket_;
+  std::string machine_name_;
   ServiceID last_service_id_ = 0;
   ClientID last_client_id_ = 0;
   uint32_t socket_tx_timeout_ms_ = kDefaultIpcTxTimeoutMs;
