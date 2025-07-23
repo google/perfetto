@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_EXT_BASE_RADIX_SORT_H_
-#define INCLUDE_PERFETTO_EXT_BASE_RADIX_SORT_H_
+#ifndef SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_SORT_H_
+#define SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_SORT_H_
 
 #include <algorithm>
 #include <cstddef>
@@ -146,6 +146,8 @@ T* RadixSort(T* begin,
   T* source = begin;
   T* dest = scratch_begin;
   size_t num_elements = static_cast<size_t>(end - begin);
+
+  // Early return for small number of elements.
   if (num_elements <= 1) {
     return source;
   }
@@ -289,4 +291,4 @@ T* MsdRadixSort(T* begin,
 
 }  // namespace perfetto::base
 
-#endif  // INCLUDE_PERFETTO_EXT_BASE_RADIX_SORT_H_
+#endif  // SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_SORT_H_
