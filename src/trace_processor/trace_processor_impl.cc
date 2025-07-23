@@ -24,7 +24,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -125,6 +124,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.h"
 #include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sql_stats_table.h"
@@ -169,6 +169,16 @@
 
 namespace perfetto::trace_processor {
 namespace {
+
+template <typename SqlFunction, typename Ptr = typename SqlFunction::UserData*>
+void RegisterSqliteFunction(PerfettoSqlEngine* engine,
+                            Ptr context = nullptr,
+                            bool deterministic = true) {
+  auto status = engine->RegisterSqliteFunction<SqlFunction>(std::move(context),
+                                                            deterministic);
+  if (!status.ok())
+    PERFETTO_ELOG("%s", status.c_message());
+}
 
 template <typename SqlFunction, typename Ptr = typename SqlFunction::Context*>
 void RegisterFunction(PerfettoSqlEngine* engine,
@@ -257,7 +267,7 @@ base::StatusOr<sql_modules::RegisteredPackage> ToRegisteredPackage(
   return std::move(new_package);
 }
 
-class ValueAtMaxTs : public SqliteAggregateFunction<ValueAtMaxTs> {
+class ValueAtMaxTs : public sqlite::AggregateFunction<ValueAtMaxTs> {
  public:
   static constexpr char kName[] = "VALUE_AT_MAX_TS";
   static constexpr int kArgCount = 2;
@@ -1215,7 +1225,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   if (config.enable_dev_features) {
     RegisterFunction<WriteFile>(engine.get(), "WRITE_FILE", 2);
   }
-  RegisterFunction<Glob>(engine.get(), "glob", 2);
+  RegisterSqliteFunction<Glob>(engine.get());
   RegisterFunction<Hash>(engine.get(), "HASH", -1);
   RegisterFunction<Base64Encode>(engine.get(), "BASE64_ENCODE", 1);
   RegisterFunction<Demangle>(engine.get(), "DEMANGLE", 1);
@@ -1223,7 +1233,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   RegisterFunction<TablePtrBind>(engine.get(), "__intrinsic_table_ptr_bind",
                                  -1);
   RegisterFunction<ExportJson>(engine.get(), "EXPORT_JSON", 1, storage, false);
-  RegisterFunction<ExtractArg>(engine.get(), "EXTRACT_ARG", 2, storage);
+  RegisterSqliteFunction<ExtractArg>(engine.get(), storage);
   RegisterFunction<AbsTimeStr>(engine.get(), "ABS_TIME_STR", 1,
                                context->clock_converter.get());
   RegisterFunction<Reverse>(engine.get(), "REVERSE", 1);
@@ -1245,9 +1255,8 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
                              std::make_unique<ToFtrace::Context>(context));
 
   if constexpr (regex::IsRegexSupported()) {
-    RegisterFunction<Regexp>(engine.get(), "regexp", 2);
-    RegisterFunction<RegexpExtract>(engine.get(), "regexp_extract", 2,
-                                    std::make_unique<RegexpExtract::Context>());
+    RegisterSqliteFunction<Regexp>(engine.get());
+    RegisterSqliteFunction<RegexpExtract>(engine.get());
   }
   // Old style function registration.
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate

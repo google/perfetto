@@ -34,6 +34,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
 #include "src/trace_processor/importers/proto/track_event_event_importer.h"
@@ -205,6 +206,8 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
       event_category_key_id_(context_->storage->InternString("event.category")),
       event_name_key_id_(context_->storage->InternString("event.name")),
       correlation_id_key_id_(context->storage->InternString("correlation_id")),
+      legacy_trace_source_id_key_id_(
+          context_->storage->InternString("legacy_trace_source_id")),
       chrome_string_lookup_(context->storage.get()),
       active_chrome_processes_tracker_(context) {
   args_parser_.AddParsingOverrideForField(
@@ -372,12 +375,13 @@ UniqueTid TrackEventParser::ParseThreadDescriptor(
     protozero::ConstBytes thread_descriptor,
     bool is_sandboxed) {
   protos::pbzero::ThreadDescriptor::Decoder decoder(thread_descriptor);
+  // TODO: b/175152326 - Should pid namespace translation also be done here?
   auto pid = static_cast<int64_t>(decoder.pid());
   auto tid = static_cast<int64_t>(decoder.tid());
   // If tid is sandboxed then use a unique synthetic tid, to avoid
   // having concurrent threads with the same tid.
   if (is_sandboxed) {
-    tid = ProcessTracker::CreateSyntheticTid(tid, pid);
+    tid = CreateSyntheticTid(tid, pid);
   }
   UniqueTid utid = context_->process_tracker->UpdateThread(tid, pid);
   StringId name_id = kNullStringId;

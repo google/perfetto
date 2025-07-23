@@ -302,8 +302,5 @@ std::string ExperimentalSliceLayout::TableName() {
 uint32_t ExperimentalSliceLayout::GetArgumentCount() const {
   return 1;
 }
-uint32_t ExperimentalSliceLayout::EstimateRowCount() {
-  return slice_table_->row_count();
-}
 
 }  // namespace perfetto::trace_processor
