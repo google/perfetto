@@ -58,7 +58,7 @@ WITH
     JOIN counter_track AS t
       ON c.track_id = t.id
     WHERE
-      name GLOB 'power.*'
+      type = 'power_rails'
   )
 SELECT
   c.id,
