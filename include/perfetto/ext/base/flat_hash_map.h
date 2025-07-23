@@ -18,11 +18,13 @@
 #define INCLUDE_PERFETTO_EXT_BASE_FLAT_HASH_MAP_H_
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/utils.h"
 
 #include <algorithm>
 #include <limits>
+#include <type_traits>
 
 namespace perfetto {
 namespace base {
@@ -78,9 +80,26 @@ struct QuadraticHalfProbe {
   }
 };
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#ifdef PERFETTO_FLAG_RELEASE_PERFETTO_FLAT_HASH_MAP_MURMUR
+// TODO(lalitm): switch this to true in a followup CL.
+static constexpr bool kFlatHashMapUseMurmurHash = false;
+#else
+static constexpr bool kFlatHashMapUseMurmurHash = false;
+#endif
+#else
+// TODO(lalitm): switch this to true in a followup CL.
+static constexpr bool kFlatHashMapUseMurmurHash = false;
+#endif
+
 template <typename Key,
           typename Value,
-          typename Hasher = base::Hash<Key>,
+          typename Hasher = std::conditional_t<base::kFlatHashMapUseMurmurHash,
+                                               // TODO(lalitm): switch this to
+                                               // actually point to MurmurHash.
+                                               base::FnvHash<Key>,
+                                               base::FnvHash<Key>>,
           typename Probe = QuadraticProbe,
           bool AppendOnly = false>
 class FlatHashMap {

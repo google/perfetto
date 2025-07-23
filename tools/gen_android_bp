@@ -614,12 +614,10 @@ class Module(object):
     self.include_dirs = set()
     self.header_libs = set()
     self.required = set()
-    self.user_debug_flag = False
     self.tool_files: Optional[List[str]] = None
     self.android = Target('android')
     self.host = Target('host')
     self.musl = Target('musl')
-    self.lto: Optional[bool] = None
     self.stl = None
     self.dist = dict()
     self.strip = dict()
@@ -703,23 +701,6 @@ class Module(object):
       output.append('    target: {')
       for line in target_out:
         output.append('    %s' % line)
-      output.append('    },')
-
-    if self.user_debug_flag:
-      output.append('    product_variables: {')
-      output.append('        debuggable: {')
-      output.append(
-          '            cflags: ["-DPERFETTO_BUILD_WITH_ANDROID_USERDEBUG"],')
-      output.append('        },')
-      output.append('    },')
-    if self.lto is not None:
-      output.append('    target: {')
-      output.append('        android: {')
-      output.append('            lto: {')
-      output.append('                thin: %s,' %
-                    'true' if self.lto else 'false')
-      output.append('            },')
-      output.append('        },')
       output.append('    },')
     output.append('}')
     output.append('')
@@ -1473,31 +1454,6 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
 def create_blueprint_for_targets(gn: GnParser, targets: List[str]):
   """Generate a blueprint for a list of GN targets."""
   blueprint = Blueprint()
-
-  # Default settings used by all modules.
-  defaults = Module('cc_defaults', defaults_module, '//gn:default_deps')
-
-  # We have to use include_dirs passing the path relative to the android tree.
-  # This is because: (i) perfetto_cc_defaults is used also by
-  # test/**/Android.bp; (ii) if we use local_include_dirs instead, paths
-  # become relative to the Android.bp that *uses* cc_defaults (not the one
-  # that defines it).s
-  defaults.include_dirs = {
-      tree_path, tree_path + '/include', tree_path + '/' + buildflags_dir,
-      tree_path + '/src/profiling/memory/include'
-  }
-  defaults.cflags.update([
-      '-Wno-error=return-type',
-      '-Wno-sign-compare',
-      '-Wno-sign-promo',
-      '-Wno-unused-parameter',
-      '-fvisibility=hidden',
-      '-O2',
-  ])
-  defaults.user_debug_flag = True
-  defaults.lto = True
-
-  blueprint.add_module(defaults)
   for target in targets:
     create_modules_from_target(blueprint, gn, target)
   return blueprint
