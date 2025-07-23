@@ -30,6 +30,8 @@ inline int64_t CreateSyntheticTid(int64_t tid, int64_t pid) {
   return (pid << 32) | tid;
 }
 
+// Returns true if the provided tid is constructed synthetically from both pid
+// and tid. See CreateSyntheticTid() for details.
 inline bool IsSyntheticTid(int64_t tid) {
   return tid & static_cast<int64_t>(0xffffffff00000000);
 }
