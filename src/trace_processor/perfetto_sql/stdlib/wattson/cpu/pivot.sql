@@ -45,6 +45,21 @@ RETURNS TableOrSubquery AS
   FROM _idle_freq_materialized
   WHERE
     cpu = $cpu
+  UNION ALL
+  SELECT
+    trace_start(),
+    trace_dur(),
+    NULL,
+    NULL,
+    NULL
+  WHERE
+    NOT EXISTS(
+      SELECT
+        1
+      FROM _dev_cpu_policy_map
+      WHERE
+        cpu = $cpu
+    )
 );
 
 -- Helper macro to do pivot function with policy information
@@ -67,6 +82,22 @@ RETURNS TableOrSubquery AS
   FROM _idle_freq_materialized
   WHERE
     cpu = $cpu
+  UNION ALL
+  SELECT
+    trace_start(),
+    trace_dur(),
+    NULL,
+    NULL,
+    NULL,
+    NULL
+  WHERE
+    NOT EXISTS(
+      SELECT
+        1
+      FROM _dev_cpu_policy_map
+      WHERE
+        cpu = $cpu
+    )
 );
 
 CREATE PERFETTO TABLE _stats_cpu0 AS
