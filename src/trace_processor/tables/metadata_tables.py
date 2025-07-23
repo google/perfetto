@@ -543,13 +543,19 @@ ARG_TABLE = Table(
             flags=ColumnFlag.SORTED | ColumnFlag.SET_ID,
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+            sql_access=SqlAccess.HIGH_PERF,
         ),
-        C('flat_key', CppString(), cpp_access=CppAccess.READ),
+        C(
+            'flat_key',
+            CppString(),
+            cpp_access=CppAccess.READ,
+        ),
         C(
             'key',
             CppString(),
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+            sql_access=SqlAccess.HIGH_PERF,
         ),
         C(
             'int_value',
@@ -574,6 +580,7 @@ ARG_TABLE = Table(
             CppString(),
             cpp_access=CppAccess.READ,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+            sql_access=SqlAccess.HIGH_PERF,
         ),
     ],
     wrapping_sql_view=WrappingSqlView(view_name='args'),

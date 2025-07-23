@@ -36,7 +36,7 @@ Perfetto offers two complementary techniques for debugging the above:
   based on creating heap retention graphs that show retention dependencies
   between objects (but no call-sites).
 
-## Native (C/C++/Rust) Heap Profling
+## Native (C/C++/Rust) Heap Profiling
 
 Native languages like C/C++/Rust commonly allocate and deallocate memory at the
 lowest level by using the libc family of `malloc`/`free` functions. Native heap

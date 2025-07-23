@@ -1542,7 +1542,21 @@ void FtraceParser::MaybeOnFirstFtraceEvent() {
 
   // Calculate the timestamp used to skip early events, while still populating
   // the |ftrace_events| table.
-  switch (context_->config.soft_drop_ftrace_data_before) {
+  SoftDropFtraceDataBefore soft_drop_before =
+      context_->config.soft_drop_ftrace_data_before;
+
+  // TODO(b/344969928): Workaround, can be removed when perfetto v47+ traces are
+  // the norm in Android.
+  base::StringView unique_session_name =
+      context_->metadata_tracker->GetMetadata(metadata::unique_session_name)
+          .value_or(SqlValue::String(""))
+          .AsString();
+  if (unique_session_name ==
+      base::StringView("session_with_lightweight_battery_tracing")) {
+    soft_drop_before = SoftDropFtraceDataBefore::kNoDrop;
+  }
+
+  switch (soft_drop_before) {
     case SoftDropFtraceDataBefore::kNoDrop: {
       soft_drop_ftrace_data_before_ts_ = 0;
       break;
