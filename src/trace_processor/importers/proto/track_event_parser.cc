@@ -33,8 +33,8 @@
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
-#include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
 #include "src/trace_processor/importers/proto/track_event_event_importer.h"
@@ -45,16 +45,14 @@
 #include "src/trace_processor/util/debug_annotation_parser.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
-#include "protos/perfetto/common/android_log_constants.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
-#include "protos/perfetto/trace/track_event/chrome_process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
-#include "protos/perfetto/trace/track_event/log_message.pbzero.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/source_location.pbzero.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
+#include "protos/third_party/chromium/chrome_track_descriptor.pbzero.h"
 
 namespace perfetto::trace_processor {
 
@@ -208,6 +206,8 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
       event_category_key_id_(context_->storage->InternString("event.category")),
       event_name_key_id_(context_->storage->InternString("event.name")),
       correlation_id_key_id_(context->storage->InternString("correlation_id")),
+      legacy_trace_source_id_key_id_(
+          context_->storage->InternString("legacy_trace_source_id")),
       chrome_string_lookup_(context->storage.get()),
       active_chrome_processes_tracker_(context) {
   args_parser_.AddParsingOverrideForField(
@@ -277,46 +277,42 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
 void TrackEventParser::ParseTrackDescriptor(
     int64_t packet_timestamp,
     protozero::ConstBytes track_descriptor,
-    uint32_t packet_sequence_id) {
+    uint32_t) {
   protos::pbzero::TrackDescriptor::Decoder decoder(track_descriptor);
 
   // Ensure that the track and its parents are resolved. This may start a new
   // process and/or thread (i.e. new upid/utid).
-  std::optional<TrackId> track_id = track_event_tracker_->GetDescriptorTrack(
-      decoder.uuid(), kNullStringId, packet_sequence_id);
-  if (!track_id) {
+  auto track = track_event_tracker_->ResolveDescriptorTrack(decoder.uuid());
+  if (!track) {
     context_->storage->IncrementStats(stats::track_event_parser_errors);
     return;
   }
 
   if (decoder.has_thread()) {
-    UniqueTid utid = ParseThreadDescriptor(decoder.thread());
     if (decoder.has_chrome_thread()) {
+      protos::pbzero::ChromeThreadDescriptor::Decoder chrome_decoder(
+          decoder.chrome_thread());
+      bool is_sandboxed = chrome_decoder.has_is_sandboxed_tid() &&
+                          chrome_decoder.is_sandboxed_tid();
+      UniqueTid utid = ParseThreadDescriptor(decoder.thread(), is_sandboxed);
       ParseChromeThreadDescriptor(utid, decoder.chrome_thread());
+    } else {
+      ParseThreadDescriptor(decoder.thread(), /*is_sandboxed=*/false);
     }
   } else if (decoder.has_process()) {
     UniquePid upid =
         ParseProcessDescriptor(packet_timestamp, decoder.process());
-    if (decoder.has_chrome_process()) {
-      ParseChromeProcessDescriptor(upid, decoder.chrome_process());
+    // `chrome_process` is a field in the ChromeTrackDescriptor extension, which
+    // has no generated accessors. However the field ID is less than
+    // TrackDescriptor::Decoder::kMaxFieldId, because it was converted from an
+    // inline field, so it can be looked up quickly with `at()` instead of
+    // falling back to `FindField()` which is O(n). `at()` contains a
+    // static_assert that ensures this is safe.
+    if (const protozero::Field& chrome_process =
+            decoder.at<protos::pbzero::ChromeTrackDescriptor::
+                           kChromeProcessFieldNumber>()) {
+      ParseChromeProcessDescriptor(upid, chrome_process.as_bytes());
     }
-  }
-
-  // Override the name with the most recent name seen (after sorting by ts).
-  ::protozero::ConstChars name = {nullptr, 0};
-  if (decoder.has_name()) {
-    name = decoder.name();
-  } else if (decoder.has_static_name()) {
-    name = decoder.static_name();
-  } else if (decoder.has_atrace_name()) {
-    name = decoder.atrace_name();
-  }
-  if (name.data) {
-    auto* tracks = context_->storage->mutable_track_table();
-    const StringId raw_name_id = context_->storage->InternString(name);
-    const StringId name_id =
-        context_->process_track_translation_table->TranslateName(raw_name_id);
-    tracks->FindById(*track_id)->set_name(name_id);
   }
 }
 
@@ -384,11 +380,18 @@ void TrackEventParser::ParseChromeProcessDescriptor(
 }
 
 UniqueTid TrackEventParser::ParseThreadDescriptor(
-    protozero::ConstBytes thread_descriptor) {
+    protozero::ConstBytes thread_descriptor,
+    bool is_sandboxed) {
   protos::pbzero::ThreadDescriptor::Decoder decoder(thread_descriptor);
-  UniqueTid utid = context_->process_tracker->UpdateThread(
-      static_cast<uint32_t>(decoder.tid()),
-      static_cast<uint32_t>(decoder.pid()));
+  // TODO: b/175152326 - Should pid namespace translation also be done here?
+  auto pid = static_cast<int64_t>(decoder.pid());
+  auto tid = static_cast<int64_t>(decoder.tid());
+  // If tid is sandboxed then use a unique synthetic tid, to avoid
+  // having concurrent threads with the same tid.
+  if (is_sandboxed) {
+    tid = CreateSyntheticTid(tid, pid);
+  }
+  UniqueTid utid = context_->process_tracker->UpdateThread(tid, pid);
   StringId name_id = kNullStringId;
   if (decoder.has_thread_name() && decoder.thread_name().size) {
     name_id = context_->storage->InternString(decoder.thread_name());

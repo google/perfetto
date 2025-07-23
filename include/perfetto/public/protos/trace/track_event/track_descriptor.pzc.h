@@ -25,7 +25,6 @@
 
 #include "perfetto/public/pb_macros.h"
 
-PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeProcessDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeThreadDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_CounterDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessDescriptor);
@@ -39,6 +38,18 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TrackDescriptor, ChildTracksOrdering){
                                   CHRONOLOGICAL) = 2,
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TrackDescriptor,
                                   EXPLICIT) = 3,
+};
+
+PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TrackDescriptor, SiblingMergeBehavior){
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TrackDescriptor,
+                                  SIBLING_MERGE_BEHAVIOR_UNSPECIFIED) = 0,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TrackDescriptor,
+                                  SIBLING_MERGE_BEHAVIOR_BY_TRACK_NAME) = 1,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TrackDescriptor,
+                                  SIBLING_MERGE_BEHAVIOR_NONE) = 2,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TrackDescriptor,
+                                  SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY) =
+        3,
 };
 
 PERFETTO_PB_MSG(perfetto_protos_TrackDescriptor);
@@ -64,15 +75,15 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
                   atrace_name,
                   13);
 PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
+                  STRING,
+                  const char*,
+                  description,
+                  14);
+PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
                   MSG,
                   perfetto_protos_ProcessDescriptor,
                   process,
                   3);
-PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
-                  MSG,
-                  perfetto_protos_ChromeProcessDescriptor,
-                  chrome_process,
-                  6);
 PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
                   MSG,
                   perfetto_protos_ThreadDescriptor,
@@ -103,5 +114,15 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
                   int32_t,
                   sibling_order_rank,
                   12);
+PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
+                  VARINT,
+                  enum perfetto_protos_TrackDescriptor_SiblingMergeBehavior,
+                  sibling_merge_behavior,
+                  15);
+PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
+                  STRING,
+                  const char*,
+                  sibling_merge_key,
+                  16);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_TRACK_EVENT_TRACK_DESCRIPTOR_PZC_H_

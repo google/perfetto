@@ -34,7 +34,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/endian.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/radix_sort.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
@@ -47,6 +46,7 @@
 #include "src/trace_processor/dataframe/impl/bytecode_registers.h"
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
 #include "src/trace_processor/dataframe/impl/slab.h"
+#include "src/trace_processor/dataframe/impl/sort.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/types.h"
@@ -1068,28 +1068,57 @@ class InterpreterImpl {
       const bytecode::SortRowLayout& bytecode) {
     using B = bytecode::SortRowLayout;
 
+    auto& indices = ReadFromRegister(bytecode.arg<B::indices_register>());
+    auto num_indices = static_cast<size_t>(indices.e - indices.b);
+
+    // Single element is always sorted.
+    if (num_indices <= 1) {
+      return;
+    }
+
     const auto& buffer_slab =
         ReadFromRegister(bytecode.arg<B::buffer_register>());
     const uint8_t* buf = buffer_slab.data();
 
-    auto& indices = ReadFromRegister(bytecode.arg<B::indices_register>());
-    auto num_indices = static_cast<size_t>(indices.e - indices.b);
     uint32_t stride = bytecode.arg<B::total_row_stride>();
 
     struct SortToken {
       uint32_t index;
       uint32_t buf_offset;
     };
+
     // Initally do *not* default initialize the array for performance.
     std::unique_ptr<SortToken[]> p(new SortToken[num_indices]);
-    std::unique_ptr<SortToken[]> q(new SortToken[num_indices]);
-    std::unique_ptr<uint32_t[]> counts(new uint32_t[1 << 16]);
+    std::unique_ptr<SortToken[]> q;
     for (uint32_t i = 0; i < num_indices; ++i) {
       p[i] = {indices.b[i], i * stride};
     }
-    auto* res = base::RadixSort(
-        p.get(), p.get() + num_indices, q.get(), counts.get(), stride,
-        [buf](const SortToken& token) { return buf + token.buf_offset; });
+
+    // Crossover point where our custom RadixSort starts becoming faster that
+    // std::stable_sort.
+    //
+    // Empirically chosen by looking at the crossover point of benchmarks
+    // BM_DataframeSortLsdRadix and BM_DataframeSortLsdStd.
+    static constexpr uint32_t kStableSortCutoff = 4096;
+    SortToken* res;
+    if (num_indices < kStableSortCutoff) {
+      std::stable_sort(p.get(), p.get() + num_indices,
+                       [buf, stride](const SortToken& a, const SortToken& b) {
+                         return memcmp(buf + a.buf_offset, buf + b.buf_offset,
+                                       stride) < 0;
+                       });
+      res = p.get();
+    } else {
+      // We declare q above and populate it here because res might point to q
+      // so we need to make sure that q outlives the end of this block.
+      // Initally do *not* default initialize the arrays for performance.
+      q.reset(new SortToken[num_indices]);
+      std::unique_ptr<uint32_t[]> counts(new uint32_t[1 << 16]);
+      res = base::RadixSort(
+          p.get(), p.get() + num_indices, q.get(), counts.get(), stride,
+          [buf](const SortToken& token) { return buf + token.buf_offset; });
+    }
+
     for (uint32_t i = 0; i < num_indices; ++i) {
       indices.b[i] = res[i].index;
     }

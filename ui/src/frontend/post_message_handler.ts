@@ -208,9 +208,6 @@ export function postMessageHandler(messageEvent: MessageEvent) {
   }
 
   const openTrace = () => {
-    // For external traces, we need to disable other features such as
-    // downloading and sharing a trace.
-    postedTrace.localOnly = true;
     AppImpl.instance.openTraceFromBuffer(postedTrace);
   };
 
@@ -255,6 +252,9 @@ function sanitizePostedTrace(postedTrace: PostedTrace): PostedTrace {
     title: sanitizeString(postedTrace.title),
     buffer: postedTrace.buffer,
     keepApiOpen: postedTrace.keepApiOpen,
+    // For external traces, we need to disable other features such as
+    // downloading and sharing a trace, unless the caller allows it.
+    localOnly: postedTrace.localOnly ?? true,
   };
   if (postedTrace.url !== undefined) {
     result.url = sanitizeString(postedTrace.url);

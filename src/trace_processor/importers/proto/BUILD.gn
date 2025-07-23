@@ -92,6 +92,7 @@ source_set("minimal") {
     "../../../../protos/perfetto/trace/system_info:zero",
     "../../../../protos/perfetto/trace/track_event:zero",
     "../../../../protos/perfetto/trace/translation:zero",
+    "../../../../protos/third_party/chromium:zero",
     "../../../base",
     "../../../protozero",
     "../../containers",
@@ -252,6 +253,7 @@ source_set("packet_sequence_state_generation_hdr") {
     "../../../../protos/perfetto/trace/track_event:zero",
     "../../types:types",
     "../../util:interned_message_view",
+    "../common:synthetic_tid_hdr",
   ]
 }
 
@@ -320,7 +322,6 @@ source_set("unittests") {
     "../../../protozero",
     "../../containers",
     "../../dataframe",
-    "../../db/column",
     "../../sorter",
     "../../storage",
     "../../tables",

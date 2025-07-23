@@ -178,27 +178,47 @@ tables::SurfaceFlingerLayerTable::Id SurfaceFlingerLayersParser::InsertLayerRow(
         visibility,
     const std::unordered_map<int32_t, LayerDecoder>& layers_by_id,
     const surfaceflinger_layers::SurfaceFlingerRects& rects) {
+  auto* string_pool =
+      context_->trace_processor_context_->storage->mutable_string_pool();
+
   tables::SurfaceFlingerLayerTable::Row layer;
   layer.snapshot_id = snapshot_id;
-  layer.base64_proto_id =
-      context_->trace_processor_context_->storage->mutable_string_pool()
-          ->InternString(
-              base::StringView(base::Base64Encode(blob.data, blob.size)))
-          .raw_id();
+  layer.base64_proto_id = string_pool
+                              ->InternString(base::StringView(
+                                  base::Base64Encode(blob.data, blob.size)))
+                              .raw_id();
   LayerDecoder layer_decoder(blob);
   if (layer_decoder.has_id()) {
     layer.layer_id = layer_decoder.id();
   }
+
   if (layer_decoder.has_name()) {
     layer.layer_name =
-        context_->trace_processor_context_->storage->mutable_string_pool()
-            ->InternString(base::StringView(layer_decoder.name()));
+        string_pool->InternString(base::StringView(layer_decoder.name()));
   }
   if (layer_decoder.has_parent()) {
     layer.parent = layer_decoder.parent();
   }
-  if (layer_decoder.has_corner_radius()) {
-    layer.corner_radius = static_cast<double>(layer_decoder.corner_radius());
+
+  auto has_corner_radii = false;
+  if (layer_decoder.has_corner_radii()) {
+    protos::pbzero::CornerRadiiProto::Decoder corner_radii(
+        layer_decoder.corner_radii());
+    if (corner_radii.tl() > 0 || corner_radii.tr() > 0 ||
+        corner_radii.bl() > 0 || corner_radii.br() > 0) {
+      has_corner_radii = true;
+      layer.corner_radius_tl = static_cast<double>(corner_radii.tl());
+      layer.corner_radius_tr = static_cast<double>(corner_radii.tr());
+      layer.corner_radius_bl = static_cast<double>(corner_radii.bl());
+      layer.corner_radius_br = static_cast<double>(corner_radii.br());
+    }
+  }
+  if (!has_corner_radii && layer_decoder.has_corner_radius()) {
+    auto radius = static_cast<double>(layer_decoder.corner_radius());
+    layer.corner_radius_tl = radius;
+    layer.corner_radius_tr = radius;
+    layer.corner_radius_bl = radius;
+    layer.corner_radius_br = radius;
   }
   if (layer_decoder.has_hwc_composition_type()) {
     layer.hwc_composition_type = layer_decoder.hwc_composition_type();

@@ -27,9 +27,6 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/dataframe.h"
 #include "src/trace_processor/dataframe/specs.h"
-#include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/column/types.h"
-#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
@@ -39,49 +36,6 @@ namespace perfetto::trace_processor {
 namespace {
 
 using TableInfoTable = tables::PerfettoTableInfoTable;
-
-std::vector<TableInfoTable::Row> GetColInfoRows(
-    const std::vector<ColumnLegacy>& cols,
-    StringPool* pool) {
-  std::vector<TableInfoTable::Row> rows;
-  for (const ColumnLegacy& col : cols) {
-    if (col.IsHidden()) {
-      continue;
-    }
-    TableInfoTable::Row row;
-    row.name = pool->InternString(col.name());
-    switch (col.col_type()) {
-      case ColumnType::kString:
-        row.col_type = pool->InternString("string");
-        break;
-      case ColumnType::kInt64:
-        row.col_type = pool->InternString("int64");
-        break;
-      case ColumnType::kInt32:
-        row.col_type = pool->InternString("int32");
-        break;
-      case ColumnType::kUint32:
-        row.col_type = pool->InternString("uint32");
-        break;
-      case ColumnType::kDouble:
-        row.col_type = pool->InternString("double");
-        break;
-      case ColumnType::kId:
-        row.col_type = pool->InternString("id");
-        break;
-      case ColumnType::kDummy:
-        row.col_type = pool->InternString("dummy");
-        break;
-    }
-    if (col.IsSetId()) {
-      row.col_type = pool->InternString("set id");
-    }
-    row.nullable = col.IsNullable();
-    row.sorted = col.IsSorted();
-    rows.push_back(row);
-  }
-  return rows;
-}
 
 std::vector<TableInfoTable::Row> GetColInfoRows(const dataframe::Dataframe* df,
                                                 StringPool* pool) {
@@ -138,13 +92,6 @@ bool TableInfo::Cursor::Run(const std::vector<SqlValue>& arguments) {
   std::string table_name_str = arguments[0].AsString();
   auto table_name_id = string_pool_->InternString(table_name_str.c_str());
 
-  if (const Table* t = engine_->GetTableOrNull(table_name_str); t) {
-    for (auto& row : GetColInfoRows(t->columns(), string_pool_)) {
-      row.table_name = table_name_id;
-      table_.Insert(row);
-    }
-    return OnSuccess(&table_.dataframe());
-  }
   if (const auto* df = engine_->GetDataframeOrNull(table_name_str); df) {
     for (auto& row : GetColInfoRows(df, string_pool_)) {
       row.table_name = table_name_id;
@@ -172,9 +119,6 @@ std::string TableInfo::TableName() {
 }
 
 uint32_t TableInfo::GetArgumentCount() const {
-  return 1;
-}
-uint32_t TableInfo::EstimateRowCount() {
   return 1;
 }
 

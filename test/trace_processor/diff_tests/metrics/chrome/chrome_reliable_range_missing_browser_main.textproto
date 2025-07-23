@@ -21,7 +21,7 @@ packet {
       process {
         pid: 1
       }
-      chrome_process {
+      [perfetto.protos.ChromeTrackDescriptor.chrome_process] {
         process_type: PROCESS_BROWSER
       }
     }

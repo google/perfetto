@@ -73,6 +73,7 @@ from diff_tests.parser.fs.tests import Fs
 from diff_tests.parser.ftrace.block_io_tests import BlockIo
 from diff_tests.parser.ftrace.ftrace_crop_tests import FtraceCrop
 from diff_tests.parser.ftrace.kprobes_tests import Kprobes
+from diff_tests.parser.ftrace.generic_ftrace_tests import GenericFtrace
 from diff_tests.parser.fuchsia.tests import Fuchsia
 from diff_tests.parser.gecko.tests import GeckoParser
 from diff_tests.parser.generic_kernel.tests import GenericKernelParser
@@ -142,6 +143,7 @@ from diff_tests.stdlib.pixel.tests import PixelStdlib
 from diff_tests.stdlib.pkvm.tests import Pkvm
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
+from diff_tests.stdlib.prelude.regexp_extract import RegexpExtract
 from diff_tests.stdlib.prelude.slices_tests import PreludeSlices
 from diff_tests.stdlib.prelude.window_functions_tests import PreludeWindowFunctions
 from diff_tests.stdlib.sched.tests import StdlibSched
@@ -187,6 +189,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       Etm,
       Fs,
       Fuchsia,
+      GenericFtrace,
       GenericKernelParser,
       GraphicsDrmRelatedFtraceEvents,
       GraphicsGpuTrace,
@@ -289,6 +292,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       HeapGraph,
       PreludePprofFunctions,
       PreludeWindowFunctions,
+      RegexpExtract,
       Pkvm,
       PreludeSlices,
       StdlibSmoke,

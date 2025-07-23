@@ -377,7 +377,8 @@ class TestCaseRunner:
       if self.test.trace_path.endswith('.py'):
         gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
         serialize_python_trace(ROOT_DIR, self.trace_descriptor_path,
-                               self.test.trace_path, gen_trace_file)
+                               extension_descriptor_paths, self.test.trace_path,
+                               gen_trace_file)
 
       elif self.test.trace_path.endswith('.textproto'):
         gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
@@ -452,10 +453,13 @@ class TestCaseRunner:
                                    or self.test.trace_path.endswith('.py')):
         res += 'Command to generate trace:\n'
         res += 'tools/serialize_test_trace.py '
-        res += '--descriptor {} {} > {}\n'.format(
-            os.path.relpath(self.trace_descriptor_path, ROOT_DIR),
-            os.path.relpath(self.test.trace_path, ROOT_DIR),
-            os.path.relpath(trace_path, ROOT_DIR))
+        res += '--descriptor {} {} {} > {}\n'.format(
+            os.path.relpath(self.trace_descriptor_path, ROOT_DIR), " ".join([
+                "--extension-descriptor {}".format(
+                    os.path.relpath(p, ROOT_DIR))
+                for p in extension_descriptor_paths
+            ]), os.path.relpath(self.test.trace_path, ROOT_DIR),
+            os.path.relpath(trace_path, ROOT_DIR), extension_descriptor_paths)
       res += f"Command line:\n{' '.join(result.cmd)}\n"
       return res
 

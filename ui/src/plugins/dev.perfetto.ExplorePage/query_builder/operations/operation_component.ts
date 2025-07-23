@@ -19,10 +19,9 @@ import {
   GroupByAggregationAttrsToProto,
   GroupByAttrs,
   GroupByOperation,
-} from './groupy_by';
+} from './group_by';
 import protos from '../../../../protos';
-import {ColumnControllerRow} from '../column_controller';
-import {Section} from '../../../../widgets/section';
+import {ColumnInfo} from '../column_info';
 
 export interface OperatorAttrs {
   filter: FilterAttrs;
@@ -32,9 +31,17 @@ export interface OperatorAttrs {
 export class Operator implements m.ClassComponent<OperatorAttrs> {
   view({attrs}: m.CVnode<OperatorAttrs>): m.Children {
     return m(
-      '.explore-page__rowish',
-      m(Section, {title: 'Filters'}, m(FilterOperation, attrs.filter)),
-      m(Section, {title: 'Aggregation'}, m(GroupByOperation, attrs.groupby)),
+      '.pf-query-operations',
+      m(
+        '.section',
+        m('h2', 'Filters'),
+        m('div.operations-container', m(FilterOperation, attrs.filter)),
+      ),
+      m(
+        '.section',
+        m('h2', 'Aggregations'),
+        m('div.operations-container', m(GroupByOperation, attrs.groupby)),
+      ),
     );
   }
 }
@@ -42,14 +49,15 @@ export class Operator implements m.ClassComponent<OperatorAttrs> {
 export function createFiltersProto(
   filters: Filter[],
 ): protos.PerfettoSqlStructuredQuery.Filter[] | undefined {
-  const protos = filters
-    .filter((f) => validateFilter(f))
-    .map((f) => FilterToProto(f));
+  for (const filter of filters) {
+    filter.isValid = validateFilter(filter);
+  }
+  const protos = filters.filter((f) => f.isValid).map((f) => FilterToProto(f));
   return protos.length !== 0 ? protos : undefined;
 }
 
 export function createGroupByProto(
-  groupByColumns: ColumnControllerRow[],
+  groupByColumns: ColumnInfo[],
   aggregations: GroupByAgg[],
 ): protos.PerfettoSqlStructuredQuery.GroupBy | undefined {
   if (!groupByColumns.find((c) => c.checked)) return;
@@ -59,19 +67,22 @@ export function createGroupByProto(
     .filter((c) => c.checked)
     .map((c) => c.column.name);
 
+  for (const agg of aggregations) {
+    agg.isValid = validateAggregation(agg);
+  }
   groupByProto.aggregates = aggregations
-    .filter((agg) => validateAggregation(agg))
+    .filter((agg) => agg.isValid)
     .map(GroupByAggregationAttrsToProto);
   return groupByProto;
 }
 
 function validateAggregation(aggregation: GroupByAgg): boolean {
-  if (!aggregation.column) return false;
+  if (!aggregation.column || !aggregation.aggregationOp) return false;
   return true;
 }
 
 function validateFilter(filter: Filter): boolean {
-  if (!filter.columnName.checked) return false;
+  if (!filter.columnName || !filter.filterOp) return false;
   if (
     filter.stringsRhs.length === 0 &&
     filter.doubleRhs.length === 0 &&

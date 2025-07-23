@@ -47,6 +47,7 @@ import "protos/perfetto/config/inode_file/inode_file_config.proto";
 import "protos/perfetto/config/interceptor_config.proto";
 import "protos/perfetto/config/power/android_power_config.proto";
 import "protos/perfetto/config/statsd/statsd_tracing_config.proto";
+import "protos/perfetto/config/priority_boost/priority_boost_config.proto";
 import "protos/perfetto/config/process_stats/process_stats_config.proto";
 import "protos/perfetto/config/profiling/heapprofd_config.proto";
 import "protos/perfetto/config/profiling/java_hprof_config.proto";
@@ -130,6 +131,8 @@ message DataSourceConfig {
   // buffer. This is only honored by some data sources (in the SDK, the data
   // sources registered with a configurable buffer exhausted policy).
   optional BufferExhaustedPolicy buffer_exhausted_policy = 9;
+
+  optional PriorityBoostConfig priority_boost = 10;
 
   // Keep the lower IDs (up to 99) for fields that are *not* specific to
   // data-sources and needs to be processed by the traced daemon.

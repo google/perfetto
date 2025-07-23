@@ -238,6 +238,7 @@ class TrackEvent(TestSuite):
       "[NULL]","p1","[NULL]","[NULL]",4000,0,"cat","event1_on_p1"
       "async","p1","[NULL]","[NULL]",5000,0,"cat","event1_on_async"
       "async2","p1","[NULL]","[NULL]",5100,100,"cat","event1_on_async2"
+      "async3","[NULL]","t2","p1",6000,0,"cat","event1_on_async3"
       "[NULL]","[NULL]","t1","p1",6000,0,"cat","event3_on_t1"
       "[NULL]","[NULL]","t3","p1",11000,0,"cat","event1_on_t3"
       "[NULL]","p2","[NULL]","[NULL]",21000,0,"cat","event1_on_p2"
@@ -307,7 +308,49 @@ class TrackEvent(TestSuite):
         "thread=t2",1
         "thread=t3",1
         "thread=t4","[NULL]"
-        "tid=1","[NULL]"
+        """))
+
+  def test_track_event_descriptions(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_tracks.textproto'),
+        query="""
+        WITH track_with_name AS (
+          SELECT
+            COALESCE(
+              t1.name,
+              'thread=' || thread.name,
+              'process=' || process.name,
+              'tid=' || thread.tid,
+              'pid=' || process.pid
+            ) AS full_name,
+            *
+          FROM track t1
+          LEFT JOIN thread_track t2 USING (id)
+          LEFT JOIN thread USING (utid)
+          LEFT JOIN process_track t3 USING (id)
+          LEFT JOIN process ON t3.upid = process.id
+          ORDER BY id
+        )
+        SELECT
+        t1.full_name AS name,
+        EXTRACT_ARG(t1.source_arg_set_id, 'description') AS description
+        FROM track_with_name t1
+        ORDER BY 1, 2;
+        """,
+        out=Csv("""
+        "name","description"
+        "Default Track","[NULL]"
+        "async","Async events for p1"
+        "async2","[NULL]"
+        "async3","Async events for t2"
+        "event_and_track_async3","[NULL]"
+        "process=p1","Chrome process: p1"
+        "process=p2","[NULL]"
+        "process=p2","[NULL]"
+        "thread=t1","Thread t1"
+        "thread=t2","Thread t2"
+        "thread=t3","[NULL]"
+        "thread=t4","[NULL]"
         """))
 
   # Instant events
@@ -419,16 +462,20 @@ class TrackEvent(TestSuite):
         """,
         out=Csv("""
         "track","process","thread","thread_process","ts","dur","category","name","key","string_value","int_value"
+        "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","legacy_trace_source_id","[NULL]",1234
         "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","debug.arg1","value1","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","legacy_event.passthrough_utid","[NULL]",1
         "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","legacy_event.phase","S","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","debug.arg2","value2","[NULL]"
+        "name1","[NULL]","[NULL]","[NULL]",2000,1000,"cat","name1","legacy_trace_source_id","[NULL]",1234
         "name1","[NULL]","[NULL]","[NULL]",2000,1000,"cat","name1","legacy_event.passthrough_utid","[NULL]",2
         "name1","[NULL]","[NULL]","[NULL]",2000,1000,"cat","name1","legacy_event.phase","S","[NULL]"
+        "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","legacy_trace_source_id","[NULL]",1234
         "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","debug.arg3","value3","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","debug.step","Step1","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","legacy_event.passthrough_utid","[NULL]",1
         "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","legacy_event.phase","T","[NULL]"
+        "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","legacy_trace_source_id","[NULL]",1234
         "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","debug.arg4","value4","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","debug.step","Step2","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","legacy_event.passthrough_utid","[NULL]",1
@@ -509,7 +556,6 @@ class TrackEvent(TestSuite):
         """,
         out=Csv('''
           "flat_key","key","int_value","string_value"
-          "cookie","cookie",1234,"[NULL]"
           "debug.debug1.key1","debug.debug1.key1",10,"[NULL]"
           "debug.debug1.key2","debug.debug1.key2[0]",20,"[NULL]"
           "debug.debug1.key2","debug.debug1.key2[1]",21,"[NULL]"
@@ -533,14 +579,14 @@ class TrackEvent(TestSuite):
           "event.name","event.name","[NULL]","[NULL]"
           "event.name","event.name","[NULL]","name1"
           "legacy_event.passthrough_utid","legacy_event.passthrough_utid",1,"[NULL]"
+          "legacy_trace_source_id","legacy_trace_source_id",1234,"[NULL]"
+          "name","name","[NULL]","name1"
           "scope","scope","[NULL]","cat"
           "source","source","[NULL]","chrome"
           "source_scope","source_scope","[NULL]","cat"
-          "trace_id","trace_id",1234,"[NULL]"
           "trace_id_is_process_scoped","trace_id_is_process_scoped",0,"[NULL]"
+          "track_compressor_idx","track_compressor_idx",0,"[NULL]"
           "upid","upid",1,"[NULL]"
-          "utid","utid",1,"[NULL]"
-          "utid","utid",2,"[NULL]"
         '''))
 
   # Counters
@@ -746,9 +792,12 @@ class TrackEvent(TestSuite):
           "event.category","event.category","[NULL]","disabled-by-default-histogram_samples"
           "event.name","event.name","[NULL]","[NULL]"
           "is_root_in_scope","is_root_in_scope",1,"[NULL]"
+          "merge_key_type","merge_key_type",0,"[NULL]"
+          "merge_key_value","merge_key_value","[NULL]","Default Track"
+          "parent_track_uuid","parent_track_uuid",0,"[NULL]"
           "source","source","[NULL]","descriptor"
           "trace_id","trace_id",0,"[NULL]"
-          "track_uuid","track_uuid",0,"[NULL]"
+          "track_compressor_idx","track_compressor_idx",0,"[NULL]"
         '''))
 
   # Flow events importing from proto
@@ -861,24 +910,26 @@ class TrackEvent(TestSuite):
         trace=Path('track_event_tracks_ordering.textproto'),
         query="""
         SELECT
-          id,
-          parent_id,
-          EXTRACT_ARG(source_arg_set_id, 'child_ordering') AS ordering,
-          EXTRACT_ARG(source_arg_set_id, 'sibling_order_rank') AS rank
-        FROM track
+          t.name,
+          p.name AS parent_name,
+          EXTRACT_ARG(t.source_arg_set_id, 'child_ordering') AS ordering,
+          EXTRACT_ARG(t.source_arg_set_id, 'sibling_order_rank') AS rank
+        FROM track t
+        LEFT JOIN track p ON t.parent_id = p.id
+        ORDER BY p.name, t.name
         """,
         out=Csv("""
-        "id","parent_id","ordering","rank"
-        0,"[NULL]","explicit","[NULL]"
-        1,0,"[NULL]",-10
-        2,0,"[NULL]",-2
-        3,0,"[NULL]",1
-        4,"[NULL]","explicit","[NULL]"
-        5,0,"[NULL]",2
-        6,2,"[NULL]","[NULL]"
-        7,0,"[NULL]","[NULL]"
-        8,"[NULL]","[NULL]",-10
-        9,"[NULL]","[NULL]",-2
+        "name","parent_name","ordering","rank"
+        "p1","[NULL]","explicit","[NULL]"
+        "p1_child_1","[NULL]","[NULL]",-10
+        "p1_child_2","[NULL]","[NULL]",-2
+        "parent","[NULL]","explicit","[NULL]"
+        "async3","child_2","[NULL]","[NULL]"
+        "async","parent","[NULL]",1
+        "async2","parent","[NULL]",2
+        "child_1","parent","[NULL]",-10
+        "child_2","parent","[NULL]",-2
+        "child_3","parent","[NULL]","[NULL]"
         """))
 
   def test_track_event_tracks_machine_id(self):
@@ -926,7 +977,6 @@ class TrackEvent(TestSuite):
         "thread=t2",1
         "thread=t3",1
         "thread=t4","[NULL]"
-        "tid=1","[NULL]"
         """))
 
   # Tests thread_counter_track.machine_id is not null.
@@ -946,4 +996,49 @@ class TrackEvent(TestSuite):
         "thread_time",1
         "thread_time",1
         "thread_instruction_count",1
+        """))
+
+  def test_track_event_name_resolution(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_name_resolution.textproto'),
+        query="""
+        SELECT name
+        FROM track
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name"
+        "Before Event"
+        "Event Name"
+        "Second Name"
+        """))
+
+  def test_track_event_name_resolution_extended(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_name_resolution_extended.textproto'),
+        query="""
+        SELECT t.name, t.parent_id is null as is_root
+        FROM track t
+        ORDER BY t.name;
+        """,
+        out=Csv("""
+        "name","is_root"
+        "After Event",1
+        "Child Event",0
+        "Event Name",1
+        "Parent",1
+        "Second Name",1
+        """))
+
+  def test_track_event_name_resolution_null_override(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_name_resolution_null_override.textproto'),
+        query="""
+        SELECT name
+        FROM track
+        WHERE name IS NOT NULL;
+        """,
+        out=Csv("""
+        "name"
+        "First Name"
         """))

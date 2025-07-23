@@ -161,3 +161,131 @@ packet {
     name: "chrono2"
   }
 }
+
+# Events to ensure track creation.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1
+  track_event {
+    track_uuid: 100
+    type: TYPE_INSTANT
+    name: "event_for_explicit_parent"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 1
+  track_event {
+    track_uuid: 2
+    type: TYPE_INSTANT
+    name: "event_for_explicit_child_no_z_index"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1
+  track_event {
+    track_uuid: 3
+    type: TYPE_INSTANT
+    name: "event_for_explicit_child_5_z_index"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1
+  track_event {
+    track_uuid: 4
+    type: TYPE_INSTANT
+    name: "event_for_explicit_child_-5_z_index"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 101
+  track_event {
+    track_uuid: 5
+    type: TYPE_INSTANT
+    name: "event_for_explicit_child_-5_z_index_2"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 201
+  track_event {
+    track_uuid: 200
+    type: TYPE_INSTANT
+    name: "event_for_lexicographic_parent"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 201
+  track_event {
+    track_uuid: 6
+    type: TYPE_INSTANT
+    name: "event_for_unnamed_child"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1001
+  track_event {
+    track_uuid: 7
+    type: TYPE_INSTANT
+    name: "event_for_a"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 2001
+  track_event {
+    track_uuid: 8
+    type: TYPE_INSTANT
+    name: "event_for_b"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 2001
+  track_event {
+    track_uuid: 9
+    type: TYPE_INSTANT
+    name: "event_for_ab"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 1001
+  track_event {
+    track_uuid: 300
+    type: TYPE_INSTANT
+    name: "event_for_chronological_parent"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1
+  track_event {
+    track_uuid: 10
+    type: TYPE_INSTANT
+    name: "event_for_chrono"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 11
+  track_event {
+    track_uuid: 11
+    type: TYPE_INSTANT
+    name: "event_for_chrono1"
+  }
+}
+packet {
+  trusted_packet_sequence_id: 2
+  timestamp: 6
+  track_event {
+    track_uuid: 12
+    type: TYPE_INSTANT
+    name: "event_for_chrono2"
+  }
+}
