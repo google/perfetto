@@ -365,7 +365,6 @@ class TestCaseRunner:
       summary_descriptor_path: str,
       metrics_descriptor_paths: List[str],
       extension_descriptor_paths: List[str],
-      python_extension_descriptor_paths: List[str],
       keep_input,
   ) -> Tuple[TestResult, str]:
     # We can't use delete=True here. When using that on Windows, the
@@ -377,10 +376,9 @@ class TestCaseRunner:
       assert self.test.trace_path
       if self.test.trace_path.endswith('.py'):
         gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
-        # Pass only a subset of the extension descriptors to python tests.
         serialize_python_trace(ROOT_DIR, self.trace_descriptor_path,
-                               python_extension_descriptor_paths,
-                               self.test.trace_path, gen_trace_file)
+                               extension_descriptor_paths, self.test.trace_path,
+                               gen_trace_file)
 
       elif self.test.trace_path.endswith('.textproto'):
         gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
@@ -489,7 +487,6 @@ class TestCaseRunner:
       summary_descriptor_path: str,
       metrics_descriptor_paths: List[str],
       extension_descriptor_paths: List[str],
-      python_extension_descriptor_paths: List[str],
       keep_input: bool,
   ) -> Tuple[str, str, TestResult]:
     if not metrics_descriptor_paths:
@@ -512,7 +509,6 @@ class TestCaseRunner:
         summary_descriptor_path,
         metrics_descriptor_paths,
         extension_descriptor_paths,
-        python_extension_descriptor_paths,
         keep_input,
     )
     return self.test.name, run_str, result
@@ -579,9 +575,6 @@ class DiffTestsRunner:
               summary_descriptor,
               metrics_descriptor_paths,
               [chrome_extensions, test_extensions, winscope_extensions],
-              # Some Python tests need ChromeProcessDescriptor from
-              # chrome_extensions, but other extensions cause syntax errors.
-              [chrome_extensions],
               keep_input,
           ) for test in self.test_runners
       ]
