@@ -19,13 +19,16 @@
 
 #include "test/gtest_and_gmock.h"
 
-using testing::AnyNumber;
-using testing::IsEmpty;
-using testing::Return;
-using testing::UnorderedElementsAre;
-
 namespace perfetto {
 namespace {
+
+using testing::_;
+using testing::AnyNumber;
+using testing::DoAll;
+using testing::IsEmpty;
+using testing::Return;
+using testing::SetArgPointee;
+using testing::UnorderedElementsAre;
 
 class MockTracefs : public Tracefs {
  public:
@@ -37,6 +40,10 @@ class MockTracefs : public Tracefs {
               (override));
   MOCK_METHOD(char, ReadOneCharFromFile, (const std::string& path), (override));
   MOCK_METHOD(bool, ClearFile, (const std::string& path), (override));
+  MOCK_METHOD(bool,
+              ReadFile,
+              (const std::string& path, std::string* contents),
+              (const, override));
   MOCK_METHOD(std::string,
               ReadFileIntoString,
               (const std::string& path),
@@ -141,6 +148,56 @@ TEST(TracefsTest, ReadBufferSizeInPages) {
   EXPECT_CALL(ftrace, ReadFileIntoString("/root/buffer_size_kb"))
       .WillOnce(Return("\n\n\n\n"));
   EXPECT_THAT(ftrace.GetCpuBufferSizeInPages(), 1);
+}
+
+TEST(TracefsTest, GetOfflineCpus) {
+  MockTracefs ftrace;
+  std::vector<uint32_t> cpus;
+
+  // ReadFile fails.
+  EXPECT_CALL(ftrace, ReadFile("/sys/devices/system/cpu/offline", _))
+      .WillOnce(Return(false));
+  EXPECT_FALSE(ftrace.Tracefs::GetOfflineCpus(&cpus));
+  EXPECT_THAT(cpus, IsEmpty());
+  testing::Mock::VerifyAndClearExpectations(&ftrace);
+
+  // Invalid value.
+  EXPECT_CALL(ftrace, ReadFile("/sys/devices/system/cpu/offline", _))
+      .WillOnce(DoAll(SetArgPointee<1>("1,a,3"), Return(true)));
+  EXPECT_FALSE(ftrace.Tracefs::GetOfflineCpus(&cpus));
+  EXPECT_THAT(cpus, IsEmpty());
+  testing::Mock::VerifyAndClearExpectations(&ftrace);
+
+  // Empty offline CPU list.
+  EXPECT_CALL(ftrace, ReadFile("/sys/devices/system/cpu/offline", _))
+      .WillOnce(DoAll(SetArgPointee<1>(""), Return(true)));
+  EXPECT_TRUE(ftrace.Tracefs::GetOfflineCpus(&cpus));
+  EXPECT_THAT(cpus, IsEmpty());
+  testing::Mock::VerifyAndClearExpectations(&ftrace);
+
+  // Comma-separated list of single offline CPUs.
+  EXPECT_CALL(ftrace, ReadFile("/sys/devices/system/cpu/offline", _))
+      .WillOnce(DoAll(SetArgPointee<1>("1,3\n"), Return(true)));
+  EXPECT_TRUE(ftrace.Tracefs::GetOfflineCpus(&cpus));
+  EXPECT_THAT(cpus, UnorderedElementsAre(1, 3));
+  cpus.clear();
+  testing::Mock::VerifyAndClearExpectations(&ftrace);
+
+  // Range of offline CPUs (e.g., "0-2").
+  EXPECT_CALL(ftrace, ReadFile("/sys/devices/system/cpu/offline", _))
+      .WillOnce(DoAll(SetArgPointee<1>("0-2,4-5\n"), Return(true)));
+  EXPECT_TRUE(ftrace.Tracefs::GetOfflineCpus(&cpus));
+  EXPECT_THAT(cpus, UnorderedElementsAre(0, 1, 2, 4, 5));
+  cpus.clear();
+  testing::Mock::VerifyAndClearExpectations(&ftrace);
+
+  // Combination of single CPUs and ranges.
+  EXPECT_CALL(ftrace, ReadFile("/sys/devices/system/cpu/offline", _))
+      .WillOnce(DoAll(SetArgPointee<1>("0,2-3,5\n"), Return(true)));
+  EXPECT_TRUE(ftrace.Tracefs::GetOfflineCpus(&cpus));
+  EXPECT_THAT(cpus, UnorderedElementsAre(0, 2, 3, 5));
+  cpus.clear();
+  testing::Mock::VerifyAndClearExpectations(&ftrace);
 }
 
 }  // namespace

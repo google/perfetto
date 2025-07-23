@@ -31,6 +31,7 @@
 using testing::_;
 using testing::AnyNumber;
 using testing::Contains;
+using testing::DoAll;
 using testing::ElementsAre;
 using testing::ElementsAreArray;
 using testing::Eq;
@@ -41,6 +42,7 @@ using testing::MatchesRegex;
 using testing::NiceMock;
 using testing::Not;
 using testing::Return;
+using testing::SetArgPointee;
 using testing::UnorderedElementsAre;
 
 namespace perfetto {
@@ -77,6 +79,8 @@ class MockTracefs : public Tracefs {
     ON_CALL(*this, WriteToFile(_, _)).WillByDefault(Return(true));
     ON_CALL(*this, AppendToFile(_, _)).WillByDefault(Return(true));
     ON_CALL(*this, ClearFile(_)).WillByDefault(Return(true));
+    ON_CALL(*this, ReadFile("/sys/devices/system/cpu/offline", _))
+        .WillByDefault(DoAll(SetArgPointee<1>(""), Return(true)));
     ON_CALL(*this, IsFileWriteable(_)).WillByDefault(Return(true));
     ON_CALL(*this, IsFileReadable(_)).WillByDefault(Return(true));
     EXPECT_CALL(*this, NumberOfCpus()).Times(AnyNumber());
@@ -92,6 +96,10 @@ class MockTracefs : public Tracefs {
               (override));
   MOCK_METHOD(char, ReadOneCharFromFile, (const std::string& path), (override));
   MOCK_METHOD(bool, ClearFile, (const std::string& path), (override));
+  MOCK_METHOD(bool,
+              ReadFile,
+              (const std::string& path, std::string* contents),
+              (const, override));
   MOCK_METHOD(std::string,
               ReadFileIntoString,
               (const std::string& path),
@@ -577,7 +585,7 @@ TEST_F(FtraceConfigMuxerFakeTableTest, TurnFtraceOnOff) {
   EXPECT_CALL(ftrace_, WriteToFile("/root/tracing_on", "0"));
   EXPECT_CALL(ftrace_, WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(ftrace_, ClearFile("/root/trace"));
-  EXPECT_CALL(ftrace_, ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")));
+  EXPECT_CALL(ftrace_, ReadFile("/sys/devices/system/cpu/offline", _));
   ON_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
       .WillByDefault(Return("[local] global boot"));
   EXPECT_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
@@ -613,7 +621,7 @@ TEST_F(FtraceConfigMuxerFakeTableTest, TurnFtraceOnOff) {
   EXPECT_CALL(ftrace_, WriteToFile("/root/buffer_size_kb", PageSizeKb()));
   EXPECT_CALL(ftrace_, WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(ftrace_, ClearFile("/root/trace"));
-  EXPECT_CALL(ftrace_, ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")));
+  EXPECT_CALL(ftrace_, ReadFile("/sys/devices/system/cpu/offline", _));
   EXPECT_CALL(ftrace_, WriteToFile("/root/tracing_on", "1"));
 
   ASSERT_TRUE(model_.RemoveConfig(id));
@@ -1154,7 +1162,7 @@ TEST_F(FtraceConfigMuxerFakeTableTest, FallbackOnSetEvent) {
   EXPECT_CALL(ftrace_, WriteToFile("/root/tracing_on", "0"));
   EXPECT_CALL(ftrace_, WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(ftrace_, ClearFile("/root/trace"));
-  EXPECT_CALL(ftrace_, ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")));
+  EXPECT_CALL(ftrace_, ReadFile("/sys/devices/system/cpu/offline", _));
   ON_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
       .WillByDefault(Return("[local] global boot"));
   EXPECT_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
@@ -1198,7 +1206,7 @@ TEST_F(FtraceConfigMuxerFakeTableTest, FallbackOnSetEvent) {
   EXPECT_CALL(ftrace_, WriteToFile("/root/buffer_size_kb", PageSizeKb()));
   EXPECT_CALL(ftrace_, WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(ftrace_, ClearFile("/root/trace"));
-  EXPECT_CALL(ftrace_, ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")));
+  EXPECT_CALL(ftrace_, ReadFile("/sys/devices/system/cpu/offline", _));
   EXPECT_CALL(ftrace_, WriteToFile("/root/tracing_on", "1"));
   ASSERT_TRUE(model_.RemoveConfig(id));
 }
@@ -1289,7 +1297,7 @@ TEST_F(FtraceConfigMuxerFakeTableTest, Funcgraph) {
   EXPECT_CALL(ftrace_, WriteToFile(_, _)).WillRepeatedly(Return(true));
 
   EXPECT_CALL(ftrace_, ClearFile("/root/trace"));
-  EXPECT_CALL(ftrace_, ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")));
+  EXPECT_CALL(ftrace_, ReadFile("/sys/devices/system/cpu/offline", _));
 
   // Set up config, assert that the tracefs writes happened:
   EXPECT_CALL(ftrace_, ClearFile("/root/set_ftrace_filter"));
@@ -1362,7 +1370,7 @@ TEST_F(FtraceConfigMuxerMockTableTest, AddGenericEvent) {
   EXPECT_CALL(ftrace_, WriteToFile("/root/tracing_on", "0"));
   EXPECT_CALL(ftrace_, WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(ftrace_, ClearFile("/root/trace"));
-  EXPECT_CALL(ftrace_, ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")));
+  EXPECT_CALL(ftrace_, ReadFile("/sys/devices/system/cpu/offline", _));
   ON_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
       .WillByDefault(Return("[local] global boot"));
   EXPECT_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
@@ -1423,7 +1431,7 @@ TEST_P(FtraceConfigMuxerMockTableParamTest, AddKprobeEvent) {
   EXPECT_CALL(ftrace_, WriteToFile("/root/tracing_on", "0"));
   EXPECT_CALL(ftrace_, WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(ftrace_, ClearFile("/root/trace"));
-  EXPECT_CALL(ftrace_, ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")));
+  EXPECT_CALL(ftrace_, ReadFile("/sys/devices/system/cpu/offline", _));
   ON_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
       .WillByDefault(Return("[local] global boot"));
   EXPECT_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
@@ -1491,7 +1499,7 @@ TEST_F(FtraceConfigMuxerMockTableTest, AddKprobeBothEvent) {
   EXPECT_CALL(ftrace_, WriteToFile("/root/tracing_on", "0"));
   EXPECT_CALL(ftrace_, WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(ftrace_, ClearFile("/root/trace"));
-  EXPECT_CALL(ftrace_, ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")));
+  EXPECT_CALL(ftrace_, ReadFile("/sys/devices/system/cpu/offline", _));
   ON_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
       .WillByDefault(Return("[local] global boot"));
   EXPECT_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
@@ -1574,7 +1582,7 @@ TEST_F(FtraceConfigMuxerMockTableTest, AddAllEvents) {
   EXPECT_CALL(ftrace_, WriteToFile("/root/tracing_on", "0"));
   EXPECT_CALL(ftrace_, WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(ftrace_, ClearFile("/root/trace"));
-  EXPECT_CALL(ftrace_, ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")));
+  EXPECT_CALL(ftrace_, ReadFile("/sys/devices/system/cpu/offline", _));
   ON_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
       .WillByDefault(Return("[local] global boot"));
   EXPECT_CALL(ftrace_, ReadFileIntoString("/root/trace_clock"))
