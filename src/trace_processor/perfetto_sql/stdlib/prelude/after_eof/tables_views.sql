@@ -982,7 +982,8 @@ JOIN process_track AS t
   ON s.track_id = t.id
 WHERE
   t.type = 'android_expected_frame_timeline'
-ORDER BY s.id;
+ORDER BY
+  s.id;
 
 -- This table contains information on the actual timeline and additional
 -- analysis related to the performance of either a display frame or a surface
@@ -1056,7 +1057,8 @@ JOIN process_track AS t
   ON s.track_id = t.id
 WHERE
   t.type = 'android_actual_frame_timeline'
-ORDER BY s.id;
+ORDER BY
+  s.id;
 
 -- Stores class information within ART heap graphs. It represents Java/Kotlin
 -- classes that exist in the heap, including their names, inheritance
