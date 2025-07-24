@@ -46,13 +46,13 @@
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "protos/perfetto/trace/track_event/chrome_process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/source_location.pbzero.h"
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
-#include "protos/third_party/chromium/chrome_track_descriptor.pbzero.h"
 
 namespace perfetto::trace_processor {
 
@@ -302,16 +302,8 @@ void TrackEventParser::ParseTrackDescriptor(
   } else if (decoder.has_process()) {
     UniquePid upid =
         ParseProcessDescriptor(packet_timestamp, decoder.process());
-    // `chrome_process` is a field in the ChromeTrackDescriptor extension, which
-    // has no generated accessors. However the field ID is less than
-    // TrackDescriptor::Decoder::kMaxFieldId, because it was converted from an
-    // inline field, so it can be looked up quickly with `at()` instead of
-    // falling back to `FindField()` which is O(n). `at()` contains a
-    // static_assert that ensures this is safe.
-    if (const protozero::Field& chrome_process =
-            decoder.at<protos::pbzero::ChromeTrackDescriptor::
-                           kChromeProcessFieldNumber>()) {
-      ParseChromeProcessDescriptor(upid, chrome_process.as_bytes());
+    if (decoder.has_chrome_process()) {
+      ParseChromeProcessDescriptor(upid, decoder.chrome_process());
     }
   }
 }

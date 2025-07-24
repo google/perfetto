@@ -42,13 +42,3 @@ message BrowserExtension {
     optional SystemB extension_b = 11;
   }
 }
-
-// "Legacy" message with the same format as BrowserExtension. Tests that if
-// LegacyFakeEvent is split into RealFakeEvent and BrowserExtension, the wire
-// format remains compatible.
-message LegacyFakeEvent {
-  optional uint32 base_int = 1;
-  optional string base_string = 2;
-  optional SystemA extension_a = 10;
-  optional SystemB extension_b = 11;
-}

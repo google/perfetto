@@ -25,31 +25,6 @@
 
 #include "perfetto/public/pb_macros.h"
 
-PERFETTO_PB_MSG_DECL(protozero_test_protos_SystemA);
-PERFETTO_PB_MSG_DECL(protozero_test_protos_SystemB);
-
-PERFETTO_PB_MSG(protozero_test_protos_LegacyFakeEvent);
-PERFETTO_PB_FIELD(protozero_test_protos_LegacyFakeEvent,
-                  VARINT,
-                  uint32_t,
-                  base_int,
-                  1);
-PERFETTO_PB_FIELD(protozero_test_protos_LegacyFakeEvent,
-                  STRING,
-                  const char*,
-                  base_string,
-                  2);
-PERFETTO_PB_FIELD(protozero_test_protos_LegacyFakeEvent,
-                  MSG,
-                  protozero_test_protos_SystemA,
-                  extension_a,
-                  10);
-PERFETTO_PB_FIELD(protozero_test_protos_LegacyFakeEvent,
-                  MSG,
-                  protozero_test_protos_SystemB,
-                  extension_b,
-                  11);
-
 PERFETTO_PB_MSG(protozero_test_protos_SystemB);
 PERFETTO_PB_FIELD(protozero_test_protos_SystemB, VARINT, uint32_t, int_b, 1);
 PERFETTO_PB_FIELD(protozero_test_protos_SystemB,

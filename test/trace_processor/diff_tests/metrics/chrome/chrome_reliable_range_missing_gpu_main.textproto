@@ -21,7 +21,7 @@ packet {
       process {
           pid: 1
       }
-      [perfetto.protos.ChromeTrackDescriptor.chrome_process] {
+      chrome_process {
           process_type: PROCESS_GPU
       }
     }
