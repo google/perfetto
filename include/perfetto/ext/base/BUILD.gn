@@ -27,7 +27,6 @@ source_set("base") {
     "event_fd.h",
     "file_utils.h",
     "flags.h",
-    "flags_list.h",
     "flat_hash_map.h",
     "fnv_hash.h",
     "getopt.h",
