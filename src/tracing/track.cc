@@ -17,7 +17,6 @@
 #include "perfetto/tracing/track.h"
 
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -213,7 +212,7 @@ void TrackRegistry::InitializeInstance() {
 
 // static
 uint64_t TrackRegistry::ComputeProcessUuid() {
-  base::Hasher hash;
+  base::FnvHasher hash;
   // Use the process start time + pid as the unique identifier for this process.
   // This ensures that if there are two independent copies of the Perfetto SDK
   // in the same process (e.g., one in the app and another in a system

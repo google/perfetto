@@ -25,7 +25,6 @@
 #include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/clock_snapshots.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
@@ -389,7 +388,7 @@ std::string RelayService::GetMachineIdHint(
     PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
     PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
   auto get_pseudo_boot_id = []() -> std::string {
-    base::Hasher hasher;
+    base::FnvHasher hasher;
     // Generate a pseudo-unique identifier for the current machine.
     // Source 1: system boot timestamp from the creation time of /dev inode.
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)

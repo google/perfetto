@@ -121,7 +121,7 @@ class FnvHasher {
 // when using std::hash.
 template <typename T>
 struct FnvHash {
-  // Version for ints, using base::Hasher.
+  // Version for ints, using base::FnvHasher.
   template <typename U = T>
   auto operator()(const U& x) ->
       typename std::enable_if<std::is_arithmetic<U>::value, size_t>::type

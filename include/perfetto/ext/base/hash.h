@@ -17,16 +17,9 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_HASH_H_
 #define INCLUDE_PERFETTO_EXT_BASE_HASH_H_
 
-#include "perfetto/ext/base/fnv_hash.h"
+#include <cstddef>
 
 namespace perfetto::base {
-
-// Shim for delegating the hasher class.
-using Hasher = FnvHasher;
-
-// Shim for delegating the hash class.
-template <typename T>
-using Hash = FnvHash<T>;
 
 // This is for using already-hashed key into std::unordered_map and avoid the
 // cost of re-hashing. Example:

@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -128,7 +127,7 @@ class GProfileBuilder {
   struct AnnotatedFrameId {
     struct Hash {
       size_t operator()(const AnnotatedFrameId& id) const {
-        return static_cast<size_t>(perfetto::base::Hasher::Combine(
+        return static_cast<size_t>(perfetto::base::FnvHasher::Combine(
             id.frame_id.value, static_cast<int>(id.annotation)));
       }
     };
@@ -157,7 +156,7 @@ class GProfileBuilder {
   struct Location {
     struct Hash {
       size_t operator()(const Location& loc) const {
-        perfetto::base::Hasher hasher;
+        perfetto::base::FnvHasher hasher;
         hasher.UpdateAll(loc.mapping_id, loc.rel_pc, loc.lines.size());
         for (const auto& line : loc.lines) {
           hasher.UpdateAll(line.function_id, line.line);
@@ -184,7 +183,7 @@ class GProfileBuilder {
   struct MappingKey {
     struct Hash {
       size_t operator()(const MappingKey& mapping) const {
-        perfetto::base::Hasher hasher;
+        perfetto::base::FnvHasher hasher;
         hasher.UpdateAll(mapping.size, mapping.file_offset,
                          mapping.build_id_or_filename);
         return static_cast<size_t>(hasher.digest());
@@ -241,7 +240,7 @@ class GProfileBuilder {
   struct Function {
     struct Hash {
       size_t operator()(const Function& func) const {
-        return static_cast<size_t>(perfetto::base::Hasher::Combine(
+        return static_cast<size_t>(perfetto::base::FnvHasher::Combine(
             func.name, func.system_name, func.filename));
       }
     };
@@ -273,7 +272,7 @@ class GProfileBuilder {
     using SerializedLocationId = std::vector<uint8_t>;
     struct Hasher {
       size_t operator()(const SerializedLocationId& data) const {
-        base::Hasher hasher;
+        base::FnvHasher hasher;
         hasher.Update(reinterpret_cast<const char*>(data.data()), data.size());
         return static_cast<size_t>(hasher.digest());
       }
@@ -362,8 +361,8 @@ class GProfileBuilder {
   struct MaybeAnnotatedCallsiteId {
     struct Hash {
       size_t operator()(const MaybeAnnotatedCallsiteId& id) const {
-        return static_cast<size_t>(
-            perfetto::base::Hasher::Combine(id.callsite_id.value, id.annotate));
+        return static_cast<size_t>(perfetto::base::FnvHasher::Combine(
+            id.callsite_id.value, id.annotate));
       }
     };
 
