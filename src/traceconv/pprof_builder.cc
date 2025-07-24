@@ -31,7 +31,6 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
@@ -109,11 +108,9 @@ struct Location {
 template <>
 struct std::hash<Function> {
   size_t operator()(const Function& loc) const {
-    perfetto::base::FnvHasher hasher;
-    hasher.Update(loc.name_id.raw_id());
-    hasher.Update(loc.system_name_id.raw_id());
-    hasher.Update(loc.filename_id.raw_id());
-    return static_cast<size_t>(hasher.digest());
+    return perfetto::base::FnvHasher::Combine(loc.name_id.raw_id(),
+                                              loc.system_name_id.raw_id(),
+                                              loc.filename_id.raw_id());
   }
 };
 
