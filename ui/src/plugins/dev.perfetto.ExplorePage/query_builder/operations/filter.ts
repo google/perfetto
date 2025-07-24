@@ -159,8 +159,17 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
             rounded: true,
             intent: Intent.Primary,
             onclick: () => {
-              filters.push({isEditing: true});
-              editFilter(filters, filters.length - 1);
+              const editingIndex = filters.findIndex((f) => f.isEditing);
+
+              // If an editor is already open for a new filter, remove it.
+              if (editingIndex > -1 && !isFilterValid(filters[editingIndex])) {
+                filters.splice(editingIndex, 1);
+              } else {
+                // Otherwise, add a new filter and start editing it.
+                // This will also close any other existing editor.
+                filters.push({isEditing: true});
+                editFilter(filters, filters.length - 1);
+              }
             },
           }),
         ),
