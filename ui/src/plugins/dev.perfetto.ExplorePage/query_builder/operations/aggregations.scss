@@ -14,30 +14,45 @@
 
 @import "../../../../assets/widgets/theme";
 
-.pf-exp-filters-header {
+.pf-exp-multi-select-container {
   display: flex;
-  align-items: baseline;
+  flex-direction: row;
+  align-items: center;
   gap: 1rem;
 
-  .pf-exp-filters-title {
-    font-size: 1.2em;
-    font-weight: 500;
-    margin: 0;
+  label {
+    font-size: 1.1em;
+    font-weight: 600;
   }
 
-  .pf-text-input {
+  .pf-exp-multiselect-input {
     flex: 1;
   }
 }
 
-.pf-exp-filter-editor-box {
-  padding: 1rem;
-  margin-top: 1rem;
-  border-radius: 6px;
-  background-color: transparent;
-  border: 1px solid $pf-minimal-border;
+.pf-exp-aggregations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
 }
 
-.pf-exp-filter-editor {
+.pf-exp-aggregation-viewer {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  border: 1px solid $pf-minimal-border;
+  cursor: pointer;
+  background-color: transparent;
+  font-family: "Roboto Mono", monospace;
+
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+}
+
+.pf-exp-aggregation-editor {
   @extend .pf-exp-editor;
+  padding: 1rem;
+  border-radius: 6px;
+  border: 1px solid $pf-minimal-border;
 }
