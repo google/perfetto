@@ -27,7 +27,6 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/storage/stats.h"
@@ -55,7 +54,7 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
 
   // Compute the fingerprint of the snapshot by hashing all clock ids. This is
   // used by the clock pathfinding logic.
-  base::Hasher hasher;
+  base::FnvHasher hasher;
   for (const auto& clock_ts : clock_timestamps)
     hasher.Update(clock_ts.clock.id);
   const auto snapshot_hash = static_cast<SnapshotHash>(hasher.digest());

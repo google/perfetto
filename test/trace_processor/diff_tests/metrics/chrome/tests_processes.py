@@ -70,7 +70,7 @@ class ChromeProcesses(TestSuite):
               pid: 17547
               process_name: "Browser"
             }
-            [perfetto.protos.ChromeTrackDescriptor.chrome_process] {
+            chrome_process {
               process_type: PROCESS_BROWSER
             }
           }
@@ -180,7 +180,7 @@ class ChromeProcesses(TestSuite):
             # Chrome for a process with an unknown Chrome process_type. This process
             # should still receive a "chrome_process_type" arg in the args table, but
             # with a NULL value.
-            [perfetto.protos.ChromeTrackDescriptor.chrome_process] {}
+            chrome_process {}
           }
         }
         """),
