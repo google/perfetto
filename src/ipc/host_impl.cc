@@ -53,7 +53,7 @@ base::MachineID GenerateMachineID(base::UnixSocket* sock,
   if (!sock->is_connected() || sock->family() == base::SockFamily::kUnix)
     return base::kDefaultMachineID;
 
-  base::Hasher hasher;
+  base::FnvHasher hasher;
   // Use the hint from the client, or fallback to hostname if the client
   // doesn't provide a hint.
   if (!machine_id_hint.empty()) {
