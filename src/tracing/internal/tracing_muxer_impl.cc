@@ -1123,9 +1123,10 @@ bool TracingMuxerImpl::RegisterDataSource(
   static_state->index = new_index;
 
   // Generate a semi-unique id for this data source.
-  uint64_t digest = base::FnvHasher::Combine(
-      reinterpret_cast<intptr_t>(static_state), base::GetWallTimeNs().count());
-  static_state->id = digest ? digest : 1;
+  base::FnvHasher hash;
+  hash.Update(reinterpret_cast<intptr_t>(static_state));
+  hash.Update(base::GetWallTimeNs().count());
+  static_state->id = hash.digest() ? hash.digest() : 1;
 
   task_runner_->PostTask(
       [this, descriptor, factory, static_state, params, no_flush] {

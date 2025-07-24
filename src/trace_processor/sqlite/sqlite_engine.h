@@ -20,12 +20,17 @@
 #include <sqlite3.h>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <memory>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <utility>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 
@@ -152,7 +157,10 @@ class SqliteEngine {
  private:
   struct FnHasher {
     size_t operator()(const std::pair<std::string, int>& x) const {
-      return base::FnvHasher::Combine(x.first, x.second);
+      base::FnvHasher hasher;
+      hasher.Update(x.first);
+      hasher.Update(x.second);
+      return static_cast<size_t>(hasher.digest());
     }
   };
 

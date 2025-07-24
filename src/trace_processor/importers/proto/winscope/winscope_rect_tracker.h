@@ -26,7 +26,12 @@ namespace perfetto::trace_processor::winscope {
 
 struct RectHasher {
   size_t operator()(const geometry::Rect& r) const {
-    return base::FnvHasher::Combine(r.x, r.y, r.w, r.h);
+    perfetto::base::FnvHasher hasher;
+    hasher.Update(r.x);
+    hasher.Update(r.y);
+    hasher.Update(r.w);
+    hasher.Update(r.h);
+    return static_cast<size_t>(hasher.digest());
   }
 };
 

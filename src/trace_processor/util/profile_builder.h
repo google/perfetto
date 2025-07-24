@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -184,8 +183,10 @@ class GProfileBuilder {
   struct MappingKey {
     struct Hash {
       size_t operator()(const MappingKey& mapping) const {
-        return base::FnvHasher::Combine(mapping.size, mapping.file_offset,
-                                        mapping.build_id_or_filename);
+        perfetto::base::FnvHasher hasher;
+        hasher.UpdateAll(mapping.size, mapping.file_offset,
+                         mapping.build_id_or_filename);
+        return static_cast<size_t>(hasher.digest());
       }
     };
 

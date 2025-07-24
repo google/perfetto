@@ -126,7 +126,9 @@ struct FnvHash {
   auto operator()(const U& x) ->
       typename std::enable_if<std::is_arithmetic<U>::value, size_t>::type
       const {
-    return FnvHasher::Combine(x);
+    FnvHasher hash;
+    hash.Update(x);
+    return static_cast<size_t>(hash.digest());
   }
 
   // Version for non-ints, falling back to std::hash.
