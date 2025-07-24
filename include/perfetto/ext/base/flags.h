@@ -18,12 +18,32 @@
 #define INCLUDE_PERFETTO_EXT_BASE_FLAGS_H_
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/ext/base/flags_list.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <perfetto_flags.h>
 #endif
+
+namespace perfetto::base::flags {
+
+// The list of all the read-only flags accessible to the Perfetto codebase.
+//
+// The first argument is the name of the flag. Should match 1:1 with the name
+// in `perfetto_flags.aconfig`.
+// The second argument is the default value of the flag in non-Android platform
+// contexts.
+#define PERFETTO_READ_ONLY_FLAGS(X)                       \
+  X(test_read_only_flag, NonAndroidPlatformDefault_FALSE) \
+  X(use_murmur_hash_for_flat_hash_map, NonAndroidPlatformDefault_FALSE)
+
+////////////////////////////////////////////////////////////////////////////////
+//                                                                            //
+//                 implementation details start here                          //
+//                                                                            //
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr bool NonAndroidPlatformDefault_TRUE = true;
+constexpr bool NonAndroidPlatformDefault_FALSE = false;
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
@@ -31,11 +51,8 @@
   [[maybe_unused]] constexpr bool name = ::perfetto::flags::name();
 #else
 #define PERFETTO_FLAGS_DEF_GETTER(name, default_non_android_value) \
-  [[maybe_unused]] constexpr bool name =                           \
-      static_cast<bool>(default_non_android_value);
+  [[maybe_unused]] constexpr bool name = default_non_android_value;
 #endif
-
-namespace perfetto::base::flags {
 
 PERFETTO_READ_ONLY_FLAGS(PERFETTO_FLAGS_DEF_GETTER)
 
