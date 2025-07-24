@@ -844,21 +844,19 @@ def read_descriptor(file_name):
 
 
 def create_pool(args):
+  trace_descriptor = read_descriptor(args.trace_descriptor)
+
   pool = descriptor_pool.DescriptorPool()
-  for descriptor_file in args.trace_descriptors:
-    trace_descriptor = read_descriptor(descriptor_file)
-    for file in trace_descriptor.file:
-      pool.Add(file)
+  for file in trace_descriptor.file:
+    pool.Add(file)
+
   return pool
 
 
 def create_trace():
   parser = argparse.ArgumentParser()
   parser.add_argument(
-      'trace_descriptors',
-      type=str,
-      nargs='+',
-      help='locations of trace descriptors')
+      'trace_descriptor', type=str, help='location of trace descriptor')
   args = parser.parse_args()
 
   pool = create_pool(args)

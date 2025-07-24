@@ -18,8 +18,8 @@
 
 #include "perfetto/ext/base/utils.h"
 #include "protos/perfetto/trace/track_event/chrome_legacy_ipc.pbzero.h"
+#include "protos/perfetto/trace/track_event/chrome_process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
-#include "protos/third_party/chromium/chrome_track_descriptor.pbzero.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 using ::perfetto::protos::pbzero::ChromeProcessDescriptor;

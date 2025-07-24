@@ -107,7 +107,6 @@ if (enable_perfetto_integration_tests) {
       "../../../protos/perfetto/trace/interned_data:zero",
       "../../../protos/perfetto/trace/profiling:cpp",
       "../../../protos/perfetto/trace/track_event:cpp",
-      "../../../protos/third_party/chromium:zero",
       "../../../test:integrationtest_initializer",
       "../../base",
     ]

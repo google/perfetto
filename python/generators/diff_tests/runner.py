@@ -377,8 +377,7 @@ class TestCaseRunner:
       if self.test.trace_path.endswith('.py'):
         gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
         serialize_python_trace(ROOT_DIR, self.trace_descriptor_path,
-                               extension_descriptor_paths, self.test.trace_path,
-                               gen_trace_file)
+                               self.test.trace_path, gen_trace_file)
 
       elif self.test.trace_path.endswith('.textproto'):
         gen_trace_file = tempfile.NamedTemporaryFile(delete=False)
