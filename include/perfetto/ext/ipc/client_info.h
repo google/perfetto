@@ -77,6 +77,7 @@ class ClientInfo {
   uid_t uid_ = kInvalidUid;
   pid_t pid_ = base::kInvalidPid;
   base::MachineID machine_id_ = base::kDefaultMachineID;
+  // ... end of fields shared with ClientIdentity.
   std::string machine_name_;
 };
 
