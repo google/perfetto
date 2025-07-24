@@ -13,7 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Filter, FilterAttrs, FilterOperation, FilterToProto} from './filter';
+import {
+  Filter,
+  FilterToProto,
+  WipFilter,
+  FilterAttrs,
+  FilterOperation,
+  isFilterValid,
+} from './filter';
 import {
   GroupByAgg,
   GroupByAggregationAttrsToProto,
@@ -32,11 +39,7 @@ export class Operator implements m.ClassComponent<OperatorAttrs> {
   view({attrs}: m.CVnode<OperatorAttrs>): m.Children {
     return m(
       '.pf-query-operations',
-      m(
-        '.section',
-        m('h2', 'Filters'),
-        m('div.operations-container', m(FilterOperation, attrs.filter)),
-      ),
+      m(FilterOperation, attrs.filter),
       m(
         '.section',
         m('h2', 'Aggregations'),
@@ -47,12 +50,10 @@ export class Operator implements m.ClassComponent<OperatorAttrs> {
 }
 
 export function createFiltersProto(
-  filters: Filter[],
+  filters: WipFilter[],
 ): protos.PerfettoSqlStructuredQuery.Filter[] | undefined {
-  for (const filter of filters) {
-    filter.isValid = validateFilter(filter);
-  }
-  const protos = filters.filter((f) => f.isValid).map((f) => FilterToProto(f));
+  const validFilters = filters.filter(isFilterValid);
+  const protos = validFilters.map((f) => FilterToProto(f as Filter));
   return protos.length !== 0 ? protos : undefined;
 }
 
@@ -76,19 +77,9 @@ export function createGroupByProto(
   return groupByProto;
 }
 
+// Both 'column' and 'aggregationOp' must be present for an aggregation to be considered valid.
+// This ensures that the aggregation operation is applied to a specific column.
 function validateAggregation(aggregation: GroupByAgg): boolean {
   if (!aggregation.column || !aggregation.aggregationOp) return false;
-  return true;
-}
-
-function validateFilter(filter: Filter): boolean {
-  if (!filter.columnName || !filter.filterOp) return false;
-  if (
-    filter.stringsRhs.length === 0 &&
-    filter.doubleRhs.length === 0 &&
-    filter.intRhs.length === 0
-  ) {
-    return false;
-  }
   return true;
 }
