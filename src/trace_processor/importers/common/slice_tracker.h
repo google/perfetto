@@ -171,7 +171,6 @@ class SliceTracker {
 
   void StackPop(TrackId track_id);
   void StackPush(TrackId track_id, tables::SliceTable::RowReference);
-  void FlowTrackerUpdate(TrackId track_id);
 
   // If args need translation, adds them to a list of pending translatable args,
   // so that they are translated at the end of the trace. Takes ownership of the

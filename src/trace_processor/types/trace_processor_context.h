@@ -33,19 +33,15 @@ class AndroidLogEventParser;
 class ArgsTracker;
 class ArgsTranslationTable;
 class ArtMethodParser;
-class ArtHprofParser;
 class TrackCompressor;
 class ChunkedTraceReader;
 class ClockConverter;
 class ClockTracker;
 class CpuTracker;
-class DeobfuscationMappingTable;
-class DeobfuscationTracker;
 class DescriptorPool;
 class EtwModule;
 class EventTracker;
 class FlowTracker;
-class ForwardingTraceParser;
 class FtraceModule;
 class FuchsiaRecordParser;
 class GeckoTraceParser;
@@ -58,7 +54,6 @@ class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
 class MultiMachineTraceManager;
-class PacketAnalyzer;
 class PerfRecordParser;
 class PerfSampleTracker;
 class PerfTextTraceParser;
@@ -152,17 +147,11 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> heap_graph_tracker;                     // HeapGraphTracker
   std::unique_ptr<Destructible> syscall_tracker;                        // SyscallTracker
   std::unique_ptr<Destructible> system_info_tracker;                    // SystemInfoTracker
-  std::unique_ptr<Destructible> v4l2_tracker;                           // V4l2Tracker
-  std::unique_ptr<Destructible> virtio_video_tracker;                   // VirtioVideoTracker
   std::unique_ptr<Destructible> systrace_parser;                        // SystraceParser
   std::unique_ptr<Destructible> thread_state_tracker;                   // ThreadStateTracker
-  std::unique_ptr<Destructible> i2c_tracker;                            // I2CTracker
-  std::unique_ptr<Destructible> perf_data_tracker;                      // PerfDataTracker
   std::unique_ptr<Destructible> content_analyzer;                       // ProtoContentAnalyzer
-  std::unique_ptr<Destructible> protolog_messages_tracker;              // ProtoLogMessagesTracker
   std::unique_ptr<Destructible> ftrace_sched_tracker;                   // FtraceSchedEventTracker
   std::unique_ptr<Destructible> v8_tracker;                             // V8Tracker
-  std::unique_ptr<Destructible> jit_tracker;                            // JitTracker
   std::unique_ptr<Destructible> instruments_row_data_tracker;           // RowDataTracker
   std::unique_ptr<Destructible> perf_tracker;                           // PerfTracker
   std::unique_ptr<Destructible> etm_tracker;                            // EtmTracker

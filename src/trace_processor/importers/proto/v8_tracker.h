@@ -172,7 +172,7 @@ class V8Tracker : public Destructible {
       const IsolateCodeRanges& code_ranges);
 
   TraceProcessorContext* const context_;
-
+  JitTracker jit_tracker_;
   base::FlatHashMap<IsolateId, AddressRangeMap<JitCache*>> isolates_;
 
   // Multiple isolates in the same process might share the code. Keep track of
