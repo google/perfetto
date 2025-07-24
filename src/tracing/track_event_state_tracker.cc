@@ -19,6 +19,7 @@
 #include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
 
+#include "protos/perfetto/common/interceptor_descriptor.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -91,7 +92,9 @@ void TrackEventStateTracker::ProcessTracePacket(
   }
 
   if (name.data) {
-    name_hash = base::FnvHasher::Combine(name.data, name.size);
+    base::FnvHasher hash;
+    hash.Update(name.data, name.size);
+    name_hash = hash.digest();
   }
 
   size_t depth = track->stack.size();
