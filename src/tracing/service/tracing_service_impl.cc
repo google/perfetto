@@ -26,6 +26,7 @@
 #include <optional>
 #include <string>
 #include <unordered_set>
+#include "perfetto/ext/base/fnv_hash.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
@@ -1691,14 +1692,13 @@ void TracingServiceImpl::ActivateTriggers(
     android_stats::MaybeLogTriggerEvent(PerfettoTriggerAtom::kTracedTrigger,
                                         trigger_name);
 
-    base::FnvHasher hash;
-    hash.Update(trigger_name.c_str(), trigger_name.size());
     std::string triggered_session_name;
     base::Uuid triggered_session_uuid;
     TracingSessionID triggered_session_id = 0;
     auto trigger_mode = TraceConfig::TriggerConfig::UNSPECIFIED;
 
-    uint64_t trigger_name_hash = hash.digest();
+    uint64_t trigger_name_hash =
+        base::FnvHasher::Combine(trigger_name.c_str(), trigger_name.size());
     size_t count_in_window =
         PurgeExpiredAndCountTriggerInWindow(now_ns, trigger_name_hash);
 

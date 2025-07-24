@@ -287,12 +287,9 @@ class ArgsTracker {
                                    StringId /*key*/>;
   struct Hasher {
     uint64_t operator()(const ArrayKeyTuple& t) const {
-      base::FnvHasher hasher;
-      hasher.Update(reinterpret_cast<uint64_t>(std::get<0>(t)));
-      hasher.Update(std::get<1>(t));
-      hasher.Update(std::get<2>(t));
-      hasher.Update(std::get<3>(t).raw_id());
-      return hasher.digest();
+      return base::FnvHasher::Combine(
+          reinterpret_cast<uint64_t>(std::get<0>(t)), std::get<1>(t),
+          std::get<2>(t), std::get<3>(t).raw_id());
     }
   };
   base::FlatHashMap<ArrayKeyTuple, size_t /*next_index*/, Hasher>
