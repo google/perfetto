@@ -284,7 +284,8 @@ export function isFilterValid(filter: WipFilter): boolean {
 
 // Tries to parse a filter from a raw string. This is a best-effort parser
 // for simple filters and does not support complex values with spaces or quotes.
-// TODO(mayzner): Improve this parser to handle more complex cases.
+// TODO(mayzner): Improve this parser to handle more complex cases, such as
+// quoted strings, escaped characters, or operators within values.
 function fromString(text: string, sourceCols: ColumnInfo[]): WipFilter {
   // Sort operators by length descending to match "is not null" before "is null".
   const ops = ALL_FILTER_OPS.slice().sort(
@@ -326,7 +327,7 @@ function fromString(text: string, sourceCols: ColumnInfo[]): WipFilter {
   );
 
   if (op === undefined) {
-    throw new Error('Invalid regex');
+    throw new Error('Internal error: operator not found despite regex match');
   }
 
   const value = isValueRequired(op)

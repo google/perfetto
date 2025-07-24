@@ -77,6 +77,8 @@ export function createGroupByProto(
   return groupByProto;
 }
 
+// Both 'column' and 'aggregationOp' must be present for an aggregation to be considered valid.
+// This ensures that the aggregation operation is applied to a specific column.
 function validateAggregation(aggregation: GroupByAgg): boolean {
   if (!aggregation.column || !aggregation.aggregationOp) return false;
   return true;
