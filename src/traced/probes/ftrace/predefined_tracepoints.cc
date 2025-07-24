@@ -379,6 +379,24 @@ base::FlatSet<GroupAndName> GenerateCameraTracePoints(
   return events;
 }
 
+base::FlatSet<GroupAndName> GenerateUsbTracePoints() {
+  base::FlatSet<GroupAndName> events;
+  InsertEvent("dwc3", "dwc3_alloc_request", &events);
+  InsertEvent("dwc3", "dwc3_complete_trb", &events);
+  InsertEvent("dwc3", "dwc3_ctrl_req", &events);
+  InsertEvent("dwc3", "dwc3_ep_dequeue", &events);
+  InsertEvent("dwc3", "dwc3_ep_queue", &events);
+  InsertEvent("dwc3", "dwc3_event", &events);
+  InsertEvent("dwc3", "dwc3_free_request", &events);
+  InsertEvent("dwc3", "dwc3_gadget_ep_cmd", &events);
+  InsertEvent("dwc3", "dwc3_gadget_ep_disable", &events);
+  InsertEvent("dwc3", "dwc3_gadget_ep_enable", &events);
+  InsertEvent("dwc3", "dwc3_gadget_generic_cmd", &events);
+  InsertEvent("dwc3", "dwc3_gadget_giveback", &events);
+  InsertEvent("dwc3", "dwc3_prepare_trb", &events);
+  return events;
+}
+
 std::map<std::string, base::FlatSet<GroupAndName>>
 GeneratePredefinedTracePoints(const ProtoTranslationTable* table,
                               Tracefs* ftrace) {
@@ -412,6 +430,7 @@ GeneratePredefinedTracePoints(const ProtoTranslationTable* table,
   tracepoints["memory"] = GenerateMemoryTracePoints(ftrace);
   tracepoints["thermal"] = GenerateThermalTracePoints();
   tracepoints["camera"] = GenerateCameraTracePoints(table);
+  tracepoints["usb"] = GenerateUsbTracePoints();
   return tracepoints;
 }
 }  // namespace
