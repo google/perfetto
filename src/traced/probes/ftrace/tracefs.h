@@ -18,6 +18,7 @@
 #define SRC_TRACED_PROBES_FTRACE_TRACEFS_H_
 
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -152,9 +153,10 @@ class Tracefs {
   // This will match the number of tracing/per_cpu/cpuXX directories.
   size_t virtual NumberOfCpus() const;
 
-  // Parses the list of offline CPUs from /sys/devices/system/cpu/offline into
-  // |offline_cpus|. Returns true on success.
-  bool GetOfflineCpus(std::vector<uint32_t>* offline_cpus);
+  // Parses the list of offline CPUs from "/sys/devices/system/cpu/offline" and
+  // returns them as a vector if successful, or std::nullopt if any failure in
+  // reading or parsing.
+  std::optional<std::vector<uint32_t>> GetOfflineCpus();
 
   // Clears the trace buffers for all CPUs. Blocks until this is done.
   void ClearTrace();

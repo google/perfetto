@@ -450,18 +450,18 @@ size_t Tracefs::NumberOfCpus() const {
   return num_cpus;
 }
 
-bool Tracefs::GetOfflineCpus(std::vector<uint32_t>* offline_cpus) {
+std::optional<std::vector<uint32_t>> Tracefs::GetOfflineCpus() {
   std::string offline_cpus_str;
   if (!ReadFile("/sys/devices/system/cpu/offline", &offline_cpus_str)) {
     PERFETTO_ELOG("Failed to read offline cpus file");
-    return false;
+    return std::nullopt;
   }
   offline_cpus_str = base::TrimWhitespace(offline_cpus_str);
 
   // The offline cpus file contains a list of comma-separated CPU ranges.
   // Each range is either a single CPU or a range of CPUs, e.g. "0-3,5,7-9".
   // Source: https://docs.kernel.org/admin-guide/cputopology.html
-  std::vector<uint32_t> offline_cpus_tmp;
+  std::vector<uint32_t> offline_cpus;
   for (base::StringSplitter ss(offline_cpus_str, ','); ss.Next();) {
     base::StringView offline_cpu_range(ss.cur_token(), ss.cur_token_size());
     size_t dash_pos = offline_cpu_range.find('-');
@@ -469,11 +469,11 @@ bool Tracefs::GetOfflineCpus(std::vector<uint32_t>* offline_cpus) {
       // Single CPU in the format of "%d".
       std::optional<uint32_t> cpu = base::StringViewToUInt32(offline_cpu_range);
       if (cpu.has_value()) {
-        offline_cpus_tmp.push_back(cpu.value());
+        offline_cpus.push_back(cpu.value());
       } else {
         PERFETTO_ELOG("Failed to parse single CPU from offline CPU range: %s",
                       offline_cpu_range.data());
-        return false;
+        return std::nullopt;
       }
     } else {
       // Range of CPUs in the format of "%d-%d".
@@ -483,17 +483,16 @@ bool Tracefs::GetOfflineCpus(std::vector<uint32_t>* offline_cpus) {
           base::StringViewToUInt32(offline_cpu_range.substr(dash_pos + 1));
       if (start_cpu.has_value() && end_cpu.has_value()) {
         for (auto cpu = start_cpu.value(); cpu <= end_cpu.value(); ++cpu) {
-          offline_cpus_tmp.push_back(cpu);
+          offline_cpus.push_back(cpu);
         }
       } else {
         PERFETTO_ELOG("Failed to parse CPU range from offline CPU range: %s",
                       offline_cpu_range.data());
-        return false;
+        return std::nullopt;
       }
     }
   }
-  *offline_cpus = std::move(offline_cpus_tmp);
-  return true;
+  return offline_cpus;
 }
 
 void Tracefs::ClearTrace() {
@@ -506,17 +505,12 @@ void Tracefs::ClearTrace() {
   // In case some of the CPUs were not online, their buffer needs to be
   // cleared manually.
   //
-  // Note: There is a small time gap between when we clear the trace file and
-  // when we get the offline cpus. This introduces a small chance that some CPUs
-  // are missed if they came online in between those two points. This is a
-  // best-effort approach to keep the logic simple.
-  //
   // We cannot use PERFETTO_CHECK as we might get a permission denied error
   // on Android. The permissions to these files are configured in
   // platform/framework/native/cmds/atrace/atrace.rc.
-  std::vector<uint32_t> offline_cpus;
-  if (GetOfflineCpus(&offline_cpus)) {
-    for (const auto& cpu : offline_cpus) {
+  std::optional<std::vector<uint32_t>> offline_cpus = GetOfflineCpus();
+  if (offline_cpus.has_value()) {
+    for (const auto& cpu : offline_cpus.value()) {
       ClearPerCpuTrace(cpu);
     }
   } else {
