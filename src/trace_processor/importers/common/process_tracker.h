@@ -66,6 +66,10 @@ class ProcessTracker {
   // implemented. This will include passing timestamps into the below methods
   // to ensure the correct upid/utid is found.
 
+  // Called when a task_newtask is observed. This force the tracker to start
+  // a new UTID for the thread, which is needed for TID-recycling resolution.
+  UniqueTid StartNewThread(std::optional<int64_t> timestamp, int64_t tid);
+
   // Returns whether a thread is considered alive by the process tracker.
   bool IsThreadAlive(UniqueTid utid);
 
@@ -79,9 +83,6 @@ class ProcessTracker {
   // Returns the thread utid (or creates a new entry if not present)
   UniqueTid GetOrCreateThread(int64_t tid);
 
-  // Assigns the start timestamp to a thread identified by utid.
-  void SetThreadStartTs(UniqueTid utid, int64_t timestamp);
-
   // Assigns the given name to the thread if the new name has a higher priority
   // than the existing one. The thread is identified by utid.
   virtual void UpdateThreadName(UniqueTid utid,
@@ -92,12 +93,6 @@ class ProcessTracker {
   // for the tid and the matching upid for the tgid and stores both.
   // Virtual for testing.
   virtual UniqueTid UpdateThread(int64_t tid, int64_t pid);
-
-  // Clears any thread associated with the provided tid. Mostly used in cases
-  // where data loss is apparent and a new thread with same tid needs to be
-  // created. For properly marking the end of a thread, use the EndThread
-  // method.
-  void ClearThread(int64_t tid);
 
   // Associates trusted_pid with track UUID.
   void UpdateTrustedPid(int64_t trusted_pid, uint64_t uuid);
