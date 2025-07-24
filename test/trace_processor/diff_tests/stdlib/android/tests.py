@@ -1241,15 +1241,15 @@ class AndroidStdlib(TestSuite):
         trace=DataPath('android_cpu_eos.pb'),
         query="""
         INCLUDE PERFETTO MODULE android.memory.kswapd;
-        SELECT cpu, cpu_dur_ns, kswapd_dur_ns, kswapd_percent
+        SELECT cpu, ucpu, cpu_total_dur_ns, kswapd_running_dur_ns, kswapd_cpu_time_percentage
         FROM android_kswapd_cpu_breakdown
         """,
         out=Csv("""
-        "cpu","cpu_dur_ns","kswapd_dur_ns","kswapd_percent"
-        0,8687035881,45058907,0.520000
-        1,8204303121,7842243,0.100000
-        2,8643762964,16834114,0.190000
-        3,8687029214,56256041,0.650000
+        "cpu","ucpu","cpu_total_dur_ns","kswapd_running_dur_ns","kswapd_cpu_time_percentage"
+        0,0,8687035881,45058907,0.520000
+        1,1,8204303121,7842243,0.100000
+        2,2,8643762964,16834114,0.190000
+        3,3,8687029214,56256041,0.650000
         """))
 
   def test_input_events(self):
