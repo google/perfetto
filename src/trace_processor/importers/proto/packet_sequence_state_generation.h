@@ -30,6 +30,7 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/proto/track_event_sequence_state.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/interned_message_view.h"
 
 #include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
@@ -131,7 +132,9 @@ class PacketSequenceStateGeneration : public RefCounted {
     return track_event_sequence_state_.pid_and_tid_valid();
   }
   int32_t pid() const { return track_event_sequence_state_.pid(); }
-  int64_t tid() const { return track_event_sequence_state_.tid(); }
+  int64_t tid() const {
+    return track_event_sequence_state_.tid(context_->force_synthetic_tids);
+  }
 
   // Returns |nullptr| if the message with the given |iid| was not found (also
   // records a stat in this case).

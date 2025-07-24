@@ -27,7 +27,6 @@
 #include "perfetto/ext/base/metatrace_events.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/string_writer.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -171,11 +170,9 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
             .id;
     auto inserter = args.AddArgsTo(id);
 
-    uint32_t bundle_index =
-        context_->metadata_tracker->IncrementChromeMetadataBundleCount();
-
     // The legacy untyped metadata is proxied via a special event in the raw
-    // table to JSON export.
+    // table to JSON export. Entries into the metadata table are added during
+    // tokenization by MetadataMinimalModule.
     for (auto it = bundle.metadata(); it; ++it) {
       protos::pbzero::ChromeMetadata::Decoder metadata(*it);
       Variadic value = Variadic::Null();
@@ -195,20 +192,6 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
 
       StringId name_id = storage->InternString(metadata.name());
       args.AddArgsTo(id).AddArg(name_id, value);
-
-      char buffer[2048];
-      base::StringWriter writer(buffer, sizeof(buffer));
-      writer.AppendString("cr-");
-      // If we have data from multiple Chrome instances, append a suffix
-      // to differentiate them.
-      if (bundle_index > 1) {
-        writer.AppendUnsignedInt(bundle_index);
-        writer.AppendChar('-');
-      }
-      writer.AppendString(metadata.name());
-
-      auto metadata_id = storage->InternString(writer.GetStringView());
-      context_->metadata_tracker->SetDynamicMetadata(metadata_id, value);
     }
   }
 

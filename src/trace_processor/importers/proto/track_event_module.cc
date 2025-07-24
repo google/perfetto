@@ -46,6 +46,12 @@ TrackEventModule::TrackEventModule(TraceProcessorContext* context)
   RegisterForField(TracePacket::kThreadDescriptorFieldNumber, context);
   RegisterForField(TracePacket::kProcessDescriptorFieldNumber, context);
 
+  // Also register for the streaming profile packet, as it uses the tids
+  // from TrackEventSequenceState. This ensures that
+  // TrackEventTracker::OnParsingStarted() is called before these packets are
+  // parsed by the ProfileModule.
+  RegisterForField(TracePacket::kStreamingProfilePacketFieldNumber, context);
+
   context->descriptor_pool_->AddFromFileDescriptorSet(
       kTrackEventDescriptor.data(), kTrackEventDescriptor.size());
   context->descriptor_pool_->AddFromFileDescriptorSet(
@@ -84,6 +90,7 @@ void TrackEventModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
                                             int64_t ts,
                                             const TracePacketData&,
                                             uint32_t field_id) {
+  track_event_tracker_->OnParsePacketOrEvent();
   switch (field_id) {
     case TracePacket::kTrackDescriptorFieldNumber:
       parser_.ParseTrackDescriptor(ts, decoder.track_descriptor(),
@@ -110,6 +117,7 @@ void TrackEventModule::OnFirstPacketOnSequence(uint32_t packet_sequence_id) {
 void TrackEventModule::ParseTrackEventData(const TracePacket::Decoder& decoder,
                                            int64_t ts,
                                            const TrackEventData& data) {
+  track_event_tracker_->OnParsePacketOrEvent();
   parser_.ParseTrackEvent(ts, &data, decoder.track_event(),
                           decoder.trusted_packet_sequence_id());
 }

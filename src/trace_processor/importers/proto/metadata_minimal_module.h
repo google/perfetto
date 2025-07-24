@@ -43,6 +43,7 @@ class MetadataMinimalModule : public ProtoImporterModule {
  private:
   void ParseChromeBenchmarkMetadata(ConstBytes);
   void ParseChromeMetadataPacket(ConstBytes);
+  void ParseChromeEventsMetadata(ConstBytes);
 
   TraceProcessorContext* context_;
 

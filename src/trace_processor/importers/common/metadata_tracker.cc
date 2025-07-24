@@ -79,42 +79,36 @@ std::optional<SqlValue> MetadataTracker::GetMetadata(metadata::KeyId key) {
   // KeyType::kMulti not yet supported by this method:
   PERFETTO_CHECK(metadata::kKeyTypes[key] == metadata::KeyType::kSingle);
 
-  auto& metadata_table = *storage_->mutable_metadata_table();
   auto key_idx = static_cast<uint32_t>(key);
-
   auto key_id = storage_->string_pool().GetId(metadata::kNames[key_idx]);
   if (!key_id) {
     return std::nullopt;
   }
 
+  return GetDynamicMetadata(*key_id);
+}
+
+std::optional<SqlValue> MetadataTracker::GetDynamicMetadata(StringId key) {
+  auto& metadata_table = *storage_->mutable_metadata_table();
+
   std::optional<tables::MetadataTable::RowReference> row;
   for (auto it = metadata_table.IterateRows(); it; ++it) {
-    if (key_id == it.name()) {
+    if (key == it.name()) {
       row = it.ToRowReference();
       break;
     }
   }
   if (!row.has_value()) {
-    return {};
+    return std::nullopt;
   }
 
-  auto value_type = metadata::kValueTypes[key];
-  switch (value_type) {
-    case Variadic::kInt: {
-      return SqlValue::Long(*row->int_value());
-    }
-    case Variadic::kString:
-      return SqlValue::String(storage_->GetString(*row->str_value()).c_str());
-    case Variadic::kNull:
-      return SqlValue();
-    case Variadic::kJson:
-    case Variadic::kUint:
-    case Variadic::kPointer:
-    case Variadic::kReal:
-    case Variadic::kBool:
-      PERFETTO_FATAL("Invalid metadata value type %zu", value_type);
+  if (row->int_value()) {
+    return SqlValue::Long(*row->int_value());
   }
-  PERFETTO_FATAL("For GCC");
+  if (row->str_value()) {
+    return SqlValue::String(storage_->GetString(row->str_value()).c_str());
+  }
+  return SqlValue();
 }
 
 MetadataId MetadataTracker::AppendMetadata(metadata::KeyId key,

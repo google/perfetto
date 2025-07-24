@@ -18,12 +18,14 @@
 
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_writer.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/trace/chrome/chrome_benchmark_metadata.pbzero.h"
 #include "protos/perfetto/trace/chrome/chrome_metadata.pbzero.h"
+#include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -34,6 +36,7 @@ MetadataMinimalModule::MetadataMinimalModule(TraceProcessorContext* context)
     : context_(context) {
   RegisterForField(TracePacket::kChromeMetadataFieldNumber, context);
   RegisterForField(TracePacket::kChromeBenchmarkMetadataFieldNumber, context);
+  RegisterForField(TracePacket::kChromeEventsFieldNumber, context);
 }
 
 ModuleResult MetadataMinimalModule::TokenizePacket(
@@ -49,6 +52,10 @@ ModuleResult MetadataMinimalModule::TokenizePacket(
     }
     case TracePacket::kChromeBenchmarkMetadataFieldNumber: {
       ParseChromeBenchmarkMetadata(decoder.chrome_benchmark_metadata());
+      return ModuleResult::Handled();
+    }
+    case TracePacket::kChromeEventsFieldNumber: {
+      ParseChromeEventsMetadata(decoder.chrome_events());
       return ModuleResult::Handled();
     }
   }
@@ -190,6 +197,50 @@ void MetadataMinimalModule::ParseChromeMetadataPacket(ConstBytes blob) {
       return;
     protos::pbzero::BackgroundTracingMetadata::TriggerRule::Decoder
         triggered_rule_decoder(triggered_rule.data, triggered_rule.size);
+  }
+}
+
+void MetadataMinimalModule::ParseChromeEventsMetadata(ConstBytes blob) {
+  TraceStorage* storage = context_->storage.get();
+  protos::pbzero::ChromeEventBundle::Decoder bundle(blob);
+  if (!bundle.has_metadata())
+    return;
+
+  uint32_t bundle_index =
+      context_->metadata_tracker->IncrementChromeMetadataBundleCount();
+
+  // Insert into the metadata table during tokenization, so this metadata is
+  // available before parsing begins. These metadata events are also added to
+  // the raw table for JSON export at parsing time.
+  for (auto it = bundle.metadata(); it; ++it) {
+    protos::pbzero::ChromeMetadata::Decoder metadata(*it);
+    Variadic value = Variadic::Null();
+    if (metadata.has_string_value()) {
+      value = Variadic::String(storage->InternString(metadata.string_value()));
+    } else if (metadata.has_int_value()) {
+      value = Variadic::Integer(metadata.int_value());
+    } else if (metadata.has_bool_value()) {
+      value = Variadic::Integer(metadata.bool_value());
+    } else if (metadata.has_json_value()) {
+      value = Variadic::Json(storage->InternString(metadata.json_value()));
+    } else {
+      context_->storage->IncrementStats(stats::empty_chrome_metadata);
+      continue;
+    }
+
+    char buffer[2048];
+    base::StringWriter writer(buffer, sizeof(buffer));
+    writer.AppendString("cr-");
+    // If we have data from multiple Chrome instances, append a suffix
+    // to differentiate them.
+    if (bundle_index > 1) {
+      writer.AppendUnsignedInt(bundle_index);
+      writer.AppendChar('-');
+    }
+    writer.AppendString(metadata.name());
+
+    auto metadata_id = storage->InternString(writer.GetStringView());
+    context_->metadata_tracker->SetDynamicMetadata(metadata_id, value);
   }
 }
 

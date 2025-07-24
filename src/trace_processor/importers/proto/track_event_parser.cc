@@ -380,7 +380,7 @@ UniqueTid TrackEventParser::ParseThreadDescriptor(
   auto tid = static_cast<int64_t>(decoder.tid());
   // If tid is sandboxed then use a unique synthetic tid, to avoid
   // having concurrent threads with the same tid.
-  if (is_sandboxed) {
+  if (is_sandboxed || context_->force_synthetic_tids) {
     tid = CreateSyntheticTid(tid, pid);
   }
   UniqueTid utid = context_->process_tracker->UpdateThread(tid, pid);
