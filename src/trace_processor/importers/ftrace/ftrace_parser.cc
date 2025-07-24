@@ -2462,8 +2462,6 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
     return;
   }
 
-  proc_tracker->ClearThread(new_tid);
-
   // If the process is a fork, start a new process.
   if ((clone_flags & kCloneThread) == 0) {
     // This is a plain-old fork() or equivalent.
@@ -2481,8 +2479,7 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
   // This is a pthread_create or similar. Bind the two threads together, so
   // they get resolved to the same process.
   auto source_utid = proc_tracker->GetOrCreateThread(source_tid);
-  auto new_utid = proc_tracker->GetOrCreateThread(new_tid);
-  proc_tracker->SetThreadStartTs(new_utid, timestamp);
+  auto new_utid = proc_tracker->StartNewThread(timestamp, new_tid);
   proc_tracker->UpdateThreadName(new_utid, new_comm,
                                  ThreadNamePriority::kFtrace);
   proc_tracker->AssociateThreads(source_utid, new_utid);
