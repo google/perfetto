@@ -54,6 +54,7 @@ class PkvmHypervisorCpuTracker {
   const StringId func_id_;
   const StringId handled_;
   const StringId err_;
+  const StringId host_ffa_call_;
 };
 
 }  // namespace trace_processor

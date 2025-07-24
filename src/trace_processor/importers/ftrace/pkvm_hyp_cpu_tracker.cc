@@ -51,7 +51,8 @@ PkvmHypervisorCpuTracker::PkvmHypervisorCpuTracker(
       hyp_enter_reason_(context->storage->InternString("hyp_enter_reason")),
       func_id_(context_->storage->InternString("func_id")),
       handled_(context_->storage->InternString("handled")),
-      err_(context_->storage->InternString("err")) {}
+      err_(context_->storage->InternString("err")),
+      host_ffa_call_(context_->storage->InternString("host_ffa_call")) {}
 
 // static
 bool PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(uint32_t event_id) {
@@ -173,9 +174,7 @@ void PkvmHypervisorCpuTracker::ParseHostFfaCall(uint32_t cpu,
   context_->slice_tracker->AddArgs(
       track_id, category_, slice_name_,
       [&, this](ArgsTracker::BoundInserter* inserter) {
-        StringId host_ffa_call =
-            context_->storage->InternString("host_ffa_call");
-        inserter->AddArg(hyp_enter_reason_, Variadic::String(host_ffa_call));
+        inserter->AddArg(hyp_enter_reason_, Variadic::String(host_ffa_call_));
         inserter->AddArg(func_id_, Variadic::UnsignedInteger(evt.func_id()));
         inserter->AddArg(handled_, Variadic::Integer(evt.handled()));
         inserter->AddArg(err_, Variadic::Integer(evt.err()));
