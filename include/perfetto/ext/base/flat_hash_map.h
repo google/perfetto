@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_EXT_BASE_FLAT_HASH_MAP_H_
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/utils.h"
 
@@ -80,7 +81,12 @@ struct QuadraticHalfProbe {
 
 template <typename Key,
           typename Value,
-          typename Hasher = base::Hash<Key>,
+          typename Hasher =
+              std::conditional_t<base::flags::use_murmur_hash_for_flat_hash_map,
+                                 // TODO(lalitm): switch this to actually point
+                                 // to MurmurHash.
+                                 base::Hash<Key>,
+                                 base::Hash<Key>>,
           typename Probe = QuadraticProbe,
           bool AppendOnly = false>
 class FlatHashMap {
