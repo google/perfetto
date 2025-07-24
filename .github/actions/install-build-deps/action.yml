@@ -53,7 +53,8 @@ runs:
       run: tools/install-build-deps ${{ inputs.install-flags }}
       shell: bash
 
-    - name: Save build-deps cache (on each brunch, for testing)
+    - name: Save build-deps cache (only on main)
+      if: github.ref == 'refs/heads/main'
       uses: actions/cache/save@v4
       with:
         path: buildtools

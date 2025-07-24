@@ -182,8 +182,6 @@ TEST_F(ScopedSchedBoostTest, MoveOperation) {
 }
 
 TEST_F(ScopedSchedBoostTest, IgnoreWrongConfig) {
-  // trigger the CI build change.
-
   ON_CALL(sched_hooks_, SetSchedConfig(_))
       .WillByDefault(Invoke([&](const SchedOsHooks::SchedOsConfig& arg) {
         if (arg.policy == SCHED_FIFO && arg.rt_prio < 1) {
