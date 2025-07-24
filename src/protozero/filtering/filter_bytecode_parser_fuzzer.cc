@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "src/protozero/filtering/filter_bytecode_parser.h"
 
