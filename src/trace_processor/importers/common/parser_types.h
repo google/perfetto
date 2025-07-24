@@ -86,7 +86,9 @@ struct alignas(8) JsonEvent {
   uint64_t flow_in : 1;
   uint64_t flow_out : 1;
 
+  uint64_t pid_exists : 1;
   uint64_t pid_is_string_id : 1;
+  uint64_t tid_exists : 1;
   uint64_t tid_is_string_id : 1;
 
   uint64_t bind_enclosing_slice : 1;
@@ -108,23 +110,27 @@ struct alignas(8) JsonEvent {
   Scope scope : 2;
 
   enum class AsyncCookieType : uint64_t {
+    kNone,
     kId,
     kId2Local,
     kId2Global,
   };
   AsyncCookieType async_cookie_type : 2;
 
-  uint64_t args_size : 43;
+  uint64_t args_size : 41;
 
   JsonEvent()
       : flow_in(false),
         flow_out(false),
+        pid_exists(false),
         pid_is_string_id(false),
+        tid_exists(false),
         tid_is_string_id(false),
         bind_enclosing_slice(false),
         id_type(IdType::kNone),
         bind_id_type(IdType::kNone),
         scope(Scope::kNone),
+        async_cookie_type(AsyncCookieType::kNone),
         args_size(0) {}
 };
 static_assert(sizeof(JsonEvent) % 8 == 0);
