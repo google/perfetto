@@ -13,20 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {
-  Filter,
-  FilterToProto,
-  WipFilter,
-  FilterAttrs,
-  FilterOperation,
-  isFilterValid,
-} from './filter';
+import {ALL_FILTER_OPS, FilterAttrs, FilterOperation} from './filter';
 import {
   GroupByAgg,
   GroupByAggregationAttrsToProto,
   GroupByAttrs,
   GroupByOperation,
 } from './group_by';
+import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
 import protos from '../../../../protos';
 import {ColumnInfo} from '../column_info';
 
@@ -50,11 +44,43 @@ export class Operator implements m.ClassComponent<OperatorAttrs> {
 }
 
 export function createFiltersProto(
-  filters: WipFilter[],
+  filters: FilterDefinition[],
+  sourceCols: ColumnInfo[],
 ): protos.PerfettoSqlStructuredQuery.Filter[] | undefined {
-  const validFilters = filters.filter(isFilterValid);
-  const protos = validFilters.map((f) => FilterToProto(f as Filter));
-  return protos.length !== 0 ? protos : undefined;
+  if (filters.length === 0) {
+    return undefined;
+  }
+
+  const protoFilters: protos.PerfettoSqlStructuredQuery.Filter[] = filters.map(
+    (f: FilterDefinition): protos.PerfettoSqlStructuredQuery.Filter => {
+      const result = new protos.PerfettoSqlStructuredQuery.Filter();
+      result.columnName = f.column;
+
+      const op = ALL_FILTER_OPS.find((o) => o.displayName === f.op);
+      if (op === undefined) {
+        // Should be handled by validation before this.
+        throw new Error(`Unknown filter operator: ${f.op}`);
+      }
+      result.op = op.proto;
+
+      if ('value' in f) {
+        const value = f.value;
+        const col = sourceCols.find((c) => c.name === f.column);
+        if (typeof value === 'string') {
+          result.stringRhs = [value];
+        } else if (typeof value === 'number' || typeof value === 'bigint') {
+          if (col && (col.type === 'long' || col.type === 'int')) {
+            result.int64Rhs = [Number(value)];
+          } else {
+            result.doubleRhs = [Number(value)];
+          }
+        }
+        // Not handling Uint8Array here. The original FilterToProto also didn't seem to.
+      }
+      return result;
+    },
+  );
+  return protoFilters;
 }
 
 export function createGroupByProto(
