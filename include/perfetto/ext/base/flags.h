@@ -42,8 +42,8 @@ namespace perfetto::base::flags {
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr bool NonAndroidPlatformDefault_TRUE = true;
-constexpr bool NonAndroidPlatformDefault_FALSE = false;
+[[maybe_unused]] constexpr bool NonAndroidPlatformDefault_TRUE = true;
+[[maybe_unused]] constexpr bool NonAndroidPlatformDefault_FALSE = false;
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
