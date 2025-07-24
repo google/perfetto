@@ -13,34 +13,45 @@
 // limitations under the License.
 
 @import "../../../../assets/widgets/theme";
-@import "./filter.scss";
 
-.pf-query-operations {
+.pf-filters-header {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  align-items: baseline;
+  gap: 1rem;
 
-  .section {
-    padding: 1rem;
-    border: 1px solid $pf-minimal-border;
-    border-radius: 0.5rem;
-    background-color: $pf-primary-foreground;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  .pf-filters-title {
+    font-size: 1.2em;
+    font-weight: 500;
+    margin: 0;
+  }
 
-    h2 {
-      margin-top: 0;
-      margin-bottom: 1rem;
-      color: $pf-minimal-foreground;
-      font-family: "Roboto", sans-serif;
-      font-size: 1.2em;
-      font-weight: 500;
-    }
-    .operations-container {
-      display: flex;
-      flex-direction: row;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
+  .pf-text-input {
+    flex: 1;
+  }
+}
+
+.pf-filter-editor-box {
+  padding: 1rem;
+  margin-top: 1rem;
+  border-radius: 6px;
+  background-color: transparent;
+  border: 1px solid $pf-minimal-border;
+}
+
+.pf-filter-editor {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+
+  .pf-select,
+  .pf-text-input {
+    flex: 1;
+  }
+
+  .delete-button {
+    color: $pf-minimal-foreground-disabled;
+    &:hover {
+      color: $color-danger;
     }
   }
 }
