@@ -21,7 +21,7 @@ import {PowerCounterSelectionAggregator} from './power_counter_selection_aggrega
  * This plugin adds the aggregations for power rail counter tracks.
  */
 export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.PowerAggregations';
+  static readonly id = 'dev.perfetto.PowerRails';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.selection.registerAreaSelectionTab(

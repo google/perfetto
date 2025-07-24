@@ -598,13 +598,16 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
               base::unchecked_get<std::string_view>(it_.value());
           event.pid = context_->storage->InternString(proc_name).raw_id();
           event.pid_is_string_id = true;
+          event.pid_exists = true;
           break;
         }
         case base::variant_index<json::JsonValue, int64_t>():
           event.pid = CoerceToUint32(base::unchecked_get<int64_t>(it_.value()));
+          event.pid_exists = true;
           break;
         case base::variant_index<json::JsonValue, double>():
           event.pid = CoerceToUint32(base::unchecked_get<double>(it_.value()));
+          event.pid_exists = true;
           break;
         default:
           break;
@@ -618,13 +621,16 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
               base::unchecked_get<std::string_view>(it_.value());
           event.tid = context_->storage->InternString(thread_name).raw_id();
           event.tid_is_string_id = true;
+          event.tid_exists = true;
           break;
         }
         case base::variant_index<json::JsonValue, int64_t>():
           event.tid = CoerceToUint32(base::unchecked_get<int64_t>(it_.value()));
+          event.tid_exists = true;
           break;
         case base::variant_index<json::JsonValue, double>():
           event.tid = CoerceToUint32(base::unchecked_get<double>(it_.value()));
+          event.tid_exists = true;
           break;
         default:
           break;
