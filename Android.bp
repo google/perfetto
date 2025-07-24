@@ -15047,6 +15047,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/raw_dominator_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_profile/callstacks.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_profile/summary_tree.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/memory/kswapd.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/lmk.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/process.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/monitor_contention.sql",
