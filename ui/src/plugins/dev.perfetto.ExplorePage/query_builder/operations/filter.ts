@@ -41,14 +41,16 @@ export interface UIFilter {
  */
 export interface FilterAttrs {
   sourceCols: ColumnInfo[];
-  filters: FilterDefinition[];
-  onFiltersChanged?: (filters: FilterDefinition[]) => void;
+  filters: ReadonlyArray<FilterDefinition>;
+  onFiltersChanged?: (filters: ReadonlyArray<FilterDefinition>) => void;
 }
 
 export class FilterOperation implements m.ClassComponent<FilterAttrs> {
   private error?: string;
   private uiFilters: UIFilter[] = [];
-  private parentOnFiltersChanged?: (filters: FilterDefinition[]) => void;
+  private parentOnFiltersChanged?: (
+    filters: ReadonlyArray<FilterDefinition>,
+  ) => void;
 
   oninit({attrs}: m.Vnode<FilterAttrs>) {
     this.uiFilters = attrs.filters.map(filterDefinitionToUiFilter);

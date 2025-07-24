@@ -20,11 +20,15 @@ import {
   QueryResponse,
   runQueryForQueryTable,
 } from '../../../components/query_table/queries';
-import {DataGridDataSource} from '../../../components/widgets/data_grid/common';
+import {
+  DataGridDataSource,
+  FilterDefinition,
+} from '../../../components/widgets/data_grid/common';
 import {
   DataGrid,
   renderCell,
 } from '../../../components/widgets/data_grid/data_grid';
+import {DataGridModel} from '../../../components/widgets/data_grid/common';
 import {InMemoryDataSource} from '../../../components/widgets/data_grid/in_memory_data_source';
 import {Trace} from '../../../public/trace';
 import {SqlValue} from '../../../trace_processor/query_result';
@@ -46,6 +50,10 @@ export interface NodeDataViewerAttrs {
     dataError?: Error;
   }) => void;
   readonly onPositionChange: (pos: 'left' | 'right' | 'bottom') => void;
+  readonly filters?: ReadonlyArray<FilterDefinition>;
+  readonly onFiltersChanged?: (
+    filters: ReadonlyArray<FilterDefinition>,
+  ) => void;
 }
 
 export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
@@ -76,7 +84,21 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
         attrs.trace.engine,
       );
 
-      this.dataSource = new InMemoryDataSource(this.response.rows);
+      const ds = new InMemoryDataSource(this.response.rows);
+      this.dataSource = {
+        get rows() {
+          return ds.rows;
+        },
+        notifyUpdate(model: DataGridModel) {
+          // We override the notifyUpdate method to ignore filters, as the data is
+          // assumed to be pre-filtered. We still apply sorting and aggregations.
+          const newModel: DataGridModel = {
+            ...model,
+            filters: [], // Always pass an empty array of filters.
+          };
+          ds.notifyUpdate(newModel);
+        },
+      };
 
       const queryError = getQueryError(attrs.query, this.response);
       const responseError = getResponseError(this.response);
@@ -111,7 +133,7 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
         fillParent: true,
         buttons: this.renderMenu(attrs),
       },
-      this.renderContent(message),
+      this.renderContent(attrs, message),
     );
   }
 
@@ -149,7 +171,10 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
     );
   }
 
-  private renderContent(message?: string): m.Children {
+  private renderContent(
+    attrs: NodeDataViewerAttrs,
+    message?: string,
+  ): m.Children {
     if (message) {
       return m(TextParagraph, {text: message});
     }
@@ -172,7 +197,9 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
           fillHeight: true,
           columns: this.response.columns.map((c) => ({name: c})),
           data: this.dataSource,
-          showFiltersInToolbar: false,
+          showFiltersInToolbar: true,
+          filters: attrs.filters,
+          onFiltersChanged: attrs.onFiltersChanged,
           cellRenderer: (value: SqlValue, name: string) => {
             return renderCell(value, name);
           },

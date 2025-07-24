@@ -22,6 +22,7 @@ import {QueryNodeExplorer} from './query_node_explorer';
 import {NodeGraph} from './node_graph';
 import {Trace} from 'src/public/trace';
 import {NodeDataViewer} from './node_data_viewer';
+import {FilterDefinition} from '../../../components/widgets/data_grid/common';
 import {columnInfoFromSqlColumn, newColumnInfoList} from './column_info';
 import {StdlibTableNode} from './sources/stdlib_table';
 import {SqlSourceNode} from './sources/sql_source';
@@ -147,6 +148,19 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             trace,
             query: this.query,
             executeQuery: !this.queryExecuted,
+            filters:
+              // TODO(mayzner): This is a temporary fix for handling the filtering of SQL node.
+              selectedNode.type === NodeType.kSqlSource
+                ? []
+                : selectedNode.state.filters,
+            onFiltersChanged:
+              selectedNode.type === NodeType.kSqlSource
+                ? undefined
+                : (filters: ReadonlyArray<FilterDefinition>) => {
+                    selectedNode.state.filters = filters as FilterDefinition[];
+                    this.queryExecuted = false;
+                    m.redraw();
+                  },
             onQueryExecuted: ({
               columns,
               queryError,
