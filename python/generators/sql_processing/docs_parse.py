@@ -104,6 +104,11 @@ class AbstractDocParser(ABC):
 
   def _parse_columns(self, schema: str, kind: ObjKind) -> Dict[str, Arg]:
     columns = self._parse_args_definition(schema) if schema else {}
+    if not schema:
+      self._error(
+          'Description of the columns of table/view/function is missing')
+      return columns
+
     for column_name, properties in columns.items():
       if not properties.description:
         self._error(
@@ -230,12 +235,11 @@ class TableViewDocParser(AbstractDocParser):
       return
 
     cols = self._parse_columns(schema, ObjKind.table_view)
-
     return TableOrView(
         name=self._parse_name(),
         type=type,
         desc=self._parse_desc_not_empty(doc.description),
-        cols=self._parse_columns(schema, ObjKind.table_view))
+        cols=cols)
 
 
 class Function:
