@@ -189,7 +189,8 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
 ClockTracker::ClockPath ClockTracker::FindPath(ClockId src, ClockId target) {
   PERFETTO_CHECK(src != target);
 
-  // Check the cache first.
+  // Before performing a full BFS, check the direct path cache. See the comment
+  // on |direct_path_cache_| in the header for more details.
   if (auto* cached = direct_path_cache_.Find({src, target})) {
     return *cached;
   }
