@@ -14,10 +14,10 @@
 -- limitations under the License.
 
 -- TODO(fouly): elaborate on how to select trace_id after trace_id aggregates are created
+-- TODO(fouly): explain where trace_id comes from after __intrinsic_etm_v4_trace is no longer intrinsic
 
 -- This is a table that extracts the file_path for the binary and the relative address for each ETM instruction in a specific ETM trace.
 -- The most common use case will be to use this data to help symbolize the addresses in order to map instructions back to the code that caused them.
--- trace_id corresponds to an id from __intrinsic_etm_v4_trace
 -- To get ETM data you need to have enabled enable_perfetto_etm_importer in your gn args.
 CREATE PERFETTO FUNCTION _linux_perf_etm_metadata(
     -- ID of the trace.
