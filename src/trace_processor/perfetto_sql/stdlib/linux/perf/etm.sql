@@ -17,13 +17,13 @@
 -- each instruction in that trace.
 CREATE PERFETTO FUNCTION _linux_perf_etm_metadata(
     -- ID of the trace.
-    trace_id INTEGER
+    trace_id LONG
 )
 RETURNS TABLE (
   -- Name of the file containing the instruction.
   file_name STRING,
   -- Relative program counter of the instruction.
-  rel_pc INTEGER
+  rel_pc LONG
 ) AS
 SELECT
   __intrinsic_file.name AS file_name,
