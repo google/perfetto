@@ -56,7 +56,6 @@ export interface NodeGraphAttrs {
   readonly onAddSlicesSource: () => void;
   readonly onAddSqlSource: () => void;
   readonly onClearAllNodes: () => void;
-  readonly onVisualizeNode: (node: QueryNode) => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
 }
@@ -253,7 +252,6 @@ export class NodeGraph implements m.ClassComponent<NodeGraphAttrs> {
             layout,
             onNodeSelected,
             onNodeDragStart: this.onNodeDragStart,
-            onVisualizeNode: attrs.onVisualizeNode,
             onDuplicateNode: attrs.onDuplicateNode,
             onDeleteNode: attrs.onDeleteNode,
             onNodeRendered: this.onNodeRendered,
