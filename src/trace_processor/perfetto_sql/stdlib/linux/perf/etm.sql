@@ -28,7 +28,7 @@ RETURNS TABLE (
 SELECT
   __intrinsic_file.name AS file_name,
   __intrinsic_etm_iterate_instruction_range.address - stack_profile_mapping.start + stack_profile_mapping.exact_offset + __intrinsic_elf_file.load_bias AS rel_pc
-FROM __intrinsic_etm_decode_trace
+FROM __intrinsic_etm_decode_trace($trace_id)
 JOIN __intrinsic_etm_iterate_instruction_range
   ON __intrinsic_etm_decode_trace.instruction_range = __intrinsic_etm_iterate_instruction_range.instruction_range
 JOIN stack_profile_mapping
@@ -36,6 +36,4 @@ JOIN stack_profile_mapping
 JOIN __intrinsic_elf_file
   ON stack_profile_mapping.build_id = __intrinsic_elf_file.build_id
 JOIN __intrinsic_file
-  ON __intrinsic_elf_file.file_id = __intrinsic_file.id
-WHERE
-  __intrinsic_etm_decode_trace.trace_id = $trace_id;
+  ON __intrinsic_elf_file.file_id = __intrinsic_file.id;
