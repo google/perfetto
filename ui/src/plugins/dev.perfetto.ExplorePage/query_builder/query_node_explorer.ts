@@ -106,8 +106,10 @@ export class QueryNodeExplorer
             filter: {
               sourceCols: node.state.sourceCols,
               filters: node.state.filters,
-              onFiltersChanged: (newFilters: FilterDefinition[]) => {
-                node.state.filters = newFilters;
+              onFiltersChanged: (
+                newFilters: ReadonlyArray<FilterDefinition>,
+              ) => {
+                node.state.filters = newFilters as FilterDefinition[];
               },
             },
             groupby: {

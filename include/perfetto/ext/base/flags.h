@@ -34,7 +34,7 @@ namespace perfetto::base::flags {
 // contexts.
 #define PERFETTO_READ_ONLY_FLAGS(X)                       \
   X(test_read_only_flag, NonAndroidPlatformDefault_FALSE) \
-  X(use_murmur_hash_for_flat_hash_map, NonAndroidPlatformDefault_FALSE)
+  X(use_murmur_hash_for_flat_hash_map, NonAndroidPlatformDefault_TRUE)
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
