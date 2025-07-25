@@ -102,12 +102,11 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
             },
           });
 
-    return m(
-      '.pf-query-operations',
-      m('.section', [
+    return m('.pf-exp-query-operations', [
+      m('.pf-exp-section', [
         m(
-          '.pf-filters-header',
-          m('h2.pf-filters-title', 'Filters'),
+          '.pf-exp-filters-header',
+          m('h2.pf-exp-filters-title', 'Filters'),
           m(TextInput, {
             placeholder: 'e.g. ts > 1000',
             onkeydown: (e: KeyboardEvent) => {
@@ -135,7 +134,7 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
             },
           }),
         ),
-        this.error && m('.pf-error-message', this.error),
+        this.error && m('.pf-exp-error-message', this.error),
         m(
           ChipBar,
           this.uiFilters.map((filter) => {
@@ -181,9 +180,9 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
             },
           }),
         ),
-        editor && m('.pf-filter-editor-box', editor),
+        editor && m('.pf-exp-filter-editor-box', editor),
       ]),
-    );
+    ]);
   }
 }
 
@@ -222,7 +221,7 @@ class FilterEditor implements m.ClassComponent<FilterEditorAttrs> {
     });
 
     return m(
-      '.pf-filter-editor',
+      '.pf-exp-filter-editor',
       {className: isValid ? 'is-valid' : 'is-invalid'},
       [
         m(
@@ -272,7 +271,7 @@ class FilterEditor implements m.ClassComponent<FilterEditorAttrs> {
             },
           }),
         m(Button, {
-          className: 'delete-button',
+          className: 'pf-exp-delete-button',
           icon: 'delete',
           onclick: onRemove,
         }),

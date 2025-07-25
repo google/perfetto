@@ -20,9 +20,9 @@ import {
   newColumnInfoList,
 } from './query_builder/column_info';
 import {
-  GroupByAgg,
+  Aggregation,
   placeholderNewColumnName,
-} from './query_builder/operations/group_by';
+} from './query_builder/operations/aggregations';
 import {FilterDefinition} from '../../components/widgets/data_grid/common';
 import {Engine} from '../../trace_processor/engine';
 
@@ -42,7 +42,7 @@ export interface QueryNodeState {
   // Operations
   filters: FilterDefinition[];
   groupByColumns: ColumnInfo[];
-  aggregations: GroupByAgg[];
+  aggregations: Aggregation[];
 
   // Errors
   queryError?: Error;
