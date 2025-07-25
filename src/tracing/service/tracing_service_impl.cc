@@ -1691,7 +1691,7 @@ void TracingServiceImpl::ActivateTriggers(
     android_stats::MaybeLogTriggerEvent(PerfettoTriggerAtom::kTracedTrigger,
                                         trigger_name);
 
-    base::Hasher hash;
+    base::FnvHasher hash;
     hash.Update(trigger_name.c_str(), trigger_name.size());
     std::string triggered_session_name;
     base::Uuid triggered_session_uuid;

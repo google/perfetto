@@ -569,3 +569,6 @@ dwc3/dwc3_gadget_giveback
 dwc3/dwc3_prepare_trb
 dwc3/dwc3_readl
 dwc3/dwc3_writel
+cma/cma_alloc_finish
+kmem/mm_alloc_contig_migrate_range_info
+hyp/host_ffa_call

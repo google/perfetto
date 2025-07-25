@@ -25,6 +25,11 @@ import {RecordingTarget} from '../interfaces/recording_target';
 import {exists} from '../../../base/utils';
 import {SHARE_SUBPAGE, shareRecordConfig} from '../config/config_sharing';
 import {App} from '../../../public/app';
+import {Callout} from '../../../widgets/callout';
+import {Intent} from '../../../widgets/common';
+import {Icons} from '../../../base/semantic_icons';
+import {Stack} from '../../../widgets/stack';
+import {Anchor} from '../../../widgets/anchor';
 
 export interface RecordPageAttrs {
   readonly app: App;
@@ -67,10 +72,27 @@ export class RecordPageV2 implements m.ClassComponent<RecordPageAttrs> {
       exists(attrs.subpage) && attrs.subpage.length > 0
         ? attrs.subpage.substring(1)
         : DEFAULT_SUBPAGE;
+
+    const cmdlineUrl =
+      'https://perfetto.dev/docs/quickstart/android-tracing#perfetto-cmdline';
     return m(
       '.record-page',
       m(
-        '.record-container',
+        Stack,
+        {className: 'record-container'},
+        this.recMgr.recordConfig.traceConfig.mode === 'LONG_TRACE' &&
+          m(
+            Callout,
+            {intent: Intent.Warning, icon: Icons.Warning},
+            `
+              Recording in long trace mode through the UI is not supported.
+              Please copy the command and `,
+            m(
+              Anchor,
+              {href: cmdlineUrl, target: '_blank'},
+              `collect the trace using ADB.`,
+            ),
+          ),
         m(
           '.record-container-content',
           this.renderMenu(), //
@@ -253,7 +275,9 @@ class RecordingCtl implements m.ClassComponent<RecCtlAttrs> {
           })
         : m(Button, {
             icon: 'not_started',
-            disabled: target === undefined,
+            disabled:
+              target === undefined ||
+              this.recMgr.recordConfig.traceConfig.mode === 'LONG_TRACE',
             iconFilled: true,
             title: 'Start tracing',
             className: 'rec',

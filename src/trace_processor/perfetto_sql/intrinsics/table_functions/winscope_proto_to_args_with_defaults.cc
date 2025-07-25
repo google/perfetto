@@ -367,8 +367,5 @@ std::string WinscopeProtoToArgsWithDefaults::TableName() {
 uint32_t WinscopeProtoToArgsWithDefaults::GetArgumentCount() const {
   return 1;
 }
-uint32_t WinscopeProtoToArgsWithDefaults::EstimateRowCount() {
-  // 100 inflated args per 100 elements per 100 entries
-  return 1000000;
-}
+
 }  // namespace perfetto::trace_processor

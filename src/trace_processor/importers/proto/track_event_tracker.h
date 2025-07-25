@@ -68,13 +68,14 @@ class TrackEventTracker {
     };
 
     uint64_t parent_uuid = 0;
-    std::optional<uint32_t> pid;
-    std::optional<uint32_t> tid;
+    std::optional<int64_t> pid;
+    std::optional<int64_t> tid;
     int64_t min_timestamp = 0;
     StringId name = kNullStringId;
     StringId description = kNullStringId;
     bool use_separate_track = false;
     bool is_counter = false;
+    bool use_synthetic_tid = false;
 
     // For counter tracks.
     std::optional<CounterDetails> counter_details;

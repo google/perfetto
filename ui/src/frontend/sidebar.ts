@@ -27,10 +27,7 @@ import {raf} from '../core/raf_scheduler';
 import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
 import {showModal} from '../widgets/modal';
 import {Animation} from './animation';
-import {
-  downloadData,
-  downloadFileOrUrlWithFilePicker,
-} from '../base/download_utils';
+import {download, downloadUrl} from '../base/download_utils';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {shareTrace} from './trace_share_utils';
@@ -98,23 +95,37 @@ function downloadTrace(trace: TraceImpl) {
   if (!trace.traceInfo.downloadable) return;
   AppImpl.instance.analytics.logEvent('Trace Actions', 'Download trace');
 
-  let urlOrBlob: string | Blob | File = '';
-  let fileName = `trace${TRACE_SUFFIX}`;
   const src = trace.traceInfo.source;
+  const filePickerAcceptTypes = [
+    {
+      description: 'Perfetto trace',
+      accept: {'*/*': ['.pftrace']},
+    },
+  ];
   if (src.type === 'URL') {
-    urlOrBlob = src.url;
-    fileName = src.url.split('/').slice(-1)[0];
+    const fileName = src.url.split('/').slice(-1)[0];
+    downloadUrl({url: src.url, fileName});
   } else if (src.type === 'ARRAY_BUFFER') {
     const blob = new Blob([src.buffer], {type: 'application/octet-stream'});
-    fileName = src.fileName ?? fileName;
-    urlOrBlob = blob;
+    const fileName = src.fileName ?? `trace${TRACE_SUFFIX}`;
+    download({
+      content: blob,
+      fileName,
+      filePicker: {
+        types: filePickerAcceptTypes,
+      },
+    });
   } else if (src.type === 'FILE') {
-    urlOrBlob = src.file;
-    fileName = src.file.name;
+    download({
+      content: src.file,
+      fileName: src.file.name,
+      filePicker: {
+        types: filePickerAcceptTypes,
+      },
+    });
   } else {
     throw new Error(`Download from ${JSON.stringify(src)} is not supported`);
   }
-  downloadFileOrUrlWithFilePicker(fileName, urlOrBlob);
 }
 
 function recordMetatrace(engine: Engine) {
@@ -173,7 +184,10 @@ async function finaliseMetatrace(engine: Engine) {
     throw new Error(`Failed to read metatrace: ${result.error}`);
   }
 
-  downloadData('metatrace', result.metatrace, jsEvents);
+  download({
+    fileName: 'metatrace',
+    content: new Blob([result.metatrace, jsEvents]),
+  });
 }
 
 class EngineRPCWidget implements m.ClassComponent<OptionalTraceImplAttrs> {
