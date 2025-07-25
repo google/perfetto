@@ -73,7 +73,6 @@ jobs:
       - uses: ./.github/actions/install-build-deps
         with:
           install-flags: ${{ matrix.config.PERFETTO_INSTALL_BUILD_DEPS_ARGS }}
-        secrets: inherit
 
       - name: Run GN
         env:
