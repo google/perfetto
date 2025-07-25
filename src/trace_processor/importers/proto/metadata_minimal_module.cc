@@ -193,6 +193,5 @@ void MetadataMinimalModule::ParseChromeMetadataPacket(ConstBytes blob) {
   }
 }
 
-
 }  // namespace trace_processor
 }  // namespace perfetto
