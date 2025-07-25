@@ -335,27 +335,27 @@ class Simpleperf(TestSuite):
         trace=DataPath('simpleperf/cs_etm_u.perf'),
         query='''
           INCLUDE PERFETTO MODULE linux.perf.etm;
-          SELECT *
+          SELECT rel_pc
           FROM _linux_perf_etm_metadata(0)
-          WHERE file_name = "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm"
+          WHERE file_name GLOB "*bin/etm"
         ''',
         out=Csv('''
-          "file_name","rel_pc"
-          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18504
-          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18508
-          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18512
-          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18492
-          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18536
-          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18540
-          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18544
-          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18548
-          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18552
-          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18556
-          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18560
-          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18564
-          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18568
-          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18976
-          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18980
-          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18984
-          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18988
+          "rel_pc"
+          18504
+          18508
+          18512
+          18492
+          18536
+          18540
+          18544
+          18548
+          18552
+          18556
+          18560
+          18564
+          18568
+          18976
+          18980
+          18984
+          18988
         '''))
