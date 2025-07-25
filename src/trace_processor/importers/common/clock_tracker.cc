@@ -188,6 +188,11 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
 ClockTracker::ClockPath ClockTracker::FindPath(ClockId src, ClockId target) {
   PERFETTO_CHECK(src != target);
 
+  // Check the cache first.
+  if (auto* cached = direct_path_cache_.Find({src, target})) {
+    return *cached;
+  }
+
   // If we've never heard of the clock before there is no hope:
   if (clocks_.find(target) == clocks_.end()) {
     return ClockPath();
@@ -208,8 +213,13 @@ ClockTracker::ClockPath ClockTracker::FindPath(ClockId src, ClockId target) {
     queue_find_path_cache_.pop_front();
 
     const ClockId cur_clock_id = cur_path.last;
-    if (cur_clock_id == target)
+    if (cur_clock_id == target) {
+      // Only cache direct paths.
+      if (cur_path.len == 1) {
+        direct_path_cache_.Insert({src, target}, cur_path);
+      }
       return cur_path;
+    }
 
     if (cur_path.len >= ClockPath::kMaxLen)
       continue;

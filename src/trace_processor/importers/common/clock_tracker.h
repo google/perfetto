@@ -33,6 +33,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
@@ -399,6 +400,17 @@ class ClockTracker {
   // A queue of paths to explore. Stored as a field to reduce allocations
   // on every call to FindPath().
   base::CircularQueue<ClockPath> queue_find_path_cache_;
+
+  // Caches direct (i.e. single hop) paths between clocks.
+  // This is an optimization for the common case where clocks are directly
+  // related, avoiding the need for a full BFS search in FindPath.
+  struct PairHasher {
+    size_t operator()(const std::pair<ClockId, ClockId>& p) const {
+      return static_cast<size_t>(base::MurmurHashCombine(p.first, p.second));
+    }
+  };
+  base::FlatHashMap<std::pair<ClockId, ClockId>, ClockPath, PairHasher>
+      direct_path_cache_;
 };
 
 }  // namespace trace_processor
