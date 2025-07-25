@@ -328,3 +328,34 @@ class Simpleperf(TestSuite):
           8,"[NULL]","","/t1","[NULL]","[NULL]",87,87
           9,"[NULL]","","/elf","[NULL]","[NULL]",64,64
         '''))
+
+  def test_etm_metadata(self):
+    return DiffTestBlueprint(
+        register_files_dir=DataPath('simpleperf/bin'),
+        trace=DataPath('simpleperf/cs_etm_u.perf'),
+        query='''
+          INCLUDE PERFETTO MODULE linux.perf.etm;
+          SELECT *
+          FROM _linux_perf_etm_metadata(0)
+          WHERE file_name = "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm"
+        ''',
+        out=Csv('''
+          "file_name","rel_pc"
+          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18504
+          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18508
+          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18512
+          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18492
+          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18536
+          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18540
+          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18544
+          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18548
+          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18552
+          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18556
+          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18560
+          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18564
+          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18568
+          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18976
+          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18980
+          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18984
+          "/usr/local/google/code/perfetto/test/data/simpleperf/bin/etm",18988
+        '''))
