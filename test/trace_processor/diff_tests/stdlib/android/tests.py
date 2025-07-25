@@ -1257,7 +1257,7 @@ class AndroidStdlib(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE linux.memory.kswapd;
         SELECT cpu, ucpu, cpu_sched_dur_ns, kswapd_sched_dur_ns, kswapd_cpu_dur_percentage
-        FROM _kswapd_cpu_breakdown
+        FROM linux_kswapd_cpu_breakdown
         """,
         out=Csv("""
         "cpu","ucpu","cpu_sched_dur_ns","kswapd_sched_dur_ns","kswapd_cpu_dur_percentage"

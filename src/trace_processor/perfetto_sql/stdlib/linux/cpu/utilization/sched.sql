@@ -13,15 +13,22 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- Computes CPU utilization metric based on the 'sched' table.
-CREATE PERFETTO TABLE cpu_sched_time AS
-SELECT
+-- This table aggregates the total scheduling duration for each CPU.
+-- The durations are derived from the 'dur' column of scheduling slices ('sched' table entries).
+--
+-- Data sources that need to be enabled: linux.ftrace
+CREATE PERFETTO TABLE cpu_sched_time (
   -- CPU id
-  cpu,
+  cpu LONG,
   -- Unique CPU id
-  ucpu,
+  ucpu LONG,
   -- CPU sched duration: the sum of 'dur' (duration) for all scheduling slices ('sched' table entries)
-  -- on this CPU within the trace.
+  -- on this CPU within the trace
+  cpu_sched_dur_ns LONG
+) AS
+SELECT
+  cpu,
+  ucpu,
   sum(dur) AS cpu_sched_dur_ns
 FROM sched
 GROUP BY
