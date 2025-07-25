@@ -47,7 +47,20 @@ JOIN process_counter_track AS pct ON pct.id = c.track_id
 --
 -- To populate this table, tracing must be enabled with the "view" atrace
 -- category.
-CREATE PERFETTO TABLE android_bitmap_memory AS
+CREATE PERFETTO TABLE android_bitmap_memory (
+  -- ID of the row in the underlying counter table.
+  id LONG,
+  -- Upid of the process.
+  upid LONG,
+  -- Timestamp of the start of the interval.
+  ts LONG,
+  -- Duration of the interval.
+  dur LONG,
+  -- Duration of the interval.
+  track_id LONG,
+  -- Memory consumed by bitmaps in bytes.
+  value LONG
+) AS
 SELECT
   c.id,
   upid,
@@ -66,7 +79,20 @@ ORDER BY
 --
 -- To populate this table, tracing must be enabled with the "view" atrace
 -- category.
-CREATE PERFETTO TABLE android_bitmap_count AS
+CREATE PERFETTO TABLE android_bitmap_count (
+  -- ID of the row in the underlying counter table.
+  id LONG,
+  -- Upid of the process.
+  upid LONG,
+  -- Timestamp of the start of the interval.
+  ts LONG,
+  -- Duration of the interval.
+  dur LONG,
+  -- Duration of the interval.
+  track_id LONG,
+  -- Number of allocated bitmaps.
+  value LONG
+) AS
 SELECT
   c.id,
   upid,
@@ -100,7 +126,7 @@ CREATE PERFETTO TABLE android_bitmap_counters_per_process (
   bitmap_count LONG,
   -- ID of the row in the underlying counter table.
   bitmap_memory_id JOINID(counter.id),
-  -- ID of the row in the underlyingcounter table.
+  -- ID of the row in the underlying counter table.
   bitmap_count_id JOINID(counter.id)
 ) AS
 SELECT
