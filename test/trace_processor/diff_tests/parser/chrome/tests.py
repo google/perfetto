@@ -372,8 +372,7 @@ class ChromeParser(TestSuite):
           trusted_uid: 0
           trusted_packet_sequence_id: 1
         }
-        """
-        ),
+        """),
         query="""
         SELECT utid, tid, thread.name, upid, pid, is_main_thread
         FROM thread LEFT JOIN process USING (upid);
@@ -406,8 +405,7 @@ class ChromeParser(TestSuite):
           trusted_uid: 0
           trusted_packet_sequence_id: 1
         }
-        """
-        ),
+        """),
         query="""
         SELECT utid, tid, thread.name, upid, pid, is_main_thread
         FROM thread LEFT JOIN process USING (upid);
@@ -440,8 +438,7 @@ class ChromeParser(TestSuite):
           trusted_uid: 0
           trusted_packet_sequence_id: 1
         }
-        """
-        ),
+        """),
         query="""
         SELECT utid, tid, thread.name, upid, pid, is_main_thread
         FROM thread LEFT JOIN process USING (upid);
@@ -473,8 +470,7 @@ class ChromeParser(TestSuite):
           trusted_uid: 0
           trusted_packet_sequence_id: 1
         }
-        """
-        ),
+        """),
         query="""
         SELECT utid, tid, thread.name, upid, pid, is_main_thread
         FROM thread LEFT JOIN process USING (upid);
@@ -485,10 +481,10 @@ class ChromeParser(TestSuite):
         0,0,"swapper",0,0,1
         1,1234,"[NULL]",1,1234,1
         2,5299989655609,"thread1",1,1234,0
-        """
-        ))
+        """))
 
-  def test_synthetic_tids_workaround_old_linux_chrome_alternative_product_version(self):
+  def test_synthetic_tids_workaround_old_linux_chrome_alternative_product_version(
+      self):
     return DiffTestBlueprint(
         trace=self._get_chrome_thread_event_trace_textproto(r"""
         packet {
@@ -507,8 +503,7 @@ class ChromeParser(TestSuite):
           trusted_uid: 0
           trusted_packet_sequence_id: 1
         }
-        """
-        ),
+        """),
         query="""
         SELECT utid, tid, thread.name, upid, pid, is_main_thread
         FROM thread LEFT JOIN process USING (upid);
@@ -519,5 +514,4 @@ class ChromeParser(TestSuite):
         0,0,"swapper",0,0,1
         1,1234,"[NULL]",1,1234,1
         2,5299989655609,"thread1",1,1234,0
-        """
-        ))
+        """))
