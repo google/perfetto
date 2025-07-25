@@ -1236,16 +1236,31 @@ class AndroidStdlib(TestSuite):
         1
         """))
 
+  def test_cpu_sched_dur(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_cpu_eos.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE linux.cpu.utilization.sched;
+        SELECT cpu, ucpu, cpu_sched_dur_ns FROM cpu_sched_time
+        """,
+        out=Csv("""
+        "cpu","ucpu","cpu_sched_dur_ns"
+        0,0,8687035881
+        1,1,8204303121
+        2,2,8643762964
+        3,3,8687029214
+        """))
+
   def test_kswapd_stats(self):
     return DiffTestBlueprint(
         trace=DataPath('android_cpu_eos.pb'),
         query="""
-        INCLUDE PERFETTO MODULE android.memory.kswapd;
-        SELECT cpu, ucpu, cpu_total_dur_ns, kswapd_running_dur_ns, kswapd_cpu_time_percentage
-        FROM android_kswapd_cpu_breakdown
+        INCLUDE PERFETTO MODULE linux.memory.kswapd;
+        SELECT cpu, ucpu, cpu_sched_dur_ns, kswapd_sched_dur_ns, kswapd_cpu_dur_percentage
+        FROM _kswapd_cpu_breakdown
         """,
         out=Csv("""
-        "cpu","ucpu","cpu_total_dur_ns","kswapd_running_dur_ns","kswapd_cpu_time_percentage"
+        "cpu","ucpu","cpu_sched_dur_ns","kswapd_sched_dur_ns","kswapd_cpu_dur_percentage"
         0,0,8687035881,45058907,0.520000
         1,1,8204303121,7842243,0.100000
         2,2,8643762964,16834114,0.190000
