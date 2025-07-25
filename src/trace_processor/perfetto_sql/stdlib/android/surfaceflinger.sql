@@ -70,9 +70,9 @@ CREATE PERFETTO TABLE android_app_to_sf_frame_timeline_match (
   -- upid of the app.
   app_upid JOINID(process.upid),
   -- vsync id of the app.
-  app_vsync STRING,
+  app_vsync LONG,
   -- upid of surfaceflinger process.
-  sf_upid LONG,
+  sf_upid JOINID(process.upid),
   -- vsync id for surfaceflinger.
   sf_vsync LONG
 ) AS
