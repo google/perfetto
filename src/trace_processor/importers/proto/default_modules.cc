@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/etw/etw_module.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
+#include "src/trace_processor/importers/proto/chrome_events_module.h"
 #include "src/trace_processor/importers/proto/chrome_system_probes_module.h"
 #include "src/trace_processor/importers/proto/memory_tracker_snapshot_module.h"
 #include "src/trace_processor/importers/proto/metadata_minimal_module.h"
@@ -43,6 +44,7 @@ void RegisterDefaultModules(TraceProcessorContext* context) {
   context->modules.emplace_back(new MemoryTrackerSnapshotModule(context));
   context->modules.emplace_back(new ChromeSystemProbesModule(context));
   context->modules.emplace_back(new MetadataMinimalModule(context));
+  context->modules.emplace_back(new ChromeEventsModule(context));
 }
 
 }  // namespace trace_processor

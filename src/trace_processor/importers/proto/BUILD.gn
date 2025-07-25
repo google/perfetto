@@ -22,6 +22,8 @@ source_set("minimal") {
     "app_wakelock_module.h",
     "args_parser.cc",
     "args_parser.h",
+    "chrome_events_module.cc",
+    "chrome_events_module.h",
     "chrome_string_lookup.cc",
     "chrome_string_lookup.h",
     "chrome_system_probes_module.cc",
