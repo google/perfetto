@@ -95,12 +95,13 @@ inline uint64_t MurmurHashBytes(const void* input, size_t len) {
 
   uint64_t h = kSeed ^ (len * kMulConstant);
   const auto* data = static_cast<const uint8_t*>(input);
-  const auto* end = data + (len / sizeof(uint64_t));
+  const size_t num_blocks = len / 8;
 
   // Process 8-byte (64-bit) chunks
-  for (; data != end; data += sizeof(uint64_t)) {
+  for (size_t i = 0; i < num_blocks; ++i) {
     uint64_t k;
     memcpy(&k, data, sizeof(k));
+    data += sizeof(k);  // Advance the pointer by 8 bytes
 
     k *= kMulConstant;
     k ^= k >> kShift;
@@ -110,7 +111,8 @@ inline uint64_t MurmurHashBytes(const void* input, size_t len) {
     h *= kMulConstant;
   }
 
-  // Process the remaining 1 to 7 bytes.
+  // Process the remaining 1 to 7 bytes
+  // The 'byte_ptr' now points to the beginning of the tail.
   switch (len & 7) {
     case 7:
       h ^= static_cast<uint64_t>(data[6]) << 48;
