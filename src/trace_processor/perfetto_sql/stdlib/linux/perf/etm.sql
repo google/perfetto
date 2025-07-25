@@ -15,7 +15,7 @@
 
 -- Given a trace_id, returns the file_name and relative program counter for
 -- each instruction in that trace.
-CREATE PERFETTO FUNCTION __linux_perf_etm_metadata(
+CREATE PERFETTO FUNCTION _linux_perf_etm_metadata(
     -- ID of the trace.
     trace_id INTEGER
 )
