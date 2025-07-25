@@ -47,7 +47,7 @@ namespace perfetto::base::flags {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define PERFETTO_FLAGS_DEFINE_FN(name, default_non_android_value) \
+#define PERFETTO_FLAGS_DEF_GETTER(name, default_non_android_value) \
   [[maybe_unused]] constexpr bool name = ::perfetto::flags::name();
 #else
 #define PERFETTO_FLAGS_DEF_GETTER(name, default_non_android_value) \
