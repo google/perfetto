@@ -13,100 +13,103 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ColumnInfo} from '../column_info';
-import {Button} from '../../../../widgets/button';
-import {Select} from '../../../../widgets/select';
-import {TextInput} from '../../../../widgets/text_input';
-import protos from '../../../../protos';
-import {Chip, ChipBar} from '../../../../widgets/chip';
-import {Intent} from '../../../../widgets/common';
 import {
   FilterDefinition,
   FilterValue,
 } from '../../../../components/widgets/data_grid/common';
+import {Button} from '../../../../widgets/button';
+import {Chip, ChipBar} from '../../../../widgets/chip';
+import {Intent} from '../../../../widgets/common';
+import {Select} from '../../../../widgets/select';
+import {TextInput} from '../../../../widgets/text_input';
 import {SqlValue} from '../../../../trace_processor/query_result';
+import {ColumnInfo} from '../column_info';
+import protos from '../../../../protos';
 
-// Our internal representation for a filter in the UI.
-// It can be a raw string, a partially built filter, or a complete one.
+// Partial representation of FilterDefinition used in the UI.
 export interface UIFilter {
-  column?: string;
-  op?: FilterValue['op'] | 'is null' | 'is not null';
-  value?: SqlValue;
-  isEditing?: boolean;
-  raw?: string;
+  readonly column?: string;
+  readonly op?: FilterValue['op'] | 'is null' | 'is not null';
+  readonly value?: SqlValue;
 }
 
 /**
  * Attributes for the FilterOperation component.
  */
 export interface FilterAttrs {
-  sourceCols: ColumnInfo[];
-  filters: ReadonlyArray<FilterDefinition>;
-  onFiltersChanged?: (filters: ReadonlyArray<FilterDefinition>) => void;
+  readonly sourceCols: ColumnInfo[];
+  readonly filters: ReadonlyArray<FilterDefinition>;
+  readonly onFiltersChanged?: (
+    filters: ReadonlyArray<FilterDefinition>,
+  ) => void;
 }
 
 export class FilterOperation implements m.ClassComponent<FilterAttrs> {
   private error?: string;
   private uiFilters: UIFilter[] = [];
-  private parentOnFiltersChanged?: (
-    filters: ReadonlyArray<FilterDefinition>,
-  ) => void;
+  private editingFilter?: UIFilter;
 
-  oninit({attrs}: m.Vnode<FilterAttrs>) {
-    this.uiFilters = attrs.filters.map(filterDefinitionToUiFilter);
-    this.parentOnFiltersChanged = attrs.onFiltersChanged;
+  oncreate({attrs}: m.Vnode<FilterAttrs>) {
+    this.uiFilters = [...attrs.filters];
   }
 
   onbeforeupdate({attrs}: m.Vnode<FilterAttrs>) {
     // If we are not in editing mode, sync with the parent.
-    if (this.uiFilters.every((f) => !f.isEditing)) {
-      this.uiFilters = attrs.filters.map(filterDefinitionToUiFilter);
+    if (this.editingFilter === undefined) {
+      this.uiFilters = [...attrs.filters];
     }
-    this.parentOnFiltersChanged = attrs.onFiltersChanged;
   }
 
-  private setFilters(nextFilters: UIFilter[]) {
+  private setFilters(
+    nextFilters: UIFilter[],
+    attrs: FilterAttrs,
+    editing?: UIFilter,
+  ) {
     this.uiFilters = nextFilters;
+    this.editingFilter = editing;
+
     // Only notify the parent of "stable" changes, i.e. when not editing.
-    if (this.uiFilters.every((f) => !f.isEditing)) {
-      this.parentOnFiltersChanged?.(
-        this.uiFilters
-          .map(uiFilterToFilterDefinition)
-          .filter((f): f is FilterDefinition => f !== undefined),
-      );
+    if (this.editingFilter === undefined) {
+      attrs.onFiltersChanged?.(this.uiFilters.filter(isFilterDefinitionValid));
     }
+    m.redraw();
   }
 
   view({attrs}: m.CVnode<FilterAttrs>) {
     const {sourceCols} = attrs;
 
     const editor =
-      this.uiFilters.findIndex((f) => f.isEditing) === -1
+      this.editingFilter === undefined
         ? undefined
         : m(FilterEditor, {
-            filter: this.uiFilters.find((f) => f.isEditing)!,
+            filter: this.editingFilter,
             sourceCols,
             onUpdate: (newFilter) => {
-              const index = this.uiFilters.findIndex((f) => f.isEditing);
+              const index = this.uiFilters.indexOf(this.editingFilter!);
               const nextFilters = this.uiFilters.map((f, i) =>
                 i === index ? newFilter : f,
               );
-              this.setFilters(nextFilters);
+              this.setFilters(nextFilters, attrs, newFilter);
             },
             onRemove: () => {
-              const index = this.uiFilters.findIndex((f) => f.isEditing);
-              const nextFilters = this.uiFilters.filter((_, i) => i !== index);
-              this.setFilters(nextFilters);
+              const nextFilters = this.uiFilters.filter(
+                (f) => f !== this.editingFilter,
+              );
+              this.setFilters(nextFilters, attrs, undefined);
+            },
+            onDone: () => {
+              this.setFilters(this.uiFilters, attrs, undefined);
             },
           });
 
-    return m('.pf-query-operations', [
+    return m(
+      '.pf-query-operations',
       m('.section', [
         m(
           '.pf-filters-header',
           m('h2.pf-filters-title', 'Filters'),
           m(TextInput, {
-            placeholder: 'eg. ts > 1000',
+            placeholder: 'e.g. ts > 1000',
             onkeydown: (e: KeyboardEvent) => {
               const target = e.target as HTMLInputElement;
               if (e.key === 'Enter') {
@@ -125,7 +128,7 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
                     return;
                   }
                   this.error = undefined;
-                  this.setFilters([...this.uiFilters, filter]);
+                  this.setFilters([...this.uiFilters, filter], attrs);
                   target.value = '';
                 }
               }
@@ -135,36 +138,25 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
         this.error && m('.pf-error-message', this.error),
         m(
           ChipBar,
-          this.uiFilters.map((filter, index) => {
-            if (filter.isEditing) {
-              return;
-            }
-
+          this.uiFilters.map((filter) => {
             const isComplete = isFilterDefinitionValid(filter);
             const label = isComplete
               ? `${filter.column} ${filter.op} ${
                   'value' in filter ? filter.value : ''
                 }`
-              : filter.raw;
-
-            if (label === undefined) {
-              return;
-            }
+              : 'New Filter';
 
             return m(Chip, {
               label,
               rounded: true,
               intent: isComplete ? Intent.Primary : Intent.None,
               onclick: () => {
-                const filterToEdit = this.uiFilters[index];
-                let nextFilters = this.uiFilters.filter(
-                  (f, i) => i === index || isFilterDefinitionValid(f),
+                // When we start editing a chip, we remove all other invalid
+                // filters from the list.
+                const nextFilters = this.uiFilters.filter(
+                  (f) => f === filter || isFilterDefinitionValid(f),
                 );
-                const newIndex = nextFilters.indexOf(filterToEdit);
-                nextFilters = nextFilters.map((f, i) => {
-                  return {...f, isEditing: i === newIndex};
-                });
-                this.setFilters(nextFilters);
+                this.setFilters(nextFilters, attrs, filter);
               },
             });
           }),
@@ -173,43 +165,40 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
             rounded: true,
             intent: Intent.Primary,
             onclick: () => {
-              const editingIndex = this.uiFilters.findIndex((f) => f.isEditing);
-
               if (
-                editingIndex > -1 &&
-                !isFilterDefinitionValid(this.uiFilters[editingIndex])
+                this.editingFilter !== undefined &&
+                !isFilterDefinitionValid(this.editingFilter)
               ) {
                 const nextFilters = this.uiFilters.filter(
-                  (_, i) => i !== editingIndex,
+                  (f) => f !== this.editingFilter,
                 );
-                this.setFilters(nextFilters);
+                this.setFilters(nextFilters, attrs, undefined);
               } else {
-                const nextFilters = [
-                  ...this.uiFilters.filter(isFilterDefinitionValid),
-                  {isEditing: true},
-                ];
-                this.setFilters(nextFilters);
+                const newFilter = {};
+                const nextFilters = [...this.uiFilters, newFilter];
+                this.setFilters(nextFilters, attrs, newFilter);
               }
             },
           }),
         ),
         editor && m('.pf-filter-editor-box', editor),
       ]),
-    ]);
+    );
   }
 }
 
 interface FilterEditorAttrs {
-  filter: UIFilter;
-  sourceCols: ColumnInfo[];
-  onUpdate: (filter: UIFilter) => void;
-  onRemove: () => void;
+  readonly filter: UIFilter;
+  readonly sourceCols: ColumnInfo[];
+  readonly onUpdate: (filter: UIFilter) => void;
+  readonly onRemove: () => void;
+  readonly onDone: () => void;
 }
 
 // A component which allows the user to edit a single filter.
 class FilterEditor implements m.ClassComponent<FilterEditorAttrs> {
   view({attrs}: m.CVnode<FilterEditorAttrs>): m.Children {
-    const {filter, sourceCols, onUpdate, onRemove} = attrs;
+    const {filter, sourceCols, onUpdate, onRemove, onDone} = attrs;
 
     const {column, op} = filter;
     const opObject = ALL_FILTER_OPS.find((o) => o.displayName === op);
@@ -264,7 +253,7 @@ class FilterEditor implements m.ClassComponent<FilterEditorAttrs> {
                 op: newOp?.displayName as UIFilter['op'],
               };
               if (newOp && !isValueRequired(newOp)) {
-                delete newFilter.value;
+                delete (newFilter as {value?: SqlValue}).value;
               }
               onUpdate(newFilter);
             },
@@ -279,7 +268,7 @@ class FilterEditor implements m.ClassComponent<FilterEditorAttrs> {
             oninput: (e: Event) => {
               const target = e.target as HTMLInputElement;
               const value = parseFilterValue(target.value);
-              onUpdate({...filter, value: value});
+              onUpdate({...filter, value});
             },
           }),
         m(Button, {
@@ -291,9 +280,7 @@ class FilterEditor implements m.ClassComponent<FilterEditorAttrs> {
           label: 'Done',
           className: 'is-primary',
           disabled: !isValid,
-          onclick: () => {
-            onUpdate({...filter, isEditing: false});
-          },
+          onclick: onDone,
         }),
       ],
     );
@@ -335,7 +322,8 @@ export function isFilterDefinitionValid(
 // TODO(mayzner): Improve this parser to handle more complex cases, such as
 // quoted strings, escaped characters, or operators within values.
 function fromString(text: string, sourceCols: ColumnInfo[]): UIFilter {
-  // Sort operators by length descending to match "is not null" before "is null".
+  // Sort operators by length descending to match "is not null" before "is
+  // null".
   const ops = ALL_FILTER_OPS.slice().sort(
     (a, b) => b.displayName.length - a.displayName.length,
   );
@@ -355,9 +343,9 @@ function fromString(text: string, sourceCols: ColumnInfo[]): UIFilter {
       (c) => c.name.toLowerCase() === text.trim().toLowerCase(),
     );
     if (col) {
-      return {raw: text, column: col.name};
+      return {column: col.name};
     }
-    return {raw: text};
+    return {};
   }
 
   const [, colName, opName, valueText] = match;
@@ -366,7 +354,7 @@ function fromString(text: string, sourceCols: ColumnInfo[]): UIFilter {
     (c) => c.name.toLowerCase() === colName.toLowerCase(),
   );
   if (col === undefined) {
-    return {raw: text};
+    return {};
   }
 
   // Find the exact operator object. We need to do a case-insensitive search.
@@ -385,20 +373,18 @@ function fromString(text: string, sourceCols: ColumnInfo[]): UIFilter {
   if (isValueRequired(op) && value === undefined) {
     // Value is required but not found or empty
     return {
-      raw: text,
       column: col.name,
       op: op.displayName as UIFilter['op'],
     };
   }
 
   const result: UIFilter = {
-    raw: text,
     column: col.name,
     op: op.displayName as UIFilter['op'],
   };
 
   if (value !== undefined) {
-    result.value = value;
+    (result as {value: SqlValue}).value = value;
   }
 
   return result;
@@ -488,17 +474,3 @@ export const ALL_FILTER_OPS: FilterOp[] = [
   ),
   op('GLOB', 'glob', protos.PerfettoSqlStructuredQuery.Filter.Operator.GLOB),
 ];
-
-function uiFilterToFilterDefinition(
-  uiFilter: UIFilter,
-): FilterDefinition | undefined {
-  if (isFilterDefinitionValid(uiFilter)) {
-    const {isEditing: _isEditing, raw: _raw, ...def} = uiFilter;
-    return def as FilterDefinition;
-  }
-  return undefined;
-}
-
-export function filterDefinitionToUiFilter(def: FilterDefinition): UIFilter {
-  return {...def, isEditing: false};
-}
