@@ -26,7 +26,6 @@ runs:
   - name: Print all caches for key
     env:
       KEY_PREFIX: ${{ inputs.key-prefix }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     shell: bash
     run: |
       echo "key-prefix: $KEY_PREFIX"
