@@ -17,8 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_CLOCK_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_CLOCK_TRACKER_H_
 
-#include <stdint.h>
-
 #include <array>
 #include <cinttypes>
 #include <cstddef>
@@ -90,7 +88,7 @@ class TraceProcessorContext;
 // different type (i.e. different hash).
 //
 // Example:
-
+//
 // We see a snapshot, with hash S1, for clocks (A,B,C). We build the edges in
 // the graph: A->B, B->C, A->C (and the symmetrical ones). In other words we
 // keep track of the fact that we can convert between any of them using S1.
@@ -107,7 +105,7 @@ class TraceProcessorContext;
 //  - AddSnapshot(A:20, C:2000)
 //  - AddSnapshot(B:400, C:5000)
 //  - AddSnapshot(A:30, B:300)
-
+//
 // And assume Hash(A,B) = S1, H(A,C) = S2, H(B,C) = S3
 // The vectors in the tracker will look as follows:
 // Clock A:
@@ -121,7 +119,6 @@ class TraceProcessorContext;
 // Clock C:                    |                  |
 //   S2                        {t: 2000, id: 2}   |
 //   S3                                           {t:5000, id:3}
-
 class ClockTracker {
  public:
   using ClockId = int64_t;
