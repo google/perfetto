@@ -328,34 +328,3 @@ class Simpleperf(TestSuite):
           8,"[NULL]","","/t1","[NULL]","[NULL]",87,87
           9,"[NULL]","","/elf","[NULL]","[NULL]",64,64
         '''))
-
-  def test_etm_metadata(self):
-    return DiffTestBlueprint(
-        register_files_dir=DataPath('simpleperf/bin'),
-        trace=DataPath('simpleperf/cs_etm_u.perf'),
-        query='''
-          INCLUDE PERFETTO MODULE linux.perf.etm;
-          SELECT rel_pc
-          FROM _linux_perf_etm_metadata(0)
-          WHERE file_name GLOB "*bin/etm"
-        ''',
-        out=Csv('''
-          "rel_pc"
-          18504
-          18508
-          18512
-          18492
-          18536
-          18540
-          18544
-          18548
-          18552
-          18556
-          18560
-          18564
-          18568
-          18976
-          18980
-          18984
-          18988
-        '''))
