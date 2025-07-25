@@ -19,7 +19,6 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "src/base/test/utils.h"
 #include "src/protozero/filtering/string_filter.h"

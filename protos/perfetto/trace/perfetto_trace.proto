@@ -9699,6 +9699,15 @@ message HostMemAbortFtraceEvent {
   optional uint64 esr = 1;
   optional uint64 addr = 2;
 }
+message HostFfaCallFtraceEvent {
+  optional uint64 func_id = 1;
+  optional uint64 res_a1 = 2;
+  optional uint64 res_a2 = 3;
+  optional uint64 res_a3 = 4;
+  optional uint64 res_a4 = 5;
+  optional int32 handled = 6;
+  optional int32 err = 7;
+}
 
 // End of protos/perfetto/trace/ftrace/hyp.proto
 
@@ -12294,6 +12303,7 @@ message FtraceEvent {
     CmaAllocFinishFtraceEvent cma_alloc_finish = 576;
     MmAllocContigMigrateRangeInfoFtraceEvent
         mm_alloc_contig_migrate_range_info = 577;
+    HostFfaCallFtraceEvent host_ffa_call = 578;
   }
 }
 

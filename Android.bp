@@ -120,6 +120,9 @@ cc_binary {
         "libprocinfo",
         "libunwindstack",
     ],
+    static_libs: [
+        "perfetto_flags_c_lib",
+    ],
     init_rc: [
         "heapprofd.rc",
     ],
@@ -228,6 +231,7 @@ cc_library_shared {
     ],
     static_libs: [
         "libasync_safe",
+        "perfetto_flags_c_lib",
     ],
     defaults: [
         "perfetto_defaults",
@@ -268,6 +272,7 @@ cc_library_shared {
     ],
     static_libs: [
         "libasync_safe",
+        "perfetto_flags_c_lib",
     ],
     export_include_dirs: [
         "src/profiling/memory/include",
@@ -404,6 +409,7 @@ cc_library_shared {
         "liblzma",
         "libprocinfo",
         "libunwindstack",
+        "perfetto_flags_c_lib",
     ],
     runtime_libs: [
         "libdexfile",
@@ -715,6 +721,9 @@ cc_library_shared {
                 "liblog",
                 "libz",
             ],
+            static_libs: [
+                "perfetto_flags_c_lib",
+            ],
         },
         host: {
             static_libs: [
@@ -950,6 +959,9 @@ cc_library {
         android: {
             shared_libs: [
                 "liblog",
+            ],
+            static_libs: [
+                "perfetto_flags_c_lib",
             ],
         },
     },
@@ -1190,6 +1202,13 @@ cc_library_static {
         "//apex_available:platform",
     ],
     min_sdk_version: "30",
+    target: {
+        android: {
+            static_libs: [
+                "perfetto_flags_c_lib",
+            ],
+        },
+    },
 }
 
 // GN: //src/android_sdk/jni:libperfetto_framework_jni
@@ -1372,6 +1391,9 @@ cc_binary {
     ],
     shared_libs: [
         "liblog",
+    ],
+    static_libs: [
+        "perfetto_flags_c_lib",
     ],
     generated_headers: [
         "perfetto_protos_perfetto_common_cpp_gen_headers",
@@ -1755,6 +1777,7 @@ cc_library_static {
         "libgmock",
         "libgtest",
         "libperfetto_client_experimental",
+        "perfetto_flags_c_lib",
     ],
     whole_static_libs: [
         "perfetto_gtest_logcat_printer",
@@ -2076,6 +2099,7 @@ cc_library_static {
     static_libs: [
         "libgmock",
         "libgtest",
+        "perfetto_flags_c_lib",
     ],
     whole_static_libs: [
         "perfetto_gtest_logcat_printer",
@@ -2805,6 +2829,7 @@ cc_test {
         "libgmock",
         "libgtest",
         "libperfetto_client_experimental",
+        "perfetto_flags_c_lib",
         "perfetto_src_trace_processor_demangle",
         "sqlite_ext_percentile",
     ],
@@ -12282,14 +12307,16 @@ filegroup {
     srcs: [
         "src/base/base64_unittest.cc",
         "src/base/circular_queue_unittest.cc",
+        "src/base/flags_unittest.cc",
         "src/base/flat_hash_map_unittest.cc",
         "src/base/flat_set_unittest.cc",
+        "src/base/fnv_hash_unittest.cc",
         "src/base/getopt_compat_unittest.cc",
-        "src/base/hash_unittest.cc",
         "src/base/intrusive_list_unittest.cc",
         "src/base/intrusive_tree_unittest.cc",
         "src/base/logging_unittest.cc",
         "src/base/metatrace_unittest.cc",
+        "src/base/murmur_hash_unittest.cc",
         "src/base/no_destructor_unittest.cc",
         "src/base/paged_memory_unittest.cc",
         "src/base/periodic_task_unittest.cc",
@@ -13796,6 +13823,13 @@ cc_library_static {
     defaults: [
         "perfetto_defaults",
     ],
+    target: {
+        android: {
+            static_libs: [
+                "perfetto_flags_c_lib",
+            ],
+        },
+    },
 }
 
 // GN: //src/trace_processor:export_json
@@ -17485,6 +17519,7 @@ cc_test {
     static_libs: [
         "libgmock",
         "libgtest",
+        "perfetto_flags_c_lib",
         "perfetto_src_trace_processor_demangle",
         "sqlite_ext_percentile",
     ],
@@ -17832,6 +17867,7 @@ cc_library_static {
     static_libs: [
         "libgmock",
         "libgtest",
+        "perfetto_flags_c_lib",
     ],
     whole_static_libs: [
         "perfetto_gtest_logcat_printer",
@@ -18026,6 +18062,13 @@ cc_library_static {
     defaults: [
         "perfetto_defaults",
     ],
+    target: {
+        android: {
+            static_libs: [
+                "perfetto_flags_c_lib",
+            ],
+        },
+    },
 }
 
 // GN: //src/protozero/protoc_plugin:protozero_plugin
@@ -18356,6 +18399,7 @@ cc_library_static {
                 "libz",
             ],
             static_libs: [
+                "perfetto_flags_c_lib",
                 "sqlite_ext_percentile",
             ],
         },
@@ -18630,6 +18674,7 @@ cc_binary {
                 "libz",
             ],
             static_libs: [
+                "perfetto_flags_c_lib",
                 "sqlite_ext_percentile",
             ],
         },
@@ -18759,6 +18804,9 @@ cc_binary {
     shared_libs: [
         "liblog",
         "libz",
+    ],
+    static_libs: [
+        "perfetto_flags_c_lib",
     ],
     generated_headers: [
         "perfetto_protos_perfetto_common_zero_gen_headers",
@@ -19218,6 +19266,9 @@ cc_binary {
         "libprocinfo",
         "libunwindstack",
     ],
+    static_libs: [
+        "perfetto_flags_c_lib",
+    ],
     init_rc: [
         "traced_perf.rc",
     ],
@@ -19404,6 +19455,9 @@ cc_binary {
     shared_libs: [
         "liblog",
     ],
+    static_libs: [
+        "perfetto_flags_c_lib",
+    ],
     generated_headers: [
         "perfetto_protos_perfetto_common_cpp_gen_headers",
         "perfetto_protos_perfetto_common_zero_gen_headers",
@@ -19563,6 +19617,9 @@ cc_binary {
     ],
     shared_libs: [
         "liblog",
+    ],
+    static_libs: [
+        "perfetto_flags_c_lib",
     ],
     generated_headers: [
         "perfetto_protos_perfetto_common_cpp_gen_headers",
@@ -19938,4 +19995,12 @@ aconfig_declarations {
 cc_aconfig_library {
     name: "perfetto_flags_c_lib",
     aconfig_declarations: "perfetto_flags-aconfig",
+    vendor_available: true,
+    product_available: true,
+    apex_available: [
+        "//apex_available:anyapex",
+        "//apex_available:platform",
+        "com.android.profiling",
+    ],
+    min_sdk_version: "30",
 }
