@@ -38,8 +38,12 @@ static void BM_BytecodeInterpreter_LinearFilterEqUint32(
   for (uint32_t i = 0; i < kTableSize; ++i) {
     col_data_vec.push_back(i % 256);
   }
-  Column col{Storage{std::move(col_data_vec)}, NullStorage::NonNull{},
-             Unsorted{}, HasDuplicates{}};
+  Column col{Storage{std::move(col_data_vec)},
+             NullStorage::NonNull{},
+             Unsorted{},
+             HasDuplicates{},
+             impl::SpecializedStorage{},
+             std::nullopt};
   Column* col_ptr = &col;
 
   // Setup interpreter
@@ -81,8 +85,12 @@ static void BM_BytecodeInterpreter_LinearFilterEqString(
     col_data_vec.push_back(
         spool.InternString(base::StringView(string_values[i % 256])));
   }
-  Column col{Storage{std::move(col_data_vec)}, NullStorage::NonNull{},
-             Unsorted{}, HasDuplicates{}};
+  Column col{Storage{std::move(col_data_vec)},
+             NullStorage::NonNull{},
+             Unsorted{},
+             HasDuplicates{},
+             impl::SpecializedStorage{},
+             std::nullopt};
   Column* col_ptr = &col;
 
   // Setup interpreter
@@ -119,8 +127,12 @@ static void BM_BytecodeInterpreter_SortUint32(benchmark::State& state) {
   for (uint32_t i = 0; i < kTableSize; ++i) {
     col_data_vec.push_back(static_cast<uint32_t>(rnd()));
   }
-  Column col{Storage{std::move(col_data_vec)}, NullStorage::NonNull{},
-             Unsorted{}, HasDuplicates{}};
+  Column col{Storage{std::move(col_data_vec)},
+             NullStorage::NonNull{},
+             Unsorted{},
+             HasDuplicates{},
+             impl::SpecializedStorage{},
+             std::nullopt};
   Column* col_ptr = &col;
 
   // Setup interpreter
@@ -162,8 +174,12 @@ static void BM_BytecodeInterpreter_SortString(benchmark::State& state) {
     }
     col_data_vec.push_back(spool.InternString(base::StringView(key)));
   }
-  Column col{Storage{std::move(col_data_vec)}, NullStorage::NonNull{},
-             Unsorted{}, HasDuplicates{}};
+  Column col{Storage{std::move(col_data_vec)},
+             NullStorage::NonNull{},
+             Unsorted{},
+             HasDuplicates{},
+             impl::SpecializedStorage{},
+             std::nullopt};
   Column* col_ptr = &col;
 
   // Setup interpreter

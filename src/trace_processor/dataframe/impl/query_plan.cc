@@ -627,11 +627,10 @@ void QueryPlanBuilder::NonStringConstraint(
   auto source = TranslateNonNullIndices(c.col, update, false);
   {
     using B = bytecode::NonStringFilterBase;
-    B& bc = AddOpcode<B>(
-        bytecode::Index<bytecode::NonStringFilter>(type, op),
-        op.Is<Eq>()
-            ? RowCountModifier{EqualityFilterRowCount{col.duplicate_state}}
-            : RowCountModifier{NonEqualityFilterRowCount{}});
+    B& bc = AddOpcode<B>(bytecode::Index<bytecode::NonStringFilter>(type, op),
+                         op.Is<Eq>()
+                             ? RowCountModifier{EqualityFilterRowCount(col)}
+                             : RowCountModifier{NonEqualityFilterRowCount{}});
     bc.arg<B::col>() = c.col;
     bc.arg<B::val_register>() = result;
     bc.arg<B::source_register>() = source;
@@ -662,11 +661,10 @@ base::Status QueryPlanBuilder::StringConstraint(
   auto source = TranslateNonNullIndices(c.col, update, false);
   {
     using B = bytecode::StringFilterBase;
-    B& bc = AddOpcode<B>(
-        bytecode::Index<bytecode::StringFilter>(op),
-        op.Is<Eq>()
-            ? RowCountModifier{EqualityFilterRowCount{col.duplicate_state}}
-            : RowCountModifier{NonEqualityFilterRowCount{}});
+    B& bc = AddOpcode<B>(bytecode::Index<bytecode::StringFilter>(op),
+                         op.Is<Eq>()
+                             ? RowCountModifier{EqualityFilterRowCount(col)}
+                             : RowCountModifier{NonEqualityFilterRowCount{}});
     bc.arg<B::col>() = c.col;
     bc.arg<B::val_register>() = result;
     bc.arg<B::source_register>() = source;
@@ -742,11 +740,11 @@ void QueryPlanBuilder::IndexConstraints(
         popcount_register = bytecode::reg::ReadHandle<Slab<uint32_t>>{
             plan_.params.register_count++};
       }
-      auto& bc = AddOpcode<B>(
-          bytecode::Index<bytecode::IndexedFilterEq>(
-              *non_id, NullabilityToSparseNullCollapsedNullability(
-                           column.null_storage.nullability())),
-          RowCountModifier{EqualityFilterRowCount{column.duplicate_state}});
+      auto& bc =
+          AddOpcode<B>(bytecode::Index<bytecode::IndexedFilterEq>(
+                           *non_id, NullabilityToSparseNullCollapsedNullability(
+                                        column.null_storage.nullability())),
+                       RowCountModifier{EqualityFilterRowCount(column)});
       bc.arg<B::col>() = fs.col;
       bc.arg<B::filter_value_reg>() = value_reg;
       bc.arg<B::popcount_register>() = popcount_register;
@@ -806,8 +804,7 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
   // Handle set id equality with a specialized opcode.
   if (ct.Is<Uint32>() && col.sort_state.Is<SetIdSorted>() && op.Is<Eq>()) {
     using B = bytecode::Uint32SetIdSortedEq;
-    auto& bc = AddOpcode<B>(
-        RowCountModifier{EqualityFilterRowCount{col.duplicate_state}});
+    auto& bc = AddOpcode<B>(RowCountModifier{EqualityFilterRowCount(col)});
     bc.arg<B::col>() = fs.col;
     bc.arg<B::val_register>() = value_reg;
     bc.arg<B::update_register>() = reg;
@@ -817,8 +814,7 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
   if (col.specialized_storage.Is<SpecializedStorage::SmallValueEq>() &&
       op.Is<Eq>()) {
     using B = bytecode::SpecializedStorageSmallValueEq;
-    auto& bc = AddOpcode<B>(
-        RowCountModifier{EqualityFilterRowCount{col.duplicate_state}});
+    auto& bc = AddOpcode<B>(RowCountModifier{EqualityFilterRowCount(col)});
     bc.arg<B::col>() = fs.col;
     bc.arg<B::val_register>() = value_reg;
     bc.arg<B::update_register>() = reg;
@@ -828,7 +824,7 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
   const auto& [bound, erlbub] = GetSortedFilterArgs(*range_op);
   RowCountModifier modifier;
   if (op.Is<Eq>()) {
-    modifier = EqualityFilterRowCount{col.duplicate_state};
+    modifier = EqualityFilterRowCount(col);
   } else {
     modifier = NonEqualityFilterRowCount{};
   }
@@ -983,21 +979,46 @@ PERFETTO_NO_INLINE bytecode::Bytecode& QueryPlanBuilder::AddRawOpcode(
       break;
     case base::variant_index<RowCountModifier, EqualityFilterRowCount>(): {
       const auto& eq = base::unchecked_get<EqualityFilterRowCount>(rc);
-      if (eq.duplicate_state.Is<HasDuplicates>()) {
-        if (plan_.params.estimated_row_count > 1) {
-          double new_count = plan_.params.estimated_row_count /
-                             (2 * log2(plan_.params.estimated_row_count));
-          plan_.params.estimated_row_count =
-              std::max(1u, static_cast<uint32_t>(new_count));
-        } else {
-          // Leave the estimated row count as is if it is already 1 or less.
-        }
-      } else {
-        PERFETTO_CHECK(eq.duplicate_state.Is<NoDuplicates>());
+      // If we don't have duplicates, we can be sure we will get at most one
+      // value at the end of this.
+      if (eq.duplicate_state.Is<NoDuplicates>()) {
         plan_.params.estimated_row_count =
             std::min(1u, plan_.params.estimated_row_count);
         plan_.params.max_row_count = std::min(1u, plan_.params.max_row_count);
+        break;
       }
+      PERFETTO_CHECK(eq.duplicate_state.Is<HasDuplicates>());
+
+      // If we're already at zero or one row, we don't need to do anything.
+      if (plan_.params.estimated_row_count <= 1) {
+        break;
+      }
+
+      // If we have an estimate of the number of unique values, we can use
+      // that to get a better estimate of the number of rows. Otherwise, we
+      // fall back to a heuristic of 2 times the log of the number of rows.
+      double new_count;
+      if (eq.estimated_unique_non_null_count) {
+        // Ensure that the estimated unique non-null count is valid.
+        PERFETTO_CHECK(eq.estimated_unique_non_null_count >= 0);
+
+        // If the estimated unique count is exactly zero, we assume that there
+        // are no non-null rows and therefore set the estimated count to zero.
+        if (eq.estimated_unique_non_null_count == 0) {
+          new_count = 0;
+        } else {
+          // Otherwise calculcate the divisor, making sure it's always at least
+          // 1.
+          double divisor = std::max(*eq.estimated_unique_non_null_count, 1.0);
+          new_count =
+              static_cast<double>(plan_.params.estimated_row_count) / divisor;
+        }
+      } else {
+        new_count = static_cast<double>(plan_.params.estimated_row_count) / 2 *
+                    log2(plan_.params.estimated_row_count);
+      }
+      plan_.params.estimated_row_count =
+          std::max(1u, static_cast<uint32_t>(new_count));
       break;
     }
     case base::variant_index<RowCountModifier, OneRowCount>():
@@ -1221,7 +1242,7 @@ void QueryPlanBuilder::AddLinearFilterEqBytecode(
     using B = bytecode::LinearFilterEqBase;
     B& bc = AddOpcode<B>(
         bytecode::Index<bytecode::LinearFilterEq>(non_id_storage_type),
-        RowCountModifier{EqualityFilterRowCount{col.duplicate_state}});
+        RowCountModifier{EqualityFilterRowCount(col)});
     bc.arg<B::col>() = c.col;
     bc.arg<B::filter_value_reg>() = filter_value_result_reg;
     // For NonNull columns, popcount_register is not used by LinearFilterEq

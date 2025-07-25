@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -30,6 +31,7 @@
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/type_set.h"
+#include "src/trace_processor/util/hyper_log_log.h"
 
 namespace perfetto::trace_processor::dataframe::impl {
 
@@ -400,7 +402,8 @@ struct Column {
   NullStorage null_storage;
   SortState sort_state;
   DuplicateState duplicate_state;
-  SpecializedStorage specialized_storage = SpecializedStorage{};
+  SpecializedStorage specialized_storage;
+  std::optional<double> estimated_unique_non_null_count;
   uint32_t mutations = 0;
 };
 
