@@ -1453,6 +1453,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseHrtimerExpireExit(cpu, ts, fld_bytes);
         break;
       }
+      case FtraceEvent::kDmabufRssStatFieldNumber: {
+        ParseDmabufRssStat(ts, pid, fld_bytes);
+        break;
+      }
       default:
         break;
     }
@@ -4254,4 +4258,25 @@ void FtraceParser::ParseMaliGpuPowerState(int64_t ts,
       context_->track_tracker->InternTrack(kMaliGpuPowerStateBlueprint);
   context_->event_tracker->PushCounter(ts, event.to_state(), track);
 }
+
+void FtraceParser::ParseDmabufRssStat(int64_t ts,
+                                      uint32_t pid,
+                                      ConstBytes blob) {
+  static constexpr auto kDmabufRssStatBlueprint = tracks::CounterBlueprint(
+      "dmabuf_rss",
+      tracks::UnknownUnitBlueprint(),  // tracks::kBytesUnitBlueprint,
+      tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint),
+      tracks::StaticNameBlueprint("rss"));
+
+  protos::pbzero::DmabufRssStatFtraceEvent::Decoder evt(blob);
+
+  uint64_t rss = static_cast<uint64_t>(evt.rss());
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+
+  TrackId track = context_->track_tracker->InternTrack(
+      kDmabufRssStatBlueprint, tracks::Dimensions(utid));
+
+  context_->event_tracker->PushCounter(ts, static_cast<double>(rss), track);
+}
+
 }  // namespace perfetto::trace_processor
