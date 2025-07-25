@@ -99,27 +99,29 @@ class Etm(TestSuite):
         trace=DataPath('simpleperf/cs_etm_u.perf'),
         query='''
           INCLUDE PERFETTO MODULE linux.perf.etm;
-          SELECT rel_pc
+          SELECT
+            replace(file_name, rtrim(file_name, replace(file_name, '/', '')), '') AS short_file_name,
+            rel_pc
           FROM _linux_perf_etm_metadata(0)
-          WHERE file_name GLOB "*bin/etm"
+          WHERE short_file_name="etm"
         ''',
         out=Csv('''
-          "rel_pc"
-          18504
-          18508
-          18512
-          18492
-          18536
-          18540
-          18544
-          18548
-          18552
-          18556
-          18560
-          18564
-          18568
-          18976
-          18980
-          18984
-          18988
+          "short_file_name","rel_pc"
+          "etm",18504
+          "etm",18508
+          "etm",18512
+          "etm",18492
+          "etm",18536
+          "etm",18540
+          "etm",18544
+          "etm",18548
+          "etm",18552
+          "etm",18556
+          "etm",18560
+          "etm",18564
+          "etm",18568
+          "etm",18976
+          "etm",18980
+          "etm",18984
+          "etm",18988
         '''))
