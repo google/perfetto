@@ -56,6 +56,7 @@ import {StatusbarManagerImpl} from './statusbar_manager';
 import {Setting, SettingDescriptor, SettingsManager} from '../public/settings';
 import {SettingsManagerImpl} from './settings_manager';
 import {MinimapManagerImpl} from './minimap_manager';
+import {TraceStream} from './trace_stream';
 
 /**
  * Handles the per-trace state of the UI
@@ -448,16 +449,20 @@ export class TraceImpl implements Trace {
     this.appImpl.navigate(newHash);
   }
 
-  openTraceFromFile(file: File): void {
-    this.appImpl.openTraceFromFile(file);
+  openTraceFromFile(file: File) {
+    return this.appImpl.openTraceFromFile(file);
   }
 
   openTraceFromUrl(url: string, serializedAppState?: SerializedAppState) {
-    this.appImpl.openTraceFromUrl(url, serializedAppState);
+    return this.appImpl.openTraceFromUrl(url, serializedAppState);
   }
 
-  openTraceFromBuffer(args: PostedTrace): void {
-    this.appImpl.openTraceFromBuffer(args);
+  openTraceFromStream(stream: TraceStream) {
+    return this.appImpl.openTraceFromStream(stream);
+  }
+
+  openTraceFromBuffer(args: PostedTrace) {
+    return this.appImpl.openTraceFromBuffer(args);
   }
 
   closeCurrentTrace(): void {

@@ -13,11 +13,13 @@
 // limitations under the License.
 
 import {SerializedAppState} from './state_serialization_schema';
+import {TraceStream} from './trace_stream';
 
 export type TraceSource =
   | TraceFileSource
   | TraceArrayBufferSource
   | TraceUrlSource
+  | TraceStreamSource
   | TraceHttpRpcSource;
 
 export interface TraceFileSource {
@@ -32,6 +34,11 @@ export interface TraceUrlSource {
   // When loading from a permalink, the permalink might supply also the app
   // state alongside the URL of the trace.
   serializedAppState?: SerializedAppState;
+}
+
+export interface TraceStreamSource {
+  type: 'STREAM',
+  stream: TraceStream
 }
 
 export interface TraceHttpRpcSource {

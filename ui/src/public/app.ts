@@ -23,6 +23,7 @@ import {PageManager} from './page';
 import {FeatureFlagManager} from './feature_flag';
 import {Raf} from './raf';
 import {SettingsManager} from './settings';
+import {TraceStream} from '../core/trace_stream';
 
 /**
  * The API endpoint to interact programmaticaly with the UI before a trace has
@@ -70,12 +71,13 @@ export interface App {
    */
   navigate(newHash: string): void;
 
-  openTraceFromFile(file: File): void;
-  openTraceFromUrl(url: string): void;
+  openTraceFromFile(file: File): Promise<Trace>;
+  openTraceFromUrl(url: string): Promise<Trace>;
+  openTraceFromStream(stream: TraceStream): Promise<Trace>;
   openTraceFromBuffer(args: {
     buffer: ArrayBuffer;
     title: string;
     fileName: string;
-  }): void;
+  }): Promise<Trace>;
   closeCurrentTrace(): void;
 }

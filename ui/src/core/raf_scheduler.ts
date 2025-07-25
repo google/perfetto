@@ -30,7 +30,12 @@ export class RafScheduler implements Raf {
   // These happen at the beginning of any animation frame. Used by Animation.
   private animationCallbacks = new Set<AnimationCallback>();
 
-  // These happen during any animaton frame, after the (optional) DOM redraw.
+  // These also happen during any animation frame, after the (optional) DOM redraw,
+  // but unlike the postRedrawCallbacks, they are not automatically removed.
+  private domRedrawCallbacks = new Set<RedrawCallback>();
+
+  // These happen during any animation frame, after the (optional) DOM redraw
+  // and and DOM redraw call-backs.
   private canvasRedrawCallbacks = new Set<RedrawCallback>();
 
   // These happen at the end of full (DOM) animation frames.
@@ -83,6 +88,16 @@ export class RafScheduler implements Raf {
     this.animationCallbacks.delete(cb);
   }
 
+  addDomRedrawCallback(cb: RedrawCallback): Disposable {
+    const domRedrawCallbacks = this.domRedrawCallbacks;
+    domRedrawCallbacks.add(cb);
+    return {
+      [Symbol.dispose]() {
+        domRedrawCallbacks.delete(cb);
+      },
+    };
+  }
+
   addCanvasRedrawCallback(cb: RedrawCallback): Disposable {
     this.canvasRedrawCallbacks.add(cb);
     const canvasRedrawCallbacks = this.canvasRedrawCallbacks;
@@ -121,6 +136,8 @@ export class RafScheduler implements Raf {
     for (const [element, component] of this.mounts.entries()) {
       this.syncDomRedrawMountEntry(element, component);
     }
+
+    this.domRedrawCallbacks.forEach((cb) => cb());
 
     if (this.recordPerfStats) {
       this.perfStats.domRedraw.addValue(performance.now() - redrawStart);

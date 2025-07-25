@@ -48,6 +48,7 @@ import {SerializedAppState} from './state_serialization_schema';
 import {TraceSource} from './trace_source';
 import {Router} from '../core/router';
 import {TraceInfoImpl} from './trace_info_impl';
+import {embedderContext} from './embedder';
 
 const ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG = featureFlags.register({
   id: 'enableChromeReliableRangeZoom',
@@ -170,11 +171,16 @@ async function loadTraceIntoEngine(
   } else if (traceSource.type === 'URL') {
     traceStream = new TraceHttpStream(traceSource.url);
     serializedAppState = traceSource.serializedAppState;
+  } else if (traceSource.type === 'STREAM') {
+    traceStream = traceSource.stream;
   } else if (traceSource.type === 'HTTP_RPC') {
     traceStream = undefined;
   } else {
     throw new Error(`Unknown source: ${JSON.stringify(traceSource)}`);
   }
+
+  // Maybe serialized app state was injected from the host application
+  serializedAppState ??= embedderContext?.appState;
 
   // |traceStream| can be undefined in the case when we are using the external
   // HTTP+RPC endpoint and the trace processor instance has already loaded

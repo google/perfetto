@@ -18,6 +18,7 @@ import {Registry} from '../base/registry';
 import {PageHandler} from '../public/page';
 import {Router} from './router';
 import {Gate} from '../base/mithril_utils';
+import {embedderContext} from './embedder';
 
 export class PageManagerImpl {
   private readonly registry = new Registry<PageHandler>((x) => x.route);
@@ -36,7 +37,7 @@ export class PageManagerImpl {
 
   // Called by index.ts upon the main frame redraw callback.
   renderPageForCurrentRoute(): m.Children {
-    const route = Router.parseFragment(location.hash);
+    const route = embedderContext?.routingHooks?.currentRoute ?? Router.parseFragment(location.hash);
     this.previousPages.set(route.page, {
       page: route.page,
       subpage: route.subpage,
@@ -63,7 +64,7 @@ export class PageManagerImpl {
 
   // Will return undefined if either: (1) the route does not exist; (2) the
   // route exists, it requires a trace, but there is no trace loaded.
-  private renderPageForRoute(page: string, subpage: string) {
+  renderPageForRoute(page: string, subpage: string): m.Children {
     const handler = this.registry.tryGet(page);
     if (handler === undefined) {
       return undefined;

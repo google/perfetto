@@ -26,6 +26,15 @@ export interface Raf {
   scheduleCanvasRedraw(): void;
 
   /**
+   * Add a callback for DOM redraws. `cb` will be called whenever a DOM
+   * redraw is scheduled using {@link scheduleFullRedraw()}.
+   *
+   * @param cb - The callback to called when DOM is redrawn.
+   * @returns - A disposable object that removes the callback when disposed.
+   */
+  addDomRedrawCallback(cb: RedrawCallback): Disposable;
+
+  /**
    * Add a callback for canvas redraws. `cb` will be called whenever a canvas
    * redraw is scheduled canvas redraw using {@link scheduleCanvasRedraw()}.
    *
