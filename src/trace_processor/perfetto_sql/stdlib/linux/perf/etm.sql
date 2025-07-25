@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- TODO(fouly): elaborate on how to select trace_id after trace_id aggregates are created
+
 -- trace_id corresponds to an id from __intrinsic_etm_v4_trace i.e. the trace you wish to symbolize
 -- Results can be used for symbolization
 CREATE PERFETTO FUNCTION _linux_perf_etm_metadata(
