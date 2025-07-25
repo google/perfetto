@@ -240,15 +240,284 @@ class ChromeParser(TestSuite):
           trusted_uid: 0
           trusted_packet_sequence_id: 1
         }
+        packet {
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 12345
+            parent_uuid: 5678
+            thread {
+              pid: 1234
+              tid: 12345
+              thread_name: "thread2"
+            }
+          }
+          trusted_uid: 0
+          trusted_packet_sequence_id: 2
+        }
+        packet {
+          timestamp: 0
+          sequence_flags: 2
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            extra_counter_values: 75275
+            category_iids: 1
+          }
+          interned_data {
+            event_categories {
+              iid: 1
+              name: "category2"
+            }
+          }
+          trusted_uid: 0
+          trusted_packet_sequence_id: 2
+        }
         """),
         query="""
         SELECT utid, tid, thread.name, upid, pid, is_main_thread
         FROM thread LEFT JOIN process USING (upid);
         """,
-        # A synthetic TID should be used for the sandboxed tid
+        # A synthetic TID should be used for the sandboxed tid, but not for the
+        # non-sandboxed one.
         out=Csv("""
         "utid","tid","name","upid","pid","is_main_thread"
         0,0,"swapper",0,0,1
         1,1234,"[NULL]",1,1234,1
         2,5299989643265,"thread1",1,1234,0
+        3,12345,"thread2",1,1234,0
         """))
+
+  def _get_chrome_thread_event_trace_textproto(self, extra_textproto):
+    return TextProto(r"""
+        packet {
+          timestamp: 0
+          incremental_state_cleared: true
+          track_descriptor {
+            uuid: 1234
+            parent_uuid: 5678
+            thread {
+              pid: 1234
+              tid: 12345
+              thread_name: "thread1"
+            }
+          }
+          trusted_uid: 0
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          timestamp: 0
+          track_descriptor {
+            uuid: 5678
+            process {
+              pid: 1234
+              process_name: "process1"
+            }
+            chrome_process {
+              process_type: PROCESS_SERVICE_TRACING
+            }
+          }
+          trusted_uid: 0
+          trusted_packet_sequence_id: 1
+        }
+        packet {
+          timestamp: 0
+          sequence_flags: 2
+          track_event {
+            type: TYPE_SLICE_BEGIN
+            extra_counter_values: 75275
+            category_iids: 1
+          }
+          interned_data {
+            event_categories {
+              iid: 1
+              name: "category1"
+            }
+          }
+          trusted_uid: 0
+          trusted_packet_sequence_id: 1
+        }
+        """ + extra_textproto)
+
+  def test_synthetic_tids_workaround_no_metadata(self):
+    return DiffTestBlueprint(
+        trace=self._get_chrome_thread_event_trace_textproto(""),
+        query="""
+        SELECT utid, tid, thread.name, upid, pid, is_main_thread
+        FROM thread LEFT JOIN process USING (upid);
+        """,
+        # No metadata -- tids are preserved.
+        out=Csv("""
+        "utid","tid","name","upid","pid","is_main_thread"
+        0,0,"swapper",0,0,1
+        1,1234,"[NULL]",1,1234,1
+        2,12345,"thread1",1,1234,0
+        """))
+
+  def test_synthetic_tids_workaround_new_linux_chrome(self):
+    return DiffTestBlueprint(
+        trace=self._get_chrome_thread_event_trace_textproto(r"""
+        packet {
+          timestamp: 0
+          sequence_flags: 2
+          chrome_events {
+            metadata {
+              name: "product-version"
+              string_value: "Chrome/140.0.7302.0"
+            }
+            metadata {
+              name: "os-name"
+              string_value: "Linux"  
+            }
+          }
+          trusted_uid: 0
+          trusted_packet_sequence_id: 1
+        }
+        """
+        ),
+        query="""
+        SELECT utid, tid, thread.name, upid, pid, is_main_thread
+        FROM thread LEFT JOIN process USING (upid);
+        """,
+        # New Chrome sets the is_sandboxed_tid field, so we respect tids for
+        # threads that don't set it.
+        out=Csv("""
+        "utid","tid","name","upid","pid","is_main_thread"
+        0,0,"swapper",0,0,1
+        1,1234,"[NULL]",1,1234,1
+        2,12345,"thread1",1,1234,0
+        """))
+
+  def test_synthetic_tids_workaround_newer_linux_chrome(self):
+    return DiffTestBlueprint(
+        trace=self._get_chrome_thread_event_trace_textproto(r"""
+        packet {
+          timestamp: 0
+          sequence_flags: 2
+          chrome_events {
+            metadata {
+              name: "product-version"
+              string_value: "141.0.8888.0-64"  
+            }
+            metadata {
+              name: "os-name"
+              string_value: "Linux"  
+            }
+          }
+          trusted_uid: 0
+          trusted_packet_sequence_id: 1
+        }
+        """
+        ),
+        query="""
+        SELECT utid, tid, thread.name, upid, pid, is_main_thread
+        FROM thread LEFT JOIN process USING (upid);
+        """,
+        # New Chrome sets the is_sandboxed_tid field, so we respect tids for
+        # threads that don't set it.
+        out=Csv("""
+        "utid","tid","name","upid","pid","is_main_thread"
+        0,0,"swapper",0,0,1
+        1,1234,"[NULL]",1,1234,1
+        2,12345,"thread1",1,1234,0
+        """))
+
+  def test_synthetic_tids_workaround_android_chrome(self):
+    return DiffTestBlueprint(
+        trace=self._get_chrome_thread_event_trace_textproto(r"""
+        packet {
+          timestamp: 0
+          sequence_flags: 2
+          chrome_events {
+            metadata {
+              name: "product-version"
+              string_value: "Chrome/139.0.7000.0"  
+            }
+            metadata {
+              name: "os-name"
+              string_value: "Android"  
+            }
+          }
+          trusted_uid: 0
+          trusted_packet_sequence_id: 1
+        }
+        """
+        ),
+        query="""
+        SELECT utid, tid, thread.name, upid, pid, is_main_thread
+        FROM thread LEFT JOIN process USING (upid);
+        """,
+        # Chrome on non-Linux platforms doesn't use sandboxed tids.
+        out=Csv("""
+        "utid","tid","name","upid","pid","is_main_thread"
+        0,0,"swapper",0,0,1
+        1,1234,"[NULL]",1,1234,1
+        2,12345,"thread1",1,1234,0
+        """))
+
+  def test_synthetic_tids_workaround_old_linux_chrome(self):
+    return DiffTestBlueprint(
+        trace=self._get_chrome_thread_event_trace_textproto(r"""
+        packet {
+          timestamp: 0
+          sequence_flags: 2
+          chrome_events {
+            metadata {
+              name: "product-version"
+              string_value: "139.0.7000.0"  
+            }
+            metadata {
+              name: "os-name"
+              string_value: "Linux"  
+            }
+          }
+          trusted_uid: 0
+          trusted_packet_sequence_id: 1
+        }
+        """
+        ),
+        query="""
+        SELECT utid, tid, thread.name, upid, pid, is_main_thread
+        FROM thread LEFT JOIN process USING (upid);
+        """,
+        # All non-pid tids from older Linux Chrome versions are synthetic.
+        out=Csv("""
+        "utid","tid","name","upid","pid","is_main_thread"
+        0,0,"swapper",0,0,1
+        1,1234,"[NULL]",1,1234,1
+        2,5299989655609,"thread1",1,1234,0
+        """
+        ))
+
+  def test_synthetic_tids_workaround_old_linux_chrome_alternative_product_version(self):
+    return DiffTestBlueprint(
+        trace=self._get_chrome_thread_event_trace_textproto(r"""
+        packet {
+          timestamp: 0
+          sequence_flags: 2
+          chrome_events {
+            metadata {
+              name: "product-version"
+              string_value: "Chrome/139.0.7000.0-64"  
+            }
+            metadata {
+              name: "os-name"
+              string_value: "Linux"  
+            }
+          }
+          trusted_uid: 0
+          trusted_packet_sequence_id: 1
+        }
+        """
+        ),
+        query="""
+        SELECT utid, tid, thread.name, upid, pid, is_main_thread
+        FROM thread LEFT JOIN process USING (upid);
+        """,
+        # All non-pid tids from older Linux Chrome versions are synthetic.
+        out=Csv("""
+        "utid","tid","name","upid","pid","is_main_thread"
+        0,0,"swapper",0,0,1
+        1,1234,"[NULL]",1,1234,1
+        2,5299989655609,"thread1",1,1234,0
+        """
+        ))

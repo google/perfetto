@@ -727,7 +727,7 @@ void TrackEventTracker::OnParsingStarted() {
     // "140.0.7302.0-64".
     size_t slash_pos = base::Find("/", product_version_value);
     if (slash_pos != std::string::npos) {
-      product_version_value = product_version_value + slash_pos;
+      product_version_value = product_version_value + slash_pos + 1;
     }
 
     size_t dot_pos = base::Find(".", product_version_value);
