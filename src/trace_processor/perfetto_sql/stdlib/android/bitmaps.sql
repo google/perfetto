@@ -42,7 +42,7 @@ JOIN process_counter_track AS pct ON pct.id = c.track_id
   )) AS intervals
 );
 
-CREATE PERFETTO TABLE _android_bitmap_memory AS
+CREATE PERFETTO TABLE android_bitmap_memory AS
 SELECT
   c.id,
   upid,
@@ -56,7 +56,7 @@ JOIN process_counter_track AS pct
 ORDER BY
   c.id;
 
-CREATE PERFETTO TABLE _android_bitmap_count AS
+CREATE PERFETTO TABLE android_bitmap_count AS
 SELECT
   c.id,
   upid,
@@ -112,14 +112,14 @@ SELECT
 -- SDK for that though.
 FROM _interval_intersect!(
   (
-    _android_bitmap_memory,
-    _android_bitmap_count
+    android_bitmap_memory,
+    android_bitmap_count
   ),
   (upid)
 ) AS c
-JOIN _android_bitmap_memory AS abm
+JOIN android_bitmap_memory AS abm
   ON c.id_0 = abm.id
-JOIN _android_bitmap_count AS abc
+JOIN android_bitmap_count AS abc
   ON c.id_1 = abc.id
 JOIN process AS p
   USING (upid);
