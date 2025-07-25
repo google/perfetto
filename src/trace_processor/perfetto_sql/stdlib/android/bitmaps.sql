@@ -44,6 +44,9 @@ JOIN process_counter_track AS pct ON pct.id = c.track_id
 
 -- Provides a timeseries of "Bitmap Memory" counter for each process, which
 -- is useful for retrieving the total memory used by bitmaps by an application over time.
+--
+-- To populate this table, tracing must be enabled with the "view" atrace
+-- category.
 CREATE PERFETTO TABLE android_bitmap_memory AS
 SELECT
   c.id,
@@ -60,6 +63,9 @@ ORDER BY
 
 -- Provides a timeseries of "Bitmap Count" counter for each process, which
 -- is useful for retrieving the number of bitmaps used by an application over time.
+--
+-- To populate this table, tracing must be enabled with the "view" atrace
+-- category.
 CREATE PERFETTO TABLE android_bitmap_count AS
 SELECT
   c.id,

@@ -160,7 +160,7 @@ class AndroidBitmaps(TestSuite):
         FROM android_bitmap_count
         """,
         out=Csv("""
-        "id","up  id","ts","dur","track_id","value"
+        "id","upid","ts","dur","track_id","value"
         4947,3,606922346935,989298,2817,18.000000
         4955,3,606923336233,18884440,2817,19.000000
         5236,3,606942220673,17090,2817,20.000000
