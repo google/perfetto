@@ -1459,6 +1459,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseHrtimerExpireExit(cpu, ts, fld_bytes);
         break;
       }
+      case FtraceEvent::kDmabufRssStatFieldNumber: {
+        ParseDmabufRssStat(ts, pid, fld_bytes);
+        break;
+      }
       default:
         break;
     }
@@ -4333,4 +4337,14 @@ void FtraceParser::ParseMaliGpuPowerState(int64_t ts,
       context_->track_tracker->InternTrack(kMaliGpuPowerStateBlueprint);
   context_->event_tracker->PushCounter(ts, event.to_state(), track);
 }
+
+void FtraceParser::ParseDmabufRssStat(int64_t ts,
+                                      uint32_t pid,
+                                      ConstBytes blob) {
+  protos::pbzero::DmabufRssStatFtraceEvent::Decoder evt(blob);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  context_->event_tracker->PushProcessCounterForThread(
+      EventTracker::DmabufRssStat(), ts, static_cast<double>(evt.rss()), utid);
+}
+
 }  // namespace perfetto::trace_processor
