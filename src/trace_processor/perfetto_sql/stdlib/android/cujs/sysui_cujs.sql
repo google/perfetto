@@ -185,6 +185,10 @@ WITH
 SELECT
   row_number() OVER (PARTITION BY cuj_id ORDER BY min(frame_ts)) AS frame_idx,
   count(*) OVER (PARTITION BY cuj_id) AS frame_cnt,
+  -- Column values with no aggregation function will stay identical across rows. For eg.
+  -- a cuj_name, upid will be the same for a given cuj_id. do_frame_id or expected_frame_timeline_id
+  -- will be the same for a given frame_id. Hence it is ok to not have aggregation functions for
+  -- all selected columns.
   cuj_name,
   upid,
   layer_id,
