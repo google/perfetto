@@ -21,27 +21,29 @@
 
 #include <array>
 #include <cinttypes>
+#include <cstddef>
 #include <cstdint>
-#include <list>
 #include <map>
 #include <optional>
-#include <queue>
 #include <random>
 #include <set>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class ClockTrackerTest;
 class TraceProcessorContext;
@@ -413,7 +415,6 @@ class ClockTracker {
       direct_path_cache_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_CLOCK_TRACKER_H_
