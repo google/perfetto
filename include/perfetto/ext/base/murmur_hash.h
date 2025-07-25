@@ -89,15 +89,18 @@ inline uint64_t MurmurHashBytes(const void* input, size_t len) {
   // The constants `kMulConstant` (m) and the shift value `47` (r) are from
   // the original specification.
   // The seed is inspired by the one used in DuckDB.
-  constexpr uint64_t kSeed = 0xe17a1465U;
+  static constexpr uint64_t kSeed = 0xe17a1465U;
   static constexpr uint64_t kMulConstant = 0xc6a4a7935bd1e995;
   static constexpr int kShift = 47;
 
   uint64_t h = kSeed ^ (len * kMulConstant);
-  const uint64_t* data = reinterpret_cast<const uint64_t*>(input);
-  const uint64_t* end = data + (len / 8);
-  while (data != end) {
-    uint64_t k = *data++;
+  const auto* data = static_cast<const uint8_t*>(input);
+  const auto* end = data + (len / sizeof(uint64_t));
+
+  // Process 8-byte (64-bit) chunks
+  for (; data != end; data += sizeof(uint64_t)) {
+    uint64_t k;
+    memcpy(&k, data, sizeof(k));
 
     k *= kMulConstant;
     k ^= k >> kShift;
@@ -107,31 +110,32 @@ inline uint64_t MurmurHashBytes(const void* input, size_t len) {
     h *= kMulConstant;
   }
 
-  const uint8_t* data2 = reinterpret_cast<const uint8_t*>(data);
+  // Process the remaining 1 to 7 bytes.
   switch (len & 7) {
     case 7:
-      h ^= uint64_t(data2[6]) << 48;
+      h ^= static_cast<uint64_t>(data[6]) << 48;
       [[fallthrough]];
     case 6:
-      h ^= uint64_t(data2[5]) << 40;
+      h ^= static_cast<uint64_t>(data[5]) << 40;
       [[fallthrough]];
     case 5:
-      h ^= uint64_t(data2[4]) << 32;
+      h ^= static_cast<uint64_t>(data[4]) << 32;
       [[fallthrough]];
     case 4:
-      h ^= uint64_t(data2[3]) << 24;
+      h ^= static_cast<uint64_t>(data[3]) << 24;
       [[fallthrough]];
     case 3:
-      h ^= uint64_t(data2[2]) << 16;
+      h ^= static_cast<uint64_t>(data[2]) << 16;
       [[fallthrough]];
     case 2:
-      h ^= uint64_t(data2[1]) << 8;
+      h ^= static_cast<uint64_t>(data[1]) << 8;
       [[fallthrough]];
     case 1:
-      h ^= uint64_t(data2[0]);
+      h ^= static_cast<uint64_t>(data[0]);
       h *= kMulConstant;
   }
 
+  // Final mixing stage
   h ^= h >> kShift;
   h *= kMulConstant;
   h ^= h >> kShift;
