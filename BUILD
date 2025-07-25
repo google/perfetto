@@ -488,6 +488,7 @@ perfetto_cc_library(
                ":protos_perfetto_trace_system_info_zero",
                ":protos_perfetto_trace_track_event_zero",
                ":protos_perfetto_trace_translation_zero",
+               ":protos_third_party_chromium_zero",
                ":protos_third_party_pprof_zero",
                ":protos_third_party_simpleperf_zero",
                ":protozero",
@@ -6941,7 +6942,6 @@ perfetto_proto_library(
         "protos/perfetto/trace/track_event/chrome_legacy_ipc.proto",
         "protos/perfetto/trace/track_event/chrome_message_pump.proto",
         "protos/perfetto/trace/track_event/chrome_mojo_event_info.proto",
-        "protos/perfetto/trace/track_event/chrome_process_descriptor.proto",
         "protos/perfetto/trace/track_event/chrome_renderer_scheduler_state.proto",
         "protos/perfetto/trace/track_event/chrome_thread_descriptor.proto",
         "protos/perfetto/trace/track_event/chrome_user_event.proto",
@@ -7005,6 +7005,7 @@ perfetto_proto_descriptor(
 perfetto_proto_library(
     name = "protos_third_party_chromium_protos",
     srcs = [
+        "protos/third_party/chromium/chrome_track_descriptor.proto",
         "protos/third_party/chromium/chrome_track_event.proto",
     ],
     visibility = [
@@ -7015,6 +7016,15 @@ perfetto_proto_library(
     ],
     exports = [
         ":protos_perfetto_trace_track_event_protos",
+    ],
+)
+
+# GN target: //protos/third_party/chromium:zero
+perfetto_cc_protozero_library(
+    name = "protos_third_party_chromium_zero",
+    deps = [
+        ":protos_perfetto_trace_track_event_zero",
+        ":protos_third_party_chromium_protos",
     ],
 )
 
@@ -7464,6 +7474,7 @@ perfetto_cc_library(
                ":protos_perfetto_trace_system_info_zero",
                ":protos_perfetto_trace_track_event_zero",
                ":protos_perfetto_trace_translation_zero",
+               ":protos_third_party_chromium_zero",
                ":protos_third_party_pprof_zero",
                ":protos_third_party_simpleperf_zero",
                ":protozero",
@@ -7660,6 +7671,7 @@ perfetto_cc_binary(
                ":protos_perfetto_trace_system_info_zero",
                ":protos_perfetto_trace_track_event_zero",
                ":protos_perfetto_trace_translation_zero",
+               ":protos_third_party_chromium_zero",
                ":protos_third_party_pprof_zero",
                ":protos_third_party_simpleperf_zero",
                ":protozero",
@@ -7859,6 +7871,7 @@ perfetto_cc_binary(
                ":protos_perfetto_trace_system_info_zero",
                ":protos_perfetto_trace_track_event_zero",
                ":protos_perfetto_trace_translation_zero",
+               ":protos_third_party_chromium_zero",
                ":protos_third_party_pprof_zero",
                ":protos_third_party_simpleperf_zero",
                ":protozero",

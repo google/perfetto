@@ -216,7 +216,7 @@ class ChromeParser(TestSuite):
               pid: 1234
               process_name: "process1"
             }
-            chrome_process {
+            [perfetto.protos.ChromeTrackDescriptor.chrome_process] {
               process_type: PROCESS_SERVICE_TRACING
             }
           }
