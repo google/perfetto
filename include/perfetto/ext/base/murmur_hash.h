@@ -163,6 +163,6 @@ inline uint64_t MurmurHash(const std::string& res) {
   return MurmurHash(res.data(), res.size());
 }
 
-}  // namespace perfetto::trace_processor::util
+}  // namespace perfetto::base
 
 #endif  // INCLUDE_PERFETTO_EXT_BASE_MURMUR_HASH_H_

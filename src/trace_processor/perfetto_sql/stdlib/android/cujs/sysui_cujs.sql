@@ -195,10 +195,12 @@ SELECT
   cuj_id,
   ui_thread_utid,
   -- In case of multiple frames for a frame_id, consider the min start timestamp.
-  MIN(frame_ts),
+  min(frame_ts) AS frame_ts,
   -- In case of multiple frames for a frame_id, consider the max end timestamp.
-  MAX(ts_end),
-  (MAX(ts_end) - MIN(frame_ts)) AS dur
+  max(ts_end) AS ts_end,
+  (
+    max(ts_end) - min(frame_ts)
+  ) AS dur
 FROM all_frames_in_cuj
 GROUP BY
   frame_id,
