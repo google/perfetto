@@ -181,6 +181,8 @@ TEST_F(ScopedSchedBoostTest, MoveOperation) {
   ASSERT_EQ(sched_hooks_.current_config, kInitSchedOsConfig);
 }
 
+// Trigger CI build.
+
 TEST_F(ScopedSchedBoostTest, IgnoreWrongConfig) {
   ON_CALL(sched_hooks_, SetSchedConfig(_))
       .WillByDefault(Invoke([&](const SchedOsHooks::SchedOsConfig& arg) {

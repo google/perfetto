@@ -34,6 +34,16 @@ runs:
           echo "suffix=$(echo "$flags" | tr ' -' '_')" >> "$GITHUB_OUTPUT"
         fi
 
+    - name: List all builtools cache entries
+      uses: ./.github/actions/cleanup-outdated-cache
+      with:
+        key-prefix: 'buildtools'
+
+    - name: List this prefix buildtools entries
+      uses: ./.github/actions/cleanup-outdated-cache
+      with:
+        key-prefix: buildtools-${{ hashFiles('buildtools/BUILD.gn') }}-${{ steps.cachekey.outputs.suffix }}-${{ hashFiles('tools/install-build-deps') }}
+
     - name: Restore build-deps from cache
       uses: actions/cache/restore@v4
       with:
