@@ -43,7 +43,7 @@ export class ScreenshotDetailsPanel implements TrackEventDetailsPanel {
     }
     assertTrue(this.sliceDetails.args[0].key == 'screenshot.jpg_image');
     return m(
-      '.screenshot-panel',
+      '.pf-screenshot-panel',
       m('img', {
         src: 'data:image/png;base64, ' + this.sliceDetails.args[0].displayValue,
       }),

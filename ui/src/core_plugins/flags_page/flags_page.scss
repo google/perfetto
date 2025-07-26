@@ -1,4 +1,4 @@
-// Copyright (C) 2025 The Android Open Source Project
+// Copyright (C) 2021 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,5 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "flags_page";
-@import "plugins_page";
+.pf-flags-page {
+  &__card--changed {
+    border-left: solid 3px rgb(0, 96, 155);
+  }
+
+  &__description {
+    font-size: smaller;
+  }
+
+  &__footer {
+    margin-top: 12px;
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: center;
+  }
+}

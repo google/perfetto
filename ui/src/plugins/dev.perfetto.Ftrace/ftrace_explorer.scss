@@ -12,5 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "flags_page";
-@import "plugins_page";
+.pf-ftrace-explorer {
+  height: 100%;
+  font-size: 11px;
+  font-family: var(--monospace-font);
+
+  .pf-ftrace-namebox {
+    display: flex;
+    align-items: center;
+
+    .pf-ftrace-colorbox {
+      display: inline-block;
+      height: 10px;
+      width: 10px;
+      margin-right: 4px;
+    }
+  }
+}

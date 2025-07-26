@@ -12,5 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "flags_page";
-@import "plugins_page";
+.pf-sched-latency {
+  // Allow absolute positioning of children relative to this element.
+  position: relative;
+
+  &__explanation {
+    font-size: smaller;
+  }
+
+  &__wakeup-text {
+    position: absolute;
+    left: 40px;
+    top: 20px;
+  }
+
+  &__latency-text {
+    position: absolute;
+    left: 106px;
+    top: 90px;
+  }
+
+  &__background {
+    user-select: none;
+    width: 180px;
+    height: 150px;
+  }
+}
