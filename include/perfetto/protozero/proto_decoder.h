@@ -20,6 +20,8 @@
 #include <stdint.h>
 #include <array>
 #include <memory>
+#include <optional>
+#include <type_traits>
 #include <vector>
 
 #include "perfetto/base/compiler.h"
@@ -464,6 +466,44 @@ class TypedProtoDecoder : public TypedProtoDecoderBase {
  private:
   Field on_stack_storage_[PROTOZERO_DECODER_INITIAL_STACK_CAPACITY];
 };
+
+// Returns the field from `decoder` matching the given `metadata`. Doesn't
+// affect the decoder's read cursor. This is useful for extension fields that
+// have generated FieldMetadata but no generated accessors. Prefer this to
+// calling ProtoDecoder::FindField() directly because it has more safety checks.
+template <typename MessageType, typename Metadata>
+Field GetFieldWithMetadata(typename MessageType::Decoder& decoder,
+                           const Metadata& metadata) {
+  static_assert(std::is_base_of_v<proto_utils::FieldMetadataBase, Metadata>,
+                "`metadata` must be a FieldMetadata object");
+  static_assert(
+      std::is_base_of_v<MessageType, typename Metadata::message_type>,
+      "`metadata` must come from a subclass of `decoder`'s message type");
+  static_assert(
+      Metadata::kRepetitionType == proto_utils::RepetitionType::kNotRepeated,
+      "repeated fields aren't supported");
+  return decoder.FindField(metadata.kFieldId);
+}
+
+// Returns a nested message decoder for the field from `decoder` matching the
+// given `metadata`, or nullopt if no such field is found. Doesn't affect the
+// decoder's read cursor. This is useful for extension fields that have
+// generated FieldMetadata but no generated accessors.
+template <typename MessageType,
+          typename Metadata,
+          typename FieldDecoder = typename Metadata::cpp_field_type::Decoder>
+std::optional<FieldDecoder> DecodeFieldWithMetadata(
+    typename MessageType::Decoder& decoder,
+    const Metadata& metadata) {
+  static_assert(
+      Metadata::kProtoFieldType == proto_utils::ProtoSchemaType::kMessage,
+      "DecodeFieldWithMetadata only supports Message fields");
+  Field field = GetFieldWithMetadata<MessageType, Metadata>(decoder, metadata);
+  if (!field.valid()) {
+    return std::nullopt;
+  }
+  return FieldDecoder(field.as_bytes());
+}
 
 }  // namespace protozero
 
