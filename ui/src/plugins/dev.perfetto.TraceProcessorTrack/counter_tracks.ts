@@ -406,4 +406,9 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     topLevelGroup: 'THREAD',
     group: undefined,
   },
+  {
+    type: 'dmabuf_rss',
+    topLevelGroup: 'MEMORY',
+    group: undefined,
+  },
 ];
