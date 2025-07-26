@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,21 +14,22 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_METADATA_MINIMAL_MODULE_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_METADATA_MINIMAL_MODULE_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_CHROME_EVENTS_MODULE_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_CHROME_EVENTS_MODULE_H_
 
-#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-class MetadataMinimalModule : public ProtoImporterModule {
+class TraceProcessorContext;
+
+class ChromeEventsModule : public ProtoImporterModule {
  public:
-  using ConstBytes = protozero::ConstBytes;
-  explicit MetadataMinimalModule(TraceProcessorContext* context);
+  explicit ChromeEventsModule(TraceProcessorContext* context);
 
   ModuleResult TokenizePacket(
       const protos::pbzero::TracePacket::Decoder& decoder,
@@ -37,16 +38,24 @@ class MetadataMinimalModule : public ProtoImporterModule {
       RefPtr<PacketSequenceStateGeneration> state,
       uint32_t field_id) override;
 
+  void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder&,
+                            int64_t ts,
+                            const TracePacketData&,
+                            uint32_t field_id) override;
+
  private:
-  void ParseChromeBenchmarkMetadata(ConstBytes);
-  void ParseChromeMetadataPacket(ConstBytes);
+  void ParseChromeEventsMetadata(protozero::ConstBytes);
+  void ParseChromeEvents(int64_t ts, protozero::ConstBytes);
 
   TraceProcessorContext* context_;
 
-  uint32_t chrome_metadata_count_ = 0;
+  StringId raw_chrome_metadata_event_id_;
+  StringId raw_chrome_legacy_system_trace_event_id_;
+  StringId raw_chrome_legacy_user_trace_event_id_;
+  StringId data_name_id_;
 };
 
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_METADATA_MINIMAL_MODULE_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_CHROME_EVENTS_MODULE_H_

@@ -307,6 +307,14 @@ class TrackEventTracker {
     range_of_interest_start_us_ = range_of_interest_start_us;
   }
 
+  void OnParsePacketOrEvent() {
+    if (parsed_started_) {
+      return;
+    }
+    parsed_started_ = true;
+    OnParsingStarted();
+  }
+
  private:
   struct State {
     DescriptorTrackReservation reservation;
@@ -371,6 +379,8 @@ class TrackEventTracker {
                     bool,
                     ArgsTracker::BoundInserter&);
 
+  void OnParsingStarted();
+
   base::FlatHashMap<uint64_t /* uuid */, State> descriptor_tracks_state_;
 
   // Stores the descriptor uuid used for the primary process/thread track
@@ -394,8 +404,11 @@ class TrackEventTracker {
   const StringId descriptor_source_;
   const StringId default_descriptor_track_name_;
   const StringId description_key_;
+  const StringId cr_os_name_key_;
 
   std::optional<int64_t> range_of_interest_start_us_;
+  bool parsed_started_ = false;
+
   TraceProcessorContext* const context_;
 };
 

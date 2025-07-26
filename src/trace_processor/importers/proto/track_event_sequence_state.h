@@ -41,8 +41,8 @@ class TrackEventSequenceState {
   bool pid_and_tid_valid() const { return persistent_state_.pid_and_tid_valid; }
 
   int32_t pid() const { return persistent_state_.pid; }
-  int64_t tid() const {
-    return persistent_state_.use_synthetic_tid
+  int64_t tid(bool force_synthetic_tid) const {
+    return persistent_state_.use_synthetic_tid || force_synthetic_tid
                ? CreateSyntheticTid(persistent_state_.tid,
                                     persistent_state_.pid)
                : persistent_state_.tid;
