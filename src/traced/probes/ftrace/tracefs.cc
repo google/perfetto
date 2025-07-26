@@ -450,6 +450,51 @@ size_t Tracefs::NumberOfCpus() const {
   return num_cpus;
 }
 
+std::optional<std::vector<uint32_t>> Tracefs::GetOfflineCpus() {
+  std::string offline_cpus_str;
+  if (!ReadFile("/sys/devices/system/cpu/offline", &offline_cpus_str)) {
+    PERFETTO_ELOG("Failed to read offline cpus file");
+    return std::nullopt;
+  }
+  offline_cpus_str = base::TrimWhitespace(offline_cpus_str);
+
+  // The offline cpus file contains a list of comma-separated CPU ranges.
+  // Each range is either a single CPU or a range of CPUs, e.g. "0-3,5,7-9".
+  // Source: https://docs.kernel.org/admin-guide/cputopology.html
+  std::vector<uint32_t> offline_cpus;
+  for (base::StringSplitter ss(offline_cpus_str, ','); ss.Next();) {
+    base::StringView offline_cpu_range(ss.cur_token(), ss.cur_token_size());
+    size_t dash_pos = offline_cpu_range.find('-');
+    if (dash_pos == base::StringView::npos) {
+      // Single CPU in the format of "%d".
+      std::optional<uint32_t> cpu = base::StringViewToUInt32(offline_cpu_range);
+      if (cpu.has_value()) {
+        offline_cpus.push_back(cpu.value());
+      } else {
+        PERFETTO_ELOG("Failed to parse single CPU from offline CPU range: %s",
+                      offline_cpu_range.data());
+        return std::nullopt;
+      }
+    } else {
+      // Range of CPUs in the format of "%d-%d".
+      std::optional<uint32_t> start_cpu =
+          base::StringViewToUInt32(offline_cpu_range.substr(0, dash_pos));
+      std::optional<uint32_t> end_cpu =
+          base::StringViewToUInt32(offline_cpu_range.substr(dash_pos + 1));
+      if (start_cpu.has_value() && end_cpu.has_value()) {
+        for (auto cpu = start_cpu.value(); cpu <= end_cpu.value(); ++cpu) {
+          offline_cpus.push_back(cpu);
+        }
+      } else {
+        PERFETTO_ELOG("Failed to parse CPU range from offline CPU range: %s",
+                      offline_cpu_range.data());
+        return std::nullopt;
+      }
+    }
+  }
+  return offline_cpus;
+}
+
 void Tracefs::ClearTrace() {
   std::string path = root_ + "trace";
   PERFETTO_CHECK(ClearFile(path));  // Could not clear.
@@ -463,8 +508,17 @@ void Tracefs::ClearTrace() {
   // We cannot use PERFETTO_CHECK as we might get a permission denied error
   // on Android. The permissions to these files are configured in
   // platform/framework/native/cmds/atrace/atrace.rc.
-  for (size_t cpu = 0, num_cpus = NumberOfCpus(); cpu < num_cpus; cpu++) {
-    ClearPerCpuTrace(cpu);
+  std::optional<std::vector<uint32_t>> offline_cpus = GetOfflineCpus();
+  if (offline_cpus.has_value()) {
+    for (const auto& cpu : offline_cpus.value()) {
+      ClearPerCpuTrace(cpu);
+    }
+  } else {
+    // Fallback: if we can't determine which CPUs are offline, clear the buffers
+    // for all possible CPUs.
+    for (size_t cpu = 0, num_cpus = NumberOfCpus(); cpu < num_cpus; cpu++) {
+      ClearPerCpuTrace(cpu);
+    }
   }
 }
 
@@ -655,12 +709,16 @@ bool Tracefs::IsFileReadable(const std::string& path) {
   return access(path.c_str(), R_OK) == 0;
 }
 
+bool Tracefs::ReadFile(const std::string& path, std::string* str) const {
+  return base::ReadFile(path, str);
+}
+
 std::string Tracefs::ReadFileIntoString(const std::string& path) const {
   // You can't seek or stat the tracefs files on Android.
   // The vast majority (884/886) of format files are under 4k.
   std::string str;
   str.reserve(4096);
-  if (!base::ReadFile(path, &str))
+  if (!ReadFile(path, &str))
     return "";
   return str;
 }
@@ -697,7 +755,7 @@ uint32_t Tracefs::ReadEventId(const std::string& group,
   std::string path = root_ + "events/" + group + "/" + name + "/id";
 
   std::string str;
-  if (!base::ReadFile(path, &str))
+  if (!ReadFile(path, &str))
     return 0;
 
   if (str.size() && str[str.size() - 1] == '\n')
