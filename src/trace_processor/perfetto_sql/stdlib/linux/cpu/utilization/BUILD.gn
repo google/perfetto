@@ -18,7 +18,6 @@ perfetto_sql_source_set("utilization") {
   sources = [
     "general.sql",
     "process.sql",
-    "sched.sql",
     "slice.sql",
     "system.sql",
     "thread.sql",

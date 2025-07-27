@@ -3196,7 +3196,6 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/general.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/process.sql",
-        "src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/sched.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/slice.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/system.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/thread.sql",
@@ -3211,6 +3210,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu/idle.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu/idle_stats.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu/idle_time_in_state.sql",
+        "src/trace_processor/perfetto_sql/stdlib/linux/cpu/sched_breakdown.sql",
     ],
 )
 

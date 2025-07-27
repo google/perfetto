@@ -1240,7 +1240,7 @@ class AndroidStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_cpu_eos.pb'),
         query="""
-        INCLUDE PERFETTO MODULE linux.cpu.utilization.sched;
+        INCLUDE PERFETTO MODULE linux.cpu.sched_breakdown;
         SELECT cpu, ucpu, cpu_sched_dur_ns FROM cpu_sched_time
         """,
         out=Csv("""

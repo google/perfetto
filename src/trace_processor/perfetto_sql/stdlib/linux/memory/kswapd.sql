@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE linux.cpu.utilization.sched;
+INCLUDE PERFETTO MODULE linux.cpu.sched_breakdown;
 
 CREATE PERFETTO TABLE _kswapd_sched_time AS
 SELECT
