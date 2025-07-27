@@ -665,6 +665,7 @@ class JsonExporter {
             if (posted_from.isMember("function_name")) {
               args["src_func"] = posted_from["function_name"];
               args["src_file"] = posted_from["file_name"];
+              args["src_line"] = posted_from["line_number"];
             } else if (posted_from.isMember("file_name")) {
               args["src"] = posted_from["file_name"];
             }
@@ -677,6 +678,7 @@ class JsonExporter {
           if (source.isObject() && source.isMember("function_name")) {
             args["function_name"] = source["function_name"];
             args["file_name"] = source["file_name"];
+            args["line_number"] = source["line_number"];
             args.removeMember("source");
           }
         }
