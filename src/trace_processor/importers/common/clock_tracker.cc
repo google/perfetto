@@ -208,9 +208,6 @@ ClockTracker::ClockPath ClockTracker::FindPath(ClockId src, ClockId target) {
     queue_find_path_cache_.pop_front();
 
     const ClockId cur_clock_id = cur_path.last;
-    if (cur_clock_id == target)
-      return cur_path;
-
     if (cur_path.len >= ClockPath::kMaxLen)
       continue;
 
@@ -221,6 +218,8 @@ ClockTracker::ClockPath ClockTracker::FindPath(ClockId src, ClockId target) {
          it != graph_.end() && std::get<0>(*it) == cur_clock_id; ++it) {
       ClockId next_clock_id = std::get<1>(*it);
       SnapshotHash hash = std::get<2>(*it);
+      if (next_clock_id == target)
+        return ClockPath(cur_path, next_clock_id, hash);
       queue_find_path_cache_.emplace_back(
           ClockPath(cur_path, next_clock_id, hash));
     }

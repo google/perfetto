@@ -12,5 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "flags_page";
-@import "plugins_page";
+.pf-note-editor {
+  input[type="text"] {
+    flex-grow: 1;
+    border-radius: 4px;
+    border: 1px solid #dcdcdc;
+    padding: 3px;
+    margin: 0 10px;
+
+    &:focus {
+      outline: none;
+      box-shadow: 1px 1px 1px rgba(23, 32, 44, 0.3);
+    }
+  }
+}

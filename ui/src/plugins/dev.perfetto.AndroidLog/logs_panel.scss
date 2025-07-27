@@ -12,5 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "flags_page";
-@import "plugins_page";
+.pf-logs-panel {
+  height: 100%;
+  font-size: 11px;
+  font-family: var(--monospace-font);
+
+  &__row {
+    &--debug {
+      color: hsl(122, 20%, 40%);
+    }
+
+    &--verbose {
+      color: hsl(122, 20%, 30%);
+    }
+
+    &--info {
+      color: hsl(0, 0%, 20%);
+    }
+
+    &--warn {
+      color: hsl(45, 60%, 45%);
+    }
+
+    &--error {
+      color: hsl(4, 90%, 58%);
+    }
+
+    &--fatal {
+      color: hsl(291, 64%, 42%);
+    }
+
+    &--highlighted {
+      background: #d2efe0;
+    }
+  }
+}

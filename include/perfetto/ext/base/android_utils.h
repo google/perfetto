@@ -58,8 +58,18 @@ struct SystemInfo {
   std::string android_serial_console;
 };
 
+// Returns the device's utsname information.
+Utsname GetUtsname();
+
 // Returns the device's system information.
 SystemInfo GetSystemInfo();
+
+// Returns the perfetto machine name. The PERFETTO_MACHINE_NAME env variable
+// has the highest precedence in setting the machine name. In Android systems,
+// if the env variable isn't set then the traced.machine_name system property
+// is used. If no value is externally set, then the OS system name
+// (see `uname -s`) is used as the default machine name.
+std::string GetPerfettoMachineName();
 
 }  // namespace base
 }  // namespace perfetto

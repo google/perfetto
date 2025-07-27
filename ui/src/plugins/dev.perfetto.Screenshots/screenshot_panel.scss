@@ -12,5 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "flags_page";
-@import "plugins_page";
+.pf-screenshot-panel {
+  height: 100%;
+
+  img {
+    max-height: 100%;
+  }
+}
