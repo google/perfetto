@@ -386,14 +386,14 @@ CREATE PERFETTO MACRO _calculate_bounds(
 RETURNS Expr AS
 (
   SELECT
-    group_key AS $group_key,
+    $group_key,
     min(ts_min) AS ts_min,
     max(ts_max) AS ts_max,
     max(max_depth) AS max_depth,
     sum(slice_count) AS total_count
   FROM (
     SELECT
-      $group_key AS group_key,
+      $group_key,
       min(ts) AS ts_min,
       max(ts + dur) AS ts_max,
       max(depth) AS max_depth,
@@ -402,10 +402,10 @@ RETURNS Expr AS
     WHERE
       dur > 0
     GROUP BY
-      group_key
+      $group_key
     UNION ALL
     SELECT
-      $group_key AS group_key,
+      $group_key,
       min(ts) AS ts_min,
       max(ts + dur) AS ts_max,
       0 AS max_depth,
@@ -414,10 +414,10 @@ RETURNS Expr AS
     WHERE
       dur > 0
     GROUP BY
-      group_key
+      $group_key
   )
   GROUP BY
-    group_key
+    $group_key
 );
 
 -- Assign sequential track indices to threads for vertical layout
@@ -429,7 +429,7 @@ CREATE PERFETTO MACRO _calculate_track_layout(
 RETURNS Expr AS
 (
   SELECT
-    $group_key AS group_key,
+    $group_key,
     utid,
     thread_name,
     max(depth) AS max_depth_in_track,
@@ -455,7 +455,7 @@ RETURNS Expr AS
   )
   GROUP BY
     utid,
-    group_key
+    $group_key
 );
 
 -- Calculate viewport scaling and layout parameters
@@ -469,7 +469,7 @@ CREATE PERFETTO MACRO _calculate_scale_params(
 RETURNS Expr AS
 (
   SELECT
-    $group_key AS group_key,
+    $group_key,
     b.ts_min,
     b.ts_max,
     CAST($max_width AS INTEGER) AS total_width,
@@ -490,7 +490,7 @@ RETURNS Expr AS
     max(15, CAST($max_width * 0.008 AS INTEGER)) AS label_height
   FROM $bounds_table AS b
   GROUP BY
-    group_key
+    $group_key
 );
 
 -- Convert slice intervals to pixel coordinates and SVG metadata
@@ -503,7 +503,7 @@ CREATE PERFETTO MACRO _calculate_slice_positions(
 RETURNS Expr AS
 (
   SELECT
-    s.$group_key AS group_key,
+    s.$group_key,
     'slice' AS element_type,
     s.utid,
     s.name,
@@ -533,9 +533,9 @@ RETURNS Expr AS
     sp.min_pixel_cutoff
   FROM $slice_table AS s
   JOIN $scale_params_table AS sp
-    ON s.$group_key = sp.group_key
+    ON s.$group_key = sp.$group_key
   LEFT JOIN $track_layout_table AS tl
-    ON s.utid = tl.utid AND s.$group_key = tl.group_key
+    ON s.utid = tl.utid AND s.$group_key = tl.$group_key
   WHERE
     s.dur > 0 AND s.dur * sp.pixels_per_ns >= sp.min_pixel_cutoff
 );
@@ -550,7 +550,7 @@ CREATE PERFETTO MACRO _calculate_thread_state_positions(
 RETURNS Expr AS
 (
   SELECT
-    ts.$group_key AS group_key,
+    ts.$group_key,
     'thread_state' AS element_type,
     ts.utid,
     'Thread State: ' || ts.state AS name,
@@ -579,9 +579,9 @@ RETURNS Expr AS
     sp.min_pixel_cutoff
   FROM $thread_state_table AS ts
   JOIN $scale_params_table AS sp
-    ON ts.$group_key = sp.group_key
+    ON ts.$group_key = sp.$group_key
   LEFT JOIN $track_layout_table AS tl
-    ON ts.utid = tl.utid AND ts.$group_key = tl.group_key
+    ON ts.utid = tl.utid AND ts.$group_key = tl.$group_key
   WHERE
     ts.dur > 0 AND ts.dur * sp.pixels_per_ns >= sp.min_pixel_cutoff
 );
@@ -651,7 +651,7 @@ RETURNS TableOrSubQuery AS
   WITH
     position_params AS (
       SELECT
-        $group_key AS group_key,
+        $group_key,
         total_width,
         left_margin,
         ts_min,
@@ -662,7 +662,7 @@ RETURNS TableOrSubQuery AS
         max(y_pixel + height_pixel) AS max_y
       FROM $positions_table
       GROUP BY
-        group_key
+        $group_key
     ),
     layout_params AS (
       SELECT
@@ -677,11 +677,11 @@ RETURNS TableOrSubQuery AS
         max(12, CAST(pp.total_width * 0.008 AS INTEGER)) AS label_height
       FROM position_params AS pp
       GROUP BY
-        group_key
+        $group_key
     ),
     track_layout AS (
       SELECT
-        $group_key AS group_key,
+        $group_key,
         utid,
         thread_name,
         track_index,
@@ -689,10 +689,10 @@ RETURNS TableOrSubQuery AS
       FROM $positions_table
       GROUP BY
         utid,
-        group_key
+        $group_key
     )
   SELECT
-    lp.group_key,
+    lp.$group_key,
     '<svg xmlns="http://www.w3.org/2000/svg" ' || 'viewBox="0 0 ' || (
       lp.total_width + lp.left_margin + 10
     ) || ' ' || (
@@ -713,7 +713,7 @@ RETURNS TableOrSubQuery AS
           )
         FROM track_layout AS tl
         WHERE
-          tl.group_key = lp.group_key
+          tl.$group_key = lp.$group_key
       ),
       ''
     ) || '</g>' || '<g transform="translate(' || lp.left_margin || ',' || (
@@ -742,7 +742,7 @@ RETURNS TableOrSubQuery AS
           )
         FROM $positions_table AS p
         WHERE
-          p.group_key = lp.group_key
+          p.$group_key = lp.$group_key
         ORDER BY
           p.track_index,
           p.ts,
