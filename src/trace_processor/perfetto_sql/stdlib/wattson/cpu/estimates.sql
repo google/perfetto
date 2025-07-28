@@ -83,7 +83,11 @@ SELECT
   coalesce(base.cpu5_curve, 0.0) AS cpu5_curve,
   coalesce(base.cpu6_curve, 0.0) AS cpu6_curve,
   coalesce(base.cpu7_curve, 0.0) AS cpu7_curve,
-  iif(no_static = 1, 0.0, coalesce(static_1d.curve_value, static_2d.curve_value)) AS static_curve,
+  iif(
+    no_static = 1,
+    0.0,
+    coalesce(static_1d.curve_value, 0.0) + coalesce(static_2d.curve_value, 0.0)
+  ) AS static_curve,
   iif(all_cpu_deep_idle = 1, 0, base.l3_hit_count * l3_hit_lut.curve_value) AS l3_hit_value,
   iif(all_cpu_deep_idle = 1, 0, base.l3_miss_count * l3_miss_lut.curve_value) AS l3_miss_value
 FROM _curves_w_dependencies AS base
