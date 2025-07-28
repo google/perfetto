@@ -21,7 +21,7 @@ SELECT RUN_METRIC('android/process_metadata.sql');
 
 INCLUDE PERFETTO MODULE android.slices;
 INCLUDE PERFETTO MODULE android.binder;
-INCLUDE PERFETTO MODULE android.blocking_calls.blocking_calls_aggregation;
+INCLUDE PERFETTO MODULE android.frame_blocking_calls.blocking_calls_aggregation;
 INCLUDE PERFETTO MODULE android.critical_blocking_calls;
 INCLUDE PERFETTO MODULE android.frames.timeline;
 INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;

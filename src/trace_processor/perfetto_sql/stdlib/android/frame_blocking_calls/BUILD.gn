@@ -14,6 +14,6 @@
 
 import("../../../../../../gn/perfetto_sql.gni")
 
-perfetto_sql_source_set("blocking_calls") {
+perfetto_sql_source_set("frame_blocking_calls") {
   sources = [ "blocking_calls_aggregation.sql" ]
 }

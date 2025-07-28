@@ -18,10 +18,10 @@ perfetto_sql_source_set("android") {
   deps = [
     "auto",
     "battery",
-    "blocking_calls",
     "cpu",
     "cujs",
     "dumpsys",
+    "frame_blocking_calls",
     "frames",
     "gpu",
     "memory",

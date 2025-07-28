@@ -2973,14 +2973,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/perfetto_sql/stdlib/android/blocking_calls:blocking_calls
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_stdlib_android_blocking_calls_blocking_calls",
-    srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/android/blocking_calls/blocking_calls_aggregation.sql",
-    ],
-)
-
 # GN target: //src/trace_processor/perfetto_sql/stdlib/android/cpu:cpu
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_cpu_cpu",
@@ -3003,6 +2995,14 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_dumpsys_dumpsys",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/android/dumpsys/show_map.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/stdlib/android/frame_blocking_calls:frame_blocking_calls
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_android_frame_blocking_calls_frame_blocking_calls",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/android/frame_blocking_calls/blocking_calls_aggregation.sql",
     ],
 )
 
@@ -3421,10 +3421,10 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_android_android",
         ":src_trace_processor_perfetto_sql_stdlib_android_auto_auto",
         ":src_trace_processor_perfetto_sql_stdlib_android_battery_battery",
-        ":src_trace_processor_perfetto_sql_stdlib_android_blocking_calls_blocking_calls",
         ":src_trace_processor_perfetto_sql_stdlib_android_cpu_cpu",
         ":src_trace_processor_perfetto_sql_stdlib_android_cujs_cujs",
         ":src_trace_processor_perfetto_sql_stdlib_android_dumpsys_dumpsys",
+        ":src_trace_processor_perfetto_sql_stdlib_android_frame_blocking_calls_frame_blocking_calls",
         ":src_trace_processor_perfetto_sql_stdlib_android_frames_frames",
         ":src_trace_processor_perfetto_sql_stdlib_android_gpu_gpu",
         ":src_trace_processor_perfetto_sql_stdlib_android_memory_heap_graph_heap_graph",
