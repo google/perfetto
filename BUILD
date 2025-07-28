@@ -346,6 +346,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_art_method_art_method_event",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
+        ":src_trace_processor_importers_common_synthetic_tid_hdr",
         ":src_trace_processor_importers_common_trace_parser_hdr",
         ":src_trace_processor_importers_etw_full",
         ":src_trace_processor_importers_etw_minimal",
@@ -834,12 +835,15 @@ perfetto_filegroup(
         "include/perfetto/ext/base/endian.h",
         "include/perfetto/ext/base/event_fd.h",
         "include/perfetto/ext/base/file_utils.h",
+        "include/perfetto/ext/base/flags.h",
         "include/perfetto/ext/base/flat_hash_map.h",
+        "include/perfetto/ext/base/fnv_hash.h",
         "include/perfetto/ext/base/getopt.h",
         "include/perfetto/ext/base/getopt_compat.h",
         "include/perfetto/ext/base/hash.h",
         "include/perfetto/ext/base/metatrace.h",
         "include/perfetto/ext/base/metatrace_events.h",
+        "include/perfetto/ext/base/murmur_hash.h",
         "include/perfetto/ext/base/no_destructor.h",
         "include/perfetto/ext/base/paged_memory.h",
         "include/perfetto/ext/base/periodic_task.h",
@@ -1878,6 +1882,14 @@ perfetto_filegroup(
     name = "src_trace_processor_importers_common_parser_types",
     srcs = [
         "src/trace_processor/importers/common/parser_types.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/common:synthetic_tid_hdr
+perfetto_filegroup(
+    name = "src_trace_processor_importers_common_synthetic_tid_hdr",
+    srcs = [
+        "src/trace_processor/importers/common/synthetic_tid.h",
     ],
 )
 
@@ -3217,6 +3229,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_linux_perf_perf",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/linux/perf/etm.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/perf/samples.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/perf/spe.sql",
     ],
@@ -7328,6 +7341,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_art_method_art_method_event",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
+        ":src_trace_processor_importers_common_synthetic_tid_hdr",
         ":src_trace_processor_importers_common_trace_parser_hdr",
         ":src_trace_processor_importers_etw_full",
         ":src_trace_processor_importers_etw_minimal",
@@ -7536,6 +7550,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_art_method_art_method_event",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
+        ":src_trace_processor_importers_common_synthetic_tid_hdr",
         ":src_trace_processor_importers_common_trace_parser_hdr",
         ":src_trace_processor_importers_etw_full",
         ":src_trace_processor_importers_etw_minimal",
@@ -7736,6 +7751,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_art_method_art_method_event",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
+        ":src_trace_processor_importers_common_synthetic_tid_hdr",
         ":src_trace_processor_importers_common_trace_parser_hdr",
         ":src_trace_processor_importers_etw_full",
         ":src_trace_processor_importers_etw_minimal",

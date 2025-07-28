@@ -14,21 +14,20 @@
  * limitations under the License.
  */
 
-#include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/murmur_hash.h"
 
 #include "perfetto/ext/base/string_view.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace base {
+namespace perfetto::base {
 namespace {
 
-TEST(HashTest, StringView) {
+TEST(MurmurHashTest, StringView) {
   base::StringView a = "abc";
   base::StringView b = "def";
-  EXPECT_NE(Hasher::Combine(a), Hasher::Combine(b));
+  EXPECT_NE(murmur_internal::MurmurHashBytes(a.data(), a.size()),
+            murmur_internal::MurmurHashBytes(b.data(), b.size()));
 }
 
 }  // namespace
-}  // namespace base
-}  // namespace perfetto
+}  // namespace perfetto::base

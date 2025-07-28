@@ -48,7 +48,18 @@ PkvmHypervisorCpuTracker::PkvmHypervisorCpuTracker(
     : context_(context),
       category_(context->storage->InternString("pkvm_hyp")),
       slice_name_(context->storage->InternString("hyp")),
-      hyp_enter_reason_(context->storage->InternString("hyp_enter_reason")) {}
+      hyp_enter_reason_(context->storage->InternString("hyp_enter_reason")),
+      func_id_(context_->storage->InternString("func_id")),
+      handled_(context_->storage->InternString("handled")),
+      err_(context_->storage->InternString("err")),
+      host_ffa_call_(context_->storage->InternString("host_ffa_call")),
+      iommu_idmap_(context_->storage->InternString("iommu_idmap")),
+      from_(context_->storage->InternString("from")),
+      to_(context_->storage->InternString("to")),
+      prot_(context_->storage->InternString("prot")),
+      psci_mem_protect_(context_->storage->InternString("psci_mem_protect")),
+      count_(context_->storage->InternString("count")),
+      was_(context_->storage->InternString("was_")) {}
 
 // static
 bool PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(uint32_t event_id) {
@@ -59,6 +70,9 @@ bool PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(uint32_t event_id) {
     case FtraceEvent::kHostHcallFieldNumber:
     case FtraceEvent::kHostMemAbortFieldNumber:
     case FtraceEvent::kHostSmcFieldNumber:
+    case FtraceEvent::kHostFfaCallFieldNumber:
+    case FtraceEvent::kIommuIdmapFieldNumber:
+    case FtraceEvent::kPsciMemProtectFieldNumber:
       return true;
     default:
       return false;
@@ -85,6 +99,15 @@ void PkvmHypervisorCpuTracker::ParseHypEvent(uint32_t cpu,
       break;
     case FtraceEvent::kHostSmcFieldNumber:
       ParseHostSmc(cpu, blob);
+      break;
+    case FtraceEvent::kHostFfaCallFieldNumber:
+      ParseHostFfaCall(cpu, blob);
+      break;
+    case FtraceEvent::kIommuIdmapFieldNumber:
+      ParseIommuIdmap(cpu, blob);
+      break;
+    case FtraceEvent::kPsciMemProtectFieldNumber:
+      ParsePsciMemProtect(cpu, blob);
       break;
     // TODO(b/249050813): add remaining hypervisor events
     default:
@@ -155,6 +178,51 @@ void PkvmHypervisorCpuTracker::ParseHostMemAbort(uint32_t cpu,
         inserter->AddArg(hyp_enter_reason_, Variadic::String(host_mem_abort));
         inserter->AddArg(esr, Variadic::UnsignedInteger(evt.esr()));
         inserter->AddArg(addr, Variadic::UnsignedInteger(evt.addr()));
+      });
+}
+
+void PkvmHypervisorCpuTracker::ParseHostFfaCall(uint32_t cpu,
+                                                protozero::ConstBytes blob) {
+  protos::pbzero::HostFfaCallFtraceEvent::Decoder evt(blob);
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kPkvmBlueprint, tracks::Dimensions(cpu));
+  context_->slice_tracker->AddArgs(
+      track_id, category_, slice_name_,
+      [&, this](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(hyp_enter_reason_, Variadic::String(host_ffa_call_));
+        inserter->AddArg(func_id_, Variadic::UnsignedInteger(evt.func_id()));
+        inserter->AddArg(handled_, Variadic::Integer(evt.handled()));
+        inserter->AddArg(err_, Variadic::Integer(evt.err()));
+      });
+}
+
+void PkvmHypervisorCpuTracker::ParseIommuIdmap(uint32_t cpu,
+                                               protozero::ConstBytes blob) {
+  protos::pbzero::IommuIdmapFtraceEvent::Decoder evt(blob);
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kPkvmBlueprint, tracks::Dimensions(cpu));
+  context_->slice_tracker->AddArgs(
+      track_id, category_, slice_name_,
+      [&, this](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(hyp_enter_reason_, Variadic::String(iommu_idmap_));
+        inserter->AddArg(from_, Variadic::UnsignedInteger(evt.from()));
+        inserter->AddArg(to_, Variadic::UnsignedInteger(evt.to()));
+        inserter->AddArg(prot_, Variadic::Integer(evt.prot()));
+      });
+}
+
+void PkvmHypervisorCpuTracker::ParsePsciMemProtect(uint32_t cpu,
+                                                   protozero::ConstBytes blob) {
+  protos::pbzero::PsciMemProtectFtraceEvent::Decoder evt(blob);
+  TrackId track_id = context_->track_tracker->InternTrack(
+      kPkvmBlueprint, tracks::Dimensions(cpu));
+  context_->slice_tracker->AddArgs(
+      track_id, category_, slice_name_,
+      [&, this](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(hyp_enter_reason_,
+                         Variadic::String(psci_mem_protect_));
+        inserter->AddArg(count_, Variadic::UnsignedInteger(evt.count()));
+        inserter->AddArg(was_, Variadic::UnsignedInteger(evt.was()));
       });
 }
 
