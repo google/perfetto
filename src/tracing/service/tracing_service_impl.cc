@@ -373,7 +373,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
                                     ProducerSMBScrapingMode smb_scraping_mode,
                                     size_t shared_memory_page_size_hint_bytes,
                                     std::unique_ptr<SharedMemory> shm,
-                                    const std::string& sdk_version) {
+                                    const std::string& sdk_version,
+                                    const std::string& machine_name) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
   auto uid = client_identity.uid();
@@ -404,7 +405,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
 
   std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
       id, client_identity, this, weak_runner_.task_runner(), producer,
-      producer_name, sdk_version, in_process, smb_scraping_enabled));
+      producer_name, machine_name, sdk_version, in_process,
+      smb_scraping_enabled));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
   endpoint->shmem_size_hint_bytes_ = shared_memory_size_hint_bytes;
@@ -3058,6 +3060,18 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
     PERFETTO_DLOG("Lockdown mode: not enabling producer %hu", producer->id_);
     return nullptr;
   }
+  if (cfg_data_source.machine_name_filter_size()) {
+    auto machine_id = producer->client_identity().machine_id();
+    auto cfg_machine_names = cfg_data_source.machine_name_filter();
+    if (!NameMatchesFilter(producer->machine_name_, cfg_machine_names, {}) &&
+        !(machine_id == kDefaultMachineID &&
+          NameMatchesFilter("host", cfg_machine_names, {}))) {
+      PERFETTO_DLOG("Data source: %s is filtered out for machine: %s",
+                    cfg_data_source.config().name().c_str(),
+                    producer->machine_name_.c_str());
+      return nullptr;
+    }
+  }
   // TODO(primiano): Add tests for registration ordering (data sources vs
   // consumers).
   if (!NameMatchesFilter(producer->name_,
@@ -4772,6 +4786,7 @@ TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
     base::TaskRunner* task_runner,
     Producer* producer,
     const std::string& producer_name,
+    const std::string& machine_name,
     const std::string& sdk_version,
     bool in_process,
     bool smb_scraping_enabled)
@@ -4780,6 +4795,7 @@ TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
       service_(service),
       producer_(producer),
       name_(producer_name),
+      machine_name_(machine_name),
       sdk_version_(sdk_version),
       in_process_(in_process),
       smb_scraping_enabled_(smb_scraping_enabled),

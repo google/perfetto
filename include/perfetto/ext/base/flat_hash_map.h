@@ -20,6 +20,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flags.h"
 #include "perfetto/ext/base/fnv_hash.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/utils.h"
 
 #include <algorithm>
@@ -83,9 +84,7 @@ template <typename Key,
           typename Value,
           typename Hasher =
               std::conditional_t<base::flags::use_murmur_hash_for_flat_hash_map,
-                                 // TODO(lalitm): switch this to actually point
-                                 // to MurmurHash.
-                                 base::FnvHash<Key>,
+                                 base::MurmurHash<Key>,
                                  base::FnvHash<Key>>,
           typename Probe = QuadraticProbe,
           bool AppendOnly = false>

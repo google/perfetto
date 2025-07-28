@@ -25,7 +25,8 @@ namespace {
 TEST(MurmurHashTest, StringView) {
   base::StringView a = "abc";
   base::StringView b = "def";
-  EXPECT_NE(MurmurHash(a.data(), a.size()), MurmurHash(b.data(), b.size()));
+  EXPECT_NE(murmur_internal::MurmurHashBytes(a.data(), a.size()),
+            murmur_internal::MurmurHashBytes(b.data(), b.size()));
 }
 
 }  // namespace
