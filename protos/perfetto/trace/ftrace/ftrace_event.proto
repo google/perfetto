@@ -727,5 +727,7 @@ message FtraceEvent {
         mm_alloc_contig_migrate_range_info = 577;
     HostFfaCallFtraceEvent host_ffa_call = 578;
     DmabufRssStatFtraceEvent dmabuf_rss_stat = 579;
+    IommuIdmapFtraceEvent iommu_idmap = 580;
+    PsciMemProtectFtraceEvent psci_mem_protect = 581;
   }
 }
