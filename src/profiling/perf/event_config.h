@@ -86,6 +86,10 @@ struct PerfCounter {
   uint64_t attr_config1 = 0;  // optional extension
   uint64_t attr_config2 = 0;  // optional extension
 
+  // period/frequency
+  std::optional<uint64_t> period;
+  std::optional<uint64_t> frequency;
+
   Type event_type() const { return type; }
 
   static PerfCounter BuiltinCounter(std::string name,

@@ -1981,6 +1981,10 @@ message FollowerEvent {
     PerfEvents.RawEvent raw_event = 3;
   }
   optional string name = 4;
+  oneof interval {
+    uint64 frequency = 5;
+    uint64 period = 6;
+  }
 }
 
 // End of protos/perfetto/common/perf_events.proto
