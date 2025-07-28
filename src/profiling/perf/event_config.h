@@ -143,6 +143,8 @@ class EventConfig {
   bool sample_callstacks() const { return user_frames() || kernel_frames_; }
   bool user_frames() const { return IsUserFramesEnabled(unwind_mode_); }
   bool kernel_frames() const { return kernel_frames_; }
+  bool skip_symbolization() const { return skip_symbolization_; }
+
   // clang-format on
 
  private:
@@ -164,7 +166,8 @@ class EventConfig {
               uint32_t remote_descriptor_timeout_ms,
               uint32_t unwind_state_clear_period_ms,
               uint64_t max_enqueued_footprint_bytes,
-              std::vector<std::string> target_installed_by);
+              std::vector<std::string> target_installed_by,
+              bool skip_symbolization);
 
   static std::optional<EventConfig> CreatePolling(
       PerfCounter timebase_event,
@@ -238,6 +241,9 @@ class EventConfig {
 
   // The raw data source config, as a pbzero-generated C++ class.
   const DataSourceConfig raw_ds_config_;
+
+  // If true, unwinder will not do symbolization.
+  const bool skip_symbolization_;
 };
 
 }  // namespace perfetto::profiling

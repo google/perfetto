@@ -169,6 +169,12 @@ message PerfEventConfig {
     // as the most common default (this defaulting is only applicable if the
     // outer CallstackSampling message is explicitly set).
     optional UnwindMode user_frames = 3;
+
+    // If true, skip the symbolization of user callchains at capture time.
+    // This speeds up the capture but requires to symbolize the trace
+    // using 'traceconv' after the capture. This sould be used along with
+    // kernel-unwinding option by setting user_frames to UNWIND_KERNEL.
+    optional bool skip_symbolization = 4;
   }
 
   message Scope {
@@ -231,8 +237,7 @@ message PerfEventConfig {
     optional uint32 process_shard_count = 6;
   }
 
-  // Userspace unwinding mode. A possible future addition is kernel-unwound
-  // callchains for frame pointer based systems.
+  // Userspace unwinding mode.
   enum UnwindMode {
     UNWIND_UNKNOWN = 0;
     // Do not unwind userspace:
@@ -241,5 +246,8 @@ message PerfEventConfig {
     UNWIND_DWARF = 2;
     // Use userspace frame pointer unwinder:
     UNWIND_FRAME_POINTER = 3;
+    // Unwinding by kernel. This may not work properly with JIT code and
+    // binaries that omit to store the frame during function calls:
+    UNWIND_KERNEL = 4;
   }
 }
