@@ -20,10 +20,9 @@
 @import "sidebar";
 @import "topbar";
 @import "record";
-@import "modal";
 @import "details";
+@import "note_editor";
 @import "trace_info_page";
-@import "flags_page";
 @import "hiring_banner";
 @import "statusbar";
 
@@ -51,6 +50,7 @@
 @import "widgets/linear_progress";
 @import "widgets/menu";
 @import "widgets/middle_ellipsis";
+@import "widgets/modal";
 @import "widgets/multiselect_input";
 @import "widgets/multiselect";
 @import "widgets/popup";

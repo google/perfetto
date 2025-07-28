@@ -96,9 +96,8 @@ export class CpuProfileSampleFlamegraphDetailsPanel
         DetailsShell,
         {
           fillParent: true,
-          title: m('.title', 'CPU Profile Samples'),
-          description: [],
-          buttons: [m('div.time', `Timestamp: `, m(Timestamp, {ts: this.ts}))],
+          title: 'CPU Profile Samples',
+          buttons: m('span', 'Timestamp: ', m(Timestamp, {ts: this.ts})),
         },
         this.flamegraph.render(),
       ),

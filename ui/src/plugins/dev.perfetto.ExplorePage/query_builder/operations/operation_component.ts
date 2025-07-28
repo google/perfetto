@@ -15,31 +15,37 @@
 import m from 'mithril';
 import {ALL_FILTER_OPS, FilterAttrs, FilterOperation} from './filter';
 import {
-  GroupByAgg,
+  Aggregation,
   GroupByAggregationAttrsToProto,
-  GroupByAttrs,
-  GroupByOperation,
-} from './group_by';
+  AggregationsOperatorAttrs,
+  AggregationsOperator,
+} from './aggregations';
 import {FilterDefinition} from '../../../../components/widgets/data_grid/common';
+import {Button, ButtonVariant} from '../../../../widgets/button';
 import protos from '../../../../protos';
 import {ColumnInfo} from '../column_info';
 
 export interface OperatorAttrs {
   filter: FilterAttrs;
-  groupby: GroupByAttrs;
+  groupby: AggregationsOperatorAttrs;
 }
 
 export class Operator implements m.ClassComponent<OperatorAttrs> {
+  private showAggregations = false;
+
   view({attrs}: m.CVnode<OperatorAttrs>): m.Children {
-    return m(
-      '.pf-query-operations',
+    return m('.pf-exp-query-operations', [
       m(FilterOperation, attrs.filter),
-      m(
-        '.section',
-        m('h2', 'Aggregations'),
-        m('div.operations-container', m(GroupByOperation, attrs.groupby)),
-      ),
-    );
+      this.showAggregations
+        ? m('.pf-exp-query-operations', m(AggregationsOperator, attrs.groupby))
+        : m(Button, {
+            label: 'Aggregate data',
+            onclick: () => {
+              this.showAggregations = true;
+            },
+            variant: ButtonVariant.Filled,
+          }),
+    ]);
   }
 }
 
@@ -85,7 +91,7 @@ export function createFiltersProto(
 
 export function createGroupByProto(
   groupByColumns: ColumnInfo[],
-  aggregations: GroupByAgg[],
+  aggregations: Aggregation[],
 ): protos.PerfettoSqlStructuredQuery.GroupBy | undefined {
   if (!groupByColumns.find((c) => c.checked)) return;
 
@@ -105,7 +111,7 @@ export function createGroupByProto(
 
 // Both 'column' and 'aggregationOp' must be present for an aggregation to be considered valid.
 // This ensures that the aggregation operation is applied to a specific column.
-function validateAggregation(aggregation: GroupByAgg): boolean {
+function validateAggregation(aggregation: Aggregation): boolean {
   if (!aggregation.column || !aggregation.aggregationOp) return false;
   return true;
 }

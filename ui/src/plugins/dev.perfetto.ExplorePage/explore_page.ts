@@ -122,11 +122,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     this.deselectNode(state);
   }
 
-  handleVisualizeNode(state: ExplorePageState, node: QueryNode) {
-    this.selectNode(state, node);
-    state.mode = ExplorePageModes.DATA_VISUALISER;
-  }
-
   handleDuplicateNode(state: ExplorePageState, node: QueryNode) {
     const attrsCopy = node.getStateCopy();
     switch (node.type) {
@@ -218,7 +213,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           onAddSlicesSource: () => this.handleAddSlicesSource(state),
           onAddSqlSource: () => this.handleAddSqlSource(attrs),
           onClearAllNodes: () => this.handleClearAllNodes(state),
-          onVisualizeNode: (node) => this.handleVisualizeNode(state, node),
           onDuplicateNode: (node) => this.handleDuplicateNode(state, node),
           onDeleteNode: (node) => this.handleDeleteNode(state, node),
         }),

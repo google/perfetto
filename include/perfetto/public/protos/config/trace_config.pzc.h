@@ -568,6 +568,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_DataSource,
                   const char*,
                   producer_name_regex_filter,
                   3);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_DataSource,
+                  STRING,
+                  const char*,
+                  machine_name_filter,
+                  4);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_BufferConfig);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_BufferConfig,

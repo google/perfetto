@@ -41,7 +41,6 @@ export interface QueryBuilderAttrs {
   readonly onAddSlicesSource: () => void;
   readonly onAddSqlSource: () => void;
   readonly onClearAllNodes: () => void;
-  readonly onVisualizeNode: (node: QueryNode) => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
 }
@@ -135,7 +134,6 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
           onAddSlicesSource,
           onAddSqlSource,
           onClearAllNodes,
-          onVisualizeNode: attrs.onVisualizeNode,
           onDuplicateNode: attrs.onDuplicateNode,
           onDeleteNode: attrs.onDeleteNode,
         }),
