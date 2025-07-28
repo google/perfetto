@@ -572,5 +572,6 @@ dwc3/dwc3_writel
 cma/cma_alloc_finish
 kmem/mm_alloc_contig_migrate_range_info
 hyp/host_ffa_call
+kmem/dmabuf_rss_stat
 hyp/iommu_idmap
 hyp/psci_mem_protect

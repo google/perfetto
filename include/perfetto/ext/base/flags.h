@@ -34,7 +34,7 @@ namespace perfetto::base::flags {
 // contexts.
 #define PERFETTO_READ_ONLY_FLAGS(X)                       \
   X(test_read_only_flag, NonAndroidPlatformDefault_FALSE) \
-  X(use_murmur_hash_for_flat_hash_map, NonAndroidPlatformDefault_FALSE)
+  X(use_murmur_hash_for_flat_hash_map, NonAndroidPlatformDefault_TRUE)
 
 ////////////////////////////////////////////////////////////////////////////////
 //                                                                            //
@@ -47,7 +47,7 @@ namespace perfetto::base::flags {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define PERFETTO_FLAGS_DEFINE_FN(name, default_non_android_value) \
+#define PERFETTO_FLAGS_DEF_GETTER(name, default_non_android_value) \
   [[maybe_unused]] constexpr bool name = ::perfetto::flags::name();
 #else
 #define PERFETTO_FLAGS_DEF_GETTER(name, default_non_android_value) \

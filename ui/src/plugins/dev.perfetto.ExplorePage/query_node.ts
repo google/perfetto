@@ -20,10 +20,10 @@ import {
   newColumnInfoList,
 } from './query_builder/column_info';
 import {
-  GroupByAgg,
+  Aggregation,
   placeholderNewColumnName,
-} from './query_builder/operations/group_by';
-import {Filter} from './query_builder/operations/filter';
+} from './query_builder/operations/aggregations';
+import {FilterDefinition} from '../../components/widgets/data_grid/common';
 import {Engine} from '../../trace_processor/engine';
 
 export enum NodeType {
@@ -40,9 +40,9 @@ export interface QueryNodeState {
   customTitle?: string;
 
   // Operations
-  filters: Filter[];
+  filters: FilterDefinition[];
   groupByColumns: ColumnInfo[];
-  aggregations: GroupByAgg[];
+  aggregations: Aggregation[];
 
   // Errors
   queryError?: Error;

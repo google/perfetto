@@ -23,37 +23,27 @@
 #include <cstring>
 #include <limits>
 #include <string>
+#include <type_traits>
 
 #include "perfetto/public/compiler.h"
 
-// This file implements a 64-bit variant of the MurmurHash algorithm.
+// This file provides an implementation of the 64-bit MurmurHash2 algorithm,
+// also known as MurmurHash64A. This algorithm, created by Austin Appleby, is a
+// fast, non-cryptographic hash function with excellent distribution properties,
+// making it ideal for use in hash tables.
 //
-// The algorithm is a custom hybrid that combines elements from both MurmurHash2
-// and MurmurHash3 to achieve excellent performance for non-cryptographic use
-// cases. It is heavily inspired by the high-performance hash implementation
-// found in DuckDB.
-//
-// --- Algorithm Comparison ---
-//
-// This implementation differs from the standard MurmurHash algorithms:
-//
-// - vs. MurmurHash2: It uses the same primary multiplication constant
-//   (0xc6a4a7935bd1e995) as MurmurHash2 but features a simpler body loop
-//   (a single XOR and multiply) and the stronger `fmix64` finalizer from
-//   MurmurHash3.
-//
-// - vs. MurmurHash3: It uses the exact same `fmix64` finalization function but
-//   substitutes MurmurHash3's complex, rotation-heavy body loop with a much
-//   simpler and faster one.
-//
-// In summary, it makes a performance-oriented trade-off: a simpler main loop
-// combined with a high-quality final mixing stage.
+// The file also includes related hashing utilities:
+// - A standalone `fmix64` finalizer from MurmurHash3, used for hashing
+//   individual numeric types.
+// - A hash combiner for creating a single hash from a sequence of values.
 //
 // NOTE: This implementation is NOT cryptographically secure. It must not be
 // used for security-sensitive applications like password storage or digital
 // signatures, as it is not designed to be resistant to malicious attacks.
 
 namespace perfetto::base {
+
+namespace murmur_internal {
 
 // Finalizes an intermediate hash value using the `fmix64` routine from
 // MurmurHash3.
@@ -67,7 +57,7 @@ namespace perfetto::base {
 //
 // Returns:
 //   The final, well-mixed 64-bit hash value.
-inline uint64_t MurmurHash(uint64_t h) {
+inline uint64_t MurmurHashMix(uint64_t h) {
   h ^= h >> 33;
   h *= 0xff51afd7ed558ccdULL;
   h ^= h >> 33;
@@ -75,94 +65,190 @@ inline uint64_t MurmurHash(uint64_t h) {
   h ^= h >> 33;
   return h;
 }
-inline uint64_t MurmurHash(uint32_t h) {
-  return MurmurHash(static_cast<uint64_t>(h));
-}
-inline uint64_t MurmurHash(int64_t h) {
-  return MurmurHash(static_cast<uint64_t>(h));
-}
-inline uint64_t MurmurHash(int32_t h) {
-  return MurmurHash(static_cast<uint64_t>(h));
-}
-inline uint64_t MurmurHash(double h) {
-  static_assert(sizeof(double) == sizeof(uint64_t));
 
-  // Normalize floating point representations which can vary.
-  if (PERFETTO_UNLIKELY(h == 0.0)) {
-    // Turn negative zero into positive zero
-    h = 0.0;
-  } else if (PERFETTO_UNLIKELY(std::isnan(h))) {
-    // Turn arbtirary NaN representations to a consistent NaN repr.
-    h = std::numeric_limits<double>::quiet_NaN();
-  }
-
-  uint64_t res;
-  memcpy(&res, &h, sizeof(double));
-  return MurmurHash(res);
-}
-
-// Computes a 64-bit hash for a block of memory.
+// Computes a 64-bit hash for a block of memory using the MurmurHash64A
+// algorithm.
 //
-// This function implements the main body of the custom Murmur-style hash. As
-// described in the file-level comment, it uses a simplified processing loop for
-// performance and applies the strong `fmix64` finalizer from MurmurHash3.
-//
-// The process involves four steps:
-// 1. Initialization: Seeding the hash with the input length.
-// 2. Main Loop: Processing 8-byte chunks with a `XOR` and `MULTIPLY` sequence.
-// 3. Tail Processing: Handling the final 1-7 bytes.
-// 4. Finalization: Applying the `fmix64` mix via the other MurmurHash overload.
+// The process involves four main steps:
+// 1. Initialization: The hash state is seeded with a value derived from the
+//    input length.
+// 2. Main Loop: Data is processed in 8-byte chunks, with each chunk being
+//    mixed into the hash state.
+// 3. Tail Processing: The final 1-7 bytes of data are handled.
+// 4. Finalization: The hash state is passed through a final mixing sequence to
+//    ensure good bit distribution.
 //
 // Args:
 //   input: A pointer to the data to be hashed.
 //   len:   The length of the data in bytes.
 //
 // Returns:
-//   The 64-bit hash of the input data.
-inline uint64_t MurmurHash(const void* input, size_t len) {
-  // Uses constants inspired by the high-performance hash implementation found
-  // at:
-  // https://github.com/duckdb/duckdb/blob/main/src/include/duckdb/common/types/hash.hpp
-  constexpr uint64_t kMultiplicationConstant1 = 0xc6a4a7935bd1e995ULL;
-  constexpr uint64_t kMultiplicationConstant2 = 0xd6e8feb86659fd93ULL;
-  constexpr uint64_t kSeed = 0xe17a1465U;
+//   The 64-bit MurmurHash64A hash of the input data.
+inline uint64_t MurmurHashBytes(const void* input, size_t len) {
+  // This implementation follows the canonical MurmurHash64A algorithm.
+  // The constants `kMulConstant` (m) and the shift value `47` (r) are from
+  // the original specification.
+  // The seed is inspired by the one used in DuckDB.
+  static constexpr uint64_t kSeed = 0xe17a1465U;
+  static constexpr uint64_t kMulConstant = 0xc6a4a7935bd1e995;
+  static constexpr int kShift = 47;
 
-  // Initialize the hash value with the seed and a transformation of the input
-  // length. This helps ensure that inputs of different lengths are unlikely to
-  // collide.
-  uint64_t hash_value = kSeed ^ (len * kMultiplicationConstant1);
+  uint64_t h = kSeed ^ (len * kMulConstant);
+  const auto* data = static_cast<const uint8_t*>(input);
+  const size_t num_blocks = len / 8;
 
-  // Set up pointers for iterating through the data.
-  const auto* byte_ptr = static_cast<const uint8_t*>(input);
-  const size_t remainder = len % 8;
-  const uint8_t* end = byte_ptr + len - remainder;
+  // Process 8-byte (64-bit) chunks
+  for (size_t i = 0; i < num_blocks; ++i) {
+    uint64_t k;
+    memcpy(&k, data, sizeof(k));
+    data += sizeof(k);  // Advance the pointer by 8 bytes
 
-  // The main loop processes data in 8-byte blocks for performance. Each block
-  // is XORed and multiplied into the hash state.
-  for (; byte_ptr != end; byte_ptr += 8) {
-    uint64_t chunk;
-    memcpy(&chunk, byte_ptr, sizeof(chunk));
-    hash_value ^= chunk;
-    hash_value *= kMultiplicationConstant2;
+    k *= kMulConstant;
+    k ^= k >> kShift;
+    k *= kMulConstant;
+
+    h ^= k;
+    h *= kMulConstant;
   }
 
-  // Handle the final 1-7 bytes if the data length is not a multiple of 8.
-  // This ensures that all input bytes contribute to the final hash.
-  if (remainder != 0) {
-    uint64_t last_chunk = 0;
-    memcpy(&last_chunk, byte_ptr, remainder);
-    hash_value ^= last_chunk;
-    hash_value *= kMultiplicationConstant2;
+  // Process the remaining 1 to 7 bytes
+  // The 'byte_ptr' now points to the beginning of the tail.
+  switch (len & 7) {
+    case 7:
+      h ^= static_cast<uint64_t>(data[6]) << 48;
+      [[fallthrough]];
+    case 6:
+      h ^= static_cast<uint64_t>(data[5]) << 40;
+      [[fallthrough]];
+    case 5:
+      h ^= static_cast<uint64_t>(data[4]) << 32;
+      [[fallthrough]];
+    case 4:
+      h ^= static_cast<uint64_t>(data[3]) << 24;
+      [[fallthrough]];
+    case 3:
+      h ^= static_cast<uint64_t>(data[2]) << 16;
+      [[fallthrough]];
+    case 2:
+      h ^= static_cast<uint64_t>(data[1]) << 8;
+      [[fallthrough]];
+    case 1:
+      h ^= static_cast<uint64_t>(data[0]);
+      h *= kMulConstant;
   }
 
-  // Finalize the hash by calling the integer-based MurmurHash function to
-  // perform the final mixing.
-  return MurmurHash(hash_value);
-}
-inline uint64_t MurmurHash(const std::string& res) {
-  return MurmurHash(res.data(), res.size());
+  // Final mixing stage
+  h ^= h >> kShift;
+  h *= kMulConstant;
+  h ^= h >> kShift;
+
+  return h;
 }
 
-}  // namespace perfetto::trace_processor::util
+template <typename Float, typename Int>
+Int NormalizeFloatToInt(Float value) {
+  static_assert(std::is_floating_point_v<Float>);
+  static_assert(std::is_integral_v<Int>);
+
+  // Normalize floating point representations which can vary.
+  if (PERFETTO_UNLIKELY(value == 0.0)) {
+    // Turn negative zero into positive zero
+    value = 0.0;
+  } else if (PERFETTO_UNLIKELY(std::isnan(value))) {
+    // Turn arbtirary NaN representations to a consistent NaN repr.
+    value = std::numeric_limits<Float>::quiet_NaN();
+  }
+  Int res;
+  static_assert(sizeof(Float) == sizeof(Int));
+  memcpy(&res, &value, sizeof(Float));
+  return res;
+}
+
+}  // namespace murmur_internal
+
+// std::hash<T> drop-in class which uses the core MurmurHash functions above to
+// produce a hash.
+//
+// Uses:
+//  1) MurmurHashMix for fixed size numeric types (integers, floats, doubles).
+//  2) MurmurHashBytes for string types (string, string_view) etc.
+//  3) Falls back to std::hash<T> for all other types.
+//     TODO(lalitm): create a absl-like API for allowing aribtrary types
+//     to be hashed without needing to override std::hash<T>.
+template <typename T>
+struct MurmurHash {
+  uint64_t operator()(const T& value) const {
+    if constexpr (std::is_integral_v<T>) {
+      return murmur_internal::MurmurHashMix(static_cast<uint64_t>(value));
+    } else if constexpr (std::is_same_v<T, double>) {
+      return murmur_internal::MurmurHashMix(
+          murmur_internal::NormalizeFloatToInt<double, uint64_t>(value));
+    } else if constexpr (std::is_same_v<T, float>) {
+      return murmur_internal::MurmurHashMix(
+          murmur_internal::NormalizeFloatToInt<float, uint32_t>(value));
+    } else if constexpr (std::is_same_v<T, std::string> ||
+                         std::is_same_v<T, std::string_view>) {
+      return murmur_internal::MurmurHashBytes(value.data(), value.size());
+    } else {
+      return std::hash<T>{}(value);
+    }
+  }
+};
+
+// Simple wrapper function around MurmurHash to improve clarity in callsites
+// to not have to instantiate the class and then call operator().
+template <typename T>
+uint64_t MurmurHashValue(const T& value) {
+  return MurmurHash<T>{}(value);
+}
+
+// A helper class to create a 64-bit MurmurHash from a series of
+// structured fields.
+//
+// IMPORTANT: This is NOT a true streaming hash. It is an order-dependent
+// combiner. It does not guarantee that hashing two concatenated chunks of data
+// will produce the same result as hashing them separately in sequence. It is
+// designed exclusively for creating a hash from a fixed set of fields.
+class MurmurHashCombiner {
+ public:
+  MurmurHashCombiner() : hash_(kSeed) {}
+
+  // Combines the hash of one or more arguments into the combiner's state.
+  //
+  // This function uses a C++17 fold expression to hash each argument with
+  // `MurmurHashValue` and then mixes it into the current state via the private
+  // `Update` method. The combination is order-dependent.
+  template <typename... Args>
+  void Combine(const Args&... args) {
+    // A C++17 fold expression that calls our private Update for each hashed
+    // arg.
+    (Update(MurmurHashValue(args)), ...);
+  }
+
+  // Returns the digest (i.e. current state of the combiner).
+  inline uint64_t digest() const { return hash_; }
+
+ private:
+  // Low-level update with a pre-computed hash value. This uses a fast,
+  // order-dependent combination step inspired by the `hash_combine` function
+  // in the Boost C++ libraries.
+  inline void Update(uint64_t piece_hash) {
+    hash_ ^= piece_hash + 0x9e3779b9 + (hash_ << 6) + (hash_ >> 2);
+  }
+
+  static constexpr uint64_t kSeed = 0xe17a1465U;
+  uint64_t hash_;
+};
+
+// Simple wrapper function around MurmurHashCombiner to improve clarity in
+// callsites to not have to instantiate the class, call Combine() then digest().
+template <typename... Args>
+uint64_t MurmurHashCombine(const Args&... value) {
+  MurmurHashCombiner combiner;
+  combiner.Combine(value...);
+  return combiner.digest();
+}
+
+}  // namespace perfetto::base
 
 #endif  // INCLUDE_PERFETTO_EXT_BASE_MURMUR_HASH_H_

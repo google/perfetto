@@ -1,7 +1,7 @@
-// Copyright (C) 2020 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use size file except in compliance with the License.
+// you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
 //      http://www.apache.org/licenses/LICENSE-2.0
@@ -13,9 +13,18 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Icons} from '../../base/semantic_icons';
-import {TraceImpl} from '../../core/trace_impl';
+import {
+  ColumnDefinition,
+  RowDef,
+} from '../../components/widgets/data_grid/common';
+import {DataGrid} from '../../components/widgets/data_grid/data_grid';
+import {Checkbox} from '../../widgets/checkbox';
+import {Intent} from '../../widgets/common';
+import {Icon} from '../../widgets/icon';
+import {Tooltip} from '../../widgets/tooltip';
 import {ALL_CATEGORIES, getFlowCategories} from '../../core/flow_types';
+import {TraceImpl} from '../../core/trace_impl';
+import {SqlValue} from '../../trace_processor/query_result';
 
 export interface FlowEventsAreaSelectedPanelAttrs {
   trace: TraceImpl;
@@ -30,28 +39,11 @@ export class FlowEventsAreaSelectedPanel
       return;
     }
 
-    const columns = [
-      m('th', 'Flow Category'),
-      m('th', 'Number of flows'),
-      m(
-        'th',
-        'Show',
-        m(
-          'a.warning',
-          m('i.material-icons', 'warning'),
-          m(
-            '.tooltip',
-            'Showing a large number of flows may impact performance.',
-          ),
-        ),
-      ),
-    ];
-
-    const rows = [m('tr', columns)];
+    const {trace} = attrs;
+    const {flows} = trace;
 
     const categoryToFlowsNum = new Map<string, number>();
 
-    const flows = attrs.trace.flows;
     flows.selectedFlows.forEach((flow) => {
       const categories = getFlowCategories(flow);
       categories.forEach((cat) => {
@@ -62,64 +54,97 @@ export class FlowEventsAreaSelectedPanel
       });
     });
 
-    const allWasChecked = flows.visibleCategories.get(ALL_CATEGORIES);
-    rows.push(
-      m('tr.sum', [
-        m('td.sum-data', 'All'),
-        m('td.sum-data', flows.selectedFlows.length),
-        m(
-          'td.sum-data',
-          m(
-            'i.material-icons',
-            {
-              onclick: () => {
-                if (allWasChecked) {
-                  for (const k of flows.visibleCategories.keys()) {
-                    flows.setCategoryVisible(k, false);
-                  }
-                } else {
-                  categoryToFlowsNum.forEach((_, cat) => {
-                    flows.setCategoryVisible(cat, true);
-                  });
-                }
-                flows.setCategoryVisible(ALL_CATEGORIES, !allWasChecked);
-              },
-            },
-            allWasChecked ? Icons.Checkbox : Icons.BlankCheckbox,
-          ),
-        ),
-      ]),
-    );
+    const rows: RowDef[] = [];
 
-    categoryToFlowsNum.forEach((num, cat) => {
-      const wasChecked =
-        flows.visibleCategories.get(cat) ||
-        flows.visibleCategories.get(ALL_CATEGORIES);
-      const data = [
-        m('td.flow-info', cat),
-        m('td.flow-info', num),
-        m(
-          'td.flow-info',
-          m(
-            'i.material-icons',
-            {
-              onclick: () => {
-                if (wasChecked) {
-                  flows.setCategoryVisible(ALL_CATEGORIES, false);
-                }
-                flows.setCategoryVisible(cat, !wasChecked);
-              },
-            },
-            wasChecked ? Icons.Checkbox : Icons.BlankCheckbox,
-          ),
-        ),
-      ];
-      rows.push(m('tr', data));
+    // 'All' row
+    rows.push({
+      category: 'All',
+      count: flows.selectedFlows.length,
+      show: null, // value is not used, just need to trigger the renderer
+      isAll: 1,
     });
 
-    return m('.details-panel', [
-      m('.details-panel-heading', m('h2', `Selected flow events`)),
-      m('.flow-events-table', m('table', rows)),
-    ]);
+    categoryToFlowsNum.forEach((num, cat) => {
+      rows.push({
+        category: cat,
+        count: num,
+        show: null,
+        isAll: 0,
+      });
+    });
+
+    const columns: ColumnDefinition[] = [
+      {
+        name: 'category',
+        title: 'Flow Category',
+      },
+      {
+        name: 'count',
+        title: 'Number of flows',
+      },
+      {
+        name: 'show',
+        title: m(
+          'span',
+          'Show ',
+          m(
+            Tooltip,
+            {
+              trigger: m(Icon, {icon: 'warning', intent: Intent.Warning}),
+            },
+            'Showing a large number of flows may impact performance.',
+          ),
+        ),
+      },
+    ];
+
+    function cellRenderer(value: SqlValue, colName: string, row: RowDef) {
+      const {isAll, category} = row;
+
+      if (colName === 'show') {
+        const wasChecked =
+          flows.visibleCategories.get(category as string) ||
+          flows.visibleCategories.get(ALL_CATEGORIES);
+
+        return m(Checkbox, {
+          checked: wasChecked,
+          onclick: () => {
+            if (isAll === 1) {
+              if (wasChecked) {
+                for (const k of flows.visibleCategories.keys()) {
+                  flows.setCategoryVisible(k, false);
+                }
+              } else {
+                categoryToFlowsNum.forEach((_, cat) => {
+                  flows.setCategoryVisible(cat, true);
+                });
+              }
+              flows.setCategoryVisible(ALL_CATEGORIES, !wasChecked);
+            } else {
+              if (wasChecked) {
+                flows.setCategoryVisible(ALL_CATEGORIES, false);
+              }
+              flows.setCategoryVisible(category as string, !wasChecked);
+            }
+          },
+        });
+      }
+
+      if (value === null) {
+        return m(`span`, 'null');
+      }
+      return m(`span`, `${value}`);
+    }
+
+    return m(DataGrid, {
+      columns,
+      data: rows,
+      cellRenderer,
+      // Readonly filters and sorting - don't allow the user to change these.
+      sorting: {
+        direction: 'UNSORTED',
+      },
+      filters: [],
+    });
   }
 }
