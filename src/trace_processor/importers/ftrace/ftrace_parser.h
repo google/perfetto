@@ -47,7 +47,6 @@
 #include "src/trace_processor/importers/ftrace/virtio_gpu_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/types/version_number.h"
 
 namespace perfetto::trace_processor {
 

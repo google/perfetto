@@ -162,9 +162,13 @@ class MemoryParser(TestSuite):
         }
         """),
         query="""
-        SELECT ts, dur, name FROM slice WHERE name = 'mm_cma_alloc';
+        SELECT ts, dur, name,
+        EXTRACT_ARG(arg_set_id, 'cma_nr_migrated') AS cma_nr_migrated,
+        EXTRACT_ARG(arg_set_id, 'cma_nr_reclaimed') AS cma_nr_reclaimed,
+        EXTRACT_ARG(arg_set_id, 'cma_nr_mapped') AS cma_nr_mapped
+        FROM slice WHERE name = 'mm_cma_alloc';
         """,
         out=Csv("""
-        "ts","dur","name"
-        80000000000000,100,"mm_cma_alloc"
+        "ts","dur","name","cma_nr_migrated","cma_nr_reclaimed","cma_nr_mapped"
+        80000000000000,100,"mm_cma_alloc",10,1000,99
         """))
