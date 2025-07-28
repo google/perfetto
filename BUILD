@@ -5145,6 +5145,20 @@ perfetto_cc_library(
     ],
 )
 
+perfetto_cc_library(
+    name = "chromium_zero",
+    hdrs = [
+        ":protos_perfetto_trace_track_event_zero_h",
+        ":protos_third_party_chromium_zero_h",
+    ],
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":protos_perfetto_trace_track_event_zero",
+        ":protos_third_party_chromium_zero",
+        ":protozero",
+    ],
+)
+
 # GN target: //protos/perfetto/common:cpp
 perfetto_cc_protocpp_library(
     name = "protos_perfetto_common_cpp",
@@ -7016,6 +7030,15 @@ perfetto_proto_library(
     ],
     exports = [
         ":protos_perfetto_trace_track_event_protos",
+    ],
+)
+
+# GN target: //protos/third_party/chromium:zero
+perfetto_cc_protozero_library(
+    name = "protos_third_party_chromium_zero",
+    deps = [
+        ":protos_perfetto_trace_track_event_zero",
+        ":protos_third_party_chromium_protos",
     ],
 )
 
