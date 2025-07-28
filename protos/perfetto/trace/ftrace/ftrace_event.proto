@@ -726,5 +726,7 @@ message FtraceEvent {
     MmAllocContigMigrateRangeInfoFtraceEvent
         mm_alloc_contig_migrate_range_info = 577;
     HostFfaCallFtraceEvent host_ffa_call = 578;
+    IommuIdmapFtraceEvent iommu_idmap = 579;
+    PsciMemProtectFtraceEvent psci_mem_protect = 580;
   }
 }
