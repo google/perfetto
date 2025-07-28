@@ -283,6 +283,7 @@ bool IsSupportedUnwindMode(
     case PerfEventConfig::UNWIND_SKIP:
     case PerfEventConfig::UNWIND_DWARF:
     case PerfEventConfig::UNWIND_FRAME_POINTER:
+    case PerfEventConfig::UNWIND_KERNEL:
       return true;
     default:
       return false;
@@ -445,8 +446,8 @@ std::optional<EventConfig> EventConfig::CreatePolling(
       /*unwind_mode=*/protos::gen::PerfEventConfig::UNWIND_SKIP,
       /*target_filter=*/{}, /*ring_buffer_pages=*/0, poll_period_ms,
       /*samples_per_tick_limit=*/1, /*remote_descriptor_timeout_ms=*/0,
-      /*unwind_state_clear_period_ms=*/0,
-      /*max_enqueued_footprint_bytes=*/0, /*target_installed_by=*/{});
+      /*unwind_state_clear_period_ms=*/0, /*max_enqueued_footprint_bytes=*/0,
+      /*target_installed_by=*/{}, /*skip_symbolization=*/false);
 }
 
 // static
@@ -475,6 +476,7 @@ std::optional<EventConfig> EventConfig::CreateSampling(
   bool kernel_frames = false;
   // Disable user_frames by default.
   auto unwind_mode = protos::gen::PerfEventConfig::UNWIND_SKIP;
+  bool skip_symbolization = false;
 
   TargetFilter target_filter;
   bool legacy_config = pb_config.all_cpus();  // all_cpus was mandatory before
@@ -498,6 +500,7 @@ std::optional<EventConfig> EventConfig::CreateSampling(
     // Kernel callstacks.
     kernel_frames = pb_config.callstack_sampling().kernel_frames() ||
                     pb_config.kernel_frames();
+    skip_symbolization = pb_config.callstack_sampling().skip_symbolization();
   }
 
   // Ring buffer options.
@@ -575,20 +578,29 @@ std::optional<EventConfig> EventConfig::CreateSampling(
   pe.use_clockid = true;
 
   if (IsUserFramesEnabled(unwind_mode)) {
-    pe.sample_type |= PERF_SAMPLE_STACK_USER | PERF_SAMPLE_REGS_USER;
-    // PERF_SAMPLE_STACK_USER:
-    // Needs to be < ((u16)(~0u)), and have bottom 8 bits clear.
-    // Note that the kernel still needs to make space for the other parts of the
-    // sample (up to the max record size of 64k), so the effective maximum
-    // can be lower than this.
-    pe.sample_stack_user = (1u << 16) - 256;
+    pe.sample_type |= PERF_SAMPLE_REGS_USER;
     // PERF_SAMPLE_REGS_USER:
     pe.sample_regs_user =
         PerfUserRegsMaskForArch(unwindstack::Regs::CurrentArch());
+
+    if (unwind_mode == protos::gen::PerfEventConfig::UNWIND_KERNEL) {
+      pe.sample_type |= PERF_SAMPLE_CALLCHAIN;
+      pe.exclude_callchain_kernel = !kernel_frames;
+    } else {
+      pe.sample_type |= PERF_SAMPLE_STACK_USER;
+      // PERF_SAMPLE_STACK_USER:
+      // Needs to be < ((u16)(~0u)), and have bottom 8 bits clear.
+      // Note that the kernel still needs to make space for the other parts of
+      // the sample (up to the max record size of 64k), so the effective maximum
+      // can be lower than this.
+      pe.sample_stack_user = (1u << 16) - 256;
+    }
   }
   if (kernel_frames) {
     pe.sample_type |= PERF_SAMPLE_CALLCHAIN;
-    pe.exclude_callchain_user = true;
+    if (unwind_mode != protos::gen::PerfEventConfig::UNWIND_KERNEL) {
+      pe.exclude_callchain_user = true;
+    }
   }
 
   // Additional counters to include whenever the timebase is sampled, each
@@ -628,7 +640,7 @@ std::optional<EventConfig> EventConfig::CreateSampling(
       unwind_mode, std::move(target_filter), ring_buffer_pages.value(),
       read_tick_period_ms, samples_per_tick_limit, remote_descriptor_timeout_ms,
       unwind_state_clear_period_ms, max_enqueued_footprint_bytes,
-      pb_config.target_installed_by());
+      pb_config.target_installed_by(), skip_symbolization);
 }
 
 // static
@@ -641,6 +653,7 @@ bool EventConfig::IsUserFramesEnabled(
     // almost always what the user wants.
     case PerfEventConfig::UNWIND_DWARF:
     case PerfEventConfig::UNWIND_FRAME_POINTER:
+    case PerfEventConfig::UNWIND_KERNEL:
       return true;
     case PerfEventConfig::UNWIND_SKIP:
       return false;
@@ -662,7 +675,8 @@ EventConfig::EventConfig(const DataSourceConfig& raw_ds_config,
                          uint32_t remote_descriptor_timeout_ms,
                          uint32_t unwind_state_clear_period_ms,
                          uint64_t max_enqueued_footprint_bytes,
-                         std::vector<std::string> target_installed_by)
+                         std::vector<std::string> target_installed_by,
+                         bool skip_symbolization)
     : perf_event_attr_(pe_timebase),
       perf_event_followers_(std::move(pe_followers)),
       timebase_event_(std::move(timebase_event)),
@@ -678,7 +692,8 @@ EventConfig::EventConfig(const DataSourceConfig& raw_ds_config,
       unwind_state_clear_period_ms_(unwind_state_clear_period_ms),
       max_enqueued_footprint_bytes_(max_enqueued_footprint_bytes),
       target_installed_by_(std::move(target_installed_by)),
-      raw_ds_config_(raw_ds_config) /* full copy */ {}
+      raw_ds_config_(raw_ds_config),
+      skip_symbolization_(skip_symbolization) /* full copy */ {}
 
 }  // namespace profiling
 }  // namespace perfetto

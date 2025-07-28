@@ -607,6 +607,7 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
   // Enqueue the periodic read task.
   auto tick_period_ms = ds.event_config.read_tick_period_ms();
   auto weak_this = weak_factory_.GetWeakPtr();
+
   task_runner_->PostDelayedTask(
       [weak_this, ds_id] {
         if (weak_this)
@@ -630,9 +631,13 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
   auto unwind_mode = (ds.event_config.unwind_mode() ==
                       protos::gen::PerfEventConfig::UNWIND_FRAME_POINTER)
                          ? Unwinder::UnwindMode::kFramePointer
+                     : (ds.event_config.unwind_mode() ==
+                        protos::gen::PerfEventConfig::UNWIND_KERNEL)
+                         ? Unwinder::UnwindMode::kUnwindKernel
                          : Unwinder::UnwindMode::kUnwindStack;
   unwinding_worker_->PostStartDataSource(ds_id, ds.event_config.kernel_frames(),
-                                         unwind_mode);
+                                         unwind_mode,
+                                         !ds.event_config.skip_symbolization());
   if (ds.event_config.unwind_state_clear_period_ms()) {
     unwinding_worker_->PostClearCachedStatePeriodic(
         ds_id, ds.event_config.unwind_state_clear_period_ms());

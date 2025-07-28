@@ -75,7 +75,7 @@ class Unwinder {
  public:
   friend class UnwinderHandle;
 
-  enum class UnwindMode { kUnwindStack, kFramePointer };
+  enum class UnwindMode { kUnwindStack, kFramePointer, kUnwindKernel };
 
   // Callbacks from the unwinder to the primary producer thread.
   class Delegate {
@@ -93,7 +93,8 @@ class Unwinder {
 
   void PostStartDataSource(DataSourceInstanceID ds_id,
                            bool kernel_frames,
-                           UnwindMode unwind_mode);
+                           UnwindMode unwind_mode,
+                           bool resolve_names = true);
   void PostAdoptProcDescriptors(DataSourceInstanceID ds_id,
                                 pid_t pid,
                                 base::ScopedFile maps_fd,
@@ -172,7 +173,8 @@ class Unwinder {
   // Initializes kernel address symbolization if needed.
   void StartDataSource(DataSourceInstanceID ds_id,
                        bool kernel_frames,
-                       UnwindMode unwind_mode);
+                       UnwindMode unwind_mode,
+                       bool resolve_names = true);
 
   void AdoptProcDescriptors(DataSourceInstanceID ds_id,
                             pid_t pid,
@@ -196,9 +198,12 @@ class Unwinder {
                                bool pid_unwound_before,
                                UnwindMode unwind_mode);
 
-  // Returns a list of symbolized kernel frames in the sample (if any).
-  std::vector<unwindstack::FrameData> SymbolizeKernelCallchain(
-      const ParsedSample& sample);
+  // Symbolized kernel frames and/or user frames unwound by kernel
+  // in the sample.
+  void SymbolizeKernelCallchain(const ParsedSample& sample,
+                                UnwindingMetadata* unwind_state,
+                                UnwindMode unwind_mode,
+                                CompletedSample& ret);
 
   // Marks the data source as shutting down at the unwinding stage. It is known
   // that no new samples for this source will be pushed into the queue, but we
@@ -257,6 +262,7 @@ class Unwinder {
   QueueFootprintTracker footprint_tracker_;
   std::map<DataSourceInstanceID, DataSourceState> data_sources_;
   LazyKernelSymbolizer kernel_symbolizer_;
+  bool resolve_names_ = true;
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };
