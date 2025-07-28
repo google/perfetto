@@ -217,9 +217,6 @@ std::string Ancestor::TableName() {
 uint32_t Ancestor::GetArgumentCount() const {
   return 1;
 }
-uint32_t Ancestor::EstimateRowCount() {
-  return 1;
-}
 
 // static
 bool Ancestor::GetAncestorSlices(

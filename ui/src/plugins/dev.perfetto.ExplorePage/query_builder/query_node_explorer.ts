@@ -29,6 +29,7 @@ import {copyToClipboard} from '../../../base/clipboard';
 import {Button} from '../../../widgets/button';
 import {Icon} from '../../../widgets/icon';
 import {Icons} from '../../../base/semantic_icons';
+import {FilterDefinition} from '../../../components/widgets/data_grid/common';
 import {Operator} from './operations/operation_component';
 import {Trace} from '../../../public/trace';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
@@ -105,6 +106,11 @@ export class QueryNodeExplorer
             filter: {
               sourceCols: node.state.sourceCols,
               filters: node.state.filters,
+              onFiltersChanged: (
+                newFilters: ReadonlyArray<FilterDefinition>,
+              ) => {
+                node.state.filters = newFilters as FilterDefinition[];
+              },
             },
             groupby: {
               groupByColumns: node.state.groupByColumns,

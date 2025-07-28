@@ -180,7 +180,8 @@ TEST(RelayClientTest, OnErrorCallback) {
       task_runner.CreateCheckpoint("on_relay_client_error");
   auto on_error_callback = [&]() { on_relay_client_error(); };
   auto relay_client = std::make_unique<RelayClient>(
-      tcp_sock_name, "fake_machine_id_hint", &task_runner, on_error_callback);
+      tcp_sock_name, "fake_machine_id_hint", "machine1", &task_runner,
+      on_error_callback);
 
   base::UnixSocket* tcp_client_connection = nullptr;
   auto tcp_client_connected =
@@ -210,7 +211,7 @@ TEST(RelayClientTest, OnErrorCallback) {
   on_relay_client_error =
       task_runner.CreateCheckpoint("on_relay_client_error_2");
   relay_client = std::make_unique<RelayClient>(
-      tcp_sock_name, "fake_machine_id_hint", &task_runner,
+      tcp_sock_name, "fake_machine_id_hint", "machine1", &task_runner,
       [&]() { on_relay_client_error(); });
   task_runner.RunUntilCheckpoint("on_relay_client_error_2");
 }
@@ -227,7 +228,8 @@ TEST(RelayClientTest, SetPeerIdentity) {
   auto tcp_sock_name = tcp_server->GetSockAddr();
   auto on_error_callback = [&]() { FAIL() << "Should not be called"; };
   auto relay_service = std::make_unique<RelayClient>(
-      tcp_sock_name, "fake_machine_id_hint", &task_runner, on_error_callback);
+      tcp_sock_name, "fake_machine_id_hint", "machine1", &task_runner,
+      on_error_callback);
 
   base::UnixSocket* tcp_client_connection = nullptr;
   auto tcp_client_connected =

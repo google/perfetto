@@ -21,7 +21,7 @@ ui/run-dev-server
 
 Then navigate to `http://localhost:10000`.
 
-See also https://perfetto.dev/docs/contributing/build-instructions#ui-development
+See also https://perfetto.dev/docs/contributing/ui-getting-started
 
 ## Unit tests
 

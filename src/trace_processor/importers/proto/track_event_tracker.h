@@ -75,6 +75,7 @@ class TrackEventTracker {
     StringId description = kNullStringId;
     bool use_separate_track = false;
     bool is_counter = false;
+    bool use_synthetic_tid = false;
 
     // For counter tracks.
     std::optional<CounterDetails> counter_details;

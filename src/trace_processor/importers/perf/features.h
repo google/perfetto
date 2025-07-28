@@ -24,7 +24,6 @@
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
@@ -113,7 +112,7 @@ struct SimpleperfMetaInfo {
     }
     struct Hasher {
       size_t operator()(const EventTypeAndConfig& o) const {
-        return static_cast<size_t>(base::Hasher::Combine(o.config, o.type));
+        return static_cast<size_t>(base::FnvHasher::Combine(o.config, o.type));
       }
     };
   };

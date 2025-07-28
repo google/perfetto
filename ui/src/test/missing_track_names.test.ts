@@ -23,14 +23,9 @@ let page: Page;
 test.beforeAll(async ({browser}, _testInfo) => {
   page = await browser.newPage();
   pth = new PerfettoTestHelper(page);
-  await pth.openTraceFile('chrome_missing_track_names.pb.gz');
+  await pth.openTraceFile('missing_track_names.pb');
 });
 
 test('trace loaded', async () => {
   await pth.waitForIdleAndScreenshot('trace_loaded.png');
-});
-
-test('expand all tracks', async () => {
-  await page.click('.pf-viewer-page__header button[title="Expand all"]');
-  await pth.waitForIdleAndScreenshot('all_tracks_expanded.png');
 });

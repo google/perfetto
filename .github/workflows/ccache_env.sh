@@ -21,12 +21,13 @@ CCACHE_DIR=$PERFETTO_CACHE_DIR/ccache
 mkdir -p $CCACHE_DIR
 DEPS_SHA=$(shasum "tools/install-build-deps" | awk '{print $1}')
 echo "DEPS_SHA=$DEPS_SHA"
-echo "CCACHE_COMPILERCHECK=string:$DEPS_SHA"
 echo "CCACHE_BASEDIR=$(pwd)"
 echo "CCACHE_DIR=$CCACHE_DIR"
 echo "CCACHE_MAXSIZE=8G"
 echo "CCACHE_SLOPPINESS=include_file_ctime,include_file_mtime"
-echo "CCACHE_NOCOMPRESS=1"
+echo "CCACHE_COMPRESS=1"
+# Default compress level for version 3.7 that we use on CI.
+echo "CCACHE_COMPRESSLEVEL=6"
 echo "CCACHE_COMPILERCHECK=string:$DEPS_SHA"
 echo "CCACHE_UMASK=000"
 echo "CCACHE_DEPEND=1"

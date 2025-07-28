@@ -26,7 +26,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
-#include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/waitable_event.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
@@ -1123,10 +1123,9 @@ bool TracingMuxerImpl::RegisterDataSource(
   static_state->index = new_index;
 
   // Generate a semi-unique id for this data source.
-  base::Hasher hash;
-  hash.Update(reinterpret_cast<intptr_t>(static_state));
-  hash.Update(base::GetWallTimeNs().count());
-  static_state->id = hash.digest() ? hash.digest() : 1;
+  uint64_t digest = base::FnvHasher::Combine(
+      reinterpret_cast<intptr_t>(static_state), base::GetWallTimeNs().count());
+  static_state->id = digest ? digest : 1;
 
   task_runner_->PostTask(
       [this, descriptor, factory, static_state, params, no_flush] {

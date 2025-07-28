@@ -56,7 +56,6 @@ export interface NodeGraphAttrs {
   readonly onAddSlicesSource: () => void;
   readonly onAddSqlSource: () => void;
   readonly onClearAllNodes: () => void;
-  readonly onVisualizeNode: (node: QueryNode) => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
 }
@@ -81,27 +80,66 @@ export class NodeGraph implements m.ClassComponent<NodeGraphAttrs> {
       if (!dragNodeLayout) return;
 
       const rect = box.getBoundingClientRect();
-      const x =
-        event.clientX -
-        rect.left -
-        (dragNodeLayout.width ?? DEFAULT_NODE_WIDTH) / 2;
-      const y =
-        event.clientY - rect.top - (dragNodeLayout.height ?? NODE_HEIGHT) / 2;
+      const w = dragNodeLayout.width ?? DEFAULT_NODE_WIDTH;
+      const h = dragNodeLayout.height ?? NODE_HEIGHT;
 
-      this.nodeLayouts.set(this.dragNode, {
+      const x = event.clientX - rect.left - w / 2;
+      const y = event.clientY - rect.top - h / 2;
+
+      const newLayout: NodeBoxLayout = {
         ...dragNodeLayout,
-        x: Math.max(
-          0,
-          Math.min(
-            x,
-            rect.width - (dragNodeLayout.width ?? DEFAULT_NODE_WIDTH),
-          ),
-        ),
-        y: Math.max(
-          0,
-          Math.min(y, rect.height - (dragNodeLayout.height ?? NODE_HEIGHT)),
-        ),
-      });
+        x: Math.max(0, Math.min(x, rect.width - w)),
+        y: Math.max(0, Math.min(y, rect.height - h)),
+      };
+
+      const BUTTONS_AREA_WIDTH = 300;
+      const BUTTONS_AREA_HEIGHT = 50;
+      const buttonsReservedArea: NodeBoxLayout = {
+        x: this.nodeGraphWidth - BUTTONS_AREA_WIDTH - PADDING,
+        y: PADDING,
+        width: BUTTONS_AREA_WIDTH,
+        height: BUTTONS_AREA_HEIGHT,
+      };
+
+      const otherLayouts = [...this.nodeLayouts.entries()]
+        .filter(([node, _]) => node !== this.dragNode)
+        .map(([, layout]) => layout);
+
+      const allLayouts = [...otherLayouts, buttonsReservedArea];
+
+      for (const layout of allLayouts) {
+        if (isOverlapping(newLayout, layout, PADDING)) {
+          const layoutW = layout.width ?? DEFAULT_NODE_WIDTH;
+          const layoutH = layout.height ?? NODE_HEIGHT;
+
+          const right = layout.x + layoutW + PADDING;
+          const left = layout.x - w - PADDING;
+          const bottom = layout.y + layoutH + PADDING;
+          const top = layout.y - h - PADDING;
+
+          const distRight = Math.abs(newLayout.x - right);
+          const distLeft = Math.abs(newLayout.x - left);
+          const distBottom = Math.abs(newLayout.y - bottom);
+          const distTop = Math.abs(newLayout.y - top);
+
+          const minDist = Math.min(distRight, distLeft, distBottom, distTop);
+
+          if (minDist === distRight) {
+            newLayout.x = right;
+          } else if (minDist === distLeft) {
+            newLayout.x = left;
+          } else if (minDist === distBottom) {
+            newLayout.y = bottom;
+          } else {
+            newLayout.y = top;
+          }
+        }
+      }
+
+      newLayout.x = Math.max(0, Math.min(newLayout.x, rect.width - w));
+      newLayout.y = Math.max(0, Math.min(newLayout.y, rect.height - h));
+
+      this.nodeLayouts.set(this.dragNode, newLayout);
       m.redraw();
     };
 
@@ -240,6 +278,7 @@ export class NodeGraph implements m.ClassComponent<NodeGraphAttrs> {
         let layout = this.nodeLayouts.get(node);
         if (!layout) {
           layout = findNextAvailablePosition(
+            node,
             Array.from(this.nodeLayouts.values()),
             this.nodeGraphWidth,
           );
@@ -253,7 +292,6 @@ export class NodeGraph implements m.ClassComponent<NodeGraphAttrs> {
             layout,
             onNodeSelected,
             onNodeDragStart: this.onNodeDragStart,
-            onVisualizeNode: attrs.onVisualizeNode,
             onDuplicateNode: attrs.onDuplicateNode,
             onDeleteNode: attrs.onDeleteNode,
             onNodeRendered: this.onNodeRendered,
@@ -278,49 +316,62 @@ export class NodeGraph implements m.ClassComponent<NodeGraphAttrs> {
   }
 }
 
+function isOverlapping(
+  layout1: NodeBoxLayout,
+  layout2: NodeBoxLayout,
+  padding: number,
+): boolean {
+  const w1 = layout1.width ?? DEFAULT_NODE_WIDTH;
+  const h1 = layout1.height ?? NODE_HEIGHT;
+  const w2 = layout2.width ?? DEFAULT_NODE_WIDTH;
+  const h2 = layout2.height ?? NODE_HEIGHT;
+
+  return (
+    layout1.x < layout2.x + w2 + padding &&
+    layout1.x + w1 + padding > layout2.x &&
+    layout1.y < layout2.y + h2 + padding &&
+    layout1.y + h1 + padding > layout2.y
+  );
+}
+
 function findNextAvailablePosition(
+  node: QueryNode,
   layouts: NodeBoxLayout[],
   nodeGraphWidth: number,
 ): NodeBoxLayout {
-  const w = DEFAULT_NODE_WIDTH;
+  const w = Math.max(DEFAULT_NODE_WIDTH, node.getTitle().length * 8 + 60);
   const h = NODE_HEIGHT;
 
-  const candidates: {x: number; y: number}[] = [{x: PADDING, y: PADDING}];
+  const BUTTONS_AREA_WIDTH = 300;
+  const BUTTONS_AREA_HEIGHT = 50;
+  const buttonsReservedArea: NodeBoxLayout = {
+    x: nodeGraphWidth - BUTTONS_AREA_WIDTH - PADDING,
+    y: PADDING,
+    width: BUTTONS_AREA_WIDTH,
+    height: BUTTONS_AREA_HEIGHT,
+  };
 
-  for (const layout of layouts) {
-    candidates.push({x: layout.x + (layout.width ?? w) + PADDING, y: layout.y});
-    candidates.push({
-      x: layout.x,
-      y: layout.y + (layout.height ?? h) + PADDING,
-    });
-  }
+  const allLayouts = [...layouts, buttonsReservedArea];
 
-  const sortedCandidates = candidates
-    .filter((p) => p.x + w <= nodeGraphWidth)
-    .sort((a, b) => a.y - b.y || a.x - b.x);
+  let x = PADDING;
+  let y = PADDING;
 
-  for (const candidate of sortedCandidates) {
+  while (true) {
+    const candidateLayout = {x, y, width: w, height: h};
     let isInvalid = false;
-    for (const layout of layouts) {
-      const layoutW = layout.width ?? w;
-      const layoutH = layout.height ?? h;
-      if (
-        candidate.x < layout.x + layoutW &&
-        candidate.x + w > layout.x &&
-        candidate.y < layout.y + layoutH &&
-        candidate.y + h > layout.y
-      ) {
+    for (const layout of allLayouts) {
+      if (isOverlapping(candidateLayout, layout, PADDING)) {
         isInvalid = true;
+        x = layout.x + (layout.width ?? w) + PADDING;
+        if (x + w > nodeGraphWidth) {
+          x = PADDING;
+          y = y + h + PADDING;
+        }
         break;
       }
     }
     if (!isInvalid) {
-      return candidate;
+      return candidateLayout;
     }
   }
-
-  // Fallback if no candidates are valid (e.g. nodeGraph is full)
-  if (layouts.length === 0) return {x: PADDING, y: PADDING};
-  const lastNode = layouts.reduce((a, b) => (a.y > b.y ? a : b));
-  return {x: PADDING, y: lastNode.y + (lastNode.height ?? h) + PADDING};
 }

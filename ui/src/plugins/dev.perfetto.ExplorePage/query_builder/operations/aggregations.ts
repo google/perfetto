@@ -18,19 +18,19 @@ import {MultiselectInput} from '../../../../widgets/multiselect_input';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
 import {Button} from '../../../../widgets/button';
-import {Icon} from '../../../../widgets/icon';
 import protos from '../../../../protos';
 
-export interface GroupByAgg {
+export interface Aggregation {
   column?: ColumnInfo;
   aggregationOp?: string;
   newColumnName?: string;
   isValid?: boolean;
+  isEditing?: boolean;
 }
 
-export interface GroupByAttrs {
+export interface AggregationsOperatorAttrs {
   groupByColumns: ColumnInfo[];
-  aggregations: GroupByAgg[];
+  aggregations: Aggregation[];
 }
 
 const AGGREGATION_OPS = [
@@ -42,26 +42,29 @@ const AGGREGATION_OPS = [
   'DURATION_WEIGHTED_MEAN',
 ] as const;
 
-export class GroupByOperation implements m.ClassComponent<GroupByAttrs> {
-  view({attrs}: m.CVnode<GroupByAttrs>) {
+export class AggregationsOperator
+  implements m.ClassComponent<AggregationsOperatorAttrs>
+{
+  view({attrs}: m.CVnode<AggregationsOperatorAttrs>) {
     if (attrs.groupByColumns.length === 0) {
       return;
     }
 
-    if (
-      attrs.aggregations.length === 0 ||
-      (attrs.aggregations[attrs.aggregations.length - 1].column !== undefined &&
-        attrs.aggregations[attrs.aggregations.length - 1].aggregationOp !==
-          undefined)
-    ) {
-      attrs.aggregations.push({});
+    const hasGroupByColumns = attrs.groupByColumns.some((c) => c.checked);
+
+    if (hasGroupByColumns && attrs.aggregations.length === 0) {
+      attrs.aggregations.push({isEditing: true});
+    }
+
+    if (!hasGroupByColumns && attrs.aggregations.length > 0) {
+      // Clear aggregations if no group by columns are selected
+      attrs.aggregations.length = 0;
     }
 
     const selectGroupByColumns = (): m.Child => {
       return m(
-        'div',
-        {style: {display: 'flex', alignItems: 'center', gap: '10px'}},
-        m('label', 'Group by:'),
+        '.pf-exp-multi-select-container',
+        m('label', 'GROUP BY columns'),
         m(MultiselectInput, {
           options: attrs.groupByColumns.map((col) => ({
             key: col.name,
@@ -74,22 +77,21 @@ export class GroupByOperation implements m.ClassComponent<GroupByAttrs> {
             const column = attrs.groupByColumns.find((c) => c.name === key);
             if (column) {
               column.checked = true;
+              m.redraw();
             }
           },
           onOptionRemove: (key: string) => {
             const column = attrs.groupByColumns.find((c) => c.name === key);
             if (column) {
               column.checked = false;
+              m.redraw();
             }
           },
         }),
       );
     };
 
-    const selectAggregationForColumn = (
-      agg: GroupByAgg,
-      index: number,
-    ): m.Child => {
+    const aggregationEditor = (agg: Aggregation, index: number): m.Child => {
       const columnOptions = attrs.groupByColumns.map((col) =>
         m(
           'option',
@@ -102,17 +104,13 @@ export class GroupByOperation implements m.ClassComponent<GroupByAttrs> {
       );
 
       return m(
-        '',
-        m(Icon, {
-          icon: agg.isValid ? 'check_circle' : 'warning',
-          style: {marginRight: '5px'},
-        }),
+        '.pf-exp-aggregation-editor',
         m(
           Select,
           {
-            title: 'Aggregation: ',
             onchange: (e: Event) => {
               agg.aggregationOp = (e.target as HTMLSelectElement).value;
+              m.redraw();
             },
           },
           m(
@@ -132,52 +130,97 @@ export class GroupByOperation implements m.ClassComponent<GroupByAttrs> {
           ),
         ),
         m(
-          'Column:',
-          m(
-            Select,
-            {
-              onchange: (e: Event) => {
-                const target = e.target as HTMLSelectElement;
-                const selectedColumn = attrs.groupByColumns.find(
-                  (c) => c.name === target.value,
-                );
-                agg.column = selectedColumn;
-              },
+          Select,
+          {
+            onchange: (e: Event) => {
+              const target = e.target as HTMLSelectElement;
+              agg.column = attrs.groupByColumns.find(
+                (c) => c.name === target.value,
+              );
+              m.redraw();
             },
-            m('option', {disabled: true, selected: !agg.column}, 'Column'),
-            columnOptions,
-          ),
+          },
+          m('option', {disabled: true, selected: !agg.column}, 'Column'),
+          columnOptions,
         ),
-        ' AS ',
+        'AS',
         m(TextInput, {
-          title: 'New column name',
-          placeholder: agg.column
-            ? placeholderNewColumnName(agg)
-            : 'Column name',
-          onchange: (e: Event) => {
+          placeholder: placeholderNewColumnName(agg),
+          oninput: (e: Event) => {
             agg.newColumnName = (e.target as HTMLInputElement).value.trim();
           },
           value: agg.newColumnName,
         }),
         m(Button, {
-          label: 'X',
+          className: 'delete-button',
+          icon: 'delete',
           onclick: () => {
-            attrs.aggregations?.splice(index, 1);
+            attrs.aggregations.splice(index, 1);
+          },
+        }),
+        m(Button, {
+          label: 'Done',
+          className: 'is-primary',
+          disabled: !agg.isValid,
+          onclick: () => {
+            if (!agg.newColumnName) {
+              agg.newColumnName = placeholderNewColumnName(agg);
+            }
+            agg.isEditing = false;
           },
         }),
       );
     };
 
-    const selectAggregations = (): m.Child => {
+    const aggregationViewer = (agg: Aggregation, index: number): m.Child => {
       return m(
-        '',
-        attrs.aggregations.map((agg, index) =>
-          selectAggregationForColumn(agg, index),
-        ),
+        '.pf-exp-aggregation-viewer',
+        {
+          onclick: () => {
+            attrs.aggregations.forEach((a, i) => {
+              a.isEditing = i === index;
+            });
+            m.redraw();
+          },
+        },
+        `${agg.aggregationOp}(${agg.column?.name}) AS ${agg.newColumnName}`,
       );
     };
 
-    return m('', selectGroupByColumns(), selectAggregations());
+    const aggregationsList = (): m.Children => {
+      if (!hasGroupByColumns) {
+        return null;
+      }
+
+      const lastAgg = attrs.aggregations[attrs.aggregations.length - 1];
+      const showAddButton = lastAgg && lastAgg.isValid && !lastAgg.isEditing;
+
+      return [
+        ...attrs.aggregations.map((agg, index) => {
+          if (agg.isEditing) {
+            return aggregationEditor(agg, index);
+          } else {
+            return aggregationViewer(agg, index);
+          }
+        }),
+        showAddButton &&
+          m(Button, {
+            label: 'Add more aggregations',
+            onclick: () => {
+              attrs.aggregations.push({isEditing: true});
+            },
+          }),
+      ];
+    };
+
+    return m(
+      '.pf-exp-section',
+      m(
+        '.pf-exp-operations-container',
+        selectGroupByColumns(),
+        m('.pf-exp-aggregations-list', aggregationsList()),
+      ),
+    );
   }
 }
 
@@ -193,7 +236,7 @@ function stringToAggregateOp(
 }
 
 export function GroupByAggregationAttrsToProto(
-  agg: GroupByAgg,
+  agg: Aggregation,
 ): protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate {
   const newAgg = new protos.PerfettoSqlStructuredQuery.GroupBy.Aggregate();
   newAgg.columnName = agg.column!.column.name;
@@ -202,7 +245,7 @@ export function GroupByAggregationAttrsToProto(
   return newAgg;
 }
 
-export function placeholderNewColumnName(agg: GroupByAgg) {
+export function placeholderNewColumnName(agg: Aggregation) {
   return agg.column && agg.aggregationOp
     ? `${agg.column.name}_${agg.aggregationOp}`
     : `agg_${agg.aggregationOp ?? ''}`;

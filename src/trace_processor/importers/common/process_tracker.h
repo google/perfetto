@@ -193,14 +193,6 @@ class ProcessTracker {
   // > 0 for remote machines.
   UniqueTid swapper_utid() const { return swapper_utid_; }
 
-  // Returns a unique synthetic tid based on the provided |tid| and |pid|.
-  // This is useful in systems where the pid is unique but the tid is not.
-  // The returned synthetic tid has the following format:
-  // [PID(high 32-bits)][TID(low 32-bits)]
-  static int64_t CreateSyntheticTid(int64_t tid, int64_t pid) {
-    return (pid << 32) | tid;
-  }
-
  private:
   // Returns the utid of a thread having |tid| and |pid| as the parent process.
   // pid == std::nullopt matches all processes.

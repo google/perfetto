@@ -926,6 +926,10 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
       });
   DataframeModule::State* state =
       dataframe_context_->GetStateByName(create_index.table_name);
+  if (!state) {
+    return base::ErrStatus("CREATE PERFETTO INDEX: table '%s' does not exist",
+                           create_index.table_name.c_str());
+  }
   if (!state->handle) {
     return base::ErrStatus(
         "CREATE PERFETTO INDEX: unable to add index on table '%s' before "

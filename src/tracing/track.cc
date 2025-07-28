@@ -17,7 +17,7 @@
 #include "perfetto/tracing/track.h"
 
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -213,21 +213,20 @@ void TrackRegistry::InitializeInstance() {
 
 // static
 uint64_t TrackRegistry::ComputeProcessUuid() {
-  base::Hasher hash;
   // Use the process start time + pid as the unique identifier for this process.
   // This ensures that if there are two independent copies of the Perfetto SDK
   // in the same process (e.g., one in the app and another in a system
   // framework), events emitted by each will be consistently interleaved on
   // common thread and process tracks.
+  uint64_t random;
   if (uint64_t start_time = GetProcessStartTime()) {
-    hash.Update(start_time);
+    random = start_time;
   } else {
     // Fall back to a randomly generated identifier.
     static uint64_t random_once = static_cast<uint64_t>(base::Uuidv4().lsb());
-    hash.Update(random_once);
+    random = random_once;
   }
-  hash.Update(Platform::GetCurrentProcessId());
-  return hash.digest();
+  return base::FnvHasher::Combine(random, Platform::GetCurrentProcessId());
 }
 
 void TrackRegistry::ResetForTesting() {

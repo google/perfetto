@@ -167,8 +167,8 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
     case 'b':
     case 'e':
     case 'n': {
-      if (event.pid == 0 ||
-          event.async_cookie == std::numeric_limits<int64_t>::max()) {
+      if (!event.pid_exists ||
+          event.async_cookie_type == JsonEvent::AsyncCookieType::kNone) {
         context_->storage->IncrementStats(stats::json_parser_failure);
         return;
       }
@@ -302,7 +302,7 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
                   Variadic::String(context_->storage->InternString("chrome")));
             });
       } else if (event.scope == JsonEvent::Scope::kProcess) {
-        if (event.pid == 0) {
+        if (!event.pid_exists) {
           context_->storage->IncrementStats(stats::json_parser_failure);
           break;
         }
@@ -318,7 +318,7 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
             });
       } else if (event.scope == JsonEvent::Scope::kThread ||
                  event.scope == JsonEvent::Scope::kNone) {
-        if (event.tid == 0) {
+        if (!event.tid_exists) {
           context_->storage->IncrementStats(stats::json_parser_failure);
           return;
         }

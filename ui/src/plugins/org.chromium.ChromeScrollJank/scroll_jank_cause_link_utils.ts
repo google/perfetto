@@ -25,7 +25,6 @@ import {
   CauseThread,
   ScrollJankCauseMap,
 } from './scroll_jank_cause_map';
-import {scrollTo} from '../../public/scroll_helper';
 import {Trace} from '../../public/trace';
 
 const UNKNOWN_NAME = 'Unknown';
@@ -200,11 +199,11 @@ export function getCauseLink(
       {
         icon: Icons.UpdateSelection,
         onclick: () => {
-          scrollTo({
+          trace.scrollTo({
             track: {uri: trackUris[0], expandGroup: true},
           });
           if (exists(ts) && exists(dur)) {
-            scrollTo({
+            trace.scrollTo({
               time: {
                 start: ts,
                 end: Time.fromRaw(ts + dur),

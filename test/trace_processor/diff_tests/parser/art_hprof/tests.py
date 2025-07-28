@@ -28,31 +28,30 @@ class ArtHprofParser(TestSuite):
           SELECT COUNT() FROM heap_graph_class
         """,
         out=Csv('''
-                "COUNT()"
-                2252
+          "COUNT()"
+          2252
         '''))
 
   def test_art_hprof_class_examples_smoke(self):
     return DiffTestBlueprint(
         trace=DataPath('test-dump.hprof'),
         query="""
-
-          SELECT * FROM heap_graph_class
-          ORDER BY name, id
+          SELECT name, kind FROM heap_graph_class
+          ORDER BY name
           LIMIT 10
         """,
         out=Csv('''
-                "id","name","deobfuscated_name","location","superclass_id","classloader_id","kind"
-                 827,"DumpedStuff","[NULL]","[NULL]",264,0,"[unknown class kind]"
-                 50,"Main","[NULL]","[NULL]",346,0,"[unknown class kind]"
-                 264,"SuperDumpedStuff","[NULL]","[NULL]",346,0,"[unknown class kind]"
-                 488,"a","[NULL]","[NULL]",346,0,"[unknown class kind]"
-                 332,"a.a","[NULL]","[NULL]",346,0,"[unknown class kind]"
-                 1096,"a.b","[NULL]","[NULL]",346,0,"[unknown class kind]"
-                 365,"a.c","[NULL]","[NULL]",346,0,"[unknown class kind]"
-                 656,"android.compat.Compatibility","[NULL]","[NULL]",346,0,"[unknown class kind]"
-                 46,"android.graphics.a","[NULL]","[NULL]",346,0,"[unknown class kind]"
-                 483,"android.graphics.b","[NULL]","[NULL]",346,0,"[unknown class kind]"
+          "name","kind"
+          "DumpedStuff","[unknown class kind]"
+          "Main","[unknown class kind]"
+          "SuperDumpedStuff","[unknown class kind]"
+          "a","[unknown class kind]"
+          "a.a","[unknown class kind]"
+          "a.b","[unknown class kind]"
+          "a.c","[unknown class kind]"
+          "android.compat.Compatibility","[unknown class kind]"
+          "android.graphics.a","[unknown class kind]"
+          "android.graphics.b","[unknown class kind]"
         '''))
 
   def test_art_hprof_object_count_smoke(self):
@@ -62,30 +61,38 @@ class ArtHprofParser(TestSuite):
           SELECT COUNT() FROM heap_graph_object
         """,
         out=Csv('''
-                "COUNT()"
-                25919
+          "COUNT()"
+          25919
         '''))
 
   def test_art_hprof_object_examples_smoke(self):
     return DiffTestBlueprint(
         trace=DataPath('test-dump.hprof'),
         query="""
-          SELECT * FROM heap_graph_object
-          ORDER BY type_id, id
+          SELECT 
+            graph_sample_ts,
+            self_size,
+            native_size,
+            reachable,
+            heap_type,
+            root_type,
+            root_distance
+          FROM heap_graph_object
+          ORDER BY self_size DESC
           LIMIT 10
         """,
         out=Csv('''
-                "id","upid","graph_sample_ts","self_size","native_size","reference_set_id","reachable","heap_type","type_id","root_type","root_distance"
-                4239,1,1740172787560,20,0,3879,1,"app",0,"[NULL]",-1
-                5646,1,1740172787560,20,0,5168,1,"app",0,"[NULL]",-1
-                8855,1,1740172787560,20,0,8142,1,"app",0,"[NULL]",-1
-                12738,1,1740172787560,20,0,11741,1,"app",0,"[NULL]",-1
-                20760,1,1740172787560,20,0,19092,1,"app",0,"[NULL]",-1
-                18135,1,1740172787560,8,0,"[NULL]",1,"app",4,"[NULL]",-1
-                17494,1,1740172787560,8,0,16111,1,"app",12,"[NULL]",-1
-                2119,1,1740172787560,12,0,1948,1,"app",13,"[NULL]",-1
-                5061,1,1740172787560,12,0,4624,1,"app",13,"[NULL]",-1
-                5188,1,1740172787560,12,0,4745,1,"app",13,"[NULL]",-1
+          "graph_sample_ts","self_size","native_size","reachable","heap_type","root_type","root_distance"
+          1740172787560,1000000,0,1,"app","[NULL]",-1
+          1740172787560,16384,0,1,"app","[NULL]",-1
+          1740172787560,8192,0,1,"app","[NULL]",-1
+          1740172787560,6576,0,1,"app","[NULL]",-1
+          1740172787560,2800,0,1,"app","[NULL]",-1
+          1740172787560,2388,0,1,"app","STICKY_CLASS",-1
+          1740172787560,2048,0,1,"app","[NULL]",-1
+          1740172787560,2048,0,1,"app","[NULL]",-1
+          1740172787560,2048,0,1,"app","[NULL]",-1
+          1740172787560,2048,0,1,"app","[NULL]",-1
         '''))
 
   def test_art_hprof_reference_count_smoke(self):
@@ -103,20 +110,25 @@ class ArtHprofParser(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('test-dump.hprof'),
         query="""
-          SELECT * FROM heap_graph_reference
-          ORDER BY field_name, id, reference_set_id, owner_id
+          SELECT r.field_name, r.field_type_name, owner_class.name, owned_class.name
+          FROM heap_graph_reference r
+          JOIN heap_graph_object owner ON r.owner_id = owner.id
+          JOIN heap_graph_class owner_class ON owner.type_id = owner_class.id
+          JOIN heap_graph_object owned ON r.owned_id = owned.id
+          JOIN heap_graph_class owned_class ON owned.type_id = owned_class.id
+          ORDER BY 1, 2, 3, 4
           LIMIT 10
         """,
         out=Csv('''
-                "id","reference_set_id","owner_id","owned_id","field_name","field_type_name","deobfuscated_field_name"
-                44126,19995,21757,3576,"$VALUES","libcore.reflect.AnnotationMember$DefaultValues[]","[NULL]"
-                48070,21647,23537,4527,"$VALUES","libcore.io.IoTracker$Mode[]","[NULL]"
-                52188,23204,25236,5788,"$VALUES","java.io.File$PathStatus[]","[NULL]"
-                204,96,101,23897,"$class$classLoader","dalvik.system.PathClassLoader","[NULL]"
-                373,172,178,23897,"$class$classLoader","dalvik.system.PathClassLoader","[NULL]"
-                956,407,433,23897,"$class$classLoader","dalvik.system.PathClassLoader","[NULL]"
-                3222,1465,1597,23897,"$class$classLoader","dalvik.system.PathClassLoader","[NULL]"
-                4802,2185,2374,23897,"$class$classLoader","dalvik.system.PathClassLoader","[NULL]"
-                12957,5795,6310,23897,"$class$classLoader","dalvik.system.PathClassLoader","[NULL]"
-                14820,6545,7117,23897,"$class$classLoader","dalvik.system.PathClassLoader","[NULL]"
+          "field_name","field_type_name","name","name"
+          "$VALUES","java.io.File$PathStatus[]","java.lang.Class<java.io.File$PathStatus>","java.io.File$PathStatus[]"
+          "$VALUES","libcore.io.IoTracker$Mode[]","java.lang.Class<libcore.io.IoTracker$Mode>","libcore.io.IoTracker$Mode[]"
+          "$VALUES","libcore.reflect.AnnotationMember$DefaultValues[]","java.lang.Class<libcore.reflect.AnnotationMember$DefaultValues>","libcore.reflect.AnnotationMember$DefaultValues[]"
+          "$class$classLoader","dalvik.system.PathClassLoader","java.lang.Class<DumpedStuff>","dalvik.system.PathClassLoader"
+          "$class$classLoader","dalvik.system.PathClassLoader","java.lang.Class<Main>","dalvik.system.PathClassLoader"
+          "$class$classLoader","dalvik.system.PathClassLoader","java.lang.Class<SuperDumpedStuff>","dalvik.system.PathClassLoader"
+          "$class$classLoader","dalvik.system.PathClassLoader","java.lang.Class<a.a>","dalvik.system.PathClassLoader"
+          "$class$classLoader","dalvik.system.PathClassLoader","java.lang.Class<a.b>","dalvik.system.PathClassLoader"
+          "$class$classLoader","dalvik.system.PathClassLoader","java.lang.Class<a.c>","dalvik.system.PathClassLoader"
+          "$class$classLoader","dalvik.system.PathClassLoader","java.lang.Class<a>","dalvik.system.PathClassLoader"
         '''))

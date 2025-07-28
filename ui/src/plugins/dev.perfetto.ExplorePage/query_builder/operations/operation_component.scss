@@ -13,13 +13,15 @@
 // limitations under the License.
 
 @import "../../../../assets/widgets/theme";
+@import "./filter.scss";
+@import "./aggregations.scss";
 
-.pf-query-operations {
+.pf-exp-query-operations {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 
-  .section {
+  .pf-exp-section {
     padding: 1rem;
     border: 1px solid $pf-minimal-border;
     border-radius: 0.5rem;
@@ -34,12 +36,30 @@
       font-size: 1.2em;
       font-weight: 500;
     }
-    .operations-container {
+
+    .pf-exp-operations-container {
       display: flex;
-      flex-direction: row;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
+      flex-direction: column;
+      gap: 1rem;
+      align-items: stretch;
+    }
+  }
+}
+
+.pf-exp-editor {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+
+  .pf-select,
+  .pf-text-input {
+    flex: 1;
+  }
+
+  .pf-exp-delete-button {
+    color: $pf-minimal-foreground-disabled;
+    &:hover {
+      color: $color-danger;
     }
   }
 }

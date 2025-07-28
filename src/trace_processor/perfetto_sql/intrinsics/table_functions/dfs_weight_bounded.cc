@@ -304,9 +304,4 @@ uint32_t DfsWeightBounded::GetArgumentCount() const {
   return 6;
 }
 
-uint32_t DfsWeightBounded::EstimateRowCount() {
-  // TODO(lalitm): improve this estimate.
-  return 1024;
-}
-
 }  // namespace perfetto::trace_processor

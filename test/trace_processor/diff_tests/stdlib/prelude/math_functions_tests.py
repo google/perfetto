@@ -37,6 +37,52 @@ class PreludeMathFunctions(TestSuite):
         0,"[NULL]","[NULL]"
         """))
 
+  def test_math_trunc_function(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        SELECT
+          TRUNC(5.5) as trunc_positive,
+          TRUNC(-5.5) as trunc_negative,
+          TRUNC(5) as trunc_integer,
+          TRUNC(NULL) as trunc_null
+        """,
+        out=Csv("""
+        "trunc_positive","trunc_negative","trunc_integer","trunc_null"
+        5.000000,-5.000000,5,"[NULL]"
+        """))
+
+  def test_math_ceil_function(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        SELECT
+          CEIL(5.5) as ceil_positive,
+          CEIL(-5.5) as ceil_negative,
+          CEIL(5) as ceil_integer,
+          CEIL(NULL) as ceil_null
+        """,
+        out=Csv("""
+        "ceil_positive","ceil_negative","ceil_integer","ceil_null"
+        6.000000,-5.000000,5,"[NULL]"
+        """))
+
+  def test_math_pow_function(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        SELECT
+          POW(2, 3) as pow_int,
+          POW(2.5, 2) as pow_float,
+          POW(4, 0.5) as pow_root,
+          POW(NULL, 2) as pow_null_base,
+          POW(2, NULL) as pow_null_exponent
+        """,
+        out=Csv("""
+        "pow_int","pow_float","pow_root","pow_null_base","pow_null_exponent"
+        8.000000,6.250000,2.000000,"[NULL]","[NULL]"
+        """))
+
   def test_math_exp_function(self):
     return DiffTestBlueprint(
         trace=TextProto(""),

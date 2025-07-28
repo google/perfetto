@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/ext/base/radix_sort.h"
+#include "src/trace_processor/dataframe/impl/sort.h"
 
 #include <cstdint>
 #include <random>

@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/hash.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -151,7 +150,7 @@ TrackId TrackCompressor::InternLegacyAsyncTrack(StringId raw_name,
                                     tracks::StringIdDimensionBlueprint("name")),
         tracks::DynamicNameBlueprint());
     auto [it, inserted] = async_tracks_to_root_string_id_.Insert(
-        base::Hasher::Combine(upid, trace_id), name);
+        base::FnvHasher::Combine(upid, trace_id), name);
     switch (slice_type) {
       case AsyncSliceType::kBegin:
         return InternBegin(kBlueprint,
@@ -180,7 +179,7 @@ TrackId TrackCompressor::InternLegacyAsyncTrack(StringId raw_name,
                                   tracks::StringIdDimensionBlueprint("name")),
       tracks::DynamicNameBlueprint());
   auto [it, inserted] = async_tracks_to_root_string_id_.Insert(
-      base::Hasher::Combine(trace_id), raw_name);
+      base::FnvHasher::Combine(trace_id), raw_name);
   switch (slice_type) {
     case AsyncSliceType::kBegin:
       return InternBegin(kBlueprint, tracks::Dimensions(source_scope, *it),

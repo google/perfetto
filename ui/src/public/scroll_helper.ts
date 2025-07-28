@@ -50,20 +50,3 @@ export interface ScrollToArgs {
     expandGroup?: boolean;
   };
 }
-
-// TODO(primiano): remove this injection once we plumb Trace into all the
-// components. Right now too many places need this. This is a temporary solution
-// to avoid too many invasive refactorings at once.
-
-type ScrollToFunction = (a: ScrollToArgs) => void;
-let _scrollToFunction: ScrollToFunction | undefined = undefined;
-
-// If a Trace object is avilable, prefer Trace.scrollTo(). It points to the
-// same function.
-export function scrollTo(args: ScrollToArgs) {
-  _scrollToFunction?.(args);
-}
-
-export function setScrollToFunction(f: ScrollToFunction | undefined) {
-  _scrollToFunction = f;
-}

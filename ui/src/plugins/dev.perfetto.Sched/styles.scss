@@ -12,20 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {createAggregationTab} from '../../components/aggregation_adapter';
-import {PerfettoPlugin} from '../../public/plugin';
-import {Trace} from '../../public/trace';
-import {PowerCounterSelectionAggregator} from './power_counter_selection_aggregator';
+.pf-sched-latency {
+  // Allow absolute positioning of children relative to this element.
+  position: relative;
 
-/**
- * This plugin adds the aggregations for power rail counter tracks.
- */
-export default class implements PerfettoPlugin {
-  static readonly id = 'dev.perfetto.PowerAggregations';
+  &__explanation {
+    font-size: smaller;
+  }
 
-  async onTraceLoad(ctx: Trace): Promise<void> {
-    ctx.selection.registerAreaSelectionTab(
-      createAggregationTab(ctx, new PowerCounterSelectionAggregator(), 200),
-    );
+  &__wakeup-text {
+    position: absolute;
+    left: 40px;
+    top: 20px;
+  }
+
+  &__latency-text {
+    position: absolute;
+    left: 106px;
+    top: 90px;
+  }
+
+  &__background {
+    user-select: none;
+    width: 180px;
+    height: 150px;
   }
 }

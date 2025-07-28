@@ -100,7 +100,10 @@ export class SqlSourceNode implements QueryNode {
     sqlProto.columnNames = this.state.sourceCols.map((c) => c.column.name);
     sq.sql = sqlProto;
 
-    const filtersProto = createFiltersProto(this.state.filters);
+    const filtersProto = createFiltersProto(
+      this.state.filters,
+      this.sourceCols,
+    );
     if (filtersProto) sq.filters = filtersProto;
     const groupByProto = createGroupByProto(
       this.state.groupByColumns,

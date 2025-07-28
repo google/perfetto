@@ -26,6 +26,7 @@ import {Flamegraph, FLAMEGRAPH_STATE_SCHEMA} from '../../widgets/flamegraph';
 import {Trace} from '../../public/trace';
 import {DatasetSliceTrack} from '../../components/tracks/dataset_slice_track';
 import {SourceDataset} from '../../trace_processor/dataset';
+import {Stack} from '../../widgets/stack';
 
 // TODO(stevegolton): Dedupe this file with perf_samples_profile_track.ts
 
@@ -212,24 +213,21 @@ function renderDetailsPanel(flamegraph: QueryFlamegraph, ts: time) {
       DetailsShell,
       {
         fillParent: true,
-        title: m('.title', 'Instruments Samples'),
-        description: [],
-        buttons: [
-          m(
-            'div.time',
+        title: 'Instruments Samples',
+        buttons: m(Stack, {orientation: 'horizontal', spacing: 'large'}, [
+          m('span', [
             `First timestamp: `,
             m(Timestamp, {
               ts,
             }),
-          ),
-          m(
-            'div.time',
+          ]),
+          m('span', [
             `Last timestamp: `,
             m(Timestamp, {
               ts,
             }),
-          ),
-        ],
+          ]),
+        ]),
       },
       flamegraph.render(),
     ),

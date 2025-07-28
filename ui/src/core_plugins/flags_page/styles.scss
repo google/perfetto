@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,55 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../assets/widgets/theme";
-
-.pf-plugins-page {
-  margin-block: 16px;
-
-  &__topbar {
-    display: flex;
-    justify-content: space-between;
-  }
-
-  &__chip {
-    font-size: 12px;
-    font-family: inherit;
-    border-color: gray;
-    color: gray;
-    font-weight: 400;
-  }
-
-  &__card {
-    display: flex;
-    flex-direction: row;
-    gap: 6px;
-    justify-content: space-between;
-    border-left: solid 3px transparent;
-    color: gray;
-
-    &--active {
-      border-left: solid 3px green;
-    }
-
-    &--enabled {
-      color: unset;
-    }
-  }
-
-  &__details {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  &__description {
-    font-size: smaller;
-  }
-
-  &__controls {
-    display: flex;
-    flex-direction: row;
-    column-gap: 12px;
-    align-items: center;
-  }
-}
+@import "flags_page";
+@import "plugins_page";

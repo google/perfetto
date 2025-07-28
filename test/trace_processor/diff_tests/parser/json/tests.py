@@ -1168,3 +1168,249 @@ class JsonParser(TestSuite):
           "name","ts","dur","track_name","track_type"
           "write",1750244461563845000,167000,"write","legacy_async_process_slice"
         """))
+
+  def test_json_pid_tid_zero(self):
+    return DiffTestBlueprint(
+        trace=Json('''
+          {
+            "traceEvents": [
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 0,
+                "ph": "b",
+                "name": "RoutineControl Reeq",
+                "id": "0x31",
+                "args": {
+                  "name": "RoutineControl Reeq",
+                  "detail": "RoutineControl Reeq",
+                  "hex": "31 01 02 03 ",
+                  "timestamp": "20250704_194952_426",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 0,
+                "ph": "b",
+                "name": "31 ",
+                "id": "0x31",
+                "args": {
+                  "name": "31 ",
+                  "detail": "RoutineControl",
+                  "hex": "31 ",
+                  "timestamp": "20250704_194952_426",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 1,
+                "ph": "e",
+                "name": "31 ",
+                "id": "0x31",
+                "args": {
+                  "name": "31 ",
+                  "detail": "RoutineControl",
+                  "hex": "31 ",
+                  "timestamp": "20250704_194952_426",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 0,
+                "ph": "b",
+                "name": "RoutineControl",
+                "id": "0x31",
+                "args": {
+                  "name": "RoutineControl",
+                  "detail": "RoutineControl",
+                  "hex": "31 ",
+                  "timestamp": "20250704_194952_426",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 1,
+                "ph": "e",
+                "name": "RoutineControl",
+                "id": "0x31",
+                "args": {
+                  "name": "RoutineControl",
+                  "detail": "RoutineControl",
+                  "hex": "31 ",
+                  "timestamp": "20250704_194952_426",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 1,
+                "ph": "b",
+                "name": "01 ",
+                "id": "0x31",
+                "args": {
+                  "name": "01 ",
+                  "detail": "startRoutine",
+                  "hex": "01 ",
+                  "timestamp": "20250704_194952_426",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 2,
+                "ph": "e",
+                "name": "01 ",
+                "id": "0x31",
+                "args": {
+                  "name": "01 ",
+                  "detail": "startRoutine",
+                  "hex": "01 ",
+                  "timestamp": "20250704_194952_426",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 1,
+                "ph": "b",
+                "name": "startRoutine",
+                "id": "0x31",
+                "args": {
+                  "name": "startRoutine",
+                  "detail": "startRoutine",
+                  "hex": "01 ",
+                  "timestamp": "20250704_194952_427",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 2,
+                "ph": "e",
+                "name": "startRoutine",
+                "id": "0x31",
+                "args": {
+                  "name": "startRoutine",
+                  "detail": "startRoutine",
+                  "hex": "01 ",
+                  "timestamp": "20250704_194952_427",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 2,
+                "ph": "b",
+                "name": "02 03 ",
+                "id": "0x31",
+                "args": {
+                  "name": "02 03 ",
+                  "detail": "Routine Identifier",
+                  "hex": "02 03 ",
+                  "timestamp": "20250704_194952_427",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 4,
+                "ph": "e",
+                "name": "02 03 ",
+                "id": "0x31",
+                "args": {
+                  "name": "02 03 ",
+                  "detail": "Routine Identifier",
+                  "hex": "02 03 ",
+                  "timestamp": "20250704_194952_427",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 2,
+                "ph": "b",
+                "name": "Routine Identifier",
+                "id": "0x31",
+                "args": {
+                  "name": "Routine Identifier",
+                  "detail": "Routine Identifier",
+                  "hex": "02 03 ",
+                  "timestamp": "20250704_194952_427",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 4,
+                "ph": "e",
+                "name": "Routine Identifier",
+                "id": "0x31",
+                "args": {
+                  "name": "Routine Identifier",
+                  "detail": "Routine Identifier",
+                  "hex": "02 03 ",
+                  "timestamp": "20250704_194952_427",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              },
+              {
+                "cat": "Reeq",
+                "pid": 0,
+                "tid": 0,
+                "ts": 4,
+                "ph": "e",
+                "name": "RoutineControl Reeq",
+                "id": "0x31",
+                "args": {
+                  "name": "RoutineControl Reeq",
+                  "detail": "RoutineControl Reeq",
+                  "hex": "31 01 02 03 ",
+                  "timestamp": "20250704_194952_427",
+                  "raw": "ID: 760, DL: 08, 04 31 01 02 03 cc cc cc \n"
+                }
+              }
+            ]
+          }
+        '''),
+        query='''
+          SELECT name, ts, dur FROM slice
+        ''',
+        out=Csv("""
+          "name","ts","dur"
+          "RoutineControl Reeq",0,4000
+          "31 ",0,1000
+          "RoutineControl",0,1000
+          "01 ",1000,1000
+          "startRoutine",1000,1000
+          "02 03 ",2000,2000
+          "Routine Identifier",2000,2000
+        """))

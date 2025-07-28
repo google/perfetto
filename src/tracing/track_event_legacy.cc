@@ -15,8 +15,8 @@
  */
 
 #include "perfetto/tracing/track_event_legacy.h"
-#include "perfetto/ext/base/hash.h"
 
+#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/tracing/track.h"
 
 namespace perfetto {
@@ -54,7 +54,7 @@ void LegacyTraceId::Write(protos::pbzero::TrackEvent::LegacyEvent* event,
                                       legacy::kTraceEventFlagHasGlobalId);
   uint64_t id = raw_id_;
   if (scope_ && scope_flags != legacy::kTraceEventFlagHasGlobalId) {
-    id = base::Hasher::Combine(id, scope_);
+    id = base::FnvHasher::Combine(id, scope_);
   }
 
   switch (scope_flags) {

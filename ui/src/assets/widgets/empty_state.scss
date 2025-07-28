@@ -37,13 +37,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 
-  .pf-empty-state-title {
+  &--fill-height {
+    height: 100%;
+  }
+
+  &__title {
     text-align: center;
     font-weight: bolder;
     margin-bottom: 8px;
   }
 
-  .pf-empty-state-content {
+  &__content {
     text-align: center;
   }
 }

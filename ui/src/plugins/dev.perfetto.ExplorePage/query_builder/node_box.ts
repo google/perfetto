@@ -38,7 +38,6 @@ export interface NodeBoxAttrs {
   readonly isDragging: boolean;
   readonly onNodeSelected: (node: QueryNode) => void;
   readonly onNodeDragStart: (node: QueryNode, event: DragEvent) => void;
-  readonly onVisualizeNode: (node: QueryNode) => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onNodeRendered: (node: QueryNode, element: HTMLElement) => void;
@@ -55,7 +54,7 @@ function renderWarningIcon(node: QueryNode): m.Child {
 }
 
 function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
-  const {node, onVisualizeNode, onDuplicateNode, onDeleteNode} = attrs;
+  const {node, onDuplicateNode, onDeleteNode} = attrs;
   return m(
     PopupMenu,
     {
@@ -64,11 +63,6 @@ function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
         icon: Icons.ContextMenuAlt,
       }),
     },
-    m(MenuItem, {
-      label: 'Visualise Data',
-      icon: Icons.Chart,
-      onclick: () => onVisualizeNode(node),
-    }),
     m(MenuItem, {
       label: 'Duplicate',
       onclick: () => onDuplicateNode(node),

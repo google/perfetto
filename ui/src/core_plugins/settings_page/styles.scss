@@ -15,15 +15,6 @@
 @import "../../assets/widgets/theme";
 
 .pf-settings-page {
-  margin-block: 16px;
-
-  &__topbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 16px;
-  }
-
   &__card {
     display: flex;
     flex-direction: row;

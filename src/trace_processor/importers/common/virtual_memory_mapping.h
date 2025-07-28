@@ -25,7 +25,6 @@
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/create_mapping_params.h"
@@ -119,7 +118,7 @@ class VirtualMemoryMapping {
     struct Hasher {
       size_t operator()(const FrameKey& k) const {
         return static_cast<size_t>(
-            base::Hasher::Combine(k.rel_pc, k.name_id.raw_id()));
+            base::FnvHasher::Combine(k.rel_pc, k.name_id.raw_id()));
       }
     };
   };
@@ -178,7 +177,7 @@ class DummyMemoryMapping : public VirtualMemoryMapping {
 
     struct Hasher {
       size_t operator()(const DummyFrameKey& k) const {
-        return static_cast<size_t>(base::Hasher::Combine(
+        return static_cast<size_t>(base::FnvHasher::Combine(
             k.function_name_id.raw_id(), k.source_file_id.raw_id()));
       }
     };

@@ -23,7 +23,6 @@
 #include <string>
 #include <tuple>
 
-#include "perfetto/ext/base/hash.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/util/build_id.h"
 
@@ -54,7 +53,7 @@ struct CreateMappingParams {
 
   struct Hasher {
     size_t operator()(const CreateMappingParams& p) const {
-      base::Hasher h;
+      base::FnvHasher h;
       h.UpdateAll(p.memory_range.start(), p.memory_range.end(), p.exact_offset,
                   p.start_offset, p.load_bias, p.name);
       if (p.build_id) {

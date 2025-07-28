@@ -66,7 +66,16 @@ WHERE
 -- Match the frame timeline on the app side with the frame timeline on the SF side.
 -- In cases where there are multiple layers drawn, there would be separate frame timeline
 -- slice for each of the layers. GROUP BY is used to deduplicate these rows.
-CREATE PERFETTO TABLE android_app_to_sf_frame_timeline_match AS
+CREATE PERFETTO TABLE android_app_to_sf_frame_timeline_match (
+  -- upid of the app.
+  app_upid JOINID(process.upid),
+  -- vsync id of the app.
+  app_vsync LONG,
+  -- upid of surfaceflinger process.
+  sf_upid JOINID(process.upid),
+  -- vsync id for surfaceflinger.
+  sf_vsync LONG
+) AS
 SELECT
   app_timeline.upid AS app_upid,
   CAST(app_timeline.name AS INTEGER) AS app_vsync,

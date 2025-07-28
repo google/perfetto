@@ -22,7 +22,6 @@
 #include <cstdint>
 #include <tuple>
 
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
@@ -48,7 +47,7 @@ constexpr auto SliceBlueprint(const char type[],
       {
           "slice",
           type,
-          base::Hasher::CreatePartial(type),
+          base::FnvHasher::CreatePartial(type),
           dims_array,
       },
       name,
@@ -73,7 +72,7 @@ constexpr auto CounterBlueprint(const char type[],
       {
           "counter",
           type,
-          base::Hasher::CreatePartial(type),
+          base::FnvHasher::CreatePartial(type),
           dims_array,
       },
       name,

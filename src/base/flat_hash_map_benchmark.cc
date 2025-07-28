@@ -22,11 +22,9 @@
 #include <unistd.h>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/string_view.h"
 
 // This benchmark allows to compare our FlatHashMap implementation against
 // reference implementations from Absl (Google), Folly F14 (FB), and Tssil's
@@ -118,7 +116,7 @@ std::vector<uint64_t> LoadTraceStrings(benchmark::State& state) {
   }
   char line[4096];
   while (fgets(line, sizeof(line), *f)) {
-    base::Hasher hasher;
+    base::FnvHasher hasher;
     hasher.Update(line, strlen(line));
     str_hashes.emplace_back(hasher.digest());
   }

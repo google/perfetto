@@ -25,14 +25,7 @@ namespace perfetto::trace_processor::winscope {
 
 struct TransformMatrixHasher {
   size_t operator()(const geometry::TransformMatrix& r) const {
-    base::Hasher hasher;
-    hasher.Update(r.dsdx);
-    hasher.Update(r.dtdx);
-    hasher.Update(r.tx);
-    hasher.Update(r.dsdy);
-    hasher.Update(r.dtdy);
-    hasher.Update(r.ty);
-    return static_cast<size_t>(hasher.digest());
+    return base::FnvHasher::Combine(r.dsdx, r.dtdx, r.tx, r.dsdy, r.dtdy, r.ty);
   }
 };
 

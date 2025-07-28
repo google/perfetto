@@ -428,7 +428,8 @@ class PERFETTO_EXPORT_COMPONENT TracingService {
           ProducerSMBScrapingMode::kDefault,
       size_t shared_memory_page_size_hint_bytes = 0,
       std::unique_ptr<SharedMemory> shm = nullptr,
-      const std::string& sdk_version = {}) = 0;
+      const std::string& sdk_version = {},
+      const std::string& machine_name = {}) = 0;
 
   // Connects a Consumer instance and obtains a ConsumerEndpoint, which is
   // essentially a 1:1 channel between one Consumer and the Service.

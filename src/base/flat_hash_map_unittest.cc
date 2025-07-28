@@ -407,7 +407,7 @@ TYPED_TEST(FlatHashMapTest, Clear) {
   ASSERT_EQ(Value::instances, 0);
 
   {
-    FlatHashMap<int, int, base::Hash<int>, typename TestFixture::Probe> fmap;
+    FlatHashMap<int, int, base::FnvHash<int>, typename TestFixture::Probe> fmap;
     fmap.Insert(1, 1);
     fmap.Insert(2, 2);
     ASSERT_EQ(fmap.size(), 2u);
@@ -423,7 +423,7 @@ TYPED_TEST(FlatHashMapTest, Clear) {
 }
 
 TYPED_TEST(FlatHashMapTest, TombstoneGrowthRehash) {
-  FlatHashMap<int, int, base::Hash<int>, typename TestFixture::Probe> fmap;
+  FlatHashMap<int, int, base::FnvHash<int>, typename TestFixture::Probe> fmap;
   // Insert 100 elements. This will cause the capacity to become 128.
   for (int i = 0; i < 100; ++i) {
     fmap.Insert(i, i);
@@ -448,7 +448,7 @@ TYPED_TEST(FlatHashMapTest, TombstoneGrowthRehash) {
 }
 
 TYPED_TEST(FlatHashMapTest, TombstoneCompactionRehash) {
-  FlatHashMap<int, int, base::Hash<int>, typename TestFixture::Probe> fmap;
+  FlatHashMap<int, int, base::FnvHash<int>, typename TestFixture::Probe> fmap;
   // Insert 300 elements. This will cause the capacity to become 512.
   for (int i = 0; i < 300; ++i) {
     fmap.Insert(i, i);

@@ -1,0 +1,44 @@
+This file contains a list of people who have made large contributions
+to Perfetto.
+
+See .github/CODEOWNERS for ruleset for OWNER approvals on pull requests.
+
+Active maintainers
+------------------
+
+Overall project maintainers:
+  Primiano Tucci <primiano@google.com> - @primiano
+  Lalit Maganti <lalitm@google.com> - @LalitMaganti
+  Eric Seckler <eseckler@google.com> - @betasheet
+
+On-device daemons and tracing SDK maintainers:
+  Daniele Di Proietto <ddiproietto@google.com> - @ddiproietto
+  Ryan Savitski <rsavitski@google.com> - @rsavitski
+  Primiano Tucci <primiano@google.com> - @primiano
+
+Trace Processor maintainers:
+  Lalit Maganti <lalitm@google.com> - @LalitMaganti
+  Anna Mayzner <mayzner@google.com> - @aMayzner
+  Ioannis Ilkos <ilkos@google.com> - @ilkos
+
+Perfetto UI maintainers:
+  Steve Golton <stevegolton@google.com> - @stevegolton
+
+
+No longer active emeritus maintainers, who retain valuable historical knowledge
+-------------------------------------------------------------------------------
+  Sami Kyöstilä <skyostil@google.com> - @skyostil
+  Hector Dearman <hjd@google.com> - @chromy
+  Florian Mayer <fmayer@google.com> - @fmayer
+  Oystein Eftevaag <oysteine@google.com>
+
+
+Committers with write access to dev/* branches
+----------------------------------------------
+See /docs/contributing/become-a-committer.md for instructions and rules.
+
+Power analysis in Trace Processor and UI:
+  Chris Phlipot <cphlipot@meta.com> - @cphlipot1
+
+Advanced query/data features in UI:
+  Alexander Timin <alexander@timin.me> - @altimin

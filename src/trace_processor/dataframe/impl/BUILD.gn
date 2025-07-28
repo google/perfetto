@@ -27,6 +27,7 @@ source_set("impl") {
     "query_plan.cc",
     "query_plan.h",
     "slab.h",
+    "sort.h",
     "types.h",
   ]
   deps = [
@@ -57,6 +58,7 @@ perfetto_unittest_source_set("unittests") {
     "bytecode_interpreter_unittest.cc",
     "flex_vector_unittest.cc",
     "slab_unittest.cc",
+    "sort_unittest.cc",
   ]
   deps = [
     ":bytecode_interpreter_test_utils",
@@ -82,6 +84,9 @@ if (enable_perfetto_benchmarks) {
       "../../../base",
       "../../containers",
     ]
-    sources = [ "bytecode_interpreter_benchmark.cc" ]
+    sources = [
+      "bytecode_interpreter_benchmark.cc",
+      "sort_benchmark.cc",
+    ]
   }
 }

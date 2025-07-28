@@ -84,7 +84,9 @@ def merge_protos_content(proto_paths):
       content = f.read()
 
     # Remove header
-    header = re.match(r'\/(\*|\/)(?:.|\s)*?package .*;\n', content)
+    header = re.match(r'\/(\*|\/)(?s:.)*?package .*;\n', content)
+    if header is None:
+      raise Exception('Proto file ' + path + ' does not specify a package')
     header = header.group(0)
     content = content[len(header):]
 

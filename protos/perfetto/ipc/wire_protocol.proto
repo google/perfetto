@@ -86,6 +86,12 @@ message IPCFrame {
     // boot_id, or a hash of kernel bootup timestamp and uname(2) if boot_id
     // isn't available.
     optional string machine_id_hint = 3;
+
+    // Human-readable name associated to the producer's machine. Provides the
+    // tracing service a new dimension to filter data sources on. Given the
+    // perfetto machine name is provided by users, there is no expectation of
+    // uniqueness across machines in a tracing session.
+    optional string machine_name = 4;
   }
 
   // The client is expected to send requests with monotonically increasing

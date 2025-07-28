@@ -159,8 +159,5 @@ std::string WinscopeSurfaceFlingerHierarchyPaths::TableName() {
 uint32_t WinscopeSurfaceFlingerHierarchyPaths::GetArgumentCount() const {
   return 0;
 }
-uint32_t WinscopeSurfaceFlingerHierarchyPaths::EstimateRowCount() {
-  // 1 path per 100 elements per 100 entries
-  return 10000;
-}
+
 }  // namespace perfetto::trace_processor

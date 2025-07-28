@@ -95,7 +95,10 @@ export class SlicesSourceNode implements QueryNode {
 
     sq.simpleSlices = ss;
 
-    const filtersProto = createFiltersProto(this.state.filters);
+    const filtersProto = createFiltersProto(
+      this.state.filters,
+      this.sourceCols,
+    );
     if (filtersProto) sq.filters = filtersProto;
     const groupByProto = createGroupByProto(
       this.state.groupByColumns,

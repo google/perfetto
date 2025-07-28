@@ -32,7 +32,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/public/compiler.h"
@@ -55,7 +54,7 @@
 namespace perfetto::trace_processor {
 namespace {
 
-inline void HashSqlValue(base::Hasher& h, const SqlValue& v) {
+inline void HashSqlValue(base::FnvHasher& h, const SqlValue& v) {
   switch (v.type) {
     case SqlValue::Type::kString:
       h.Update(v.AsString());
@@ -368,7 +367,7 @@ struct IntervalTreeIntervalsAgg
     }
 
     // Create a partition key and save SqlValues of the partition.
-    base::Hasher h;
+    base::FnvHasher h;
     uint32_t j = 0;
     for (uint32_t i = kMinArgCount + 1; i < argc; i += 2) {
       SqlValue new_val = sqlite::utils::SqliteValueToSqlValue(argv[i]);

@@ -21,7 +21,6 @@
 #include <optional>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -68,7 +67,7 @@ class StackProfileSequenceState final
 
     struct Hasher {
       size_t operator()(const OptionalUniquePidAndIid& o) const {
-        base::Hasher h;
+        base::FnvHasher h;
         h.Update(o.iid);
         if (o.upid) {
           h.Update(*o.upid);
@@ -88,7 +87,7 @@ class StackProfileSequenceState final
 
     struct Hasher {
       size_t operator()(const UniquePidAndIid& o) const {
-        return static_cast<size_t>(base::Hasher::Combine(o.upid, o.iid));
+        return static_cast<size_t>(base::FnvHasher::Combine(o.upid, o.iid));
       }
     };
   };

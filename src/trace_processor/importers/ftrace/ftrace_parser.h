@@ -28,7 +28,6 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
@@ -514,10 +513,7 @@ class FtraceParser {
 
   struct PairHash {
     std::size_t operator()(const std::pair<uint64_t, int64_t>& p) const {
-      base::Hasher hasher;
-      hasher.Update(p.first);
-      hasher.Update(p.second);
-      return static_cast<std::size_t>(hasher.digest());
+      return base::FnvHasher::Combine(p.first, p.second);
     }
   };
 

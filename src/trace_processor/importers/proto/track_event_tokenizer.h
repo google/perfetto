@@ -68,9 +68,9 @@ class TrackEventTokenizer {
       int64_t packet_timestamp);
 
  private:
-  void TokenizeThreadDescriptor(
-      PacketSequenceStateGeneration& state,
-      const protos::pbzero::ThreadDescriptor_Decoder&);
+  void TokenizeThreadDescriptor(PacketSequenceStateGeneration& state,
+                                const protos::pbzero::ThreadDescriptor_Decoder&,
+                                bool use_synthetic_tid);
   template <typename T>
   base::Status AddExtraCounterValues(
       PacketSequenceStateGeneration& state,

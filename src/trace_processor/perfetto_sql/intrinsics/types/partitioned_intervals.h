@@ -20,7 +20,9 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/interval_intersector.h"
 

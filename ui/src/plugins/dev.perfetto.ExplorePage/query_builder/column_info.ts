@@ -16,6 +16,7 @@ import {SqlColumn} from '../../dev.perfetto.SqlModules/sql_modules';
 
 export interface ColumnInfo {
   name: string;
+  type: string;
   checked: boolean;
   column: SqlColumn;
   alias?: string;
@@ -27,6 +28,7 @@ export function columnInfoFromSqlColumn(
 ): ColumnInfo {
   return {
     name: column.name,
+    type: column.type.name,
     checked,
     column: column,
   };
@@ -38,6 +40,7 @@ export function columnInfoFromName(
 ): ColumnInfo {
   return {
     name,
+    type: 'NA',
     checked,
     column: {name, type: {name: 'NA', shortName: 'NA'}},
   };
@@ -49,6 +52,7 @@ export function newColumnInfo(
 ): ColumnInfo {
   return {
     name: col.alias ?? col.column.name,
+    type: col.column.type.name,
     column: col.column,
     alias: undefined,
     checked: checked ?? col.checked,

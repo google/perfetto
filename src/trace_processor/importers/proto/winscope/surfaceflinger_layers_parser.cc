@@ -199,14 +199,21 @@ tables::SurfaceFlingerLayerTable::Id SurfaceFlingerLayersParser::InsertLayerRow(
   if (layer_decoder.has_parent()) {
     layer.parent = layer_decoder.parent();
   }
+
+  auto has_corner_radii = false;
   if (layer_decoder.has_corner_radii()) {
     protos::pbzero::CornerRadiiProto::Decoder corner_radii(
         layer_decoder.corner_radii());
-    layer.corner_radius_tl = static_cast<double>(corner_radii.tl());
-    layer.corner_radius_tr = static_cast<double>(corner_radii.tr());
-    layer.corner_radius_bl = static_cast<double>(corner_radii.bl());
-    layer.corner_radius_br = static_cast<double>(corner_radii.br());
-  } else if (layer_decoder.has_corner_radius()) {
+    if (corner_radii.tl() > 0 || corner_radii.tr() > 0 ||
+        corner_radii.bl() > 0 || corner_radii.br() > 0) {
+      has_corner_radii = true;
+      layer.corner_radius_tl = static_cast<double>(corner_radii.tl());
+      layer.corner_radius_tr = static_cast<double>(corner_radii.tr());
+      layer.corner_radius_bl = static_cast<double>(corner_radii.bl());
+      layer.corner_radius_br = static_cast<double>(corner_radii.br());
+    }
+  }
+  if (!has_corner_radii && layer_decoder.has_corner_radius()) {
     auto radius = static_cast<double>(layer_decoder.corner_radius());
     layer.corner_radius_tl = radius;
     layer.corner_radius_tr = radius;

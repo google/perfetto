@@ -26,7 +26,6 @@
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -98,7 +97,7 @@ class PerfSession : public RefCounted {
 
     struct Hasher {
       size_t operator()(const BuildIdMapKey& k) const {
-        return static_cast<size_t>(base::Hasher::Combine(k.pid, k.filename));
+        return static_cast<size_t>(base::FnvHasher::Combine(k.pid, k.filename));
       }
     };
 

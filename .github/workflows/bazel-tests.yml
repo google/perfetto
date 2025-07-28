@@ -46,9 +46,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.PERFETTO_CACHE_DIR }}
-          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}-${{ github.run_id }}
-          restore-keys: |
-            cache-${{ env.PERFETTO_CI_JOB_NAME }}-
+          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}
 
       - uses: ./.github/actions/install-build-deps
         with:
@@ -81,4 +79,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ env.PERFETTO_CACHE_DIR }}
-          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}-${{ github.run_id }}
+          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}

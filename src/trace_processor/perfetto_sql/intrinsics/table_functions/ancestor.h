@@ -78,7 +78,6 @@ class Ancestor : public StaticTableFunction {
   dataframe::DataframeSpec CreateSpec() override;
   std::string TableName() override;
   uint32_t GetArgumentCount() const override;
-  uint32_t EstimateRowCount() override;
 
   // Returns a vector of rows numbers which are ancestors of |slice_id|.
   // Returns std::nullopt if an invalid |slice_id| is given. This is used by
