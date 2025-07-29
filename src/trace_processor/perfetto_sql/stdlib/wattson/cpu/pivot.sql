@@ -183,10 +183,7 @@ FROM _interval_intersect!(
 JOIN _stats_cpu0123 AS cpu0123 ON cpu0123._auto_id = id_0;
 
 -- Combine system state so that it has idle, freq, and L3 hit info.
-CREATE VIRTUAL TABLE _idle_freq_l3_hit_slice USING SPAN_OUTER_JOIN (_stats_cpu01234567, _arm_l3_hit_rate);
-
--- Combine system state so that it has idle, freq, L3 hit, and L3 miss info.
-CREATE VIRTUAL TABLE _idle_freq_l3_hit_l3_miss_slice USING SPAN_OUTER_JOIN (_idle_freq_l3_hit_slice, _arm_l3_miss_rate);
+CREATE VIRTUAL TABLE _idle_freq_l3_hit_l3_miss_slice USING SPAN_OUTER_JOIN (_stats_cpu01234567, _arm_l3_rates);
 
 -- Does calculations for CPUs that are independent of other CPUs or frequencies
 -- This is the last generic table before going to device specific table calcs
