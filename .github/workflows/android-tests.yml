@@ -62,4 +62,4 @@ jobs:
         echo "second" > $PERFETTO_TEST_ARTIFACTS_ROOT/second.txt
         date > $PERFETTO_TEST_ARTIFACTS_ROOT/date.txt
         
-        gcloud rsync $PERFETTO_TEST_ARTIFACTS_ROOT gs://perfetto-ci-artifacts/cache/test-data --recursive --preserve-posix
+        gcloud storage rsync $PERFETTO_TEST_ARTIFACTS_ROOT gs://perfetto-ci-artifacts/cache/test-data --recursive --preserve-posix
