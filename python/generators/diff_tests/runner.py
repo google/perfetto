@@ -452,10 +452,13 @@ class TestCaseRunner:
                                    or self.test.trace_path.endswith('.py')):
         res += 'Command to generate trace:\n'
         res += 'tools/serialize_test_trace.py '
-        res += '--descriptor {} {} > {}\n'.format(
-            os.path.relpath(self.trace_descriptor_path, ROOT_DIR),
-            os.path.relpath(self.test.trace_path, ROOT_DIR),
-            os.path.relpath(trace_path, ROOT_DIR))
+        res += '--descriptor {} {} {} > {}\n'.format(
+            os.path.relpath(self.trace_descriptor_path, ROOT_DIR), " ".join([
+                "--extension-descriptor {}".format(
+                    os.path.relpath(p, ROOT_DIR))
+                for p in extension_descriptor_paths
+            ]), os.path.relpath(self.test.trace_path, ROOT_DIR),
+            os.path.relpath(trace_path, ROOT_DIR), extension_descriptor_paths)
       res += f"Command line:\n{' '.join(result.cmd)}\n"
       return res
 

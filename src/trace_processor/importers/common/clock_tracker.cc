@@ -27,7 +27,6 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/storage/stats.h"
@@ -55,7 +54,7 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
 
   // Compute the fingerprint of the snapshot by hashing all clock ids. This is
   // used by the clock pathfinding logic.
-  base::Hasher hasher;
+  base::FnvHasher hasher;
   for (const auto& clock_ts : clock_timestamps)
     hasher.Update(clock_ts.clock.id);
   const auto snapshot_hash = static_cast<SnapshotHash>(hasher.digest());
@@ -209,9 +208,6 @@ ClockTracker::ClockPath ClockTracker::FindPath(ClockId src, ClockId target) {
     queue_find_path_cache_.pop_front();
 
     const ClockId cur_clock_id = cur_path.last;
-    if (cur_clock_id == target)
-      return cur_path;
-
     if (cur_path.len >= ClockPath::kMaxLen)
       continue;
 
@@ -222,6 +218,8 @@ ClockTracker::ClockPath ClockTracker::FindPath(ClockId src, ClockId target) {
          it != graph_.end() && std::get<0>(*it) == cur_clock_id; ++it) {
       ClockId next_clock_id = std::get<1>(*it);
       SnapshotHash hash = std::get<2>(*it);
+      if (next_clock_id == target)
+        return ClockPath(cur_path, next_clock_id, hash);
       queue_find_path_cache_.emplace_back(
           ClockPath(cur_path, next_clock_id, hash));
     }

@@ -2220,22 +2220,32 @@ TEST_P(PerfettoApiTest, TrackEventCustomNamedTrack) {
   });
   thread.join();
 
+  const auto global_track = perfetto::NamedTrack::Global("GlobalTrack");
+  const auto named_track_with_id = perfetto::NamedTrack("MyCustomTrack", 1);
+  // These two global tracks should have different non-trivial uuids.
+  ASSERT_NE(global_track.uuid, named_track_with_id.uuid);
+  ASSERT_NE(global_track.uuid, 0u);
+  ASSERT_NE(named_track_with_id.uuid, 0u);
+
+  TRACE_EVENT_INSTANT("bar", "InstantEvent", global_track);
+  TRACE_EVENT_INSTANT("bar", "InstantEvent2", named_track_with_id);
+
   auto trace = StopSessionAndReturnParsedTrace(tracing_session);
 
   // Check that the track uuids match on the begin and end events.
   const auto track = perfetto::NamedTrack("MyCustomTrack", async_id);
   uint32_t main_thread_sequence = GetMainThreadPacketSequenceId(trace);
-  int event_count = 0;
-  bool found_descriptor = false;
+  std::vector<std::string> collected_events;
+
   for (const auto& packet : trace.packet()) {
     if (packet.has_track_descriptor() &&
         !packet.track_descriptor().has_process() &&
         !packet.track_descriptor().has_thread()) {
       auto td = packet.track_descriptor();
-      EXPECT_EQ("MyCustomTrack", td.static_name());
-      EXPECT_EQ(track.uuid, td.uuid());
-      EXPECT_EQ(perfetto::ProcessTrack::Current().uuid, td.parent_uuid());
-      found_descriptor = true;
+      collected_events.push_back(
+          "TrackDescriptor name=" + td.static_name() +
+          " uuid=" + std::to_string(td.uuid()) +
+          " parent_uuid=" + std::to_string(td.parent_uuid()));
       continue;
     }
 
@@ -2244,16 +2254,50 @@ TEST_P(PerfettoApiTest, TrackEventCustomNamedTrack) {
     auto track_event = packet.track_event();
     if (track_event.type() ==
         perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN) {
-      EXPECT_EQ(main_thread_sequence, packet.trusted_packet_sequence_id());
-      EXPECT_EQ(track.uuid, track_event.track_uuid());
-    } else {
-      EXPECT_NE(main_thread_sequence, packet.trusted_packet_sequence_id());
-      EXPECT_EQ(track.uuid, track_event.track_uuid());
+      collected_events.push_back(
+          "SliceBegin track_uuid=" + std::to_string(track_event.track_uuid()) +
+          " main_thread=" +
+          std::to_string(packet.trusted_packet_sequence_id() ==
+                         main_thread_sequence));
+    } else if (track_event.type() ==
+               perfetto::protos::gen::TrackEvent::TYPE_SLICE_END) {
+      collected_events.push_back(
+          "SliceEnd track_uuid=" + std::to_string(track_event.track_uuid()) +
+          " main_thread=" +
+          std::to_string(packet.trusted_packet_sequence_id() ==
+                         main_thread_sequence));
+    } else if (track_event.type() ==
+               perfetto::protos::gen::TrackEvent::TYPE_INSTANT) {
+      collected_events.push_back("Instant track_uuid=" +
+                                 std::to_string(track_event.track_uuid()));
     }
-    event_count++;
   }
-  EXPECT_TRUE(found_descriptor);
-  EXPECT_EQ(4, event_count);
+
+  std::string process_uuid_str =
+      std::to_string(perfetto::ProcessTrack::Current().uuid);
+
+  EXPECT_THAT(
+      collected_events,
+      ::testing::ContainerEq(std::vector<std::string>{
+          "TrackDescriptor name=MyCustomTrack uuid=" +
+              std::to_string(track.uuid) + " parent_uuid=" + process_uuid_str,
+          "SliceBegin track_uuid=" + std::to_string(track.uuid) +
+              " main_thread=1",
+          "SliceBegin track_uuid=" + std::to_string(track.uuid) +
+              " main_thread=1",
+          "TrackDescriptor name=GlobalTrack uuid=" +
+              std::to_string(global_track.uuid) + " parent_uuid=0",
+          "Instant track_uuid=" + std::to_string(global_track.uuid),
+          "TrackDescriptor name=MyCustomTrack uuid=" +
+              std::to_string(named_track_with_id.uuid) +
+              " parent_uuid=" + process_uuid_str,
+          "Instant track_uuid=" + std::to_string(named_track_with_id.uuid),
+          "TrackDescriptor name=MyCustomTrack uuid=" +
+              std::to_string(track.uuid) + " parent_uuid=" + process_uuid_str,
+          "SliceEnd track_uuid=" + std::to_string(track.uuid) +
+              " main_thread=0",
+          "SliceEnd track_uuid=" + std::to_string(track.uuid) +
+              " main_thread=0"}));
 }
 
 TEST_P(PerfettoApiTest, CustomTrackDescriptorForParent) {

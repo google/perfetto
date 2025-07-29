@@ -98,7 +98,7 @@ class JitCache {
     struct Hasher {
       size_t operator()(const FrameKey& k) const {
         return static_cast<size_t>(
-            base::Hasher::Combine(k.mapping_id.value, k.rel_pc));
+            base::FnvHasher::Combine(k.mapping_id.value, k.rel_pc));
       }
     };
     bool operator==(const FrameKey& other) const {

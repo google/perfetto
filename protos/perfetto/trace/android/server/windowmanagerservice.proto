@@ -332,6 +332,7 @@ message TaskProto {
   optional string affinity = 29;
   optional bool has_child_pip_activity = 30;
   optional TaskFragmentProto task_fragment = 31;
+  optional string task_name = 32;
 }
 
 // represents TaskFragment
@@ -400,6 +401,7 @@ message ActivityRecordProto {
   optional int64 request_open_in_browser_education_timestamp = 47;
   optional bool should_allow_simulate_requested_orientation_for_camera_compat =
       48;
+  optional RectProto safe_region_bounds = 49;
 }
 
 // represents WindowToken
