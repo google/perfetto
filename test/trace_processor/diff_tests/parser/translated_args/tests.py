@@ -36,9 +36,12 @@ class TranslatedArgs(TestSuite):
           "event.category","event.category","[NULL]","cat1"
           "event.name","event.name","[NULL]","name1"
           "is_root_in_scope","is_root_in_scope",1,"[NULL]"
+          "merge_key_type","merge_key_type",0,"[NULL]"
+          "merge_key_value","merge_key_value","[NULL]","Default Track"
+          "parent_track_uuid","parent_track_uuid",0,"[NULL]"
           "source","source","[NULL]","descriptor"
           "trace_id","trace_id",0,"[NULL]"
-          "track_uuid","track_uuid",0,"[NULL]"
+          "track_compressor_idx","track_compressor_idx",0,"[NULL]"
         '''))
 
   def test_chrome_histogram(self):
@@ -116,20 +119,6 @@ class TranslatedArgs(TestSuite):
   def test_slice_name(self):
     return DiffTestBlueprint(
         trace=Path('slice_name.textproto'),
-        query="""
-        SELECT name FROM slice ORDER BY name;
-        """,
-        out=Csv("""
-        "name"
-        "mapped_name1"
-        "mapped_name2"
-        "raw_name3"
-        "slice_begin"
-        """))
-
-  def test_slice_name_2(self):
-    return DiffTestBlueprint(
-        trace=Path('slice_name_negative_timestamp.textproto'),
         query="""
         SELECT name FROM slice ORDER BY name;
         """,

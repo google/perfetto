@@ -72,7 +72,7 @@ export class CurrentSelectionTab
     return {
       isLoading: false,
       content: m(EmptyState, {
-        className: 'pf-noselection',
+        fillHeight: true,
         title: message,
       }),
     };
@@ -156,7 +156,7 @@ export class CurrentSelectionTab
     if (track) {
       return m(
         DetailsShell,
-        {title: 'Track', description: track.title},
+        {title: 'Track', description: track.uri},
         m(
           GridLayout,
           m(
@@ -166,7 +166,6 @@ export class CurrentSelectionTab
               {title: 'Details'},
               m(
                 Tree,
-                m(TreeNode, {left: 'Name', right: track.title}),
                 m(TreeNode, {left: 'URI', right: track.uri}),
                 m(TreeNode, {left: 'Plugin ID', right: track.pluginId}),
                 m(

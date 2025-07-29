@@ -33,6 +33,18 @@ function defBundle(tsRoot, bundle, distDir) {
       sourcemap: true,
     },
     plugins: [
+      replace({
+        patterns:
+          process.env['IS_MEMORY64_ONLY'] != 'true'
+            ? [
+                {
+                  test: './trace_processor_32_stub',
+                  replace: '../gen/trace_processor',
+                },
+              ]
+            : [],
+      }),
+
       nodeResolve({
         mainFields: ['browser'],
         browser: true,

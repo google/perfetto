@@ -76,10 +76,12 @@ class HostImpl : public Host, public base::UnixSocket::EventListener {
     // |machine_id| is mapped from machine_id_hint (or socket hostname if
     // |the client doesn't support machine_id_hint).
     base::MachineID machine_id = base::kDefaultMachineID;
+    std::string machine_name;
 
     pid_t GetLinuxPeerPid() const;
     uid_t GetPosixPeerUid() const;
     base::MachineID GetMachineID() const { return machine_id; }
+    std::string GetMachineName() const { return machine_name; }
   };
   struct ExposedService {
     ExposedService(ServiceID, const std::string&, std::unique_ptr<Service>);
@@ -111,6 +113,7 @@ class HostImpl : public Host, public base::UnixSocket::EventListener {
   std::unique_ptr<base::UnixSocket> sock_;  // The listening socket.
   std::map<ClientID, std::unique_ptr<ClientConnection>> clients_;
   std::map<base::UnixSocket*, ClientConnection*> clients_by_socket_;
+  std::string machine_name_;
   ServiceID last_service_id_ = 0;
   ClientID last_client_id_ = 0;
   uint32_t socket_tx_timeout_ms_ = kDefaultIpcTxTimeoutMs;

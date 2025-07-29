@@ -17,15 +17,12 @@
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_MODULE_STATE_MANAGER_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_MODULE_STATE_MANAGER_H_
 
-#include <cstdint>
 #include <memory>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
 
 namespace perfetto::trace_processor::sqlite {
 
@@ -41,64 +38,37 @@ class ModuleStateManagerBase {
     // access the state from outside this class.
     friend class ModuleStateManagerBase;
 
+    // The "current" state of the vtab. This can be the same as the committed
+    // state or can be a different state (if the state has changed since the
+    // most recent commit) or null (indicating that the vtab has been dropped).
+    std::shared_ptr<void> active_state;
+
+    // The state of the vtab which has been "committed" by SQLite.
+    std::shared_ptr<void> committed_state;
+
+    // All the "saved" states of the vtab. This function will be modified by
+    // savepoint/rollback to/release callbacks from SQLite.
+    std::vector<std::shared_ptr<void>> savepoint_states;
+
     // The name of the vtab.
     std::string name;
-
-    // A hash of all the arguments passed to the module from SQLite. This
-    // acts as the unique identifier for the vtab state.
-    uint64_t argv_hash;
 
     // A pointer to the manager object. Backreference for use by static
     // functions in this class.
     ModuleStateManagerBase* manager;
-
-    // The actual state object which will be used by the module.
-    // The deleter is a function pointer which will be set by the templated
-    // manager class.
-    std::unique_ptr<void, void (*)(void*)> state{nullptr, nullptr};
-
-    enum {
-      kCommitted,
-      kCreatedButNotCommitted,
-      kDestroyedButNotCommitted
-    } lifecycle;
   };
 
   // Called by the engine when a transaction is committed.
   //
   // This is used to finalize all the destroys performed since a previous
   // rollback or commit.
-  void OnCommit() {
-    std::vector<uint64_t> to_erase;
-    for (auto it = state_by_args_hash_.GetIterator(); it; ++it) {
-      if (it.value()->lifecycle == PerVtabState::kDestroyedButNotCommitted) {
-        to_erase.push_back(it.key());
-      } else {
-        it.value()->lifecycle = PerVtabState::kCommitted;
-      }
-    }
-    for (const auto& hash : to_erase) {
-      state_by_args_hash_.Erase(hash);
-    }
-  }
+  void OnCommit();
 
   // Called by the engine when a transaction is rolled back.
   //
   // This is used to undo the effects of all the destroys performed since a
   // previous rollback or commit.
-  void OnRollback() {
-    std::vector<uint64_t> to_erase;
-    for (auto it = state_by_args_hash_.GetIterator(); it; ++it) {
-      if (it.value()->lifecycle == PerVtabState::kCreatedButNotCommitted) {
-        to_erase.push_back(it.key());
-      } else {
-        it.value()->lifecycle = PerVtabState::kCommitted;
-      }
-    }
-    for (const auto& hash : to_erase) {
-      state_by_args_hash_.Erase(hash);
-    }
-  }
+  void OnRollback();
 
  protected:
   // Enforce that anyone who wants to use this class inherits from it.
@@ -111,18 +81,19 @@ class ModuleStateManagerBase {
       const char* const* argv,
       std::unique_ptr<void, void (*)(void*)> state);
   [[nodiscard]] PerVtabState* OnConnect(int argc, const char* const* argv);
-  static void OnDisconnect(PerVtabState* state);
   static void OnDestroy(PerVtabState* state);
+
+  static void OnSavepoint(PerVtabState* state, int);
+  static void OnRelease(PerVtabState* state, int);
+  static void OnRollbackTo(PerVtabState* state, int);
+
   static void* GetState(PerVtabState* s);
-  void* FindStateByNameSlow(std::string_view name);
+  void* GetStateByName(const std::string& name);
 
- private:
-  using StateMap = base::FlatHashMap<uint64_t,
-                                     std::unique_ptr<PerVtabState>,
-                                     base::AlreadyHashed<uint64_t>>;
-  static uint64_t ComputeHash(int argc, const char* const* argv);
+  using StateMap =
+      base::FlatHashMap<std::string, std::unique_ptr<PerVtabState>>;
 
-  StateMap state_by_args_hash_;
+  StateMap state_by_name_;
 };
 
 // Helper class which abstracts away management of per-vtab state of an SQLite
@@ -155,10 +126,8 @@ class ModuleStateManagerBase {
 //     sqlite::ModuleStateManager<MyModule>::OnDestroy(tab->state);
 //     ...
 //   }
-//   // Do the same in OnConnect and OnDisconnect as in OnCreate and OnDestroy
-//   // respectively.
+//   // Do the same in OnConnect as in OnCreate.
 //   static void OnConnect(...)
-//   static void OnDisconnect(...)
 // }
 template <typename Module>
 class ModuleStateManager : public ModuleStateManagerBase {
@@ -181,14 +150,24 @@ class ModuleStateManager : public ModuleStateManagerBase {
     return ModuleStateManagerBase::OnConnect(argc, argv);
   }
 
-  // Lifecycle method to be called from Module::Disconnect.
-  static void OnDisconnect(PerVtabState* state) {
-    ModuleStateManagerBase::OnDisconnect(state);
-  }
-
   // Lifecycle method to be called from Module::Destroy.
   static void OnDestroy(PerVtabState* state) {
     ModuleStateManagerBase::OnDestroy(state);
+  }
+
+  // Lifecycle method to be called from Module::Savepoint.
+  static void OnSavepoint(PerVtabState* state, int idx) {
+    ModuleStateManagerBase::OnSavepoint(state, idx);
+  }
+
+  // Lifecycle method to be called from Module::Release.
+  static void OnRelease(PerVtabState* state, int idx) {
+    ModuleStateManagerBase::OnRelease(state, idx);
+  }
+
+  // Lifecycle method to be called from Module::RollbackTo.
+  static void OnRollbackTo(PerVtabState* state, int idx) {
+    ModuleStateManagerBase::OnRollbackTo(state, idx);
   }
 
   // Method to be called from module callbacks to extract the module state
@@ -198,18 +177,30 @@ class ModuleStateManager : public ModuleStateManagerBase {
         ModuleStateManagerBase::GetState(s));
   }
 
-  // Looks up the state of a module by name in O(n) time. This function should
-  // not be called in the performance sensitive contexts. It must also be called
-  // in a case where there are not multiple vtabs with the same name. This can
-  // happen inside a transaction context where we are executing a "CREATE OR
-  // REPLACE" operation.
+  // Looks up the state of a module by name.
   //
   // This function should only be called for speculative lookups from outside
-  // the module implementation: use |GetState| inside the sqlite::Module
+  // the module implementation: use `GetState` inside the sqlite::Module
   // implementation.
-  typename Module::State* FindStateByNameSlow(std::string_view name) {
+  typename Module::State* GetStateByName(const std::string& name) {
     return static_cast<typename Module::State*>(
-        ModuleStateManagerBase::FindStateByNameSlow(name));
+        ModuleStateManagerBase::GetStateByName(name));
+  }
+
+  // Returns all the states managed by this manager.
+  //
+  // This function should only be called for speculative lookups from outside
+  // the module implementation: use `GetState` inside the sqlite::Module
+  // implementation.
+  std::vector<std::pair<std::string, typename Module::State*>> GetAllStates() {
+    std::vector<std::pair<std::string, typename Module::State*>> states;
+    states.reserve(state_by_name_.size());
+    for (auto it = state_by_name_.GetIterator(); it; ++it) {
+      if (auto* state = GetState(it.value().get()); state) {
+        states.emplace_back(it.key(), state);
+      }
+    }
+    return states;
   }
 
  protected:

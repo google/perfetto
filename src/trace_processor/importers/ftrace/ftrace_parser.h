@@ -28,7 +28,6 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
@@ -36,6 +35,7 @@
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/ftrace/drm_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
+#include "src/trace_processor/importers/ftrace/generic_ftrace_tracker.h"
 #include "src/trace_processor/importers/ftrace/gpu_work_period_tracker.h"
 #include "src/trace_processor/importers/ftrace/iostat_tracker.h"
 #include "src/trace_processor/importers/ftrace/mali_gpu_event_tracker.h"
@@ -51,7 +51,8 @@ namespace perfetto::trace_processor {
 
 class FtraceParser {
  public:
-  explicit FtraceParser(TraceProcessorContext* context);
+  explicit FtraceParser(TraceProcessorContext* context,
+                        GenericFtraceTracker* generic_tracker);
 
   base::Status ParseFtraceStats(protozero::ConstBytes,
                                 uint32_t packet_sequence_id);
@@ -67,7 +68,12 @@ class FtraceParser {
                                       const InlineSchedWaking& data);
 
  private:
-  void ParseGenericFtrace(int64_t timestamp,
+  void ParseLegacyGenericFtrace(int64_t timestamp,
+                                uint32_t cpu,
+                                uint32_t pid,
+                                protozero::ConstBytes);
+  void ParseGenericFtrace(uint32_t event_proto_id,
+                          int64_t timestamp,
                           uint32_t cpu,
                           uint32_t pid,
                           protozero::ConstBytes);
@@ -176,6 +182,10 @@ class FtraceParser {
                          protozero::ConstBytes);
   void ParseScmCallEnd(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
   void ParseCmaAllocStart(int64_t timestamp, uint32_t pid);
+  void ParseCmaAllocFinish(int64_t timestamp,
+                           uint32_t pid,
+                           protozero::ConstBytes);
+  void ParseMmAllocContigMigrateRangeInfo(uint32_t pid, protozero::ConstBytes);
   void ParseCmaAllocInfo(int64_t timestamp,
                          uint32_t pid,
                          protozero::ConstBytes);
@@ -206,6 +216,8 @@ class FtraceParser {
   void ParseIrqHandlerExit(uint32_t cpu,
                            int64_t timestamp,
                            protozero::ConstBytes);
+  void ParseLocalTimerEntry(uint32_t cpu, int64_t timestamp);
+  void ParseLocalTimerExit(uint32_t cpu, int64_t timestamp);
   void ParseSoftIrqEntry(uint32_t cpu,
                          int64_t timestamp,
                          protozero::ConstBytes);
@@ -322,8 +334,18 @@ class FtraceParser {
                        uint32_t cpu,
                        protozero::ConstBytes blob);
   void ParseCpuhpExit(int64_t ts, protozero::ConstBytes blob);
+  void ParseHrtimerExpireEntry(uint32_t cpu,
+                               int64_t timestamp,
+                               protozero::ConstBytes blob,
+                               PacketSequenceStateGeneration* seq_state);
+  void ParseHrtimerExpireExit(uint32_t cpu,
+                              int64_t timestamp,
+                              protozero::ConstBytes blob);
+  void ParseMaliGpuPowerState(int64_t ts, protozero::ConstBytes blob);
 
   TraceProcessorContext* context_;
+  GenericFtraceTracker* generic_tracker_;
+
   RssStatTracker rss_stat_tracker_;
   DrmTracker drm_tracker_;
   IostatTracker iostat_tracker_;
@@ -411,6 +433,8 @@ class FtraceParser {
   const StringId cpuhp_idx_id_;
   const StringId disp_vblank_irq_enable_id_;
   const StringId disp_vblank_irq_enable_output_id_arg_name_;
+  const StringId hrtimer_id_;
+  const StringId local_timer_id_;
 
   std::vector<StringId> syscall_arg_name_ids_;
 
@@ -440,6 +464,13 @@ class FtraceParser {
 
   // Record number of transmitted bytes to the network interface card.
   std::unordered_map<std::string, uint64_t> nic_transmitted_bytes_;
+
+  struct CmaMigrationInfo {
+    uint64_t nr_migrated = 0;
+    uint64_t nr_reclaimed = 0;
+    uint64_t nr_mapped = 0;
+  };
+  base::FlatHashMap<UniqueTid, CmaMigrationInfo> utid_to_cma_migration_info_;
 
   // Record number of kfree_skb with ip protocol.
   uint64_t num_of_kfree_skb_ip_prot = 0;
@@ -493,10 +524,7 @@ class FtraceParser {
 
   struct PairHash {
     std::size_t operator()(const std::pair<uint64_t, int64_t>& p) const {
-      base::Hasher hasher;
-      hasher.Update(p.first);
-      hasher.Update(p.second);
-      return static_cast<std::size_t>(hasher.digest());
+      return base::FnvHasher::Combine(p.first, p.second);
     }
   };
 

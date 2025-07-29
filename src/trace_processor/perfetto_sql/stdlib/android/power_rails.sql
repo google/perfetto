@@ -23,7 +23,7 @@ INCLUDE PERFETTO MODULE time.conversion;
 -- NOTE: Requires dedicated hardware - table is only populated on Pixels.
 CREATE PERFETTO TABLE android_power_rails_counters (
   -- `counter.id`
-  id LONG,
+  id ID(counter.id),
   -- Timestamp of the energy measurement.
   ts TIMESTAMP,
   -- Time until the next energy measurement.
@@ -58,7 +58,7 @@ WITH
     JOIN counter_track AS t
       ON c.track_id = t.id
     WHERE
-      name GLOB 'power.*'
+      type = 'power_rails'
   )
 SELECT
   c.id,
@@ -69,7 +69,9 @@ SELECT
   c.value AS energy_since_boot,
   c.next_value AS energy_since_boot_at_end,
   1e6 * (
-    c.delta_value / c.dur
+    (
+      c.next_value - c.value
+    ) / c.dur
   ) AS average_power,
   c.delta_value AS energy_delta,
   c.track_id,
@@ -77,3 +79,23 @@ SELECT
 FROM counter_leading_intervals!(counter_table) AS c
 JOIN counter_track AS t
   ON c.track_id = t.id;
+
+-- High level metadata about each of the power rails.
+CREATE PERFETTO TABLE android_power_rails_metadata (
+  -- Power rail name. Alias of `counter_track.name`.
+  power_rail_name STRING,
+  -- Raw power rail name from the hardware.
+  raw_power_rail_name STRING,
+  -- Power rail track id. Alias of `counter_track.id`.
+  track_id JOINID(track.id),
+  -- Subsystem name that this power rail belongs to.
+  subsystem_name STRING
+) AS
+SELECT
+  t.name AS power_rail_name,
+  extract_arg(t.source_arg_set_id, 'raw_name') AS raw_power_rail_name,
+  t.id AS track_id,
+  extract_arg(t.source_arg_set_id, 'subsystem_name') AS subsystem_name
+FROM counter_track AS t
+WHERE
+  t.type = 'power_rails';

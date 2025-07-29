@@ -40,6 +40,19 @@ class ThreadStateTracker : public Destructible {
         context->thread_state_tracker.get());
   }
 
+  // Depending on the kernel implementation thread state changes could be
+  // captured by either kernel system events (e.g. context switches,
+  // task waking) or by thread state change events emitted by the kernel
+  // directly. These below methods:
+  //
+  // - PushSchedSwitchEvent
+  // - PushWakingEvent
+  // - PushNewTaskEvent
+  // - PushBlockedReason
+  //
+  // Are for kernels which capture system events-level data from which we
+  // could extract thread state changes to update the thread state track.
+
   // Will cause addition of state and update of the previous state for next_utid
   // and prev_utid.
   void PushSchedSwitchEvent(int64_t event_ts,
@@ -62,6 +75,31 @@ class ThreadStateTracker : public Destructible {
   void PushBlockedReason(UniqueTid utid,
                          std::optional<bool> io_wait,
                          std::optional<StringId> blocked_function);
+
+  // Kernels which emit thread state change events directly can use the methods
+  // below:
+  //
+  // - PushThreadState
+  // - UpdatePendingState
+  // - GetPrevEndState
+  //
+  // To update the thread state track accordingly. Updating pending state is
+  // necessary in this scenario because single thread state change events don't
+  // capture the previous thread's end state. Therefore in scenarios like
+  // context switches we update the end state after the fact.
+
+  void PushThreadState(int64_t ts,
+                       UniqueTid utid,
+                       StringId state,
+                       std::optional<uint16_t> cpu = std::nullopt);
+
+  void UpdatePendingState(UniqueTid utid,
+                          StringId new_state,
+                          std::optional<uint16_t> cpu = std::nullopt,
+                          std::optional<UniqueTid> waker_utid = std::nullopt,
+                          std::optional<uint16_t> common_flags = std::nullopt);
+
+  StringId GetPrevEndState(UniqueTid utid);
 
  private:
   void AddOpenState(int64_t ts,

@@ -41,10 +41,10 @@ test('omnibox query', async () => {
 
   await pth.waitForIdleAndScreenshot('query mode.png');
 
-  page.locator('.pf-query-table').getByText('17806091326279').click();
+  page.locator('.pf-data-grid').getByText('17806091326279').click();
   await pth.waitForIdleAndScreenshot('row 1 clicked.png');
 
-  page.locator('.pf-query-table').getByText('17806092405136').click();
+  page.locator('.pf-data-grid').getByText('17806092405136').click();
   await pth.waitForIdleAndScreenshot('row 2 clicked.png');
 
   // Clear the omnibox
@@ -72,22 +72,25 @@ test('query page', async () => {
   }
 
   // Now test the query history.
-  page.locator('.query-history .history-item').nth(0).click();
+  page.locator('.pf-query-history .pf-history-item').nth(0).click();
   await pth.waitForPerfettoIdle();
   expect(await textbox.textContent()).toEqual(
     'select id, ts, dur, name from slices limit 3',
   );
 
-  page.locator('.query-history .history-item').nth(2).click();
+  page.locator('.pf-query-history .pf-history-item').nth(2).click();
   await pth.waitForPerfettoIdle();
   expect(await textbox.textContent()).toEqual(
     'select id, ts, dur, name from slices limit 1',
   );
 
   // Double click on the 2nd one and expect the query is re-ran.
-  page.locator('.query-page .query-history .history-item').nth(1).dblclick();
+  page
+    .locator('.pf-query-page .pf-query-history .pf-history-item')
+    .nth(1)
+    .dblclick();
   await pth.waitForPerfettoIdle();
   expect(
-    await page.locator('.query-page .pf-query-table tbody tr').count(),
+    await page.locator('.pf-query-page .pf-data-grid tbody tr').count(),
   ).toEqual(2);
 });

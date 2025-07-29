@@ -112,6 +112,11 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     group: 'Softirqs',
   },
   {
+    type: 'cpu_hrtimer',
+    topLevelGroup: 'CPU',
+    group: 'HRTimers',
+  },
+  {
     type: 'net_socket_set_state',
     topLevelGroup: 'NETWORK',
     group: 'Socket Set State',

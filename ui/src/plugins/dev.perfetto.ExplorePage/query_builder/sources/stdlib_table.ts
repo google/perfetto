@@ -25,28 +25,73 @@ import {
   createFinalColumns,
 } from '../../query_node';
 import {
-  ColumnControllerRow,
-  columnControllerRowFromSqlColumn,
-  newColumnControllerRows,
-} from '../column_controller';
+  ColumnInfo,
+  columnInfoFromSqlColumn,
+  newColumnInfoList,
+} from '../column_info';
 import protos from '../../../../protos';
 import {TextParagraph} from '../../../../widgets/text_paragraph';
+import {Button} from '../../../../widgets/button';
 import {Trace} from '../../../../public/trace';
-import {Button, ButtonVariant} from '../../../../widgets/button';
-import {closeModal} from '../../../../widgets/modal';
 import {
   createFiltersProto,
   createGroupByProto,
-  Operator,
 } from '../operations/operation_component';
-import {Intent} from '../../../../widgets/common';
+import {closeModal, showModal} from '../../../../widgets/modal';
+import {TableList} from '../table_list';
+import {redrawModal} from '../../../../widgets/modal';
 
 export interface StdlibTableAttrs extends QueryNodeState {
   readonly trace: Trace;
   readonly sqlModules: SqlModules;
-  readonly modal: () => void;
 
   sqlTable?: SqlTable;
+}
+
+interface StdlibTableSelectionResult {
+  sqlTable: SqlTable;
+  sourceCols: ColumnInfo[];
+  groupByColumns: ColumnInfo[];
+}
+
+export function modalForStdlibTableSelection(
+  sqlModules: SqlModules,
+): Promise<StdlibTableSelectionResult | undefined> {
+  return new Promise((resolve) => {
+    let searchQuery = '';
+
+    showModal({
+      title: 'Choose a table',
+      content: () => {
+        return m(
+          '.pf-node-explorer-help',
+          m(TableList, {
+            sqlModules,
+            onTableClick: (tableName: string) => {
+              const sqlTable = sqlModules.getTable(tableName);
+              if (!sqlTable) {
+                resolve(undefined);
+                return;
+              }
+              const sourceCols = sqlTable.columns.map((c) =>
+                columnInfoFromSqlColumn(c, true),
+              );
+              const groupByColumns = newColumnInfoList(sourceCols, false);
+              resolve({sqlTable, sourceCols, groupByColumns});
+              closeModal();
+            },
+            searchQuery,
+            onSearchQueryChange: (query) => {
+              searchQuery = query;
+              redrawModal();
+            },
+            autofocus: true,
+          }),
+        );
+      },
+      buttons: [],
+    });
+  });
 }
 
 export class StdlibTableNode implements QueryNode {
@@ -54,69 +99,111 @@ export class StdlibTableNode implements QueryNode {
   readonly prevNode = undefined;
   nextNode?: QueryNode;
 
-  readonly sourceCols: ColumnControllerRow[];
-  readonly finalCols: ColumnControllerRow[];
+  readonly sourceCols: ColumnInfo[];
+  readonly finalCols: ColumnInfo[];
   readonly state: StdlibTableAttrs;
 
-  readonly sqlTable: SqlTable;
+  showColumns: boolean = false;
 
   constructor(attrs: StdlibTableAttrs) {
     this.state = attrs;
-    if (!attrs.sqlTable) throw new Error('No sqlTable provided');
 
-    this.sourceCols = attrs.sqlTable.columns.map((c) =>
-      columnControllerRowFromSqlColumn(c, true),
-    );
+    if (attrs.sqlTable) {
+      this.sourceCols = attrs.sourceCols;
+      this.state.filters = attrs.filters ?? [];
+      this.state.groupByColumns = attrs.groupByColumns;
+      this.state.aggregations = attrs.aggregations ?? [];
+    } else {
+      this.sourceCols = attrs.sourceCols ?? [];
+    }
     this.finalCols = createFinalColumns(this);
-
-    this.sqlTable = attrs.sqlTable;
   }
 
-  getState(): QueryNodeState {
+  getStateCopy(): QueryNodeState {
     const newState: StdlibTableAttrs = {
       trace: this.state.trace,
       sqlModules: this.state.sqlModules,
-      modal: this.state.modal,
-      sqlTable: this.sqlTable,
-      sourceCols: newColumnControllerRows(this.sourceCols),
-      groupByColumns: newColumnControllerRows(this.state.groupByColumns),
+      sqlTable: this.state.sqlTable,
+      sourceCols: newColumnInfoList(this.sourceCols),
+      groupByColumns: newColumnInfoList(this.state.groupByColumns),
       filters: this.state.filters.map((f) => ({...f})),
       aggregations: this.state.aggregations.map((a) => ({...a})),
+      customTitle: this.state.customTitle,
     };
     return newState;
   }
 
-  getDetails(): m.Child {
-    return m(TextParagraph, {
-      text: `
-    Table '${this.sqlTable.name}' from module
-    '${this.sqlTable.includeKey ?? 'prelude'}'.`,
-    });
+  nodeSpecificModify(): m.Child {
+    if (this.state.sqlTable) {
+      const table = this.state.sqlTable;
+      return m(
+        '.pf-stdlib-table-node',
+        m(
+          '.pf-details-box',
+          m(TextParagraph, {text: table.description}),
+          m(Button, {
+            label: this.showColumns ? 'Hide Columns' : 'Show Columns',
+            onclick: () => {
+              this.showColumns = !this.showColumns;
+            },
+          }),
+          this.showColumns &&
+            m(
+              'table.pf-table.pf-table-striped',
+              m(
+                'thead',
+                m(
+                  'tr',
+                  m('th', 'Column'),
+                  m('th', 'Type'),
+                  m('th', 'Description'),
+                ),
+              ),
+              m(
+                'tbody',
+                table.columns.map((col) => {
+                  return m(
+                    'tr',
+                    m('td', col.name),
+                    m('td', col.type.name),
+                    m('td', col.description),
+                  );
+                }),
+              ),
+            ),
+        ),
+      );
+    }
+    return m(TextParagraph, 'No description available for this table.');
   }
 
   validate(): boolean {
-    return true;
+    return this.state.sqlTable !== undefined;
   }
 
   getTitle(): string {
-    return `Table ${this.sqlTable.name}`;
+    return this.state.customTitle ?? `Table ${this.state.sqlTable?.name}`;
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     if (!this.validate()) return;
+    if (!this.state.sqlTable) return;
 
     const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = `table_source_${this.sqlTable.name}`;
+    sq.id = `table_source_${this.state.sqlTable?.name}`;
     sq.table = new protos.PerfettoSqlStructuredQuery.Table();
-    sq.table.tableName = this.sqlTable.name;
-    sq.table.moduleName = this.sqlTable.includeKey
-      ? this.sqlTable.includeKey
+    sq.table.tableName = this.state.sqlTable.name;
+    sq.table.moduleName = this.state.sqlTable.includeKey
+      ? this.state.sqlTable.includeKey
       : undefined;
     sq.table.columnNames = this.sourceCols
       .filter((c) => c.checked)
       .map((c) => c.column.name);
 
-    const filtersProto = createFiltersProto(this.state.filters);
+    const filtersProto = createFiltersProto(
+      this.state.filters,
+      this.sourceCols,
+    );
     if (filtersProto) sq.filters = filtersProto;
     const groupByProto = createGroupByProto(
       this.state.groupByColumns,
@@ -127,56 +214,5 @@ export class StdlibTableNode implements QueryNode {
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) sq.selectColumns = selectedColumns;
     return sq;
-  }
-}
-
-export class StdlibTableSource implements m.ClassComponent<StdlibTableAttrs> {
-  async onTableSelect(attrs: StdlibTableAttrs) {
-    closeModal();
-    const tableName = await attrs.trace.omnibox.prompt(
-      'Choose a table...',
-      attrs.sqlModules.listTablesNames(),
-    );
-
-    if (!tableName) return;
-    const sqlTable = attrs.sqlModules.getTable(tableName);
-
-    if (!sqlTable) return;
-    attrs.sqlTable = sqlTable;
-    attrs.sourceCols = sqlTable.columns.map((c) =>
-      columnControllerRowFromSqlColumn(c, true),
-    );
-    attrs.modal();
-    attrs.filters = [];
-    attrs.groupByColumns = newColumnControllerRows(attrs.sourceCols, false);
-  }
-
-  view({attrs}: m.CVnode<StdlibTableAttrs>) {
-    const tableInfoStr = attrs.sqlTable
-      ? `Selected table: ${attrs.sqlTable.name}`
-      : 'No table selected';
-    const tableInfo = m(TextParagraph, {text: tableInfoStr});
-
-    return m(
-      '',
-      m(Button, {
-        label: attrs.sqlTable ? 'Change table' : 'Select table',
-        intent: Intent.Primary,
-        variant: ButtonVariant.Filled,
-        onclick: async () => {
-          this.onTableSelect(attrs);
-        },
-      }),
-      attrs.sqlTable && [
-        tableInfo,
-        m(Operator, {
-          filter: {sourceCols: attrs.sourceCols, filters: attrs.filters},
-          groupby: {
-            groupByColumns: attrs.groupByColumns,
-            aggregations: attrs.aggregations,
-          },
-        }),
-      ],
-    );
   }
 }

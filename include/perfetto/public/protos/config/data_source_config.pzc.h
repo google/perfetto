@@ -36,7 +36,9 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_AppWakelocksConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromiumHistogramSamplesConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromiumSystemMetricsConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_CpuPerUidConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EtwConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_FrozenFtraceConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GpuCounterConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GpuRenderStagesConfig);
@@ -49,6 +51,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_NetworkPacketTraceConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PackagesListConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PerfEventConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PixelModemConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_PriorityBoostConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessStatsConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProtoLogConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StatsdTracingConfig);
@@ -67,6 +70,18 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_DataSourceConfig, SessionInitiator){
                                   SESSION_INITIATOR_UNSPECIFIED) = 0,
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_DataSourceConfig,
                                   SESSION_INITIATOR_TRUSTED_SYSTEM) = 1,
+};
+
+PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_DataSourceConfig,
+                        BufferExhaustedPolicy){
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_DataSourceConfig,
+                                  BUFFER_EXHAUSTED_UNSPECIFIED) = 0,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_DataSourceConfig,
+                                  BUFFER_EXHAUSTED_DROP) = 1,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_DataSourceConfig,
+                                  BUFFER_EXHAUSTED_STALL_THEN_ABORT) = 2,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_DataSourceConfig,
+                                  BUFFER_EXHAUSTED_STALL_THEN_DROP) = 3,
 };
 
 PERFETTO_PB_MSG(perfetto_protos_DataSourceConfig);
@@ -110,6 +125,16 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   uint64_t,
                   tracing_session_id,
                   4);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  VARINT,
+                  enum perfetto_protos_DataSourceConfig_BufferExhaustedPolicy,
+                  buffer_exhausted_policy,
+                  9);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_PriorityBoostConfig,
+                  priority_boost,
+                  10);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   MSG,
                   perfetto_protos_FtraceConfig,
@@ -202,6 +227,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   119);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   MSG,
+                  perfetto_protos_FrozenFtraceConfig,
+                  frozen_ftrace_config,
+                  136);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
                   perfetto_protos_ChromeConfig,
                   chrome_config,
                   101);
@@ -285,6 +315,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   perfetto_protos_AppWakelocksConfig,
                   app_wakelocks_config,
                   135);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_CpuPerUidConfig,
+                  cpu_per_uid_config,
+                  137);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   STRING,
                   const char*,

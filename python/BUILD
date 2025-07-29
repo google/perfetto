@@ -53,7 +53,6 @@ perfetto_py_binary(
         ":trace_processor_py",
     ] + PERFETTO_CONFIG.deps.pandas_py,
     main = "tools/slice_breakdown.py",
-    python_version = "PY3",
 )
 
 # GN target: //python:trace_processor_table_generator
@@ -62,6 +61,7 @@ perfetto_py_library(
     srcs = [
         "generators/trace_processor_table/public.py",
         "generators/trace_processor_table/serialize.py",
+        "generators/trace_processor_table/serialize_new.py",
         "generators/trace_processor_table/util.py",
     ],
 )
@@ -76,7 +76,6 @@ perfetto_py_binary(
         ":trace_processor_py",
     ] + PERFETTO_CONFIG.deps.pandas_py,
     main = "example.py",
-    python_version = "PY3",
 )
 
 # GN target: //python:sql_processing

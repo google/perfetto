@@ -36,7 +36,7 @@
 namespace perfetto {
 namespace base {
 
-// Locale-independant as possible version of strtod.
+// Locale-independent as possible version of strtod.
 double StrToD(const char* nptr, char** endptr) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) ||           \
     PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX_BUT_NOT_QNX) || \
@@ -71,6 +71,11 @@ bool Contains(const std::string& haystack, const std::string& needle) {
 
 bool Contains(const std::string& haystack, const char needle) {
   return haystack.find(needle) != std::string::npos;
+}
+
+bool Contains(const std::vector<std::string>& haystack,
+              const std::string& needle) {
+  return std::find(haystack.begin(), haystack.end(), needle) != haystack.end();
 }
 
 size_t Find(const StringView& needle, const StringView& haystack) {

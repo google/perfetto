@@ -180,6 +180,11 @@ export interface CounterOptions {
   // unit for the counter. This is displayed in the tooltip and
   // legend.
   unit?: string;
+
+  // unit to use when yMode is set to 'rate'. This rateUnit should be
+  // equivalent to unit/s. For example, if the 'unit' is Joules, the 'rateUnit'
+  // may be set to Watts. If not specified, unit/s will be used.
+  rateUnit?: string;
 }
 
 export abstract class BaseCounterTrack implements TrackRenderer {
@@ -239,7 +244,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       case 'delta':
         return `${value.toLocaleString()} \u0394${unit}`;
       case 'rate':
-        return `${value.toLocaleString()} \u0394${unit}/s`;
+        return `${value.toLocaleString()} ${this.rateUnit}`;
       default:
         assertUnreachable(options.yMode);
     }
@@ -759,7 +764,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
         yLabel += `\u0394${unit}`;
         break;
       case 'rate':
-        yLabel += `\u0394${unit}/s`;
+        yLabel += ` ${this.rateUnit}`;
         break;
       default:
         assertUnreachable(options.yMode);
@@ -889,7 +894,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
         min_value as minDisplayValue,
         max_value as maxDisplayValue
       from ${this.getTableName()}(
-        trace_start(), trace_end(), trace_dur()
+        trace_start(), trace_end() + 1, trace_dur() + 1
       );
     `);
 
@@ -910,6 +915,10 @@ export abstract class BaseCounterTrack implements TrackRenderer {
 
   get unit(): string {
     return this.getCounterOptions().unit ?? '';
+  }
+
+  get rateUnit(): string {
+    return this.getCounterOptions().rateUnit ?? `\u0394${this.unit}/s`;
   }
 
   protected get engine() {

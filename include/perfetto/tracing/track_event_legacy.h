@@ -233,6 +233,9 @@ ConvertThreadId(const PerfettoLegacyCurrentThreadId&);
 // Legacy tracing common API (adapted from trace_event_common.h).
 // ----------------------------------------------------------------------------
 
+// disabled-by-default- prefix used to have a special meaning in chrome. This
+// is no longer true and TRACE_DISABLED_BY_DEFAULT merely adds a prefix to the
+// category name.
 #define TRACE_DISABLED_BY_DEFAULT(name) "disabled-by-default-" name
 
 // Scoped events.
@@ -940,13 +943,6 @@ ConvertThreadId(const PerfettoLegacyCurrentThreadId&);
   INTERNAL_TRACE_EVENT_ADD_WITH_ID(                                   \
       TRACE_EVENT_PHASE_SNAPSHOT_OBJECT, category_group, name, id,    \
       TRACE_EVENT_FLAG_NONE, "snapshot", snapshot)
-
-#define TRACE_EVENT_OBJECT_SNAPSHOT_WITH_ID_AND_TIMESTAMP(                 \
-    category_group, name, id, timestamp, snapshot)                         \
-  INTERNAL_TRACE_EVENT_ADD_WITH_ID_TID_AND_TIMESTAMP(                      \
-      TRACE_EVENT_PHASE_SNAPSHOT_OBJECT, category_group, name, id,         \
-      TRACE_EVENT_API_CURRENT_THREAD_ID, timestamp, TRACE_EVENT_FLAG_NONE, \
-      "snapshot", snapshot)
 
 #define TRACE_EVENT_OBJECT_DELETED_WITH_ID(category_group, name, id) \
   INTERNAL_TRACE_EVENT_ADD_WITH_ID(TRACE_EVENT_PHASE_DELETE_OBJECT,  \

@@ -22,11 +22,9 @@
 #include <unistd.h>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/string_view.h"
 
 // This benchmark allows to compare our FlatHashMap implementation against
 // reference implementations from Absl (Google), Folly F14 (FB), and Tssil's
@@ -98,6 +96,8 @@ class Ours : public base::FlatHashMap<Key, Value, Hasher, Probe> {
     return Iterator(this->keys_[this->kNotFound],
                     this->values_[this->kNotFound]);
   }
+
+  void clear() { this->Clear(); }
 };
 
 std::vector<uint64_t> LoadTraceStrings(benchmark::State& state) {
@@ -116,7 +116,7 @@ std::vector<uint64_t> LoadTraceStrings(benchmark::State& state) {
   }
   char line[4096];
   while (fgets(line, sizeof(line), *f)) {
-    base::Hasher hasher;
+    base::FnvHasher hasher;
     hasher.Update(line, strlen(line));
     str_hashes.emplace_back(hasher.digest());
   }
@@ -179,7 +179,8 @@ void BM_HashMap_TraceTids(benchmark::State& state) {
       // a marginal benefit.
       state.SkipWithError(
           "Please run `curl -Lo /tmp/tids "
-          "https://storage.googleapis.com/perfetto/test_datalong_trace_tids.txt"
+          "https://storage.googleapis.com/perfetto/test_data/"
+          "long_trace_tids.txt"
           "` and try again.");
       return;
     }
@@ -299,6 +300,24 @@ void BM_HashMap_LookupRandInts(benchmark::State& state) {
                                       Counter::kIsIterationInvariantRate);
 }
 
+template <typename MapType>
+void BM_HashMap_RandomIntsClear(benchmark::State& state) {
+  std::minstd_rand0 rng(0);
+  std::vector<size_t> keys(static_cast<size_t>(num_samples()));
+  std::shuffle(keys.begin(), keys.end(), rng);
+
+  MapType mapz;
+  for (const size_t key : keys)
+    mapz.insert({key, key});
+
+  for (auto _ : state) {
+    mapz.clear();
+    benchmark::ClobberMemory();
+  }
+  state.counters["operations"] = Counter(static_cast<double>(keys.size()),
+                                         Counter::kIsIterationInvariantRate);
+}
+
 }  // namespace
 
 using Ours_LinearProbing =
@@ -376,3 +395,5 @@ BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, RobinMap);
 BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, AbslFlatHashMap);
 BENCHMARK_TEMPLATE(BM_HashMap_LookupRandInts, FollyF14FastMap);
 #endif
+
+BENCHMARK_TEMPLATE(BM_HashMap_RandomIntsClear, Ours_LinearProbing);

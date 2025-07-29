@@ -13,7 +13,16 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {AsyncLimiter} from '../../base/async_limiter';
+import {Monitor} from '../../base/monitor';
+import {Store} from '../../base/store';
 import {time, Time} from '../../base/time';
+import {materialColorScheme} from '../../components/colorizer';
+import {Timestamp} from '../../components/widgets/timestamp';
+import {Trace} from '../../public/trace';
+import {Engine} from '../../trace_processor/engine';
+import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
+import {Button} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {
   MultiSelectDiff,
@@ -21,17 +30,8 @@ import {
   PopupMultiSelect,
 } from '../../widgets/multiselect';
 import {PopupPosition} from '../../widgets/popup';
-import {Timestamp} from '../../components/widgets/timestamp';
-import {FtraceFilter, FtraceStat} from './common';
-import {Engine} from '../../trace_processor/engine';
-import {LONG, NUM, STR, STR_NULL} from '../../trace_processor/query_result';
-import {AsyncLimiter} from '../../base/async_limiter';
-import {Monitor} from '../../base/monitor';
-import {Button} from '../../widgets/button';
 import {VirtualTable, VirtualTableRow} from '../../widgets/virtual_table';
-import {Store} from '../../base/store';
-import {Trace} from '../../public/trace';
-import {materialColorScheme} from '../../components/colorizer';
+import {FtraceFilter, FtraceStat} from './common';
 
 const ROW_H = 20;
 

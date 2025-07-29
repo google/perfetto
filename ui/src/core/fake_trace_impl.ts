@@ -12,11 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import z from 'zod';
 import {Time} from '../base/time';
 import {EngineBase} from '../trace_processor/engine';
 import {AppImpl} from './app_impl';
+import {InMemoryStorage} from './in_memory_storage';
+import {SettingsManagerImpl} from './settings_manager';
 import {TraceImpl} from './trace_impl';
 import {TraceInfoImpl} from './trace_info_impl';
+import {DurationPrecision, TimestampFormat} from '../public/timeline';
 
 export interface FakeTraceImplArgs {
   // If true suppresses exceptions when trying to issue a query. This is to
@@ -30,7 +34,33 @@ let appImplInitialized = false;
 export function initializeAppImplForTesting(): AppImpl {
   if (!appImplInitialized) {
     appImplInitialized = true;
-    AppImpl.initialize({initialRouteArgs: {}});
+
+    const settingsManager = new SettingsManagerImpl(new InMemoryStorage());
+    AppImpl.initialize({
+      initialRouteArgs: {},
+      settingsManager,
+      timestampFormatSetting: settingsManager.register({
+        id: 'timestampFormat',
+        name: 'Timestamp Format',
+        description: '',
+        defaultValue: TimestampFormat.Timecode,
+        schema: z.nativeEnum(TimestampFormat),
+      }),
+      durationPrecisionSetting: settingsManager.register({
+        id: 'durationPrecision',
+        name: 'Duration Precision',
+        description: '',
+        defaultValue: DurationPrecision.Full,
+        schema: z.nativeEnum(DurationPrecision),
+      }),
+      timezoneOverrideSetting: settingsManager.register({
+        id: 'timezoneOverride',
+        name: 'Timezone Override',
+        description: 'What timezone to use for displaying timestamps.',
+        schema: z.enum(['dummy']),
+        defaultValue: 'dummy',
+      }),
+    });
   }
   return AppImpl.instance;
 }
@@ -44,9 +74,8 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
     traceUrl: '',
     start: Time.fromSeconds(0),
     end: Time.fromSeconds(10),
-    realtimeOffset: Time.ZERO,
-    utcOffset: Time.ZERO,
-    traceTzOffset: Time.ZERO,
+    unixOffset: Time.ZERO,
+    tzOffMin: 0,
     cpus: [],
     importErrors: 0,
     traceType: 'proto',
@@ -55,11 +84,14 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
     cached: false,
     downloadable: false,
   };
-  return TraceImpl.createInstanceForCore(
+  AppImpl.instance.closeCurrentTrace();
+  const trace = TraceImpl.createInstanceForCore(
     AppImpl.instance,
     new FakeEngine(args.allowQueries ?? false),
     fakeTraceInfo,
   );
+  AppImpl.instance.setActiveTrace(trace);
+  return trace;
 }
 
 class FakeEngine extends EngineBase {

@@ -65,6 +65,7 @@
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/observable_events.h"
+#include "perfetto/ext/tracing/core/priority_boost_config.h"
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
@@ -372,7 +373,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
                                     ProducerSMBScrapingMode smb_scraping_mode,
                                     size_t shared_memory_page_size_hint_bytes,
                                     std::unique_ptr<SharedMemory> shm,
-                                    const std::string& sdk_version) {
+                                    const std::string& sdk_version,
+                                    const std::string& machine_name) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
   auto uid = client_identity.uid();
@@ -403,7 +405,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
 
   std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
       id, client_identity, this, weak_runner_.task_runner(), producer,
-      producer_name, sdk_version, in_process, smb_scraping_enabled));
+      producer_name, machine_name, sdk_version, in_process,
+      smb_scraping_enabled));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
   endpoint->shmem_size_hint_bytes_ = shared_memory_size_hint_bytes;
@@ -934,6 +937,26 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     }
   }
 
+  std::optional<base::ScopedSchedBoost> priority_boost;
+  if (cfg.has_priority_boost()) {
+    auto sched_policy = CreateSchedPolicyFromConfig(cfg.priority_boost());
+    if (!sched_policy.ok()) {
+      MaybeLogUploadEvent(
+          cfg, uuid,
+          PerfettoStatsdAtom::kTracedEnablePriorityBoostInvalidConfig);
+      return PERFETTO_SVC_ERR("Invalid priority boost config: %s",
+                              sched_policy.status().c_message());
+    }
+    auto boost = base::ScopedSchedBoost::Boost(sched_policy.value());
+    if (!boost.ok()) {
+      MaybeLogUploadEvent(
+          cfg, uuid, PerfettoStatsdAtom::kTracedEnablePriorityBoostOtherError);
+      return PERFETTO_SVC_ERR("Failed to boost priority: %s",
+                              boost.status().c_message());
+    }
+    priority_boost = std::move(*boost);
+  }
+
   const TracingSessionID tsid = ++last_tracing_session_id_;
   TracingSession* tracing_session =
       &tracing_sessions_
@@ -946,6 +969,9 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 
   if (trace_filter)
     tracing_session->trace_filter = std::move(trace_filter);
+
+  if (priority_boost)
+    tracing_session->priority_boost = std::move(priority_boost);
 
   if (cfg.write_into_file()) {
     if (!fd ^ !cfg.output_path().empty()) {
@@ -1667,7 +1693,7 @@ void TracingServiceImpl::ActivateTriggers(
     android_stats::MaybeLogTriggerEvent(PerfettoTriggerAtom::kTracedTrigger,
                                         trigger_name);
 
-    base::Hasher hash;
+    base::FnvHasher hash;
     hash.Update(trigger_name.c_str(), trigger_name.size());
     std::string triggered_session_name;
     base::Uuid triggered_session_uuid;
@@ -3033,6 +3059,18 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
   if (lockdown_mode_ && producer->uid() != uid_) {
     PERFETTO_DLOG("Lockdown mode: not enabling producer %hu", producer->id_);
     return nullptr;
+  }
+  if (cfg_data_source.machine_name_filter_size()) {
+    auto machine_id = producer->client_identity().machine_id();
+    auto cfg_machine_names = cfg_data_source.machine_name_filter();
+    if (!NameMatchesFilter(producer->machine_name_, cfg_machine_names, {}) &&
+        !(machine_id == kDefaultMachineID &&
+          NameMatchesFilter("host", cfg_machine_names, {}))) {
+      PERFETTO_DLOG("Data source: %s is filtered out for machine: %s",
+                    cfg_data_source.config().name().c_str(),
+                    producer->machine_name_.c_str());
+      return nullptr;
+    }
   }
   // TODO(primiano): Add tests for registration ordering (data sources vs
   // consumers).
@@ -4748,6 +4786,7 @@ TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
     base::TaskRunner* task_runner,
     Producer* producer,
     const std::string& producer_name,
+    const std::string& machine_name,
     const std::string& sdk_version,
     bool in_process,
     bool smb_scraping_enabled)
@@ -4756,6 +4795,7 @@ TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
       service_(service),
       producer_(producer),
       name_(producer_name),
+      machine_name_(machine_name),
       sdk_version_(sdk_version),
       in_process_(in_process),
       smb_scraping_enabled_(smb_scraping_enabled),

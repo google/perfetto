@@ -13,24 +13,19 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {classNames} from '../../../base/classnames';
 
-import {Button, ButtonVariant} from '../../../widgets/button';
-import {SqlModules, SqlTable} from '../../dev.perfetto.SqlModules/sql_modules';
-import {ColumnControllerRow} from './column_controller';
-import {QueryNode} from '../query_node';
-import {showModal} from '../../../widgets/modal';
-import {DataSourceViewer} from './data_source_viewer';
-import {PopupMenu} from '../../../widgets/menu';
-import {Icons} from '../../../base/semantic_icons';
-import {Intent} from '../../../widgets/common';
-import {Trace} from '../../../public/trace';
-
-export interface QueryBuilderTable {
-  name: string;
-  asSqlTable: SqlTable;
-  columnOptions: ColumnControllerRow;
-  sql: string;
-}
+import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
+import {QueryNode, NodeType, Query, isAQuery} from '../query_node';
+import {ExplorePageHelp} from './explore_page_help';
+import {QueryNodeExplorer} from './query_node_explorer';
+import {NodeGraph} from './node_graph';
+import {Trace} from 'src/public/trace';
+import {NodeDataViewer} from './node_data_viewer';
+import {FilterDefinition} from '../../../components/widgets/data_grid/common';
+import {columnInfoFromSqlColumn, newColumnInfoList} from './column_info';
+import {StdlibTableNode} from './sources/stdlib_table';
+import {SqlSourceNode} from './sources/sql_source';
 
 export interface QueryBuilderAttrs {
   readonly trace: Trace;
@@ -41,157 +36,155 @@ export interface QueryBuilderAttrs {
 
   readonly onRootNodeCreated: (node: QueryNode) => void;
   readonly onNodeSelected: (node?: QueryNode) => void;
-  readonly renderNodeActionsMenuItems: (node: QueryNode) => m.Children;
-  readonly addSourcePopupMenu: () => m.Children;
-}
-
-interface NodeAttrs {
-  readonly node: QueryNode;
-  isSelected: boolean;
-  readonly onNodeSelected: (node: QueryNode) => void;
-  readonly renderNodeActionsMenuItems: (node: QueryNode) => m.Children;
-}
-
-class NodeBox implements m.ClassComponent<NodeAttrs> {
-  view({attrs}: m.CVnode<NodeAttrs>) {
-    const {node, isSelected, onNodeSelected} = attrs;
-    return m(
-      '.node-box',
-      {
-        style: {
-          border: isSelected ? '2px solid yellow' : '2px solid blue',
-          borderRadius: '5px',
-          padding: '10px',
-          cursor: 'pointer',
-          backgroundColor: 'lightblue',
-        },
-        onclick: () => onNodeSelected(node),
-      },
-      node.getTitle(),
-      m(
-        PopupMenu,
-        {
-          trigger: m(Button, {
-            iconFilled: true,
-            icon: Icons.MoreVert,
-          }),
-        },
-        attrs.renderNodeActionsMenuItems(node),
-      ),
-    );
-  }
+  readonly onDeselect: () => void;
+  readonly onAddStdlibTableSource: () => void;
+  readonly onAddSlicesSource: () => void;
+  readonly onAddSqlSource: () => void;
+  readonly onClearAllNodes: () => void;
+  readonly onDuplicateNode: (node: QueryNode) => void;
+  readonly onDeleteNode: (node: QueryNode) => void;
 }
 
 export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
+  private query?: Query | Error;
+  private queryExecuted: boolean = false;
+  private tablePosition: 'left' | 'right' | 'bottom' = 'bottom';
+  private previousSelectedNode?: QueryNode;
+
   view({attrs}: m.CVnode<QueryBuilderAttrs>) {
     const {
       trace,
       rootNodes,
       onNodeSelected,
       selectedNode,
-      renderNodeActionsMenuItems,
+      onAddStdlibTableSource,
+      onAddSlicesSource,
+      onAddSqlSource,
+      onClearAllNodes,
+      sqlModules,
     } = attrs;
 
-    const renderNodesPanel = (): m.Children => {
-      const nodes: m.Child[] = [];
-      const numRoots = rootNodes.length;
-
-      if (numRoots === 0) {
-        nodes.push(
-          m(
-            '',
-            {style: {gridColumn: 3, gridRow: 2}},
-            m(
-              PopupMenu,
-              {
-                trigger: m(Button, {
-                  icon: Icons.Add,
-                  intent: Intent.Primary,
-                  variant: ButtonVariant.Filled,
-                  style: {
-                    height: '100px',
-                    width: '100px',
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    fontSize: '48px',
-                  },
-                }),
-              },
-              attrs.addSourcePopupMenu(),
-            ),
-          ),
-        );
+    if (selectedNode && selectedNode !== this.previousSelectedNode) {
+      if (selectedNode.type === NodeType.kSqlSource) {
+        this.tablePosition = 'left';
       } else {
-        let col = 1;
-        rootNodes.forEach((rootNode) => {
-          let row = 1;
-          let curNode: QueryNode | undefined = rootNode;
-          while (curNode) {
-            const localCurNode = curNode;
-            nodes.push(
-              m(
-                '',
-                {style: {display: 'flex', gridColumn: col, gridRow: row}},
-                m(NodeBox, {
-                  node: localCurNode,
-                  isSelected: selectedNode === localCurNode,
-                  onNodeSelected,
-                  renderNodeActionsMenuItems,
-                }),
-              ),
-            );
-            row++;
-            curNode = curNode.nextNode;
-          }
-          col += 1;
-        });
+        this.tablePosition = 'bottom';
       }
+    }
+    this.previousSelectedNode = selectedNode;
 
-      return m(
-        '',
-        {
-          style: {
-            display: 'grid',
-            gridTemplateColumns: `repeat(${numRoots} - 1, 1fr)`,
-            gridTemplateRows: 'repeat(3, 1fr)',
-            gap: '10px',
+    const layoutClasses =
+      classNames(
+        'pf-query-builder-layout',
+        selectedNode ? 'selection' : 'no-selection',
+        selectedNode && `selection-${this.tablePosition}`,
+      ) || '';
+
+    const explorer = selectedNode
+      ? m(QueryNodeExplorer, {
+          trace,
+          node: selectedNode,
+          onQueryAnalyzed: (query: Query | Error, reexecute = true) => {
+            this.query = query;
+            if (isAQuery(this.query) && reexecute) {
+              this.queryExecuted = false;
+            }
           },
-        },
-        nodes,
-      );
-    };
+          onExecute: () => {
+            this.queryExecuted = false;
+            m.redraw();
+          },
+        })
+      : m(ExplorePageHelp, {
+          sqlModules,
+          onTableClick: (tableName: string) => {
+            const {onRootNodeCreated} = attrs;
+            const sqlTable = sqlModules.getTable(tableName);
+            if (!sqlTable) return;
 
-    const renderDataSourceViewer = () => {
-      return attrs.selectedNode
-        ? m(DataSourceViewer, {trace, queryNode: attrs.selectedNode})
-        : undefined;
-    };
+            const sourceCols = sqlTable.columns.map((c) =>
+              columnInfoFromSqlColumn(c, true),
+            );
+            const groupByColumns = newColumnInfoList(sourceCols, false);
+
+            onRootNodeCreated(
+              new StdlibTableNode({
+                trace,
+                sqlModules,
+                sqlTable,
+                sourceCols,
+                groupByColumns,
+                filters: [],
+                aggregations: [],
+              }),
+            );
+          },
+        });
 
     return m(
-      '',
-      {
-        style: {
-          display: 'grid',
-          gridTemplateColumns: '50% 50%',
-          gridTemplateRows: '50% 50%',
-          gap: '10px',
-        },
-      },
-      m('', {style: {gridColumn: 1}}, renderNodesPanel()),
-      m('', {style: {gridColumn: 2}}, renderDataSourceViewer()),
+      `.${layoutClasses.split(' ').join('.')}`,
+      m(
+        '.pf-qb-node-graph',
+        m(NodeGraph, {
+          rootNodes,
+          selectedNode,
+          onNodeSelected,
+          onDeselect: attrs.onDeselect,
+          onAddStdlibTableSource,
+          onAddSlicesSource,
+          onAddSqlSource,
+          onClearAllNodes,
+          onDuplicateNode: attrs.onDuplicateNode,
+          onDeleteNode: attrs.onDeleteNode,
+        }),
+      ),
+      m('.pf-qb-explorer', explorer),
+      selectedNode &&
+        m(
+          '.pf-qb-viewer',
+          m(NodeDataViewer, {
+            trace,
+            query: this.query,
+            executeQuery: !this.queryExecuted,
+            filters:
+              // TODO(mayzner): This is a temporary fix for handling the filtering of SQL node.
+              selectedNode.type === NodeType.kSqlSource
+                ? []
+                : selectedNode.state.filters,
+            onFiltersChanged:
+              selectedNode.type === NodeType.kSqlSource
+                ? undefined
+                : (filters: ReadonlyArray<FilterDefinition>) => {
+                    selectedNode.state.filters = filters as FilterDefinition[];
+                    this.queryExecuted = false;
+                    m.redraw();
+                  },
+            onQueryExecuted: ({
+              columns,
+              queryError,
+              responseError,
+              dataError,
+            }: {
+              columns: string[];
+              queryError?: Error;
+              responseError?: Error;
+              dataError?: Error;
+            }) => {
+              this.queryExecuted = true;
+
+              selectedNode.state.queryError = queryError;
+              selectedNode.state.responseError = responseError;
+              selectedNode.state.dataError = dataError;
+
+              if (selectedNode instanceof SqlSourceNode) {
+                selectedNode.setSourceColumns(columns);
+              }
+            },
+            onPositionChange: (pos: 'left' | 'right' | 'bottom') => {
+              this.tablePosition = pos;
+            },
+          }),
+        ),
     );
   }
 }
-
-export const createModal = (
-  title: string,
-  content: () => m.Children,
-  onAdd: () => void,
-) => {
-  showModal({
-    title,
-    buttons: [{text: 'Add node', action: onAdd}],
-    content,
-  });
-};

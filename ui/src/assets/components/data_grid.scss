@@ -1,0 +1,149 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+$border: 1px solid rgb(225, 225, 225);
+
+.pf-data-grid {
+  display: flex;
+  flex-direction: column;
+  white-space: nowrap;
+  overflow: hidden;
+
+  // If fill height is set, the grid should fill the height of its parent, and
+  // the table content should scroll, otherwise it takes the height of the table
+  // content.
+  &--fill-height {
+    height: 100%;
+  }
+
+  &__table {
+    overflow: auto;
+    flex: 1; // Allow the table to grow and fill the available space.
+  }
+
+  table {
+    min-width: 100%;
+    border-spacing: 0;
+    font-weight: 300;
+  }
+
+  // Highlight rows on hover.
+  tr {
+    &:hover {
+      background-color: rgb(239, 241, 244);
+    }
+  }
+
+  thead {
+    position: sticky;
+    top: 0;
+    background-color: white;
+
+    tr {
+      &:hover {
+        background-color: unset;
+      }
+    }
+  }
+
+  th {
+    // Some header cells can be taller than others so keep everything aligned.
+    vertical-align: top;
+    text-align: left;
+    font-weight: 400;
+
+    border-top: $border;
+    border-bottom: $border;
+    border-right: $border;
+    &:last-child {
+      border-right: none;
+    }
+  }
+
+  td,
+  th {
+    border-bottom: $border;
+    border-right: $border;
+    &:last-child {
+      border-right: none;
+    }
+
+    .pf-visible-on-hover {
+      visibility: hidden;
+    }
+
+    &:hover {
+      .pf-visible-on-hover {
+        visibility: visible;
+      }
+    }
+  }
+
+  &__data-with-btn {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.3em;
+
+    &:hover {
+      .pf-data-grid__cell-button {
+        visibility: visible;
+      }
+    }
+  }
+
+  &__aggregation {
+    display: grid;
+    // Summary, Value, Button spacer
+    grid-template-columns: auto 1fr auto;
+    gap: 0.3em;
+  }
+
+  &__padded {
+    padding: 0.2em 0.4em;
+  }
+
+  &__cell-button {
+    visibility: hidden;
+    &.pf-active {
+      visibility: visible;
+    }
+  }
+
+  &__button-hint {
+    color: gray;
+  }
+
+  &__cell--number {
+    text-align: right;
+  }
+
+  &__cell--null {
+    text-align: center;
+    color: gray;
+    font-style: italic;
+  }
+
+  &__hidden {
+    visibility: hidden;
+  }
+
+  // Don't want the progress bar to squish!
+  &__loading {
+    flex: none;
+  }
+
+  &__filter-chip {
+    cursor: pointer;
+  }
+}

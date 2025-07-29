@@ -24,21 +24,23 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/scoped_mmap.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/util/status_macros.h"
+#include "src/trace_redaction/add_synth_threads_to_process_trees.h"
 #include "src/trace_redaction/broadphase_packet_filter.h"
 #include "src/trace_redaction/collect_frame_cookies.h"
 #include "src/trace_redaction/collect_system_info.h"
 #include "src/trace_redaction/collect_timeline_events.h"
+#include "src/trace_redaction/drop_empty_ftrace_events.h"
 #include "src/trace_redaction/find_package_uid.h"
 #include "src/trace_redaction/merge_threads.h"
 #include "src/trace_redaction/populate_allow_lists.h"
 #include "src/trace_redaction/prune_package_list.h"
 #include "src/trace_redaction/redact_ftrace_events.h"
 #include "src/trace_redaction/redact_process_events.h"
-#include "src/trace_redaction/redact_process_trees.h"
+#include "src/trace_redaction/reduce_threads_in_process_trees.h"
 #include "src/trace_redaction/scrub_process_stats.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "src/trace_redaction/verify_integrity.h"
@@ -259,13 +261,25 @@ std::unique_ptr<TraceRedactor> TraceRedactor::CreateInstance(
     primitive->emplace_ftrace_filter<AllowAll>();
   }
 
-  // Configure the primitive to remove processes and threads that don't belong
-  // to the target package and adds a process and threads for the synth thread
-  // group and threads.
+  // Add transforms that will change process trees. The order here matters:
+  //
+  //  1. Primitives removing processes/threads
+  //  2. Primitives adding processes/threads
+  //
+  // If primitives are not in this order, newly added processes/threads may
+  // get removed.
   {
-    auto* primitive = redactor->emplace_transform<RedactProcessTrees>();
-    primitive->emplace_modifier<ProcessTreeCreateSynthThreads>();
-    primitive->emplace_filter<ConnectedToPackage>();
+    redactor->emplace_transform<ReduceThreadsInProcessTrees>();
+    redactor->emplace_transform<AddSythThreadsToProcessTrees>();
+  }
+
+  // Optimizations:
+  //
+  // This block of transforms should be registered last. They clean-up after the
+  // other transforms. The most common function will be to remove empty
+  // messages.
+  {
+    redactor->emplace_transform<DropEmptyFtraceEvents>();
   }
 
   return redactor;

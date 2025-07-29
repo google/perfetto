@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <string>
+#include "src/trace_processor/importers/common/parser_types.h"
 
 namespace perfetto::trace_processor {
 namespace perf_importer {
@@ -63,7 +64,7 @@ class ProtoTraceParser {
 class JsonTraceParser {
  public:
   virtual ~JsonTraceParser();
-  virtual void ParseJsonPacket(int64_t, std::string) = 0;
+  virtual void ParseJsonPacket(int64_t, JsonEvent) = 0;
   virtual void ParseSystraceLine(int64_t, SystraceLine) = 0;
   virtual void ParseLegacyV8ProfileEvent(int64_t, LegacyV8CpuProfileEvent) = 0;
 };

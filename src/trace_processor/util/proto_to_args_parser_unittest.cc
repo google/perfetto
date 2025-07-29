@@ -674,6 +674,63 @@ TEST_F(ProtoToArgsParserTest, PackedFields) {
           "field_double field_double[3] 1.79769e+308"));
 }
 
+TEST_F(ProtoToArgsParserTest, AllowedFieldsOnlyTopLevel) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
+  msg->set_super_nested()->set_value_c(42);
+
+  auto binary_proto = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ProtoToArgsParser parser(pool);
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  std::vector<uint32_t> allowed_fields = {
+      NestedA::kSuperNestedFieldNumber,
+  };
+  status = parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.NestedA", &allowed_fields, *this);
+
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
+
+  EXPECT_THAT(args(), testing::ElementsAre(
+                          "super_nested.value_c super_nested.value_c 42"));
+}
+
+TEST_F(ProtoToArgsParserTest, AddsDefaultsNested) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<NestedA> msg{kChunkSize, kChunkSize};
+  msg->set_super_nested();
+
+  auto binary_proto = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ProtoToArgsParser parser(pool);
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  status = parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.NestedA", nullptr, *this, nullptr,
+      /* add_defaults= */ true);
+
+  EXPECT_TRUE(status.ok())
+      << "InternProtoFieldsIntoArgsTable failed with error: "
+      << status.message();
+
+  EXPECT_THAT(args(), testing::ElementsAre(
+                          "super_nested.value_c super_nested.value_c 0",
+                          "repeated_a repeated_a [NULL]"));
+}
+
 TEST_F(ProtoToArgsParserTest, AddsDefaults) {
   using namespace protozero::test::protos::pbzero;
   protozero::HeapBuffered<EveryField> msg{kChunkSize, kChunkSize};

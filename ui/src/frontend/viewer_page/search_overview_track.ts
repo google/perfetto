@@ -51,32 +51,32 @@ export class SearchOverviewTrack implements AsyncDisposable {
   }
 
   render(ctx: CanvasRenderingContext2D, size: Size2D) {
-    this.maybeUpdate(size);
+    this.maybeUpdate(size.width);
     this.renderSearchOverview(ctx, size);
   }
 
   private async initialize() {
     const engine = this.trace.engine;
     this.trash.use(
-      await createVirtualTable(
+      await createVirtualTable({
         engine,
-        'search_summary_window',
-        '__intrinsic_window(0, 0, 1)',
-      ),
+        name: 'search_summary_window',
+        using: '__intrinsic_window(0, 0, 1)',
+      }),
     );
     this.trash.use(
-      await createVirtualTable(
+      await createVirtualTable({
         engine,
-        'search_summary_sched_span',
-        'span_join(sched PARTITIONED cpu, search_summary_window)',
-      ),
+        name: 'search_summary_sched_span',
+        using: 'span_join(sched PARTITIONED cpu, search_summary_window)',
+      }),
     );
     this.trash.use(
-      await createVirtualTable(
+      await createVirtualTable({
         engine,
-        'search_summary_slice_span',
-        'span_join(slice PARTITIONED track_id, search_summary_window)',
-      ),
+        name: 'search_summary_slice_span',
+        using: 'span_join(slice PARTITIONED track_id, search_summary_window)',
+      }),
     );
   }
 
@@ -151,7 +151,7 @@ export class SearchOverviewTrack implements AsyncDisposable {
     return summary;
   }
 
-  private maybeUpdate(size: Size2D) {
+  private maybeUpdate(timelineWidth: number) {
     const searchManager = this.trace.search;
     const timeline = this.trace.timeline;
     if (!searchManager.hasResults) {
@@ -159,7 +159,11 @@ export class SearchOverviewTrack implements AsyncDisposable {
     }
     const newSpan = timeline.visibleWindow;
     const newSearchGeneration = searchManager.searchGeneration;
-    const newResolution = calculateResolution(newSpan, size.width);
+    const maybeNewResolution = calculateResolution(newSpan, timelineWidth);
+    if (!maybeNewResolution.ok) {
+      return;
+    }
+    const newResolution = maybeNewResolution.value;
     const newTimeSpan = newSpan.toTimeSpan();
     if (
       this.previousSpan?.containsSpan(newTimeSpan.start, newTimeSpan.end) &&

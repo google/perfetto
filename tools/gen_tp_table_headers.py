@@ -69,13 +69,15 @@ def main():
   def get_relin_path_from_module_path(module_path: str):
     return module_path[module_path.rfind(os.sep + 'src') + 1:]
 
-  modules = [
-      # On Windows the path can contain '/' or os.sep, depending on how this
-      # script is executed. So we need to replace both.
-      os.path.splitext(
-          get_relin_path(i).replace('/', '.').replace(os.sep, '.'))[0]
-      for i in args.inputs
-  ]
+  def to_module_name(module_input: str):
+    module = get_relin_path(module_input)
+    if module.endswith('.py'):
+      module = module[:-3]
+    # On Windows the path can contain '/' or os.sep, depending on how this
+    # script is executed. So we need to replace both.
+    return module.replace('/', '.').replace(os.sep, '.')
+
+  modules = [to_module_name(i) for i in args.inputs]
   headers: Dict[str, Header] = {}
   for table in parse_tables_from_modules(modules):
     input_path = get_relin_path_from_module_path(table.table.python_module)

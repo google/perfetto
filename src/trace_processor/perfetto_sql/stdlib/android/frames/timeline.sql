@@ -45,17 +45,18 @@ WITH
       upid,
       ts
     FROM thread_slice
-    -- Mostly the frame slice is at depth 0. Though it could be pushed to depth 1 while users
-    -- enable low layer trace e.g. atrace_app.
     WHERE
-      name GLOB $glob_str AND depth IN (0, 1)
+      name GLOB $glob_str
   )
 SELECT
   *
 FROM all_found
--- Casting string to int returns 0 if the string can't be cast.
+-- Casting string to int returns 0 if the string can't be cast. This eliminates the Choreographer resynced slices
+-- with the format "Choreographer#doFrame - resynced to 1234 in 20.0ms". The stdlib table is to only list the top
+-- level Choreographer#doFrame slices, hence the 'resynced' slices are ignored.
+-- frame_id is -1 indicating an invalid vsync id.
 WHERE
-  frame_id != 0;
+  frame_id != 0 AND frame_id != -1;
 
 -- All of the `Choreographer#doFrame` slices with their frame id.
 CREATE PERFETTO TABLE android_frames_choreographer_do_frame (
@@ -123,6 +124,18 @@ SELECT
   upid,
   id
 FROM expected_frame_timeline_slice;
+
+-- Contains frames with missed SF or HWUI callbacks.
+CREATE PERFETTO TABLE _vsync_missed_callback AS
+SELECT
+  CAST(str_split(name, 'Callback#', 1) AS INTEGER) AS vsync,
+  max(name GLOB '*SF*') AS sf_callback_missed,
+  max(name GLOB '*HWUI*') AS hwui_callback_missed
+FROM slice
+WHERE
+  name GLOB '*FT#Missed*Callback*'
+GROUP BY
+  vsync;
 
 -- TODO(b/384322064) Match actual timeline slice with correct draw frame using layer name.
 -- All slices related to one frame. Aggregates `Choreographer#doFrame`,

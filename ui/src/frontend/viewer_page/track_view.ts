@@ -46,6 +46,7 @@ import {Trace} from '../../public/trace';
 import {Anchor} from '../../widgets/anchor';
 import {showModal} from '../../widgets/modal';
 import {copyToClipboard} from '../../base/clipboard';
+import {Popup} from '../../widgets/popup';
 
 const TRACK_HEIGHT_MIN_PX = 18;
 const TRACK_HEIGHT_DEFAULT_PX = 30;
@@ -58,7 +59,7 @@ function getTrackHeight(node: TrackNode, track?: TrackRenderer) {
   // compact to save space.
   if (node.isSummary && node.expanded) return TRACK_HEIGHT_DEFAULT_PX;
 
-  const trackHeight = track?.getHeight();
+  const trackHeight = track?.getHeight?.();
   if (trackHeight === undefined) return TRACK_HEIGHT_DEFAULT_PX;
 
   // Limit the minimum height of a track, and also round up to the nearest
@@ -122,10 +123,16 @@ export class TrackView {
     } = attrs;
     const {node, renderer, height} = this;
 
+    const description = renderer?.desc.description;
+
     const buttons = attrs.lite
       ? []
       : [
           renderer?.track.getTrackShellButtons?.(),
+          description !== undefined &&
+            this.renderHelpButton(
+              typeof description === 'function' ? description() : description,
+            ),
           (removable || node.removable) && this.renderCloseButton(),
           // We don't want summary tracks to be pinned as they rarely have
           // useful information.
@@ -153,7 +160,7 @@ export class TrackView {
       TrackShell,
       {
         id: node.id,
-        title: node.title,
+        title: node.name,
         subtitle: renderer?.desc.subtitle,
         ref: node.fullPath.join('/'),
         heightPx: height,
@@ -275,14 +282,21 @@ export class TrackView {
       right: trackRect.width,
     });
 
-    const start = performance.now();
+    const maybeNewResolution = calculateResolution(
+      visibleWindow,
+      trackRect.width,
+    );
+    if (!maybeNewResolution.ok) {
+      return;
+    }
 
+    const start = performance.now();
     node.uri &&
       renderer?.render({
         trackUri: node.uri,
         visibleWindow,
         size: trackRect,
-        resolution: calculateResolution(visibleWindow, trackRect.width),
+        resolution: maybeNewResolution.value,
         ctx,
         timescale,
       });
@@ -328,6 +342,20 @@ export class TrackView {
       title: isPinned ? 'Unpin' : 'Pin to top',
       compact: true,
     });
+  }
+
+  private renderHelpButton(helpText: m.Children): m.Children {
+    return m(
+      Popup,
+      {
+        trigger: m(Button, {
+          className: classNames('pf-visible-on-hover'),
+          icon: Icons.Help,
+          compact: true,
+        }),
+      },
+      helpText,
+    );
   }
 
   private renderTrackMenuButton(): m.Children {
@@ -611,14 +639,8 @@ function copyToWorkspace(trace: Trace, node: TrackNode, ws?: Workspace) {
 }
 
 function renderTrackDetailsMenu(node: TrackNode, descriptor?: Track) {
-  let parent = node.parent;
-  let fullPath: m.ChildArray = [node.title];
-  while (parent && parent instanceof TrackNode) {
-    fullPath = [parent.title, ' \u2023 ', ...fullPath];
-    parent = parent.parent;
-  }
-
-  const query = descriptor?.track.getDataset?.()?.query();
+  const fullPath = node.fullPath.join(' \u2023 ');
+  const query = descriptor?.renderer.getDataset?.()?.query();
 
   return m(
     '.pf-track__track-details-popup',
@@ -636,7 +658,7 @@ function renderTrackDetailsMenu(node: TrackNode, descriptor?: Track) {
         right: node.sortOrder ?? '0 (undefined)',
       }),
       m(TreeNode, {left: 'Path', right: fullPath}),
-      m(TreeNode, {left: 'Title', right: node.title}),
+      m(TreeNode, {left: 'Name', right: node.name}),
       m(TreeNode, {
         left: 'Workspace',
         right: node.workspace?.title ?? '[no workspace]',

@@ -43,13 +43,7 @@ class TracingMuxerFake : public TracingMuxer {
   TracingMuxerFake() : TracingMuxer(&FakePlatform::instance) {}
   ~TracingMuxerFake() override;
 
-  static constexpr TracingMuxerFake* Get() {
-#if PERFETTO_HAS_NO_DESTROY()
-    return &instance;
-#else
-    return nullptr;
-#endif
-  }
+  static constexpr TracingMuxerFake* Get() { return &instance; }
 
   // TracingMuxer implementation.
   bool RegisterDataSource(const DataSourceDescriptor&,

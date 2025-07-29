@@ -126,6 +126,7 @@ enum PerfettoTeHlExtraType {
   PERFETTO_TE_HL_EXTRA_TYPE_NO_INTERN = 16,
   PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS = 17,
   PERFETTO_TE_HL_EXTRA_TYPE_PROTO_TRACK = 18,
+  PERFETTO_TE_HL_EXTRA_TYPE_NESTED_TRACKS = 19,
 };
 
 // An extra event parameter. Each type of parameter should embed this as its
@@ -257,6 +258,51 @@ struct PerfettoTeHlExtraProtoTrack {
   uint64_t uuid;
   // Array of pointers to the fields. The last pointer should be NULL.
   struct PerfettoTeHlProtoField* const* fields;
+};
+
+// The type of a nested track
+enum PerfettoTeHlNestedTrackType {
+  PERFETTO_TE_HL_NESTED_TRACK_TYPE_NAMED = 1,
+  PERFETTO_TE_HL_NESTED_TRACK_TYPE_PROTO = 2,
+  PERFETTO_TE_HL_NESTED_TRACK_TYPE_REGISTERED = 3,
+  PERFETTO_TE_HL_NESTED_TRACK_TYPE_THREAD = 4,
+  PERFETTO_TE_HL_NESTED_TRACK_TYPE_PROCESS = 5,
+};
+
+struct PerfettoTeHlNestedTrack {
+  // enum PerfettoTeHlNestedTrackType
+  uint32_t type;
+};
+
+// PERFETTO_TE_HL_NESTED_TRACK_TYPE_NAMED
+struct PerfettoTeHlNestedTrackNamed {
+  struct PerfettoTeHlNestedTrack header;
+  const char* name;
+  // Partially identifies the track, along `name` and the parent hierarchy.
+  uint64_t id;
+};
+
+struct PerfettoTeHlNestedTrackProto {
+  struct PerfettoTeHlNestedTrack header;
+  // Partially identifies the track, along with the parent hierarchy.
+  uint64_t id;
+  // Array of pointers to the fields. The last pointer should be NULL.
+  struct PerfettoTeHlProtoField* const* fields;
+};
+
+struct PerfettoTeHlNestedTrackRegistered {
+  struct PerfettoTeHlNestedTrack header;
+  // Pointer to a registered track.
+  const struct PerfettoTeRegisteredTrackImpl* track;
+};
+
+// PERFETTO_TE_HL_EXTRA_TYPE_NESTED_TRACKS
+struct PerfettoTeHlExtraNestedTracks {
+  struct PerfettoTeHlExtra header;
+  // Array of pointers to the nested tracks. The last pointer should be NULL.
+  // The first pointer is the outermost track (the parent track), the (second
+  // to) last pointer is the innermost track (the child track).
+  struct PerfettoTeHlNestedTrack* const* tracks;
 };
 
 // Emits an event on all active instances of the track event data source.

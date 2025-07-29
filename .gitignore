@@ -11,11 +11,13 @@
 .env
 .eslintcache
 .gclient*
+.gemini
 .gm-actuals
 .gradle
 .idea
 .project
 .recipe_deps/
+.roo*
 .settings/
 .venv
 .vscode
@@ -36,5 +38,6 @@ examples/sdk/build/
 GPATH
 GRTAGS
 GTAGS
+mise.toml
 perf.data*
 TAGS

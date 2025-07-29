@@ -39,6 +39,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/system_info_tracker.h"
@@ -597,9 +598,9 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
     auto ppid = static_cast<uint32_t>(proc.ppid());
 
     if (proc.has_nspid()) {
-      std::vector<uint32_t> nspid;
+      std::vector<int64_t> nspid;
       for (auto nspid_it = proc.nspid(); nspid_it; nspid_it++) {
-        nspid.emplace_back(static_cast<uint32_t>(*nspid_it));
+        nspid.emplace_back(static_cast<int64_t>(*nspid_it));
       }
       context_->process_tracker->UpdateNamespacedProcess(pid, std::move(nspid));
     }
@@ -689,14 +690,15 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
 
     if (thd.has_name()) {
       StringId thread_name_id = context_->storage->InternString(thd.name());
+      auto utid = context_->process_tracker->GetOrCreateThread(tid);
       context_->process_tracker->UpdateThreadName(
-          tid, thread_name_id, ThreadNamePriority::kProcessTree);
+          utid, thread_name_id, ThreadNamePriority::kProcessTree);
     }
 
     if (thd.has_nstid()) {
-      std::vector<uint32_t> nstid;
+      std::vector<int64_t> nstid;
       for (auto nstid_it = thd.nstid(); nstid_it; nstid_it++) {
-        nstid.emplace_back(static_cast<uint32_t>(*nstid_it));
+        nstid.emplace_back(static_cast<int64_t>(*nstid_it));
       }
       context_->process_tracker->UpdateNamespacedThread(tgid, tid,
                                                         std::move(nstid));
@@ -705,11 +707,6 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
 }
 
 void SystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
-  // Maps a process counter field it to its value.
-  // E.g., 4 := 1024 -> "mem.rss.anon" := 1024.
-  // std::array<int64_t, kProcStatsProcessSize> counter_values{};
-  // std::array<bool, kProcStatsProcessSize> has_counter{};
-
   using Process = protos::pbzero::ProcessStats::Process;
   protos::pbzero::ProcessStats::Decoder stats(blob);
   for (auto it = stats.processes(); it; ++it) {
@@ -831,6 +828,7 @@ void SystemProbesParser::ParseProcessFds(int64_t ts,
 
 void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
   protos::pbzero::SystemInfo::Decoder packet(blob);
+  MachineTracker* machine_tracker = context_->machine_tracker.get();
   SystemInfoTracker* system_info_tracker =
       SystemInfoTracker::GetOrCreate(context_);
   if (packet.has_utsname()) {
@@ -857,6 +855,9 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
     StringPool::Id machine_id =
         context_->storage->InternString(utsname.machine());
 
+    machine_tracker->SetMachineInfo(sysname_id, release_id, version_id,
+                                    machine_id);
+
     MetadataTracker* metadata = context_->metadata_tracker.get();
     metadata->SetMetadata(metadata::system_name, Variadic::String(sysname_id));
     metadata->SetMetadata(metadata::system_version,
@@ -878,17 +879,21 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
   }
 
   if (packet.has_android_build_fingerprint()) {
+    auto android_build_fingerprint =
+        context_->storage->InternString(packet.android_build_fingerprint());
     context_->metadata_tracker->SetMetadata(
         metadata::android_build_fingerprint,
-        Variadic::String(context_->storage->InternString(
-            packet.android_build_fingerprint())));
+        Variadic::String(android_build_fingerprint));
+    machine_tracker->SetAndroidBuildFingerprint(android_build_fingerprint);
   }
 
   if (packet.has_android_device_manufacturer()) {
+    auto android_device_manufacturer =
+        context_->storage->InternString(packet.android_device_manufacturer());
     context_->metadata_tracker->SetMetadata(
         metadata::android_device_manufacturer,
-        Variadic::String(context_->storage->InternString(
-            packet.android_device_manufacturer())));
+        Variadic::String(android_device_manufacturer));
+    machine_tracker->SetAndroidDeviceManufacturer(android_device_manufacturer);
   }
 
   // If we have the SDK version in the trace directly just use that.
@@ -904,6 +909,7 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
   if (opt_sdk_version) {
     context_->metadata_tracker->SetMetadata(
         metadata::android_sdk_version, Variadic::Integer(*opt_sdk_version));
+    machine_tracker->SetAndroidSdkVersion(*opt_sdk_version);
   }
 
   if (packet.has_android_soc_model()) {
@@ -954,6 +960,7 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
   }
 
   if (packet.has_num_cpus()) {
+    machine_tracker->SetNumCpus(packet.num_cpus());
     system_info_tracker->SetNumCpus(packet.num_cpus());
   }
 }

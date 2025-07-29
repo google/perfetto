@@ -59,21 +59,23 @@ export default class implements PerfettoPlugin {
       const upid = it.upid;
       const threadName = it.threadName;
       const uri = `${getThreadUriPrefix(upid, utid)}_cpu_samples`;
-      const title = `${threadName} (CPU Stack Samples)`;
       ctx.tracks.registerTrack({
         uri,
-        title,
         tags: {
           kind: CPU_PROFILE_TRACK_KIND,
           utid,
           ...(exists(upid) && {upid}),
         },
-        track: createCpuProfileTrack(ctx, uri, utid),
+        renderer: createCpuProfileTrack(ctx, uri, utid),
       });
       const group = ctx.plugins
         .getPlugin(ProcessThreadGroupsPlugin)
         .getGroupForThread(utid);
-      const track = new TrackNode({uri, title, sortOrder: -40});
+      const track = new TrackNode({
+        uri,
+        name: `${threadName} (CPU Stack Samples)`,
+        sortOrder: -40,
+      });
       group?.addChildInOrder(track);
     }
 

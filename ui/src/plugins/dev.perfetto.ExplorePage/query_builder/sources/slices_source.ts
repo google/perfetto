@@ -21,73 +21,18 @@ import {
   QueryNodeState,
 } from '../../query_node';
 import {
-  ColumnControllerRow,
-  columnControllerRowFromSqlColumn,
-  newColumnControllerRows,
-} from '../column_controller';
+  ColumnInfo,
+  columnInfoFromSqlColumn,
+  newColumnInfoList,
+} from '../column_info';
 import protos from '../../../../protos';
-import {TextParagraph} from '../../../../widgets/text_paragraph';
 import {TextInput} from '../../../../widgets/text_input';
 import {SqlColumn} from '../../../dev.perfetto.SqlModules/sql_modules';
 import {TableAndColumnImpl} from '../../../dev.perfetto.SqlModules/sql_modules_impl';
 import {
   createFiltersProto,
   createGroupByProto,
-  Operator,
 } from '../operations/operation_component';
-
-const slicesCols: ColumnControllerRow[] = [
-  {
-    name: 'id',
-    type: {
-      name: 'ID(slice.id)',
-      shortName: 'id',
-      tableAndColumn: new TableAndColumnImpl('string', 'id'),
-    },
-  },
-  {
-    name: 'ts',
-    type: {
-      name: 'TIMESTAMP',
-      shortName: 'TIMESTAMP',
-    },
-  },
-  {
-    name: 'dur',
-    type: {
-      name: 'DURATION',
-      shortName: 'DURATION',
-    },
-  },
-  {
-    name: 'slice_name',
-    type: {
-      name: 'STRING',
-      shortName: 'STRING',
-    },
-  },
-  {
-    name: 'thread_name',
-    type: {
-      name: 'STRING',
-      shortName: 'STRING',
-    },
-  },
-  {
-    name: 'process_name',
-    type: {
-      name: 'STRING',
-      shortName: 'STRING',
-    },
-  },
-  {
-    name: 'track_name',
-    type: {
-      name: 'STRING',
-      shortName: 'STRING',
-    },
-  },
-].map((c) => columnControllerRowFromSqlColumn(c, true));
 
 export interface SlicesSourceAttrs extends QueryNodeState {
   slice_name?: string;
@@ -102,98 +47,38 @@ export class SlicesSourceNode implements QueryNode {
   nextNode?: QueryNode;
   readonly finished: boolean = true;
 
-  readonly sourceCols: ColumnControllerRow[];
-  readonly finalCols: ColumnControllerRow[];
+  readonly sourceCols: ColumnInfo[];
+  readonly finalCols: ColumnInfo[];
 
   readonly state: SlicesSourceAttrs;
 
   constructor(attrs: SlicesSourceAttrs) {
     this.state = attrs;
-
-    const cols: SqlColumn[] = [
-      {
-        name: 'id',
-        type: {
-          name: 'ID(slice.id)',
-          shortName: 'id',
-          tableAndColumn: new TableAndColumnImpl('string', 'id'),
-        },
-      },
-      {
-        name: 'ts',
-        type: {
-          name: 'TIMESTAMP',
-          shortName: 'TIMESTAMP',
-        },
-      },
-      {
-        name: 'dur',
-        type: {
-          name: 'DURATION',
-          shortName: 'DURATION',
-        },
-      },
-      {
-        name: 'slice_name',
-        type: {
-          name: 'STRING',
-          shortName: 'STRING',
-        },
-      },
-      {
-        name: 'thread_name',
-        type: {
-          name: 'STRING',
-          shortName: 'STRING',
-        },
-      },
-      {
-        name: 'process_name',
-        type: {
-          name: 'STRING',
-          shortName: 'STRING',
-        },
-      },
-      {
-        name: 'track_name',
-        type: {
-          name: 'STRING',
-          shortName: 'STRING',
-        },
-      },
-    ];
-    this.sourceCols = cols.map((c) =>
-      columnControllerRowFromSqlColumn(c, true),
-    );
-
+    this.sourceCols = slicesSourceNodeColumns(true);
     this.finalCols = createFinalColumns(this);
   }
 
-  getState(): QueryNodeState {
+  getStateCopy(): QueryNodeState {
     const newState: SlicesSourceAttrs = {
       slice_name: this.state.slice_name?.slice(),
       thread_name: this.state.thread_name?.slice(),
       process_name: this.state.process_name?.slice(),
       track_name: this.state.track_name?.slice(),
-      sourceCols: newColumnControllerRows(this.sourceCols),
-      groupByColumns: newColumnControllerRows(this.state.groupByColumns),
+      sourceCols: newColumnInfoList(this.sourceCols),
+      groupByColumns: newColumnInfoList(this.state.groupByColumns),
       filters: this.state.filters.map((f) => ({...f})),
       aggregations: this.state.aggregations.map((a) => ({...a})),
+      customTitle: this.state.customTitle,
     };
     return newState;
   }
 
   validate(): boolean {
-    return (
-      this.state.slice_name !== undefined ||
-      this.state.process_name !== undefined ||
-      this.state.thread_name !== undefined ||
-      this.state.track_name !== undefined
-    );
+    return true;
   }
 
   getTitle(): string {
-    return `Simple slices`;
+    return this.state.customTitle ?? 'Simple slices';
   }
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
@@ -210,7 +95,10 @@ export class SlicesSourceNode implements QueryNode {
 
     sq.simpleSlices = ss;
 
-    const filtersProto = createFiltersProto(this.state.filters);
+    const filtersProto = createFiltersProto(
+      this.state.filters,
+      this.sourceCols,
+    );
     if (filtersProto) sq.filters = filtersProto;
     const groupByProto = createGroupByProto(
       this.state.groupByColumns,
@@ -224,87 +112,128 @@ export class SlicesSourceNode implements QueryNode {
     return sq;
   }
 
-  getDetails(): m.Child {
-    const s: string[] = [];
-    if (this.state.slice_name) {
-      s.push(`slice name GLOB ${this.state.slice_name}`);
-    }
-    if (this.state.thread_name) {
-      s.push(`thread name GLOB ${this.state.thread_name}`);
-    }
-    if (this.state.process_name) {
-      s.push(`process name GLOB ${this.state.process_name}`);
-    }
-    if (this.state.track_name) {
-      s.push(`track name GLOB ${this.state.track_name}`);
-    }
-    return m(TextParagraph, {text: `Slices where ${s.join(' and ')}`});
-  }
-}
-
-export class SlicesSource implements m.ClassComponent<SlicesSourceAttrs> {
-  view({attrs}: m.CVnode<SlicesSourceAttrs>) {
-    if (attrs.sourceCols.length === 0) {
-      attrs.sourceCols = slicesCols;
-      attrs.groupByColumns = newColumnControllerRows(slicesCols, false);
-    }
+  nodeSpecificModify(): m.Child {
     return m(
       '',
       m(
-        '',
-        'Slice name glob ',
-        m(TextInput, {
-          id: 'slice_name_glob',
-          type: 'string',
-          oninput: (e: Event) => {
-            if (!e.target) return;
-            attrs.slice_name = (e.target as HTMLInputElement).value.trim();
-          },
-        }),
+        '.pf-slice-source-box',
+        m(
+          '.pf-slice-source-label',
+          m('span', 'Slice name'),
+          m(TextInput, {
+            id: 'slice_name_glob',
+            type: 'string',
+            placeholder: 'MySlice*',
+            oninput: (e: Event) => {
+              if (!e.target) return;
+              this.state.slice_name = (
+                e.target as HTMLInputElement
+              ).value.trim();
+            },
+          }),
+        ),
+        m(
+          '.pf-slice-source-label',
+          m('span', 'Thread name'),
+          m(TextInput, {
+            id: 'thread_name_glob',
+            type: 'string',
+            placeholder: 'RenderThread',
+            oninput: (e: Event) => {
+              if (!e.target) return;
+              this.state.thread_name = (
+                e.target as HTMLInputElement
+              ).value.trim();
+            },
+          }),
+        ),
+        m(
+          '.pf-slice-source-label',
+          m('span', 'Process name'),
+          m(TextInput, {
+            id: 'process_name_glob',
+            type: 'string',
+            placeholder: '*chrome*',
+            oninput: (e: Event) => {
+              if (!e.target) return;
+              this.state.process_name = (
+                e.target as HTMLInputElement
+              ).value.trim();
+            },
+          }),
+        ),
+        m(
+          '.pf-slice-source-label',
+          m('span', 'Track name'),
+          m(TextInput, {
+            id: 'track_name_glob',
+            type: 'string',
+            placeholder: 'SurfaceFlinger',
+            oninput: (e: Event) => {
+              if (!e.target) return;
+              this.state.track_name = (
+                e.target as HTMLInputElement
+              ).value.trim();
+            },
+          }),
+        ),
       ),
-      m(
-        '',
-        'Thread name glob ',
-        m(TextInput, {
-          id: 'thread_name_glob',
-          type: 'string',
-          oninput: (e: Event) => {
-            if (!e.target) return;
-            attrs.thread_name = (e.target as HTMLInputElement).value.trim();
-          },
-        }),
-      ),
-      m(
-        '',
-        'Process name glob ',
-        m(TextInput, {
-          id: 'process_name_glob',
-          type: 'string',
-          oninput: (e: Event) => {
-            if (!e.target) return;
-            attrs.process_name = (e.target as HTMLInputElement).value.trim();
-          },
-        }),
-      ),
-      m(
-        '',
-        'Track name glob ',
-        m(TextInput, {
-          id: 'track_name_glob',
-          type: 'string',
-          oninput: (e: Event) => {
-            if (!e.target) return;
-            attrs.track_name = (e.target as HTMLInputElement).value.trim();
-          },
-        }),
-      ),
-      m(Operator, {
-        filter: {sourceCols: attrs.sourceCols, filters: attrs.filters},
-        groupby: {
-          groupByColumns: attrs.groupByColumns,
-          aggregations: attrs.aggregations,
-        },
-      }),
     );
   }
+}
+
+export function slicesSourceNodeColumns(checked: boolean): ColumnInfo[] {
+  const cols: SqlColumn[] = [
+    {
+      name: 'id',
+      type: {
+        name: 'ID(slice.id)',
+        shortName: 'id',
+        tableAndColumn: new TableAndColumnImpl('string', 'id'),
+      },
+    },
+    {
+      name: 'ts',
+      type: {
+        name: 'TIMESTAMP',
+        shortName: 'TIMESTAMP',
+      },
+    },
+    {
+      name: 'dur',
+      type: {
+        name: 'DURATION',
+        shortName: 'DURATION',
+      },
+    },
+    {
+      name: 'slice_name',
+      type: {
+        name: 'STRING',
+        shortName: 'STRING',
+      },
+    },
+    {
+      name: 'thread_name',
+      type: {
+        name: 'STRING',
+        shortName: 'STRING',
+      },
+    },
+    {
+      name: 'process_name',
+      type: {
+        name: 'STRING',
+        shortName: 'STRING',
+      },
+    },
+    {
+      name: 'track_name',
+      type: {
+        name: 'STRING',
+        shortName: 'STRING',
+      },
+    },
+  ];
+  return cols.map((c) => columnInfoFromSqlColumn(c, checked));
 }

@@ -26,6 +26,7 @@ export type StandardGroup =
   | 'CPU'
   | 'GPU'
   | 'NETWORK'
+  | 'DEVICE_STATE'
   | 'SYSTEM';
 
 export default class implements PerfettoPlugin {
@@ -42,6 +43,7 @@ export default class implements PerfettoPlugin {
     IO: makeGroupNode('IO'),
     MEMORY: makeGroupNode('Memory'),
     NETWORK: makeGroupNode('Network'),
+    DEVICE_STATE: makeGroupNode('Device State'),
     SYSTEM: makeGroupNode('System'),
   };
 
@@ -67,6 +69,6 @@ export default class implements PerfettoPlugin {
   }
 }
 
-function makeGroupNode(title: string, collapsed = true) {
-  return new TrackNode({title, isSummary: true, collapsed});
+function makeGroupNode(name: string, collapsed = true) {
+  return new TrackNode({name, isSummary: true, collapsed});
 }

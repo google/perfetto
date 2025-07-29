@@ -78,6 +78,7 @@ source_set("common") {
     "virtual_memory_mapping.h",
   ]
   public_deps = [
+    ":synthetic_tid_hdr",
     ":trace_parser_hdr",
     "../../util:proto_to_args_parser",
     "../../util:protozero_to_text",
@@ -93,7 +94,7 @@ source_set("common") {
     "../../../base",
     "../../../protozero",
     "../../containers",
-    "../../db:minimal",
+    "../../dataframe",
     "../../storage",
     "../../tables:tables",
     "../../types",
@@ -107,7 +108,10 @@ source_set("common") {
 
 source_set("trace_parser_hdr") {
   sources = [ "trace_parser.h" ]
-  deps = [ "../../../../gn:default_deps" ]
+  deps = [
+    ":parser_types",
+    "../../../../gn:default_deps",
+  ]
 }
 
 source_set("parser_types") {
@@ -118,6 +122,11 @@ source_set("parser_types") {
     "../../containers",
     "../proto:packet_sequence_state_generation_hdr",
   ]
+}
+
+source_set("synthetic_tid_hdr") {
+  sources = [ "synthetic_tid.h" ]
+  deps = [ "../../../../gn:default_deps" ]
 }
 
 source_set("unittests") {

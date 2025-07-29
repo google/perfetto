@@ -1,5 +1,6 @@
 # Persistent tracing configuration. Only enabled on some devices for debugging
-# purposes when the property persist.debug.perfetto.persistent is set to 1.
+# purposes when the property
+# persist.debug.perfetto.persistent_sysui_tracing_for_bugreport is set to 1.
 
 bugreport_score: 5
 bugreport_filename: "sysui.pftrace"
@@ -38,7 +39,7 @@ data_sources: {
     name: "android.surfaceflinger.transactions"
     target_buffer: 0
     surfaceflinger_transactions_config: {
-      mode: MODE_ACTIVE
+      mode: MODE_CONTINUOUS
     }
   }
 }

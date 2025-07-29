@@ -28,6 +28,8 @@ executable("trace_redactor") {
 
 source_set("trace_redaction") {
   sources = [
+    "add_synth_threads_to_process_trees.cc",
+    "add_synth_threads_to_process_trees.h",
     "broadphase_packet_filter.cc",
     "broadphase_packet_filter.h",
     "collect_frame_cookies.cc",
@@ -36,6 +38,8 @@ source_set("trace_redaction") {
     "collect_system_info.h",
     "collect_timeline_events.cc",
     "collect_timeline_events.h",
+    "drop_empty_ftrace_events.cc",
+    "drop_empty_ftrace_events.h",
     "filtering.cc",
     "filtering.h",
     "find_package_uid.cc",
@@ -57,10 +61,10 @@ source_set("trace_redaction") {
     "redact_ftrace_events.h",
     "redact_process_events.cc",
     "redact_process_events.h",
-    "redact_process_trees.cc",
-    "redact_process_trees.h",
     "redact_sched_events.cc",
     "redact_sched_events.h",
+    "reduce_threads_in_process_trees.cc",
+    "reduce_threads_in_process_trees.h",
     "scrub_process_stats.cc",
     "scrub_process_stats.h",
     "trace_redaction_framework.cc",
@@ -82,7 +86,6 @@ source_set("trace_redaction") {
     "../../protos/perfetto/trace/ftrace:zero",
     "../../protos/perfetto/trace/ps:zero",
     "../trace_processor:storage_minimal",
-    "../trace_processor/util:util",
   ]
 }
 
@@ -95,8 +98,8 @@ source_set("integrationtests") {
     "filter_task_rename_integrationtest.cc",
     "process_thread_timeline_integrationtest.cc",
     "prune_package_list_integrationtest.cc",
-    "redact_process_trees_integrationtest.cc",
     "redact_sched_events_integrationtest.cc",
+    "reduce_threads_in_process_trees_integrationtest.cc",
     "scrub_process_stats_integrationtest.cc",
     "trace_processor_integrationtest.cc",
     "trace_redaction_integration_fixture.cc",
@@ -152,6 +155,5 @@ perfetto_unittest_source_set("unittests") {
     "../../protos/perfetto/trace/ps:cpp",
     "../../protos/perfetto/trace/ps:zero",
     "../base:test_support",
-    "../trace_processor/util:util",
   ]
 }

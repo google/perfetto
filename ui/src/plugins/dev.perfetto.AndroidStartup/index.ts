@@ -82,10 +82,9 @@ export default class implements PerfettoPlugin {
     });
     ctx.tracks.registerTrack({
       uri,
-      title,
-      track,
+      renderer: track,
     });
     // Needs a sort order lower than 'Ftrace Events' so that it is prioritized in the UI.
-    return new TrackNode({title, uri, sortOrder: -6});
+    return new TrackNode({name: title, uri, sortOrder: -6});
   }
 }

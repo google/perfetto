@@ -252,6 +252,31 @@ TEST(StructuredQueryGeneratorTest, SqlSourceWithPreamble) {
               UnorderedElementsAre("SELECT 1; SELECT 2;"));
 }
 
+TEST(StructuredQueryGeneratorTest, SqlSourceWithMultistatement) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    sql: {
+      sql: "; ;SELECT 1; SELECT 2;; SELECT id, ts, dur FROM slice"
+      column_names: "id"
+      column_names: "ts"
+      column_names: "dur"
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res, EqualsIgnoringWhitespace(R"(
+    WITH sq_0 AS (
+      SELECT * FROM (
+        SELECT id, ts, dur
+        FROM (SELECT id, ts, dur FROM slice)
+      )
+    )
+    SELECT * FROM sq_0
+    )"));
+  ASSERT_THAT(gen.ComputePreambles(),
+              UnorderedElementsAre("SELECT 1; SELECT 2;; "));
+}
+
 TEST(StructuredQueryGeneratorTest, IntervalIntersectSource) {
   StructuredQueryGenerator gen;
   auto proto = ToProto(R"(
@@ -353,6 +378,72 @@ TEST(StructuredQueryGeneratorTest, ColumnSelection) {
       FROM thread_slice)
     SELECT * FROM sq_table_source_thread_slice
   )"));
+}
+
+TEST(StructuredQueryGeneratorTest, Median) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    id: "table_source_thread_slice"
+    table: {
+      table_name: "thread_slice"
+      module_name: "slices.with_context"
+      column_names: "name"
+      column_names: "dur"
+    }
+    group_by: {
+      column_names: "name"
+      aggregates: {
+        column_name: "dur"
+        op: MEDIAN
+        result_column_name: "cheese"
+      }
+    }
+  )");
+  auto ret = gen.Generate(proto.data(), proto.size());
+  ASSERT_OK_AND_ASSIGN(std::string res, ret);
+  ASSERT_THAT(res.c_str(), EqualsIgnoringWhitespace(R"(
+    WITH sq_table_source_thread_slice AS
+      (SELECT
+        name,
+        PERCENTILE(dur, 50) AS cheese
+      FROM thread_slice
+      GROUP BY name)
+    SELECT * FROM sq_table_source_thread_slice
+  )"));
+}
+
+TEST(StructuredQueryGeneratorTest, CycleDetection) {
+  StructuredQueryGenerator gen;
+  auto proto_a = ToProto(R"(
+    id: "a"
+    inner_query_id: "b"
+  )");
+  ASSERT_OK(gen.AddQuery(proto_a.data(), proto_a.size()));
+
+  auto proto_b = ToProto(R"(
+    id: "b"
+    inner_query_id: "a"
+  )");
+  ASSERT_OK(gen.AddQuery(proto_b.data(), proto_b.size()));
+
+  auto ret = gen.GenerateById("a");
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Cycle detected in structured query"));
+}
+
+TEST(StructuredQueryGeneratorTest, SelfCycleDetection) {
+  StructuredQueryGenerator gen;
+  auto proto = ToProto(R"(
+    id: "a"
+    inner_query_id: "a"
+  )");
+  ASSERT_OK(gen.AddQuery(proto.data(), proto.size()));
+
+  auto ret = gen.GenerateById("a");
+  ASSERT_FALSE(ret.ok());
+  ASSERT_THAT(ret.status().message(),
+              testing::HasSubstr("Cycle detected in structured query"));
 }
 
 }  // namespace

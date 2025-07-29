@@ -13,7 +13,8 @@
 # limitations under the License.
 """Contains tables for relevant for TODO."""
 
-from python.generators.trace_processor_table.public import Column as C
+from python.generators.trace_processor_table.public import Column as C, CppAccessDuration
+from python.generators.trace_processor_table.public import CppAccess
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import CppTableId
@@ -28,10 +29,30 @@ FLOW_TABLE = Table(
     class_name='FlowTable',
     sql_name='flow',
     columns=[
-        C('slice_out', CppTableId(SLICE_TABLE)),
-        C('slice_in', CppTableId(SLICE_TABLE)),
-        C('trace_id', CppOptional(CppInt64())),
-        C('arg_set_id', CppOptional(CppUint32())),
+        C(
+            'slice_out',
+            CppTableId(SLICE_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'slice_in',
+            CppTableId(SLICE_TABLE),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'trace_id',
+            CppOptional(CppInt64()),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''''',

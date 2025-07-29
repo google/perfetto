@@ -15,16 +15,17 @@
 
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import ColumnDoc
+from python.generators.trace_processor_table.public import CppAccess
+from python.generators.trace_processor_table.public import CppAccessDuration
 from python.generators.trace_processor_table.public import CppDouble
 from python.generators.trace_processor_table.public import CppInt32
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppString
-from python.generators.trace_processor_table.public import Table
-from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
-from python.generators.trace_processor_table.public import WrappingSqlView
+from python.generators.trace_processor_table.public import Table
+from python.generators.trace_processor_table.public import TableDoc
 
 from src.trace_processor.tables.metadata_tables import THREAD_TABLE
 
@@ -33,11 +34,11 @@ ANDROID_LOG_TABLE = Table(
     class_name="AndroidLogTable",
     sql_name="__intrinsic_android_logs",
     columns=[
-        C("ts", CppInt64()),
-        C("utid", CppTableId(THREAD_TABLE)),
-        C("prio", CppUint32()),
-        C("tag", CppOptional(CppString())),
-        C("msg", CppString()),
+        C("ts", CppInt64(), cpp_access=CppAccess.READ),
+        C("utid", CppTableId(THREAD_TABLE), cpp_access=CppAccess.READ),
+        C("prio", CppUint32(), cpp_access=CppAccess.READ),
+        C("tag", CppOptional(CppString()), cpp_access=CppAccess.READ),
+        C("msg", CppString(), cpp_access=CppAccess.READ),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -53,7 +54,9 @@ ANDROID_LOG_TABLE = Table(
             'prio': 'Priority of the log. 3=DEBUG, 4=INFO, 5=WARN, 6=ERROR.',
             'tag': 'Tag of the log entry.',
             'msg': 'Content of the log entry.'
-        }))
+        },
+    ),
+)
 
 ANDROID_GAME_INTERVENTION_LIST_TABLE = Table(
     python_module=__file__,
@@ -126,7 +129,9 @@ ANDROID_GAME_INTERVENTION_LIST_TABLE = Table(
                     frame rate that the game is throttled at in battery
                     mode.
                 '''
-        }))
+        },
+    ),
+)
 
 ANDROID_DUMPSTATE_TABLE = Table(
     python_module=__file__,
@@ -155,7 +160,9 @@ ANDROID_DUMPSTATE_TABLE = Table(
                     line-by-line contents of the section/service,
                     one row per line.
                 '''
-        }))
+        },
+    ),
+)
 
 ANDROID_MOTION_EVENTS_TABLE = Table(
     python_module=__file__,
@@ -164,8 +171,21 @@ ANDROID_MOTION_EVENTS_TABLE = Table(
     columns=[
         C('event_id', CppUint32()),
         C('ts', CppInt64()),
-        C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto_id', CppOptional(CppUint32())),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'base64_proto_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C('source', CppOptional(CppUint32())),
+        C('action', CppOptional(CppInt64())),
+        C('device_id', CppOptional(CppInt64())),
+        C('display_id', CppOptional(CppInt64())),
     ],
     tabledoc=TableDoc(
         doc='Contains Android MotionEvents processed by the system',
@@ -184,7 +204,17 @@ ANDROID_MOTION_EVENTS_TABLE = Table(
                     joinable='args.arg_set_id'),
             'base64_proto_id':
                 'String id for raw proto message',
-        }))
+            'source':
+                'Input source e.g. touchscreen, keyboard',
+            'action':
+                'Input action e.g. move, down',
+            'device_id':
+                'Device id',
+            'display_id':
+                'Display id',
+        },
+    ),
+)
 
 ANDROID_KEY_EVENTS_TABLE = Table(
     python_module=__file__,
@@ -193,8 +223,22 @@ ANDROID_KEY_EVENTS_TABLE = Table(
     columns=[
         C('event_id', CppUint32()),
         C('ts', CppInt64()),
-        C('arg_set_id', CppOptional(CppUint32())),
-        C('base64_proto_id', CppOptional(CppUint32())),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
+        C(
+            'base64_proto_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C('source', CppOptional(CppUint32())),
+        C('action', CppOptional(CppInt64())),
+        C('device_id', CppOptional(CppInt64())),
+        C('display_id', CppOptional(CppInt64())),
+        C('key_code', CppOptional(CppInt64())),
     ],
     tabledoc=TableDoc(
         doc='Contains Android KeyEvents processed by the system',
@@ -213,7 +257,19 @@ ANDROID_KEY_EVENTS_TABLE = Table(
                     joinable='args.arg_set_id'),
             'base64_proto_id':
                 'String id for raw proto message',
-        }))
+            'source':
+                'Input source e.g. touchscreen, keyboard',
+            'action':
+                'Input action e.g. move, down',
+            'device_id':
+                'Device id',
+            'display_id':
+                'Display id',
+            'key_code':
+                'Key code',
+        },
+    ),
+)
 
 ANDROID_INPUT_EVENT_DISPATCH_TABLE = Table(
     python_module=__file__,
@@ -221,10 +277,19 @@ ANDROID_INPUT_EVENT_DISPATCH_TABLE = Table(
     sql_name='__intrinsic_android_input_event_dispatch',
     columns=[
         C('event_id', CppUint32()),
-        C('arg_set_id', CppOptional(CppUint32())),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+        ),
         C('vsync_id', CppInt64()),
         C('window_id', CppInt32()),
-        C('base64_proto_id', CppOptional(CppUint32())),
+        C(
+            'base64_proto_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -251,7 +316,9 @@ ANDROID_INPUT_EVENT_DISPATCH_TABLE = Table(
                 'The id of the window to which the event was dispatched.',
             'base64_proto_id':
                 'String id for raw proto message',
-        }))
+        },
+    ),
+)
 
 # Keep this list sorted.
 ALL_TABLES = [

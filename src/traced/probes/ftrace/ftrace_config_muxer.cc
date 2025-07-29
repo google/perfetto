@@ -65,21 +65,10 @@ constexpr const char* kClocks[] = {"boot", "global", "local"};
 // Enabled by the "use_monotonic_raw_clock" option in the ftrace config.
 constexpr const char* kClockMonoRaw = "mono_raw";
 
-void AddEventGroup(const ProtoTranslationTable* table,
-                   const std::string& group,
-                   std::set<GroupAndName>* to) {
-  const std::vector<const Event*>* events = table->GetEventsByGroup(group);
-  if (!events)
-    return;
-  for (const Event* event : *events)
-    to->insert(GroupAndName(group, event->name));
-}
-
-std::set<GroupAndName> ReadEventsInGroupFromFs(
-    const FtraceProcfs& ftrace_procfs,
-    const std::string& group) {
+std::set<GroupAndName> ReadEventsInGroupFromFs(const Tracefs& tracefs,
+                                               const std::string& group) {
   std::set<std::string> names =
-      ftrace_procfs.GetEventNamesForGroup("events/" + group);
+      tracefs.GetEventNamesForGroup("events/" + group);
   std::set<GroupAndName> events;
   for (const auto& name : names)
     events.insert(GroupAndName(group, name));
@@ -205,316 +194,30 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
       events.insert(GroupAndName(group, name));
     }
   }
+
   if (RequiresAtrace(request)) {
     InsertEvent("ftrace", "print", &events);
-
-    // Ideally we should keep this code in sync with:
-    // platform/frameworks/native/cmds/atrace/atrace.cpp
-    // It's not a disaster if they go out of sync, we can always add the ftrace
-    // categories manually server side but this is user friendly and reduces the
-    // size of the configs.
+  }
+  if (!request.atrace_userspace_only()) {
+    // Legacy: some atrace categories enable not just userspace tracing, but
+    // also a predefined set of kernel tracepoints, as that's what the original
+    // "atrace" binary did.
     for (const std::string& category : request.atrace_categories()) {
-      if (category == "gfx") {
-        AddEventGroup(table, "mdss", &events);
-        InsertEvent("mdss", "rotator_bw_ao_as_context", &events);
-        InsertEvent("mdss", "mdp_trace_counter", &events);
-        InsertEvent("mdss", "tracing_mark_write", &events);
-        InsertEvent("mdss", "mdp_cmd_wait_pingpong", &events);
-        InsertEvent("mdss", "mdp_cmd_kickoff", &events);
-        InsertEvent("mdss", "mdp_cmd_release_bw", &events);
-        InsertEvent("mdss", "mdp_cmd_readptr_done", &events);
-        InsertEvent("mdss", "mdp_cmd_pingpong_done", &events);
-        InsertEvent("mdss", "mdp_misr_crc", &events);
-        InsertEvent("mdss", "mdp_compare_bw", &events);
-        InsertEvent("mdss", "mdp_perf_update_bus", &events);
-        InsertEvent("mdss", "mdp_video_underrun_done", &events);
-        InsertEvent("mdss", "mdp_commit", &events);
-        InsertEvent("mdss", "mdp_mixer_update", &events);
-        InsertEvent("mdss", "mdp_perf_prefill_calc", &events);
-        InsertEvent("mdss", "mdp_perf_set_ot", &events);
-        InsertEvent("mdss", "mdp_perf_set_wm_levels", &events);
-        InsertEvent("mdss", "mdp_perf_set_panic_luts", &events);
-        InsertEvent("mdss", "mdp_perf_set_qos_luts", &events);
-        InsertEvent("mdss", "mdp_sspp_change", &events);
-        InsertEvent("mdss", "mdp_sspp_set", &events);
-        AddEventGroup(table, "mali", &events);
-        InsertEvent("mali", "tracing_mark_write", &events);
-
-        AddEventGroup(table, "sde", &events);
-        InsertEvent("sde", "tracing_mark_write", &events);
-        InsertEvent("sde", "sde_perf_update_bus", &events);
-        InsertEvent("sde", "sde_perf_set_qos_luts", &events);
-        InsertEvent("sde", "sde_perf_set_ot", &events);
-        InsertEvent("sde", "sde_perf_set_danger_luts", &events);
-        InsertEvent("sde", "sde_perf_crtc_update", &events);
-        InsertEvent("sde", "sde_perf_calc_crtc", &events);
-        InsertEvent("sde", "sde_evtlog", &events);
-        InsertEvent("sde", "sde_encoder_underrun", &events);
-        InsertEvent("sde", "sde_cmd_release_bw", &events);
-
-        AddEventGroup(table, "dpu", &events);
-        InsertEvent("dpu", "tracing_mark_write", &events);
-        InsertEvent("dpu", "disp_dpu_underrun", &events);
-
-        AddEventGroup(table, "g2d", &events);
-        InsertEvent("g2d", "tracing_mark_write", &events);
-        InsertEvent("g2d", "g2d_perf_update_qos", &events);
-
-        AddEventGroup(table, "panel", &events);
-        InsertEvent("panel", "panel_write_generic", &events);
-        continue;
-      }
-
-      if (category == "ion") {
-        InsertEvent("kmem", "ion_alloc_buffer_start", &events);
-        continue;
-      }
-
-      // Note: sched_wakeup intentionally removed (diverging from atrace), as it
-      // is high-volume, but mostly redundant when sched_waking is also enabled.
-      // The event can still be enabled explicitly when necessary.
-      if (category == "sched") {
-        InsertEvent("sched", "sched_switch", &events);
-        InsertEvent("sched", "sched_waking", &events);
-        InsertEvent("sched", "sched_blocked_reason", &events);
-        InsertEvent("sched", "sched_cpu_hotplug", &events);
-        InsertEvent("sched", "sched_pi_setprio", &events);
-        InsertEvent("sched", "sched_process_exit", &events);
-        AddEventGroup(table, "cgroup", &events);
-        InsertEvent("cgroup", "cgroup_transfer_tasks", &events);
-        InsertEvent("cgroup", "cgroup_setup_root", &events);
-        InsertEvent("cgroup", "cgroup_rmdir", &events);
-        InsertEvent("cgroup", "cgroup_rename", &events);
-        InsertEvent("cgroup", "cgroup_remount", &events);
-        InsertEvent("cgroup", "cgroup_release", &events);
-        InsertEvent("cgroup", "cgroup_mkdir", &events);
-        InsertEvent("cgroup", "cgroup_destroy_root", &events);
-        InsertEvent("cgroup", "cgroup_attach_task", &events);
-        InsertEvent("oom", "oom_score_adj_update", &events);
-        InsertEvent("task", "task_rename", &events);
-        InsertEvent("task", "task_newtask", &events);
-
-        AddEventGroup(table, "systrace", &events);
-        InsertEvent("systrace", "0", &events);
-
-        AddEventGroup(table, "scm", &events);
-        InsertEvent("scm", "scm_call_start", &events);
-        InsertEvent("scm", "scm_call_end", &events);
-        continue;
-      }
-
-      if (category == "irq") {
-        AddEventGroup(table, "irq", &events);
-        InsertEvent("irq", "tasklet_hi_exit", &events);
-        InsertEvent("irq", "tasklet_hi_entry", &events);
-        InsertEvent("irq", "tasklet_exit", &events);
-        InsertEvent("irq", "tasklet_entry", &events);
-        InsertEvent("irq", "softirq_raise", &events);
-        InsertEvent("irq", "softirq_exit", &events);
-        InsertEvent("irq", "softirq_entry", &events);
-        InsertEvent("irq", "irq_handler_exit", &events);
-        InsertEvent("irq", "irq_handler_entry", &events);
-        AddEventGroup(table, "ipi", &events);
-        InsertEvent("ipi", "ipi_raise", &events);
-        InsertEvent("ipi", "ipi_exit", &events);
-        InsertEvent("ipi", "ipi_entry", &events);
-        continue;
-      }
-
-      if (category == "irqoff") {
-        InsertEvent("preemptirq", "irq_enable", &events);
-        InsertEvent("preemptirq", "irq_disable", &events);
-        continue;
-      }
-
-      if (category == "preemptoff") {
-        InsertEvent("preemptirq", "preempt_enable", &events);
-        InsertEvent("preemptirq", "preempt_disable", &events);
-        continue;
-      }
-
-      if (category == "i2c") {
-        AddEventGroup(table, "i2c", &events);
-        InsertEvent("i2c", "i2c_read", &events);
-        InsertEvent("i2c", "i2c_write", &events);
-        InsertEvent("i2c", "i2c_result", &events);
-        InsertEvent("i2c", "i2c_reply", &events);
-        InsertEvent("i2c", "smbus_read", &events);
-        InsertEvent("i2c", "smbus_write", &events);
-        InsertEvent("i2c", "smbus_result", &events);
-        InsertEvent("i2c", "smbus_reply", &events);
-        continue;
-      }
-
-      if (category == "freq") {
-        InsertEvent("power", "cpu_frequency", &events);
-        InsertEvent("power", "gpu_frequency", &events);
-        InsertEvent("power", "clock_set_rate", &events);
-        InsertEvent("power", "clock_disable", &events);
-        InsertEvent("power", "clock_enable", &events);
-        InsertEvent("clk", "clk_set_rate", &events);
-        InsertEvent("clk", "clk_disable", &events);
-        InsertEvent("clk", "clk_enable", &events);
-        InsertEvent("power", "cpu_frequency_limits", &events);
-        InsertEvent("power", "suspend_resume", &events);
-        InsertEvent("cpuhp", "cpuhp_enter", &events);
-        InsertEvent("cpuhp", "cpuhp_exit", &events);
-        InsertEvent("cpuhp", "cpuhp_pause", &events);
-        AddEventGroup(table, "msm_bus", &events);
-        InsertEvent("msm_bus", "bus_update_request_end", &events);
-        InsertEvent("msm_bus", "bus_update_request", &events);
-        InsertEvent("msm_bus", "bus_rules_matches", &events);
-        InsertEvent("msm_bus", "bus_max_votes", &events);
-        InsertEvent("msm_bus", "bus_client_status", &events);
-        InsertEvent("msm_bus", "bus_bke_params", &events);
-        InsertEvent("msm_bus", "bus_bimc_config_limiter", &events);
-        InsertEvent("msm_bus", "bus_avail_bw", &events);
-        InsertEvent("msm_bus", "bus_agg_bw", &events);
-        continue;
-      }
-
-      if (category == "membus") {
-        AddEventGroup(table, "memory_bus", &events);
-        continue;
-      }
-
-      if (category == "idle") {
-        InsertEvent("power", "cpu_idle", &events);
-        continue;
-      }
-
-      if (category == "disk") {
-        InsertEvent("f2fs", "f2fs_sync_file_enter", &events);
-        InsertEvent("f2fs", "f2fs_sync_file_exit", &events);
-        InsertEvent("f2fs", "f2fs_write_begin", &events);
-        InsertEvent("f2fs", "f2fs_write_end", &events);
-        InsertEvent("f2fs", "f2fs_iostat", &events);
-        InsertEvent("f2fs", "f2fs_iostat_latency", &events);
-        InsertEvent("ext4", "ext4_da_write_begin", &events);
-        InsertEvent("ext4", "ext4_da_write_end", &events);
-        InsertEvent("ext4", "ext4_sync_file_enter", &events);
-        InsertEvent("ext4", "ext4_sync_file_exit", &events);
-        InsertEvent("block", "block_bio_queue", &events);
-        InsertEvent("block", "block_bio_complete", &events);
-        InsertEvent("ufs", "ufshcd_command", &events);
-        continue;
-      }
-
-      if (category == "mmc") {
-        AddEventGroup(table, "mmc", &events);
-        continue;
-      }
-
-      if (category == "load") {
-        AddEventGroup(table, "cpufreq_interactive", &events);
-        continue;
-      }
-
-      if (category == "sync") {
-        // linux kernel < 4.9
-        AddEventGroup(table, "sync", &events);
-        InsertEvent("sync", "sync_pt", &events);
-        InsertEvent("sync", "sync_timeline", &events);
-        InsertEvent("sync", "sync_wait", &events);
-        // linux kernel == 4.9.x
-        AddEventGroup(table, "fence", &events);
-        InsertEvent("fence", "fence_annotate_wait_on", &events);
-        InsertEvent("fence", "fence_destroy", &events);
-        InsertEvent("fence", "fence_emit", &events);
-        InsertEvent("fence", "fence_enable_signal", &events);
-        InsertEvent("fence", "fence_init", &events);
-        InsertEvent("fence", "fence_signaled", &events);
-        InsertEvent("fence", "fence_wait_end", &events);
-        InsertEvent("fence", "fence_wait_start", &events);
-        // linux kernel > 4.9
-        AddEventGroup(table, "dma_fence", &events);
-        continue;
-      }
-
-      if (category == "workq") {
-        AddEventGroup(table, "workqueue", &events);
-        InsertEvent("workqueue", "workqueue_queue_work", &events);
-        InsertEvent("workqueue", "workqueue_execute_start", &events);
-        InsertEvent("workqueue", "workqueue_execute_end", &events);
-        InsertEvent("workqueue", "workqueue_activate_work", &events);
-        continue;
-      }
-
-      if (category == "memreclaim") {
-        InsertEvent("vmscan", "mm_vmscan_direct_reclaim_begin", &events);
-        InsertEvent("vmscan", "mm_vmscan_direct_reclaim_end", &events);
-        InsertEvent("vmscan", "mm_vmscan_kswapd_wake", &events);
-        InsertEvent("vmscan", "mm_vmscan_kswapd_sleep", &events);
-        AddEventGroup(table, "lowmemorykiller", &events);
-        InsertEvent("lowmemorykiller", "lowmemory_kill", &events);
-        continue;
-      }
-
-      if (category == "regulators") {
-        AddEventGroup(table, "regulator", &events);
-        events.insert(
-            GroupAndName("regulator", "regulator_set_voltage_complete"));
-        InsertEvent("regulator", "regulator_set_voltage", &events);
-        InsertEvent("regulator", "regulator_enable_delay", &events);
-        InsertEvent("regulator", "regulator_enable_complete", &events);
-        InsertEvent("regulator", "regulator_enable", &events);
-        InsertEvent("regulator", "regulator_disable_complete", &events);
-        InsertEvent("regulator", "regulator_disable", &events);
-        continue;
-      }
-
-      if (category == "binder_driver") {
-        InsertEvent("binder", "binder_transaction", &events);
-        InsertEvent("binder", "binder_transaction_received", &events);
-        InsertEvent("binder", "binder_transaction_alloc_buf", &events);
-        InsertEvent("binder", "binder_set_priority", &events);
-        continue;
-      }
-
-      if (category == "binder_lock") {
-        InsertEvent("binder", "binder_lock", &events);
-        InsertEvent("binder", "binder_locked", &events);
-        InsertEvent("binder", "binder_unlock", &events);
-        continue;
-      }
-
-      if (category == "pagecache") {
-        AddEventGroup(table, "filemap", &events);
-        events.insert(
-            GroupAndName("filemap", "mm_filemap_delete_from_page_cache"));
-        InsertEvent("filemap", "mm_filemap_add_to_page_cache", &events);
-        InsertEvent("filemap", "filemap_set_wb_err", &events);
-        InsertEvent("filemap", "file_check_and_advance_wb_err", &events);
-        continue;
-      }
-
-      if (category == "memory") {
-        // Use rss_stat_throttled if supported
-        if (ftrace_->SupportsRssStatThrottled()) {
-          InsertEvent("synthetic", "rss_stat_throttled", &events);
-        } else {
-          InsertEvent("kmem", "rss_stat", &events);
+      if (predefined_events_.count(category)) {
+        for (const GroupAndName& event : predefined_events_[category]) {
+          events.insert(event);
         }
-        InsertEvent("kmem", "ion_heap_grow", &events);
-        InsertEvent("kmem", "ion_heap_shrink", &events);
-        // ion_stat supersedes ion_heap_grow / shrink for kernel 4.19+
-        InsertEvent("ion", "ion_stat", &events);
-        InsertEvent("mm_event", "mm_event_record", &events);
-        InsertEvent("dmabuf_heap", "dma_heap_stat", &events);
-        InsertEvent("gpu_mem", "gpu_mem_total", &events);
-        continue;
       }
+    }
 
-      if (category == "thermal") {
-        InsertEvent("thermal", "thermal_temperature", &events);
-        InsertEvent("thermal", "cdev_update", &events);
-        continue;
-      }
-
-      if (category == "camera") {
-        AddEventGroup(table, "lwis", &events);
-        InsertEvent("lwis", "tracing_mark_write", &events);
-        continue;
+    // Android: vendors can provide a set of extra ftrace categories to be
+    // enabled when a specific atrace category is used
+    // (e.g. "gfx" -> ["my_hw/my_custom_event", "my_hw/my_special_gpu"]).
+    for (const std::string& category : request.atrace_categories()) {
+      if (vendor_events_.count(category)) {
+        for (const GroupAndName& event : vendor_events_[category]) {
+          events.insert(event);
+        }
       }
     }
   }
@@ -657,10 +360,11 @@ void FtraceConfigMuxer::EnableFtraceEvent(const Event* event,
 }
 
 FtraceConfigMuxer::FtraceConfigMuxer(
-    FtraceProcfs* ftrace,
+    Tracefs* ftrace,
     AtraceWrapper* atrace_wrapper,
     ProtoTranslationTable* table,
     SyscallTable syscalls,
+    std::map<std::string, base::FlatSet<GroupAndName>> predefined_events,
     std::map<std::string, std::vector<GroupAndName>> vendor_events,
     bool secondary_instance)
     : ftrace_(ftrace),
@@ -668,6 +372,7 @@ FtraceConfigMuxer::FtraceConfigMuxer(
       table_(table),
       syscalls_(syscalls),
       current_state_(),
+      predefined_events_(std::move(predefined_events)),
       vendor_events_(std::move(vendor_events)),
       secondary_instance_(secondary_instance) {}
 FtraceConfigMuxer::~FtraceConfigMuxer() = default;
@@ -695,37 +400,25 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
     current_state_.saved_tracing_on = ftrace_->GetTracingOn();
     if (!request.preserve_ftrace_buffer()) {
       ftrace_->SetTracingOn(false);
-      // This will fail on release ("user") builds due to ACLs, but that's
-      // acceptable since the per-event enabling/disabling should still be
-      // balanced.
+      // Android: this will fail on release ("user") builds due to ACLs, but
+      // that's acceptable since the per-event enabling/disabling should still
+      // be balanced.
       ftrace_->DisableAllEvents();
       ftrace_->ClearTrace();
     }
 
-    // Set up the rest of the tracefs state, without starting it.
-    // Notes:
-    // * resizing buffers can be quite slow (up to hundreds of ms).
-    // * resizing buffers may truncate existing contents if the new size is
-    // smaller, which matters to the preserve_ftrace_buffer option.
+    // Set up the new tracefs state, without starting recording.
     if (!request.preserve_ftrace_buffer()) {
       SetupClock(request);
       SetupBufferSize(request);
+    } else {
+      // If preserving the existing ring buffer contents, we cannot change the
+      // clock or buffer sizes because that clears the kernel buffers.
+      RememberActiveClock();
     }
   }
 
   std::set<GroupAndName> events = GetFtraceEvents(request, table_);
-
-  // Android: vendors can provide a set of extra ftrace categories to be enabled
-  // when a specific atrace category is used
-  // (e.g. "gfx" -> ["my_hw/my_custom_event", "my_hw/my_special_gpu"]).
-  // Merge them with the hardcoded events for each categories.
-  for (const std::string& category : request.atrace_categories()) {
-    if (vendor_events_.count(category)) {
-      for (const GroupAndName& event : vendor_events_[category]) {
-        events.insert(event);
-      }
-    }
-  }
 
   // Android: update userspace tracing control state if necessary.
   if (RequiresAtrace(request)) {
@@ -846,12 +539,20 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
       PERFETTO_PLOG("Failed to clear .../set_graph_function");
       return false;
     }
+    if (!current_state_.funcgraph_on && !ftrace_->ClearMaxGraphDepth()) {
+      PERFETTO_PLOG("Failed to clear .../max_graph_depth");
+      return false;
+    }
     if (!ftrace_->AppendFunctionFilters(request.function_filters())) {
       PERFETTO_PLOG("Failed to append to .../set_ftrace_filter");
       return false;
     }
     if (!ftrace_->AppendFunctionGraphFilters(request.function_graph_roots())) {
       PERFETTO_PLOG("Failed to append to .../set_graph_function");
+      return false;
+    }
+    if (!ftrace_->SetMaxGraphDepth(request.function_graph_max_depth())) {
+      PERFETTO_PLOG("Failed to write to .../max_graph_depth");
       return false;
     }
     if (!current_state_.funcgraph_on &&
@@ -1074,14 +775,12 @@ const FtraceDataSourceConfig* FtraceConfigMuxer::GetDataSourceConfig(
 }
 
 void FtraceConfigMuxer::SetupClock(const FtraceConfig& config) {
-  std::string current_clock = ftrace_->GetClock();
   std::set<std::string> clocks = ftrace_->AvailableClocks();
 
-  if (config.has_use_monotonic_raw_clock() &&
-      config.use_monotonic_raw_clock() && clocks.count(kClockMonoRaw)) {
+  if (config.use_monotonic_raw_clock() && clocks.count(kClockMonoRaw)) {
     ftrace_->SetClock(kClockMonoRaw);
-    current_clock = kClockMonoRaw;
   } else {
+    std::string current_clock = ftrace_->GetClock();
     for (size_t i = 0; i < base::ArraySize(kClocks); i++) {
       std::string clock = std::string(kClocks[i]);
       if (!clocks.count(clock))
@@ -1089,11 +788,15 @@ void FtraceConfigMuxer::SetupClock(const FtraceConfig& config) {
       if (current_clock == clock)
         break;
       ftrace_->SetClock(clock);
-      current_clock = clock;
       break;
     }
   }
 
+  RememberActiveClock();
+}
+
+void FtraceConfigMuxer::RememberActiveClock() {
+  std::string current_clock = ftrace_->GetClock();
   namespace pb0 = protos::pbzero;
   if (current_clock == "boot") {
     // "boot" is the default expectation on modern kernels, which is why we

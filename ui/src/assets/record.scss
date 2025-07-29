@@ -32,24 +32,19 @@
   max-width: 900px;
   min-height: 500px;
   margin: auto;
-  border-radius: $pf-border-radius;
-  box-shadow:
-    0 1px 2px 0 #aaa,
-    0 1px 3px 1px #eee;
-  background-color: #fff;
-  display: grid;
-  grid-template-rows: auto 1fr;
-  grid-template-areas:
-    "header"
-    "content";
-  overflow: hidden;
-  z-index: 6;
 
   // The body of the record container.
   .record-container-content {
     display: grid;
     grid-template-columns: 2fr 5fr;
     grid-template-areas: "sidebar section";
+
+    border-radius: $pf-border-radius;
+    box-shadow:
+      0 1px 2px 0 #aaa,
+      0 1px 3px 1px #eee;
+    background-color: #fff;
+    overflow: hidden;
   }
 
   .full-centered {
@@ -728,6 +723,15 @@
       min-height: 50px;
       color: var(--record-text-color);
       line-height: 20px;
+    }
+
+    code {
+      background: #eee;
+      display: block;
+      padding: 5px;
+      margin: 5px 0;
+      border: 1px dotted #999;
+      white-space: pre-wrap;
     }
 
     // .probe-config is showed only when the probe is enabled.

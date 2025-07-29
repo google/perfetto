@@ -35,11 +35,11 @@ source_set("rpc") {
     "../../../gn:default_deps",
     "../../../include/perfetto/trace_processor",
     "../../../protos/perfetto/trace_processor:zero",
+    "../../../protos/perfetto/trace_summary:zero",
     "../../base",
     "../../base:version",
     "../../protozero",
     "../../protozero:proto_ring_buffer",
-    "../util",
   ]
   public_deps = [
     "../../../include/perfetto/ext/trace_processor/rpc:query_result_serializer",

@@ -60,7 +60,7 @@ source_set("producer") {
     "../../../protos/perfetto/trace/profiling:zero",
     "../../../src/base",
     "../../../src/base:unix_socket",
-    "../../../src/traced/probes/ftrace:ftrace_procfs",
+    "../../../src/traced/probes/ftrace:tracefs",
     "../../../src/tracing/ipc/producer",
     "../common:callstack_trie",
     "../common:interner",

@@ -171,6 +171,21 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
                   terminating_flow_ids,
                   48);
 PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
+                  VARINT,
+                  uint64_t,
+                  correlation_id,
+                  52);
+PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
+                  STRING,
+                  const char*,
+                  correlation_id_str,
+                  53);
+PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
+                  VARINT,
+                  uint64_t,
+                  correlation_id_str_iid,
+                  54);
+PERFETTO_PB_FIELD(perfetto_protos_TrackEvent,
                   MSG,
                   perfetto_protos_DebugAnnotation,
                   debug_annotations,

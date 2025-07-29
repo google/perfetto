@@ -32,6 +32,7 @@
 #include "perfetto/base/thread_annotations.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
@@ -45,31 +46,33 @@ class StringPool {
   struct Block;
 
   // StringPool IDs are 32-bit. If the MSB is 1, the remaining bits of the ID
-  // are an index into the |large_strings_| vector. Otherwise, the next 6 bits
-  // are the index of the Block in the pool, and the remaining 25 bits the
+  // are an index into the |large_strings_| vector. Otherwise, the next 9 bits
+  // are the index of the Block in the pool, and the remaining 22 bits the
   // offset of the encoded string inside the pool.
   //
-  // [31] [30:25] [24:0]
+  // [31] [30:22] [21:0]
   //  |      |       |
   //  |      |       +---- offset in block (or LSB of large string index).
   //  |      +------------ block index (or MSB of large string index).
   //  +------------------- 1: large string, 0: string in a Block.
-  static constexpr size_t kNumBlockIndexBits = 6;
-  static constexpr uint32_t kNumBlockOffsetBits = 25;
+  static constexpr size_t kNumBlockIndexBits = 9;
+  static constexpr uint32_t kNumBlockOffsetBits = 22;
 
   static constexpr size_t kLargeStringFlagBitMask = 1u << 31;
   static constexpr size_t kBlockOffsetBitMask = (1u << kNumBlockOffsetBits) - 1;
   static constexpr size_t kBlockIndexBitMask =
       0xffffffff & ~kLargeStringFlagBitMask & ~kBlockOffsetBitMask;
 
-  static constexpr uint32_t kBlockSizeBytes = kBlockOffsetBitMask + 1;  // 32 MB
+  static constexpr uint32_t kBlockSizeBytes = kBlockOffsetBitMask + 1;  // 4 MB
 
   static constexpr uint32_t kMaxBlockCount = 1u << kNumBlockIndexBits;
 
-  static constexpr size_t kMinLargeStringSizeBytes = kBlockSizeBytes / 8;
+  static constexpr size_t kMinLargeStringSizeBytes = kBlockSizeBytes / 4;
 
  public:
   struct Id {
+    static constexpr bool kHashable = true;
+
     Id() = default;
 
     constexpr bool operator==(const Id& other) const { return other.id == id; }
@@ -119,6 +122,10 @@ class StringPool {
     }
 
     PERFETTO_ALWAYS_INLINE static constexpr Id Null() { return Id(0u); }
+
+    // For hashing.
+    const char* data() const { return reinterpret_cast<const char*>(&id); }
+    size_t size() const { return sizeof(id); }
 
    private:
     constexpr explicit Id(uint32_t i) : id(i) {}
@@ -195,7 +202,7 @@ class StringPool {
     if (str.data() == nullptr) {
       return Id::Null();
     }
-    auto hash = str.Hash();
+    auto hash = base::MurmurHashValue(std::string_view(str.data(), str.size()));
 
     // Perform a hashtable insertion with a null ID just to check if the string
     // is already inserted. If it's not, overwrite 0 with the actual Id.
@@ -215,7 +222,7 @@ class StringPool {
     if (str.data() == nullptr) {
       return Id::Null();
     }
-    auto hash = str.Hash();
+    auto hash = base::MurmurHashValue(std::string_view(str.data(), str.size()));
 
     MaybeLockGuard guard{mutex_, should_acquire_mutex_};
     Id* id = string_index_.Find(hash);
@@ -262,10 +269,15 @@ class StringPool {
   // Maximum id of a small string in the string pool.
   StringPool::Id MaxSmallStringId() const {
     MaybeLockGuard guard{mutex_, should_acquire_mutex_};
-    const auto* block_start = blocks_[block_index_].get();
-    const auto* block_end = block_end_ptrs_[block_index_];
-    return Id::BlockString(block_index_,
-                           static_cast<uint32_t>(block_end - block_start));
+    uint32_t block_index = block_index_;
+    const auto* block_start = blocks_[block_index].get();
+    const auto* block_end = block_end_ptrs_[block_index];
+    uint32_t offset = static_cast<uint32_t>(block_end - block_start);
+    if (offset == kBlockSizeBytes) {
+      offset = 0;
+      block_index++;
+    }
+    return Id::BlockString(block_index, offset);
   }
 
   // Returns whether there is at least one large string in a string pool

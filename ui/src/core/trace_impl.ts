@@ -17,7 +17,7 @@ import {createStore, Migrate, Store} from '../base/store';
 import {TimelineImpl} from './timeline';
 import {Command} from '../public/command';
 import {Trace} from '../public/trace';
-import {ScrollToArgs, setScrollToFunction} from '../public/scroll_helper';
+import {ScrollToArgs} from '../public/scroll_helper';
 import {Track} from '../public/track';
 import {EngineBase, EngineProxy} from '../trace_processor/engine';
 import {CommandManagerImpl} from './command_manager';
@@ -52,7 +52,10 @@ import {PostedTrace} from './trace_source';
 import {PerfManager} from './perf_manager';
 import {EvtSource} from '../base/events';
 import {Raf} from '../public/raf';
-import {SettingsManager} from '../public/settings';
+import {StatusbarManagerImpl} from './statusbar_manager';
+import {Setting, SettingDescriptor, SettingsManager} from '../public/settings';
+import {SettingsManagerImpl} from './settings_manager';
+import {MinimapManagerImpl} from './minimap_manager';
 
 /**
  * Handles the per-trace state of the UI
@@ -80,6 +83,8 @@ export class TraceContext implements Disposable {
   readonly scrollHelper: ScrollHelper;
   readonly trash = new DisposableStack();
   readonly onTraceReady = new EvtSource<void>();
+  readonly statusbarMgr = new StatusbarManagerImpl();
+  readonly minimapManager = new MinimapManagerImpl();
 
   // List of errors that were encountered while loading the trace by the TS
   // code. These are on top of traceInfo.importErrors, which is a summary of
@@ -91,7 +96,13 @@ export class TraceContext implements Disposable {
     this.engine = engine;
     this.trash.use(engine);
     this.traceInfo = traceInfo;
-    this.timeline = new TimelineImpl(traceInfo);
+
+    this.timeline = new TimelineImpl(
+      traceInfo,
+      this.appCtx.timestampFormat,
+      this.appCtx.durationPrecision,
+      this.appCtx.timezoneOverride,
+    );
 
     this.scrollHelper = new ScrollHelper(
       this.traceInfo,
@@ -102,6 +113,7 @@ export class TraceContext implements Disposable {
 
     this.selectionMgr = new SelectionManagerImpl(
       this.engine,
+      this.timeline,
       this.trackMgr,
       this.noteMgr,
       this.scrollHelper,
@@ -113,7 +125,7 @@ export class TraceContext implements Disposable {
         this.selectionMgr.selection.kind === 'note' &&
         this.selectionMgr.selection.id === noteId
       ) {
-        this.selectionMgr.clear();
+        this.selectionMgr.clearSelection();
       }
     };
 
@@ -183,6 +195,7 @@ export class TraceImpl implements Trace {
   private readonly commandMgrProxy: CommandManagerImpl;
   private readonly sidebarProxy: SidebarManagerImpl;
   private readonly pageMgrProxy: PageManagerImpl;
+  private readonly settingsProxy: SettingsManagerImpl;
 
   // This is called by TraceController when loading a new trace, soon after the
   // engine has been set up. It obtains a new TraceImpl for the core. From that
@@ -251,8 +264,13 @@ export class TraceImpl implements Trace {
       },
     });
 
-    // TODO(primiano): remove this injection once we plumb Trace everywhere.
-    setScrollToFunction((x: ScrollToArgs) => ctx.scrollHelper.scrollTo(x));
+    this.settingsProxy = createProxy(ctx.appCtx.settingsManager, {
+      register<T>(setting: SettingDescriptor<T>): Setting<T> {
+        const settingInstance = ctx.appCtx.settingsManager.register(setting);
+        traceUnloadTrash.use(settingInstance);
+        return settingInstance;
+      },
+    });
   }
 
   scrollTo(where: ScrollToArgs): void {
@@ -315,6 +333,10 @@ export class TraceImpl implements Trace {
     return this;
   }
 
+  get minimap() {
+    return this.traceCtx.minimapManager;
+  }
+
   get engine() {
     return this.engineProxy;
   }
@@ -349,6 +371,10 @@ export class TraceImpl implements Trace {
 
   get traceInfo(): TraceInfoImpl {
     return this.traceCtx.traceInfo;
+  }
+
+  get statusbar(): StatusbarManagerImpl {
+    return this.traceCtx.statusbarMgr;
   }
 
   get notes() {
@@ -431,6 +457,10 @@ export class TraceImpl implements Trace {
     this.appImpl.openTraceFromBuffer(args);
   }
 
+  closeCurrentTrace(): void {
+    this.appImpl.closeCurrentTrace();
+  }
+
   get onTraceReady() {
     return this.traceCtx.onTraceReady;
   }
@@ -449,7 +479,7 @@ export class TraceImpl implements Trace {
   }
 
   get settings(): SettingsManager {
-    return this.appImpl.settings;
+    return this.settingsProxy;
   }
 }
 

@@ -28,6 +28,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
@@ -38,7 +39,6 @@
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/profile_builder.h"
-#include "src/trace_processor/util/status_macros.h"
 
 // TODO(carlscab): We currently recreate the GProfileBuilder for every group. We
 // should cache this somewhere maybe even have a helper table that stores all
@@ -182,7 +182,7 @@ base::Status StepStatus(sqlite3_context* ctx,
 struct ProfileBuilder {
   static constexpr char kName[] = "EXPERIMENTAL_PROFILE";
   static constexpr int kArgCount = -1;
-  using UserDataContext = TraceProcessorContext;
+  using UserData = TraceProcessorContext;
 
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     PERFETTO_CHECK(argc >= 0);

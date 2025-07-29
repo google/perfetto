@@ -20,15 +20,15 @@
 #include <sqlite3.h>
 #include <unordered_map>
 #include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/common/clock_converter.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-struct AbsTimeStr : public SqlFunction {
+struct AbsTimeStr : public LegacySqlFunction {
   using Context = ClockConverter;
   static base::Status Run(ClockConverter* tracker,
                           size_t argc,
@@ -71,7 +71,7 @@ base::Status AbsTimeStr::Run(ClockConverter* tracker,
   return base::OkStatus();
 }
 
-struct ToMonotonic : public SqlFunction {
+struct ToMonotonic : public LegacySqlFunction {
   using Context = ClockConverter;
   static base::Status Run(ClockConverter* tracker,
                           size_t argc,
@@ -110,7 +110,7 @@ base::Status ToMonotonic::Run(ClockConverter* converter,
   return base::OkStatus();
 }
 
-struct ToRealtime : public SqlFunction {
+struct ToRealtime : public LegacySqlFunction {
   using Context = ClockConverter;
   static base::Status Run(ClockConverter* tracker,
                           size_t argc,
@@ -149,7 +149,7 @@ base::Status ToRealtime::Run(ClockConverter* converter,
   return base::OkStatus();
 }
 
-struct ToTimecode : public SqlFunction {
+struct ToTimecode : public LegacySqlFunction {
   static base::Status Run(void*,
                           size_t argc,
                           sqlite3_value** argv,

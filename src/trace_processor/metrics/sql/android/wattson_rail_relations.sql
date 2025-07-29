@@ -16,7 +16,8 @@
 -- This file established the tables that define the relationships between rails
 -- and subrails as well as the hierarchical power estimates of each rail
 
-INCLUDE PERFETTO MODULE wattson.curves.estimates;
+INCLUDE PERFETTO MODULE wattson.estimates;
+INCLUDE PERFETTO MODULE wattson.utils;
 
 -- The most basic rail components that form the "building blocks" from which all
 -- other rails and components are derived. Average power over the entire trace
@@ -42,8 +43,9 @@ SELECT
   SUM(ii.dur * ss.cpu6_mw) / SUM(ii.dur) as cpu6_mw,
   SUM(ii.dur * ss.cpu7_mw) / SUM(ii.dur) as cpu7_mw,
   SUM(ii.dur * ss.dsu_scu_mw) / SUM(ii.dur) as dsu_scu_mw,
+  SUM(ii.dur * ss.gpu_mw) / SUM(ii.dur) as gpu_mw,
   SUM(ii.dur) as period_dur,
-  w.period_id
+  ii.id_0 as period_id
 FROM _interval_intersect!(
   (
     (SELECT period_id AS id, * FROM {{window_table}}),
@@ -51,9 +53,8 @@ FROM _interval_intersect!(
   ),
   ()
 ) ii
-JOIN {{window_table}} AS w ON w.period_id = id_0
 JOIN _system_state_mw AS ss ON ss._auto_id = id_1
-GROUP BY w.period_id;
+GROUP BY period_id;
 
 -- Macro that filters out CPUs that are unrelated to the policy of the table
 -- passed in, and does some bookkeeping to put data in expected format
@@ -390,6 +391,28 @@ SELECT
       'estimated_mw', dsu_scu_mw,
       'estimated_mws', dsu_scu_mw * period_dur / 1e9
     )
-  ) as proto
+  ) as cpu_proto
 FROM components_w_sum;
 
+DROP VIEW IF EXISTS _estimate_gpu_subsystem_sum;
+CREATE PERFETTO VIEW _estimate_gpu_subsystem_sum AS
+SELECT
+  period_id,
+  period_dur,
+  gpu_mw IS NOT NULL as defined,
+  AndroidWattsonGpuSubsystemEstimate(
+    'estimated_mw', gpu_mw,
+    'estimated_mws', gpu_mw * period_dur / 1e9
+  ) as gpu_proto
+FROM _wattson_base_components_avg_mw;
+
+DROP VIEW IF EXISTS _estimate_subsystems_sum;
+CREATE PERFETTO VIEW _estimate_subsystems_sum AS
+SELECT
+  period_id,
+  period_dur,
+  cpu_ss.cpu_proto,
+  IIF(gpu_ss.defined, gpu_ss.gpu_proto, NULL) as gpu_proto
+FROM _estimate_cpu_subsystem_sum cpu_ss
+JOIN _estimate_gpu_subsystem_sum gpu_ss
+  USING (period_id, period_dur);

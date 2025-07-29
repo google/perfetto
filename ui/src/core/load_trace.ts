@@ -238,6 +238,9 @@ async function loadTraceIntoEngine(
 
   decideTabs(trace);
 
+  updateStatus(app, `Loading minimap`);
+  await trace.minimap.load(traceDetails.start, traceDetails.end);
+
   // Trace Processor doesn't support the reliable range feature for JSON
   // traces.
   if (
@@ -407,15 +410,7 @@ async function getTraceInfo(
   // This is the offset between the unix epoch and ts in the ts domain.
   // I.e. the value of ts at the time of the unix epoch - usually some large
   // negative value.
-  const realtimeOffset = Time.sub(snapshot.ts, snapshot.clockValue);
-
-  // Find the previous closest midnight from the trace start time.
-  const utcOffset = Time.getLatestMidnight(traceTime.start, realtimeOffset);
-
-  const traceTzOffset = Time.getLatestMidnight(
-    traceTime.start,
-    Time.sub(realtimeOffset, Time.fromSeconds(tzOffMin * 60)),
-  );
+  const unixOffset = Time.sub(snapshot.ts, snapshot.clockValue);
 
   let traceTitle = '';
   let traceUrl = '';
@@ -464,9 +459,8 @@ async function getTraceInfo(
     ...traceTime,
     traceTitle,
     traceUrl,
-    realtimeOffset,
-    utcOffset,
-    traceTzOffset,
+    tzOffMin,
+    unixOffset,
     cpus: await getCpus(engine),
     importErrors: await getTraceErrors(engine),
     source: traceSource,

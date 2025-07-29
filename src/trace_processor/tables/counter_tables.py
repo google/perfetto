@@ -14,16 +14,16 @@
 """Contains tables for relevant for TODO."""
 
 from python.generators.trace_processor_table.public import Column as C
-from python.generators.trace_processor_table.public import CppDouble
 from python.generators.trace_processor_table.public import ColumnFlag
+from python.generators.trace_processor_table.public import CppAccess
+from python.generators.trace_processor_table.public import CppAccessDuration
+from python.generators.trace_processor_table.public import CppDouble
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
-from python.generators.trace_processor_table.public import Table
-from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import Table
 
-from src.trace_processor.tables.metadata_tables import MACHINE_TABLE
 from src.trace_processor.tables.track_tables import TRACK_TABLE
 
 COUNTER_TABLE = Table(
@@ -31,11 +31,33 @@ COUNTER_TABLE = Table(
     class_name='CounterTable',
     sql_name='__intrinsic_counter',
     columns=[
-        C('ts', CppInt64(), flags=ColumnFlag.SORTED),
-        C('track_id', CppTableId(TRACK_TABLE)),
-        C('value', CppDouble()),
-        C('arg_set_id', CppOptional(CppUint32())),
-    ])
+        C(
+            'ts',
+            CppInt64(),
+            flags=ColumnFlag.SORTED,
+            cpp_access=CppAccess.READ,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'track_id',
+            CppTableId(TRACK_TABLE),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'value',
+            CppDouble(),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+        C(
+            'arg_set_id',
+            CppOptional(CppUint32()),
+            cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE,
+            cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
+        ),
+    ],
+)
 
 # Keep this list sorted.
 ALL_TABLES = [

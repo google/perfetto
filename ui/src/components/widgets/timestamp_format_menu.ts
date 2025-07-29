@@ -16,6 +16,7 @@ import m from 'mithril';
 import {MenuItem} from '../../widgets/menu';
 import {Trace} from '../../public/trace';
 import {TimestampFormat} from '../../public/timeline';
+import {formatTimezone, timezoneOffsetMap} from '../../base/time';
 
 interface TimestampFormatMenuItemAttrs {
   trace: Trace;
@@ -25,31 +26,50 @@ export class TimestampFormatMenuItem
   implements m.ClassComponent<TimestampFormatMenuItemAttrs>
 {
   view({attrs}: m.Vnode<TimestampFormatMenuItemAttrs>) {
+    const timeline = attrs.trace.timeline;
     function renderMenuItem(value: TimestampFormat, label: string) {
       return m(MenuItem, {
         label,
-        active: value === attrs.trace.timeline.timestampFormat,
+        active: value === timeline.timestampFormat,
         onclick: () => {
-          attrs.trace.timeline.timestampFormat = value;
+          timeline.timestampFormat = value;
         },
       });
     }
+
+    const timeZone = formatTimezone(attrs.trace.traceInfo.tzOffMin);
+    const TF = TimestampFormat;
 
     return m(
       MenuItem,
       {
         label: 'Time format',
       },
-      renderMenuItem(TimestampFormat.Timecode, 'Timecode'),
-      renderMenuItem(TimestampFormat.UTC, 'Realtime (UTC)'),
-      renderMenuItem(TimestampFormat.TraceTz, 'Realtime (Trace TZ)'),
-      renderMenuItem(TimestampFormat.Seconds, 'Seconds'),
-      renderMenuItem(TimestampFormat.Milliseconds, 'Milliseconds'),
-      renderMenuItem(TimestampFormat.Microseconds, 'Microseconds'),
-      renderMenuItem(TimestampFormat.TraceNs, 'Raw'),
-      renderMenuItem(
-        TimestampFormat.TraceNsLocale,
-        'Raw (with locale-specific formatting)',
+      renderMenuItem(TF.Timecode, 'Timecode'),
+      renderMenuItem(TF.UTC, 'Realtime (UTC)'),
+      renderMenuItem(TF.TraceTz, `Realtime (Trace TZ - ${timeZone})`),
+      renderMenuItem(TF.Seconds, 'Seconds'),
+      renderMenuItem(TF.Milliseconds, 'Milliseconds'),
+      renderMenuItem(TF.Microseconds, 'Microseconds'),
+      renderMenuItem(TF.TraceNs, 'Raw'),
+      renderMenuItem(TF.TraceNsLocale, 'Raw (with locale-specific formatting)'),
+      m(
+        MenuItem,
+        {
+          label: 'Custom',
+          active: TF.CustomTimezone === timeline.timestampFormat,
+        },
+        Object.keys(timezoneOffsetMap).map((tz) => {
+          const customTz = timeline.timezoneOverride;
+          return m(MenuItem, {
+            label: tz,
+            active: tz === customTz.get(),
+            onclick: () => {
+              timeline.timestampFormat = TF.CustomTimezone;
+              customTz.set(tz);
+            },
+          });
+        }),
       ),
     );
   }

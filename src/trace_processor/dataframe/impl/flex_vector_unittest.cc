@@ -17,9 +17,7 @@
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
 
 #include <cstddef>
-#include <cstdint>
 
-#include "src/trace_processor/dataframe/impl/slab.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::dataframe::impl {
@@ -30,16 +28,6 @@ TEST(FlexVectorTest, DefaultConstructor) {
   FlexVector<int> vec;
   EXPECT_EQ(vec.size(), 0u);
   EXPECT_EQ(vec.capacity(), 0u);
-  EXPECT_TRUE(vec.empty());
-}
-
-// Test static CreateWithCapacityation method
-TEST(FlexVectorTest, StaticCreateWithCapacityation) {
-  constexpr size_t kCapacity = 16;
-  auto vec = FlexVector<int>::CreateWithCapacity(kCapacity);
-
-  EXPECT_EQ(vec.size(), 0u);
-  EXPECT_EQ(vec.capacity(), kCapacity);
   EXPECT_TRUE(vec.empty());
 }
 
@@ -64,7 +52,7 @@ TEST(FlexVectorTest, PushBack) {
 // Test automatic capacity growth
 TEST(FlexVectorTest, CapacityGrowth) {
   // Start with small capacity
-  constexpr size_t kInitialCapacity = 4;
+  constexpr size_t kInitialCapacity = 64;
   auto vec = FlexVector<int>::CreateWithCapacity(kInitialCapacity);
 
   EXPECT_EQ(vec.capacity(), kInitialCapacity);
@@ -123,9 +111,6 @@ TEST(FlexVectorTest, LargeGrowth) {
   for (size_t i = 0; i < kNumElements; ++i) {
     EXPECT_EQ(vec[i], static_cast<int>(i));
   }
-
-  // Ensure capacity is still a power of two
-  EXPECT_TRUE(internal::IsPowerOfTwo(vec.capacity()));
 }
 
 // Test using different data types
@@ -197,17 +182,6 @@ TEST(FlexVectorTest, DataAccessor) {
   // Modify through data()
   data[1] = 42;
   EXPECT_EQ(vec[1], 42);
-}
-
-// Test with custom alignment
-TEST(FlexVectorTest, CustomAlignment) {
-  // Use 128-byte alignment
-  constexpr size_t kCustomAlignment = 128;
-  auto vec = FlexVector<double, kCustomAlignment>::CreateWithCapacity(256);
-
-  // The data pointer should be aligned to kCustomAlignment
-  auto ptr_value = reinterpret_cast<uintptr_t>(vec.data());
-  EXPECT_EQ(ptr_value % kCustomAlignment, 0u);
 }
 
 }  // namespace

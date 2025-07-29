@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {maybeMachineLabel} from '../../base/multi_machine_trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {getThreadOrProcUri} from '../../public/utils';
@@ -54,19 +53,19 @@ export default class implements PerfettoPlugin {
     // Makes the queries in `ProcessSchedulingTrack` significantly faster.
     // TODO(lalitm): figure out a better way to do this without hardcoding this
     // here.
-    await createPerfettoIndex(
-      ctx.engine,
-      `__process_scheduling_${uuidv4Sql()}`,
-      `__intrinsic_sched_slice(utid)`,
-    );
+    await createPerfettoIndex({
+      engine: ctx.engine,
+      name: `__process_scheduling_${uuidv4Sql()}`,
+      on: `__intrinsic_sched_slice(utid)`,
+    });
     // Makes the queries in `ProcessSummaryTrack` significantly faster.
     // TODO(lalitm): figure out a better way to do this without hardcoding this
     // here.
-    await createPerfettoIndex(
-      ctx.engine,
-      `__process_summary_${uuidv4Sql()}`,
-      `__intrinsic_slice(track_id)`,
-    );
+    await createPerfettoIndex({
+      engine: ctx.engine,
+      name: `__process_summary_${uuidv4Sql()}`,
+      on: `__intrinsic_slice(track_id)`,
+    });
 
     const threads = ctx.plugins.getPlugin(ThreadPlugin).getThreadMap();
     const cpuCountByMachine = this.getCpuCountByMachine(ctx);
@@ -161,8 +160,6 @@ export default class implements PerfettoPlugin {
       // for additional details.
       isBootImageProfiling && chips.push('boot image profiling');
 
-      const machineLabel = maybeMachineLabel(machine);
-
       if (hasSched) {
         const config: ProcessSchedulingTrackConfig = {
           pidForColor,
@@ -173,12 +170,11 @@ export default class implements PerfettoPlugin {
         const cpuCount = cpuCountByMachine[machine] ?? 0;
         ctx.tracks.registerTrack({
           uri,
-          title: `${upid === null ? tid : pid}${machineLabel} schedule`,
           tags: {
             kind: PROCESS_SCHEDULING_TRACK_KIND,
           },
           chips,
-          track: new ProcessSchedulingTrack(ctx, config, cpuCount, threads),
+          renderer: new ProcessSchedulingTrack(ctx, config, cpuCount, threads),
           subtitle,
         });
       } else {
@@ -190,12 +186,11 @@ export default class implements PerfettoPlugin {
 
         ctx.tracks.registerTrack({
           uri,
-          title: `${upid === null ? tid : pid}${machineLabel} summary`,
           tags: {
             kind: PROCESS_SUMMARY_TRACK,
           },
           chips,
-          track: new ProcessSummaryTrack(ctx.engine, config),
+          renderer: new ProcessSummaryTrack(ctx.engine, config),
           subtitle,
         });
       }
@@ -249,11 +244,10 @@ export default class implements PerfettoPlugin {
 
     ctx.tracks.registerTrack({
       uri: '/kernel',
-      title: `Kernel thread summary`,
       tags: {
         kind: PROCESS_SUMMARY_TRACK,
       },
-      track: new ProcessSummaryTrack(ctx.engine, config),
+      renderer: new ProcessSummaryTrack(ctx.engine, config),
     });
   }
 }

@@ -21,6 +21,7 @@
 #include <sys/syscall.h>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -29,9 +30,9 @@
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/event_info.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
-#include "src/traced/probes/ftrace/ftrace_procfs.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 #include "src/traced/probes/ftrace/test/cpu_reader_support.h"
+#include "src/traced/probes/ftrace/tracefs.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
 #include "test/gtest_and_gmock.h"
 
@@ -119,9 +120,9 @@ constexpr uint64_t kNanoInMicro = 1000;
          << "." << expected_us;
 }
 
-class MockFtraceProcfs : public FtraceProcfs {
+class MockTracefs : public Tracefs {
  public:
-  MockFtraceProcfs() : FtraceProcfs("/root/") {
+  MockTracefs() : Tracefs("/root/") {
     ON_CALL(*this, NumberOfCpus()).WillByDefault(Return(1));
     ON_CALL(*this, WriteToFile(_, _)).WillByDefault(Return(true));
     ON_CALL(*this, ClearFile(_)).WillByDefault(Return(true));
@@ -143,7 +144,7 @@ class MockFtraceProcfs : public FtraceProcfs {
 
 class CpuReaderTableTest : public ::testing::Test {
  protected:
-  NiceMock<MockFtraceProcfs> ftrace_;
+  NiceMock<MockTracefs> ftrace_;
 };
 
 // Single class to manage the whole protozero -> scattered stream -> chunks ->
@@ -419,9 +420,8 @@ class CpuReaderParsePagePayloadTest : public testing::Test {
     compact_sched_buf_ = std::make_unique<CompactSchedBuffer>();
     bundler_.emplace(&writer_.value(), &metadata_, /*symbolizer=*/nullptr,
                      /*cpu=*/0,
-                     /*ftrace_clock_snapshot=*/nullptr,
-                     protos::pbzero::FTRACE_CLOCK_UNSPECIFIED,
-                     compact_sched_buf_.get(), ds_config.compact_sched.enabled,
+                     /*clock_snapshot=*/std::nullopt, compact_sched_buf_.get(),
+                     ds_config.compact_sched.enabled,
                      /*last_read_event_ts=*/0, &generic_pb_descriptors_);
     return &bundler_.value();
   }
@@ -918,8 +918,7 @@ TEST(CpuReaderTest, ProcessPagesForDataSourceNoEmptyPackets) {
         &last_read_event_ts, buf.get(), kTestPages, compact_sched_buf.get(),
         table,
         /*symbolizer=*/nullptr,
-        /*ftrace_clock_snapshot=*/nullptr,
-        protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
+        /*clock_snapshot=*/std::nullopt);
 
     EXPECT_TRUE(success);
 
@@ -942,8 +941,7 @@ TEST(CpuReaderTest, ProcessPagesForDataSourceNoEmptyPackets) {
         &last_read_event_ts, buf.get(), kTestPages, compact_sched_buf.get(),
         table,
         /*symbolizer=*/nullptr,
-        /*ftrace_clock_snapshot=*/nullptr,
-        protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
+        /*clock_snapshot=*/std::nullopt);
 
     EXPECT_TRUE(success);
 
@@ -1257,11 +1255,10 @@ print fmt: "(%lx)", REC->__probe_ip
 )format");
   ftrace.AddFile("trace", "");
 
-  std::unique_ptr<FtraceProcfs> ftrace_procfs =
-      FtraceProcfs::Create(ftrace.path() + "/");
-  ASSERT_NE(ftrace_procfs.get(), nullptr);
+  std::unique_ptr<Tracefs> tracefs = Tracefs::Create(ftrace.path() + "/");
+  ASSERT_NE(tracefs.get(), nullptr);
   std::unique_ptr<ProtoTranslationTable> table = ProtoTranslationTable::Create(
-      ftrace_procfs.get(), GetStaticEventInfo(), GetStaticCommonFieldsInfo());
+      tracefs.get(), GetStaticEventInfo(), GetStaticCommonFieldsInfo());
   table->CreateKprobeEvent(
       GroupAndName("perfetto_kprobes", "fuse_file_write_iter"));
 
@@ -1738,8 +1735,7 @@ TEST(CpuReaderTest, NewPacketOnLostEvents) {
       &trace_writer, &metadata, /*cpu=*/1, &ds_config, &parse_errors,
       &last_read_event_ts, buf.get(), kTestPages, compact_sched_buf.get(),
       table, /*symbolizer=*/nullptr,
-      /*ftrace_clock_snapshot=*/nullptr,
-      protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
+      /*clock_snapshot=*/std::nullopt);
 
   EXPECT_TRUE(success);
 
@@ -1793,8 +1789,7 @@ TEST(CpuReaderTest, ProcessPagesForDataSourceError) {
       &trace_writer, &metadata, /*cpu=*/1, &ds_config, &parse_errors,
       &last_read_event_ts, buf.get(), kTestPages, compact_sched_buf.get(),
       table, /*symbolizer=*/nullptr,
-      /*ftrace_clock_snapshot=*/nullptr,
-      protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
+      /*clock_snapshot=*/std::nullopt);
 
   EXPECT_FALSE(success);
 
@@ -1998,7 +1993,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseAbsoluteTimestamp) {
   std::vector<Event> events;
   events.emplace_back(std::move(sched_switch_event));
 
-  NiceMock<MockFtraceProcfs> mock_ftrace;
+  NiceMock<MockTracefs> mock_ftrace;
   PrintkMap printk_formats;
   ProtoTranslationTable translation_table(
       &mock_ftrace, events, std::move(common_fields),
@@ -2965,7 +2960,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ZeroLengthDataLoc) {
   std::vector<Event> events;
   events.emplace_back(std::move(evt));
 
-  NiceMock<MockFtraceProcfs> mock_ftrace;
+  NiceMock<MockTracefs> mock_ftrace;
   PrintkMap printk_formats;
   ProtoTranslationTable translation_table(
       &mock_ftrace, events, std::move(common_fields),
@@ -3531,8 +3526,7 @@ TEST(CpuReaderTest, LastReadEventTimestampWithSplitBundles) {
       &trace_writer, &metadata, /*cpu=*/0, &ftrace_cfg, &parse_errors,
       &last_read_event_ts, buf.get(), num_pages, compact_sched_buf.get(), table,
       /*symbolizer=*/nullptr,
-      /*ftrace_clock_snapshot=*/nullptr,
-      protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
+      /*clock_snapshot=*/std::nullopt);
 
   EXPECT_TRUE(success);
 
@@ -3628,8 +3622,7 @@ TEST(CpuReaderTest, GenericEventLegacyFormat) {
       &last_read_event_ts, page.get(), /*pages_read=*/1,
       compact_sched_buf.get(), table,
       /*symbolizer=*/nullptr,
-      /*ftrace_clock_snapshot=*/nullptr,
-      protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
+      /*clock_snapshot=*/std::nullopt);
 
   EXPECT_TRUE(success);
 
@@ -3722,8 +3715,7 @@ TEST(CpuReaderTest, GenericEventSelfDescribingFormat) {
       &last_read_event_ts, page.get(), /*pages_read=*/1,
       compact_sched_buf.get(), table,
       /*symbolizer=*/nullptr,
-      /*ftrace_clock_snapshot=*/nullptr,
-      protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
+      /*clock_snapshot=*/std::nullopt);
 
   EXPECT_TRUE(success);
 
@@ -3857,6 +3849,111 @@ TEST(CpuReaderTest, GenericEventSelfDescribingFormat) {
   }
 
   // (skip verifying last switch)
+}
+
+// Tests that |ReadFrozen()| reads the specified file and parse it correctly.
+TEST(CpuReaderTest, FrozenPageRead) {
+  auto page_ok = PageFromXxd(g_switch_page);
+  auto page_loss = PageFromXxd(g_switch_page_lost_events);
+
+  // build test buffer with 8 pages
+  size_t page_sz = base::GetSysPageSize();
+  base::TempFile test_pages = base::TempFile::CreateUnlinked();
+  base::WriteAll(test_pages.fd(), page_ok.get(), page_sz);
+  base::WriteAll(test_pages.fd(), page_ok.get(), page_sz);
+  base::WriteAll(test_pages.fd(), page_ok.get(), page_sz);
+  base::WriteAll(test_pages.fd(), page_loss.get(), page_sz);
+  base::WriteAll(test_pages.fd(), page_loss.get(), page_sz);
+  base::WriteAll(test_pages.fd(), page_ok.get(), page_sz);
+  base::WriteAll(test_pages.fd(), page_ok.get(), page_sz);
+  base::WriteAll(test_pages.fd(), page_ok.get(), page_sz);
+  ASSERT_NE(lseek(test_pages.fd(), 0, SEEK_SET), -1);
+
+  ProtoTranslationTable* table = GetTable("synthetic");
+  CpuReader cpu_reader(0, test_pages.ReleaseFD(), table,
+                       /*symbolizer=*/nullptr);
+
+  // build cfg requesting ftrace/print
+  FtraceMetadata metadata{};
+  FtraceDataSourceConfig ftrace_cfg = EmptyConfig();
+  ftrace_cfg.event_filter.AddEnabledEvent(
+      table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
+
+  // invoke ReadFrozen
+  TraceWriterForTesting trace_writer;
+  base::FlatSet<protos::pbzero::FtraceParseStatus> parse_errors;
+  CpuReader::ParsingBuffers parsing_mem;
+  parsing_mem.AllocateIfNeeded();
+
+  // read 2 pages because max_pages limits it.
+  size_t pages_read = cpu_reader.ReadFrozen(
+      &parsing_mem, 2, &ftrace_cfg, &metadata, &parse_errors, &trace_writer);
+  EXPECT_EQ(2u, pages_read);
+  EXPECT_EQ(0u, parse_errors.size());
+
+  // first 2 pages has 2 events without any data lost.
+  auto first_packets = trace_writer.GetAllTracePackets();
+  ASSERT_EQ(1u, first_packets.size());
+
+  EXPECT_FALSE(first_packets[0].ftrace_events().lost_events());
+  EXPECT_EQ(2u, first_packets[0].ftrace_events().event().size());
+
+  // read remaining pages.
+  pages_read = cpu_reader.ReadFrozen(&parsing_mem, 6, &ftrace_cfg, &metadata,
+                                     &parse_errors, &trace_writer);
+  EXPECT_EQ(6u, pages_read);
+  EXPECT_EQ(0u, parse_errors.size());
+
+  // Each packet should contain the parsed contents of a contiguous run of pages
+  // without data loss.
+  // So we should get three packets (each page has 1 event):
+  //   [2 events (previous ReadFrozen)] [1 events] [1 event] [4 events].
+  auto packets = trace_writer.GetAllTracePackets();
+  ASSERT_EQ(4u, packets.size());
+  EXPECT_FALSE(packets[0].ftrace_events().lost_events());
+  EXPECT_EQ(2u, packets[0].ftrace_events().event().size());
+
+  EXPECT_FALSE(packets[1].ftrace_events().lost_events());
+  EXPECT_EQ(1u, packets[1].ftrace_events().event().size());
+
+  EXPECT_TRUE(packets[2].ftrace_events().lost_events());
+  EXPECT_EQ(1u, packets[2].ftrace_events().event().size());
+
+  EXPECT_TRUE(packets[3].ftrace_events().lost_events());
+  EXPECT_EQ(4u, packets[3].ftrace_events().event().size());
+}
+
+TEST(CpuReaderTest, FtraceClockSnapshot) {
+  auto page = PageFromXxd(g_switch_page);
+  ProtoTranslationTable* table = GetTable("synthetic");
+
+  FtraceMetadata metadata{};
+  FtraceDataSourceConfig ftrace_cfg = EmptyConfig();
+  ftrace_cfg.event_filter.AddEnabledEvent(
+      table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
+
+  CpuReader::FtraceClockSnapshot clock_snapshot = {
+      protos::pbzero::FtraceClock::FTRACE_CLOCK_LOCAL, 1'000'000'000,
+      2'000'000'000};
+
+  TraceWriterForTesting trace_writer;
+  auto compact_sched_buf = std::make_unique<CompactSchedBuffer>();
+  base::FlatSet<protos::pbzero::FtraceParseStatus> parse_errors;
+  uint64_t last_read_event_ts = 0;
+  bool success = CpuReader::ProcessPagesForDataSource(
+      &trace_writer, &metadata, /*cpu=*/0, &ftrace_cfg, &parse_errors,
+      &last_read_event_ts, page.get(), /*pages_read=*/1,
+      compact_sched_buf.get(), table,
+      /*symbolizer=*/nullptr, clock_snapshot);
+
+  EXPECT_TRUE(success);
+
+  // The clock snapshot is recorded at bundle level:
+  auto bundle = trace_writer.GetOnlyTracePacket().ftrace_events();
+  EXPECT_EQ(bundle.ftrace_clock(),
+            protos::gen::FtraceClock::FTRACE_CLOCK_LOCAL);
+  EXPECT_EQ(bundle.ftrace_timestamp(), 1'000'000'000);
+  EXPECT_EQ(bundle.boot_timestamp(), 2'000'000'000);
 }
 
 }  // namespace

@@ -13,18 +13,13 @@
 // limitations under the License.
 
 import {assertUnreachable} from '../base/logging';
-import {Time, time, TimeSpan} from '../base/time';
+import {Time, time, TimeSpan, timezoneOffsetMap} from '../base/time';
 import {HighPrecisionTimeSpan} from '../base/high_precision_time_span';
 import {raf} from './raf_scheduler';
 import {HighPrecisionTime} from '../base/high_precision_time';
 import {DurationPrecision, Timeline, TimestampFormat} from '../public/timeline';
-import {
-  durationPrecision,
-  setDurationPrecision,
-  setTimestampFormat,
-  timestampFormat,
-} from './timestamp_format';
 import {TraceInfo} from '../public/trace_info';
+import {Setting} from '../public/settings';
 
 const MIN_DURATION = 10;
 
@@ -88,7 +83,12 @@ export class TimelineImpl implements Timeline {
     raf.scheduleCanvasRedraw();
   }
 
-  constructor(private readonly traceInfo: TraceInfo) {
+  constructor(
+    private readonly traceInfo: TraceInfo,
+    private readonly _timestampFormat: Setting<TimestampFormat>,
+    private readonly _durationPrecision: Setting<DurationPrecision>,
+    readonly timezoneOverride: Setting<string>,
+  ) {
     this._visibleWindow = HighPrecisionTimeSpan.fromTime(
       traceInfo.start,
       traceInfo.end,
@@ -181,9 +181,15 @@ export class TimelineImpl implements Timeline {
     raf.scheduleCanvasRedraw();
   }
 
-  // Offset between t=0 and the configured time domain.
-  timestampOffset(): time {
-    const fmt = timestampFormat();
+  /**
+   * The trace time value where the timeline is considered to actually start.
+   * E.g.
+   *  - Raw: offset = 0
+   *  - Trace: offset = trace.start
+   *  - Realtime: offset = previous midnight before trace.start
+   */
+  getTimeAxisOrigin(): time {
+    const fmt = this.timestampFormat;
     switch (fmt) {
       case TimestampFormat.Timecode:
       case TimestampFormat.Seconds:
@@ -194,9 +200,23 @@ export class TimelineImpl implements Timeline {
       case TimestampFormat.TraceNsLocale:
         return Time.ZERO;
       case TimestampFormat.UTC:
-        return this.traceInfo.utcOffset;
+        return getTraceMidnightInTimezone(
+          this.traceInfo.start,
+          this.traceInfo.unixOffset,
+          0, // UTC
+        );
+      case TimestampFormat.CustomTimezone:
+        return getTraceMidnightInTimezone(
+          this.traceInfo.start,
+          this.traceInfo.unixOffset,
+          timezoneOffsetMap[this.timezoneOverride.get()],
+        );
       case TimestampFormat.TraceTz:
-        return this.traceInfo.traceTzOffset;
+        return getTraceMidnightInTimezone(
+          this.traceInfo.start,
+          this.traceInfo.unixOffset,
+          this.traceInfo.tzOffMin,
+        );
       default:
         assertUnreachable(fmt);
     }
@@ -204,22 +224,75 @@ export class TimelineImpl implements Timeline {
 
   // Convert absolute time to domain time.
   toDomainTime(ts: time): time {
-    return Time.sub(ts, this.timestampOffset());
+    return Time.sub(ts, this.getTimeAxisOrigin());
   }
 
   get timestampFormat() {
-    return timestampFormat();
+    return this._timestampFormat.get();
   }
 
   set timestampFormat(format: TimestampFormat) {
-    setTimestampFormat(format);
+    this._timestampFormat.set(format);
   }
 
   get durationPrecision() {
-    return durationPrecision();
+    return this._durationPrecision.get();
   }
 
   set durationPrecision(precision: DurationPrecision) {
-    setDurationPrecision(precision);
+    this._durationPrecision.set(precision);
   }
+
+  get customTimezoneOffset(): number {
+    return timezoneOffsetMap[this.timezoneOverride.get()];
+  }
+}
+
+/**
+ * Returns the timestamp of the midnight before the trace starts in trace time
+ * units.
+ *
+ * @param traceStart - The trace-time timestamp of the start of the trace.
+ * @param unixOffset - The offset between the timestamp and the unix epoch.
+ * @param tzOffsetMins - The configured timezone offset in minutes.
+ * @returns The trace-time timestamp at the first midnight before the trace
+ * starts.
+ */
+function getTraceMidnightInTimezone(
+  traceStart: time,
+  unixOffset: time,
+  tzOffsetMins: number,
+) {
+  const unixTime = Time.toDate(traceStart, unixOffset);
+
+  // Remove the time component of the date, viewed in the specific
+  // timezone we're looking for.
+  const midnight = dateOnly(unixTime, tzOffsetMins);
+
+  // Convert back to trace time
+  return Time.fromDate(midnight, unixOffset);
+}
+
+function dateOnly(date: Date, tzOffsetMins: number) {
+  // 1. Get the timestamp in milliseconds from the original date.
+  const originalTimestamp = date.getTime();
+
+  // 2. Calculate the timezone offset in milliseconds.
+  const timezoneOffsetInMilliseconds = tzOffsetMins * 60 * 1000;
+
+  // 3. Create a new Date object representing the time in the target timezone.
+  //    We do this by adding our offset to the UTC time.
+  const dateInTargetTimezone = new Date(
+    originalTimestamp + timezoneOffsetInMilliseconds,
+  );
+
+  // 4. Now, working with this new Date object in the UTC frame,
+  //    we can simply set its time components to the start of the day (midnight).
+  dateInTargetTimezone.setUTCHours(0, 0, 0, 0);
+
+  // 5. Finally, we convert this back to a timestamp and create a new Date object.
+  //    This gives us the UTC timestamp of the midnight in the target timezone.
+  return new Date(
+    dateInTargetTimezone.getTime() - timezoneOffsetInMilliseconds,
+  );
 }

@@ -23,6 +23,7 @@
 #include <string_view>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "protos/perfetto/trace_processor/stack.pbzero.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
@@ -30,7 +31,6 @@
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -40,7 +40,7 @@ namespace {
 //
 //   Replaces hexadecimal sequences (with at least one digit) in a string with
 //   "<num>" based on specified criteria.
-struct StripHexFunction : public SqlFunction {
+struct StripHexFunction : public LegacySqlFunction {
   static constexpr char kFunctionName[] = "__intrinsic_strip_hex";
   using Context = void;
 

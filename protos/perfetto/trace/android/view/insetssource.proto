@@ -16,6 +16,7 @@
 
 syntax = "proto2";
 
+import "protos/perfetto/trace/android/graphics/insets.proto";
 import "protos/perfetto/trace/android/graphics/rect.proto";
 
 package perfetto.protos;
@@ -27,4 +28,5 @@ message InsetsSourceProto {
   optional RectProto visible_frame = 3;
   optional bool visible = 4;
   optional int32 type_number = 5;
+  optional InsetsProto attached_insets = 6;
 }

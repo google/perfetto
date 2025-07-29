@@ -206,18 +206,18 @@ class Fuchsia(TestSuite):
         """,
         out=Csv('''
           "depth","count"
-          0,15283
-          1,11621
-          2,10182
-          3,1927
-          4,4001
-          5,2543
-          6,1856
-          7,2209
-          8,2200
-          9,1672
-          10,353
-          11,331
+          0,15294
+          1,11654
+          2,9723
+          3,2033
+          4,3943
+          5,2458
+          6,1839
+          7,2225
+          8,2193
+          9,1667
+          10,349
+          11,329
           12,304
           13,246
           14,207
@@ -245,7 +245,7 @@ class Fuchsia(TestSuite):
         "Escher frame number",33
         "Expected presentation time",17
         "Frame number",33
-        "MinikinFontsCount",2
+        "MinikinFontsCount",1
         "Predicted frame duration(ms)",21
         "Render time(ms)",21
         "Timestamp",917
@@ -270,7 +270,6 @@ class Fuchsia(TestSuite):
         "Someint64",-234516543631231,"[NULL]","[NULL]","int","-234516543631231"
         "Someuint32",2145,"[NULL]","[NULL]","int","2145"
         "Someuint64",423621626134123415,"[NULL]","[NULL]","int","423621626134123415"
-        "cookie",658,"[NULL]","[NULL]","int","658"
         "name","[NULL]","example_counter:somedataseries:0","[NULL]","string","example_counter:somedataseries:0"
         "ping","[NULL]","pong","[NULL]","string","pong"
         "scope","[NULL]","[NULL]","[NULL]","string","[NULL]"
@@ -281,8 +280,8 @@ class Fuchsia(TestSuite):
         "somepointer",3285933758964,"[NULL]","[NULL]","pointer","0x2fd10ea19f4"
         "source","[NULL]","chrome","[NULL]","string","chrome"
         "source_scope","[NULL]","[NULL]","[NULL]","string","[NULL]"
-        "trace_id",658,"[NULL]","[NULL]","int","658"
         "trace_id_is_process_scoped",0,"[NULL]","[NULL]","bool","false"
+        "track_compressor_idx",0,"[NULL]","[NULL]","int","0"
         "upid",1,"[NULL]","[NULL]","int","1"
         "utid",1,"[NULL]","[NULL]","int","1"
         """))

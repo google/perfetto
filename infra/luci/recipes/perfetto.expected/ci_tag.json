@@ -64,7 +64,7 @@
       "--tags",
       "--force",
       "https://chromium.googlesource.com/external/github.com/google/perfetto",
-      "refs/tags/v13.0"
+      "refs/tags/upstream/v50.1"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -260,7 +260,7 @@
       "----",
       "cp",
       "[CACHE]/builder/perfetto/out/linux-amd64/stripped/trace_processor_shell",
-      "gs://perfetto-luci-artifacts/v13.0/linux-amd64/trace_processor_shell"
+      "gs://perfetto-luci-artifacts/v50.1/linux-amd64/trace_processor_shell"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -279,7 +279,7 @@
     "name": "linux-amd64.Artifact upload.gsutil upload",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v13.0/linux-amd64/trace_processor_shell@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v50.1/linux-amd64/trace_processor_shell@@@"
     ]
   },
   {
@@ -331,7 +331,7 @@
       "-tag",
       "git_revision:",
       "-tag",
-      "git_tag:v13.0",
+      "git_tag:v50.1",
       "-metadata",
       "build_id:8945511751514863184",
       "-json-output",
@@ -374,7 +374,7 @@
       "----",
       "cp",
       "[CACHE]/builder/perfetto/out/linux-amd64/stripped/traceconv",
-      "gs://perfetto-luci-artifacts/v13.0/linux-amd64/traceconv"
+      "gs://perfetto-luci-artifacts/v50.1/linux-amd64/traceconv"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -393,7 +393,7 @@
     "name": "linux-amd64.Artifact upload.gsutil upload (2)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v13.0/linux-amd64/traceconv@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v50.1/linux-amd64/traceconv@@@"
     ]
   },
   {
@@ -445,7 +445,7 @@
       "-tag",
       "git_revision:",
       "-tag",
-      "git_tag:v13.0",
+      "git_tag:v50.1",
       "-metadata",
       "build_id:8945511751514863184",
       "-json-output",
@@ -488,7 +488,7 @@
       "----",
       "cp",
       "[CACHE]/builder/perfetto/out/linux-amd64/stripped/tracebox",
-      "gs://perfetto-luci-artifacts/v13.0/linux-amd64/tracebox"
+      "gs://perfetto-luci-artifacts/v50.1/linux-amd64/tracebox"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -507,7 +507,7 @@
     "name": "linux-amd64.Artifact upload.gsutil upload (3)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v13.0/linux-amd64/tracebox@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v50.1/linux-amd64/tracebox@@@"
     ]
   },
   {
@@ -559,7 +559,7 @@
       "-tag",
       "git_revision:",
       "-tag",
-      "git_tag:v13.0",
+      "git_tag:v50.1",
       "-metadata",
       "build_id:8945511751514863184",
       "-json-output",
@@ -602,7 +602,7 @@
       "----",
       "cp",
       "[CACHE]/builder/perfetto/out/linux-amd64/stripped/perfetto",
-      "gs://perfetto-luci-artifacts/v13.0/linux-amd64/perfetto"
+      "gs://perfetto-luci-artifacts/v50.1/linux-amd64/perfetto"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -621,7 +621,7 @@
     "name": "linux-amd64.Artifact upload.gsutil upload (4)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v13.0/linux-amd64/perfetto@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v50.1/linux-amd64/perfetto@@@"
     ]
   },
   {
@@ -673,7 +673,7 @@
       "-tag",
       "git_revision:",
       "-tag",
-      "git_tag:v13.0",
+      "git_tag:v50.1",
       "-metadata",
       "build_id:8945511751514863184",
       "-json-output",
@@ -716,7 +716,7 @@
       "----",
       "cp",
       "[CACHE]/builder/perfetto/out/linux-amd64/stripped/traced",
-      "gs://perfetto-luci-artifacts/v13.0/linux-amd64/traced"
+      "gs://perfetto-luci-artifacts/v50.1/linux-amd64/traced"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -735,7 +735,7 @@
     "name": "linux-amd64.Artifact upload.gsutil upload (5)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v13.0/linux-amd64/traced@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v50.1/linux-amd64/traced@@@"
     ]
   },
   {
@@ -787,7 +787,7 @@
       "-tag",
       "git_revision:",
       "-tag",
-      "git_tag:v13.0",
+      "git_tag:v50.1",
       "-metadata",
       "build_id:8945511751514863184",
       "-json-output",
@@ -830,7 +830,7 @@
       "----",
       "cp",
       "[CACHE]/builder/perfetto/out/linux-amd64/stripped/traced_probes",
-      "gs://perfetto-luci-artifacts/v13.0/linux-amd64/traced_probes"
+      "gs://perfetto-luci-artifacts/v50.1/linux-amd64/traced_probes"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -849,7 +849,7 @@
     "name": "linux-amd64.Artifact upload.gsutil upload (6)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v13.0/linux-amd64/traced_probes@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v50.1/linux-amd64/traced_probes@@@"
     ]
   },
   {
@@ -901,7 +901,7 @@
       "-tag",
       "git_revision:",
       "-tag",
-      "git_tag:v13.0",
+      "git_tag:v50.1",
       "-metadata",
       "build_id:8945511751514863184",
       "-json-output",
@@ -1037,7 +1037,7 @@
       "----",
       "cp",
       "[CACHE]/builder/perfetto/out/linux-arm/stripped/trace_processor_shell",
-      "gs://perfetto-luci-artifacts/v13.0/linux-arm/trace_processor_shell"
+      "gs://perfetto-luci-artifacts/v50.1/linux-arm/trace_processor_shell"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -1056,7 +1056,7 @@
     "name": "linux-arm.Artifact upload.gsutil upload",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v13.0/linux-arm/trace_processor_shell@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v50.1/linux-arm/trace_processor_shell@@@"
     ]
   },
   {
@@ -1108,7 +1108,7 @@
       "-tag",
       "git_revision:",
       "-tag",
-      "git_tag:v13.0",
+      "git_tag:v50.1",
       "-metadata",
       "build_id:8945511751514863184",
       "-json-output",
@@ -1151,7 +1151,7 @@
       "----",
       "cp",
       "[CACHE]/builder/perfetto/out/linux-arm/stripped/traceconv",
-      "gs://perfetto-luci-artifacts/v13.0/linux-arm/traceconv"
+      "gs://perfetto-luci-artifacts/v50.1/linux-arm/traceconv"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -1170,7 +1170,7 @@
     "name": "linux-arm.Artifact upload.gsutil upload (2)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v13.0/linux-arm/traceconv@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v50.1/linux-arm/traceconv@@@"
     ]
   },
   {
@@ -1222,7 +1222,7 @@
       "-tag",
       "git_revision:",
       "-tag",
-      "git_tag:v13.0",
+      "git_tag:v50.1",
       "-metadata",
       "build_id:8945511751514863184",
       "-json-output",
@@ -1265,7 +1265,7 @@
       "----",
       "cp",
       "[CACHE]/builder/perfetto/out/linux-arm/stripped/tracebox",
-      "gs://perfetto-luci-artifacts/v13.0/linux-arm/tracebox"
+      "gs://perfetto-luci-artifacts/v50.1/linux-arm/tracebox"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -1284,7 +1284,7 @@
     "name": "linux-arm.Artifact upload.gsutil upload (3)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v13.0/linux-arm/tracebox@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v50.1/linux-arm/tracebox@@@"
     ]
   },
   {
@@ -1336,7 +1336,7 @@
       "-tag",
       "git_revision:",
       "-tag",
-      "git_tag:v13.0",
+      "git_tag:v50.1",
       "-metadata",
       "build_id:8945511751514863184",
       "-json-output",
@@ -1379,7 +1379,7 @@
       "----",
       "cp",
       "[CACHE]/builder/perfetto/out/linux-arm/stripped/perfetto",
-      "gs://perfetto-luci-artifacts/v13.0/linux-arm/perfetto"
+      "gs://perfetto-luci-artifacts/v50.1/linux-arm/perfetto"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -1398,7 +1398,7 @@
     "name": "linux-arm.Artifact upload.gsutil upload (4)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v13.0/linux-arm/perfetto@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v50.1/linux-arm/perfetto@@@"
     ]
   },
   {
@@ -1450,7 +1450,7 @@
       "-tag",
       "git_revision:",
       "-tag",
-      "git_tag:v13.0",
+      "git_tag:v50.1",
       "-metadata",
       "build_id:8945511751514863184",
       "-json-output",
@@ -1493,7 +1493,7 @@
       "----",
       "cp",
       "[CACHE]/builder/perfetto/out/linux-arm/stripped/traced",
-      "gs://perfetto-luci-artifacts/v13.0/linux-arm/traced"
+      "gs://perfetto-luci-artifacts/v50.1/linux-arm/traced"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -1512,7 +1512,7 @@
     "name": "linux-arm.Artifact upload.gsutil upload (5)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v13.0/linux-arm/traced@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v50.1/linux-arm/traced@@@"
     ]
   },
   {
@@ -1564,7 +1564,7 @@
       "-tag",
       "git_revision:",
       "-tag",
-      "git_tag:v13.0",
+      "git_tag:v50.1",
       "-metadata",
       "build_id:8945511751514863184",
       "-json-output",
@@ -1607,7 +1607,7 @@
       "----",
       "cp",
       "[CACHE]/builder/perfetto/out/linux-arm/stripped/traced_probes",
-      "gs://perfetto-luci-artifacts/v13.0/linux-arm/traced_probes"
+      "gs://perfetto-luci-artifacts/v50.1/linux-arm/traced_probes"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -1626,7 +1626,7 @@
     "name": "linux-arm.Artifact upload.gsutil upload (6)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v13.0/linux-arm/traced_probes@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v50.1/linux-arm/traced_probes@@@"
     ]
   },
   {
@@ -1678,7 +1678,7 @@
       "-tag",
       "git_revision:",
       "-tag",
-      "git_tag:v13.0",
+      "git_tag:v50.1",
       "-metadata",
       "build_id:8945511751514863184",
       "-json-output",
@@ -1814,7 +1814,7 @@
       "----",
       "cp",
       "[CACHE]/builder/perfetto/out/linux-arm64/stripped/trace_processor_shell",
-      "gs://perfetto-luci-artifacts/v13.0/linux-arm64/trace_processor_shell"
+      "gs://perfetto-luci-artifacts/v50.1/linux-arm64/trace_processor_shell"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -1833,7 +1833,7 @@
     "name": "linux-arm64.Artifact upload.gsutil upload",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v13.0/linux-arm64/trace_processor_shell@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v50.1/linux-arm64/trace_processor_shell@@@"
     ]
   },
   {
@@ -1885,7 +1885,7 @@
       "-tag",
       "git_revision:",
       "-tag",
-      "git_tag:v13.0",
+      "git_tag:v50.1",
       "-metadata",
       "build_id:8945511751514863184",
       "-json-output",
@@ -1928,7 +1928,7 @@
       "----",
       "cp",
       "[CACHE]/builder/perfetto/out/linux-arm64/stripped/traceconv",
-      "gs://perfetto-luci-artifacts/v13.0/linux-arm64/traceconv"
+      "gs://perfetto-luci-artifacts/v50.1/linux-arm64/traceconv"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -1947,7 +1947,7 @@
     "name": "linux-arm64.Artifact upload.gsutil upload (2)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v13.0/linux-arm64/traceconv@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v50.1/linux-arm64/traceconv@@@"
     ]
   },
   {
@@ -1999,7 +1999,7 @@
       "-tag",
       "git_revision:",
       "-tag",
-      "git_tag:v13.0",
+      "git_tag:v50.1",
       "-metadata",
       "build_id:8945511751514863184",
       "-json-output",
@@ -2042,7 +2042,7 @@
       "----",
       "cp",
       "[CACHE]/builder/perfetto/out/linux-arm64/stripped/tracebox",
-      "gs://perfetto-luci-artifacts/v13.0/linux-arm64/tracebox"
+      "gs://perfetto-luci-artifacts/v50.1/linux-arm64/tracebox"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -2061,7 +2061,7 @@
     "name": "linux-arm64.Artifact upload.gsutil upload (3)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v13.0/linux-arm64/tracebox@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v50.1/linux-arm64/tracebox@@@"
     ]
   },
   {
@@ -2113,7 +2113,7 @@
       "-tag",
       "git_revision:",
       "-tag",
-      "git_tag:v13.0",
+      "git_tag:v50.1",
       "-metadata",
       "build_id:8945511751514863184",
       "-json-output",
@@ -2156,7 +2156,7 @@
       "----",
       "cp",
       "[CACHE]/builder/perfetto/out/linux-arm64/stripped/perfetto",
-      "gs://perfetto-luci-artifacts/v13.0/linux-arm64/perfetto"
+      "gs://perfetto-luci-artifacts/v50.1/linux-arm64/perfetto"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -2175,7 +2175,7 @@
     "name": "linux-arm64.Artifact upload.gsutil upload (4)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v13.0/linux-arm64/perfetto@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v50.1/linux-arm64/perfetto@@@"
     ]
   },
   {
@@ -2227,7 +2227,7 @@
       "-tag",
       "git_revision:",
       "-tag",
-      "git_tag:v13.0",
+      "git_tag:v50.1",
       "-metadata",
       "build_id:8945511751514863184",
       "-json-output",
@@ -2270,7 +2270,7 @@
       "----",
       "cp",
       "[CACHE]/builder/perfetto/out/linux-arm64/stripped/traced",
-      "gs://perfetto-luci-artifacts/v13.0/linux-arm64/traced"
+      "gs://perfetto-luci-artifacts/v50.1/linux-arm64/traced"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -2289,7 +2289,7 @@
     "name": "linux-arm64.Artifact upload.gsutil upload (5)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v13.0/linux-arm64/traced@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v50.1/linux-arm64/traced@@@"
     ]
   },
   {
@@ -2341,7 +2341,7 @@
       "-tag",
       "git_revision:",
       "-tag",
-      "git_tag:v13.0",
+      "git_tag:v50.1",
       "-metadata",
       "build_id:8945511751514863184",
       "-json-output",
@@ -2384,7 +2384,7 @@
       "----",
       "cp",
       "[CACHE]/builder/perfetto/out/linux-arm64/stripped/traced_probes",
-      "gs://perfetto-luci-artifacts/v13.0/linux-arm64/traced_probes"
+      "gs://perfetto-luci-artifacts/v50.1/linux-arm64/traced_probes"
     ],
     "cwd": "[CACHE]/builder/perfetto",
     "infra_step": true,
@@ -2403,7 +2403,7 @@
     "name": "linux-arm64.Artifact upload.gsutil upload (6)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@2@@@",
-      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v13.0/linux-arm64/traced_probes@@@"
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts/v50.1/linux-arm64/traced_probes@@@"
     ]
   },
   {
@@ -2455,7 +2455,7 @@
       "-tag",
       "git_revision:",
       "-tag",
-      "git_tag:v13.0",
+      "git_tag:v50.1",
       "-metadata",
       "build_id:8945511751514863184",
       "-json-output",

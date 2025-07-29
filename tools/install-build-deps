@@ -238,13 +238,13 @@ BUILD_DEPS_HOST = [
     # If updating the version, also update bazel/deps.bzl.
     Dependency(
         'buildtools/sqlite.zip',
-        'https://storage.googleapis.com/perfetto/sqlite-amalgamation-3440200.zip',
-        '833be89b53b3be8b40a2e3d5fedb635080e3edb204957244f3d6987c2bb2345f',
+        'https://storage.googleapis.com/perfetto/sqlite-amalgamation-3500300.zip',
+        '9ad6d16cbc1df7cd55c8b55127c82a9bca5e9f287818de6dc87e04e73599d754',
         'all', 'all'),
     Dependency(
         'buildtools/sqlite_src',
         'https://chromium.googlesource.com/external/github.com/sqlite/sqlite.git',
-        'c8f9803dc32bfee78a9ca2b1abbe39499729219b',  # refs/tags/version-3.44.2.
+        'a4643b451a2941f5e6965ab095d3057bc7cb2222',  # refs/tags/version-3.50.3.
         'all',
         'all'),
 
@@ -309,9 +309,10 @@ BUILD_DEPS_HOST = [
     # Zlib used both in the tracing binaries, as well as the trace processor and
     # assorted tools.
     # If updating the version, also update bazel/deps.bzl.
-    Dependency('buildtools/zlib',
-               'https://android.googlesource.com/platform/external/zlib.git',
-               '6d3f6aa0f87c9791ca7724c279ef61384f331dfd', 'all', 'all'),
+    Dependency(
+        'buildtools/zlib',
+        'https://chromium.googlesource.com/chromium/src/third_party/zlib.git',
+        '6f9b4e61924021237d474569027cfb8ac7933ee6', 'all', 'all'),
 
     # Linenoise, used only by trace_processor in standalone builds.
     # If updating the version, also update bazel/deps.bzl.
@@ -443,13 +444,13 @@ UI_DEPS = [
         'linux', 'x64'),
     Dependency(
         'buildtools/mac/emsdk.tgz',
-        'https://storage.googleapis.com/perfetto/emscripten-2.0.12-mac.tgz',
-        'aa125f8c8ff8a386d43e18c8ea0c98c875cc19160a899403e8967a5478f96f31',
+        'https://storage.googleapis.com/perfetto/emscripten-4.0.8-mac.tgz',
+        '2682c43580ae2265b4c7f3c7963629f7f501eb24a8ffa01be0059f9f5b3b8cd0',
         'darwin', 'all'),
     Dependency(
         'buildtools/linux64/emsdk.tgz',
-        'https://storage.googleapis.com/perfetto/emscripten-2.0.12-linux.tgz',
-        'bfff9fb0326363c12e19b542f27a5f12cedbfc310f30621dc497c9af51d2d2e3',
+        'https://storage.googleapis.com/perfetto/emscripten-4.0.8-linux.tgz',
+        '2fd3e39b5e233bad39799c31029b6d6d5295135cb00c1bb2fd9a4b2c4b7c264b',
         'linux', 'x64'),
     Dependency(
         'buildtools/catapult_trace_viewer.tgz',

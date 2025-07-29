@@ -27,6 +27,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
@@ -36,7 +37,6 @@
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -46,7 +46,7 @@ using protos::pbzero::Stack;
 
 base::Status SetBytesOutputValue(const std::vector<uint8_t>& src,
                                  SqlValue& out,
-                                 SqlFunction::Destructors& destructors) {
+                                 LegacySqlFunction::Destructors& destructors) {
   void* dest = malloc(src.size());
   if (dest == nullptr) {
     return base::ErrStatus("Out of memory");
@@ -60,7 +60,7 @@ base::Status SetBytesOutputValue(const std::vector<uint8_t>& src,
 // CAT_STACKS(root BLOB/STRING, level_1 BLOB/STRING, …, leaf BLOB/STRING)
 // Creates a Stack by concatenating other Stacks. Also accepts strings for which
 // it generates a fake Frame
-struct CatStacksFunction : public SqlFunction {
+struct CatStacksFunction : public LegacySqlFunction {
   static constexpr char kFunctionName[] = "CAT_STACKS";
   using Context = void;
 
@@ -121,7 +121,7 @@ struct CatStacksFunction : public SqlFunction {
 // will could have a frame that is annotated with different annotations. That
 // will lead to multiple functions being generated (same name, line etc, but
 // different annotation).
-struct StackFromStackProfileCallsiteFunction : public SqlFunction {
+struct StackFromStackProfileCallsiteFunction : public LegacySqlFunction {
   static constexpr char kFunctionName[] = "STACK_FROM_STACK_PROFILE_CALLSITE";
   using Context = TraceStorage;
 
@@ -194,7 +194,7 @@ struct StackFromStackProfileCallsiteFunction : public SqlFunction {
 // STACK_FROM_STACK_PROFILE_FRAME(frame_id LONG)
 // Creates a stack with just the frame referenced by frame_id (reference to the
 // stack_profile_frame table)
-struct StackFromStackProfileFrameFunction : public SqlFunction {
+struct StackFromStackProfileFrameFunction : public LegacySqlFunction {
   static constexpr char kFunctionName[] = "STACK_FROM_STACK_PROFILE_FRAME";
   using Context = TraceStorage;
 

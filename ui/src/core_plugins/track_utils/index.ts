@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import z from 'zod';
 import {OmniboxMode} from '../../core/omnibox_manager';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
@@ -20,17 +21,53 @@ import {getTimeSpanOfSelectionOrVisibleWindow} from '../../public/utils';
 import {exists, RequiredField} from '../../base/utils';
 import {LONG, NUM, NUM_NULL} from '../../trace_processor/query_result';
 import {TrackNode} from '../../public/workspace';
-import {featureFlags} from '../../core/feature_flags';
+import {App} from '../../public/app';
+import {Setting} from '../../public/settings';
 
-const dvorakFlag = featureFlags.register({
-  id: 'dvorakKeyboardLayout',
-  defaultValue: false,
-  name: 'Dvorak keyboard layout',
-  description: 'Disables hotkeys to avoid hotkey collisions',
-});
-
-export default class implements PerfettoPlugin {
+export default class TrackUtilsPlugin implements PerfettoPlugin {
   static readonly id = 'perfetto.TrackUtils';
+  static dvorakSetting: Setting<boolean>;
+
+  static onActivate(app: App): void {
+    TrackUtilsPlugin.dvorakSetting = app.settings.register({
+      // Plugin ID is omitted because we might want to move this setting in the
+      // future.
+      id: 'dvorakMode',
+      defaultValue: false,
+      name: 'Dvorak mode',
+      description: 'Rearranges hotkeys to avoid collisions in Dvorak layout.',
+      schema: z.boolean(),
+      requiresReload: true, // Hotkeys are registered on trace load.
+    });
+
+    // Register this command up front to block the print dialog from appearing
+    // when pressing the hotkey before the trace is loaded.
+    app.commands.registerCommand({
+      id: 'perfetto.FindTrackByName',
+      name: 'Find track by name',
+      callback: async () => {
+        const trace = app.trace;
+        if (!trace) {
+          return;
+        }
+
+        const tracksWithUris = trace.workspace.flatTracksOrdered.filter(
+          (track) => track.uri !== undefined,
+        ) as ReadonlyArray<RequiredField<TrackNode, 'uri'>>;
+        const track = await app.omnibox.prompt('Choose a track...', {
+          values: tracksWithUris,
+          getName: (track) => track.fullPath.join(' \u2023 '),
+        });
+        track &&
+          trace.selection.selectTrack(track.uri, {
+            scrollToSelection: true,
+          });
+      },
+      // This is analogous to the 'Find file' hotkey in VSCode.
+      defaultHotkey: '!Mod+P',
+    });
+  }
+
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
       id: 'perfetto.RunQueryInSelectedTimeWindow',
@@ -43,24 +80,6 @@ export default class implements PerfettoPlugin {
           `select  where ts >= ${window.start} and ts < ${window.end}`,
         );
         omnibox.focus(/* cursorPlacement= */ 7);
-      },
-    });
-
-    ctx.commands.registerCommand({
-      id: 'perfetto.FindTrackByName',
-      name: 'Find track by name',
-      callback: async () => {
-        const tracksWithUris = ctx.workspace.flatTracksOrdered.filter(
-          (track) => track.uri !== undefined,
-        ) as ReadonlyArray<RequiredField<TrackNode, 'uri'>>;
-        const track = await ctx.omnibox.prompt('Choose a track...', {
-          values: tracksWithUris,
-          getName: (track) => track.title,
-        });
-        track &&
-          ctx.selection.selectTrack(track.uri, {
-            scrollToSelection: true,
-          });
       },
     });
 
@@ -92,7 +111,7 @@ export default class implements PerfettoPlugin {
         ) as ReadonlyArray<RequiredField<TrackNode, 'uri'>>;
         const track = await ctx.omnibox.prompt('Choose a track...', {
           values: tracksWithUris,
-          getName: (track) => track.title,
+          getName: (track) => track.name,
         });
         track && track.pin();
       },
@@ -101,7 +120,7 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'perfetto.SelectNextTrackEvent',
       name: 'Select next track event',
-      defaultHotkey: !dvorakFlag.get() ? '.' : undefined,
+      defaultHotkey: '.',
       callback: async () => {
         await selectAdjacentTrackEvent(ctx, 'next');
       },
@@ -110,7 +129,7 @@ export default class implements PerfettoPlugin {
     ctx.commands.registerCommand({
       id: 'perfetto.SelectPreviousTrackEvent',
       name: 'Select previous track event',
-      defaultHotkey: !dvorakFlag.get() ? ',' : undefined,
+      defaultHotkey: !TrackUtilsPlugin.dvorakSetting.get() ? ',' : undefined,
       callback: async () => {
         await selectAdjacentTrackEvent(ctx, 'prev');
       },
@@ -130,7 +149,7 @@ async function selectAdjacentTrackEvent(
   if (selection.kind !== 'track_event') return;
 
   const td = ctx.tracks.getTrack(selection.trackUri);
-  const dataset = td?.track.getDataset?.();
+  const dataset = td?.renderer.getDataset?.();
   if (!dataset || !dataset.implements({id: NUM, ts: LONG})) return;
 
   const windowFunc = direction === 'next' ? 'LEAD' : 'LAG';

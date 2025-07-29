@@ -41,10 +41,10 @@ namespace {
 
 constexpr int kBindPort = 9001;
 
-// Sets the Access-Control-Allow-Origin: $origin on the following origins.
-// This affects only browser clients that use CORS. Other HTTP clients (e.g. the
-// python API) don't look at CORS headers.
-const char* kAllowedCORSOrigins[] = {
+// Sets by default the Access-Control-Allow-Origin: $origin on the following
+// origins. This affects only browser clients that use CORS. Other HTTP clients
+// (e.g. the python API) don't look at CORS headers.
+const char* kDefaultAllowedCORSOrigins[] = {
     "https://ui.perfetto.dev",
     "http://localhost:10000",
     "http://127.0.0.1:10000",
@@ -52,9 +52,11 @@ const char* kAllowedCORSOrigins[] = {
 
 class Httpd : public base::HttpRequestHandler {
  public:
-  explicit Httpd(std::unique_ptr<TraceProcessor>);
+  explicit Httpd(std::unique_ptr<TraceProcessor>, bool is_preloaded_eof);
   ~Httpd() override;
-  void Run(int port);
+  void Run(const std::string& listen_ip,
+           int port,
+           const std::vector<std::string>& additional_cors_origins);
 
  private:
   // HttpRequestHandler implementation.
@@ -93,23 +95,28 @@ void SendRpcChunk(base::HttpServerConnection* conn,
   }
 }
 
-Httpd::Httpd(std::unique_ptr<TraceProcessor> preloaded_instance)
-    : global_trace_processor_rpc_(std::move(preloaded_instance)),
+Httpd::Httpd(std::unique_ptr<TraceProcessor> preloaded_instance,
+             bool is_preloaded_eof)
+    : global_trace_processor_rpc_(std::move(preloaded_instance),
+                                  is_preloaded_eof),
       http_srv_(&task_runner_, this) {}
 Httpd::~Httpd() = default;
 
-void Httpd::Run(int port) {
-  PERFETTO_ILOG("[HTTP] Starting RPC server on localhost:%d", port);
-  PERFETTO_LOG(
+void Httpd::Run(const std::string& listen_ip,
+                int port,
+                const std::vector<std::string>& additional_cors_origins) {
+  for (const auto& kDefaultAllowedCORSOrigin : kDefaultAllowedCORSOrigins) {
+    http_srv_.AddAllowedOrigin(kDefaultAllowedCORSOrigin);
+  }
+  for (const auto& additional_cors_origin : additional_cors_origins) {
+    http_srv_.AddAllowedOrigin(additional_cors_origin);
+  }
+  http_srv_.Start(listen_ip, port);
+  PERFETTO_ILOG(
       "[HTTP] This server can be used by reloading https://ui.perfetto.dev and "
       "clicking on YES on the \"Trace Processor native acceleration\" dialog "
       "or through the Python API (see "
       "https://perfetto.dev/docs/analysis/trace-processor#python-api).");
-
-  for (const auto& kAllowedCORSOrigin : kAllowedCORSOrigins) {
-    http_srv_.AddAllowedOrigin(kAllowedCORSOrigin);
-  }
-  http_srv_.Start(port);
   task_runner_.Run();
 }
 
@@ -149,7 +156,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
 
   if (req.uri == "/websocket" && req.is_websocket_handshake) {
     // Will trigger OnWebsocketMessage() when is received.
-    // It returns a 403 if the origin is not in kAllowedCORSOrigins.
+    // It returns a 403 if the origin is not one of the allowed CORS origins.
     return conn.UpgradeToWebsocket(req);
   }
 
@@ -233,6 +240,12 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     return conn.SendResponse("200 OK", default_headers, Vec2Sv(res));
   }
 
+  if (req.uri == "/trace_summary") {
+    std::vector<uint8_t> res = global_trace_processor_rpc_.ComputeTraceSummary(
+        reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
+    return conn.SendResponse("200 OK", default_headers, Vec2Sv(res));
+  }
+
   if (req.uri == "/enable_metatrace") {
     global_trace_processor_rpc_.EnableMetatrace(
         reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
@@ -261,11 +274,15 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
 }  // namespace
 
 void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance,
-                      const std::string& port_number) {
-  Httpd srv(std::move(preloaded_instance));
+                      bool is_preloaded_eof,
+                      const std::string& listen_ip,
+                      const std::string& port_number,
+                      const std::vector<std::string>& additional_cors_origins) {
+  Httpd srv(std::move(preloaded_instance), is_preloaded_eof);
   std::optional<int> port_opt = base::StringToInt32(port_number);
+  std::string ip = listen_ip.empty() ? "localhost" : listen_ip;
   int port = port_opt.has_value() ? *port_opt : kBindPort;
-  srv.Run(port);
+  srv.Run(ip, port, additional_cors_origins);
 }
 
 void Httpd::ServeHelpPage(const base::HttpRequest& req) {
