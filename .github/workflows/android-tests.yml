@@ -52,3 +52,14 @@ jobs:
     - name: Check GCS access
       run: |
         gcloud storage ls gs://perfetto-ci-artifacts | wc -l
+
+    - name: Generate and rsync new content
+      env:
+        PERFETTO_TEST_ARTIFACTS_ROOT: /tmp/cache/data
+      run: |
+        mkdir -p $PERFETTO_TEST_ARTIFACTS_ROOT
+        echo "first" > $PERFETTO_TEST_ARTIFACTS_ROOT/first.txt
+        echo "second" > $PERFETTO_TEST_ARTIFACTS_ROOT/second.txt
+        date > $PERFETTO_TEST_ARTIFACTS_ROOT/date.txt
+        
+        gcloud rsync $PERFETTO_TEST_ARTIFACTS_ROOT gs://perfetto-ci-artifacts/cache/test-data --recursive --preserve-posix
