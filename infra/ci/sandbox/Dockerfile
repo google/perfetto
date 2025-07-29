@@ -145,10 +145,6 @@ RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
     | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list; \
     apt-get update && apt-get install -y google-cloud-cli;
 
-# Create folder for gcloud config
-RUN mkdir -p /tmp/gcloud-config && chmod -R 775 /tmp/gcloud-config;
-ENV CLOUDSDK_CONFIG=/tmp/gcloud-config
-
 WORKDIR /opt/ci
 
 COPY sandbox_entrypoint.sh ./
