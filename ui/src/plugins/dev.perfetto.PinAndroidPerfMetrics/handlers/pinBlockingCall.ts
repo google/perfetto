@@ -123,62 +123,11 @@ class BlockingCallMetricHandler implements MetricHandler {
 
     // Fetch the frame_id of the frame with the max duration blocking call.
     const result = await ctx.engine.query(`
-        INCLUDE PERFETTO MODULE android.slices;
-        INCLUDE PERFETTO MODULE android.binder;
-        INCLUDE PERFETTO MODULE android.critical_blocking_calls;
-        INCLUDE PERFETTO MODULE android.frames.timeline;
-        INCLUDE PERFETTO MODULE android.cujs.sysui_cujs;
+        INCLUDE PERFETTO MODULE android.frame_blocking_calls.blocking_calls_aggregation;
 
-        WITH extended_frame_boundary AS (
-          SELECT frame_ts as ts,
-          ui_thread_utid,
-          frame_id,
-          layer_id,
-          -- Calculate the end timestamp (ts_end) by taking the start time (frame_ts) of the next frame in the session.
-          -- For the last frame, fall back to the default ts_end.
-          COALESCE(LEAD(frame_ts) OVER (PARTITION BY cuj_id ORDER BY frame_id ASC), ts_end) AS ts_end,
-          frame_id
-        FROM _android_frames_in_cuj order by frame_id
-        ),
-        blocking_calls_per_frame AS (
-          SELECT
-            MIN(
-                bc.dur,
-                frame.ts_end - bc.ts,
-                bc.ts_end - frame.ts
-            ) AS dur,
-            MAX(frame.ts, bc.ts) AS ts,
-            bc.upid,
-            bc.name,
-            bc.process_name,
-            bc.utid,
-            frame.frame_id,
-            frame.layer_id
-          FROM _android_critical_blocking_calls bc
-          JOIN extended_frame_boundary frame
-          ON bc.utid = frame.ui_thread_utid
-          -- The following condition to accommodate blocking call crossing frame boundary. The blocking
-          -- call starts in a frame and ends in a frame. It can either be the same frame or a different
-          -- frame.
-          WHERE (bc.ts >= frame.ts AND bc.ts <= frame.ts_end) -- Blocking call starts within the frame.
-            OR (bc.ts_end >= frame.ts AND bc.ts_end <= frame.ts_end)
-        ),
-        blocking_calls_frame_cuj AS (
-          SELECT
-            b.frame_id,
-            b.layer_id,
-            b.name,
-            frame_cuj.cuj_name,
-            b.ts,
-            b.dur,
-            b.process_name
-          FROM _android_frames_in_cuj frame_cuj
-          JOIN blocking_calls_per_frame b
-          USING (upid, frame_id, layer_id)
-          )
         SELECT
           frame_id
-        FROM blocking_calls_frame_cuj
+        FROM _blocking_calls_frame_cuj
         WHERE
           process_name = "${processName}"
           AND name = "${blockingCallName}"
