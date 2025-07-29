@@ -32,13 +32,18 @@ class ClientInfo {
   ClientInfo(ClientID client_id,
              uid_t uid,
              pid_t pid,
-             base::MachineID machine_id)
-      : client_id_(client_id), uid_(uid), pid_(pid), machine_id_(machine_id) {}
+             base::MachineID machine_id,
+             std::string machine_name)
+      : client_id_(client_id),
+        uid_(uid),
+        pid_(pid),
+        machine_id_(machine_id),
+        machine_name_(machine_name) {}
 
   bool operator==(const ClientInfo& other) const {
-    return std::tie(client_id_, uid_, pid_, machine_id_) ==
-           std::tie(other.client_id_, other.uid_, other.pid_,
-                    other.machine_id_);
+    return std::tie(client_id_, uid_, pid_, machine_id_, machine_name_) ==
+           std::tie(other.client_id_, other.uid_, other.pid_, other.machine_id_,
+                    other.machine_name_);
   }
   bool operator!=(const ClientInfo& other) const { return !(*this == other); }
 
@@ -62,6 +67,9 @@ class ClientInfo {
   // An integral ID that identifies the machine the client is on.
   base::MachineID machine_id() const { return machine_id_; }
 
+  // Name of the machine.
+  std::string machine_name() const { return machine_name_; }
+
  private:
   ClientID client_id_ = 0;
   // The following fields are emitted to trace packets and should be kept in
@@ -69,6 +77,8 @@ class ClientInfo {
   uid_t uid_ = kInvalidUid;
   pid_t pid_ = base::kInvalidPid;
   base::MachineID machine_id_ = base::kDefaultMachineID;
+  // ... end of fields shared with ClientIdentity.
+  std::string machine_name_;
 };
 
 }  // namespace ipc

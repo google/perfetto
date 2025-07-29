@@ -21,7 +21,6 @@
 #include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
@@ -104,7 +103,7 @@ class ProfilePacketSequenceState final
     }
     struct Hasher {
       size_t operator()(const SourceAllocationIndex& o) const {
-        return static_cast<size_t>(base::Hasher::Combine(
+        return static_cast<size_t>(base::FnvHasher::Combine(
             o.upid, o.src_callstack_id, o.heap_name.raw_id()));
       }
     };
@@ -136,7 +135,7 @@ class ProfilePacketSequenceState final
   struct Hasher {
     size_t operator()(const std::pair<UniquePid, CallsiteId>& p) const {
       return static_cast<size_t>(
-          base::Hasher::Combine(p.first, p.second.value));
+          base::FnvHasher::Combine(p.first, p.second.value));
     }
   };
   base::FlatHashMap<std::pair<UniquePid, CallsiteId>,
