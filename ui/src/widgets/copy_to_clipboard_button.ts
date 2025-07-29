@@ -47,6 +47,7 @@ export interface CopyToClipboardButtonAttrs {
   readonly textToCopy: string;
   readonly title?: string;
   readonly label?: string;
+  readonly intent?: Intent;
   readonly variant?: ButtonVariant;
 }
 
@@ -65,7 +66,7 @@ export function CopyToClipboardButton(): m.Component<CopyToClipboardButtonAttrs>
         variant: attrs.variant,
         title: attrs.title ?? 'Copy to clipboard',
         icon: helper.copied ? Icons.Check : Icons.Copy,
-        intent: helper.copied ? Intent.Success : Intent.None,
+        intent: attrs.intent,
         label,
         onclick: async () => {
           await helper.copy(attrs.textToCopy);

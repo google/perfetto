@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {hasChildren} from '../base/mithril_utils';
+import {Icon} from './icon';
 
 // Heirachical tree layout with left and right values.
 // Right and left values of the same indentation level are horizontally aligned.
@@ -93,6 +94,7 @@ export class TreeNode implements m.ClassComponent<TreeNodeAttrs> {
               onCollapseChanged(this.collapsed, attrs);
             },
           }),
+          attrs.icon && m(Icon, {icon: attrs.icon, className: 'pf-left-icon'}),
           left,
         ),
         this.renderRight(vnode),

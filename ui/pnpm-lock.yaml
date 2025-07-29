@@ -89,6 +89,9 @@ dependencies:
   fzf:
     specifier: ^0.5.2
     version: 0.5.2
+  gapi-script:
+    specifier: ^1.2.0
+    version: 1.2.0
   hsluv:
     specifier: ^0.1.0
     version: 0.1.0
@@ -145,6 +148,21 @@ devDependencies:
   '@rollup/plugin-node-resolve':
     specifier: ^15.2.3
     version: 15.2.3(rollup@2.79.1)
+  '@types/gapi':
+    specifier: ^0.0.47
+    version: 0.0.47
+  '@types/gapi.auth2':
+    specifier: ^0.0.61
+    version: 0.0.61
+  '@types/gapi.client.drive-v3':
+    specifier: ^0.0.5
+    version: 0.0.5
+  '@types/google-one-tap':
+    specifier: ^1.2.6
+    version: 1.2.6
+  '@types/google.picker':
+    specifier: ^0.0.51
+    version: 0.0.51
   '@types/jest':
     specifier: ^29.5.12
     version: 29.5.12
@@ -1448,6 +1466,20 @@ packages:
     resolution: {integrity: sha512-l0h88YhZFyKdXIFNfSWpyjStDjGHwZ/U7iobcK1cQQD8sejsONdQtTVU+1wVN1PBw40PiiHB1vA5S7VTfQiP9g==}
     dev: false
 
+  /@maxim_mazurok/gapi.client.discovery-v1@0.1.20200806:
+    resolution: {integrity: sha512-Wl6UfmZVDdWbY3PUu8E2ULk9RPLjnMqp/iOA4tcK8Ne+U/GmlnWP/e34IaZNGArfl7iXJNOG+/3Rj9L9jQyF9Q==}
+    dependencies:
+      '@types/gapi.client': 1.0.8
+      '@types/gapi.client.discovery-v1': 0.0.4
+    dev: true
+
+  /@maxim_mazurok/gapi.client.drive-v3@0.0.20250811:
+    resolution: {integrity: sha512-hexYbwEHQRdd8oY+SRZwOI3rp5OaOqGxKmbvKSizxPj73ntKJtIJN2SOMXFebfR8wRjZ+y8mEEmZl4GP9VFZTg==}
+    dependencies:
+      '@types/gapi.client': 1.0.8
+      '@types/gapi.client.discovery-v1': 0.0.4
+    dev: true
+
   /@mdn/browser-compat-data@5.5.35:
     resolution: {integrity: sha512-APtxt3S+a64EcXpG7E3a0bLx+CPqEcgN45FY/GEmbBBgX51AGIPkkYFy0JQDuOR0MFCozjo50q5Im74jflrkiQ==}
     dev: true
@@ -1764,9 +1796,43 @@ packages:
     resolution: {integrity: sha512-BsPXH/irW0ht0Ji6iw/jJaK8Lj3FJemon2gvEqHKpCdDCeemHa+rI3WBGq5z7cDMZgoLjY40oninGxqk+8NzNQ==}
     dev: false
 
+  /@types/gapi.auth2@0.0.61:
+    resolution: {integrity: sha512-cn+omiRoE/LTxZncnVl1QhcLggOT0sJ8Yz9RXIsw5R2zLyRf+0o6kaZzJ/Gr3Sxz6i7J/+PbXAF8yeZipCaiWw==}
+    dependencies:
+      '@types/gapi': 0.0.47
+    dev: true
+
+  /@types/gapi.client.discovery-v1@0.0.4:
+    resolution: {integrity: sha512-uevhRumNE65F5mf2gABLaReOmbFSXONuzFZjNR3dYv6BmkHg+wciubHrfBAsp3554zNo3Dcg6dUAlwMqQfpwjQ==}
+    dependencies:
+      '@maxim_mazurok/gapi.client.discovery-v1': 0.1.20200806
+    dev: true
+
+  /@types/gapi.client.drive-v3@0.0.5:
+    resolution: {integrity: sha512-yYBxiqMqJVBg4bns4Q28+f2XdJnd3tVA9dxQX1lXMVmzT2B+pZdyCi1u9HLwGveVlookSsAXuqfLfS9KO6MF6w==}
+    dependencies:
+      '@maxim_mazurok/gapi.client.drive-v3': 0.0.20250811
+    dev: true
+
+  /@types/gapi.client@1.0.8:
+    resolution: {integrity: sha512-qJQUmmumbYym3Amax0S8CVzuSngcXsC1fJdwRS2zeW5lM63zXkw4wJFP+bG0jzgi0R6EsJKoHnGNVTDbOyG1ng==}
+    dev: true
+
+  /@types/gapi@0.0.47:
+    resolution: {integrity: sha512-/ZsLuq6BffMgbKMtZyDZ8vwQvTyKhKQ1G2K6VyWCgtHHhfSSXbk4+4JwImZiTjWNXfI2q1ZStAwFFHSkNoTkHA==}
+    dev: true
+
   /@types/geojson@7946.0.4:
     resolution: {integrity: sha512-MHmwBtCb7OCv1DSivz2UNJXPGU/1btAWRKlqJ2saEhVJkpkvqHMMaOpKg0v4sAbDWSQekHGvPVMM8nQ+Jen03Q==}
     dev: false
+
+  /@types/google-one-tap@1.2.6:
+    resolution: {integrity: sha512-REmJsXVHvKb/sgI8DF+7IesMbDbcsEokHBqxU01ENZ8d98UPWdRLhUCtxEm9bhNFFg6PJGy7PNFdvovp0hK3jA==}
+    dev: true
+
+  /@types/google.picker@0.0.51:
+    resolution: {integrity: sha512-z6o2J4PQTcXvlW1rtgQx65d5uEF+rMI1hzrnazKQxBONdEuYAr4AeOSH2KZy12WHPmqMX+aWYyfcZ0uktBBhhA==}
+    dev: true
 
   /@types/graceful-fs@4.1.6:
     resolution: {integrity: sha512-Sig0SNORX9fdW+bQuTEovKj3uHcUL6LQKbCrrqb1X7J6/ReAbhCXRAhc+SMejhLELFj2QcyuxmUooZ4bt5ReSw==}
@@ -3576,6 +3642,10 @@ packages:
 
   /fzf@0.5.2:
     resolution: {integrity: sha512-Tt4kuxLXFKHy8KT40zwsUPUkg1CrsgY25FxA2U/j/0WgEDCk3ddc/zLTCCcbSHX9FcKtLuVaDGtGE/STWC+j3Q==}
+    dev: false
+
+  /gapi-script@1.2.0:
+    resolution: {integrity: sha512-NKTVKiIwFdkO1j1EzcrWu/Pz7gsl1GmBmgh+qhuV2Ytls04W/Eg5aiBL91SCiBM9lU0PMu7p1hTVxhh1rPT5Lw==}
     dev: false
 
   /gaxios@6.7.1:

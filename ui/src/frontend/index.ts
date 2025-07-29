@@ -123,6 +123,7 @@ function setupContentSecurityPolicy() {
       'https://*.googleusercontent.com',
       'https://www.googletagmanager.com',
       'https://*.google-analytics.com',
+      'https://accounts.google.com/',
     ],
     'object-src': ['none'],
     'connect-src': [
@@ -132,6 +133,8 @@ function setupContentSecurityPolicy() {
       'https://*.googleapis.com', // For Google Cloud Storage fetches.
       'blob:',
       'data:',
+      'https://drive.google.com',
+      'https://play.google.com',
     ].concat(rpcPolicy),
     'img-src': [
       `'self'`,
@@ -140,8 +143,15 @@ function setupContentSecurityPolicy() {
       'https://*.google-analytics.com',
       'https://www.googletagmanager.com',
       'https://*.googleapis.com',
+      'https://ssl.gstatic.com',
     ],
     'style-src': [`'self'`, `'unsafe-inline'`],
+    'frame-src': [
+      'https://content.googleapis.com',
+      'https://accounts.google.com/',
+      'https://docs.google.com',
+      'https://drive.google.com',
+    ],
     'navigate-to': ['https://*.perfetto.dev', 'self'],
   };
   const meta = document.createElement('meta');
@@ -251,8 +261,12 @@ function main() {
     defaultValue: true,
   });
 
+  const initialRouteArgs = Router.parseUrl(window.location.href).args;
+
+  console.log('Initial route args', initialRouteArgs);
+
   AppImpl.initialize({
-    initialRouteArgs: Router.parseUrl(window.location.href).args,
+    initialRouteArgs,
     settingsManager,
     timestampFormatSetting,
     durationPrecisionSetting,
