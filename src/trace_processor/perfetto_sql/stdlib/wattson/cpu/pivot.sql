@@ -27,8 +27,8 @@ INCLUDE PERFETTO MODULE wattson.device_infos;
 
 INCLUDE PERFETTO MODULE wattson.utils;
 
--- Helper macro to do pivot function without policy information
-CREATE PERFETTO MACRO _stats_wo_policy_subquery(
+-- Helper macro to do pivot function
+CREATE PERFETTO MACRO _cpu_stats_subquery(
     cpu Expr,
     curve_col ColumnName,
     freq_col ColumnName,
@@ -49,44 +49,6 @@ RETURNS TableOrSubquery AS
   SELECT
     trace_start(),
     trace_dur(),
-    NULL,
-    NULL,
-    NULL
-  WHERE
-    NOT EXISTS(
-      SELECT
-        1
-      FROM _dev_cpu_policy_map
-      WHERE
-        cpu = $cpu
-    )
-);
-
--- Helper macro to do pivot function with policy information
-CREATE PERFETTO MACRO _stats_w_policy_subquery(
-    cpu Expr,
-    policy_col ColumnName,
-    curve_col ColumnName,
-    freq_col ColumnName,
-    idle_col ColumnName
-)
-RETURNS TableOrSubquery AS
-(
-  SELECT
-    ts,
-    dur,
-    policy AS $policy_col,
-    curve_value AS $curve_col,
-    freq AS $freq_col,
-    idle AS $idle_col
-  FROM _idle_freq_materialized
-  WHERE
-    cpu = $cpu
-  UNION ALL
-  SELECT
-    trace_start(),
-    trace_dur(),
-    NULL,
     NULL,
     NULL,
     NULL
@@ -103,42 +65,42 @@ RETURNS TableOrSubquery AS
 CREATE PERFETTO TABLE _stats_cpu0 AS
 SELECT
   *
-FROM _stats_wo_policy_subquery!(0, cpu0_curve, freq_0, idle_0);
+FROM _cpu_stats_subquery!(0, cpu0_curve, freq_0, idle_0);
 
 CREATE PERFETTO TABLE _stats_cpu1 AS
 SELECT
   *
-FROM _stats_wo_policy_subquery!(1, cpu1_curve, freq_1, idle_1);
+FROM _cpu_stats_subquery!(1, cpu1_curve, freq_1, idle_1);
 
 CREATE PERFETTO TABLE _stats_cpu2 AS
 SELECT
   *
-FROM _stats_wo_policy_subquery!(2, cpu2_curve, freq_2, idle_2);
+FROM _cpu_stats_subquery!(2, cpu2_curve, freq_2, idle_2);
 
 CREATE PERFETTO TABLE _stats_cpu3 AS
 SELECT
   *
-FROM _stats_wo_policy_subquery!(3, cpu3_curve, freq_3, idle_3);
+FROM _cpu_stats_subquery!(3, cpu3_curve, freq_3, idle_3);
 
 CREATE PERFETTO TABLE _stats_cpu4 AS
 SELECT
   *
-FROM _stats_w_policy_subquery!(4, policy_4, cpu4_curve, freq_4, idle_4);
+FROM _cpu_stats_subquery!(4, cpu4_curve, freq_4, idle_4);
 
 CREATE PERFETTO TABLE _stats_cpu5 AS
 SELECT
   *
-FROM _stats_w_policy_subquery!(5, policy_5, cpu5_curve, freq_5, idle_5);
+FROM _cpu_stats_subquery!(5, cpu5_curve, freq_5, idle_5);
 
 CREATE PERFETTO TABLE _stats_cpu6 AS
 SELECT
   *
-FROM _stats_w_policy_subquery!(6, policy_6, cpu6_curve, freq_6, idle_6);
+FROM _cpu_stats_subquery!(6, cpu6_curve, freq_6, idle_6);
 
 CREATE PERFETTO TABLE _stats_cpu7 AS
 SELECT
   *
-FROM _stats_w_policy_subquery!(7, policy_7, cpu7_curve, freq_7, idle_7);
+FROM _cpu_stats_subquery!(7, cpu7_curve, freq_7, idle_7);
 
 CREATE PERFETTO TABLE _stats_cpu0123 AS
 SELECT
