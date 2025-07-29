@@ -33,6 +33,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Google Cloud config
+        run: |
+          echo "$SVC_TOKEN_PATH"
+          gcloud config set auth/access_token_file $SVC_TOKEN_PATH
+
+      - name: Check GCS access
+        run: |
+          gcloud storage ls gs://perfetto-ci-artifacts | wc -l
+          
+
       - name: Setup ccache
         run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
 
