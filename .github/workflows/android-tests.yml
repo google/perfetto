@@ -16,71 +16,39 @@
 name: Perfetto CI [android]
 on:
   workflow_call:
+
+  workflow_dispatch: # This allows manual triggering
+    inputs:
+      pr_number:
+        description: 'Pull Request Number'
+        required: true
+        type: number
 env:
   # /tmp/cache contains {ccache, bazelcache} and generally any other cache
   # that should be persisted across jobs, but only updated from the main
   # branch. This is populated by the "actions/cache/restore" step below.
   PERFETTO_CACHE_DIR: /tmp/cache
   PERFETTO_ARTIFACTS_ROOT: /tmp/artifacts
-  PYTHONUNBUFFERED: 1
 jobs:
   android:
     runs-on: self-hosted
     timeout-minutes: 45
-    env:
-      PERFETTO_CI_JOB_NAME: android
-      PERFETTO_TEST_GN_ARGS: 'is_debug=false target_os=\"android\" target_cpu=\"arm\" cc_wrapper=\"ccache\"'
     steps:
-      - uses: actions/checkout@v4
+    - name: checkout PR ${{ github.event.inputs.pr_number }}.
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number) || github.ref }}
 
-      - name: Setup Google Cloud config
-        run: |
-          echo "$SVC_TOKEN_PATH"
-          gcloud config set auth/access_token_file $SVC_TOKEN_PATH
+    - name: Show PR number
+      run: |
+        echo "Running for PR: ${{ github.event.inputs.pr_number }}"
+        echo "Current ref: ${{ github.ref }}"    
 
-      - name: Check GCS access
-        run: |
-          gcloud storage ls gs://perfetto-ci-artifacts | wc -l
-          
+    - name: Setup Google Cloud config
+      run: |
+        echo "$SVC_TOKEN_PATH"
+        gcloud config set auth/access_token_file $SVC_TOKEN_PATH
 
-      - name: Setup ccache
-        run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
-
-      - uses: ./.github/actions/install-build-deps
-        with:
-          install-flags: --android
-
-      - name: Restore cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ env.PERFETTO_CACHE_DIR }}
-          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}
-
-      - name: Start emulator in the background
-        run: tools/run_android_emulator --pid /tmp/emulator.pid -v &
-
-      - name: Run GN
-        run: tools/gn gen out/dist --args="${{ env.PERFETTO_TEST_GN_ARGS }}" --check
-
-      - name: Build
-        run: tools/ninja -C out/dist
-
-      - name: Print ccache stats
-        run: ccache --show-stats
-
-      - name: perfetto_unittests
-        run: tools/run_android_test -n out/dist perfetto_unittests
-
-      - name: perfetto_integrationtests
-        run: tools/run_android_test -n -x out/dist perfetto_integrationtests
-
-      - name: Stop emulator
-        if: ${{ always() }}
-        run: test -f /tmp/emulator.pid && kill -9 $(cat /tmp/emulator.pid); true
-
-      - name: Update cache (if on main)
-        if: github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
-        with:
-          path: ${{ env.PERFETTO_CACHE_DIR }}
-          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}
+    - name: Check GCS access
+      run: |
+        gcloud storage ls gs://perfetto-ci-artifacts | wc -l
