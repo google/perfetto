@@ -37,13 +37,6 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     group: 'ACPM Temperature',
   },
   {
-    type: 'android_cpu_per_uid',
-    topLevelGroup: 'CPU',
-    group: 'CPU Per UID',
-    mode: 'rate',
-    shareYAxis: true,
-  },
-  {
     type: 'android_energy_estimation_breakdown_per_uid',
     topLevelGroup: 'POWER',
     group: 'Android Energy Estimates (per uid)',

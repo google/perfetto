@@ -46,9 +46,6 @@ class AndroidCpuPerUidModule : public ProtoImporterModule {
                      uint64_t value);
 
   TraceProcessorContext* context_;
-
-  bool loaded_package_names_ = false;
-  base::FlatHashMap<int64_t, StringId> package_names_;
 };
 
 }  // namespace perfetto::trace_processor

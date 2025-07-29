@@ -38,10 +38,6 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::trace_processor {
-namespace {
-// From android.os.UserHandle.PER_USER_RANGE
-constexpr int kPerUserRange = 100000;
-}  // namespace
 
 using perfetto::protos::pbzero::TracePacket;
 
@@ -113,39 +109,16 @@ void AndroidCpuPerUidModule::UpdateCounter(int64_t ts,
                                            uint32_t uid,
                                            uint32_t cluster,
                                            uint64_t value) {
-  if (!loaded_package_names_) {
-    loaded_package_names_ = true;
-    const auto& package_list = context_->storage->package_list_table();
-    for (auto row = package_list.IterateRows(); row; ++row) {
-      package_names_.Insert(row.uid(), row.package_name());
-    }
-  }
-
   static constexpr auto kBlueprint = tracks::CounterBlueprint(
       "android_cpu_per_uid", tracks::StaticUnitBlueprint("ms"),
-      tracks::DimensionBlueprints(
-          tracks::StringDimensionBlueprint("package_name"),
-          tracks::UintDimensionBlueprint("uid"),
-          tracks::UintDimensionBlueprint("cluster")),
-      tracks::FnNameBlueprint([](base::StringView package_name, uint32_t,
-                                 uint32_t cluster) {
-        return base::StackString<1024>("%.*s CL%d", int(package_name.size()),
-                                       package_name.data(), cluster);
+      tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("uid"),
+                                  tracks::UintDimensionBlueprint("cluster")),
+      tracks::FnNameBlueprint([](uint32_t uid, uint32_t cluster) {
+        return base::StackString<1024>("%d CL%d", uid, cluster);
       }));
 
-  uint32_t app_id = uid % kPerUserRange;
-  base::StringView package_name;
-  StringId* iter = package_names_.Find(app_id);
-  if (iter != nullptr) {
-    package_name = context_->storage->string_pool().Get(*iter);
-  } else {
-    base::StackString<32> title("uid=%d", app_id);
-    StringId title_id = context_->storage->InternString(title.string_view());
-    package_name = context_->storage->string_pool().Get(title_id);
-  }
-
   TrackId track = context_->track_tracker->InternTrack(
-      kBlueprint, tracks::Dimensions(package_name, uid, cluster));
+      kBlueprint, tracks::Dimensions(uid, cluster));
   context_->event_tracker->PushCounter(ts, double(value), track);
 }
 
