@@ -1013,6 +1013,14 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseCmaAllocStart(ts, pid);
         break;
       }
+      case FtraceEvent::kMmAllocContigMigrateRangeInfoFieldNumber: {
+        ParseMmAllocContigMigrateRangeInfo(pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kCmaAllocFinishFieldNumber: {
+        ParseCmaAllocFinish(ts, pid, fld_bytes);
+        break;
+      }
       case FtraceEvent::kCmaAllocInfoFieldNumber: {
         ParseCmaAllocInfo(ts, pid, fld_bytes);
         break;
@@ -2615,6 +2623,14 @@ void FtraceParser::ParseScmCallEnd(int64_t timestamp,
   context_->slice_tracker->End(timestamp, track_id);
 }
 
+// The ftrace event sequence for a Contiguous Memory Allocator (CMA)
+// allocation changes depending on the kernel version.
+//
+// - Versions 5.10 to 6.0 (i.e., 5.10 <= v < 6.1):
+// CmaAllocStart -> CmaAllocInfo
+//
+// - Versions 6.1 and newer (i.e., v >= 6.1):
+// CmaAllocStart -> MmAllocContigMigrateRangeInfo -> CmaAllocFinish
 void FtraceParser::ParseCmaAllocStart(int64_t timestamp, uint32_t pid) {
   std::optional<VersionNumber> kernel_version =
       SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
@@ -2625,8 +2641,66 @@ void FtraceParser::ParseCmaAllocStart(int64_t timestamp, uint32_t pid) {
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
 
+  // Erase any stale entry for this thread and initialize a fresh, zeroed
+  // struct for the new allocation sequence. This handles cases where a
+  // MmAllocContigMigrateRangeInfo event is skipped.
+  if (kernel_version >= VersionNumber{6, 1}) {
+    utid_to_cma_migration_info_[utid] = CmaMigrationInfo{};
+  }
+
   context_->slice_tracker->Begin(timestamp, track_id, kNullStringId,
                                  cma_alloc_id_);
+}
+
+void FtraceParser::ParseMmAllocContigMigrateRangeInfo(uint32_t pid,
+                                                      ConstBytes blob) {
+  std::optional<VersionNumber> kernel_version =
+      SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
+  // CmaAllocInfo event deprecated >=6.1; using MmAllocContigMigrateRangeInfo.
+  if (kernel_version < VersionNumber{6, 1})
+    return;
+
+  protos::pbzero::MmAllocContigMigrateRangeInfoFtraceEvent::Decoder info(blob);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+
+  utid_to_cma_migration_info_[utid] = CmaMigrationInfo{
+      info.nr_migrated(), info.nr_reclaimed(), info.nr_mapped()};
+}
+
+void FtraceParser::ParseCmaAllocFinish(int64_t timestamp,
+                                       uint32_t pid,
+                                       ConstBytes blob) {
+  std::optional<VersionNumber> kernel_version =
+      SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
+  // CmaAllocInfo deprecated >=6.1; Pair with ParseCmaAllocStart()
+  if (kernel_version < VersionNumber{6, 1})
+    return;
+
+  protos::pbzero::CmaAllocFinishFtraceEvent::Decoder cma_alloc_finish(blob);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+
+  CmaMigrationInfo* info_ptr = utid_to_cma_migration_info_.Find(utid);
+  const CmaMigrationInfo& info = info_ptr ? *info_ptr : CmaMigrationInfo{};
+
+  auto args_inserter = [this, &cma_alloc_finish,
+                        &info](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(cma_name_id_,
+                     Variadic::String(context_->storage->InternString(
+                         cma_alloc_finish.name())));
+    inserter->AddArg(cma_pfn_id_,
+                     Variadic::UnsignedInteger(cma_alloc_finish.pfn()));
+    inserter->AddArg(cma_req_pages_id_,
+                     Variadic::UnsignedInteger(cma_alloc_finish.count()));
+    inserter->AddArg(cma_nr_migrated_id_,
+                     Variadic::UnsignedInteger(info.nr_migrated));
+    inserter->AddArg(cma_nr_reclaimed_id_,
+                     Variadic::UnsignedInteger(info.nr_reclaimed));
+    inserter->AddArg(cma_nr_mapped_id_,
+                     Variadic::UnsignedInteger(info.nr_mapped));
+  };
+  context_->slice_tracker->End(timestamp, track_id, kNullStringId,
+                               kNullStringId, args_inserter);
 }
 
 void FtraceParser::ParseCmaAllocInfo(int64_t timestamp,
@@ -2634,9 +2708,11 @@ void FtraceParser::ParseCmaAllocInfo(int64_t timestamp,
                                      ConstBytes blob) {
   std::optional<VersionNumber> kernel_version =
       SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
-  // CmaAllocInfo event only exists after 5.10
-  if (kernel_version < VersionNumber{5, 10})
+  // CmaAllocInfo event: Kernel 5.10 <= version < 6.1
+  if (kernel_version < VersionNumber{5, 10} ||
+      kernel_version >= VersionNumber{6, 1}) {
     return;
+  }
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
