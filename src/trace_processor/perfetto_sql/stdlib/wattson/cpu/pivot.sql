@@ -158,26 +158,29 @@ FROM _interval_intersect!(
   ()
 ) AS ii;
 
-CREATE PERFETTO TABLE _stats_cpu4567 AS
+CREATE PERFETTO TABLE _stats_cpu01234567 AS
 SELECT
   ii.ts,
   ii.dur,
-  id_0 AS cpu4_id,
-  id_1 AS cpu5_id,
-  id_2 AS cpu6_id,
-  id_3 AS cpu7_id
+  cpu0123.cpu0_id,
+  cpu0123.cpu1_id,
+  cpu0123.cpu2_id,
+  cpu0123.cpu3_id,
+  id_1 AS cpu4_id,
+  id_2 AS cpu5_id,
+  id_3 AS cpu6_id,
+  id_4 AS cpu7_id
 FROM _interval_intersect!(
   (
+    _ii_subquery!(_stats_cpu0123),
     _ii_subquery!(_stats_cpu4),
     _ii_subquery!(_stats_cpu5),
     _ii_subquery!(_stats_cpu6),
     _ii_subquery!(_stats_cpu7)
   ),
   ()
-) AS ii;
-
--- SPAN OUTER JOIN because sometimes CPU4/5/6/7 are empty tables
-CREATE VIRTUAL TABLE _stats_cpu01234567 USING SPAN_OUTER_JOIN (_stats_cpu0123, _stats_cpu4567);
+) AS ii
+JOIN _stats_cpu0123 AS cpu0123 ON cpu0123._auto_id = id_0;
 
 -- Combine system state so that it has idle, freq, and L3 hit info.
 CREATE VIRTUAL TABLE _idle_freq_l3_hit_slice USING SPAN_OUTER_JOIN (_stats_cpu01234567, _arm_l3_hit_rate);
