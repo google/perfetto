@@ -86,6 +86,9 @@ packet {
         buffer_crop { left: 0 top: 0 right: 0 bottom: 0 }
         destination_frame { left: 0 top: 0 right: 1080 bottom: 2400 }
       }
+      transaction_barriers { barrier_token: "12345" kind: 432 }
+      transaction_barriers { barrier_token: "67890" kind: 987 }
+      apply_token: 987654321
     }
     displays_changed: false
   }
@@ -106,6 +109,9 @@ packet {
       vsync_id: 24784
       transaction_id: 10518374908660
       display_changes { id: 1234 what: 22 flags: 8 }
+      transaction_barriers { barrier_token: "54321" kind: 234 }
+      transaction_barriers { barrier_token: "9876" kind: 789 }
+      apply_token: 123456789
     }
     transactions {
       pid: 3
