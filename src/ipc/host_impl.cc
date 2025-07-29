@@ -25,6 +25,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/crash_keys.h"
 #include "perfetto/ext/base/sys_types.h"
 #include "perfetto/ext/base/unix_socket.h"
@@ -53,7 +54,7 @@ base::MachineID GenerateMachineID(base::UnixSocket* sock,
   if (!sock->is_connected() || sock->family() == base::SockFamily::kUnix)
     return base::kDefaultMachineID;
 
-  base::Hasher hasher;
+  base::FnvHasher hasher;
   // Use the hint from the client, or fallback to hostname if the client
   // doesn't provide a hint.
   if (!machine_id_hint.empty()) {
@@ -141,14 +142,18 @@ std::unique_ptr<Host> Host::CreateInstance_Fuchsia(
 
 HostImpl::HostImpl(base::ScopedSocketHandle socket_fd,
                    base::TaskRunner* task_runner)
-    : task_runner_(task_runner), weak_ptr_factory_(this) {
+    : task_runner_(task_runner),
+      machine_name_(base::GetPerfettoMachineName()),
+      weak_ptr_factory_(this) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   sock_ = base::UnixSocket::Listen(std::move(socket_fd), this, task_runner_,
                                    kHostSockFamily, base::SockType::kStream);
 }
 
 HostImpl::HostImpl(const char* socket_name, base::TaskRunner* task_runner)
-    : task_runner_(task_runner), weak_ptr_factory_(this) {
+    : task_runner_(task_runner),
+      machine_name_(base::GetPerfettoMachineName()),
+      weak_ptr_factory_(this) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   sock_ = base::UnixSocket::Listen(socket_name, this, task_runner_,
                                    base::GetSockFamily(socket_name),
@@ -159,7 +164,9 @@ HostImpl::HostImpl(const char* socket_name, base::TaskRunner* task_runner)
 }
 
 HostImpl::HostImpl(base::TaskRunner* task_runner)
-    : task_runner_(task_runner), weak_ptr_factory_(this) {
+    : task_runner_(task_runner),
+      machine_name_(base::GetPerfettoMachineName()),
+      weak_ptr_factory_(this) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 }
 
@@ -215,6 +222,9 @@ void HostImpl::OnNewIncomingConnection(
   client->id = client_id;
   client->sock = std::move(new_conn);
   client->sock->SetTxTimeout(socket_tx_timeout_ms_);
+  if (client->sock->family() == base::SockFamily::kUnix) {
+    client->machine_name = machine_name_;
+  }
   clients_[client_id] = std::move(client);
 }
 
@@ -327,8 +337,9 @@ void HostImpl::OnInvokeMethod(ClientConnection* client,
 
   auto peer_uid = client->GetPosixPeerUid();
   auto scoped_key = g_crash_key_uid.SetScoped(static_cast<int64_t>(peer_uid));
-  service->client_info_ = ClientInfo(
-      client->id, peer_uid, client->GetLinuxPeerPid(), client->GetMachineID());
+  service->client_info_ =
+      ClientInfo(client->id, peer_uid, client->GetLinuxPeerPid(),
+                 client->GetMachineID(), client->GetMachineName());
   service->received_fd_ = &client->received_fd;
   method.invoker(service, *decoded_req_args, std::move(deferred_reply));
   service->received_fd_ = nullptr;
@@ -355,6 +366,7 @@ void HostImpl::OnSetPeerIdentity(ClientConnection* client,
 
   client->machine_id = GenerateMachineID(client->sock.get(),
                                          set_peer_identity.machine_id_hint());
+  client->machine_name = set_peer_identity.machine_name();
 }
 
 void HostImpl::ReplyToMethodInvocation(ClientID client_id,
@@ -420,7 +432,8 @@ void HostImpl::OnDisconnect(base::UnixSocket* sock) {
   ClientID client_id = client->id;
 
   ClientInfo client_info(client_id, client->GetPosixPeerUid(),
-                         client->GetLinuxPeerPid(), client->GetMachineID());
+                         client->GetLinuxPeerPid(), client->GetMachineID(),
+                         client->GetMachineName());
 
   clients_by_socket_.erase(it);
   PERFETTO_DCHECK(clients_.count(client_id));

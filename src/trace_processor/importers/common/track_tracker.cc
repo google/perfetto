@@ -19,14 +19,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
-#include <tuple>
 
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
-#include "src/trace_processor/importers/common/process_track_translation_table.h"
-#include "src/trace_processor/importers/common/tracks.h"
-#include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/track_tables_py.h"
@@ -36,69 +32,7 @@
 namespace perfetto::trace_processor {
 
 TrackTracker::TrackTracker(TraceProcessorContext* context)
-    : source_key_(context->storage->InternString("source")),
-      trace_id_key_(context->storage->InternString("trace_id")),
-      trace_id_is_process_scoped_key_(
-          context->storage->InternString("trace_id_is_process_scoped")),
-      upid_(context->storage->InternString("upid")),
-      source_scope_key_(context->storage->InternString("source_scope")),
-      chrome_source_(context->storage->InternString("chrome")),
-      context_(context),
-      args_tracker_(context) {}
-
-TrackId TrackTracker::InternLegacyAsyncTrack(StringId raw_name,
-                                             uint32_t upid,
-                                             int64_t trace_id,
-                                             bool trace_id_is_process_scoped,
-                                             StringId source_scope) {
-  const StringId name =
-      context_->process_track_translation_table->TranslateName(raw_name);
-
-  auto args_fn = [&](ArgsTracker::BoundInserter& inserter) {
-    inserter.AddArg(source_key_, Variadic::String(chrome_source_))
-        .AddArg(trace_id_key_, Variadic::Integer(trace_id))
-        .AddArg(trace_id_is_process_scoped_key_,
-                Variadic::Boolean(trace_id_is_process_scoped))
-        .AddArg(upid_, Variadic::UnsignedInteger(upid))
-        .AddArg(source_scope_key_, Variadic::String(source_scope));
-  };
-  TrackId track_id;
-  bool inserted;
-  if (trace_id_is_process_scoped) {
-    static constexpr auto kBlueprint = tracks::SliceBlueprint(
-        "legacy_async_process_slice",
-        tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint,
-                                    tracks::StringDimensionBlueprint("scope"),
-                                    tracks::LongDimensionBlueprint("cookie")),
-        tracks::DynamicNameBlueprint());
-    std::tie(track_id, inserted) = InternTrackInner(
-        kBlueprint,
-        tracks::Dimensions(upid, context_->storage->GetString(source_scope),
-                           trace_id),
-        tracks::DynamicName(name), args_fn);
-  } else {
-    static constexpr auto kBlueprint = tracks::SliceBlueprint(
-        "legacy_async_global_slice",
-        tracks::DimensionBlueprints(tracks::StringDimensionBlueprint("scope"),
-                                    tracks::LongDimensionBlueprint("cookie")),
-        tracks::DynamicNameBlueprint());
-    std::tie(track_id, inserted) = InternTrackInner(
-        kBlueprint,
-        tracks::Dimensions(context_->storage->GetString(source_scope),
-                           trace_id),
-        tracks::DynamicName(name), args_fn);
-  }
-  // The track may have been created for an end event without name. In
-  // that case, update it with this event's name.
-  if (inserted && name != kNullStringId) {
-    auto& tracks = *context_->storage->mutable_track_table();
-    auto rr = *tracks.FindById(track_id);
-    if (rr.name() == kNullStringId) {
-      rr.set_name(name);
-    }
-  }
-  return track_id;
-}
+    : context_(context), args_tracker_(context) {}
 
 TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
                                StringId name,

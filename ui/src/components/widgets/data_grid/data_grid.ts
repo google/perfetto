@@ -14,8 +14,8 @@
 
 import m from 'mithril';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
-import {Button} from '../../../widgets/button';
-import {downloadData} from '../../../base/download_utils';
+import {Button, ButtonBar} from '../../../widgets/button';
+import {download} from '../../../base/download_utils';
 import {Anchor} from '../../../widgets/anchor';
 import {
   ColumnDefinition,
@@ -29,10 +29,12 @@ import {
 } from './common';
 import {MenuDivider, MenuItem, PopupMenu} from '../../../widgets/menu';
 import {Chip} from '../../../widgets/chip';
-import {Icon} from '../../../widgets/icon';
 import {Icons} from '../../../base/semantic_icons';
 import {InMemoryDataSource} from './in_memory_data_source';
 import {classNames} from '../../../base/classnames';
+import {Stack, StackAuto} from '../../../widgets/stack';
+import {Box} from '../../../widgets/box';
+import {LinearProgress} from '../../../widgets/linear_progress';
 
 const DEFAULT_ROWS_PER_PAGE = 50;
 
@@ -174,7 +176,17 @@ export interface DataGridAttrs {
   /**
    * Extra items to place on the toolbar.
    */
-  readonly toolbarItems?: m.Children;
+  readonly toolbarItemsLeft?: m.Children;
+
+  /**
+   * Extra items to place on the toolbar.
+   */
+  readonly toolbarItemsRight?: m.Children;
+
+  /**
+   * Optional class name added to the root element of the data grid.
+   */
+  readonly className?: string;
 }
 
 export class DataGrid implements m.ClassComponent<DataGridAttrs> {
@@ -211,7 +223,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
       showFiltersInToolbar = true,
       fillHeight = false,
       showResetButton = false,
-      toolbarItems,
+      toolbarItemsLeft,
+      toolbarItemsRight,
+      className,
     } = attrs;
 
     const onFiltersChangedWithReset =
@@ -272,7 +286,12 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
 
     return m(
       '.pf-data-grid',
-      {className: classNames(fillHeight && 'pf-data-grid--fill-height')},
+      {
+        className: classNames(
+          fillHeight && 'pf-data-grid--fill-height',
+          className,
+        ),
+      },
       this.renderTableToolbar(
         totalPages,
         totalRows,
@@ -283,8 +302,13 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
         maxRowsPerPage,
         showFiltersInToolbar,
         showResetButton,
-        toolbarItems,
+        toolbarItemsLeft,
+        toolbarItemsRight,
       ),
+      m(LinearProgress, {
+        className: 'pf-data-grid__loading',
+        state: dataSource.isLoading ? 'indeterminate' : 'none',
+      }),
       m('.pf-data-grid__table', [
         m(
           'table',
@@ -320,88 +344,97 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     maxRowsPerPage: number,
     showFilters: boolean,
     showResetButton: boolean,
-    toolbarItems: m.Children,
+    toolbarItemsLeft: m.Children,
+    toolbarItemsRight: m.Children,
   ) {
     if (
       totalPages === 1 &&
       filters.length === 0 &&
-      !Boolean(toolbarItems) &&
+      !(Boolean(toolbarItemsLeft) || Boolean(toolbarItemsRight)) &&
       showResetButton === false
     ) {
       return undefined;
     }
 
-    return m('.pf-data-grid__toolbar', [
-      toolbarItems,
-      showResetButton &&
-        m(Button, {
-          icon: Icons.ResetState,
-          label: 'Reset',
-          disabled: filters.length === 0 && sorting.direction === 'UNSORTED',
-          title: 'Reset grid state',
-          onclick: () => {
-            onSortingChanged({direction: 'UNSORTED'});
-            onFiltersChanged([]);
-          },
-        }),
-      m(
-        '.pf-data-grid__toolbar-filters',
-        showFilters &&
-          filters.map((filter) =>
-            m(Chip, {
-              className: 'pf-data-grid__filter-chip',
-              title: 'Remove filter',
-              label: this.formatFilter(filter),
-              onclick: () => {
-                const newFilters = filters.filter((f) => f !== filter);
-                this.filters = newFilters;
-                onFiltersChanged(newFilters);
-                this.currentPage = 0;
-              },
-            }),
+    return m(Box, {spacing: 'small'}, [
+      m(Stack, {orientation: 'horizontal', spacing: 'small'}, [
+        toolbarItemsLeft,
+        showResetButton &&
+          m(Button, {
+            icon: Icons.ResetState,
+            label: 'Reset',
+            disabled: filters.length === 0 && sorting.direction === 'UNSORTED',
+            title: 'Reset grid state',
+            onclick: () => {
+              onSortingChanged({direction: 'UNSORTED'});
+              onFiltersChanged([]);
+            },
+          }),
+        m(StackAuto, [
+          showFilters &&
+            m(Stack, {orientation: 'horizontal', wrap: true}, [
+              filters.map((filter) =>
+                m(Chip, {
+                  className: 'pf-data-grid__filter-chip',
+                  title: 'Remove filter',
+                  label: this.formatFilter(filter),
+                  onclick: () => {
+                    const newFilters = filters.filter((f) => f !== filter);
+                    this.filters = newFilters;
+                    onFiltersChanged(newFilters);
+                    this.currentPage = 0;
+                  },
+                }),
+              ),
+            ]),
+        ]),
+        m(Stack, {orientation: 'horizontal'}, [
+          m(
+            'span',
+            this.renderPageInfo(this.currentPage, maxRowsPerPage, totalRows),
           ),
-      ),
-      m('.pf-data-grid__toolbar-pagination', [
-        m(Button, {
-          icon: Icons.FirstPage,
-          disabled: this.currentPage === 0,
-          onclick: () => {
-            if (this.currentPage !== 0) {
-              this.currentPage = 0;
-            }
-          },
-        }),
-        m(Button, {
-          icon: Icons.PrevPage,
-          disabled: this.currentPage === 0,
-          onclick: () => {
-            if (this.currentPage > 0) {
-              this.currentPage -= 1;
-            }
-          },
-        }),
-        m(
-          'span.pf-data-grid__toolbar-page',
-          this.renderPageInfo(this.currentPage, maxRowsPerPage, totalRows),
-        ),
-        m(Button, {
-          icon: Icons.NextPage,
-          disabled: this.currentPage >= totalPages - 1,
-          onclick: () => {
-            if (this.currentPage < totalPages - 1) {
-              this.currentPage += 1;
-            }
-          },
-        }),
-        m(Button, {
-          icon: Icons.LastPage,
-          disabled: this.currentPage >= totalPages - 1,
-          onclick: () => {
-            if (this.currentPage < totalPages - 1) {
-              this.currentPage = Math.max(0, totalPages - 1);
-            }
-          },
-        }),
+          m(Button, {
+            icon: Icons.FirstPage,
+            disabled: this.currentPage === 0,
+            title: 'First Page',
+            onclick: () => {
+              if (this.currentPage !== 0) {
+                this.currentPage = 0;
+              }
+            },
+          }),
+          m(Button, {
+            icon: Icons.PrevPage,
+            disabled: this.currentPage === 0,
+            title: 'Previous Page',
+            onclick: () => {
+              if (this.currentPage > 0) {
+                this.currentPage -= 1;
+              }
+            },
+          }),
+          m(Button, {
+            icon: Icons.NextPage,
+            disabled: this.currentPage >= totalPages - 1,
+            title: 'Next Page',
+            onclick: () => {
+              if (this.currentPage < totalPages - 1) {
+                this.currentPage += 1;
+              }
+            },
+          }),
+          m(Button, {
+            icon: Icons.LastPage,
+            disabled: this.currentPage >= totalPages - 1,
+            title: 'Last Page',
+            onclick: () => {
+              if (this.currentPage < totalPages - 1) {
+                this.currentPage = Math.max(0, totalPages - 1);
+              }
+            },
+          }),
+        ]),
+        toolbarItemsRight,
       ]),
     ]);
   }
@@ -450,9 +483,28 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             currentSortBy.direction !== 'UNSORTED' &&
             (currentSortBy as SortByColumn).column === column.name;
 
-          const currentDirection = isCurrentSortColumn
+          const sortDirection = isCurrentSortColumn
             ? (currentSortBy as SortByColumn).direction
             : undefined;
+
+          function renderSortButton(
+            direction: 'ASC' | 'DESC',
+            isHint: boolean = false,
+          ): m.Children {
+            const oppositeDirection = direction === 'ASC' ? 'DESC' : 'ASC';
+            return m(Button, {
+              className: classNames(
+                isHint && 'pf-visible-on-hover pf-data-grid__button-hint',
+              ),
+              compact: true,
+              icon: direction === 'ASC' ? Icons.SortAsc : Icons.SortDesc,
+              onclick: () =>
+                onSortingChanged({
+                  column: column.name,
+                  direction: isHint ? direction : oppositeDirection,
+                }),
+            });
+          }
 
           return m(
             'th',
@@ -460,12 +512,14 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               '.pf-data-grid__data-with-btn.pf-data-grid__padded',
               m(
                 'span',
-                column.title ?? column.name,
-                isCurrentSortColumn
-                  ? currentDirection === 'ASC'
-                    ? m(Icon, {icon: Icons.SortAsc})
-                    : m(Icon, {icon: Icons.SortDesc})
-                  : undefined,
+                m(
+                  ButtonBar,
+                  column.title ?? column.name,
+                  sortControls &&
+                    (sortDirection
+                      ? renderSortButton(sortDirection)
+                      : renderSortButton('ASC', true)),
+                ),
               ),
               (sortControls || filterControls) &&
                 m(
@@ -478,7 +532,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                     }),
                   },
                   sortControls && [
-                    (!isCurrentSortColumn || currentDirection === 'DESC') &&
+                    (!isCurrentSortColumn || sortDirection === 'DESC') &&
                       m(MenuItem, {
                         label: 'Sort Ascending',
                         icon: Icons.SortAsc,
@@ -489,7 +543,7 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
                           });
                         },
                       }),
-                    (!isCurrentSortColumn || currentDirection === 'ASC') &&
+                    (!isCurrentSortColumn || sortDirection === 'ASC') &&
                       m(MenuItem, {
                         label: 'Sort Descending',
                         icon: Icons.SortDesc,
@@ -716,7 +770,12 @@ export function renderCell(value: SqlValue, columnName: string) {
     return m(
       Anchor,
       {
-        onclick: () => downloadData(`${columnName}.blob`, value),
+        icon: Icons.Download,
+        onclick: () =>
+          download({
+            fileName: `${columnName}.blob`,
+            content: value,
+          }),
       },
       `Blob (${value.length} bytes)`,
     );

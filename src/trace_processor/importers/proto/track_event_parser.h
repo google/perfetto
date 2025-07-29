@@ -17,9 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_TRACK_EVENT_PARSER_H_
 
-#include <array>
 #include <cstdint>
-#include <optional>
 #include <vector>
 
 #include "perfetto/protozero/field.h"
@@ -47,6 +45,7 @@ static constexpr uint16_t kReflectFields[] = {
 class PacketSequenceStateGeneration;
 class TraceProcessorContext;
 class TrackEventTracker;
+class TrackEventEventImporter;
 
 class TrackEventParser {
  public:
@@ -57,7 +56,7 @@ class TrackEventParser {
                             uint32_t packet_sequence_id);
   UniquePid ParseProcessDescriptor(int64_t packet_timestamp,
                                    protozero::ConstBytes);
-  UniqueTid ParseThreadDescriptor(protozero::ConstBytes);
+  UniqueTid ParseThreadDescriptor(protozero::ConstBytes, bool);
 
   void ParseTrackEvent(int64_t ts,
                        const TrackEventData* event_data,
@@ -67,7 +66,7 @@ class TrackEventParser {
   void NotifyEndOfFile();
 
  private:
-  class EventImporter;
+  friend class TrackEventEventImporter;
 
   void ParseChromeProcessDescriptor(UniquePid, protozero::ConstBytes);
   void ParseChromeThreadDescriptor(UniqueTid, protozero::ConstBytes);
@@ -124,6 +123,7 @@ class TrackEventParser {
   const StringId event_category_key_id_;
   const StringId event_name_key_id_;
   const StringId correlation_id_key_id_;
+  const StringId legacy_trace_source_id_key_id_;
 
   ChromeStringLookup chrome_string_lookup_;
   std::vector<uint32_t> reflect_fields_;

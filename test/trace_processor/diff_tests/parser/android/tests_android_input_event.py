@@ -27,14 +27,14 @@ class AndroidInputEvent(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE android.input;
         SELECT
-          event_id, ts
+          event_id, ts, source, action, device_id, display_id, key_code
         FROM
           android_key_events;
         """,
         out=Csv("""
-        "event_id","ts"
-        759309047,674773501245024
-        894093732,674773509276111
+        "event_id","ts","source","action","device_id","display_id","key_code"
+        759309047,674773501245024,257,0,2,123456789,25
+        894093732,674773509276111,257,1,2,-1,24
         """))
 
   def test_key_events_args(self):
@@ -72,18 +72,18 @@ class AndroidInputEvent(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE android.input;
         SELECT
-          event_id, ts
+          event_id, ts, source, action, device_id, display_id
         FROM
           android_motion_events;
         """,
         out=Csv("""
-        "event_id","ts"
-        330184796,674772186549222
-        1327679296,674772186549222
-        557261353,674772207730130
-        106022695,674772213523384
-        313395000,674772222900174
-        436499943,674772227946073
+        "event_id","ts","source","action","device_id","display_id"
+        330184796,674772186549222,4098,0,4,0
+        1327679296,674772186549222,4098,4,4,987654321
+        557261353,674772207730130,4098,2,4,0
+        106022695,674772213523384,4098,2,4,0
+        313395000,674772222900174,4098,2,4,0
+        436499943,674772227946073,4098,1,4,0
         """))
 
   def test_motion_events_args(self):

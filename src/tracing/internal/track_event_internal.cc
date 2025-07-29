@@ -55,7 +55,6 @@ BaseTrackEventInternedDataIndex::~BaseTrackEventInternedDataIndex() = default;
 
 namespace {
 
-static constexpr const char kLegacySlowPrefix[] = "disabled-by-default-";
 static constexpr const char kSlowTag[] = "slow";
 static constexpr const char kDebugTag[] = "debug";
 static constexpr const char kFilteredEventName[] = "FILTERED";
@@ -88,7 +87,7 @@ class TrackEventSessionObserverRegistry {
   }
 
   void ForEachObserverForRegistries(
-      const std::vector<const TrackEventCategoryRegistry*> registries,
+      const std::vector<const TrackEventCategoryRegistry*>& registries,
       std::function<void(TrackEventSessionObserver*)> callback) {
     std::unique_lock<std::recursive_mutex> lock(mutex_);
     for (auto& registered_observer : observers_) {
@@ -196,13 +195,10 @@ bool TrackEventInternal::Initialize(
       if (category->description)
         cat->set_description(category->description);
       for (const auto& tag : category->tags) {
-        if (tag)
+        if (tag) {
           cat->add_tags(tag);
+        }
       }
-      // Disabled-by-default categories get a "slow" tag.
-      if (!strncmp(category->name, kLegacySlowPrefix,
-                   strlen(kLegacySlowPrefix)))
-        cat->add_tags(kSlowTag);
     }
   }
   dsd.set_track_event_descriptor_raw(ted.SerializeAsString());
@@ -358,11 +354,6 @@ bool TrackEventInternal::IsCategoryEnabled(
       if (matcher(tag))
         return true;
     }
-    // Legacy "disabled-by-default" categories automatically get the "slow" tag.
-    if (!strncmp(category.name, kLegacySlowPrefix, strlen(kLegacySlowPrefix)) &&
-        matcher(kSlowTag)) {
-      return true;
-    }
     return false;
   };
 
@@ -381,21 +372,6 @@ bool TrackEventInternal::IsCategoryEnabled(
     if (NameMatchesPatternList(config.disabled_categories(), category.name,
                                match_type)) {
       return false;
-    }
-
-    // 2.5. A special case for Chrome's legacy disabled-by-default categories.
-    // We treat them as having a "slow" tag with one exception: they can be
-    // enabled by a pattern if the pattern starts with "disabled-by-default-"
-    // itself.
-    if (match_type == MatchType::kExact &&
-        !strncmp(category.name, kLegacySlowPrefix, strlen(kLegacySlowPrefix))) {
-      for (const auto& pattern : config.enabled_categories()) {
-        if (!strncmp(pattern.c_str(), kLegacySlowPrefix,
-                     strlen(kLegacySlowPrefix)) &&
-            NameMatchesPattern(pattern, category.name, MatchType::kPattern)) {
-          return true;
-        }
-      }
     }
 
     // 3. Disabled tags.

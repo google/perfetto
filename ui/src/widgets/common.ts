@@ -30,6 +30,7 @@ export interface HTMLAttrs {
   readonly onclick?: (e: PointerEvent) => void;
   readonly ondblclick?: (e: PointerEvent) => void;
   readonly onmouseover?: (e: MouseEvent) => void;
+  readonly onmouseenter?: (e: MouseEvent) => void;
   readonly onmouseout?: (e: MouseEvent) => void;
   readonly onmousedown?: (e: MouseEvent) => void;
   readonly onmouseup?: (e: MouseEvent) => void;
@@ -45,7 +46,7 @@ export interface HTMLFocusableAttrs extends HTMLAttrs {
 export interface HTMLInputAttrs extends HTMLFocusableAttrs {
   readonly disabled?: boolean;
   readonly type?: string;
-  readonly onchange?: (e: Event) => void;
+  readonly onchange?: (e: InputEvent) => void;
   readonly oninput?: (e: KeyboardEvent) => void;
   readonly onkeydown?: (e: KeyboardEvent) => void;
   readonly onkeyup?: (e: KeyboardEvent) => void;
@@ -92,5 +93,22 @@ export function classForIntent(intent: Intent): string | undefined {
       return 'pf-intent-warning';
     default:
       return assertUnreachable(intent);
+  }
+}
+
+export type Spacing = 'none' | 'small' | 'medium' | 'large';
+
+export function classForSpacing(spacing: Spacing): string {
+  switch (spacing) {
+    case 'none':
+      return 'pf-spacing-none';
+    case 'small':
+      return 'pf-spacing-small';
+    case 'medium':
+      return 'pf-spacing-medium';
+    case 'large':
+      return 'pf-spacing-large';
+    default:
+      assertUnreachable(spacing);
   }
 }

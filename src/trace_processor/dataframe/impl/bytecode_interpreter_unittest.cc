@@ -177,6 +177,19 @@ TEST_F(BytecodeInterpreterTest, Iota) {
   EXPECT_THAT(update, ElementsAreArray({5u, 6u, 7u, 8u, 9u}));
 }
 
+TEST_F(BytecodeInterpreterTest, Reverse) {
+  std::vector<uint32_t> res = {1, 2, 3, 4, 5};
+  SetRegistersAndExecute("Reverse: [update_register=Register(0)]",
+                         GetSpan(res));
+
+  const auto& update = GetRegister<Span<uint32_t>>(0);
+  ASSERT_THAT(update.b, AllOf(testing::Ge(res.data()),
+                              testing::Le(res.data() + res.size())));
+  ASSERT_THAT(update.e, AllOf(testing::Ge(res.data()),
+                              testing::Le(res.data() + res.size())));
+  EXPECT_THAT(update, ElementsAre(5, 4, 3, 2, 1));
+}
+
 using CastResult = CastFilterValueResult;
 
 struct CastTestCase {

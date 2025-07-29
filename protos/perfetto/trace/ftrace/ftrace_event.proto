@@ -722,5 +722,12 @@ message FtraceEvent {
     Dwc3PrepareTrbFtraceEvent dwc3_prepare_trb = 573;
     Dwc3ReadlFtraceEvent dwc3_readl = 574;
     Dwc3WritelFtraceEvent dwc3_writel = 575;
+    CmaAllocFinishFtraceEvent cma_alloc_finish = 576;
+    MmAllocContigMigrateRangeInfoFtraceEvent
+        mm_alloc_contig_migrate_range_info = 577;
+    HostFfaCallFtraceEvent host_ffa_call = 578;
+    DmabufRssStatFtraceEvent dmabuf_rss_stat = 579;
+    IommuIdmapFtraceEvent iommu_idmap = 580;
+    PsciMemProtectFtraceEvent psci_mem_protect = 581;
   }
 }

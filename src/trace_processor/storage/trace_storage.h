@@ -41,7 +41,6 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/typed_column_internal.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/counter_tables_py.h"
@@ -955,13 +954,19 @@ class TraceStorage {
   // Number of interned strings in the pool. Includes the empty string w/ ID=0.
   size_t string_count() const { return string_pool_.size(); }
 
-  base::Status ExtractArg(uint32_t arg_set_id,
-                          const char* key,
-                          std::optional<Variadic>* result) const {
+  uint32_t ExtractArgRowFast(uint32_t arg_set_id, const char* key) const {
     args_cursor_.SetFilterValueUnchecked(0, arg_set_id);
     args_cursor_.SetFilterValueUnchecked(1, key);
     args_cursor_.Execute();
-    if (args_cursor_.Eof()) {
+    return args_cursor_.Eof() ? std::numeric_limits<uint32_t>::max()
+                              : args_cursor_.ToRowNumber().row_number();
+  }
+
+  base::Status ExtractArg(uint32_t arg_set_id,
+                          const char* key,
+                          std::optional<Variadic>* result) const {
+    uint32_t arg = ExtractArgRowFast(arg_set_id, key);
+    if (arg == std::numeric_limits<uint32_t>::max()) {
       *result = std::nullopt;
       return base::OkStatus();
     }

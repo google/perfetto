@@ -19,15 +19,11 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <map>
 #include <tuple>
-#include <type_traits>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "src/trace_processor/dataframe/dataframe.h"
-#include "src/trace_processor/db/column.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
@@ -96,9 +92,6 @@ class ArgsTracker {
     }
 
    protected:
-    BoundInserter(ArgsTracker* args_tracker,
-                  ColumnLegacy* arg_set_id_column,
-                  uint32_t row);
     BoundInserter(ArgsTracker* args_tracker,
                   dataframe::Dataframe* dataframe,
                   uint32_t col,
@@ -272,14 +265,9 @@ class ArgsTracker {
  private:
   template <typename T>
   BoundInserter AddArgsTo(T* table, typename T::Id id) {
-    if constexpr (std::is_base_of_v<Table, T>) {
-      uint32_t row = table->FindById(id)->ToRowNumber().row_number();
-      return BoundInserter(this, table->mutable_arg_set_id(), row);
-    } else {
-      uint32_t row = table->FindById(id)->ToRowNumber().row_number();
-      return BoundInserter(this, &table->dataframe(),
-                           T::ColumnIndex::arg_set_id, row);
-    }
+    uint32_t row = table->FindById(id)->ToRowNumber().row_number();
+    return BoundInserter(this, &table->dataframe(), T::ColumnIndex::arg_set_id,
+                         row);
   }
 
   void AddArg(void* ptr,
@@ -299,12 +287,9 @@ class ArgsTracker {
                                    StringId /*key*/>;
   struct Hasher {
     uint64_t operator()(const ArrayKeyTuple& t) const {
-      base::Hasher hasher;
-      hasher.Update(reinterpret_cast<uint64_t>(std::get<0>(t)));
-      hasher.Update(std::get<1>(t));
-      hasher.Update(std::get<2>(t));
-      hasher.Update(std::get<3>(t).raw_id());
-      return hasher.digest();
+      return base::FnvHasher::Combine(
+          reinterpret_cast<uint64_t>(std::get<0>(t)), std::get<1>(t),
+          std::get<2>(t), std::get<3>(t).raw_id());
     }
   };
   base::FlatHashMap<ArrayKeyTuple, size_t /*next_index*/, Hasher>

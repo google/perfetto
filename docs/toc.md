@@ -30,6 +30,7 @@
   - [Case Studies](#)
 
     - [Android Memory Usage](case-studies/memory.md)
+    - [Scheduling blockages](case-studies/scheduling-blockages.md)
 
 - [Learning more](#)
 
@@ -77,6 +78,7 @@
 
     - [Getting started](contributing/getting-started.md)
     - [Common tasks](contributing/common-tasks.md)
+    - [Become a committer](contributing/become-a-committer.md)
     - [UI](#)
 
       - [Getting started](contributing/ui-getting-started.md)

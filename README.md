@@ -64,20 +64,20 @@ experienced developer.
 1.  **New to tracing?** If you're unfamiliar with concepts like tracing and
     profiling, start here:
 
-    - [**What is Tracing?**](docs/tracing-101.md) - A gentle introduction to the
-      world of performance analysis.
+    - [**What is Tracing?**](https://perfetto.dev/docs/tracing-101) - A gentle
+      introduction to the world of performance analysis.
 
 2.  **Ready to dive in?** Our "Getting Started" guide is the main entry point
     for all users. It will help you find the right tutorials and documentation
     for your specific needs:
 
-    - [**How do I start using Perfetto?**](docs/getting-started/start-using-perfetto.md) -
+    - [**How do I start using Perfetto?**](https://perfetto.dev/docs/getting-started/start-using-perfetto) -
       Find your path based on your role and goals (e.g., Android App Developer,
       C/C++ Developer, etc.).
 
 3.  **Want the full overview?** For a comprehensive look at what Perfetto is,
     why it's useful, and who uses it, see our main documentation page:
-    - [**Perfetto Documentation Home**](docs/README.md)
+    - [**Perfetto Documentation Home**](https://perfetto.dev/docs/)
 
 ## Community & Support
 

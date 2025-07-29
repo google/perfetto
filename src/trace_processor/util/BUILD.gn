@@ -241,7 +241,6 @@ source_set("profile_builder") {
     "../containers",
     "../dataframe",
     "../dataframe",
-    "../db/column",
     "../storage",
     "../tables",
     "../types",
@@ -282,7 +281,6 @@ source_set("winscope_proto_mapping") {
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base:base",
     "../dataframe",
-    "../db",
     "../storage:storage",
     "../tables",
   ]
@@ -302,6 +300,11 @@ source_set("unittests") {
     "trace_blob_view_reader_unittest.cc",
     "zip_reader_unittest.cc",
   ]
+
+  if (!is_win) {
+    sources += [ "regex_unittest.cc" ]
+  }
+
   testonly = true
   deps = [
     ":bump_allocator",
@@ -312,6 +315,7 @@ source_set("unittests") {
     ":proto_to_args_parser",
     ":protozero_to_json",
     ":protozero_to_text",
+    ":regex",
     ":sql_argument",
     ":trace_blob_view_reader",
     ":zip_reader",

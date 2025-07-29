@@ -48,6 +48,8 @@ import {featureFlags} from '../core/feature_flags';
 import {trackMatchesFilter} from '../core/track_manager';
 import {renderStatusBar} from './statusbar';
 import {formatTimezone, timezoneOffsetMap} from '../base/time';
+import {LinearProgress} from '../widgets/linear_progress';
+import {taskTracker} from './task_tracker';
 
 const showStatusBarFlag = featureFlags.register({
   id: 'Enable status bar',
@@ -223,6 +225,11 @@ export class UiMainPerTrace implements m.ClassComponent {
         defaultHotkey: 'F',
       },
       {
+        id: 'perfetto.ZoomOnSelection',
+        name: 'Zoom in on current selection',
+        callback: () => trace.selection.zoomOnSelection(),
+      },
+      {
         id: 'perfetto.Deselect',
         name: 'Deselect',
         callback: () => {
@@ -286,7 +293,7 @@ export class UiMainPerTrace implements m.ClassComponent {
           // - If nothing is selected, or all selected tracks are entirely
           //   selected, then select the entire trace. This allows double tapping
           //   Ctrl+A to select the entire track, then select the entire trace.
-          let tracksToSelect: string[];
+          let tracksToSelect: ReadonlyArray<string>;
           const selection = trace.selection.selection;
           if (selection.kind === 'area') {
             // Something is already selected, let's see if it covers the entire
@@ -745,15 +752,24 @@ export class UiMainPerTrace implements m.ClassComponent {
       }
     }
 
+    const isSomethingLoading =
+      AppImpl.instance.isLoadingTrace ||
+      (this.trace?.engine.numRequestsPending ?? 0) > 0 ||
+      taskTracker.hasPendingTasks();
+
     return m(
       HotkeyContext,
       {hotkeys},
       m(
-        'main',
+        'main.pf-ui-main',
         m(Sidebar, {trace: this.trace}),
         m(Topbar, {
           omnibox: this.renderOmnibox(),
           trace: this.trace,
+        }),
+        m(LinearProgress, {
+          className: 'pf-ui-main__loading',
+          state: isSomethingLoading ? 'indeterminate' : 'none',
         }),
         app.pages.renderPageForCurrentRoute(),
         m(CookieConsent),

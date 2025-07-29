@@ -286,7 +286,7 @@ function showOutOfMemoryDialog() {
   const tpCmd =
     'curl -LO https://get.perfetto.dev/trace_processor\n' +
     'chmod +x ./trace_processor\n' +
-    'trace_processor --httpd /path/to/trace.pftrace\n' +
+    './trace_processor --httpd /path/to/trace.pftrace\n' +
     '# Reload the UI, it will prompt to use the HTTP+RPC interface';
   showModal({
     title: 'Oops! Your WASM trace processor ran out of memory',
@@ -295,7 +295,7 @@ function showOutOfMemoryDialog() {
       m(
         'span',
         'The in-memory representation of the trace is too big ' +
-          'for the browser memory limits (typically 2GB per tab).',
+          'for the browser memory limits.',
       ),
       m('br'),
       m(

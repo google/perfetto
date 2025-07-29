@@ -26,12 +26,15 @@ source_set("base") {
     "endian.h",
     "event_fd.h",
     "file_utils.h",
+    "flags.h",
     "flat_hash_map.h",
+    "fnv_hash.h",
     "getopt.h",
     "getopt_compat.h",
     "hash.h",
     "metatrace.h",
     "metatrace_events.h",
+    "murmur_hash.h",
     "no_destructor.h",
     "paged_memory.h",
     "periodic_task.h",
@@ -39,6 +42,7 @@ source_set("base") {
     "platform.h",
     "scoped_file.h",
     "scoped_mmap.h",
+    "scoped_sched_boost.h",
     "small_set.h",
     "small_vector.h",
     "status_macros.h",
@@ -68,6 +72,9 @@ source_set("base") {
   ]
   if (enable_perfetto_ipc) {
     sources += [ "unix_socket.h" ]
+  }
+  if (perfetto_build_with_android) {
+    libs = [ "perfetto_flags_c_lib" ]
   }
   public_configs = [ "../../../../gn:asan_instrumentation" ]
   public_deps = [ "../../base" ]

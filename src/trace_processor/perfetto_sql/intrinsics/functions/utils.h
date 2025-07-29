@@ -18,26 +18,28 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_UTILS_H_
 
 #include <sqlite3.h>
-#include <unordered_map>
+#include <limits>
+#include <string>
+#include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/status_macros.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/trace_processor/demangle.h"
-#include "protos/perfetto/common/builtin_clock.pbzero.h"
-#include "src/trace_processor/db/column/utils.h"
 #include "src/trace_processor/export_json.h"
-#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_function.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_type.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/util/glob.h"
 #include "src/trace_processor/util/regex.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-struct ExportJson : public SqlFunction {
+struct ExportJson : public LegacySqlFunction {
   using Context = TraceStorage;
   static base::Status Run(TraceStorage* storage,
                           size_t /*argc*/,
@@ -70,7 +72,7 @@ base::Status ExportJson::Run(TraceStorage* storage,
   return json::ExportJson(storage, output.get());
 }
 
-struct Hash : public SqlFunction {
+struct Hash : public LegacySqlFunction {
   static base::Status Run(void*,
                           size_t argc,
                           sqlite3_value** argv,
@@ -83,7 +85,7 @@ base::Status Hash::Run(void*,
                        sqlite3_value** argv,
                        SqlValue& out,
                        Destructors&) {
-  base::Hasher hash;
+  base::FnvHasher hash;
   for (size_t i = 0; i < argc; ++i) {
     sqlite3_value* value = argv[i];
     int type = sqlite3_value_type(value);
@@ -105,7 +107,7 @@ base::Status Hash::Run(void*,
   return base::OkStatus();
 }
 
-struct Reverse : public SqlFunction {
+struct Reverse : public LegacySqlFunction {
   static base::Status Run(void*,
                           size_t argc,
                           sqlite3_value** argv,
@@ -143,7 +145,7 @@ base::Status Reverse::Run(void*,
   return base::OkStatus();
 }
 
-struct Base64Encode : public SqlFunction {
+struct Base64Encode : public LegacySqlFunction {
   static base::Status Run(void*,
                           size_t argc,
                           sqlite3_value** argv,
@@ -176,7 +178,7 @@ base::Status Base64Encode::Run(void*,
   return base::OkStatus();
 }
 
-struct Demangle : public SqlFunction {
+struct Demangle : public LegacySqlFunction {
   static base::Status Run(void*,
                           size_t argc,
                           sqlite3_value** argv,
@@ -211,7 +213,7 @@ base::Status Demangle::Run(void*,
   return base::OkStatus();
 }
 
-struct WriteFile : public SqlFunction {
+struct WriteFile : public LegacySqlFunction {
   using Context = TraceStorage;
   static base::Status Run(TraceStorage* storage,
                           size_t,
@@ -267,76 +269,60 @@ base::Status WriteFile::Run(TraceStorage*,
   return base::OkStatus();
 }
 
-struct ExtractArg : public SqlFunction {
-  using Context = TraceStorage;
-  static base::Status Run(TraceStorage* storage,
-                          size_t argc,
-                          sqlite3_value** argv,
-                          SqlValue& out,
-                          Destructors& destructors);
+struct ExtractArg : public sqlite::Function<ExtractArg> {
+  static constexpr char kName[] = "extract_arg";
+  static constexpr int kArgCount = 2;
+
+  using UserData = TraceStorage;
+  static void Step(sqlite3_context* ctx, int, sqlite3_value** argv);
 };
 
-base::Status ExtractArg::Run(TraceStorage* storage,
-                             size_t argc,
-                             sqlite3_value** argv,
-                             SqlValue& out,
-                             Destructors& destructors) {
-  if (argc != 2)
-    return base::ErrStatus("EXTRACT_ARG: 2 args required");
+void ExtractArg::Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
+  sqlite::Type arg_set_value = sqlite::value::Type(argv[0]);
+  sqlite::Type key_value = sqlite::value::Type(argv[1]);
 
   // If the arg set id is null, just return null as the result.
-  if (sqlite3_value_type(argv[0]) == SQLITE_NULL)
-    return base::OkStatus();
-
-  if (sqlite3_value_type(argv[0]) != SQLITE_INTEGER)
-    return base::ErrStatus("EXTRACT_ARG: 1st argument should be arg set id");
-
-  if (sqlite3_value_type(argv[1]) != SQLITE_TEXT)
-    return base::ErrStatus("EXTRACT_ARG: 2nd argument should be key");
-
-  uint32_t arg_set_id = static_cast<uint32_t>(sqlite3_value_int(argv[0]));
-  const char* key = reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
-
-  std::optional<Variadic> opt_value;
-  RETURN_IF_ERROR(storage->ExtractArg(arg_set_id, key, &opt_value));
-
-  if (!opt_value)
-    return base::OkStatus();
-
-  // This function always returns static strings (i.e. scoped to lifetime
-  // of the TraceStorage thread pool) so prevent SQLite from making copies.
-  destructors.string_destructor = sqlite::utils::kSqliteStatic;
-
-  switch (opt_value->type) {
-    case Variadic::kNull:
-      return base::OkStatus();
-    case Variadic::kInt:
-      out = SqlValue::Long(opt_value->int_value);
-      return base::OkStatus();
-    case Variadic::kUint:
-      out = SqlValue::Long(static_cast<int64_t>(opt_value->uint_value));
-      return base::OkStatus();
-    case Variadic::kString:
-      out =
-          SqlValue::String(storage->GetString(opt_value->string_value).data());
-      return base::OkStatus();
-    case Variadic::kReal:
-      out = SqlValue::Double(opt_value->real_value);
-      return base::OkStatus();
-    case Variadic::kBool:
-      out = SqlValue::Long(opt_value->bool_value);
-      return base::OkStatus();
-    case Variadic::kPointer:
-      out = SqlValue::Long(static_cast<int64_t>(opt_value->pointer_value));
-      return base::OkStatus();
-    case Variadic::kJson:
-      out = SqlValue::String(storage->GetString(opt_value->json_value).data());
-      return base::OkStatus();
+  if (arg_set_value == sqlite::Type::kNull) {
+    return;
   }
-  PERFETTO_FATAL("For GCC");
+
+  if (arg_set_value != sqlite::Type::kInteger) {
+    return sqlite::result::Error(
+        ctx, "EXTRACT_ARG: 1st argument should be arg set id");
+  }
+
+  if (key_value != sqlite::Type::kText) {
+    return sqlite::result::Error(ctx,
+                                 "EXTRACT_ARG: 2nd argument should be key");
+  }
+
+  uint32_t arg_set_id = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
+  const char* key = reinterpret_cast<const char*>(sqlite::value::Text(argv[1]));
+
+  auto* storage = GetUserData(ctx);
+  uint32_t row = storage->ExtractArgRowFast(arg_set_id, key);
+  if (row == std::numeric_limits<uint32_t>::max()) {
+    return;
+  }
+  auto rr = storage->arg_table()[row];
+  switch (*storage->GetVariadicTypeForId(rr.value_type())) {
+    case Variadic::Type::kBool:
+    case Variadic::Type::kInt:
+    case Variadic::Type::kUint:
+    case Variadic::Type::kPointer:
+      return sqlite::result::Long(ctx, *rr.int_value());
+    case Variadic::Type::kJson:
+    case Variadic::Type::kString:
+      return sqlite::result::StaticString(
+          ctx, storage->GetString(rr.string_value()).c_str());
+    case Variadic::Type::kReal:
+      return sqlite::result::Double(ctx, *rr.real_value());
+    case Variadic::Type::kNull:
+      return;
+  }
 }
 
-struct SourceGeq : public SqlFunction {
+struct SourceGeq : public LegacySqlFunction {
   static base::Status Run(void*,
                           size_t,
                           sqlite3_value**,
@@ -347,7 +333,7 @@ struct SourceGeq : public SqlFunction {
   }
 };
 
-struct TablePtrBind : public SqlFunction {
+struct TablePtrBind : public LegacySqlFunction {
   static base::Status Run(void*,
                           size_t,
                           sqlite3_value**,
@@ -359,44 +345,111 @@ struct TablePtrBind : public SqlFunction {
   }
 };
 
-struct Glob : public SqlFunction {
-  static base::Status Run(void*,
-                          size_t,
-                          sqlite3_value** argv,
-                          SqlValue& out,
-                          Destructors&) {
-    const char* pattern =
-        reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+struct Glob : public sqlite::Function<Glob> {
+  static constexpr char kName[] = "glob";
+  static constexpr int kArgCount = 2;
+
+  using AuxData = util::GlobMatcher;
+  static void Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
     const char* text =
         reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
-    if (pattern && text) {
-      out = SqlValue::Long(sqlite3_strglob(pattern, text) == 0);
+    auto* aux = GetAuxData(ctx, 0);
+    if (PERFETTO_UNLIKELY(!aux || !text)) {
+      const char* pattern_str =
+          reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+      if (!text || !pattern_str) {
+        return;
+      }
+      auto ptr = std::make_unique<util::GlobMatcher>(
+          util::GlobMatcher::FromPattern(pattern_str));
+      aux = ptr.get();
+      SetAuxData(ctx, 0, std::move(ptr));
     }
-    return base::OkStatus();
+    return sqlite::result::Long(ctx, aux->Matches(text));
   }
 };
 
-struct Regex : public SqlFunction {
-  static base::Status Run(void*,
-                          size_t,
-                          sqlite3_value** argv,
-                          SqlValue& out,
-                          Destructors&) {
+struct Regexp : public sqlite::Function<Regexp> {
+  static constexpr char kName[] = "regexp";
+  static constexpr int kArgCount = 2;
+
+  using AuxData = regex::Regex;
+  static void Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
     if constexpr (regex::IsRegexSupported()) {
-      const char* pattern_str =
-          reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
       const char* text =
           reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
-      if (pattern_str && text) {
-        auto regex = regex::Regex::Create(pattern_str);
-        if (!regex.status().ok()) {
-          return regex.status();
+      auto* aux = GetAuxData(ctx, 0);
+      if (PERFETTO_UNLIKELY(!aux || !text)) {
+        const char* pattern_str =
+            reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+        if (!text || !pattern_str) {
+          return;
         }
-        out = SqlValue::Long(regex->Search(text));
+        SQLITE_ASSIGN_OR_RETURN(ctx, auto regex,
+                                regex::Regex::Create(pattern_str));
+        auto ptr = std::make_unique<AuxData>(std::move(regex));
+        aux = ptr.get();
+        SetAuxData(ctx, 0, std::move(ptr));
       }
-      return base::OkStatus();
+      return sqlite::result::Long(ctx, aux->Search(text));
+    } else {
+      PERFETTO_FATAL("Regex not supported");
     }
-    PERFETTO_FATAL("Regex not supported");
+  }
+};
+
+struct RegexpExtract : public sqlite::Function<RegexpExtract> {
+  static constexpr char kName[] = "regexp_extract";
+  static constexpr int kArgCount = 2;
+
+  struct AuxData {
+    regex::Regex regex;
+    std::vector<std::string_view> matches;
+  };
+
+  static void Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
+    if constexpr (regex::IsRegexSupported()) {
+      const char* text =
+          reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+      auto* aux = GetAuxData(ctx, 1);
+      if (PERFETTO_UNLIKELY(!aux || !text)) {
+        const char* pattern_str =
+            reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
+        if (!text || !pattern_str) {
+          return;
+        }
+        SQLITE_ASSIGN_OR_RETURN(ctx, auto regex,
+                                regex::Regex::Create(pattern_str));
+        auto ptr = std::make_unique<AuxData>(AuxData{std::move(regex), {}});
+        aux = ptr.get();
+        SetAuxData(ctx, 1, std::move(ptr));
+      }
+
+      aux->regex.Submatch(text, aux->matches);
+      if (PERFETTO_UNLIKELY(aux->matches.empty())) {
+        return;
+      }
+
+      // As per re_nsub, groups[0] is the full match. groups[1] is the first
+      // subexpression.
+      if (PERFETTO_UNLIKELY(aux->matches.size() > 2)) {
+        return sqlite::utils::SetError(
+            ctx, "REGEXP_EXTRACT: pattern has more than one group.");
+      }
+
+      std::string_view result_sv;
+      if (aux->matches.size() == 2 && !aux->matches[1].empty()) {
+        // One group, and it matched.
+        result_sv = aux->matches[1];
+      } else {
+        // No groups, or optional group did not match. Return full match.
+        result_sv = aux->matches[0];
+      }
+      return sqlite::result::TransientString(
+          ctx, result_sv.data(), static_cast<int>(result_sv.size()));
+    } else {
+      PERFETTO_FATAL("Regex not supported");
+    }
   }
 };
 

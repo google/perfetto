@@ -32,13 +32,13 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/json/json_parser.h"
@@ -207,17 +207,72 @@ uint32_t CoerceToUint32(double n) {
   return CoerceToUint32(static_cast<int64_t>(n));
 }
 
-inline int64_t CoerceToTs(const json::JsonValue& value) {
+inline bool CoerceToTs(const json::JsonValue& value,
+                       int64_t& ts,
+                       base::Status& status) {
   switch (value.index()) {
-    case base::variant_index<json::JsonValue, double>():
-      return static_cast<int64_t>(
-          std::llround(base::unchecked_get<double>(value) * 1000.0));
+    case base::variant_index<json::JsonValue, double>(): {
+      double value_dbl = base::unchecked_get<double>(value);
+      ts = value_dbl == std::trunc(value_dbl)
+               ? static_cast<int64_t>(value_dbl) * 1000
+               : static_cast<int64_t>(std::llround(value_dbl * 1000.0));
+      return true;
+    }
     case base::variant_index<json::JsonValue, int64_t>():
-      return base::unchecked_get<int64_t>(value) * 1000;
-    case base::variant_index<json::JsonValue, std::string_view>():
-      return CoerceToTs(base::unchecked_get<std::string_view>(value));
+      ts = base::unchecked_get<int64_t>(value) * 1000;
+      return true;
+    case base::variant_index<json::JsonValue, std::string_view>(): {
+      std::string_view value_str = base::unchecked_get<std::string_view>(value);
+      json::JsonValue str_parsed;
+      std::string temp_str;
+      const char* start = value_str.data();
+      const char* end = value_str.data() + value_str.size();
+
+      // The ParseValue function expects to see the next character after any
+      // number so we need to add one to the end of the string contents (which
+      // should be the quote character) to ensure we don't get
+      // `kIncompleteInput`.
+      const char* quote_end = value_str.data() + value_str.size() + 1;
+      auto ret =
+          json::ParseValue(start, quote_end, str_parsed, temp_str, status);
+      switch (ret) {
+        case json::ReturnCode::kOk:
+          if (start != end) {
+            status = base::ErrStatus(
+                "Unexpected trailing characters when parsing string timestamp "
+                "'%.*s'",
+                static_cast<int>(value_str.size()), value_str.data());
+            return false;
+          }
+          break;
+        case json::ReturnCode::kError:
+          // status is already set by ParseValue.
+          return false;
+        case json::ReturnCode::kIncompleteInput:
+          status = base::ErrStatus(
+              "Unexpected incomplete input when parsing string timestamp "
+              "'%.*s'",
+              static_cast<int>(value_str.size()), value_str.data());
+          return false;
+        case json::ReturnCode::kEndOfScope:
+          status = base::ErrStatus(
+              "Unexpected end of scope when parsing string timestamp '%.*s'",
+              static_cast<int>(value_str.size()), value_str.data());
+          return false;
+      }
+      if (!std::holds_alternative<double>(str_parsed) &&
+          !std::holds_alternative<int64_t>(str_parsed)) {
+        status = base::ErrStatus("Expected a number in string timestamp '%.*s'",
+                                 static_cast<int>(value_str.size()),
+                                 value_str.data());
+        return false;
+      }
+      return CoerceToTs(str_parsed, ts, status);
+    }
     default:
-      return std::numeric_limits<int64_t>::max();
+      status = base::ErrStatus("Expected a number in timestamp, got %zu",
+                               value.index());
+      return false;
   }
 }
 
@@ -233,6 +288,68 @@ inline std::string_view GetObjectValue(const json::JsonValue& value) {
     return o->contents;
   }
   return {};
+}
+
+struct IdResult {
+  JsonEvent::IdStrOrUint64 id;
+  JsonEvent::IdType type;
+};
+
+std::optional<IdResult> ExtractId(StringPool* pool,
+                                  const json::JsonValue& value) {
+  switch (value.index()) {
+    case base::variant_index<json::JsonValue, std::string_view>(): {
+      IdResult res;
+      auto str_view = base::unchecked_get<std::string_view>(value);
+      res.id.id_str = pool->InternString(
+          base::StringView(str_view.data(), str_view.size()));
+      res.type = JsonEvent::IdType::kString;
+      return res;
+    }
+    case base::variant_index<json::JsonValue, int64_t>(): {
+      IdResult res;
+      res.id.id_uint64 =
+          static_cast<uint64_t>(base::unchecked_get<int64_t>(value));
+      res.type = JsonEvent::IdType::kUint64;
+      return res;
+    }
+    default:
+      return std::nullopt;
+  }
+}
+
+void ParseId2(json::Iterator& inner_it,
+              TraceProcessorContext* context,
+              std::string_view id2,
+              std::optional<IdResult>& id2_local,
+              std::optional<IdResult>& id2_global) {
+  inner_it.Reset(id2.data(), id2.data() + id2.size());
+  if (!inner_it.ParseStart()) {
+    context->storage->IncrementStats(stats::json_tokenizer_failure);
+    return;
+  }
+  for (;;) {
+    switch (inner_it.ParseObjectFieldWithoutRecursing()) {
+      case State::kOk:
+      case State::kEndOfScope:
+        break;
+      case State::kError:
+        context->storage->IncrementStats(stats::json_tokenizer_failure);
+        return;
+      case State::kIncompleteInput:
+        PERFETTO_FATAL("Unexpected incomplete input in JSON object for id2");
+    }
+    if (inner_it.eof()) {
+      break;
+    }
+    if (inner_it.key() == "local") {
+      id2_local =
+          ExtractId(context->storage->mutable_string_pool(), inner_it.value());
+    } else if (inner_it.key() == "global") {
+      id2_global =
+          ExtractId(context->storage->mutable_string_pool(), inner_it.value());
+    }
+  }
 }
 
 }  // namespace
@@ -438,9 +555,10 @@ base::Status JsonTraceTokenizer::HandleTraceEvent(const char* start,
 
 bool JsonTraceTokenizer::ParseTraceEventContents() {
   JsonEvent event;
+  base::Status status;
   int64_t ts = std::numeric_limits<int64_t>::max();
-  std::string_view id2_local;
-  std::string_view id2_global;
+  std::optional<IdResult> id2_local;
+  std::optional<IdResult> id2_global;
   for (;;) {
     switch (it_.ParseObjectFieldWithoutRecursing()) {
       case State::kOk:
@@ -457,9 +575,17 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
       std::string_view ph = GetStringValue(it_.value());
       event.phase = ph.size() >= 1 ? ph[0] : '\0';
     } else if (it_.key() == "ts") {
-      ts = CoerceToTs(it_.value());
+      if (!CoerceToTs(it_.value(), ts, status)) {
+        PERFETTO_DLOG("%s", status.c_message());
+        context_->storage->IncrementStats(stats::json_tokenizer_failure);
+        return false;
+      }
     } else if (it_.key() == "dur") {
-      event.dur = CoerceToTs(it_.value());
+      if (!CoerceToTs(it_.value(), event.dur, status)) {
+        PERFETTO_DLOG("%s", status.c_message());
+        context_->storage->IncrementStats(stats::json_tokenizer_failure);
+        return false;
+      }
     } else if (it_.key() == "pid") {
       switch (it_.value().index()) {
         case base::variant_index<json::JsonValue, std::string_view>(): {
@@ -471,13 +597,16 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
               base::unchecked_get<std::string_view>(it_.value());
           event.pid = context_->storage->InternString(proc_name).raw_id();
           event.pid_is_string_id = true;
+          event.pid_exists = true;
           break;
         }
         case base::variant_index<json::JsonValue, int64_t>():
           event.pid = CoerceToUint32(base::unchecked_get<int64_t>(it_.value()));
+          event.pid_exists = true;
           break;
         case base::variant_index<json::JsonValue, double>():
           event.pid = CoerceToUint32(base::unchecked_get<double>(it_.value()));
+          event.pid_exists = true;
           break;
         default:
           break;
@@ -491,46 +620,31 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
               base::unchecked_get<std::string_view>(it_.value());
           event.tid = context_->storage->InternString(thread_name).raw_id();
           event.tid_is_string_id = true;
+          event.tid_exists = true;
           break;
         }
         case base::variant_index<json::JsonValue, int64_t>():
           event.tid = CoerceToUint32(base::unchecked_get<int64_t>(it_.value()));
+          event.tid_exists = true;
           break;
         case base::variant_index<json::JsonValue, double>():
           event.tid = CoerceToUint32(base::unchecked_get<double>(it_.value()));
+          event.tid_exists = true;
           break;
         default:
           break;
       }
     } else if (it_.key() == "id") {
-      switch (it_.value().index()) {
-        case base::variant_index<json::JsonValue, std::string_view>():
-          event.id.id_str = context_->storage->InternString(
-              base::unchecked_get<std::string_view>(it_.value()));
-          event.id_type = JsonEvent::IdType::kString;
-          break;
-        case base::variant_index<json::JsonValue, int64_t>():
-          event.id.id_uint64 =
-              static_cast<uint64_t>(base::unchecked_get<int64_t>(it_.value()));
-          event.id_type = JsonEvent::IdType::kUint64;
-          break;
-        default:
-          break;
+      if (auto id = ExtractId(context_->storage->mutable_string_pool(),
+                              it_.value())) {
+        event.id = id->id;
+        event.id_type = id->type;
       }
     } else if (it_.key() == "bind_id") {
-      switch (it_.value().index()) {
-        case base::variant_index<json::JsonValue, std::string_view>():
-          event.bind_id.id_str = context_->storage->InternString(
-              base::unchecked_get<std::string_view>(it_.value()));
-          event.bind_id_type = JsonEvent::IdType::kString;
-          break;
-        case base::variant_index<json::JsonValue, int64_t>():
-          event.bind_id.id_uint64 =
-              static_cast<uint64_t>(base::unchecked_get<int64_t>(it_.value()));
-          event.bind_id_type = JsonEvent::IdType::kUint64;
-          break;
-        default:
-          break;
+      if (auto id = ExtractId(context_->storage->mutable_string_pool(),
+                              it_.value())) {
+        event.bind_id = id->id;
+        event.bind_id_type = id->type;
       }
     } else if (it_.key() == "cat") {
       std::string_view cat = GetStringValue(it_.value());
@@ -570,9 +684,17 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
     } else if (it_.key() == "bp") {
       event.bind_enclosing_slice = GetStringValue(it_.value()) == "e";
     } else if (it_.key() == "tts") {
-      event.tts = CoerceToTs(it_.value());
+      if (!CoerceToTs(it_.value(), event.tts, status)) {
+        PERFETTO_DLOG("%s", status.c_message());
+        context_->storage->IncrementStats(stats::json_tokenizer_failure);
+        return false;
+      }
     } else if (it_.key() == "tdur") {
-      event.tdur = CoerceToTs(it_.value());
+      if (!CoerceToTs(it_.value(), event.tdur, status)) {
+        PERFETTO_DLOG("%s", status.c_message());
+        context_->storage->IncrementStats(stats::json_tokenizer_failure);
+        return false;
+      }
     } else if (it_.key() == "args") {
       std::string_view args = GetObjectValue(it_.value());
       if (!args.empty()) {
@@ -583,7 +705,7 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
     } else if (it_.key() == "id2") {
       std::string_view id2 = GetObjectValue(it_.value());
       if (!id2.empty()) {
-        ParseId2(id2, id2_local, id2_global);
+        ParseId2(inner_it_, context_, id2, id2_local, id2_global);
       }
     }
   }
@@ -591,10 +713,14 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
     context_->storage->IncrementStats(stats::json_tokenizer_failure);
     return true;
   }
-  // Metadata events may omit ts. In all other cases error:
-  if (ts == std::numeric_limits<int64_t>::max() && event.phase != 'M') {
-    context_->storage->IncrementStats(stats::json_tokenizer_failure);
-    return true;
+  // Metadata events may omit ts. In all other cases error.
+  if (ts == std::numeric_limits<int64_t>::max()) {
+    if (event.phase != 'M') {
+      context_->storage->IncrementStats(stats::json_tokenizer_failure);
+      return true;
+    }
+    // If the event is a metadata event, we can set ts to 0.
+    ts = 0;
   }
 
   // Make the tid equal to the pid if tid is not set.
@@ -603,28 +729,32 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
   }
 
   if (PERFETTO_LIKELY(event.id_type == JsonEvent::IdType::kNone)) {
-    if (PERFETTO_UNLIKELY(!id2_global.empty())) {
+    if (PERFETTO_UNLIKELY(id2_global)) {
       event.async_cookie_type = JsonEvent::AsyncCookieType::kId2Global;
-      event.async_cookie = static_cast<int64_t>(base::Hasher::Combine(
+      event.async_cookie = static_cast<int64_t>(base::FnvHasher::Combine(
           event.cat.raw_id(),
-          base::StringView(id2_global.data(), id2_global.size())));
-    } else if (PERFETTO_UNLIKELY(!id2_local.empty())) {
+          id2_global->type == JsonEvent::IdType::kString
+              ? static_cast<uint64_t>(id2_global->id.id_str.raw_id())
+              : id2_global->id.id_uint64));
+    } else if (PERFETTO_UNLIKELY(id2_local)) {
       event.async_cookie_type = JsonEvent::AsyncCookieType::kId2Local;
-      event.async_cookie = static_cast<int64_t>(base::Hasher::Combine(
+      event.async_cookie = static_cast<int64_t>(base::FnvHasher::Combine(
           event.cat.raw_id(),
-          base::StringView(id2_local.data(), id2_local.size())));
+          id2_local->type == JsonEvent::IdType::kString
+              ? static_cast<uint64_t>(id2_local->id.id_str.raw_id())
+              : id2_local->id.id_uint64));
     }
   } else if (event.id_type == JsonEvent::IdType::kString) {
     event.async_cookie_type = JsonEvent::AsyncCookieType::kId;
     event.async_cookie = static_cast<int64_t>(
-        base::Hasher::Combine(event.cat.raw_id(), event.id.id_str.raw_id()));
+        base::FnvHasher::Combine(event.cat.raw_id(), event.id.id_str.raw_id()));
   } else if (event.id_type == JsonEvent::IdType::kUint64) {
     event.async_cookie_type = JsonEvent::AsyncCookieType::kId;
     event.async_cookie = static_cast<int64_t>(
-        base::Hasher::Combine(event.cat.raw_id(), event.id.id_uint64));
+        base::FnvHasher::Combine(event.cat.raw_id(), event.id.id_uint64));
   }
   if (PERFETTO_UNLIKELY(event.phase == 'P')) {
-    if (auto status = ParseV8SampleEvent(event); !status.ok()) {
+    if (status = ParseV8SampleEvent(event); !status.ok()) {
       context_->storage->IncrementStats(stats::json_tokenizer_failure);
       return true;
     }
@@ -632,36 +762,6 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
   }
   context_->sorter->PushJsonValue(ts, std::move(event));
   return true;
-}
-
-void JsonTraceTokenizer::ParseId2(std::string_view id2,
-                                  std::string_view& id2_local,
-                                  std::string_view id2_global) {
-  inner_it_.Reset(id2.data(), id2.data() + id2.size());
-  if (!inner_it_.ParseStart()) {
-    context_->storage->IncrementStats(stats::json_tokenizer_failure);
-    return;
-  }
-  for (;;) {
-    switch (inner_it_.ParseObjectFieldWithoutRecursing()) {
-      case State::kOk:
-      case State::kEndOfScope:
-        break;
-      case State::kError:
-        context_->storage->IncrementStats(stats::json_tokenizer_failure);
-        return;
-      case State::kIncompleteInput:
-        PERFETTO_FATAL("Unexpected incomplete input in JSON object for id2");
-    }
-    if (inner_it_.eof()) {
-      break;
-    }
-    if (inner_it_.key() == "local") {
-      id2_local = GetStringValue(inner_it_.value());
-    } else if (inner_it_.key() == "") {
-      id2_global = GetStringValue(inner_it_.value());
-    }
-  }
 }
 
 base::Status JsonTraceTokenizer::ParseV8SampleEvent(const JsonEvent& event) {

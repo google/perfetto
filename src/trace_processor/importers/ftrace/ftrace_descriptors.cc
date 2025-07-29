@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 576> descriptors{{
+std::array<FtraceMessageDescriptor, 582> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -6398,6 +6398,75 @@ std::array<FtraceMessageDescriptor, 576> descriptors{{
             {"offset", ProtoSchemaType::kUint32},
             {"value", ProtoSchemaType::kUint32},
             {"msg", ProtoSchemaType::kString},
+        },
+    },
+    {
+        "cma_alloc_finish",
+        6,
+        {
+            {},
+            {"name", ProtoSchemaType::kString},
+            {"pfn", ProtoSchemaType::kUint64},
+            {"page", ProtoSchemaType::kUint64},
+            {"count", ProtoSchemaType::kUint64},
+            {"align", ProtoSchemaType::kUint32},
+            {"errorno", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "mm_alloc_contig_migrate_range_info",
+        6,
+        {
+            {},
+            {"start", ProtoSchemaType::kUint64},
+            {"end", ProtoSchemaType::kUint64},
+            {"nr_migrated", ProtoSchemaType::kUint64},
+            {"nr_reclaimed", ProtoSchemaType::kUint64},
+            {"nr_mapped", ProtoSchemaType::kUint64},
+            {"migratetype", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "host_ffa_call",
+        7,
+        {
+            {},
+            {"func_id", ProtoSchemaType::kUint64},
+            {"res_a1", ProtoSchemaType::kUint64},
+            {"res_a2", ProtoSchemaType::kUint64},
+            {"res_a3", ProtoSchemaType::kUint64},
+            {"res_a4", ProtoSchemaType::kUint64},
+            {"handled", ProtoSchemaType::kInt32},
+            {"err", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "dmabuf_rss_stat",
+        3,
+        {
+            {},
+            {"rss", ProtoSchemaType::kUint64},
+            {"rss_delta", ProtoSchemaType::kInt64},
+            {"i_ino", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "iommu_idmap",
+        3,
+        {
+            {},
+            {"from", ProtoSchemaType::kUint64},
+            {"to", ProtoSchemaType::kUint64},
+            {"prot", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "psci_mem_protect",
+        2,
+        {
+            {},
+            {"count", ProtoSchemaType::kUint64},
+            {"was", ProtoSchemaType::kUint64},
         },
     },
 }};

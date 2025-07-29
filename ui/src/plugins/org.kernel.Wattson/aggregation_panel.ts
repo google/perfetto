@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {Duration} from '../../base/time';
 import {BarChartData, ColumnDef} from '../../components/aggregation';
 import {AggregationPanelAttrs} from '../../components/aggregation_panel';
 import {
@@ -48,8 +49,9 @@ export class WattsonAggregationPanel
     sorting: Sorting,
     columns: ReadonlyArray<ColumnDef>,
   ) {
+    const columnsById = new Map(columns.map((c) => [c.columnId, c]));
     return m(DataGrid, {
-      toolbarItems: m(
+      toolbarItemsLeft: m(
         Box,
         m(SegmentedButtons, {
           options: [{label: 'µW'}, {label: 'mW'}],
@@ -75,8 +77,8 @@ export class WattsonAggregationPanel
       data: dataSource,
       initialSorting: sorting,
       cellRenderer: (value: SqlValue, columnName: string) => {
-        const kind = columns.find((c) => c.title === columnName)?.kind ?? '';
-        return this.colKindToRenderer(kind, value, columnName);
+        const formatHint = columnsById.get(columnName)?.formatHint;
+        return this.renderValue(value, columnName, formatHint);
       },
     });
   }
@@ -103,12 +105,11 @@ export class WattsonAggregationPanel
     );
   }
 
-  private colKindToRenderer(kind: string, value: SqlValue, colName: string) {
-    if (kind === 'TIMESTAMP_NS' && typeof value === 'bigint') {
-      return m(
-        'span.pf-data-grid__cell--number',
-        (Number(value) / 1_000_000).toFixed(3),
-      );
+  private renderValue(value: SqlValue, colName: string, formatHint?: string) {
+    if (formatHint === 'DURATION_NS' && typeof value === 'bigint') {
+      return m('span.pf-data-grid__cell--number', Duration.humanise(value));
+    } else if (formatHint === 'PERCENT') {
+      return m('span.pf-data-grid__cell--number', `${value}%`);
     } else {
       let v = value;
       if (

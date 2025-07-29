@@ -2,13 +2,41 @@ Unreleased:
   Tracing service and probes:
     *
   SQL Standard library:
-    *
+    * Added `android.bitmaps` module with timeseries information about bitmap
+      usage in Android.
   Trace Processor:
-    *
+    * Added support for `sibling_merge_behavior` and `sibling_merge_key` in
+      `TrackDescriptor` for TrackEvent, allowing for finer-grained control over
+      how tracks are merged. See UI section for more details.
+    * Changed how track_event tracks are parsed in trace processor when tracks
+      are merged together. Instead of merging happening only in the UI, the
+      merging now happens in trace processor. This causes the number of tracks
+      in the `track` table to significantly lower, leading to better query
+      performance. As a result, track_uuid is no longer included in the
+      arguments as multiple track_event tracks could have contributed to a
+      single trace processor track. If you want the previous behaviour, specify
+      `sibling_merge_behaviour: SIBLING_MERGE_BEHAVIOR_NONE`.
   UI:
-    *
+    * Added support for controlling TrackEvent track merging through the
+      `TrackDescriptor` proto. This is especially useful for users converting
+      external traces into Perfetto format or using the SDK. Tracks can now
+      specify a `sibling_merge_behavior` and a `sibling_merge_key` to override
+      the default name-based merging. This allows for forcing tracks with the
+      same name to be displayed separately, or forcing tracks with different
+      names to be merged into a single UI track.
+    * Improved the performance of merging large number of track_event tracks
+      both during loading and during panning/zooming operations.
   SDK:
-    *
+    * "slow" tag is no longer implicitly added to trace categories with
+      "disabled-by-default-" prefix. Instead, clients should explicitly specify
+      the tag. enabled_categories="disabled-by-default-*" also no longer has
+      a special priority, and the same can be achieved with enable_tags="slow".
+
+v51.2 - 2025-07-03:
+  Trace Processor:
+    * Fixed issue with trace summarization crashing with released trace
+      processor prebuilt. Builds from source with GN and default configuration
+      is unaffected.
 
 v51.1 - 2025-06-26:
   Build system:
