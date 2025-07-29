@@ -72,7 +72,7 @@ export class CurrentSelectionTab
     return {
       isLoading: false,
       content: m(EmptyState, {
-        className: 'pf-noselection',
+        fillHeight: true,
         title: message,
       }),
     };

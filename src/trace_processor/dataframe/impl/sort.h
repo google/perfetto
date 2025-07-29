@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_EXT_BASE_RADIX_SORT_H_
-#define INCLUDE_PERFETTO_EXT_BASE_RADIX_SORT_H_
+#ifndef SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_SORT_H_
+#define SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_SORT_H_
 
 #include <algorithm>
 #include <cstddef>
@@ -146,6 +146,8 @@ T* RadixSort(T* begin,
   T* source = begin;
   T* dest = scratch_begin;
   size_t num_elements = static_cast<size_t>(end - begin);
+
+  // Early return for small number of elements.
   if (num_elements <= 1) {
     return source;
   }
@@ -212,10 +214,6 @@ T* MsdRadixSort(T* begin,
   static_assert(std::is_trivially_copyable_v<T>,
                 "T must be trivially copyable for radix sort to work.");
 
-  // A cutoff for switching to insertion sort. Matches libc++ cutoff for
-  // using insertion sort.
-  constexpr size_t kMsdInsertionSortCutoff = 24;
-
   if (end - begin <= 1) {
     return begin;
   }
@@ -234,8 +232,15 @@ T* MsdRadixSort(T* begin,
     stack.pop_back();
 
     size_t item_size = static_cast<size_t>(item.end - item.begin);
-    if (item_size <= kMsdInsertionSortCutoff) {
-      std::sort(item.begin, item.end, [&](const auto& a, const auto& b) {
+
+    // A cutoff for switching to std::sort; for very small counts, insertion
+    // sort will be optimal (that's what std::sort will do under the hood).
+    //
+    // Empirically chosen by changing the value and measuring the impact on
+    // the benchmark `BM_DataframeSortMsdRadix`.
+    static constexpr size_t kStdSortCutoff = 24;
+    if (item_size <= kStdSortCutoff) {
+      std::sort(item.begin, item.end, [&](const T& a, const T& b) {
         return string_extractor(a).substr(item.depth) <
                string_extractor(b).substr(item.depth);
       });
@@ -289,4 +294,4 @@ T* MsdRadixSort(T* begin,
 
 }  // namespace perfetto::base
 
-#endif  // INCLUDE_PERFETTO_EXT_BASE_RADIX_SORT_H_
+#endif  // SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_SORT_H_

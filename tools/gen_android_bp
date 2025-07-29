@@ -213,7 +213,14 @@ shared_library_allowlist = [
 
 # Static libraries which are directly translated to Android system equivalents.
 static_library_allowlist = [
+    'perfetto_flags_c_lib',
     'statslog_perfetto',
+]
+
+# Static libraries which are in `static_library_allowlist` and should simply
+# be skipped on host only targets without causing an error.
+static_library_skip_host_error_allowlist = [
+    'perfetto_flags_c_lib',
 ]
 
 # Name of the module which settings such as compiler flags for all other
@@ -726,6 +733,8 @@ class Module(object):
 
   def add_android_static_lib(self, lib):
     if self.type == 'cc_binary_host':
+      if lib in static_library_skip_host_error_allowlist:
+        return
       raise Exception('Adding Android static lib for host tool is unsupported')
     elif self.host_supported:
       self.android.static_libs.add(lib)
@@ -1388,9 +1397,9 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
     for lib in target.libs:
       # Generally library names should be mangled as 'libXXX', unless they
       # are HAL libraries (e.g., android.hardware.health@2.0) or AIDL c++ / NDK
-      # libraries (e.g. "android.hardware.power.stats-V1-cpp")
+      # libraries (e.g. "android.hardware.power.stats-V1-cpp") or flag targets.
       android_lib = lib if '@' in lib or "-cpp" in lib or "-ndk" in lib \
-        else 'lib' + lib
+        or "_flags_c_lib" in lib else 'lib' + lib
       if lib in shared_library_allowlist:
         module.add_android_shared_lib(android_lib)
       if lib in static_library_allowlist:

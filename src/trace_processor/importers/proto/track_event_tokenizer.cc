@@ -193,10 +193,6 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
       return ModuleResult::Handled();
     }
 
-    if (state->IsIncrementalStateValid()) {
-      TokenizeThreadDescriptor(*state, thread);
-    }
-
     reservation.min_timestamp = packet_timestamp;
     reservation.pid = static_cast<int64_t>(thread.pid());
     reservation.tid = static_cast<int64_t>(thread.tid());
@@ -208,13 +204,15 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     if (track.has_chrome_thread()) {
       protos::pbzero::ChromeThreadDescriptor::Decoder chrome_thread(
           track.chrome_thread());
-      if (chrome_thread.has_is_sandboxed_tid() &&
-          chrome_thread.is_sandboxed_tid()) {
-        *reservation.tid = ProcessTracker::CreateSyntheticTid(*reservation.tid,
-                                                              *reservation.pid);
+      if (chrome_thread.has_is_sandboxed_tid()) {
+        reservation.use_synthetic_tid = chrome_thread.is_sandboxed_tid();
       }
     }
     track_event_tracker_->ReserveDescriptorTrack(track.uuid(), reservation);
+
+    if (state->IsIncrementalStateValid()) {
+      TokenizeThreadDescriptor(*state, thread, reservation.use_synthetic_tid);
+    }
 
     return ModuleResult::Ignored();
   }
@@ -330,7 +328,7 @@ ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
   }
 
   protos::pbzero::ThreadDescriptor::Decoder thread(packet.thread_descriptor());
-  TokenizeThreadDescriptor(*state, thread);
+  TokenizeThreadDescriptor(*state, thread, /*use_synthetic_tid=*/false);
 
   // Let ProtoTraceReader forward the packet to the parser.
   return ModuleResult::Ignored();
@@ -338,10 +336,11 @@ ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
 
 void TrackEventTokenizer::TokenizeThreadDescriptor(
     PacketSequenceStateGeneration& state,
-    const protos::pbzero::ThreadDescriptor::Decoder& thread) {
+    const protos::pbzero::ThreadDescriptor::Decoder& thread,
+    bool use_synthetic_tid) {
   // TODO(eseckler): Remove support for legacy thread descriptor-based default
   // tracks and delta timestamps.
-  state.SetThreadDescriptor(thread);
+  state.SetThreadDescriptor(thread, use_synthetic_tid);
 }
 
 ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(

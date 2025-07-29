@@ -22,7 +22,6 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/hash.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -31,7 +30,6 @@ namespace perfetto::trace_processor {
 TrackCompressor::TrackCompressor(TraceProcessorContext* context)
     : context_(context),
       source_key_(context->storage->InternString("source")),
-      trace_id_key_(context->storage->InternString("trace_id")),
       trace_id_is_process_scoped_key_(
           context->storage->InternString("trace_id_is_process_scoped")),
       upid_(context->storage->InternString("upid")),
@@ -137,7 +135,6 @@ TrackId TrackCompressor::InternLegacyAsyncTrack(StringId raw_name,
                                                 AsyncSliceType slice_type) {
   auto args_fn = [&](ArgsTracker::BoundInserter& inserter) {
     inserter.AddArg(source_key_, Variadic::String(chrome_source_))
-        .AddArg(trace_id_key_, Variadic::Integer(trace_id))
         .AddArg(trace_id_is_process_scoped_key_,
                 Variadic::Boolean(trace_id_is_process_scoped))
         .AddArg(upid_, Variadic::UnsignedInteger(upid))
@@ -153,7 +150,7 @@ TrackId TrackCompressor::InternLegacyAsyncTrack(StringId raw_name,
                                     tracks::StringIdDimensionBlueprint("name")),
         tracks::DynamicNameBlueprint());
     auto [it, inserted] = async_tracks_to_root_string_id_.Insert(
-        base::Hasher::Combine(upid, trace_id), name);
+        base::FnvHasher::Combine(upid, trace_id), name);
     switch (slice_type) {
       case AsyncSliceType::kBegin:
         return InternBegin(kBlueprint,
@@ -182,7 +179,7 @@ TrackId TrackCompressor::InternLegacyAsyncTrack(StringId raw_name,
                                   tracks::StringIdDimensionBlueprint("name")),
       tracks::DynamicNameBlueprint());
   auto [it, inserted] = async_tracks_to_root_string_id_.Insert(
-      base::Hasher::Combine(trace_id), raw_name);
+      base::FnvHasher::Combine(trace_id), raw_name);
   switch (slice_type) {
     case AsyncSliceType::kBegin:
       return InternBegin(kBlueprint, tracks::Dimensions(source_scope, *it),
