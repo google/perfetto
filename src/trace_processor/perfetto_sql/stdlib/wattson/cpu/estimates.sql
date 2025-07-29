@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE wattson.cpu.split;
+INCLUDE PERFETTO MODULE wattson.cpu.pivot;
 
 INCLUDE PERFETTO MODULE wattson.cpu.w_cpu_dependence;
 
