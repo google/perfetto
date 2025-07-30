@@ -53,13 +53,19 @@ jobs:
       run: |
         gcloud storage ls gs://perfetto-ci-artifacts | wc -l
 
-    - name: Generate and rsync new content
-      env:
-        PERFETTO_TEST_ARTIFACTS_ROOT: /tmp/cache/data
+    - name: Test upload speed
       run: |
-        mkdir -p $PERFETTO_TEST_ARTIFACTS_ROOT
-        echo "first" > $PERFETTO_TEST_ARTIFACTS_ROOT/first.txt
-        echo "second" > $PERFETTO_TEST_ARTIFACTS_ROOT/second.txt
-        date > $PERFETTO_TEST_ARTIFACTS_ROOT/date.txt
-        
-        gcloud storage rsync $PERFETTO_TEST_ARTIFACTS_ROOT gs://perfetto-ci-artifacts/cache/test-data --recursive --preserve-posix
+        dd if=/dev/urandom of=$PERFETTO_TEST_ARTIFACTS_ROOT/random_file_2g.bin bs=2M count=1024
+        du -sh $PERFETTO_TEST_ARTIFACTS_ROOT/random_file_2g.bin
+        gcloud storage cp $PERFETTO_TEST_ARTIFACTS_ROOT/random_file_2g.bin gs://perfetto-ci-artifacts/cache/spped-test-from-gh/
+
+#    - name: Generate and rsync new content
+#      env:
+#        PERFETTO_TEST_ARTIFACTS_ROOT: /tmp/cache/data
+#      run: |
+#        mkdir -p $PERFETTO_TEST_ARTIFACTS_ROOT
+#        echo "first" > $PERFETTO_TEST_ARTIFACTS_ROOT/first.txt
+#        echo "second" > $PERFETTO_TEST_ARTIFACTS_ROOT/second.txt
+#        date > $PERFETTO_TEST_ARTIFACTS_ROOT/date.txt
+#
+#        gcloud storage rsync $PERFETTO_TEST_ARTIFACTS_ROOT gs://perfetto-ci-artifacts/cache/test-data --recursive --preserve-posix
