@@ -19,7 +19,7 @@ import { PerfettoPlugin } from '../../public/plugin';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, createUserContent, mcpToTool } from '@google/genai';
 import { registerTraceTools } from './tracetools';
 import { z } from 'zod';
 import { Setting } from 'src/public/settings';
@@ -30,6 +30,7 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
   static readonly id = 'com.google.PerfettoMcp';
 
   static tokenSetting: Setting<string>;
+  static promptSetting: Setting<string>;
 
 
   static onActivate(app: App): void {
@@ -39,6 +40,57 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
       description: 'Gemini API Token.',
       schema: z.string(),
       defaultValue: '',
+    });
+
+    PerfettoMcpPlugin.promptSetting = app.settings.register({
+      id: `${app.pluginId}#PromptSetting`,
+      name: 'Gemini Prompt',
+      description: 'Upload a .txt file containing the initial Gemini prompt. (minimum of 2048 tokens)',
+      schema: z.string(),
+      defaultValue: "",
+      render: (setting) => {
+        const handleFileSelect = (event: any) => {
+          console.log("handleFile")
+          const input = event.target as HTMLInputElement;
+          const file = input.files?.[0];
+
+          if (!file) {
+            return;
+          }
+
+          const reader = new FileReader();
+
+          reader.onload = (e: ProgressEvent<FileReader>) => {
+            const fileContent = e.target?.result;
+            if (typeof fileContent === 'string') {
+              setting.set(fileContent);
+            }
+          };
+
+          reader.onerror = () => {
+            console.error('FileReader error:', reader.error);
+          };
+
+          reader.readAsText(file);
+        };
+
+        return m(
+          'div', {
+          style: 'padding: 10px; border: 1px solid #ccc; border-radius: 8px;'
+        },
+          [
+            m('input', {
+              type: 'file',
+              accept: '.txt',
+              style: 'margin-top: 10px; display: block;',
+              onchange: handleFileSelect,
+            }),
+            m('p', {
+              style: 'margin-top: 8px; font-style: italic; font-size: 0.9em; color: #555;'
+            }, 'Select a file')
+          ]
+        );
+      },
     });
   }
 
@@ -66,7 +118,28 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
       mcpServer.server.connect(serverTransport),
     ]);
 
+    var tool = await mcpToTool(client).tool()
+
     const ai = new GoogleGenAI({ apiKey: PerfettoMcpPlugin.tokenSetting.get() });
+
+    var model = 'gemini-2.5-pro-preview-05-06';
+
+    const cache = await ai.caches.create({
+      model: model,
+      config: {
+        contents: createUserContent(PerfettoMcpPlugin.promptSetting.get()),
+        systemInstruction: "You are an expert in analyzing perfetto traces",
+        tools: [tool],
+      }
+    })
+    console.log("Cache created:", cache);
+
+    var chat = await ai.chats.create({
+      model: model,
+      config: {
+        cachedContent: cache.name,
+      }
+    })
 
     registerCommands(ai, client, trace);
 
@@ -75,8 +148,7 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
       render: () => {
         return m(ChatPage, {
           trace,
-          ai,
-          client
+          chat,
         });
       },
     });

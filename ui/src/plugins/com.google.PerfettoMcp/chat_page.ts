@@ -13,8 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import { GoogleGenAI, mcpToTool } from '@google/genai';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { Chat } from '@google/genai';
 import { Trace } from '../../public/trace';
 import { TextInput } from '../../widgets/text_input';
 
@@ -27,8 +26,7 @@ interface ChatMessage {
 // Interface for the component's attributes/properties
 export interface ChatPageAttrs {
   readonly trace: Trace;
-  readonly ai: GoogleGenAI;
-  readonly client: Client;
+  readonly chat: Chat,
 }
 
 export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
@@ -36,21 +34,16 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
   private messages: ChatMessage[];
   private userInput: string;
   private isLoading: boolean;
-  // The history needs to be in a specific format for the Gemini API
-  private chatHistory: { role: string; parts: { text: string }[] }[];
-  
-  // Services passed in through attributes
-  private readonly ai: GoogleGenAI;
-  private readonly client: Client;
 
-  constructor({attrs}: m.CVnode<ChatPageAttrs>) {
-    this.ai = attrs.ai;
-    this.client = attrs.client;
-    
+  // Services passed in through attributes
+  private readonly chat: Chat;
+
+  constructor({ attrs }: m.CVnode<ChatPageAttrs>) {
+    this.chat = attrs.chat;
+
     // Initialize state
     this.userInput = '';
     this.isLoading = false;
-    this.chatHistory = [];
     this.messages = [{
       role: 'ai',
       text: 'Hello! I am your friendly AI assistant. How can I help you today?'
@@ -60,38 +53,36 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
   // Use async/await for cleaner asynchronous logic
   sendMessage = async () => {
     const trimmedInput = this.userInput.trim();
-    
+
     // Prevent sending empty messages or sending while a request is in flight
     if (trimmedInput === '' || this.isLoading) return;
 
     // --- State Update 1: Show user's message immediately ---
     this.messages.push({ role: 'user', text: trimmedInput });
-    this.chatHistory.push({ role: 'user', parts: [{ text: trimmedInput }] });
     this.isLoading = true;
     this.userInput = ''; // Clear the input field
     m.redraw(); // Manually trigger a redraw to show the user's message and loading state
 
     try {
-      const payload = { contents: this.chatHistory };
-
-      // The generateContent method expects an object, not a JSON string for contents.
-      const response = await this.ai.models.generateContent({
-        model: 'gemini-2.5-pro-preview-05-06',
-        contents: payload.contents, // Pass the array directly
-        config: {
-          tools: [mcpToTool(this.client)],
-        },
+      const response = await this.chat.sendMessage({
+        message: trimmedInput
       });
 
       const responseText = response.text;
-      
+
       if (responseText) {
         // --- State Update 2: Show AI's response ---
         this.messages.push({ role: 'ai', text: responseText });
-        this.chatHistory.push({ role: 'model', parts: [{ text: responseText }] });
+        if (functionCalls !== undefined && functionCalls.length != 0) {
+          this.messages.push({ role: 'error', text: 'The response contains function calls which are unsupported.' });
+        }
       } else {
         // Handle cases where the response might be empty
-        this.messages.push({ role: 'error', text: 'Received an empty response from the AI.' });
+        this.messages.push({ role: 'error', text: 'Received an empty text response from the AI.' });
+        var functionCalls = response.functionCalls
+        if (functionCalls !== undefined && functionCalls.length != 0) {
+          this.messages.push({ role: 'error', text: 'The response contains function calls which are unsupported.' });
+        }
       }
 
     } catch (error) {
@@ -112,7 +103,7 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
         // Map through messages and apply a class based on the role for styling
         this.messages.map(msg => {
           return m(`.message-wrapper.${msg.role}`,
-            m('b.role-label', msg.role === 'ai' ? 'AI:' : 'You:'),
+            m('b.role-label', msg.role === 'ai' ? 'AI:' : msg.role === 'error' ? 'Error:' : 'You:'),
             m('span.message-text', msg.text)
           );
         })
