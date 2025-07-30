@@ -74,6 +74,7 @@ from diff_tests.parser.ftrace.block_io_tests import BlockIo
 from diff_tests.parser.ftrace.ftrace_crop_tests import FtraceCrop
 from diff_tests.parser.ftrace.kprobes_tests import Kprobes
 from diff_tests.parser.ftrace.generic_ftrace_tests import GenericFtrace
+from diff_tests.parser.ftrace.kernel_trackevent_tests import KernelTrackevent
 from diff_tests.parser.fuchsia.tests import Fuchsia
 from diff_tests.parser.gecko.tests import GeckoParser
 from diff_tests.parser.generic_kernel.tests import GenericKernelParser
@@ -197,6 +198,7 @@ def fetch_all_diff_tests(
       GraphicsGpuTrace,
       GraphicsParser,
       JsonParser,
+      KernelTrackevent,
       MemoryParser,
       NetworkParser,
       BatteryStats,
