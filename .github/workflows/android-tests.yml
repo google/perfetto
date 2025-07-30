@@ -54,6 +54,8 @@ jobs:
         gcloud storage ls gs://perfetto-ci-artifacts | wc -l
 
     - name: Test upload speed
+      env:
+        PERFETTO_TEST_ARTIFACTS_ROOT: /tmp/cache/data
       run: |
         dd if=/dev/urandom of=$PERFETTO_TEST_ARTIFACTS_ROOT/random_file_2g.bin bs=2M count=1024
         du -sh $PERFETTO_TEST_ARTIFACTS_ROOT/random_file_2g.bin
