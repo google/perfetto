@@ -20,11 +20,9 @@
 #include <cstdint>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/small_vector.h"
-#include "perfetto/protozero/field.h"
+#include "perfetto/protozero/proto_decoder.h"
 
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
@@ -63,6 +61,23 @@ class GenericFtraceTracker {
     std::vector<GenericField> fields;
   };
 
+  struct KernelTrackEvent {
+    enum EventKind { kSlice, kCounter };
+    enum ContextType { kTid, kTgid, kCpu, kCustom };
+
+    StringId event_name = kNullStringId;
+    EventKind kind = kSlice;
+    ContextType context_type = kTid;
+    // slice only field:
+    uint32_t slice_type_field_id = 0;
+    uint32_t slice_name_field_id = 0;
+    // counter only fields:
+    uint32_t value_field_id = 0;
+    // shared fields:
+    uint32_t track_name_field_id = 0;
+    uint32_t context_field_id = 0;
+  };
+
   explicit GenericFtraceTracker(TraceProcessorContext* context);
   GenericFtraceTracker(const GenericFtraceTracker&) = delete;
   GenericFtraceTracker& operator=(const GenericFtraceTracker&) = delete;
@@ -81,10 +96,19 @@ class GenericFtraceTracker {
   // malformed trace.
   GenericEvent* GetEvent(uint32_t pb_field_id);
 
+  void MaybeParseAsTrackEvent(uint32_t pb_field_id,
+                              int64_t ts,
+                              uint32_t tid,
+                              protozero::ProtoDecoder& decoder);
+
  private:
+  void MatchTrackEventTemplate(uint32_t pb_field_id, const GenericEvent& event);
+
   TraceProcessorContext* const context_;
   // keyed by proto field id inside the FtraceEvent proto
   base::FlatHashMap<uint32_t, GenericEvent> events_;
+  // keyed by proto field id inside the FtraceEvent proto, subset of the above
+  base::FlatHashMap<uint32_t, KernelTrackEvent> track_event_info_;
 };
 
 }  // namespace perfetto::trace_processor
