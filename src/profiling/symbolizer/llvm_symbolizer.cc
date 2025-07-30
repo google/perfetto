@@ -23,9 +23,7 @@
 
 #include "perfetto/base/logging.h"
 
-namespace perfetto {
-namespace profiling {
-
+namespace perfetto::profiling {
 // dlclose() was not used as it rarely works and is flaky
 int SymbolizationResultBatch::CleanUp(ScopedResult* result) {
   if (result && result->c_api_result.ranges && result->free_fn) {
@@ -113,6 +111,7 @@ LlvmSymbolizer::LlvmSymbolizer() {
   }
   scoped_symbolizer_handle_.reset(new ScopedSymbolizer{symbolizer, destroy_fn});
 }
+LlvmSymbolizer::~LlvmSymbolizer() = default;
 
 SymbolizationResultBatch LlvmSymbolizer::SymbolizeBatch(
     const std::vector<::SymbolizationRequest>& requests) {
@@ -137,5 +136,4 @@ SymbolizationResultBatch LlvmSymbolizer::SymbolizeBatch(
   return result_batch;
 }
 
-}  // namespace profiling
-}  // namespace perfetto
+}  // namespace perfetto::profiling
