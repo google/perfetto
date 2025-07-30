@@ -46,6 +46,10 @@ class PkvmHypervisorCpuTracker {
   void ParseHostSmc(uint32_t cpu, protozero::ConstBytes blob);
   void ParseHostMemAbort(uint32_t cpu, protozero::ConstBytes blob);
   void ParseHostFfaCall(uint32_t cpu, protozero::ConstBytes blob);
+  void ParseIommuIdmap(uint32_t cpu, protozero::ConstBytes blob);
+  void ParsePsciMemProtect(uint32_t cpu, protozero::ConstBytes blob);
+  void ParseIommuIdmapComplete(uint32_t cpu, protozero::ConstBytes blob);
+  void ParseVcuIllegalTrap(uint32_t cpu, protozero::ConstBytes blob);
 
   TraceProcessorContext* context_;
   const StringId category_;
@@ -55,6 +59,17 @@ class PkvmHypervisorCpuTracker {
   const StringId handled_;
   const StringId err_;
   const StringId host_ffa_call_;
+  const StringId iommu_idmap_;
+  const StringId from_;
+  const StringId to_;
+  const StringId prot_;
+  const StringId psci_mem_protect_;
+  const StringId count_;
+  const StringId was_;
+  const StringId iommu_idmap_complete_;
+  const StringId map_;
+  const StringId vcpu_illegal_trap_;
+  const StringId esr_;
 };
 
 }  // namespace trace_processor
