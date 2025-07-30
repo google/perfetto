@@ -49,6 +49,10 @@ $color-warning: #dca612;
 
 $pf-colour-thin-border: #aaa;
 
+$table-border-color: rgb(225, 225, 225);
+$table-border: 1px solid $table-border-color;
+$table-hover-color: rgb(239, 241, 244);
+
 @mixin focus {
   outline: 2px auto #64b5f6;
 }

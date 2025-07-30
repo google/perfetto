@@ -70,7 +70,7 @@ export class CustomTable<T> implements m.ClassComponent<CustomTableAttrs<T>> {
     }
 
     return m(
-      `table.generic-table`,
+      `table.pf-generic-table`,
       {
         className: attrs.className,
         // TODO(altimin, stevegolton): this should be the default for

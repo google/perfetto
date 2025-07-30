@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-$border: 1px solid rgb(225, 225, 225);
+@import "../widgets/theme";
 
 .pf-data-grid {
   display: flex;
@@ -35,13 +35,13 @@ $border: 1px solid rgb(225, 225, 225);
   table {
     min-width: 100%;
     border-spacing: 0;
-    font-weight: 300;
+    font-weight: lighter;
   }
 
   // Highlight rows on hover.
   tr {
     &:hover {
-      background-color: rgb(239, 241, 244);
+      background-color: $table-hover-color;
     }
   }
 
@@ -61,11 +61,11 @@ $border: 1px solid rgb(225, 225, 225);
     // Some header cells can be taller than others so keep everything aligned.
     vertical-align: top;
     text-align: left;
-    font-weight: 400;
+    font-weight: normal;
 
-    border-top: $border;
-    border-bottom: $border;
-    border-right: $border;
+    border-top: $table-border;
+    border-bottom: $table-border;
+    border-right: $table-border;
     &:last-child {
       border-right: none;
     }
@@ -73,8 +73,8 @@ $border: 1px solid rgb(225, 225, 225);
 
   td,
   th {
-    border-bottom: $border;
-    border-right: $border;
+    border-bottom: $table-border;
+    border-right: $table-border;
     &:last-child {
       border-right: none;
     }
