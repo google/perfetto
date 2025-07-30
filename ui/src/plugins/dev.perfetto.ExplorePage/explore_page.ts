@@ -172,7 +172,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
 
     return m(
-      '.pf-page.pf-explore-page',
+      '.pf-explore-page',
       {
         onkeydown: (e: KeyboardEvent) => this.handleKeyDown(e, attrs),
         oncreate: (vnode) => {
