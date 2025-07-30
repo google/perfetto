@@ -90,7 +90,7 @@ CREATE PERFETTO TABLE android_power_rails_metadata (
   track_id JOINID(track.id),
   -- Subsystem name that this power rail belongs to.
   subsystem_name STRING,
-  -- Machine id of the device the power rail is associated with.
+  -- The device the power rail is associated with.
   machine_id JOINID(machine.id)
 ) AS
 SELECT
