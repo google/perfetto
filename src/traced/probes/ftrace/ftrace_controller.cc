@@ -880,11 +880,11 @@ std::optional<std::string> FtraceController::AbsolutePathForInstance(
 
   // ARM64 pKVM hypervisor tracing emulates an instance, but is not under
   // instances/, we special-case that name for now.
-  if (raw_cfg_name == "hyp") {
-    std::string hyp_path = tracefs_root + "hyp/";
+  if (raw_cfg_name == "hyp" || raw_cfg_name == "hypervisor") {
+    std::string hyp_path = tracefs_root + raw_cfg_name + "/";
     PERFETTO_LOG(
-        "Config specified reserved \"hyp\" instance name, using %s for events.",
-        hyp_path.c_str());
+        "Config specified reserved \"%s\" instance name, using %s for events.",
+        raw_cfg_name.c_str(), hyp_path.c_str());
     return std::make_optional(hyp_path);
   }
 
