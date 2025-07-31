@@ -537,6 +537,7 @@ void Tracefs::ClearTrace() {
     ClearPerCpuTrace(cpu);
   }
 }
+
 void Tracefs::ClearPerCpuTrace(size_t cpu) {
   if (!ClearFile(root_ + "per_cpu/cpu" + std::to_string(cpu) + "/trace"))
     PERFETTO_ELOG("Failed to clear buffer for CPU %zu", cpu);
