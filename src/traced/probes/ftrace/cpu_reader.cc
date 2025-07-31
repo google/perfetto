@@ -766,6 +766,7 @@ bool CpuReader::ParseEvent(
   const Event& info = *table->GetEventById(ftrace_event_id);
 
   if (info.size > static_cast<size_t>(end - start)) {
+    PERFETTO_DLOG("Expected event length is beyond end of buffer.");
     return false;
   }
 
