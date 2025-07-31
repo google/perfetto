@@ -68,7 +68,7 @@ runs:
           echo "$cp_output"
         
           # '--exclude-from' is used to not overwrite files or folders that are stored in git. 
-          # '--keep-old-files' is used to prevent accidentally overwriting existing files in 'buildtools/'.             
+          # '--keep-old-files' flag causes 'tar' to fail instead of overwriting files.             
           tar --keep-old-files --preserve-permissions --extract --exclude-from="$FILES_TO_IGNORE_PATH" --file="$CACHED_TAR_PATH" --directory=buildtools
         
           # Calculate hash of the entire cache archive to later decide if we need to upload the newer version.
