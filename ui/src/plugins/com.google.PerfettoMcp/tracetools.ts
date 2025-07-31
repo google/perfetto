@@ -1,48 +1,62 @@
-import {McpServer} from '@modelcontextprotocol/sdk/server/mcp';
-import {Engine} from 'src/trace_processor/engine';
-import {z} from 'zod';
-import {runQueryForMcp} from './query';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
+import { Engine } from 'src/trace_processor/engine';
+import { z } from 'zod';
+import { runQueryForMcp } from './query';
 
 export function registerTraceTools(server: McpServer, engine: Engine) {
   server.tool(
     'execute-perfetto-trace-query',
     `
-Tool to query a perfetto trace file.
-
-The [query] param is SQL to execute against Perfetto's trace_processor.
-
-If you are not sure about a query, then it's useful to show the SQL to the user and ask them to confirm.
-
-The Perfetto SQL syntax is described here https://perfetto.dev/docs/analysis/perfetto-sql-syntax
-
-Jank is a common topic and described here https://perfetto.dev/docs/data-sources/frametimeline, generally using [android_jank_cuj], or lower levels tables [actual_frame_timeline_slice], [expected_frame_timeline_slice]
-
-Power is a less common topic and is described here https://perfetto.dev/docs/data-sources/battery-counters
-
-CPU is described a bit here https://perfetto.dev/docs/data-sources/cpu-scheduling
-
-Memory is described here https://perfetto.dev/docs/data-sources/memory-counters
-
-Android logs are described here https://perfetto.dev/docs/data-sources/android-log        
+                Tool to query the perfetto trace file loaded in Perfettu UI currently.
+                
+                The query is SQL to execute against Perfetto's trace_processor.
+                
+                If you are not sure about a query, then it's useful to show the SQL to the user and ask them to confirm.
+                 
+                 The stdlib is documented at https://perfetto.dev/docs/analysis/stdlib-docs 
+                 It is worth fetching this fully in order to use best practices in queries.
+                 
+                It's generally faster to use the existing stdlib tables, and aggregated results rather than
+                querying large result sets and processing after retrieved. So reuse standard views where possible
+                In addition, if querying some of the perfetto modules listed are resulting in error or empty results,
+                try using the prelude module listed at https://perfetto.dev/docs/analysis/stdlib-docs#package-prelude
+                 
+                The Perfetto SQL syntax is described here https://perfetto.dev/docs/analysis/perfetto-sql-syntax
+                 
+                 Jank is a common topic and described here https://perfetto.dev/docs/data-sources/frametimeline
+                 Using the information in expected_frame_timeline_slice and actual_frame_timeline_slice as the primary
+                 source for jank is preferred.
+                 
+                 Power is a less common topic and is described here https://perfetto.dev/docs/data-sources/battery-counters
+                 
+                 CPU is described a bit here https://perfetto.dev/docs/data-sources/cpu-scheduling
+                 
+                 Memory is described here https://perfetto.dev/docs/data-sources/memory-counters
+                 
+                 Android logs are described here https://perfetto.dev/docs/data-sources/android-log
+                
+                Parts of the perfetto stdlib will be included automatically by executing 
+                 \`INCLUDE PERFETTO MODULE\` for \`viz.*\`, \`slices.*\`, \`android.*\`. More can be loaded dynamically if 
+                 needed. But loading extra must always be done in separate queries or it messes up the SQL results.   
         `,
-    {query: z.string()},
-    async ({query}) => {
+    { query: z.string() },
+    async ({ query }) => {
       const data = await runQueryForMcp(engine, query);
       return {
-        content: [{type: 'text', text: data}],
+        content: [{ type: 'text', text: data }],
       };
     },
   );
 
   server.tool(
-    'list_android_processesin_trace',
+    'list_android_processes_in_trace',
     `
 Tool to list processes.
 
 This lists all the processes in the trace from the [package_list] with profileable and then debug apps first.  
         `,
     {},
-    async ({}) => {
+    async ({ }) => {
       const data = await runQueryForMcp(
         engine,
         `select
@@ -54,7 +68,7 @@ from package_list
 order by profileable desc, debuggable desc`,
       );
       return {
-        content: [{type: 'text', text: data}],
+        content: [{ type: 'text', text: data }],
       };
     },
   );
@@ -74,21 +88,22 @@ order by profileable desc, debuggable desc`,
          tweak the tool to automatically include them.
         `,
     {},
-    async ({}) => {
+    async ({ }) => {
       const data = await runQueryForMcp(
         engine,
         `
-SELECT 
-    name, type
-FROM 
-    sqlite_schema
-WHERE 
-    type in ('table', 'view') 
-    AND name NOT LIKE 'sqlite_%'
+        SELECT 
+            name, type
+        FROM 
+            sqlite_schema
+        WHERE 
+            type in ('table', 'view') 
+            AND name NOT LIKE 'sqlite_%'
+            AND name NOT LIKE '\_%' ESCAPE '\'
 `,
       );
       return {
-        content: [{type: 'text', text: data}],
+        content: [{ type: 'text', text: data }],
       };
     },
   );
@@ -99,12 +114,13 @@ WHERE
         Tool to list macrobenchmark slices.
         
         This is relevant because when a trace file includes a macrobenchmark run (a slice called 'measureBlock') 
-        then the user is probably interested in the target app and the specific range of time for that 'measureBlock'.
+        then the user is probably interested in the target app and the specific range of time for that 'measureBlock'.      
 
-        If it's not in the android processes in the trace then ask the user to provide the name of the target process.
+        So a \`measureBlock\` in the app \`com.google.android.horologist.mediasample.benchmark\`, 
+        would usually be testing against an app called \`com.google.android.horologist.mediasample\`.
         `,
     {},
-    async ({}) => {
+    async ({ }) => {
       const data = await runQueryForMcp(
         engine,
         `
@@ -129,7 +145,23 @@ WHERE
 `,
       );
       return {
-        content: [{type: 'text', text: data}],
+        content: [{ type: 'text', text: data }],
+      };
+    },
+  );
+
+  server.tool(
+    'list_table_structure',
+    `
+        Tool to list the structure of tables.
+        
+        It's basically a query of \`pragma table_info('TABLE_NAME')\`.   
+        `,
+    { table: z.string() },
+    async ({ table }) => {
+      const data = await runQueryForMcp(engine, `pragma table_info('${table}')`);
+      return {
+        content: [{ type: 'text', text: data }],
       };
     },
   );

@@ -23,5 +23,7 @@ export async function resultToJson(result: QueryResult): Promise<string> {
     }
     rows.push(row);
   }
-  return JSON.stringify(rows);
+  const json = JSON.stringify(rows);
+  console.log(json);
+  return json;
 }
