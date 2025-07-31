@@ -344,7 +344,7 @@ class SidebarFooter implements m.ClassComponent<OptionalTraceImplAttrs> {
 class HiringBanner implements m.ClassComponent {
   view() {
     return m(
-      '.hiring-banner',
+      '.pf-hiring-banner',
       m(
         'a',
         {
