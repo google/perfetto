@@ -71,6 +71,10 @@ runs:
           # '--keep-old-files' is used to prevent accidentally overwriting existing files in 'buildtools/'.             
           tar --keep-old-files --preserve-permissions --extract --exclude-from="$FILES_TO_IGNORE_PATH" --file="$CACHED_TAR_PATH" --directory=buildtools
         
+          echo "-----------"
+          time tar --extract --to-stdout --file="$CACHED_TAR_PATH" | sha256sum
+          echo "-----------"
+        
           # Calculate hash of the entire cache archive to later decide if we need to upload the newer version.
           CACHE_SHA256=$(tar --extract --to-stdout --file="$CACHED_TAR_PATH" | sha256sum | awk '{print $1}')        
           echo "cache_sha256=$CACHE_SHA256" >> "$GITHUB_OUTPUT"
@@ -104,6 +108,10 @@ runs:
         # '--exclude-from' is used to not cache files or folders that are stored in git.
         # '--sort=name' is used to calculate reproducible sha256sum.
         tar --create --sort=name --preserve-permissions --exclude-from="$FILES_TO_IGNORE_PATH" --file="$TAR_PATH" --directory=buildtools .
+        
+        echo "-----------"
+        time tar --extract --to-stdout --file="$TAR_PATH" | sha256sum
+        echo "-----------"
         
         NEW_CACHE_SHA256=$(tar --extract --to-stdout --file="$TAR_PATH" | sha256sum | awk '{print $1}')
         
