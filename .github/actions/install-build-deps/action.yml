@@ -22,6 +22,14 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Setup Google Cloud config
+      shell: bash
+      run: |
+        # Token generated in 'infra/ci/worker/sandbox_runner.py'
+        gcloud config set auth/access_token_file $SVC_TOKEN_PATH
+        # Suppress warning about "parallel composite upload" when using 'storage cp --storage-class=STANDARD'
+        gcloud config set storage/parallel_composite_upload_enabled True
+
     - name: Compute cache key
       id: cachekey
       shell: bash
@@ -29,34 +37,63 @@ runs:
         # Replace spaces with underscores to keep the cache key valid
         flags="${{ inputs.install-flags }}"
         if [ -z "$flags" ]; then
-          echo "suffix=default" >> "$GITHUB_OUTPUT"
+          echo "flags_key=default" >> "$GITHUB_OUTPUT"
         else
-          echo "suffix=$(echo "$flags" | tr ' -' '_')" >> "$GITHUB_OUTPUT"
+          echo "flags_key=$(echo "$flags" | tr ' -' '_')" >> "$GITHUB_OUTPUT"
         fi
 
+    # When restoring the buildtools cache, we don't want to overwrite files or folders that were added to git.
+    - name: Generate list of files to ignore
+      id: files_to_ignore
+      shell: bash
+      run: |
+        FILES_TO_IGNORE_PATH=$(mktemp /tmp/files-to-ignore-XXXXX.txt)
+        git ls-tree HEAD:buildtools --name-only > "$FILES_TO_IGNORE_PATH"
+        echo "file_path=$FILES_TO_IGNORE_PATH" >> "$GITHUB_OUTPUT"
+
     - name: Restore build-deps from cache
-      uses: actions/cache/restore@v4
-      with:
-        path: buildtools
-        # TODO(lalitm): buildtools folder has other files that are not
-        # covered by the cache key. This can lead to incorrect buildtools
-        # contents. Expand the cache key to include all files that are
-        # relevant for the buildtools folder or refactor the buildtools folder
-        # into two: one for the cachable outputs and the other for extra
-        # files which should not be cached.
-        key: buildtools-${{ hashFiles('buildtools/BUILD.gn') }}-${{ steps.cachekey.outputs.suffix }}-${{ hashFiles('tools/install-build-deps') }}
-        restore-keys: |
-          buildtools-${{ hashFiles('buildtools/BUILD.gn') }}-${{ steps.cachekey.outputs.suffix }}-
-          buildtools-${{ hashFiles('buildtools/BUILD.gn') }}
+      shell: bash
+      env:
+        GCS_BUCKET: gs://perfetto-ci-artifacts
+        CACHE_PATH: cache/buildtools-${{ steps.cachekey.outputs.flags_key }}/buildtools.tar
+        FILES_TO_IGNORE_PATH: ${{ steps.files_to_ignore.outputs.file_path }}
+      run: |
+        CACHED_TAR_PATH=$(mktemp /tmp/buildtools-cache-XXXXXX.tar)
+        cp_output=""
+        if cp_output=$(gcloud storage cp "$GCS_BUCKET/$CACHE_PATH" "$CACHED_TAR_PATH" 2>&1); then
+          echo "$cp_output"
+        
+          # Don't overwrite files or folders that were added to git. 
+          # 'tools/install-build-deps' script will check the hashes and download the correct deps if the restored cache is too old or too new.          
+          tar --preserve-permissions --extract --exclude-from="$FILES_TO_IGNORE_PATH" --file="$CACHED_TAR_PATH" --directory=buildtools
+        
+          rm "$CACHED_TAR_PATH"
+          rm "$FILES_TO_IGNORE_PATH"
+        
+          echo "Cache restored, OK"
+        elif [[ "$cp_output" =~ "The following URLs matched no objects or files" ]]; then
+          echo "Cache not found, OK"
+        else
+          echo "Can't restore cache: $cp_output"
+        fi
 
     - name: install-build-deps
-      run: tools/install-build-deps ${{ inputs.install-flags }}
       shell: bash
+      run: tools/install-build-deps ${{ inputs.install-flags }}
 
     - name: Save build-deps cache (only on main)
       if: github.ref == 'refs/heads/main'
-      uses: actions/cache/save@v4
-      with:
-        path: buildtools
-        # TODO(lalitm): see the comment above about the cache key.
-        key: buildtools-${{ hashFiles('buildtools/BUILD.gn') }}-${{ steps.cachekey.outputs.suffix }}-${{ hashFiles('tools/install-build-deps') }}
+      shell: bash
+      env:
+        GCS_BUCKET: gs://perfetto-ci-artifacts
+        CACHE_PATH: cache/buildtools-${{ steps.cachekey.outputs.flags_key }}/buildtools.tar
+        FILES_TO_IGNORE_PATH: ${{ steps.files_to_ignore.outputs.file_path }}
+      run: |
+        TAR_PATH=$(mktemp /tmp/buildtools-XXXXXX.tar)
+
+        tar --create --preserve-permissions --exclude-from="$FILES_TO_IGNORE_PATH" --file="$TAR_PATH" --directory=buildtools .
+        
+        gcloud storage cp --storage-class=STANDARD "$TAR_PATH" "$GVS_BUILDTOOLS_CACHE_PATH"
+        
+        rm "$TAR_PATH"
+        rm "$FILES_TO_IGNORE_PATH"
