@@ -76,7 +76,7 @@ runs:
         
           echo "CACHE_SHA256: $CACHE_SHA256"
         
-          echo "cache_sha256="$CACHE_SHA256" >> "$GITHUB_OUTPUT"
+          echo "cache_sha256=$CACHE_SHA256" >> "$GITHUB_OUTPUT"
         
           rm "$CACHED_TAR_PATH"
         
