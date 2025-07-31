@@ -72,10 +72,7 @@ runs:
           tar --keep-old-files --preserve-permissions --extract --exclude-from="$FILES_TO_IGNORE_PATH" --file="$CACHED_TAR_PATH" --directory=buildtools
         
           # Calculate hash of the entire cache archive to later decide if we need to upload the newer version.
-          CACHE_SHA256=$(tar --extract --to-stdout --file="$CACHED_TAR_PATH" | sha256sum | awk '{print $1}')
-        
-          echo "CACHE_SHA256: $CACHE_SHA256"
-        
+          CACHE_SHA256=$(tar --extract --to-stdout --file="$CACHED_TAR_PATH" | sha256sum | awk '{print $1}')        
           echo "cache_sha256=$CACHE_SHA256" >> "$GITHUB_OUTPUT"
         
           rm "$CACHED_TAR_PATH"
@@ -109,13 +106,12 @@ runs:
         tar --create --sort=name --preserve-permissions --exclude-from="$FILES_TO_IGNORE_PATH" --file="$TAR_PATH" --directory=buildtools .
         
         NEW_CACHE_SHA256=$(tar --extract --to-stdout --file="$TAR_PATH" | sha256sum | awk '{print $1}')
-        echo "NEW_CACHE_SHA256: $NEW_CACHE_SHA256"
-        echo "CACHE_SHA256: $CACHE_SHA256"
         
+        # Content of 'buildtools/' rarely changes, no need to upload the cache it on each build, even if nothing changes.
         if [[ "$CACHE_SHA256" != "$NEW_CACHE_SHA256" ]]; then
-          echo "sha256 mismatch, need to update cache."
-        fi        
-        
-        gcloud storage cp --storage-class=STANDARD "$TAR_PATH" "$GCS_BUCKET/$CACHE_PATH"
+          gcloud storage cp --storage-class=STANDARD "$TAR_PATH" "$GCS_BUCKET/$CACHE_PATH"
+        else
+          echo "The buildtools cache doesn't change, no need to upload it."
+        fi
         
         rm "$TAR_PATH"
