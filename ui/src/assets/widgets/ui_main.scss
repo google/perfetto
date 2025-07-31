@@ -34,3 +34,49 @@
     overflow: hidden;
   }
 }
+
+.pf-perf-stats {
+  --stroke-color: hsl(217, 39%, 94%);
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 600px;
+  color: var(--stroke-color);
+  font-family: var(--monospace-font);
+  padding: 10px 24px;
+  z-index: 100;
+  background-color: rgba(27, 28, 29, 0.9);
+  button {
+    text-decoration: underline;
+    color: hsl(45, 100%, 48%);
+    &:hover {
+      color: hsl(6, 70%, 53%);
+    }
+  }
+  .close-button {
+    position: absolute;
+    right: 20px;
+    top: 10px;
+    width: 20px;
+    height: 20px;
+    color: var(--stroke-color);
+  }
+  & > section {
+    padding: 5px;
+    border-bottom: 1px solid var(--stroke-color);
+  }
+  div {
+    margin: 2px 0;
+  }
+  table,
+  td,
+  th {
+    border: 1px solid var(--stroke-color);
+    text-align: center;
+    padding: 4px;
+    margin: 4px 0;
+  }
+  table {
+    border-collapse: collapse;
+  }
+}

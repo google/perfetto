@@ -49,7 +49,7 @@ export class PerfManager {
     // return here just a container and handle its rendering ourselves.
     const perfMgr = this;
     let removed = false;
-    return m('.perf-stats', {
+    return m('.pf-perf-stats', {
       oncreate(vnode: m.VnodeDOM) {
         const animationFrame = (dom: Element) => {
           if (removed) return;
@@ -74,7 +74,7 @@ interface PerfStatsUiAttrs {
 class PerfStatsUi implements m.ClassComponent<PerfStatsUiAttrs> {
   view({attrs}: m.Vnode<PerfStatsUiAttrs>) {
     return m(
-      '.perf-stats',
+      '.pf-perf-stats',
       {},
       m('section', this.renderRafSchedulerStats()),
       m(
