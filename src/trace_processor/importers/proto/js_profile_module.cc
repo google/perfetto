@@ -18,9 +18,9 @@
 
 #include <json/value.h>
 #include <stdint.h>
+#include <map>
 #include <stack>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "src/trace_processor/importers/proto/js_profile_module.h"
@@ -103,7 +103,7 @@ bool ParseProfileJson(const Json::Value& runtime_profile,
 // Parse 'nodes' array and build node map.
 bool ParseNodes(const Json::Value& runtime_profile,
                 CpuProfile& cpu_profile,
-                std::unordered_map<int32_t, ProfileNode>& node_map) {
+                std::map<int32_t, ProfileNode>& node_map) {
   const Json::Value& nodes = runtime_profile["nodes"];
   if (!nodes.isArray() || nodes.size() <= 0)
     return false;
@@ -142,12 +142,11 @@ bool ParseNodes(const Json::Value& runtime_profile,
 }
 
 // Find special node IDs: garbage collector, program, idle, and root.
-void FindSpecialNodeIds(
-    const std::unordered_map<int32_t, ProfileNode>& node_map,
-    int32_t& gcNodeId,
-    int32_t& programNodeId,
-    int32_t& idleNodeId,
-    int32_t& rootId) {
+void FindSpecialNodeIds(const std::map<int32_t, ProfileNode>& node_map,
+                        int32_t& gcNodeId,
+                        int32_t& programNodeId,
+                        int32_t& idleNodeId,
+                        int32_t& rootId) {
   gcNodeId = programNodeId = idleNodeId = rootId = -1;
   for (const auto& kv : node_map) {
     const auto& fn = kv.second.call_frame.function_name;
@@ -163,13 +162,12 @@ void FindSpecialNodeIds(
 }
 
 // Fix missing samples in the profile.
-void FixMissingSamples(
-    CpuProfile& cpu_profile,
-    int32_t programNodeId,
-    int32_t gcNodeId,
-    int32_t idleNodeId,
-    int32_t rootId,
-    const std::unordered_map<int32_t, ProfileNode>& node_map) {
+void FixMissingSamples(CpuProfile& cpu_profile,
+                       int32_t programNodeId,
+                       int32_t gcNodeId,
+                       int32_t idleNodeId,
+                       int32_t rootId,
+                       const std::map<int32_t, ProfileNode>& node_map) {
   size_t samplesCount = cpu_profile.samples.size();
   if (programNodeId != -1 && samplesCount >= 3) {
     auto isSystemNode = [&programNodeId, &gcNodeId,
@@ -203,16 +201,16 @@ void FixMissingSamples(
 }
 
 // Calculate depth and parent for each node.
-void CalculateNodeDepthAndParent(
-    std::unordered_map<int32_t, ProfileNode>& node_map) {
-  for (auto& kv : node_map) {
-    int32_t id = kv.first;
-    auto& node = kv.second;
-    for (auto child_id : node.children) {
-      auto it = node_map.find(child_id);
-      if (it != node_map.end()) {
-        it->second.parent = id;
-        it->second.depth = node.depth + 1;
+void CalculateNodeDepthAndParent(std::map<int32_t, ProfileNode>& node_map) {
+  for (auto it_node = node_map.begin(); it_node != node_map.end(); it_node++) {
+    int32_t id = it_node->first;
+    auto childs = it_node->second.children;
+    for (auto it_child = childs.begin(); it_child != childs.end(); it_child++) {
+      auto child = node_map.find(*it_child);
+      int32_t depth = it_node->second.depth + 1;
+      if (child != node_map.end()) {
+        child->second.parent = id;
+        child->second.depth = depth;
       }
     }
   }
@@ -221,7 +219,7 @@ void CalculateNodeDepthAndParent(
 // Generate a list of ProfileEvent from samples and nodes.
 std::vector<ProfileEvent> GenerateProfileEvents(
     const CpuProfile& cpu_profile,
-    const std::unordered_map<int32_t, ProfileNode>& node_map,
+    const std::map<int32_t, ProfileNode>& node_map,
     int32_t gcNodeId) {
   std::vector<ProfileEvent> events;
   int64_t last_timestamp = cpu_profile.start_timestamp;
@@ -299,12 +297,11 @@ std::vector<ProfileEvent> GenerateProfileEvents(
 }
 
 // Emit ProfileEvents as TracePackets.
-void EmitProfileEventsToTrace(
-    const std::vector<ProfileEvent>& events,
-    const std::unordered_map<int32_t, ProfileNode>& node_map,
-    const CpuProfile& cpu_profile,
-    RefPtr<PacketSequenceStateGeneration> state,
-    TraceProcessorContext* context_) {
+void EmitProfileEventsToTrace(const std::vector<ProfileEvent>& events,
+                              const std::map<int32_t, ProfileNode>& node_map,
+                              const CpuProfile& cpu_profile,
+                              RefPtr<PacketSequenceStateGeneration> state,
+                              TraceProcessorContext* context_) {
   std::stack<ProfileEvent> event_stack;
   for (const auto& event : events) {
     auto node = node_map.find(event.id_);
@@ -455,7 +452,7 @@ ModuleResult JSProfileModule::DecodeJsProfilePacket(
   ParseProfileJson(runtime_profile, cpu_profile, context_);
 
   // Parse nodes and build node map
-  std::unordered_map<int32_t, ProfileNode> node_map;
+  std::map<int32_t, ProfileNode> node_map;
   if (!ParseNodes(runtime_profile, cpu_profile, node_map)) {
     return ModuleResult::Ignored();
   }
