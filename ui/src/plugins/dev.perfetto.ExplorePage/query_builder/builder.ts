@@ -50,6 +50,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
   private queryExecuted: boolean = false;
   private tablePosition: 'left' | 'right' | 'bottom' = 'bottom';
   private previousSelectedNode?: QueryNode;
+  private isNodeDataViewerFullScreen: boolean = false;
 
   view({attrs}: m.CVnode<QueryBuilderAttrs>) {
     const {
@@ -78,6 +79,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
         'pf-query-builder-layout',
         selectedNode ? 'selection' : 'no-selection',
         selectedNode && `selection-${this.tablePosition}`,
+        this.isNodeDataViewerFullScreen && 'full-page',
       ) || '';
 
     const explorer = selectedNode
@@ -145,6 +147,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
           m(NodeDataViewer, {
             trace,
             query: this.query,
+            node: selectedNode,
             executeQuery: !this.queryExecuted,
             filters:
               // TODO(mayzner): This is a temporary fix for handling the filtering of SQL node.
@@ -182,6 +185,11 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             },
             onPositionChange: (pos: 'left' | 'right' | 'bottom') => {
               this.tablePosition = pos;
+            },
+            isFullScreen: this.isNodeDataViewerFullScreen,
+            onFullScreenToggle: () => {
+              this.isNodeDataViewerFullScreen =
+                !this.isNodeDataViewerFullScreen;
             },
           }),
         ),

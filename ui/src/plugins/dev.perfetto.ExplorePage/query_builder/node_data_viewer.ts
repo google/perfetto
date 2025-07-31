@@ -32,14 +32,17 @@ import {DataGridModel} from '../../../components/widgets/data_grid/common';
 import {InMemoryDataSource} from '../../../components/widgets/data_grid/in_memory_data_source';
 import {Trace} from '../../../public/trace';
 import {SqlValue} from '../../../trace_processor/query_result';
-import {Button} from '../../../widgets/button';
+import {Button, ButtonVariant} from '../../../widgets/button';
 import {Callout} from '../../../widgets/callout';
 import {DetailsShell} from '../../../widgets/details_shell';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {TextParagraph} from '../../../widgets/text_paragraph';
-import {Query, queryToRun} from '../query_node';
+import {Query, queryToRun, NodeType, QueryNode} from '../query_node';
+import {Intent} from '../../../widgets/common';
+import {AggregationsOperator} from './operations/aggregations';
 
 export interface NodeDataViewerAttrs {
+  readonly node: QueryNode;
   readonly query?: Query | Error;
   readonly executeQuery: boolean;
   readonly trace: Trace;
@@ -54,12 +57,15 @@ export interface NodeDataViewerAttrs {
   readonly onFiltersChanged?: (
     filters: ReadonlyArray<FilterDefinition>,
   ) => void;
+  readonly isFullScreen: boolean;
+  readonly onFullScreenToggle: () => void;
 }
 
 export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
   private readonly asyncLimiter = new AsyncLimiter();
   private response?: QueryResponse;
   private dataSource?: DataGridDataSource;
+  private showAggregationCard: boolean = false;
 
   oncreate({attrs}: m.CVnode<NodeDataViewerAttrs>) {
     this.runQuery(attrs);
@@ -147,7 +153,16 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
   }
 
   private renderMenu(attrs: NodeDataViewerAttrs): m.Children {
-    return m(
+    const fullScreenButton = m(Button, {
+      label: attrs.isFullScreen ? 'Exit full screen' : 'Full screen',
+      onclick: () => attrs.onFullScreenToggle(),
+    });
+
+    if (attrs.isFullScreen) {
+      return fullScreenButton;
+    }
+
+    const positionMenu = m(
       PopupMenu,
       {
         trigger: m(Button, {
@@ -169,6 +184,8 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
         }),
       ],
     );
+
+    return [fullScreenButton, positionMenu];
   }
 
   private renderContent(
@@ -191,6 +208,31 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
             )
           : null;
 
+      const maybeAggregateButton =
+        attrs.isFullScreen &&
+        attrs.node.type !== NodeType.kSqlSource &&
+        m(
+          '.pf-ndv-floating-button',
+          m(Button, {
+            intent: Intent.Primary,
+            variant: ButtonVariant.Filled,
+            label: 'Aggregate',
+            onclick: () => {
+              this.showAggregationCard = !this.showAggregationCard;
+            },
+          }),
+        );
+
+      const maybeAggregationCard =
+        this.showAggregationCard &&
+        m(
+          '.pf-ndv-floating-card',
+          m(AggregationsOperator, {
+            groupByColumns: attrs.node.state.groupByColumns,
+            aggregations: attrs.node.state.aggregations,
+          }),
+        );
+
       return [
         warning,
         m(DataGrid, {
@@ -204,6 +246,8 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
             return renderCell(value, name);
           },
         }),
+        maybeAggregateButton,
+        maybeAggregationCard,
       ];
     }
     return null;
