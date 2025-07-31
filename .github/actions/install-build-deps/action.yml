@@ -26,7 +26,7 @@ runs:
       shell: bash
       run: |
         # Setup Google Cloud config
-        # Token generated in 'infra/ci/worker/sandbox_runner.py'
+        # Token is generated in 'infra/ci/worker/sandbox_runner.py'
         gcloud config set auth/access_token_file $SVC_TOKEN_PATH
         # Suppress warning about "parallel composite upload" when using 'storage cp --storage-class=STANDARD'
         gcloud config set storage/parallel_composite_upload_enabled True
