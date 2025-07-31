@@ -109,7 +109,8 @@ runs:
         tar --create --sort=name --preserve-permissions --exclude-from="$FILES_TO_IGNORE_PATH" --file="$TAR_PATH" --directory=buildtools .
         
         NEW_CACHE_SHA256=$(tar --extract --to-stdout --file="$TAR_PATH" | sha256sum | awk '{print $1}')
-        echo "NEW_CACHE_SHA256: NEW_CACHE_SHA256"
+        echo "NEW_CACHE_SHA256: $NEW_CACHE_SHA256"
+        echo "CACHE_SHA256: $CACHE_SHA256"
         
         if [[ "$CACHE_SHA256" != "$NEW_CACHE_SHA256" ]]; then
           echo "sha256 mismatch, need to update cache."
