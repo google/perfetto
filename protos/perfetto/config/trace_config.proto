@@ -20,13 +20,14 @@ package perfetto.protos;
 
 import "protos/perfetto/common/builtin_clock.proto";
 import "protos/perfetto/config/data_source_config.proto";
+import "protos/perfetto/config/priority_boost/priority_boost_config.proto";
 
 // The overall config that is used when starting a new tracing session through
 // ProducerPort::StartTracing().
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 40.
+// Next id: 41.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -87,6 +88,16 @@ message TraceConfig {
     // "bar"] will enable data sources on both "foo" and "bar" (if they exist).
     repeated string producer_name_filter = 2;
     repeated string producer_name_regex_filter = 3;
+
+    // Filter by machine names. The name of a machine is determined by the
+    // PERFETTO_MACHINE_NAME env variable. In Android systems, if the env
+    // variable is not set then the
+    // persist.traced_relay.machine_name system property is used. If the
+    // sysprop isn't set or not in an Android system, then the machine name by
+    // default is set to the utsname sysname (e.g. Linux), which can be obtained
+    // via the 'uname -s' command. As a convenience, one can use "host" to refer
+    // to the host machine, which is the machine running traced.
+    repeated string machine_name_filter = 4;
   }
   repeated DataSource data_sources = 2;
 
@@ -734,4 +745,8 @@ message TraceConfig {
     optional uint64 max_other_session_count = 2;
   }
   repeated SessionSemaphore session_semaphores = 39;
+
+  // Priority boost to be applied to the traced process, when the session is
+  // running.
+  optional PriorityBoostConfig priority_boost = 40;
 }

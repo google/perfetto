@@ -67,6 +67,12 @@ TRACK_TABLE = Table(
             cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
             cpp_access_duration=CppAccessDuration.POST_FINALIZATION,
         ),
+        C(
+            "track_group_id",
+            CppOptional(CppUint32()),
+            sql_access=SqlAccess.HIGH_PERF,
+            cpp_access=CppAccess.READ_AND_HIGH_PERF_WRITE,
+        ),
         C("event_type", CppString()),
         C("counter_unit", CppOptional(CppString())),
         C(

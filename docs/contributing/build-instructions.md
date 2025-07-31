@@ -38,7 +38,7 @@ tools/install-build-deps [--android] [--ui] [--linux-arm]
 to build for `target_os = "android"`.
 
 `--ui` will pull NodeJS and all the NPM modules required to build the
-Web UI. See the [UI Development](#ui-development) section below for more.
+Web UI. See the [UI Development](/docs/contributing/ui-getting-started.md) section below for more.
 
 `--linux-arm` will pull the sysroots for cross-compiling for Linux ARM/64.
 
