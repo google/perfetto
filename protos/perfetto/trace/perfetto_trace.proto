@@ -9769,6 +9769,40 @@ message PsciMemProtectFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/hyp.proto
 
+// Begin of protos/perfetto/trace/ftrace/hypervisor.proto
+
+message HypervisorHostHcallFtraceEvent {
+  optional uint32 id = 1;
+  optional uint32 invalid = 2;
+}
+message HypervisorHostSmcFtraceEvent {
+  optional uint64 id = 1;
+  optional uint32 forwarded = 2;
+}
+message HypervisorHypExitFtraceEvent {}
+message HypervisorIommuIdmapFtraceEvent {
+  optional uint64 from = 1;
+  optional uint64 to = 2;
+  optional int32 prot = 3;
+}
+message HypervisorPsciMemProtectFtraceEvent {
+  optional uint64 count = 1;
+  optional uint64 was = 2;
+}
+message HypervisorHostMemAbortFtraceEvent {
+  optional uint64 esr = 1;
+  optional uint64 addr = 2;
+}
+message HypervisorHypEnterFtraceEvent {}
+message HypervisorIommuIdmapCompleteFtraceEvent {
+  optional uint32 map = 1;
+}
+message HypervisorVcpuIllegalTrapFtraceEvent {
+  optional uint64 esr = 1;
+}
+
+// End of protos/perfetto/trace/ftrace/hypervisor.proto
+
 // Begin of protos/perfetto/trace/ftrace/i2c.proto
 
 message I2cReadFtraceEvent {
@@ -12370,6 +12404,16 @@ message FtraceEvent {
     DmabufRssStatFtraceEvent dmabuf_rss_stat = 579;
     IommuIdmapFtraceEvent iommu_idmap = 580;
     PsciMemProtectFtraceEvent psci_mem_protect = 581;
+    HypervisorHostHcallFtraceEvent hypervisor_host_hcall = 582;
+    HypervisorHostSmcFtraceEvent hypervisor_host_smc = 583;
+    HypervisorHypExitFtraceEvent hypervisor_hyp_exit = 584;
+    HypervisorIommuIdmapFtraceEvent hypervisor_iommu_idmap = 585;
+    HypervisorPsciMemProtectFtraceEvent hypervisor_psci_mem_protect = 586;
+    HypervisorHostMemAbortFtraceEvent hypervisor_host_mem_abort = 587;
+    HypervisorHypEnterFtraceEvent hypervisor_hyp_enter = 588;
+    HypervisorIommuIdmapCompleteFtraceEvent hypervisor_iommu_idmap_complete =
+        589;
+    HypervisorVcpuIllegalTrapFtraceEvent hypervisor_vcpu_illegal_trap = 590;
   }
 }
 
