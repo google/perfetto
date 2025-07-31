@@ -17,3 +17,7 @@
 CREATE PERFETTO INDEX flow_in ON flow(slice_in);
 
 CREATE PERFETTO INDEX flow_out ON flow(slice_out);
+
+CREATE PERFETTO INDEX slice_parent_id ON __intrinsic_slice(parent_id);
+
+CREATE PERFETTO INDEX slice_track_id ON __intrinsic_slice(track_id);

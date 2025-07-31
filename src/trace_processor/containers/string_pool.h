@@ -32,6 +32,7 @@
 #include "perfetto/base/thread_annotations.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
@@ -70,6 +71,8 @@ class StringPool {
 
  public:
   struct Id {
+    static constexpr bool kHashable = true;
+
     Id() = default;
 
     constexpr bool operator==(const Id& other) const { return other.id == id; }
@@ -119,6 +122,10 @@ class StringPool {
     }
 
     PERFETTO_ALWAYS_INLINE static constexpr Id Null() { return Id(0u); }
+
+    // For hashing.
+    const char* data() const { return reinterpret_cast<const char*>(&id); }
+    size_t size() const { return sizeof(id); }
 
    private:
     constexpr explicit Id(uint32_t i) : id(i) {}
@@ -195,7 +202,7 @@ class StringPool {
     if (str.data() == nullptr) {
       return Id::Null();
     }
-    auto hash = str.Hash();
+    auto hash = base::MurmurHashValue(std::string_view(str.data(), str.size()));
 
     // Perform a hashtable insertion with a null ID just to check if the string
     // is already inserted. If it's not, overwrite 0 with the actual Id.
@@ -215,7 +222,7 @@ class StringPool {
     if (str.data() == nullptr) {
       return Id::Null();
     }
-    auto hash = str.Hash();
+    auto hash = base::MurmurHashValue(std::string_view(str.data(), str.size()));
 
     MaybeLockGuard guard{mutex_, should_acquire_mutex_};
     Id* id = string_index_.Find(hash);

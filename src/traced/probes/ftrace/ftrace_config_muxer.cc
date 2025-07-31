@@ -65,11 +65,10 @@ constexpr const char* kClocks[] = {"boot", "global", "local"};
 // Enabled by the "use_monotonic_raw_clock" option in the ftrace config.
 constexpr const char* kClockMonoRaw = "mono_raw";
 
-std::set<GroupAndName> ReadEventsInGroupFromFs(
-    const FtraceProcfs& ftrace_procfs,
-    const std::string& group) {
+std::set<GroupAndName> ReadEventsInGroupFromFs(const Tracefs& tracefs,
+                                               const std::string& group) {
   std::set<std::string> names =
-      ftrace_procfs.GetEventNamesForGroup("events/" + group);
+      tracefs.GetEventNamesForGroup("events/" + group);
   std::set<GroupAndName> events;
   for (const auto& name : names)
     events.insert(GroupAndName(group, name));
@@ -195,12 +194,28 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
       events.insert(GroupAndName(group, name));
     }
   }
+
   if (RequiresAtrace(request)) {
     InsertEvent("ftrace", "print", &events);
-
+  }
+  if (!request.atrace_userspace_only()) {
+    // Legacy: some atrace categories enable not just userspace tracing, but
+    // also a predefined set of kernel tracepoints, as that's what the original
+    // "atrace" binary did.
     for (const std::string& category : request.atrace_categories()) {
       if (predefined_events_.count(category)) {
         for (const GroupAndName& event : predefined_events_[category]) {
+          events.insert(event);
+        }
+      }
+    }
+
+    // Android: vendors can provide a set of extra ftrace categories to be
+    // enabled when a specific atrace category is used
+    // (e.g. "gfx" -> ["my_hw/my_custom_event", "my_hw/my_special_gpu"]).
+    for (const std::string& category : request.atrace_categories()) {
+      if (vendor_events_.count(category)) {
+        for (const GroupAndName& event : vendor_events_[category]) {
           events.insert(event);
         }
       }
@@ -345,7 +360,7 @@ void FtraceConfigMuxer::EnableFtraceEvent(const Event* event,
 }
 
 FtraceConfigMuxer::FtraceConfigMuxer(
-    FtraceProcfs* ftrace,
+    Tracefs* ftrace,
     AtraceWrapper* atrace_wrapper,
     ProtoTranslationTable* table,
     SyscallTable syscalls,
@@ -404,18 +419,6 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
   }
 
   std::set<GroupAndName> events = GetFtraceEvents(request, table_);
-
-  // Android: vendors can provide a set of extra ftrace categories to be enabled
-  // when a specific atrace category is used
-  // (e.g. "gfx" -> ["my_hw/my_custom_event", "my_hw/my_special_gpu"]).
-  // Merge them with the hardcoded events for each categories.
-  for (const std::string& category : request.atrace_categories()) {
-    if (vendor_events_.count(category)) {
-      for (const GroupAndName& event : vendor_events_[category]) {
-        events.insert(event);
-      }
-    }
-  }
 
   // Android: update userspace tracing control state if necessary.
   if (RequiresAtrace(request)) {

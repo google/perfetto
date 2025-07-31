@@ -73,11 +73,17 @@ def load_shell(
 
   temp_stdout = tempfile.TemporaryFile()
   temp_stderr = tempfile.TemporaryFile()
+
+  creationflags = 0
+  if sys.platform == 'win32':
+    creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
+
   p = subprocess.Popen(
       tp_exec + args,
       stdin=subprocess.DEVNULL,
       stdout=temp_stdout,
-      stderr=None if verbose else temp_stderr)
+      stderr=None if verbose else temp_stderr,
+      creationflags=creationflags)
 
   success = False
   for _ in range(load_timeout + 1):

@@ -372,8 +372,10 @@ operation tracks the **same `name`** (e.g., "Network Connections" or "File
 I/O"). The slices themselves on these tracks can have distinct names (e.g., "GET
 /api/data", "Read /config.txt").
 
-The Perfetto UI will typically group or visually merge tracks that have the same
-name.
+The Perfetto UI will group or visually merge tracks that have the same name.
+This is a convention and can be controlled by the user. For more details, see
+the section on controlling merging in the
+[synthetic track event reference docs](/docs/reference/synthetic-track-event.md#controlling-track-merging).
 
 ### Python Example
 
@@ -860,6 +862,10 @@ you can:
 - **Visualize your trace:** Open your generated `.pftrace` file in the
   [Perfetto UI](https://ui.perfetto.dev) to explore your data on an interactive
   timeline.
-- **Analyze with SQL:** Use the [Trace Processor](/docs/analysis/getting-started.md) to
-  query your custom trace data. Your custom tracks and events will populate
-  standard tables like `slice`, `track`, `counter`, etc.
+- **Analyze with SQL:** Use the
+  [Trace Processor](/docs/analysis/getting-started.md) to query your custom
+  trace data. Your custom tracks and events will populate standard tables like
+  `slice`, `track`, `counter`, etc.
+- **Handle large datasets:** If you are generating very large traces and want to
+  avoid high memory usage, learn how to stream data directly to a file in the
+  [Advanced Guide's section on streaming](/docs/reference/synthetic-track-event.md#handling-large-traces-with-streaming).

@@ -59,4 +59,4 @@ runs:
       with:
         path: buildtools
         # TODO(lalitm): see the comment above about the cache key.
-        key: buildtool-${{ hashFiles('buildtools/BUILD.gn') }}-${{ steps.cachekey.outputs.suffix }}-${{ hashFiles('tools/install-build-deps') }}
+        key: buildtools-${{ hashFiles('buildtools/BUILD.gn') }}-${{ steps.cachekey.outputs.suffix }}-${{ hashFiles('tools/install-build-deps') }}

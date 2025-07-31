@@ -17,23 +17,25 @@ $border: 1px solid rgb(225, 225, 225);
 .pf-data-grid {
   display: flex;
   flex-direction: column;
-  font-weight: 300;
   white-space: nowrap;
+  overflow: hidden;
 
   // If fill height is set, the grid should fill the height of its parent, and
   // the table content should scroll, otherwise it takes the height of the table
   // content.
   &--fill-height {
     height: 100%;
+  }
 
-    .pf-data-grid__table {
-      overflow: auto;
-    }
+  &__table {
+    overflow: auto;
+    flex: 1; // Allow the table to grow and fill the available space.
   }
 
   table {
     min-width: 100%;
     border-spacing: 0;
+    font-weight: 300;
   }
 
   // Highlight rows on hover.
@@ -136,28 +138,12 @@ $border: 1px solid rgb(225, 225, 225);
     visibility: hidden;
   }
 
-  &__toolbar {
-    display: flex;
-    padding: 2px;
-    align-items: baseline;
-  }
-
-  &__toolbar-filters {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 4px;
-    padding: 2px;
-    flex-grow: 1;
+  // Don't want the progress bar to squish!
+  &__loading {
+    flex: none;
   }
 
   &__filter-chip {
     cursor: pointer;
-  }
-
-  &__toolbar-pagination {
-    display: flex;
-    gap: 4px;
-    align-items: baseline;
   }
 }
