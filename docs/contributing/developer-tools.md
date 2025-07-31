@@ -102,7 +102,7 @@ git new-branch my-feature
 git commit -a -m 'My feature'
 
 # Create a new branch for adding something on top of the feature.
-git new-branch my-feature-2
+git new-branch my-feature-2 --current-parent
 
 # ... hack away, make changes
 
@@ -129,7 +129,7 @@ git sync-all
 # ... my-feature is approved and merged on GitHub.
 
 # Do a merge again to make everything up-to-date.
-git-update-stack
+git update-stack
 
 # Prune my-feature now it's no longer necessary
 git prune-all
