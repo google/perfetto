@@ -20,9 +20,12 @@
 #include <functional>
 #include <memory>
 #include <set>
+#include <unordered_set>
 
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/weak_ptr.h"
 
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/tracing/core/data_source_config.h"
@@ -34,8 +37,10 @@
 namespace perfetto {
 
 class TraceWriter;
+class AndroidCpuPerUidPoller;
+struct Package;
 
-bool ParsePackagesListStream(protos::pbzero::PackagesList* packages_list,
+bool ParsePackagesListStream(base::FlatHashMap<uint64_t, Package>& packages,
                              const base::ScopedFstream& fs,
                              const std::set<std::string>& package_name_filter);
 
@@ -44,20 +49,39 @@ class PackagesListDataSource : public ProbesDataSource {
   static const ProbesDataSource::Descriptor descriptor;
 
   PackagesListDataSource(const DataSourceConfig& ds_config,
+                         base::TaskRunner* task_runner,
                          TracingSessionID session_id,
                          std::unique_ptr<TraceWriter> writer);
   // ProbesDataSource implementation.
   void Start() override;
   void Flush(FlushRequestID, std::function<void()> callback) override;
+  void ClearIncrementalState() override;
 
   ~PackagesListDataSource() override;
 
  private:
+  void Tick();
+  void WriteIncrementalPacket();
+
+  base::WeakPtr<PackagesListDataSource> GetWeakPtr() const;
+
+  // Used in polling mode.
+  uint32_t on_use_poll_ms_;
+  std::unordered_set<uint32_t> seen_uids_;
+  base::TaskRunner* const task_runner_;
+  std::unique_ptr<AndroidCpuPerUidPoller> poller_;
+  bool first_time_ = true;
+
+  base::FlatHashMap<uint64_t, Package> packages_;
+  bool packages_parse_error_;
+  bool packages_read_error_;
+
   // If empty, include all package names. std::set over std::unordered_set as
   // this should be trivially small (or empty) in practice, and the latter uses
   // ever so slightly more memory.
   std::set<std::string> package_name_filter_;
   std::unique_ptr<TraceWriter> writer_;
+  base::WeakPtrFactory<PackagesListDataSource> weak_factory_;  // Keep last.
 };
 
 }  // namespace perfetto

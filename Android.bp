@@ -15819,6 +15819,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_traced_probes_common_common",
     srcs: [
+        "src/traced/probes/common/android_cpu_per_uid_poller.cc",
         "src/traced/probes/common/cpu_freq_info.cc",
     ],
 }

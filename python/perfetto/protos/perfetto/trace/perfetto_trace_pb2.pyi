@@ -12645,10 +12645,12 @@ class PackagesList(_message.Message):
     def __init__(self, packages: _Optional[_Iterable[_Union[PackagesList.PackageInfo, _Mapping]]] = ..., parse_error: bool = ..., read_error: bool = ...) -> None: ...
 
 class PackagesListConfig(_message.Message):
-    __slots__ = ["package_name_filter"]
+    __slots__ = ["on_use_poll_ms", "package_name_filter"]
+    ON_USE_POLL_MS_FIELD_NUMBER: _ClassVar[int]
     PACKAGE_NAME_FILTER_FIELD_NUMBER: _ClassVar[int]
+    on_use_poll_ms: int
     package_name_filter: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, package_name_filter: _Optional[_Iterable[str]] = ...) -> None: ...
+    def __init__(self, package_name_filter: _Optional[_Iterable[str]] = ..., on_use_poll_ms: _Optional[int] = ...) -> None: ...
 
 class PanelWriteGenericFtraceEvent(_message.Message):
     __slots__ = ["name", "pid", "trace_begin", "trace_name", "type", "value"]
