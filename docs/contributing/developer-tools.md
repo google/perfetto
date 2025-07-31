@@ -129,7 +129,7 @@ git sync-all
 # ... my-feature is approved and merged on GitHub.
 
 # Do a merge again to make everything up-to-date.
-git-update-stack
+git update-stack
 
 # Prune my-feature now it's no longer necessary
 git prune-all
