@@ -21,7 +21,6 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/time.h"
 #include "src/android_internal/cpu_time_in_state.h"
 #include "src/android_internal/lazy_library_loader.h"
 

@@ -19,7 +19,6 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_splitter.h"
 
 #include "perfetto/ext/tracing/core/trace_writer.h"
