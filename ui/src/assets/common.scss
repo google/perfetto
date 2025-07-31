@@ -141,17 +141,6 @@ button.close {
   font-family: var(--monospace-font);
 }
 
-.full-page-loading-screen {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-direction: row;
-  background: #3e4a5a url("assets/logo-3d.png") no-repeat fixed center;
-}
-
 .perf-stats {
   --stroke-color: hsl(217, 39%, 94%);
   position: fixed;
