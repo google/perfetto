@@ -271,4 +271,9 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     topLevelGroup: 'CPU',
     group: undefined,
   },
+  {
+    type: 'kernel_trackevent_custom_slice',
+    topLevelGroup: 'KERNEL',
+    group: 'Kernel track events',
+  },
 ];

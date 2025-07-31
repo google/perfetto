@@ -421,4 +421,9 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     topLevelGroup: 'CPU',
     group: undefined,
   },
+  {
+    type: 'kernel_trackevent_custom_counter',
+    topLevelGroup: 'KERNEL',
+    group: 'Kernel track events',
+  },
 ];

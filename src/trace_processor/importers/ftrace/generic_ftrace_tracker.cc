@@ -30,15 +30,97 @@
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto::trace_processor {
-
 using protozero::proto_utils::ProtoSchemaType;
+
+namespace {
 
 // We do not expect tracepoints with over 32 fields. It's more likely that the
 // trace is corrupted. See also |kMaxFtraceEventFields| in ftrace_descriptors.h.
 static constexpr uint32_t kMaxAllowedFields = 32;
 
+static constexpr char kScopeFieldNamePrefix[] = "scope_";
+
+// Track blueprints for kernel track events.
+constexpr auto kThreadSliceTrackBp = tracks::SliceBlueprint(  //
+    "kernel_trackevent_thread_slice",
+    tracks::DimensionBlueprints(
+        tracks::kThreadDimensionBlueprint,
+        tracks::StringIdDimensionBlueprint("tracepoint"),
+        tracks::StringIdDimensionBlueprint("name")),
+    tracks::DynamicNameBlueprint());
+constexpr auto kThreadCounterTrackBp = tracks::CounterBlueprint(
+    "kernel_trackevent_thread_counter",
+    tracks::UnknownUnitBlueprint(),
+    tracks::DimensionBlueprints(
+        tracks::kThreadDimensionBlueprint,
+        tracks::StringIdDimensionBlueprint("tracepoint"),
+        tracks::StringIdDimensionBlueprint("name")),
+    tracks::DynamicNameBlueprint());
+
+constexpr auto kProcessSliceTrackBp = tracks::SliceBlueprint(  //
+    "kernel_trackevent_process_slice",
+    tracks::DimensionBlueprints(
+        tracks::kProcessDimensionBlueprint,
+        tracks::StringIdDimensionBlueprint("tracepoint"),
+        tracks::StringIdDimensionBlueprint("name")),
+    tracks::DynamicNameBlueprint());
+constexpr auto kProcessCounterTrackBp = tracks::CounterBlueprint(
+    "kernel_trackevent_process_counter",
+    tracks::UnknownUnitBlueprint(),
+    tracks::DimensionBlueprints(
+        tracks::kProcessDimensionBlueprint,
+        tracks::StringIdDimensionBlueprint("tracepoint"),
+        tracks::StringIdDimensionBlueprint("name")),
+    tracks::DynamicNameBlueprint());
+
+constexpr auto kCpuSliceTrackBp = tracks::SliceBlueprint(  //
+    "kernel_trackevent_cpu_slice",
+    tracks::DimensionBlueprints(
+        tracks::kCpuDimensionBlueprint,
+        tracks::StringIdDimensionBlueprint("tracepoint"),
+        tracks::StringIdDimensionBlueprint("name")),
+    tracks::DynamicNameBlueprint());
+constexpr auto kCpuCounterTrackBp = tracks::CounterBlueprint(
+    "kernel_trackevent_cpu_counter",
+    tracks::UnknownUnitBlueprint(),
+    tracks::DimensionBlueprints(
+        tracks::kCpuDimensionBlueprint,
+        tracks::StringIdDimensionBlueprint("tracepoint"),
+        tracks::StringIdDimensionBlueprint("name")),
+    tracks::DynamicNameBlueprint());
+
+constexpr auto kCustomSliceTrackBp = tracks::SliceBlueprint(  //
+    "kernel_trackevent_custom_slice",
+    tracks::DimensionBlueprints(
+        tracks::LongDimensionBlueprint("scope"),
+        tracks::StringIdDimensionBlueprint("tracepoint"),
+        tracks::StringIdDimensionBlueprint("name")),
+    tracks::DynamicNameBlueprint());
+constexpr auto kCustomCounterTrackBp = tracks::CounterBlueprint(
+    "kernel_trackevent_custom_counter",
+    tracks::UnknownUnitBlueprint(),
+    tracks::DimensionBlueprints(
+        tracks::LongDimensionBlueprint("scope"),
+        tracks::StringIdDimensionBlueprint("tracepoint"),
+        tracks::StringIdDimensionBlueprint("name")),
+    tracks::DynamicNameBlueprint());
+
+bool IsSimpleVarint(ProtoSchemaType t) {
+  // not expecting fixed or zigzag encodings
+  return t == ProtoSchemaType::kInt64 || t == ProtoSchemaType::kUint64 ||
+         t == ProtoSchemaType::kInt32 || t == ProtoSchemaType::kUint32;
+}
+
+}  // namespace
+
 GenericFtraceTracker::GenericFtraceTracker(TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context),
+      track_event_type_(context->storage->InternString("track_event_type")),
+      slice_name_(context->storage->InternString("slice_name")),
+      track_name_(context->storage->InternString("track_name")),
+      counter_value_(context->storage->InternString("counter_value")),
+      scope_tgid_(context->storage->InternString("scope_tgid")),
+      scope_cpu_(context->storage->InternString("scope_cpu")) {}
 
 GenericFtraceTracker::~GenericFtraceTracker() = default;
 
@@ -88,55 +170,47 @@ GenericFtraceTracker::GenericEvent* GenericFtraceTracker::GetEvent(
 
 void GenericFtraceTracker::MatchTrackEventTemplate(uint32_t pb_field_id,
                                                    const GenericEvent& event) {
+  // Find whether the tracepoint field names match our convention for kernel
+  // track events.
   KernelTrackEvent info = {};
   info.event_name = event.name;
   for (uint32_t field_id = 1; field_id < event.fields.size(); field_id++) {
     const GenericField& field = event.fields[field_id];
 
-    // TODO(prototype): intern strings in constructor, consider allowing more
-    // integral types.
-    if (field.name == context_->storage->InternString("track_event_type") &&
-        (field.type == ProtoSchemaType::kInt64 ||
-         field.type == ProtoSchemaType::kUint64)) {
+    if (field.name == track_event_type_ && IsSimpleVarint(field.type)) {
       info.slice_type_field_id = field_id;
-    } else if (field.name == context_->storage->InternString("slice_name") &&
+    } else if (field.name == slice_name_ &&
                field.type == ProtoSchemaType::kString) {
       info.slice_name_field_id = field_id;
-    } else if (field.name == context_->storage->InternString("track_name") &&
+    } else if (field.name == track_name_ &&
                field.type == ProtoSchemaType::kString) {
       info.track_name_field_id = field_id;
-    } else if (field.name == context_->storage->InternString("value") &&
-               (field.type == ProtoSchemaType::kInt64 ||
-                field.type == ProtoSchemaType::kUint64)) {
+    } else if (field.name == counter_value_ && IsSimpleVarint(field.type)) {
       info.value_field_id = field_id;
     }
-    // context fields: well-known names or a prefix.
-    if (field.name == context_->storage->InternString("context_tgid") &&
-        (field.type == ProtoSchemaType::kInt64 ||
-         field.type == ProtoSchemaType::kUint64)) {
-      info.context_field_id = field_id;
-      info.context_type = KernelTrackEvent::kTgid;
-    } else if (field.name == context_->storage->InternString("context_cpu") &&
-               (field.type == ProtoSchemaType::kInt64 ||
-                field.type == ProtoSchemaType::kUint64)) {
-      info.context_field_id = field_id;
-      info.context_type = KernelTrackEvent::kCpu;
+    // scope fields: well-known names or a prefix.
+    else if (field.name == scope_tgid_ && IsSimpleVarint(field.type)) {
+      info.scope_field_id = field_id;
+      info.scope_type = KernelTrackEvent::kTgid;
+    } else if (field.name == scope_cpu_ && IsSimpleVarint(field.type)) {
+      info.scope_field_id = field_id;
+      info.scope_type = KernelTrackEvent::kCpu;
     } else if (context_->storage->GetString(field.name)
-                   .StartsWith("context_")) {
-      info.context_field_id = field_id;
-      info.context_type = KernelTrackEvent::kCustom;
+                   .StartsWith(kScopeFieldNamePrefix) &&
+               IsSimpleVarint(field.type)) {
+      info.scope_field_id = field_id;
+      info.scope_type = KernelTrackEvent::kCustom;
     }
   }
 
   if (info.slice_type_field_id && info.slice_name_field_id) {
     info.kind = KernelTrackEvent::EventKind::kSlice;
-  } else if (info.track_name_field_id && info.value_field_id) {
+  } else if (info.value_field_id) {
     info.kind = KernelTrackEvent::EventKind::kCounter;
   } else {
     // common case: tracepoint doesn't look like a kernel track event
     return;
   }
-
   track_event_info_.Insert(pb_field_id, info);
 }
 
@@ -145,8 +219,7 @@ void GenericFtraceTracker::MatchTrackEventTemplate(uint32_t pb_field_id,
 // * C events as macro#2
 // * No support for single macro for both (i.e. no track_event_type = 'C')
 //
-// * No async events (have to strictly nest slices within track_name + context_)
-// * All counters have to have an explicit name in every payload, no defaulting.
+// * No async events (have to strictly nest slices within track_name + scope_)
 // * No system track merging, even for thread-scoped track events.
 //
 // Not yet implemented / unsure:
@@ -160,97 +233,11 @@ void GenericFtraceTracker::MatchTrackEventTemplate(uint32_t pb_field_id,
 // * probably keeping existing "tracing_mark_write" events on the
 // systrace_parser.
 //
-// Example macros for same-thread scoped track events and a tgid-scoped counter:
-//  TRACE_EVENT(trk_example,
-//      TP_PROTO(
-//          char track_event_type,
-//          const char *slice_name
-//      ),
-//      TP_ARGS(
-//          track_event_type,
-//          slice_name
-//      ),
-//      TP_STRUCT__entry(
-//          __field(char, track_event_type)
-//          __string(slice_name, slice_name)
-//      ),
-//      TP_fast_assign(
-//          __entry->track_event_type = track_event_type;
-//          __assign_str(slice_name);
-//      ),
-//      TP_printk(
-//          "type=%c slice_name=%s",
-//          __entry->track_event_type,
-//          __get_str(slice_name)
-//      )
-//  );
-//
-//  TRACE_EVENT(tgid_cntr_example,
-//      TP_PROTO(
-//          const char *track_name,
-//          u64 value,
-//          int32_t context_tgid
-//      ),
-//      TP_ARGS(
-//          track_name,
-//          value,
-//          context_tgid
-//      ),
-//      TP_STRUCT__entry(
-//          __string(track_name, track_name)
-//          __field(u64, value)
-//          __field(int32_t, context_tgid)
-//      ),
-//      TP_fast_assign(
-//          __assign_str(track_name);
-//          __entry->value = value;
-//          __entry->context_tgid = context_tgid;
-//      ),
-//      TP_printk(
-//          "track_name=%s value=%llu tgid=%d",
-//          __get_str(track_name),
-//          (unsigned long long)__entry->value,
-//          __entry->context_tgid
-//      )
-//  );
 void GenericFtraceTracker::MaybeParseAsTrackEvent(
     uint32_t pb_field_id,
     int64_t ts,
     uint32_t tid,
     protozero::ProtoDecoder& decoder) {
-  constexpr auto kThreadSliceTrackBp = tracks::SliceBlueprint(
-      "kernel_trackevent_thread_slice",
-      tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint,
-                                  tracks::StringIdDimensionBlueprint("name")),
-      tracks::DynamicNameBlueprint());
-  constexpr auto kThreadCounterTrackBp = tracks::CounterBlueprint(
-      "kernel_trackevent_thread_counter", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(tracks::kThreadDimensionBlueprint,
-                                  tracks::StringIdDimensionBlueprint("name")),
-      tracks::DynamicNameBlueprint());
-
-  constexpr auto kProcessSliceTrackBp = tracks::SliceBlueprint(
-      "kernel_trackevent_process_slice",
-      tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint,
-                                  tracks::StringIdDimensionBlueprint("name")),
-      tracks::DynamicNameBlueprint());
-  constexpr auto kProcessCounterTrackBp = tracks::CounterBlueprint(
-      "kernel_trackevent_process_counter", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint,
-                                  tracks::StringIdDimensionBlueprint("name")),
-      tracks::DynamicNameBlueprint());
-
-  constexpr auto kCpuSliceTrackBp = tracks::SliceBlueprint(
-      "kernel_trackevent_cpu_slice",
-      tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint,
-                                  tracks::StringIdDimensionBlueprint("name")),
-      tracks::DynamicNameBlueprint());
-  constexpr auto kCpuCounterTrackBp = tracks::CounterBlueprint(
-      "kernel_trackevent_cpu_counter", tracks::UnknownUnitBlueprint(),
-      tracks::DimensionBlueprints(tracks::kCpuDimensionBlueprint,
-                                  tracks::StringIdDimensionBlueprint("name")),
-      tracks::DynamicNameBlueprint());
-
   auto* maybe_info = track_event_info_.Find(pb_field_id);
   if (!maybe_info)
     return;
@@ -269,10 +256,10 @@ void GenericFtraceTracker::MaybeParseAsTrackEvent(
     track_name = context_->storage->InternString(track_name_fld.as_string());
   }
 
-  // Track lookup: default to thread-scoped events (scoped by track name). With
-  // an optional context field that overrides the scoping.
+  // Track lookup: default to thread-scoped events, with an optional field that
+  // overrides the scoping. Note: track name is an additional scoping dimension.
   TrackId track_id = kInvalidTrackId;
-  switch (info.context_type) {
+  switch (info.scope_type) {
     case KernelTrackEvent::kTid: {
       UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
 
@@ -280,33 +267,33 @@ void GenericFtraceTracker::MaybeParseAsTrackEvent(
                                    ? kThreadSliceTrackBp
                                    : kThreadCounterTrackBp;
       track_id = context_->track_tracker->InternTrack(
-          track_kind, tracks::Dimensions(utid, track_name),
+          track_kind, tracks::Dimensions(utid, info.event_name, track_name),
           tracks::DynamicName(track_name));
       break;
     }
     case KernelTrackEvent::kTgid: {
-      protozero::Field context_tgid = decoder.FindField(info.context_field_id);
-      if (!context_tgid.valid()) {
+      protozero::Field scope_tgid = decoder.FindField(info.scope_field_id);
+      if (!scope_tgid.valid()) {
         return context_->storage->IncrementStats(
             stats::kernel_trackevent_format_error);
       }
 
       // NB: trusting that this is a real tgid, but *not* assuming that the
       // emitting thread is inside the tgid.
-      UniquePid upid = context_->process_tracker->GetOrCreateProcess(
-          context_tgid.as_int64());
+      UniquePid upid =
+          context_->process_tracker->GetOrCreateProcess(scope_tgid.as_int64());
 
       const auto& track_kind = (info.kind == KernelTrackEvent::kSlice)
                                    ? kProcessSliceTrackBp
                                    : kProcessCounterTrackBp;
       track_id = context_->track_tracker->InternTrack(
-          track_kind, tracks::Dimensions(upid, track_name),
+          track_kind, tracks::Dimensions(upid, info.event_name, track_name),
           tracks::DynamicName(track_name));
       break;
     }
     case KernelTrackEvent::kCpu: {
-      protozero::Field context_cpu = decoder.FindField(info.context_field_id);
-      if (!context_cpu.valid()) {
+      protozero::Field scope_cpu = decoder.FindField(info.scope_field_id);
+      if (!scope_cpu.valid()) {
         return context_->storage->IncrementStats(
             stats::kernel_trackevent_format_error);
       }
@@ -316,13 +303,26 @@ void GenericFtraceTracker::MaybeParseAsTrackEvent(
                                    ? kCpuSliceTrackBp
                                    : kCpuCounterTrackBp;
       track_id = context_->track_tracker->InternTrack(
-          track_kind, tracks::Dimensions(context_cpu.as_uint32(), track_name),
+          track_kind,
+          tracks::Dimensions(scope_cpu.as_uint32(), info.event_name,
+                             track_name),
           tracks::DynamicName(track_name));
       break;
     }
     case KernelTrackEvent::kCustom:
-      // TODO(prototype): create a new top-level track group? Would like to
-      // avoid an entire UI plugin to propagate the group to the UI though.
+      protozero::Field scope = decoder.FindField(info.scope_field_id);
+      if (!scope.valid()) {
+        return context_->storage->IncrementStats(
+            stats::kernel_trackevent_format_error);
+      }
+
+      const auto& track_kind = (info.kind == KernelTrackEvent::kSlice)
+                                   ? kCustomSliceTrackBp
+                                   : kCustomCounterTrackBp;
+      track_id = context_->track_tracker->InternTrack(
+          track_kind,
+          tracks::Dimensions(scope.as_int64(), info.event_name, track_name),
+          tracks::DynamicName(track_name));
       break;
   }
   PERFETTO_DCHECK(track_id != kInvalidTrackId);
@@ -365,7 +365,6 @@ void GenericFtraceTracker::MaybeParseAsTrackEvent(
       return context_->storage->IncrementStats(
           stats::kernel_trackevent_format_error);
     }
-
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(value.as_int64()), track_id);
   }

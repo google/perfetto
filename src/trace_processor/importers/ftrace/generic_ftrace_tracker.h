@@ -63,11 +63,11 @@ class GenericFtraceTracker {
 
   struct KernelTrackEvent {
     enum EventKind { kSlice, kCounter };
-    enum ContextType { kTid, kTgid, kCpu, kCustom };
+    enum ScopeType { kTid, kTgid, kCpu, kCustom };
 
     StringId event_name = kNullStringId;
     EventKind kind = kSlice;
-    ContextType context_type = kTid;
+    ScopeType scope_type = kTid;
     // slice only field:
     uint32_t slice_type_field_id = 0;
     uint32_t slice_name_field_id = 0;
@@ -75,7 +75,7 @@ class GenericFtraceTracker {
     uint32_t value_field_id = 0;
     // shared fields:
     uint32_t track_name_field_id = 0;
-    uint32_t context_field_id = 0;
+    uint32_t scope_field_id = 0;
   };
 
   explicit GenericFtraceTracker(TraceProcessorContext* context);
@@ -109,6 +109,13 @@ class GenericFtraceTracker {
   base::FlatHashMap<uint32_t, GenericEvent> events_;
   // keyed by proto field id inside the FtraceEvent proto, subset of the above
   base::FlatHashMap<uint32_t, KernelTrackEvent> track_event_info_;
+
+  const StringId track_event_type_;
+  const StringId slice_name_;
+  const StringId track_name_;
+  const StringId counter_value_;
+  const StringId scope_tgid_;
+  const StringId scope_cpu_;
 };
 
 }  // namespace perfetto::trace_processor
