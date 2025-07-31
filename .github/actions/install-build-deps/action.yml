@@ -91,6 +91,7 @@ runs:
       run: |
         TAR_PATH=$(mktemp /tmp/buildtools-XXXXXX.tar)
 
+        # Don't add to cache files or folders that were added to git.
         tar --create --preserve-permissions --exclude-from="$FILES_TO_IGNORE_PATH" --file="$TAR_PATH" --directory=buildtools .
         
         gcloud storage cp --storage-class=STANDARD "$TAR_PATH" "$GVS_BUILDTOOLS_CACHE_PATH"
