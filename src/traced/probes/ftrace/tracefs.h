@@ -215,8 +215,7 @@ class Tracefs {
   virtual std::string ReadFileIntoString(const std::string& path) const;
   virtual size_t NumberOfOnlineCpus() const;
   // Parses the list of offline CPUs from "/sys/devices/system/cpu/offline" and
-  // returns them as a vector if successful, or std::nullopt if any failure in
-  // reading or parsing.
+  // returns them as a vector if successful, or std::nullopt if any failure.
   virtual std::optional<std::vector<uint32_t>> GetOfflineCpus() const;
 
  private:

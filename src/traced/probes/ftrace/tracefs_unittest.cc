@@ -161,7 +161,7 @@ TEST(TracefsTest, ReadBufferSizeInPages) {
 TEST(TracefsTest, ClearTrace) {
   MockTracefs ftrace;
 
-  // All CPUs are online.
+  // Test: Fast path when all CPUs are online.
   EXPECT_CALL(ftrace, NumberOfCpus()).WillRepeatedly(Return(4));
   EXPECT_CALL(ftrace, NumberOfOnlineCpus()).WillRepeatedly(Return(4));
   EXPECT_CALL(ftrace, ClearFile("/root/trace")).WillOnce(Return(true));
@@ -171,23 +171,7 @@ TEST(TracefsTest, ClearTrace) {
   ftrace.ClearTrace();
   ASSERT_TRUE(Mock::VerifyAndClearExpectations(&ftrace));
 
-  // Not able to fetch offliåne cpus.
-  EXPECT_CALL(ftrace, NumberOfCpus()).WillRepeatedly(Return(4));
-  EXPECT_CALL(ftrace, NumberOfOnlineCpus()).WillRepeatedly(Return(2));
-  EXPECT_CALL(ftrace, ClearFile("/root/trace")).WillOnce(Return(true));
-  EXPECT_CALL(ftrace, GetOfflineCpus()).WillOnce(Return(std::nullopt));
-  EXPECT_CALL(ftrace, ClearFile("/root/per_cpu/cpu0/trace"))
-      .WillOnce(Return(true));
-  EXPECT_CALL(ftrace, ClearFile("/root/per_cpu/cpu1/trace"))
-      .WillOnce(Return(true));
-  EXPECT_CALL(ftrace, ClearFile("/root/per_cpu/cpu2/trace"))
-      .WillOnce(Return(true));
-  EXPECT_CALL(ftrace, ClearFile("/root/per_cpu/cpu3/trace"))
-      .WillOnce(Return(true));
-  ftrace.ClearTrace();
-  ASSERT_TRUE(Mock::VerifyAndClearExpectations(&ftrace));
-
-  // Able to get list of offline cpus.
+  // Test: Only the buffers for the specified offline CPUs are cleared.
   EXPECT_CALL(ftrace, NumberOfCpus()).WillRepeatedly(Return(4));
   EXPECT_CALL(ftrace, NumberOfOnlineCpus()).WillRepeatedly(Return(2));
   EXPECT_CALL(ftrace, ClearFile("/root/trace")).WillOnce(Return(true));
@@ -200,6 +184,19 @@ TEST(TracefsTest, ClearTrace) {
   EXPECT_CALL(ftrace, ClearFile("/root/per_cpu/cpu3/trace"))
       .WillOnce(Return(true));
   ftrace.ClearTrace();
+
+  // Test: Fallback behavior when the offline CPU list can't be read.
+  EXPECT_CALL(ftrace, NumberOfCpus()).WillRepeatedly(Return(4));
+  EXPECT_CALL(ftrace, NumberOfOnlineCpus()).WillRepeatedly(Return(2));
+  EXPECT_CALL(ftrace, ClearFile("/root/trace")).WillOnce(Return(true));
+  EXPECT_CALL(ftrace, GetOfflineCpus()).WillOnce(Return(std::nullopt));
+  for (size_t cpu = 0; cpu < 4; cpu++) {
+    EXPECT_CALL(ftrace,
+                ClearFile("/root/per_cpu/cpu" + std::to_string(cpu) + "/trace"))
+        .WillOnce(Return(true));
+  }
+  ftrace.ClearTrace();
+  ASSERT_TRUE(Mock::VerifyAndClearExpectations(&ftrace));
 }
 
 TEST(TracefsTest, GetOfflineCpus) {

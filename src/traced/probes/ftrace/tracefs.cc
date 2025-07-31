@@ -503,18 +503,18 @@ void Tracefs::ClearTrace() {
   std::string path = root_ + "trace";
   PERFETTO_CHECK(ClearFile(path));  // Could not clear.
 
-  const auto num_cpus = NumberOfCpus();
-  const auto online_cpus = NumberOfOnlineCpus();
+  const auto total_cpu_count = NumberOfCpus();
+  const auto online_cpu_count = NumberOfOnlineCpus();
 
   // Truncating the trace file leads to tracing_reset_online_cpus being called
   // in the kernel. So if all cpus are online, no further action needed.
-  if (num_cpus == online_cpus)
+  if (total_cpu_count == online_cpu_count)
     return;
 
   PERFETTO_DLOG(
       "Since %zu / %zu CPUS are online, clearing buffer for the offline ones "
-      "manually.",
-      online_cpus, num_cpus);
+      "individually.",
+      online_cpu_count, total_cpu_count);
 
   std::optional<std::vector<uint32_t>> offline_cpus = GetOfflineCpus();
 
@@ -528,7 +528,7 @@ void Tracefs::ClearTrace() {
   } else {
     // Fallback: if we can't determine which CPUs are offline, clear the buffers
     // for all possible CPUs.
-    for (size_t cpu = 0; cpu < num_cpus; cpu++) {
+    for (size_t cpu = 0; cpu < total_cpu_count; cpu++) {
       ClearPerCpuTrace(cpu);
     }
   }
