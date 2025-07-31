@@ -51,21 +51,16 @@ export function registerTraceTools(server: McpServer, engine: Engine) {
   server.tool(
     'list_android_processes_in_trace',
     `
-Tool to list processes.
-
-This lists all the processes in the trace from the [package_list] with profileable and then debug apps first.  
+Tool to list process details from the trace.
+        
+This lists all the processes in the trace from the \`process\` table.
         `,
     {},
     async ({ }) => {
       const data = await runQueryForMcp(
         engine,
-        `select
-package_name as packageName,
-version_code as versionCode,
-debuggable,
-profileable_from_shell as profileable
-from package_list
-order by profileable desc, debuggable desc`,
+        `select *
+      from process`,
       );
       return {
         content: [{ type: 'text', text: data }],
