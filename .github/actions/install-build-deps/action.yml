@@ -60,6 +60,8 @@ runs:
         GCS_BUCKET: gs://perfetto-ci-artifacts
         CACHE_PATH: cache/buildtools-${{ steps.cachekey.outputs.flags_key }}/buildtools.tar
         FILES_TO_IGNORE_PATH: ${{ steps.files_to_ignore.outputs.file_path }}
+        LOCAL_BUILDTOOLS_HASH: ${{ hashFiles('buildtools/**', 'tools/install-build-deps') }}
+        CACHED_BUILDTOOLS_HASH_FILE_PATH: buildtools_hash_revision_for_cache_on_ci.txt
       run: |
         # Restore content of 'buildtools/' folder from cache.
         CACHED_TAR_PATH=$(mktemp /tmp/buildtools-cache-XXXXXX.tar)
@@ -71,13 +73,20 @@ runs:
           # '--keep-old-files' is used to prevent accidentally overwriting existing files in 'buildtools/'.             
           tar --keep-old-files --preserve-permissions --extract --exclude-from="$FILES_TO_IGNORE_PATH" --file="$CACHED_TAR_PATH" --directory=buildtools
         
-          echo "-----------"
-          time tar --extract --to-stdout --file="$CACHED_TAR_PATH" | sha256sum
-          echo "-----------"
+          if [ -f "$CACHED_BUILDTOOLS_HASH_FILE_PATH" ]; then
+            CACHED_BUILDTOOLS_HASH=$(cat "$CACHED_BUILDTOOLS_HASH_FILE_PATH")
+          else
+            CACHED_BUILDTOOLS_HASH="0"
+          fi
         
-          # Calculate hash of the entire cache archive to later decide if we need to upload the newer version.
-          CACHE_SHA256=$(tar --extract --to-stdout --file="$CACHED_TAR_PATH" | sha256sum | awk '{print $1}')        
-          echo "cache_sha256=$CACHE_SHA256" >> "$GITHUB_OUTPUT"
+          echo "LOCAL_BUILDTOOLS_HASH: $LOCAL_BUILDTOOLS_HASH"
+          echo "CACHED_BUILDTOOLS_HASH: $CACHED_BUILDTOOLS_HASH"
+        
+          if [[ "$CACHED_BUILDTOOLS_HASH" != "$LOCAL_BUILDTOOLS_HASH" ]]; then
+            # Rewrite the hash file, it will saved as part of 'buildtools/' cache.
+            echo "$LOCAL_BUILDTOOLS_HASH" > "$CACHED_BUILDTOOLS_HASH_FILE_PATH"
+            echo "update_cache=true" >> "$GITHUB_OUTPUT" 
+          fi
         
           rm "$CACHED_TAR_PATH"
         
@@ -100,7 +109,8 @@ runs:
         GCS_BUCKET: gs://perfetto-ci-artifacts
         CACHE_PATH: cache/buildtools-${{ steps.cachekey.outputs.flags_key }}/buildtools.tar
         FILES_TO_IGNORE_PATH: ${{ steps.files_to_ignore.outputs.file_path }}
-        CACHE_SHA256: ${{ steps.restore_buildtools_cache.outputs.cache_sha256 }}
+        CACHED_BUILDTOOLS_HASH_FILE_PATH: buildtools_hash_revision_for_cache_on_ci.txt
+        UPDATE_CACHE: ${{steps.restore_buildtools_cache.outputs.update_cache  }}
       run: |
         # Save content of 'buildtools/' folder to cache.
         TAR_PATH=$(mktemp /tmp/buildtools-XXXXXX.tar)
@@ -109,14 +119,8 @@ runs:
         # '--sort=name' is used to calculate reproducible sha256sum.
         tar --create --sort=name --preserve-permissions --exclude-from="$FILES_TO_IGNORE_PATH" --file="$TAR_PATH" --directory=buildtools .
         
-        echo "-----------"
-        time tar --extract --to-stdout --file="$TAR_PATH" | sha256sum
-        echo "-----------"
-        
-        NEW_CACHE_SHA256=$(tar --extract --to-stdout --file="$TAR_PATH" | sha256sum | awk '{print $1}')
-        
         # Content of 'buildtools/' rarely changes, no need to upload the cache it on each build, even if nothing changes.
-        if [[ "$CACHE_SHA256" != "$NEW_CACHE_SHA256" ]]; then
+        if [[ "UPDATE_CACHE" == "true" ]]; then
           gcloud storage cp --storage-class=STANDARD "$TAR_PATH" "$GCS_BUCKET/$CACHE_PATH"
         else
           echo "The buildtools cache doesn't change, no need to upload it."
