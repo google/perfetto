@@ -111,3 +111,64 @@ class MemoryParser(TestSuite):
         "name","ts","dur","name"
         "mem.dma_buffer",100,100,"1 kB"
         """))
+
+  def test_cma_alloc_finish(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          system_info {
+            utsname {
+              sysname: "Linux"
+              release: "6.1.0"
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 2
+            event {
+              timestamp: 80000000000000
+              pid: 123
+              cma_alloc_start {
+                align: 8
+                count: 1024
+                name: "test_cma"
+              }
+            }
+            event {
+              timestamp: 80000000000050
+              pid: 123
+              mm_alloc_contig_migrate_range_info {
+                start: 1234
+                end: 2258
+                migratetype: 64
+                nr_migrated: 10
+                nr_reclaimed: 1000
+                nr_mapped: 99
+              }
+            }
+            event {
+              timestamp: 80000000000100
+              pid: 123
+              cma_alloc_finish {
+                align: 8
+                count: 1024
+                name: "test_cma"
+                page: 2000
+                pfn: 2048
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT ts, dur, name,
+        EXTRACT_ARG(arg_set_id, 'cma_nr_migrated') AS cma_nr_migrated,
+        EXTRACT_ARG(arg_set_id, 'cma_nr_reclaimed') AS cma_nr_reclaimed,
+        EXTRACT_ARG(arg_set_id, 'cma_nr_mapped') AS cma_nr_mapped
+        FROM slice WHERE name = 'mm_cma_alloc';
+        """,
+        out=Csv("""
+        "ts","dur","name","cma_nr_migrated","cma_nr_reclaimed","cma_nr_mapped"
+        80000000000000,100,"mm_cma_alloc",10,1000,99
+        """))

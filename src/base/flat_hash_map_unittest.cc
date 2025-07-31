@@ -71,7 +71,7 @@ struct Value {
   int id = instances++;
 };
 
-struct Hasher {
+struct KeyHasher {
   size_t operator()(const Key& k) const { return static_cast<size_t>(k.val); }
 };
 
@@ -79,7 +79,7 @@ int Key::instances = 0;
 int Value::instances = 0;
 
 TYPED_TEST(FlatHashMapTest, NonTrivialKeyValues) {
-  FlatHashMap<Key, Value, Hasher, typename TestFixture::Probe> fmap;
+  FlatHashMap<Key, Value, KeyHasher, typename TestFixture::Probe> fmap;
 
   for (int iteration = 0; iteration < 3; iteration++) {
     const int kNum = 10;
@@ -99,7 +99,7 @@ TYPED_TEST(FlatHashMapTest, NonTrivialKeyValues) {
     ASSERT_EQ(Key::instances, kNum - 3);
     ASSERT_EQ(Value::instances, kNum - 3);
 
-    FlatHashMap<Key, Value, Hasher, typename TestFixture::Probe> fmap2(
+    FlatHashMap<Key, Value, KeyHasher, typename TestFixture::Probe> fmap2(
         std::move(fmap));
     ASSERT_EQ(fmap.size(), 0u);
     ASSERT_EQ(fmap2.size(), static_cast<size_t>(kNum - 3));
@@ -169,7 +169,7 @@ TYPED_TEST(FlatHashMapTest, AllTagsAreValid) {
 }
 
 TYPED_TEST(FlatHashMapTest, FillWithTombstones) {
-  FlatHashMap<Key, Value, Hasher, typename TestFixture::Probe> fmap(
+  FlatHashMap<Key, Value, KeyHasher, typename TestFixture::Probe> fmap(
       /*initial_capacity=*/0, /*load_limit_pct=*/100);
 
   for (int rep = 0; rep < 3; rep++) {
@@ -384,7 +384,7 @@ TYPED_TEST(FlatHashMapTest, VsUnorderedMap) {
 
 TYPED_TEST(FlatHashMapTest, Clear) {
   {
-    FlatHashMap<Key, Value, Hasher, typename TestFixture::Probe> fmap;
+    FlatHashMap<Key, Value, KeyHasher, typename TestFixture::Probe> fmap;
     ASSERT_EQ(Key::instances, 0);
     ASSERT_EQ(Value::instances, 0);
 
@@ -407,7 +407,7 @@ TYPED_TEST(FlatHashMapTest, Clear) {
   ASSERT_EQ(Value::instances, 0);
 
   {
-    FlatHashMap<int, int, base::Hash<int>, typename TestFixture::Probe> fmap;
+    FlatHashMap<int, int, base::FnvHash<int>, typename TestFixture::Probe> fmap;
     fmap.Insert(1, 1);
     fmap.Insert(2, 2);
     ASSERT_EQ(fmap.size(), 2u);
@@ -423,7 +423,7 @@ TYPED_TEST(FlatHashMapTest, Clear) {
 }
 
 TYPED_TEST(FlatHashMapTest, TombstoneGrowthRehash) {
-  FlatHashMap<int, int, base::Hash<int>, typename TestFixture::Probe> fmap;
+  FlatHashMap<int, int, base::FnvHash<int>, typename TestFixture::Probe> fmap;
   // Insert 100 elements. This will cause the capacity to become 128.
   for (int i = 0; i < 100; ++i) {
     fmap.Insert(i, i);
@@ -448,7 +448,7 @@ TYPED_TEST(FlatHashMapTest, TombstoneGrowthRehash) {
 }
 
 TYPED_TEST(FlatHashMapTest, TombstoneCompactionRehash) {
-  FlatHashMap<int, int, base::Hash<int>, typename TestFixture::Probe> fmap;
+  FlatHashMap<int, int, base::FnvHash<int>, typename TestFixture::Probe> fmap;
   // Insert 300 elements. This will cause the capacity to become 512.
   for (int i = 0; i < 300; ++i) {
     fmap.Insert(i, i);

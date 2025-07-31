@@ -109,7 +109,10 @@ class SurfaceFlingerLayers(TestSuite):
           layer_id,
           layer_name,
           parent,
-          corner_radius,
+          corner_radius_tl,
+          corner_radius_tr,
+          corner_radius_bl,
+          corner_radius_br,
           hwc_composition_type,
           z_order_relative_of,
           is_missing_z_parent,
@@ -118,17 +121,18 @@ class SurfaceFlingerLayers(TestSuite):
           input_rect_id
         FROM
           surfaceflinger_layer
-        LIMIT 7;
+        LIMIT 8;
         """,
         out=Csv("""
-        "id","snapshot_id","layer_id","layer_name","parent","corner_radius","hwc_composition_type","z_order_relative_of","is_missing_z_parent","is_visible","layer_rect_id","input_rect_id"
-        0,0,3,"Display 0 name="Built-in Screen"#3","[NULL]",0.000000,"[NULL]",5,1,0,"[NULL]","[NULL]"
-        1,0,4,"WindowedMagnification:0:31#4",3,0.000000,"[NULL]","[NULL]",0,0,"[NULL]","[NULL]"
-        2,1,3,"Display 0 name="Built-in Screen"#3","[NULL]",0.000000,"[NULL]","[NULL]",0,0,"[NULL]","[NULL]"
-        3,1,4,"WindowedMagnification:0:31#4",3,0.000000,"[NULL]","[NULL]",0,0,3,"[NULL]"
-        4,2,"[NULL]","[NULL]",-1,"[NULL]","[NULL]","[NULL]",0,0,"[NULL]","[NULL]"
-        5,2,1,"layer1","[NULL]",1.000000,2,"[NULL]",0,0,9,10
-        6,2,2,"layer2","[NULL]","[NULL]","[NULL]","[NULL]",0,1,11,12
+        "id","snapshot_id","layer_id","layer_name","parent","corner_radius_tl","corner_radius_tr","corner_radius_bl","corner_radius_br","hwc_composition_type","z_order_relative_of","is_missing_z_parent","is_visible","layer_rect_id","input_rect_id"
+        0,0,3,"Display 0 name="Built-in Screen"#3","[NULL]",0.000000,0.000000,0.000000,0.000000,"[NULL]",5,1,0,"[NULL]","[NULL]"
+        1,0,4,"WindowedMagnification:0:31#4",3,0.100000,0.000000,0.300000,0.400000,"[NULL]","[NULL]",0,0,"[NULL]","[NULL]"
+        2,1,3,"Display 0 name="Built-in Screen"#3","[NULL]",0.000000,0.000000,0.000000,0.000000,"[NULL]","[NULL]",0,0,"[NULL]","[NULL]"
+        3,1,4,"WindowedMagnification:0:31#4",3,0.000000,0.000000,0.000000,0.000000,"[NULL]","[NULL]",0,0,3,"[NULL]"
+        4,2,"[NULL]","[NULL]",-1,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",0,0,"[NULL]","[NULL]"
+        5,2,-2,"[NULL]",-2,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",0,0,"[NULL]","[NULL]"
+        6,2,1,"layer1","[NULL]",1.000000,1.000000,1.000000,1.000000,2,"[NULL]",0,0,9,10
+        7,2,2,"layer2","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",0,1,11,12
         """))
 
   def test_tables_have_raw_protos(self):
@@ -144,7 +148,7 @@ class SurfaceFlingerLayers(TestSuite):
         out=Csv("""
         "COUNT(*)"
         3
-        19
+        20
         """))
 
   def test_layer_args(self):
@@ -155,7 +159,7 @@ class SurfaceFlingerLayers(TestSuite):
           args.key, args.display_value
         FROM
           surfaceflinger_layer AS sfl JOIN args ON sfl.arg_set_id = args.arg_set_id
-        WHERE sfl.id = 2 and (key like "screen_bounds%" or key like "visibility_reason%")
+        WHERE sfl.id = 2 AND (key GLOB "screen_bounds*" OR key GLOB "visibility_reason*")
         ORDER BY args.key
         """,
         out=Csv("""

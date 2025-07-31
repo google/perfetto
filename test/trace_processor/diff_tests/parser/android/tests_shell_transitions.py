@@ -26,19 +26,32 @@ class ShellTransitions(TestSuite):
         trace=Path('shell_transitions.textproto'),
         query="""
         SELECT
-          id, ts, transition_id, transition_type, send_time_ns, dispatch_time_ns, duration_ns, handler, status, flags
+          id,
+          ts,
+          transition_id,
+          transition_type,
+          send_time_ns,
+          dispatch_time_ns,
+          duration_ns,
+          finish_time_ns,
+          shell_abort_time_ns,
+          handler,
+          status,
+          flags,
+          start_transaction_id,
+          finish_transaction_id
         FROM
           window_manager_shell_transitions
         ORDER BY id;
         """,
         out=Csv("""
-        "id","ts","transition_id","transition_type","send_time_ns","dispatch_time_ns","duration_ns","handler","status","flags"
-        0,76879063147,7,"[NULL]",76875395422,76879063147,"[NULL]",2,"[NULL]","[NULL]"
-        1,77899001013,10,"[NULL]",77894307328,77899001013,727303101,4,"played","[NULL]"
-        2,82536817137,11,"[NULL]",82535513345,82536817137,"[NULL]",2,"[NULL]","[NULL]"
-        3,77320527177,8,"[NULL]",77277756832,77320527177,"[NULL]",3,"merged","[NULL]"
-        4,77876414832,9,"[NULL]",77843436723,77876414832,30498739,3,"played","[NULL]"
-        5,0,12,1,"[NULL]","[NULL]","[NULL]","[NULL]","merged","[NULL]"
+        "id","ts","transition_id","transition_type","send_time_ns","dispatch_time_ns","duration_ns","finish_time_ns","shell_abort_time_ns","handler","status","flags","start_transaction_id","finish_transaction_id"
+        0,76879063147,7,"[NULL]",76875395422,76879063147,"[NULL]","[NULL]","[NULL]",2,"[NULL]","[NULL]",5604932321952,5604932321954
+        1,77899001013,10,"[NULL]",77894307328,77899001013,727303101,78621610429,"[NULL]",4,"played","[NULL]",5604932322158,5604932322159
+        2,82536817137,11,"[NULL]",82535513345,82536817137,"[NULL]","[NULL]",82536817537,2,"aborted","[NULL]",5604932322346,5604932322347
+        3,77320527177,8,"[NULL]",77277756832,77320527177,"[NULL]","[NULL]","[NULL]",3,"merged","[NULL]",5604932322028,5604932322029
+        4,77876414832,9,"[NULL]",77843436723,77876414832,30498739,77873935462,"[NULL]",3,"played","[NULL]",5604932322137,5604932322138
+        5,0,12,1,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","merged","[NULL]","[NULL]","[NULL]"
         """))
 
   def test_has_expected_transition_args(self):

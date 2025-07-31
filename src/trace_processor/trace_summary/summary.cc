@@ -220,7 +220,7 @@ base::Status WriteDimension(
     const std::string& metric_or_bundle_name,
     Iterator& query_it,
     protos::pbzero::TraceMetricV2Bundle::Row::Dimension* dimension,
-    base::Hasher* hasher) {
+    base::FnvHasher* hasher) {
   const auto& dimension_value = query_it.Get(dim_with_index.index);
   hasher->Update(dimension_value.type);
   if (dimension_value.is_null()) {
@@ -412,7 +412,7 @@ base::Status CreateQueriesAndComputeMetrics(
         continue;
       }
       auto* row = bundle->add_row();
-      base::Hasher hasher;
+      base::FnvHasher hasher;
       for (const auto& dim : dimensions_with_index) {
         RETURN_IF_ERROR(WriteDimension(dim, bundle_id, query_it,
                                        row->add_dimension(), &hasher));

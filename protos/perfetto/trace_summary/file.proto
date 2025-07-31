@@ -58,8 +58,8 @@ message TraceSummarySpec {
 //
 // Next id: 4
 message TraceSummary {
-  // Will be shortly removed in favor of `metric_bundles`.
-  repeated TraceMetricV2 metric = 1 [deprecated = true];
+  // Was the old non-bundled output format.
+  reserved 1;
 
   // The v2 trace metrics computed for the trace in a "bundled" form.
   //

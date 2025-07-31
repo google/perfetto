@@ -392,7 +392,9 @@ SELECT
   lead(name) OVER (PARTITION BY track_id ORDER BY ts) AS next_name,
   lead(ts) OVER (PARTITION BY track_id ORDER BY ts) AS next_ts,
   lead(dur) OVER (PARTITION BY track_id ORDER BY ts) AS next_dur
-FROM async_reply;
+FROM async_reply
+ORDER BY
+  id;
 
 CREATE PERFETTO TABLE _binder_async_txn_raw AS
 SELECT

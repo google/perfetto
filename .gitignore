@@ -11,6 +11,7 @@
 .env
 .eslintcache
 .gclient*
+.gemini
 .gm-actuals
 .gradle
 .idea
@@ -37,5 +38,6 @@ examples/sdk/build/
 GPATH
 GRTAGS
 GTAGS
+mise.toml
 perf.data*
 TAGS
