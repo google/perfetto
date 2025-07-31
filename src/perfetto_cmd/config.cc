@@ -118,13 +118,13 @@ bool CreateConfigFromOptions(const ConfigOptions& options,
   std::vector<std::string> ftrace_events;
   std::vector<std::string> atrace_categories;
   std::vector<std::string> atrace_apps = options.atrace_apps;
-  bool has_hyp_category = false;
+  std::optional<std::string> hyp_category;
 
   for (const auto& category : options.categories) {
     if (base::Contains(category, '/')) {
       ftrace_events.push_back(category);
-    } else if (category == "hyp") {
-      has_hyp_category = true;
+    } else if (category == "hyp" || category == "hypervisor") {
+      hyp_category = std::make_optional(category);
     } else {
       atrace_categories.push_back(category);
     }
@@ -174,13 +174,13 @@ bool CreateConfigFromOptions(const ConfigOptions& options,
 
   // pKVM hypervisor events are coming from a separate special instance called
   // "hyp", we need a separate config for it.
-  if (has_hyp_category) {
+  if (hyp_category.has_value()) {
     auto* ds_config = config->add_data_sources()->mutable_config();
     ds_config->set_name("linux.ftrace");
     protos::gen::FtraceConfig ftrace_cfg;
-    ftrace_cfg.set_instance_name("hyp");
+    ftrace_cfg.set_instance_name(*hyp_category);
     // Collect all known hypervisor traces.
-    ftrace_cfg.add_ftrace_events("hyp/*");
+    ftrace_cfg.add_ftrace_events(*hyp_category + "/*");
     ds_config->set_ftrace_config_raw(ftrace_cfg.SerializeAsString());
   }
 
