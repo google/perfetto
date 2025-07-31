@@ -102,7 +102,7 @@ git new-branch my-feature
 git commit -a -m 'My feature'
 
 # Create a new branch for adding something on top of the feature.
-git new-branch my-feature-2
+git new-branch my-feature-2 --current-parent
 
 # ... hack away, make changes
 
