@@ -181,21 +181,20 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   ) {
     const queryTimeString = `${queryResult.durationMs.toFixed(1)} ms`;
     if (queryResult.error) {
-      return m('.query-error', `SQL error: ${queryResult.error}`);
+      return m(Box, {spacing: 'large', className: 'pf-query-page__error'}, [
+        `SQL error: ${queryResult.error}`,
+      ]);
     } else {
       return [
         queryResult.statementWithOutputCount > 1 &&
           m(
-            '.pf-query-warning',
+            Box,
             m(
-              Box,
-              m(
-                Callout,
-                {icon: 'warning', intent: Intent.None},
-                `${queryResult.statementWithOutputCount} out of ${queryResult.statementCount} `,
-                'statements returned a result. ',
-                'Only the results for the last statement are displayed.',
-              ),
+              Callout,
+              {icon: 'warning', intent: Intent.Warning},
+              `${queryResult.statementWithOutputCount} out of ${queryResult.statementCount} `,
+              'statements returned a result. ',
+              'Only the results for the last statement are displayed.',
             ),
           ),
         m(DataGrid, {

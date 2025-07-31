@@ -17,7 +17,7 @@ import {
   QueryResponse,
   runQueryForQueryTable,
 } from '../../components/query_table/queries';
-import {QueryTable} from '../../components/query_table/query_table';
+import {QueryTable} from '../../components/query_table/query_panel';
 import {App} from '../../public/app';
 import {Flag} from '../../public/feature_flag';
 import {PerfettoPlugin} from '../../public/plugin';

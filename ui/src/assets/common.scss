@@ -19,6 +19,7 @@
   --sidebar-width: 230px;
   --topbar-height: 44px;
   --monospace-font: "Roboto Mono", monospace;
+  --compact-font: "Roboto Condensed", sans-serif;
   --track-shell-width: 250px;
   --track-border-color: #00000025;
   --anim-easing: cubic-bezier(0.4, 0, 0.2, 1);
@@ -149,24 +150,6 @@ button.close {
   align-items: center;
   flex-direction: row;
   background: #3e4a5a url("assets/logo-3d.png") no-repeat fixed center;
-}
-
-.pf-query-panel {
-  display: contents;
-  .pf-query-warning {
-    padding: 4px;
-    position: sticky;
-    left: 0;
-  }
-}
-
-.query-error {
-  padding: 20px 10px;
-  color: hsl(-10, 50%, 50%);
-  font-family: "Roboto Mono", sans-serif;
-  font-size: 12px;
-  font-weight: 300;
-  white-space: pre;
 }
 
 .perf-stats {

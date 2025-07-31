@@ -12,35 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../assets/widgets/theme";
+@import "../widgets/theme";
 
-.pf-query-page {
-  height: 100%;
-  font-family: var(--compact-font);
-  overflow: hidden auto;
-
-  &__elapsed-time {
-    font-size: 0.9em;
-    color: rgb(83, 83, 83);
-    margin-left: 0.2rem;
-  }
-
-  &__toolbar {
-    border-bottom: 1px solid lightgray;
-  }
-
-  .pf-editor {
-    contain: strict; // See b/388579546
-    min-height: 3rem;
-  }
-
-  &__hotkeys {
-    display: inline-flex;
-    color: gray;
-    font-style: italic;
-    font-size: smaller;
-    user-select: none;
-  }
+.pf-query-panel {
+  display: contents;
 
   &__error {
     font-size: smaller;

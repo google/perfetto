@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {getSliceId, isSliceish} from './query_table';
+import {getSliceId, isSliceish} from './query_panel';
 
 describe('getSliceId', () => {
   test('get slice_id if present when no other clues are available', () => {

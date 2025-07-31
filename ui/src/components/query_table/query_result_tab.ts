@@ -21,7 +21,7 @@ import {AddDebugTrackMenu} from '../tracks/add_debug_track_menu';
 import {Button} from '../../widgets/button';
 import {PopupMenu} from '../../widgets/menu';
 import {PopupPosition} from '../../widgets/popup';
-import {QueryTable} from './query_table';
+import {QueryTable} from './query_panel';
 import {Trace} from '../../public/trace';
 import {Tab} from '../../public/tab';
 
