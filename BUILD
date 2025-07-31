@@ -413,7 +413,9 @@ perfetto_cc_library(
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
+        ":src_trace_processor_util_hyper_log_log",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_murmur_hash",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -3693,11 +3695,27 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/util:hyper_log_log
+perfetto_filegroup(
+    name = "src_trace_processor_util_hyper_log_log",
+    srcs = [
+        "src/trace_processor/util/hyper_log_log.h",
+    ],
+)
+
 # GN target: //src/trace_processor/util:interned_message_view
 perfetto_filegroup(
     name = "src_trace_processor_util_interned_message_view",
     srcs = [
         "src/trace_processor/util/interned_message_view.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:murmur_hash
+perfetto_filegroup(
+    name = "src_trace_processor_util_murmur_hash",
+    srcs = [
+        "src/trace_processor/util/murmur_hash.h",
     ],
 )
 
@@ -7391,7 +7409,9 @@ perfetto_cc_library(
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
+        ":src_trace_processor_util_hyper_log_log",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_murmur_hash",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -7601,7 +7621,9 @@ perfetto_cc_binary(
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
+        ":src_trace_processor_util_hyper_log_log",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_murmur_hash",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
@@ -7797,7 +7819,9 @@ perfetto_cc_binary(
         ":src_trace_processor_util_descriptors",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
+        ":src_trace_processor_util_hyper_log_log",
         ":src_trace_processor_util_interned_message_view",
+        ":src_trace_processor_util_murmur_hash",
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_profiler_util",
         ":src_trace_processor_util_proto_profiler",
