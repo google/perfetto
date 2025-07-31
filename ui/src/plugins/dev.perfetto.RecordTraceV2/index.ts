@@ -28,6 +28,7 @@ import {memoryRecordSection} from './pages/memory';
 import {powerRecordSection} from './pages/power';
 import {RecordPageV2} from './pages/record_page';
 import {stackSamplingRecordSection} from './pages/stack_sampling';
+import {networkRecordSection} from './pages/network';
 import {targetSelectionPage} from './pages/target_selection_page';
 import {RecordingManager} from './recording_manager';
 import {TracedWebsocketTargetProvider} from './traced_over_websocket/traced_websocket_provider';
@@ -85,6 +86,7 @@ export default class implements PerfettoPlugin {
         memoryRecordSection(),
         androidRecordSection(),
         stackSamplingRecordSection(),
+        networkRecordSection(),
         advancedRecordSection(),
       );
       recMgr.restorePluginStateFromLocalstorage();
