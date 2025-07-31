@@ -511,7 +511,7 @@ void Tracefs::ClearTrace() {
   if (total_cpu_count == online_cpu_count)
     return;
 
-  PERFETTO_DLOG(
+  PERFETTO_LOG(
       "Since %zu / %zu CPUS are online, clearing buffer for the offline ones "
       "individually.",
       online_cpu_count, total_cpu_count);
