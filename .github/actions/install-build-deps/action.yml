@@ -29,7 +29,7 @@ runs:
         # Token is generated in 'infra/ci/worker/sandbox_runner.py'
         gcloud config set auth/access_token_file $SVC_TOKEN_PATH
         # Suppress warning about "parallel composite upload" when using 'storage cp --storage-class=STANDARD'
-        gcloud config set storage/parallel_composite_upload_enabled True
+        # gcloud config set storage/parallel_composite_upload_enabled True
 
     - name: Compute cache key
       id: cachekey
@@ -123,7 +123,8 @@ runs:
         
         # Content of 'buildtools/' rarely changes, no need to upload the cache it on each build, even if nothing changes.
         if [[ "$UPDATE_CACHE" == "true" ]]; then
-          gcloud storage cp --storage-class=STANDARD "$TAR_PATH" "$GCS_BUCKET/$CACHE_PATH"
+          # gcloud storage cp --storage-class=STANDARD "$TAR_PATH" "$GCS_BUCKET/$CACHE_PATH"
+        gcloud storage cp "$TAR_PATH" "$GCS_BUCKET/$CACHE_PATH"
         else
           echo "The buildtools cache doesn't change, no need to upload it."
         fi
