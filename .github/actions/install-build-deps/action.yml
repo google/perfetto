@@ -47,6 +47,7 @@ runs:
       id: files_to_ignore
       shell: bash
       run: |
+        # Generate list of files in 'buildtools/' added to git.
         FILES_TO_IGNORE_PATH=$(mktemp /tmp/files-to-ignore-XXXXX.txt)
         git ls-tree HEAD:buildtools --name-only > "$FILES_TO_IGNORE_PATH"
         echo "file_path=$FILES_TO_IGNORE_PATH" >> "$GITHUB_OUTPUT"
@@ -58,6 +59,7 @@ runs:
         CACHE_PATH: cache/buildtools-${{ steps.cachekey.outputs.flags_key }}/buildtools.tar
         FILES_TO_IGNORE_PATH: ${{ steps.files_to_ignore.outputs.file_path }}
       run: |
+        # Restore content of 'buildtools/' folder from cache.
         CACHED_TAR_PATH=$(mktemp /tmp/buildtools-cache-XXXXXX.tar)
         cp_output=""
         if cp_output=$(gcloud storage cp "$GCS_BUCKET/$CACHE_PATH" "$CACHED_TAR_PATH" 2>&1); then
@@ -89,12 +91,13 @@ runs:
         CACHE_PATH: cache/buildtools-${{ steps.cachekey.outputs.flags_key }}/buildtools.tar
         FILES_TO_IGNORE_PATH: ${{ steps.files_to_ignore.outputs.file_path }}
       run: |
+        # Save content of 'buildtools/' folder to cache.
         TAR_PATH=$(mktemp /tmp/buildtools-XXXXXX.tar)
 
         # Don't add to cache files or folders that were added to git.
         tar --create --preserve-permissions --exclude-from="$FILES_TO_IGNORE_PATH" --file="$TAR_PATH" --directory=buildtools .
         
-        gcloud storage cp --storage-class=STANDARD "$TAR_PATH" "$GVS_BUILDTOOLS_CACHE_PATH"
+        gcloud storage cp --storage-class=STANDARD "$TAR_PATH" "$GCS_BUCKET/$CACHE_PATH"
         
         rm "$TAR_PATH"
         rm "$FILES_TO_IGNORE_PATH"
