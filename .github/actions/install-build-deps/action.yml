@@ -119,8 +119,10 @@ runs:
         # '--sort=name' is used to calculate reproducible sha256sum.
         tar --create --sort=name --preserve-permissions --exclude-from="$FILES_TO_IGNORE_PATH" --file="$TAR_PATH" --directory=buildtools .
         
+        echo "UPDATE_CACHE: $UPDATE_CACHE"
+        
         # Content of 'buildtools/' rarely changes, no need to upload the cache it on each build, even if nothing changes.
-        if [[ "UPDATE_CACHE" == "true" ]]; then
+        if [[ "$UPDATE_CACHE" == "true" ]]; then
           gcloud storage cp --storage-class=STANDARD "$TAR_PATH" "$GCS_BUCKET/$CACHE_PATH"
         else
           echo "The buildtools cache doesn't change, no need to upload it."
