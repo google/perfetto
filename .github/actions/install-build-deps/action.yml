@@ -70,7 +70,6 @@ runs:
           tar --preserve-permissions --extract --exclude-from="$FILES_TO_IGNORE_PATH" --file="$CACHED_TAR_PATH" --directory=buildtools
         
           rm "$CACHED_TAR_PATH"
-          rm "$FILES_TO_IGNORE_PATH"
         
           echo "Cache restored, OK"
         elif [[ "$cp_output" =~ "The following URLs matched no objects or files" ]]; then
@@ -100,4 +99,3 @@ runs:
         gcloud storage cp --storage-class=STANDARD "$TAR_PATH" "$GCS_BUCKET/$CACHE_PATH"
         
         rm "$TAR_PATH"
-        rm "$FILES_TO_IGNORE_PATH"
