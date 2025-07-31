@@ -153,11 +153,6 @@ class Tracefs {
   // This will match the number of tracing/per_cpu/cpuXX directories.
   size_t virtual NumberOfCpus() const;
 
-  // Parses the list of offline CPUs from "/sys/devices/system/cpu/offline" and
-  // returns them as a vector if successful, or std::nullopt if any failure in
-  // reading or parsing.
-  std::optional<std::vector<uint32_t>> GetOfflineCpus();
-
   // Clears the trace buffers for all CPUs. Blocks until this is done.
   void ClearTrace();
 
@@ -218,6 +213,11 @@ class Tracefs {
   virtual char ReadOneCharFromFile(const std::string& path);
   virtual bool ReadFile(const std::string& path, std::string* str) const;
   virtual std::string ReadFileIntoString(const std::string& path) const;
+  virtual size_t NumberOfOnlineCpus() const;
+  // Parses the list of offline CPUs from "/sys/devices/system/cpu/offline" and
+  // returns them as a vector if successful, or std::nullopt if any failure in
+  // reading or parsing.
+  virtual std::optional<std::vector<uint32_t>> GetOfflineCpus() const;
 
  private:
   // Checks the trace file is present at the given root path.

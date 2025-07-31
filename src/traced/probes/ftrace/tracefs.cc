@@ -450,7 +450,11 @@ size_t Tracefs::NumberOfCpus() const {
   return num_cpus;
 }
 
-std::optional<std::vector<uint32_t>> Tracefs::GetOfflineCpus() {
+size_t Tracefs::NumberOfOnlineCpus() const {
+  return static_cast<size_t>(sysconf(_SC_NPROCESSORS_ONLN));
+}
+
+std::optional<std::vector<uint32_t>> Tracefs::GetOfflineCpus() const {
   std::string offline_cpus_str;
   if (!ReadFile("/sys/devices/system/cpu/offline", &offline_cpus_str)) {
     PERFETTO_ELOG("Failed to read offline cpus file");
@@ -499,16 +503,24 @@ void Tracefs::ClearTrace() {
   std::string path = root_ + "trace";
   PERFETTO_CHECK(ClearFile(path));  // Could not clear.
 
+  const auto num_cpus = NumberOfCpus();
+  const auto online_cpus = NumberOfOnlineCpus();
+
   // Truncating the trace file leads to tracing_reset_online_cpus being called
-  // in the kernel.
-  //
-  // In case some of the CPUs were not online, their buffer needs to be
-  // cleared manually.
-  //
-  // We cannot use PERFETTO_CHECK as we might get a permission denied error
-  // on Android. The permissions to these files are configured in
-  // platform/framework/native/cmds/atrace/atrace.rc.
+  // in the kernel. So if all cpus are online, no further action needed.
+  if (num_cpus == online_cpus)
+    return;
+
+  PERFETTO_DLOG(
+      "Since %zu / %zu CPUS are online, clearing buffer for the offline ones "
+      "manually.",
+      online_cpus, num_cpus);
+
   std::optional<std::vector<uint32_t>> offline_cpus = GetOfflineCpus();
+
+  // We cannot use PERFETTO_CHECK on ClearPerCpuTrace as we might get a
+  // permission denied error on Android. The permissions to these files are
+  // configured in platform/framework/native/cmds/atrace/atrace.rc.
   if (offline_cpus.has_value()) {
     for (const auto& cpu : offline_cpus.value()) {
       ClearPerCpuTrace(cpu);
@@ -516,7 +528,7 @@ void Tracefs::ClearTrace() {
   } else {
     // Fallback: if we can't determine which CPUs are offline, clear the buffers
     // for all possible CPUs.
-    for (size_t cpu = 0, num_cpus = NumberOfCpus(); cpu < num_cpus; cpu++) {
+    for (size_t cpu = 0; cpu < num_cpus; cpu++) {
       ClearPerCpuTrace(cpu);
     }
   }
