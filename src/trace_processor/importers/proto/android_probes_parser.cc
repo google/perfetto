@@ -493,7 +493,7 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
         tracks::DynamicNameBlueprint());
 
     if (name.StartsWith("debug.tracing.battery_stats.")) {
-      // Track name and defnition should be kept in sync with systrace_parser.cc
+      // Track name and definition should be kept in sync with systrace_parser.cc
       TrackId track = context_->track_tracker->InternTrack(
           tracks::kAndroidBatteryStatsBlueprint,
           tracks::Dimensions(name.substr(strlen("debug.tracing."))));
