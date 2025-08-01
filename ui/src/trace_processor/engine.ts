@@ -36,6 +36,9 @@ interface QueryResultBypass {
 }
 
 export interface TraceProcessorConfig {
+  // When true, the trace processor will only tokenize the trace without
+  // performing a full parse. This is a performance optimization that allows for
+  // a faster, albeit partial, import of the trace.
   tokenizeOnly: boolean;
   cropTrackEvents: boolean;
   ingestFtraceInRawTable: boolean;

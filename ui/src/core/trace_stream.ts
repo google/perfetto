@@ -169,6 +169,12 @@ export class TraceHttpStream implements TraceStream {
   }
 }
 
+// The different states of the TAR stream generator.
+// A TAR archive is composed of a sequence of 512-byte blocks.
+// It starts with a HEADER block for the first file, followed by one or more
+// CONTENT blocks, followed by a CONTENT_PADDING block to align to the next
+// 512-byte boundary. This sequence is repeated for every file.
+// The archive is terminated by two empty 512-byte blocks (EOF).
 export interface TarHeader {
   readonly kind: 'HEADER';
 }
@@ -188,6 +194,9 @@ export interface TarEof {
 
 export type TarState = TarHeader | TarContent | TarContentPadding | TarEof;
 
+// Creates a single trace stream from multiple files by packing them into a TAR
+// container on the fly. This is because TraceProcessor has a built-in TAR
+// importer that can deal with concatenated files.
 export class TraceMultipleFilesStream implements TraceStream {
   private state: TarState = {kind: 'HEADER'};
 
@@ -200,15 +209,20 @@ export class TraceMultipleFilesStream implements TraceStream {
   constructor(private traceFiles: ReadonlyArray<File>) {
     this.stream = new TraceFileStream(traceFiles[this.index]);
     this.bytesRead = 0;
+    // The total size of the TAR archive is the sum of:
+    // - 512 bytes for each file's header.
+    // - The size of each file, rounded up to the next 512-byte boundary.
+    // - 1024 bytes for the two empty EOF blocks at the end.
     this.bytesTotal = this.traceFiles.reduce(
-      (r, f) => r + 512 + Math.ceil(f.size / 512),
-      512 + 512,
+      (r, f) => r + 512 + Math.ceil(f.size / 512) * 512,
+      1024,
     );
   }
 
   async readChunk(): Promise<TraceChunk> {
     switch (this.state.kind) {
       case 'HEADER': {
+        // Construct the 512-byte TAR header for the current file.
         const data = new Uint8Array(512);
         const name = this.traceFiles[this.index].name;
         for (let i = 0; i < Math.max(name.length, 99); ++i) {
@@ -222,12 +236,16 @@ export class TraceMultipleFilesStream implements TraceStream {
         for (let i = 0; i < sizePadded.length; ++i) {
           data[124 + i] = sizePadded.charCodeAt(i);
         }
+        // These magic numbers are part of the TAR header specification.
+        // Type flag: '0' for regular file.
         data[156] = 48;
+        // Magic: "ustar"
         data[257] = 117;
         data[258] = 115;
         data[259] = 116;
         data[260] = 97;
         data[261] = 114;
+        // Version: "00"
         data[263] = 48;
         data[264] = 48;
         this.bytesRead += 512;
@@ -242,9 +260,11 @@ export class TraceMultipleFilesStream implements TraceStream {
         };
       }
       case 'CONTENT':
+        // Stream the content of the current file.
         const {data, eof, bytesRead, bytesTotal} =
           await this.stream.readChunk();
         if (eof) {
+          // Once the file is fully read, we need to add padding.
           this.state = {
             kind: 'CONTENT_PADDING',
             lastBlockSize: bytesTotal % 512,
@@ -258,14 +278,18 @@ export class TraceMultipleFilesStream implements TraceStream {
           bytesTotal: this.bytesTotal,
         };
       case 'CONTENT_PADDING':
+        // Add padding to align the end of the file to a 512-byte boundary.
         const lastBlockSize = this.state.lastBlockSize;
         if (this.index == this.traceFiles.length - 1) {
+          // If this was the last file, move to the EOF state.
           this.state = {kind: 'EOF'};
         } else {
+          // Otherwise, move to the HEADER state for the next file.
           this.state = {kind: 'HEADER'};
           this.stream = new TraceFileStream(this.traceFiles[++this.index]);
         }
         if (lastBlockSize === 0) {
+          // If the file size is a multiple of 512, no padding is needed.
           return this.readChunk();
         }
         assertTrue(lastBlockSize > 0 && lastBlockSize < 512);
@@ -278,6 +302,7 @@ export class TraceMultipleFilesStream implements TraceStream {
           bytesTotal: this.bytesTotal,
         };
       case 'EOF':
+        // The TAR archive is terminated by two empty 512-byte blocks.
         this.bytesRead += 1024;
         return {
           data: new Uint8Array(1024),
