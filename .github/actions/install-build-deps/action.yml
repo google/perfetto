@@ -83,7 +83,7 @@ runs:
           echo "CACHED_BUILDTOOLS_HASH: $CACHED_BUILDTOOLS_HASH"
         
           if [[ "$CACHED_BUILDTOOLS_HASH" != "$LOCAL_BUILDTOOLS_HASH" ]]; then
-            # Rewrite the hash file, it will saved as part of 'buildtools/' cache.
+            # Rewrite the hash file, it is saved as part of 'buildtools/' cache.
             echo "$LOCAL_BUILDTOOLS_HASH" > "$CACHED_BUILDTOOLS_HASH_FILE_PATH"
             echo "update_cache=true" >> "$GITHUB_OUTPUT" 
           fi
@@ -116,7 +116,7 @@ runs:
         TAR_PATH=$(mktemp /tmp/buildtools-XXXXXX.tar)
 
         # '--exclude-from' is used to not cache files or folders that are stored in git.
-        # '--sort=name' is used to calculate reproducible sha256sum.
+        # '--sort=name' is used to make archive more reproducible
         tar --create --sort=name --preserve-permissions --exclude-from="$FILES_TO_IGNORE_PATH" --file="$TAR_PATH" --directory=buildtools .
         
         echo "UPDATE_CACHE: $UPDATE_CACHE"
