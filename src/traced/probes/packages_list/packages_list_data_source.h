@@ -32,13 +32,13 @@
 #include "protos/perfetto/config/android/packages_list_config.pbzero.h"
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
 
+#include "src/traced/probes/packages_list/packages_list_parser.h"
 #include "src/traced/probes/probes_data_source.h"
 
 namespace perfetto {
 
 class TraceWriter;
 class AndroidCpuPerUidPoller;
-struct Package;
 
 bool ParsePackagesListStream(
     std::unordered_multimap<uint64_t, Package>& packages,
