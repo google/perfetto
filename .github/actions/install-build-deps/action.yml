@@ -61,7 +61,7 @@ runs:
         CACHE_PATH: cache/buildtools-${{ steps.cachekey.outputs.flags_key }}/buildtools.tar
         FILES_TO_IGNORE_PATH: ${{ steps.files_to_ignore.outputs.file_path }}
         LOCAL_BUILDTOOLS_HASH: ${{ hashFiles('buildtools/**', 'tools/install-build-deps') }}
-        CACHED_BUILDTOOLS_HASH_FILE_PATH: buildtools_hash_revision_for_cache_on_ci.txt
+        CACHED_BUILDTOOLS_HASH_FILE_PATH: buildtools/buildtools_hash_revision_for_cache_on_ci.txt
       run: |
         # Restore content of 'buildtools/' folder from cache.
         CACHED_TAR_PATH=$(mktemp /tmp/buildtools-cache-XXXXXX.tar)
