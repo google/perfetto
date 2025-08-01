@@ -32,7 +32,8 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
 
   static tokenSetting: Setting<string>;
   static promptSetting: Setting<string>;
-
+  static thoughtsSetting: Setting<boolean>;
+  static modelNameSetting: Setting<string>;
 
   static onActivate(app: App): void {
     PerfettoMcpPlugin.tokenSetting = app.settings.register({
@@ -41,6 +42,22 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
       description: 'Gemini API Token.',
       schema: z.string(),
       defaultValue: '',
+    });
+
+    PerfettoMcpPlugin.thoughtsSetting = app.settings.register({
+      id: `${app.pluginId}#ThoughtsSetting`,
+      name: 'Show Thoughts and Tool Calls',
+      description: 'Show thoughts and tool calls in the chat.',
+      schema: z.boolean(),
+      defaultValue: true,
+    });
+
+    PerfettoMcpPlugin.modelNameSetting = app.settings.register({
+      id: `${app.pluginId}#ModelNameSetting`,
+      name: 'Gemini Model',
+      description: 'The Gemini model to use, such as gemini-2.5-pro.',
+      schema: z.string(),
+      defaultValue: "gemini-2.5-pro",
     });
 
     PerfettoMcpPlugin.promptSetting = app.settings.register({
@@ -95,7 +112,6 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
   }
 
   async onTraceLoad(trace: Trace): Promise<void> {
-    console.log('PerfettoMcpPlugin onTraceLoad');
     const mcpServer = new McpServer({
       name: 'PerfettoMcp',
       version: '1.0.0',
@@ -121,10 +137,8 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
 
     const ai = new GoogleGenAI({ apiKey: PerfettoMcpPlugin.tokenSetting.get() });
 
-    var model = 'gemini-2.5-pro';
-
     var chat = await ai.chats.create({
-      model: model,
+      model: PerfettoMcpPlugin.modelNameSetting.get(),
       config: {
         systemInstruction: "You are an expert in analyzing perfetto traces. \n\n" + PerfettoMcpPlugin.promptSetting.get(),
         tools: [tool],
@@ -143,14 +157,15 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
       }
     })
 
-    registerCommands(ai, client, trace);
+    registerCommands(ai, client, trace, PerfettoMcpPlugin.modelNameSetting.get());
 
     trace.pages.registerPage({
       route: '/aichat',
       render: () => {
         return m(ChatPage, {
           trace,
-          chat
+          chat,
+          showThoughts: PerfettoMcpPlugin.thoughtsSetting.get(),
         });
       },
     });

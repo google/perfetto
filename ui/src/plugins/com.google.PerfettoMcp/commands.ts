@@ -6,6 +6,7 @@ export function registerCommands(
   ai: GoogleGenAI,
   client: Client,
   trace: Trace,
+  modelName: string,
 ) {
   trace.commands.registerCommand({
     id: `${trace.pluginId}#PerfettoMcpInfo`,
@@ -16,7 +17,7 @@ export function registerCommands(
         arguments: {},
       });
 
-      console.log('Perfetto MCP Info', result);
+      console.log('Processes in Trace', result);
     },
   });
 
@@ -24,21 +25,15 @@ export function registerCommands(
     id: `${trace.pluginId}#ListAndroidProcesses`,
     name: 'List Android Processes',
     callback: async () => {
-      console.log('Listing Android Processes');
-      try {
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.0-flash',
-          contents: `What android processes are in the trace?`,
-          config: {
-            tools: [mcpToTool(client)],
-          },
-        });
-        console.log(response.text);
-      } catch (error) {
-        console.error('Error generating content:', error);
-      }
+      const response = await ai.models.generateContent({
+        model: modelName,
+        contents: `What android processes are in the trace?`,
+        config: {
+          tools: [mcpToTool(client)],
+        },
+      });
+
+      console.log('Processes in Trace', response);
     },
   });
-
-  console.log('Perfetto MCP Commands registered');
 }

@@ -28,6 +28,7 @@ interface ChatMessage {
 export interface ChatPageAttrs {
   readonly trace: Trace;
   readonly chat: Chat;
+  readonly showThoughts: boolean;
 }
 
 export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
@@ -36,11 +37,13 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
   private userInput: string;
   private isLoading: boolean;
   private useStream: boolean = true;
+  private showThoughts: boolean;
   private readonly chat: Chat;
   private md: markdownit;
 
   constructor({ attrs }: m.CVnode<ChatPageAttrs>) {
     this.chat = attrs.chat;
+    this.showThoughts = attrs.showThoughts;
     this.md = markdownit()
     // Initialize state
     this.userInput = '';
@@ -54,16 +57,18 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
   async processResponse(response: GenerateContentResponse) {
     let toolCalls: FunctionCall[] = [];
 
-    const candidateParts = response.candidates?.[0]?.content?.parts
-    if (candidateParts !== undefined) {
-      candidateParts.forEach(part => {
-        if (part.thought) {
-          this.messages.push({ role: 'thought', text: part.text ?? 'unprintable' });
-        } else if (part.functionCall) {
-          toolCalls.push(part.functionCall);
-          this.messages.push({ role: 'toolcall', text: part.functionCall?.name ?? 'unprintable' });
-        }
-      });
+    if (this.showThoughts) {
+      const candidateParts = response.candidates?.[0]?.content?.parts
+      if (candidateParts !== undefined) {
+        candidateParts.forEach(part => {
+          if (part.thought) {
+            this.messages.push({ role: 'thought', text: part.text ?? 'unprintable' });
+          } else if (part.functionCall) {
+            toolCalls.push(part.functionCall);
+            this.messages.push({ role: 'toolcall', text: part.functionCall?.name ?? 'unprintable' });
+          }
+        });
+      }
     }
 
     if (response.text !== undefined) {
