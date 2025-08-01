@@ -25,17 +25,17 @@ runs:
     - name: Setup Google Cloud config
       shell: bash
       run: |
-        # Setup Google Cloud config
-        # Token is generated in 'infra/ci/worker/sandbox_runner.py'
+        # Setup Google Cloud config.
+        # Token is generated in 'infra/ci/worker/sandbox_runner.py'.
         gcloud config set auth/access_token_file $SVC_TOKEN_PATH
-        # Suppress warning about "parallel composite upload" when using 'storage cp --storage-class=STANDARD'
+        # Suppress warning about "parallel composite upload".
         gcloud config set storage/parallel_composite_upload_enabled True
 
     - name: Compute cache key
       id: cachekey
       shell: bash
       run: |
-        # Replace spaces with underscores to keep the cache key valid
+        # Replace spaces with underscores to keep the cache key valid.
         flags="${{ inputs.install-flags }}"
         if [ -z "$flags" ]; then
           echo "flags_key=default" >> "$GITHUB_OUTPUT"
@@ -60,6 +60,8 @@ runs:
         GCS_BUCKET: gs://perfetto-ci-artifacts
         CACHE_PATH: cache/buildtools-${{ steps.cachekey.outputs.flags_key }}/buildtools.tar
         FILES_TO_IGNORE_PATH: ${{ steps.files_to_ignore.outputs.file_path }}
+        LOCAL_BUILDTOOLS_HASH: ${{ hashFiles('buildtools/**', 'tools/install-build-deps') }}
+        CACHED_BUILDTOOLS_HASH_FILE_PATH: buildtools/buildtools_hash_revision_for_cache_on_ci.txt
       run: |
         # Restore content of 'buildtools/' folder from cache.
         CACHED_TAR_PATH=$(mktemp /tmp/buildtools-cache-XXXXXX.tar)
@@ -67,13 +69,24 @@ runs:
         if cp_output=$(gcloud storage cp "$GCS_BUCKET/$CACHE_PATH" "$CACHED_TAR_PATH" 2>&1); then
           echo "$cp_output"
         
-          # '--exclude-from' is used to not overwrite files or folders that are stored in git. 
-          # '--keep-old-files' flag causes 'tar' to fail instead of overwriting files.             
+          # '--exclude-from' is used to not overwrite files or folders that are stored in git.
+          # '--keep-old-files' flag causes 'tar' to fail instead of overwriting files.
           tar --keep-old-files --preserve-permissions --extract --exclude-from="$FILES_TO_IGNORE_PATH" --file="$CACHED_TAR_PATH" --directory=buildtools
         
-          # Calculate hash of the entire cache archive to later decide if we need to upload the newer version.
-          CACHE_SHA256=$(tar --extract --to-stdout --file="$CACHED_TAR_PATH" | sha256sum | awk '{print $1}')        
-          echo "cache_sha256=$CACHE_SHA256" >> "$GITHUB_OUTPUT"
+          # Content of 'buildtools/' rarely changes, so we don't want to re-upload unchanged cache on each build.
+          # It changes when the 'tools/install-build-deps' or the files added to git inside `buildtools/' changes,
+          # so we calculate and save the sha256 hash of that files.
+          if [ -f "$CACHED_BUILDTOOLS_HASH_FILE_PATH" ]; then
+            CACHED_BUILDTOOLS_HASH=$(cat "$CACHED_BUILDTOOLS_HASH_FILE_PATH")
+          else
+            CACHED_BUILDTOOLS_HASH="0"
+          fi
+        
+          if [[ "$CACHED_BUILDTOOLS_HASH" != "$LOCAL_BUILDTOOLS_HASH" ]]; then
+            # Rewrite the hash file, it is saved as part of 'buildtools/' cache.
+            echo "$LOCAL_BUILDTOOLS_HASH" > "$CACHED_BUILDTOOLS_HASH_FILE_PATH"
+            echo "update_cache=true" >> "$GITHUB_OUTPUT" 
+          fi
         
           rm "$CACHED_TAR_PATH"
         
@@ -96,20 +109,18 @@ runs:
         GCS_BUCKET: gs://perfetto-ci-artifacts
         CACHE_PATH: cache/buildtools-${{ steps.cachekey.outputs.flags_key }}/buildtools.tar
         FILES_TO_IGNORE_PATH: ${{ steps.files_to_ignore.outputs.file_path }}
-        CACHE_SHA256: ${{ steps.restore_buildtools_cache.outputs.cache_sha256 }}
+        UPDATE_CACHE: ${{steps.restore_buildtools_cache.outputs.update_cache  }}
       run: |
         # Save content of 'buildtools/' folder to cache.
         TAR_PATH=$(mktemp /tmp/buildtools-XXXXXX.tar)
 
         # '--exclude-from' is used to not cache files or folders that are stored in git.
-        # '--sort=name' is used to calculate reproducible sha256sum.
+        # '--sort=name' is used to make archive more reproducible.
         tar --create --sort=name --preserve-permissions --exclude-from="$FILES_TO_IGNORE_PATH" --file="$TAR_PATH" --directory=buildtools .
         
-        NEW_CACHE_SHA256=$(tar --extract --to-stdout --file="$TAR_PATH" | sha256sum | awk '{print $1}')
-        
         # Content of 'buildtools/' rarely changes, no need to upload the cache it on each build, even if nothing changes.
-        if [[ "$CACHE_SHA256" != "$NEW_CACHE_SHA256" ]]; then
-          gcloud storage cp --storage-class=STANDARD "$TAR_PATH" "$GCS_BUCKET/$CACHE_PATH"
+        if [[ "$UPDATE_CACHE" == "true" ]]; then
+          gcloud storage cp "$TAR_PATH" "$GCS_BUCKET/$CACHE_PATH"
         else
           echo "The buildtools cache doesn't change, no need to upload it."
         fi
