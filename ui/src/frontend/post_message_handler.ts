@@ -19,6 +19,7 @@ import {showModal} from '../widgets/modal';
 import {initCssConstants} from './css_constants';
 import {toggleHelp} from './help_modal';
 import {AppImpl} from '../core/app_impl';
+import {embedderContext} from '../core/embedder';
 
 const TRUSTED_ORIGINS_KEY = 'trustedOrigins';
 
@@ -182,6 +183,8 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     }
   } else if (messageEvent.data instanceof ArrayBuffer) {
     postedTrace = {title: 'External trace', buffer: messageEvent.data};
+  } else if (embedderContext?.postMessageHandler?.(messageEvent) === true) {
+    return;
   } else {
     console.warn(
       'Unknown postMessage() event received. If you are trying to open a ' +

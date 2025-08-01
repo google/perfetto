@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {classNames} from '../base/classnames';
 
-interface DetailsShellAttrs {
+export interface DetailsShellAttrs {
   title: m.Children;
   description?: m.Children;
   buttons?: m.Children;

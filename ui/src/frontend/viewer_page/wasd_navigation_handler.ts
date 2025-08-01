@@ -113,6 +113,11 @@ export class KeyboardNavigationHandler implements Disposable {
     this.onZoomed = onZoomed;
     this.trash = new DisposableStack();
 
+    if (!element.getAttribute('tabindex')) {
+      // Make it focusable and also tabbable for keyboard accessibility
+      element.setAttribute('tabindex', '0');
+    }
+
     document.body.addEventListener('keydown', this.boundOnKeyDown);
     document.body.addEventListener('keyup', this.boundOnKeyUp);
     this.element.addEventListener('mousemove', this.boundOnMouseMove);

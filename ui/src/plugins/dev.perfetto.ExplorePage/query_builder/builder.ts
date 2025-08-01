@@ -20,7 +20,7 @@ import {QueryNode, NodeType, Query, isAQuery} from '../query_node';
 import {ExplorePageHelp} from './explore_page_help';
 import {QueryNodeExplorer} from './query_node_explorer';
 import {NodeGraph} from './node_graph';
-import {Trace} from 'src/public/trace';
+import {Trace} from '../../../public/trace';
 import {NodeDataViewer} from './node_data_viewer';
 import {FilterDefinition} from '../../../components/widgets/data_grid/common';
 import {columnInfoFromSqlColumn, newColumnInfoList} from './column_info';
