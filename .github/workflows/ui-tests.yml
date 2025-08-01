@@ -117,13 +117,8 @@ jobs:
           # Suppress warning about "parallel composite upload".
           gcloud config set storage/parallel_composite_upload_enabled True
           
-          PERFETTO_ARTIFACTS_DIR_FROM_CLI="$PERFETTO_ARTIFACTS_DIR-from-cli"
-          
-          mkdir -p "$PERFETTO_ARTIFACTS_DIR_FROM_CLI"
-          
-          cp -r "$PERFETTO_ARTIFACTS_DIR" "$PERFETTO_ARTIFACTS_DIR_FROM_CLI"  
-          
-          gcloud storage cp --recursive "$PERFETTO_ARTIFACTS_DIR_FROM_CLI" "$GCS_PATH" 
+          # the '/*' at the end of dst is important!          
+          gcloud storage cp --recursive "$PERFETTO_ARTIFACTS_DIR" "$GCS_PATH/$PERFETTO_CI_JOB_ID" 
 
 
       - name: Update cache (if on main)
