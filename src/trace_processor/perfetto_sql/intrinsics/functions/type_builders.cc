@@ -44,7 +44,6 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/types/partitioned_intervals.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/row_dataframe.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/struct.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/types/symbolization_input.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
@@ -52,6 +51,9 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
+#include "src/trace_processor/perfetto_sql/intrinsics/types/symbolization_input.h"
+#endif
 namespace perfetto::trace_processor {
 namespace {
 
