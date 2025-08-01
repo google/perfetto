@@ -109,7 +109,7 @@ jobs:
       - name: Upload artifacts to GCS using CLI
         if: ${{ always() }}
         env:
-          GCS_PATH: gs://perfetto-ci-artifacts/${{ env.PERFETTO_CI_JOB_ID }}-from-cli/
+          GCS_PATH: gs://perfetto-ci-artifacts
         run: |
           # Setup Google Cloud config.
           # Token is generated in 'infra/ci/worker/sandbox_runner.py'.
@@ -117,7 +117,13 @@ jobs:
           # Suppress warning about "parallel composite upload".
           gcloud config set storage/parallel_composite_upload_enabled True
           
-          gcloud storage cp --recursive ${{ env.PERFETTO_ARTIFACTS_DIR }} ${{ env.GCS_PATH }} 
+          PERFETTO_ARTIFACTS_DIR_FROM_CLI="$PERFETTO_ARTIFACTS_DIR-from-cli"
+          
+          mkdir -p "$PERFETTO_ARTIFACTS_DIR_FROM_CLI"
+          
+          cp -r "$PERFETTO_ARTIFACTS_DIR" "$PERFETTO_ARTIFACTS_DIR_FROM_CLI"  
+          
+          gcloud storage cp --recursive "$PERFETTO_ARTIFACTS_DIR_FROM_CLI" "$GCS_PATH" 
 
 
       - name: Update cache (if on main)
