@@ -25,7 +25,6 @@ source_set("types") {
     "partitioned_intervals.h",
     "row_dataframe.h",
     "struct.h",
-    "symbolization_input.h",
     "value.h",
   ]
   deps = [
@@ -34,4 +33,7 @@ source_set("types") {
     "../../../../../include/perfetto/trace_processor:basic_types",
     "../../../containers",
   ]
+  if (enable_perfetto_llvm_symbolizer) {
+    sources += [ "symbolizer_input.h" ]
+  }
 }

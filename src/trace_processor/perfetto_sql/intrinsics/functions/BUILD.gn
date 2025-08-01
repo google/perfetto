@@ -91,6 +91,13 @@ source_set("functions") {
     "../types",
   ]
   public_deps = [ ":interface" ]
+  if (enable_perfetto_llvm_symbolizer) {
+    sources += [
+      "symbolize.cc",
+      "symbolize.h",
+    ]
+    deps += [ "../../../../profiling/symbolizer:llvm_symbolizer" ]
+  }
 }
 
 source_set("interface") {

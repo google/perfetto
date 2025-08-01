@@ -24,12 +24,11 @@ CREATE PERFETTO FUNCTION _linux_perf_etm_metadata(
     trace_id LONG
 )
 RETURNS TABLE (
-
   -- Name of the file containing the instruction.
   file_name STRING,
   -- Relative program counter of the instruction.
   rel_pc LONG,
-    -- The mapping id of the instruction.
+  -- The mapping id of the instruction.
   mapping_id LONG,
   -- The address of the instruction.
   address LONG
