@@ -63,8 +63,8 @@ export class PowerCounterSelectionAggregator implements Aggregator {
           SELECT
             name,
             count,
-            last - first AS delta_value,
-            ROUND((last - first)/${durationSec}, 2) AS rate
+            (last - first) / 1000 AS delta_value,
+            ROUND((last - first)/${durationSec} / 1000, 2) AS rate
           FROM aggregated JOIN counter_track ON
             track_id = counter_track.id
           GROUP BY track_id
@@ -85,11 +85,11 @@ export class PowerCounterSelectionAggregator implements Aggregator {
         columnId: 'name',
       },
       {
-        title: 'Delta energy (uJ)',
+        title: 'Delta energy (mJ)',
         columnId: 'delta_value',
       },
       {
-        title: 'Avg Power (uW)',
+        title: 'Avg Power (mW)',
         columnId: 'rate',
       },
       {

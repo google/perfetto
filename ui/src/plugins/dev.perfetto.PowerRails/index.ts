@@ -83,7 +83,7 @@ export default class implements PerfettoPlugin {
           sqlSource: `
             SELECT
               ts,
-              value
+              value / 1000.0 AS value -- convert uJ to mJ
             FROM counter
             WHERE track_id = ${trackId}
           `,
@@ -91,6 +91,8 @@ export default class implements PerfettoPlugin {
         options: {
           yMode: 'rate',
           yRangeSharingKey: 'power_rails',
+          unit: 'mJ',
+          rateUnit: 'mW',
         },
       });
 
