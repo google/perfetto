@@ -96,7 +96,10 @@ source_set("functions") {
       "symbolize.cc",
       "symbolize.h",
     ]
-    deps += [ "../../../../profiling/symbolizer:llvm_symbolizer" ]
+    deps += [
+      "../../../../profiling/symbolizer:llvm_symbolizer",
+      "../../../../profiling/symbolizer:llvm_symbolizer_c_api",
+    ]
   }
 }
 

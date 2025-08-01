@@ -34,6 +34,6 @@ source_set("types") {
     "../../../containers",
   ]
   if (enable_perfetto_llvm_symbolizer) {
-    sources += [ "symbolizer_input.h" ]
+    sources += [ "symbolization_input.h" ]
   }
 }
