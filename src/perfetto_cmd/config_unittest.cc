@@ -196,5 +196,20 @@ TEST_F(CreateConfigFromOptionsTest, BothHypervisorAndHostFtraceTraces) {
   }
 }
 
+TEST_F(CreateConfigFromOptionsTest, OnlyHypervisorTracesNewInstanceName) {
+  options.buffer_size = "100mb";
+  options.time = "10s";
+  options.categories.push_back("hypervisor");
+  ASSERT_TRUE(CreateConfigFromOptions(options, &config));
+  EXPECT_EQ(config.duration_ms(), 10 * 1000u);
+  EXPECT_EQ(config.buffers()[0].size_kb(), 100 * 1024u);
+  EXPECT_EQ(config.data_sources()[0].config().name(), "linux.ftrace");
+  protos::gen::FtraceConfig ftrace;
+  ASSERT_TRUE(ftrace.ParseFromString(
+      config.data_sources()[0].config().ftrace_config_raw()));
+  EXPECT_THAT(ftrace.ftrace_events(), Contains("hypervisor/*"));
+  ASSERT_EQ(ftrace.instance_name(), "hypervisor");
+}
+
 }  // namespace
 }  // namespace perfetto

@@ -18,6 +18,7 @@
 #define SRC_TRACED_PROBES_FTRACE_TRACEFS_H_
 
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -210,7 +211,12 @@ class Tracefs {
   virtual bool IsFileWriteable(const std::string& path);
   virtual bool IsFileReadable(const std::string& path);
   virtual char ReadOneCharFromFile(const std::string& path);
+  virtual bool ReadFile(const std::string& path, std::string* str) const;
   virtual std::string ReadFileIntoString(const std::string& path) const;
+  virtual size_t NumberOfOnlineCpus() const;
+  // Parses the list of offline CPUs from "/sys/devices/system/cpu/offline" and
+  // returns them as a vector if successful, or std::nullopt if any failure.
+  virtual std::optional<std::vector<uint32_t>> GetOfflineCpus() const;
 
  private:
   // Checks the trace file is present at the given root path.

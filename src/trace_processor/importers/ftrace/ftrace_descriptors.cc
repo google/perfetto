@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 582> descriptors{{
+std::array<FtraceMessageDescriptor, 591> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -6467,6 +6467,82 @@ std::array<FtraceMessageDescriptor, 582> descriptors{{
             {},
             {"count", ProtoSchemaType::kUint64},
             {"was", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "hypervisor_host_hcall",
+        2,
+        {
+            {},
+            {"id", ProtoSchemaType::kUint32},
+            {"invalid", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "hypervisor_host_smc",
+        2,
+        {
+            {},
+            {"id", ProtoSchemaType::kUint64},
+            {"forwarded", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "hypervisor_hyp_exit",
+        0,
+        {
+            {},
+        },
+    },
+    {
+        "hypervisor_iommu_idmap",
+        3,
+        {
+            {},
+            {"from", ProtoSchemaType::kUint64},
+            {"to", ProtoSchemaType::kUint64},
+            {"prot", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "hypervisor_psci_mem_protect",
+        2,
+        {
+            {},
+            {"count", ProtoSchemaType::kUint64},
+            {"was", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "hypervisor_host_mem_abort",
+        2,
+        {
+            {},
+            {"esr", ProtoSchemaType::kUint64},
+            {"addr", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "hypervisor_hyp_enter",
+        0,
+        {
+            {},
+        },
+    },
+    {
+        "hypervisor_iommu_idmap_complete",
+        1,
+        {
+            {},
+            {"map", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "hypervisor_vcpu_illegal_trap",
+        1,
+        {
+            {},
+            {"esr", ProtoSchemaType::kUint64},
         },
     },
 }};

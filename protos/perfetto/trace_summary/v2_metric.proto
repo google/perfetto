@@ -144,7 +144,7 @@ import "protos/perfetto/perfetto_sql/structured_query.proto";
 // metrics. This makes it possible e.g. to have an automatic metric viewer in
 // the Perfetto UI visualizing the results of running a metric.
 //
-// Next id: 8
+// Next id: 11
 message TraceMetricV2Spec {
   // The id of the metric. Required.
   //
@@ -155,11 +155,11 @@ message TraceMetricV2Spec {
   // The columns from `query` which will act as the "dimensions" for the metric.
   // Optional.
   //
-  // Either `dimensions` or `dimensions_specs`` should be defined, but not both.
-  //
-  // If `dimensions` is defined, the type of the dimension is inferred from the
-  // sql column type. If `dimensions_specs` is defined, the type must be
-  // specified and must match the type of the sql column.
+  // Either `dimensions` or `dimensions_specs` should be defined, but not both.
+  // If you only need to specify the dimension names and have their types
+  // inferred from the SQL column, use `dimensions`. For scenarios where you
+  // must explicitly specify the type for each dimension, use
+  // `dimensions_specs`.
   enum DimensionType {
     DIMENSION_TYPE_UNSPECIFIED = 0;
     STRING = 1;
@@ -167,7 +167,10 @@ message TraceMetricV2Spec {
     DOUBLE = 3;
   }
   message DimensionSpec {
+    // The name of the dimension.
     optional string name = 1;
+    // The type of the dimension. If specified, this must match the SQL type
+    // of the column.
     optional DimensionType type = 2;
   }
   repeated DimensionSpec dimensions_specs = 5;
@@ -231,6 +234,95 @@ message TraceMetricV2Spec {
   // This field exists as an escape hatch for cases where templates for some
   // reason do not work for you.
   optional string bundle_id = 7;
+
+  // The unit of the metric's value. Optional.
+  //
+  // This allows for specifying either a standard, predefined unit from the
+  // `MetricUnit` enum or a custom unit as a string. This helps in consistently
+  // interpreting and displaying metric values across different tools and
+  // surfaces.
+  enum MetricUnit {
+    // Next value: 28
+    METRIC_UNIT_UNSPECIFIED = 0;
+    // A unitless count of items or events.
+    COUNT = 1;
+    // Time measured in nanoseconds.
+    TIME_NANOS = 2;
+    // Time measured in microseconds.
+    TIME_MICROS = 3;
+    // Time measured in milliseconds.
+    TIME_MILLIS = 4;
+    // Time measured in seconds.
+    TIME_SECONDS = 5;
+    // Time measured in hours.
+    TIME_HOURS = 6;
+    // Time measured in days.
+    TIME_DAYS = 7;
+    // Data size measured in bytes.
+    BYTES = 8;
+    // Data size measured in kilobytes (1024 bytes).
+    KILOBYTES = 9;
+    // Data size measured in megabytes (1024*1024 bytes).
+    MEGABYTES = 10;
+    // A rate measured in seconds per hour.
+    SECONDS_PER_HOUR = 11;
+    // A percentage value bounded between 0 and 100.
+    BOUNDED_PERCENTAGE = 12;
+    // A generic percentage value.
+    PERCENTAGE = 13;
+    // A time duration measured in minutes per day.
+    MINUTES_PER_DAY = 14;
+    // Electric current measured in milliamps.
+    MILLI_AMPS = 15;
+    // A rate of change measured in percent per hour.
+    PERCENT_PER_HOUR = 16;
+    // Electric charge measured in milliamp-hours.
+    MILLI_AMP_HOURS = 17;
+    // A legacy rate of change measured in percent per hour.
+    PERCENT_PER_HOUR_LEGACY = 18;
+    // Power measured in milliwatts.
+    MILLI_WATTS = 19;
+    // A frequency measured in counts per second.
+    COUNT_PER_SECOND = 20;
+    // A rate measured in kilobytes per hour.
+    KILOBYTES_PER_HOUR = 21;
+    // Energy measured in milliwatt-hours.
+    MILLI_WATT_HOURS = 22;
+    // A frequency measured in counts per hour.
+    COUNT_PER_HOUR = 23;
+    // A rate of change in count measured per hour.
+    COUNT_DELTA_PER_HOUR = 24;
+    // A rate of change in data size measured in bytes per hour.
+    BYTES_DELTA_PER_HOUR = 25;
+    // A statistical correlation coefficient, typically between -1 and 1.
+    CORRELATION_COEFFICIENT = 26;
+    // Electric potential measured in millivolts.
+    MILLI_VOLTS = 27;
+  }
+  oneof unit_oneof {
+    // A standard, predefined unit for the metric's value.
+    MetricUnit unit = 8;
+    // A custom string-defined unit for when a predefined one is not suitable.
+    string custom_unit = 9;
+  }
+
+  // Describes what a change in the metric's value implies. Optional.
+  //
+  // This helps determine whether an increase or decrease in the metric's value
+  // is a regression or an improvement, which is crucial for automated
+  // analysis and reporting.
+  enum MetricPolarity {
+    // Next value: 4
+    POLARITY_UNSPECIFIED = 0;
+    // An increase in the metric's value is considered an improvement.
+    HIGHER_IS_BETTER = 1;
+    // A decrease in the metric's value is considered an improvement.
+    LOWER_IS_BETTER = 2;
+    // The metric's value is informational and has no inherent "better" or
+    // "worse" direction.
+    NOT_APPLICABLE = 3;
+  }
+  optional MetricPolarity polarity = 10;
 }
 
 // A template for generating multiple v2 trace-based metrics.
@@ -247,7 +339,7 @@ message TraceMetricV2Spec {
 // emitted in a single `TraceMetricV2Bundle` proto. This can be disabled by
 // setting `disable_auto_bundling` to true.
 //
-// Next id: 8
+// Next id: 9
 message TraceMetricV2TemplateSpec {
   // The prefix for all metric ids generated by this template. The actual id
   // for each metric will be `<id_prefix>_<values>`.
@@ -258,6 +350,12 @@ message TraceMetricV2TemplateSpec {
   // The shared set of dimensions for all metrics generated by this template.
   // See `TraceMetricV2Spec.dimension_specs` and `TraceMetricV2Spec.dimensions`
   // for more details.
+  //
+  // Either `dimensions` or `dimensions_specs` should be defined, but not both.
+  // If you only need to specify the dimension names and have their types
+  // inferred from the SQL column, use `dimensions`. For scenarios where you
+  // must explicitly specify the type for each dimension, use
+  // `dimensions_specs`.
   repeated TraceMetricV2Spec.DimensionSpec dimensions_specs = 5;
   repeated string dimensions = 2;
 
@@ -265,7 +363,35 @@ message TraceMetricV2TemplateSpec {
   // metric. The id of each metric will be `<id_prefix>_<value_column>`.
   //
   // See `TraceMetricV2Spec.value` for more information.
+  //
+  // Either `value_columns` or `value_column_specs` should be defined, but not
+  // both. If you only need to specify the column names without any advanced
+  // properties like units or polarity, use this field. For more complex
+  // scenarios, use `value_column_specs`.
   repeated string value_columns = 3;
+
+  // A list of specifications for value columns, allowing each to have a
+  // unique unit and polarity.
+  //
+  // Either `value_columns` or `value_column_specs` should be defined, but not
+  // both. Use this field if you need to specify units, polarity, or other
+  // properties for each value column.
+  message ValueColumnSpec {
+    // The name of the column from the query result to be used as the value.
+    optional string name = 1;
+
+    // The unit for this specific value column. This will be copied into the
+    // `unit` or `custom_unit` field of the generated `TraceMetricV2Spec`.
+    oneof unit_oneof {
+      TraceMetricV2Spec.MetricUnit unit = 2;
+      string custom_unit = 3;
+    }
+
+    // The polarity for this specific value column. This will be copied into
+    // the `polarity` field of the generated `TraceMetricV2Spec`.
+    optional TraceMetricV2Spec.MetricPolarity polarity = 4;
+  }
+  repeated ValueColumnSpec value_column_specs = 8;
 
   // The structured query which will be used to compute all the metrics.
   //
