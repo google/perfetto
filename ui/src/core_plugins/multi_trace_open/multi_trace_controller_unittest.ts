@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertExists} from '../../base/logging';
 import {MultiTraceController} from './multi_trace_controller';
 import {TraceFileAnalyzed} from './multi_trace_types';
 import {TraceAnalysisResult, TraceAnalyzer} from './trace_analyzer';
@@ -51,7 +52,7 @@ class FakeTraceAnalyzer implements TraceAnalyzer {
     _onProgress: (progress: number) => void,
   ): Promise<TraceAnalysisResult> {
     if (this.errors.has(file.name)) {
-      throw this.errors.get(file.name)!;
+      throw new Error(assertExists(this.errors.get(file.name)?.message));
     }
     const result = this.results.get(file.name);
     if (result) {
