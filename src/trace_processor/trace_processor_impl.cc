@@ -167,6 +167,10 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_surfaceflinger_hierarchy_paths.h"
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/symbolize.h"
+#endif
+
 namespace perfetto::trace_processor {
 namespace {
 
@@ -1322,6 +1326,14 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
     base::Status status = perfetto_sql::RegisterCounterIntervalsFunctions(
         *engine, storage->mutable_string_pool());
   }
+#if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
+  {
+    base::Status status = perfetto_sql::RegisterSymbolizeFunction(
+        *engine, storage->mutable_string_pool());
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
+  }
+#endif
 
   // Operator tables.
   engine->RegisterVirtualTableModule<SpanJoinOperatorModule>(
