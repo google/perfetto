@@ -65,7 +65,14 @@ PkvmHypervisorCpuTracker::PkvmHypervisorCpuTracker(
           context_->storage->InternString("iommu_idmap_complete")),
       map_(context_->storage->InternString("map")),
       vcpu_illegal_trap_(context_->storage->InternString("vcpu_illegal_trap")),
-      esr_(context_->storage->InternString("esr")) {}
+      esr_(context_->storage->InternString("esr")),
+      host_hcall_(context_->storage->InternString("host_hcall")),
+      id_(context_->storage->InternString("id")),
+      invalid_(context_->storage->InternString("invalid")),
+      host_smc_(context_->storage->InternString("host_smc")),
+      forwarded_(context_->storage->InternString("forwarded")),
+      host_mem_abort_(context_->storage->InternString("host_mem_abort")),
+      addr_(context_->storage->InternString("addr")) {}
 
 // static
 bool PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(uint32_t event_id) {
@@ -165,12 +172,9 @@ void PkvmHypervisorCpuTracker::ParseHostHcall(uint32_t cpu,
   context_->slice_tracker->AddArgs(
       track_id, category_, slice_name_,
       [&, this](ArgsTracker::BoundInserter* inserter) {
-        StringId host_hcall = context_->storage->InternString("host_hcall");
-        StringId id = context_->storage->InternString("id");
-        StringId invalid = context_->storage->InternString("invalid");
-        inserter->AddArg(hyp_enter_reason_, Variadic::String(host_hcall));
-        inserter->AddArg(id, Variadic::UnsignedInteger(evt.id()));
-        inserter->AddArg(invalid, Variadic::UnsignedInteger(evt.invalid()));
+        inserter->AddArg(hyp_enter_reason_, Variadic::String(host_hcall_));
+        inserter->AddArg(id_, Variadic::UnsignedInteger(evt.id()));
+        inserter->AddArg(invalid_, Variadic::UnsignedInteger(evt.invalid()));
       });
 }
 
@@ -182,12 +186,10 @@ void PkvmHypervisorCpuTracker::ParseHostSmc(uint32_t cpu,
   context_->slice_tracker->AddArgs(
       track_id, category_, slice_name_,
       [&, this](ArgsTracker::BoundInserter* inserter) {
-        StringId host_smc = context_->storage->InternString("host_smc");
-        StringId id = context_->storage->InternString("id");
-        StringId forwarded = context_->storage->InternString("forwarded");
-        inserter->AddArg(hyp_enter_reason_, Variadic::String(host_smc));
-        inserter->AddArg(id, Variadic::UnsignedInteger(evt.id()));
-        inserter->AddArg(forwarded, Variadic::UnsignedInteger(evt.forwarded()));
+        inserter->AddArg(hyp_enter_reason_, Variadic::String(host_smc_));
+        inserter->AddArg(id_, Variadic::UnsignedInteger(evt.id()));
+        inserter->AddArg(forwarded_,
+                         Variadic::UnsignedInteger(evt.forwarded()));
       });
 }
 
@@ -199,13 +201,9 @@ void PkvmHypervisorCpuTracker::ParseHostMemAbort(uint32_t cpu,
   context_->slice_tracker->AddArgs(
       track_id, category_, slice_name_,
       [&, this](ArgsTracker::BoundInserter* inserter) {
-        StringId host_mem_abort =
-            context_->storage->InternString("host_mem_abort");
-        StringId esr = context_->storage->InternString("esr");
-        StringId addr = context_->storage->InternString("addr");
-        inserter->AddArg(hyp_enter_reason_, Variadic::String(host_mem_abort));
-        inserter->AddArg(esr, Variadic::UnsignedInteger(evt.esr()));
-        inserter->AddArg(addr, Variadic::UnsignedInteger(evt.addr()));
+        inserter->AddArg(hyp_enter_reason_, Variadic::String(host_mem_abort_));
+        inserter->AddArg(esr_, Variadic::UnsignedInteger(evt.esr()));
+        inserter->AddArg(addr_, Variadic::UnsignedInteger(evt.addr()));
       });
 }
 
