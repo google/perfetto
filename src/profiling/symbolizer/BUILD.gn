@@ -93,6 +93,7 @@ if (enable_perfetto_llvm_symbolizer) {
       ":llvm_symbolizer_c_api",
       "../../../gn:default_deps",
       "../../../include/perfetto/ext/base",
+      "../../trace_processor/types:types",
     ]
     visibility = [
       "../../../buildtools/*",
