@@ -120,17 +120,18 @@ runs:
         UPDATE_CACHE: ${{steps.restore_buildtools_cache.outputs.update_cache  }}
       run: |
         # Save content of 'buildtools/' folder to cache.
-        TAR_PATH=$(mktemp /tmp/buildtools-XXXXXX.tar)
-
-        # '--exclude-from' is used to not cache files or folders that are stored in git.
-        # '--sort=name' is used to make archive more reproducible.
-        tar --create --sort=name --preserve-permissions --exclude-from="$FILES_TO_IGNORE_PATH" --file="$TAR_PATH" --directory=buildtools .
         
         # Content of 'buildtools/' rarely changes, no need to upload the cache it on each build, even if nothing changes.
-        if [[ "$UPDATE_CACHE" == "true" ]]; then
+        if [[ "$UPDATE_CACHE" == "true" ]]; then          
+          TAR_PATH=$(mktemp /tmp/buildtools-XXXXXX.tar)
+
+          # '--exclude-from' is used to not cache files or folders that are stored in git.
+          # '--sort=name' is used to make archive more reproducible.
+          tar --create --sort=name --preserve-permissions --exclude-from="$FILES_TO_IGNORE_PATH" --file="$TAR_PATH" --directory=buildtools .
+        
           gcloud storage cp "$TAR_PATH" "$GCS_CACHE_PATH"
+        
+          rm "$TAR_PATH"
         else
           echo "The buildtools cache doesn't change, no need to upload it."
         fi
-        
-        rm "$TAR_PATH"
