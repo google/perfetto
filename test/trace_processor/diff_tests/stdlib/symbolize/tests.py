@@ -26,7 +26,7 @@ class Symbolize(TestSuite):
         register_files_dir=DataPath('simpleperf/bin'),
         trace=DataPath('simpleperf/cs_etm_u.perf'),
         query="""
-        INCLUDE PERFETTO MODULE symbolize.symbolize;
+        INCLUDE PERFETTO MODULE callstacks.symbolize;
         INCLUDE PERFETTO MODULE linux.perf.etm;
 
         SELECT
@@ -35,7 +35,7 @@ class Symbolize(TestSuite):
           line_number,
           mapping_id,
           address
-        FROM symbolize!(
+        FROM _symbolize!(
             _linux_perf_etm_metadata(0)
             WHERE mapping_id = 1
         );
@@ -66,7 +66,7 @@ class Symbolize(TestSuite):
         register_files_dir=DataPath('simpleperf/bin'),
         trace=DataPath('simpleperf/cs_etm_u.perf'),
         query="""
-        INCLUDE PERFETTO MODULE symbolize.symbolize;
+        INCLUDE PERFETTO MODULE callstacks.symbolize;
 
         SELECT
           function_name,
@@ -74,7 +74,7 @@ class Symbolize(TestSuite):
           line_number,
           mapping_id,
           address
-        FROM symbolize!((
+        FROM _symbolize!((
             SELECT
             __intrinsic_file.name AS file_name,
             __intrinsic_etm_iterate_instruction_range.address - stack_profile_mapping.start + stack_profile_mapping.exact_offset + __intrinsic_elf_file.load_bias AS rel_pc,
@@ -111,5 +111,4 @@ class Symbolize(TestSuite):
         "<invalid>","<invalid>",0,1,434500225572
         "<invalid>","<invalid>",0,1,434500225576
         "<invalid>","<invalid>",0,1,434500225580
-        """)
-      )
+        """))

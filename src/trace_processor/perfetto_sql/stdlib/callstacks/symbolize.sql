@@ -15,7 +15,7 @@
 
 -- Symbolizes a table of file_name and rel_pc using llvm_symbolizer and returns function_name, file_name, line_number, mapping_id, address.
 -- Currently also includes mapping_id and address as a way to join back symbolization results to original data.
-CREATE PERFETTO MACRO symbolize(
+CREATE PERFETTO MACRO _symbolize(
     -- A subquery which returns a table with columns "file_name", "rel_pc", "mapping_id", and "address".
     frames TableOrSubquery
 )
