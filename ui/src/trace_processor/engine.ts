@@ -36,6 +36,7 @@ interface QueryResultBypass {
 }
 
 export interface TraceProcessorConfig {
+  tokenizeOnly: boolean;
   cropTrackEvents: boolean;
   ingestFtraceInRawTable: boolean;
   analyzeTraceProtoContent: boolean;
@@ -371,6 +372,7 @@ export abstract class EngineBase implements Engine, Disposable {
   // TraceProcessor instance, so it should be called before passing any trace
   // data.
   resetTraceProcessor({
+    tokenizeOnly,
     cropTrackEvents,
     ingestFtraceInRawTable,
     analyzeTraceProtoContent,
@@ -389,6 +391,9 @@ export abstract class EngineBase implements Engine, Disposable {
     args.ingestFtraceInRawTable = ingestFtraceInRawTable;
     args.analyzeTraceProtoContent = analyzeTraceProtoContent;
     args.ftraceDropUntilAllCpusValid = ftraceDropUntilAllCpusValid;
+    args.parsingMode = tokenizeOnly
+      ? protos.ResetTraceProcessorArgs.ParsingMode.TOKENIZE_ONLY
+      : protos.ResetTraceProcessorArgs.ParsingMode.DEFAULT;
     this.rpcSendRequest(rpc);
     return asyncRes;
   }

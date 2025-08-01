@@ -45,6 +45,14 @@ export class TraceFileStream implements TraceStream {
     this.reader.onloadend = () => this.onLoad();
   }
 
+  readChunk(): Promise<TraceChunk> {
+    const sliceEnd = Math.min(this.bytesRead + SLICE_SIZE, this.traceFile.size);
+    const slice = this.traceFile.slice(this.bytesRead, sliceEnd);
+    this.pendingRead = defer<TraceChunk>();
+    this.reader.readAsArrayBuffer(slice);
+    return this.pendingRead;
+  }
+
   private onLoad() {
     const pendingRead = assertExists(this.pendingRead);
     this.pendingRead = undefined;
@@ -60,14 +68,6 @@ export class TraceFileStream implements TraceStream {
       bytesRead: this.bytesRead,
       bytesTotal: this.traceFile.size,
     });
-  }
-
-  readChunk(): Promise<TraceChunk> {
-    const sliceEnd = Math.min(this.bytesRead + SLICE_SIZE, this.traceFile.size);
-    const slice = this.traceFile.slice(this.bytesRead, sliceEnd);
-    this.pendingRead = defer<TraceChunk>();
-    this.reader.readAsArrayBuffer(slice);
-    return this.pendingRead;
   }
 }
 
@@ -166,5 +166,125 @@ export class TraceHttpStream implements TraceStream {
       bytesRead: this.bytesRead,
       bytesTotal: this.bytesTotal,
     };
+  }
+}
+
+export interface TarHeader {
+  readonly kind: 'HEADER';
+}
+
+export interface TarContent {
+  readonly kind: 'CONTENT';
+}
+
+export interface TarContentPadding {
+  readonly kind: 'CONTENT_PADDING';
+  readonly lastBlockSize: number;
+}
+
+export interface TarEof {
+  readonly kind: 'EOF';
+}
+
+export type TarState = TarHeader | TarContent | TarContentPadding | TarEof;
+
+export class TraceMultipleFilesStream implements TraceStream {
+  private state: TarState = {kind: 'HEADER'};
+
+  private bytesRead: number;
+  private bytesTotal: number;
+
+  private index = 0;
+  private stream: TraceFileStream;
+
+  constructor(private traceFiles: ReadonlyArray<File>) {
+    this.stream = new TraceFileStream(traceFiles[this.index]);
+    this.bytesRead = 0;
+    this.bytesTotal = this.traceFiles.reduce(
+      (r, f) => r + 512 + Math.ceil(f.size / 512),
+      512 + 512,
+    );
+  }
+
+  async readChunk(): Promise<TraceChunk> {
+    switch (this.state.kind) {
+      case 'HEADER': {
+        const data = new Uint8Array(512);
+        const name = this.traceFiles[this.index].name;
+        for (let i = 0; i < Math.max(name.length, 99); ++i) {
+          data[i] = name.charCodeAt(i);
+        }
+        const size = this.traceFiles[this.index].size.toString(8);
+        if (size.length >= 12) {
+          throw new Error('Trace file size is too big to encode as tar file');
+        }
+        const sizePadded = size.padStart(12, '0');
+        for (let i = 0; i < sizePadded.length; ++i) {
+          data[124 + i] = sizePadded.charCodeAt(i);
+        }
+        data[156] = 48;
+        data[257] = 117;
+        data[258] = 115;
+        data[259] = 116;
+        data[260] = 97;
+        data[261] = 114;
+        data[263] = 48;
+        data[264] = 48;
+        this.bytesRead += 512;
+        this.state = {
+          kind: 'CONTENT',
+        };
+        return {
+          data,
+          eof: false,
+          bytesRead: this.bytesRead,
+          bytesTotal: this.bytesTotal,
+        };
+      }
+      case 'CONTENT':
+        const {data, eof, bytesRead, bytesTotal} =
+          await this.stream.readChunk();
+        if (eof) {
+          this.state = {
+            kind: 'CONTENT_PADDING',
+            lastBlockSize: bytesTotal % 512,
+          };
+        }
+        this.bytesRead += bytesRead;
+        return {
+          data: data,
+          eof: false,
+          bytesRead: this.bytesRead,
+          bytesTotal: this.bytesTotal,
+        };
+      case 'CONTENT_PADDING':
+        const lastBlockSize = this.state.lastBlockSize;
+        if (this.index == this.traceFiles.length - 1) {
+          this.state = {kind: 'EOF'};
+        } else {
+          this.state = {kind: 'HEADER'};
+          this.stream = new TraceFileStream(this.traceFiles[++this.index]);
+        }
+        if (lastBlockSize === 0) {
+          return this.readChunk();
+        }
+        assertTrue(lastBlockSize > 0 && lastBlockSize < 512);
+        const padding = 512 - lastBlockSize;
+        this.bytesRead += padding;
+        return {
+          data: new Uint8Array(padding),
+          eof: false,
+          bytesRead: this.bytesRead,
+          bytesTotal: this.bytesTotal,
+        };
+      case 'EOF':
+        this.bytesRead += 1024;
+        return {
+          data: new Uint8Array(1024),
+          eof: true,
+          bytesRead: this.bytesRead,
+          bytesTotal: this.bytesTotal,
+        };
+    }
   }
 }
