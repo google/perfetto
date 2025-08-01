@@ -74,9 +74,13 @@ runs:
       run: |
         # Restore content of 'buildtools/' folder from cache.
         CACHED_TAR_PATH=$(mktemp /tmp/buildtools-cache-XXXXXX.tar)
+        
+        cp_start_time=$SECONDS
         cp_output=""
         if cp_output=$(gcloud storage cp "$GCS_CACHE_PATH" "$CACHED_TAR_PATH" 2>&1); then
+          cp_duration=$((SECONDS - cp_start_time))
           echo "$cp_output"
+          echo "The 'gcloud storage cp' took cp_duration seconds to complete."
         
           # '--exclude-from' is used to not overwrite files or folders that are stored in git.
           # '--keep-old-files' flag causes 'tar' to fail instead of overwriting files.
@@ -130,8 +134,13 @@ runs:
           # '--sort=name' is used to make archive more reproducible.
           tar --create --sort=name --preserve-permissions --exclude-from="$FILES_TO_IGNORE_PATH" --file="$TAR_PATH" --directory=buildtools .
         
+          cp_start_time=$SECONDS
+
           gcloud storage cp "$TAR_PATH" "$GCS_CACHE_PATH"
-        
+
+          cp_duration=$((SECONDS - cp_start_time))
+          echo "The 'gcloud storage cp' took cp_duration seconds to complete."
+
           rm "$TAR_PATH"
         else
           echo "The buildtools cache doesn't change, no need to upload it."
