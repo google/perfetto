@@ -21,7 +21,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 class Symbolize(TestSuite):
 
-  def test_llvm_symbolize(self):
+  def test_llvm_symbolize_table(self):
     return DiffTestBlueprint(
         register_files_dir=DataPath('simpleperf/bin'),
         trace=DataPath('simpleperf/cs_etm_u.perf'),
@@ -60,3 +60,56 @@ class Symbolize(TestSuite):
         "<invalid>","<invalid>",0,1,434500225576
         "<invalid>","<invalid>",0,1,434500225580
         """))
+
+  def test_llvm_symbolize_subquery(self):
+    return DiffTestBlueprint(
+        register_files_dir=DataPath('simpleperf/bin'),
+        trace=DataPath('simpleperf/cs_etm_u.perf'),
+        query="""
+        INCLUDE PERFETTO MODULE symbolize.symbolize;
+
+        SELECT
+          function_name,
+          replace(file_name, rtrim(file_name, replace(file_name, '/', '')), '') AS short_file_nam,
+          line_number,
+          mapping_id,
+          address
+        FROM symbolize!((
+            SELECT
+            __intrinsic_file.name AS file_name,
+            __intrinsic_etm_iterate_instruction_range.address - stack_profile_mapping.start + stack_profile_mapping.exact_offset + __intrinsic_elf_file.load_bias AS rel_pc,
+            __intrinsic_etm_decode_trace.mapping_id AS mapping_id,
+            __intrinsic_etm_iterate_instruction_range.address AS address
+            FROM __intrinsic_etm_decode_trace(0)
+            JOIN __intrinsic_etm_iterate_instruction_range
+              ON __intrinsic_etm_decode_trace.instruction_range = __intrinsic_etm_iterate_instruction_range.instruction_range
+            JOIN stack_profile_mapping
+              ON __intrinsic_etm_decode_trace.mapping_id = stack_profile_mapping.id
+            JOIN __intrinsic_elf_file
+              ON stack_profile_mapping.build_id = __intrinsic_elf_file.build_id
+            JOIN __intrinsic_file
+              ON __intrinsic_elf_file.file_id = __intrinsic_file.id
+            WHERE mapping_id = 1
+        ));
+        """,
+        out=Csv("""
+        "function_name","short_file_nam","line_number","mapping_id","address"
+        "main","etm.cc",62,1,434500225096
+        "main","etm.cc",0,1,434500225100
+        "main","etm.cc",62,1,434500225104
+        "main","etm.cc",60,1,434500225084
+        "A()","etm.cc",44,1,434500225128
+        "A()","etm.cc",44,1,434500225132
+        "A()","etm.cc",44,1,434500225136
+        "A()","etm.cc",46,1,434500225140
+        "A()","etm.cc",46,1,434500225144
+        "A()","etm.cc",47,1,434500225148
+        "A()","etm.cc",47,1,434500225152
+        "A()","etm.cc",47,1,434500225156
+        "A()","etm.cc",47,1,434500225160
+        "<invalid>","<invalid>",0,1,434500225568
+        "<invalid>","<invalid>",0,1,434500225572
+        "<invalid>","<invalid>",0,1,434500225576
+        "<invalid>","<invalid>",0,1,434500225580
+        """)
+      )
