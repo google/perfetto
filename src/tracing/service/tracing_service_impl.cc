@@ -592,9 +592,6 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   if (!uuid)
     uuid = base::Uuidv4();
 
-  // Trigger CI build.
-  // Trigger one more CI build.
-
   PERFETTO_DLOG("Enabling tracing for consumer %p, UUID: %s",
                 reinterpret_cast<void*>(consumer),
                 uuid.ToPrettyString().c_str());
