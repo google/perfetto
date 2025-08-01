@@ -111,7 +111,6 @@ LlvmSymbolizer::LlvmSymbolizer() {
   }
   scoped_symbolizer_handle_.reset(new ScopedSymbolizer{symbolizer, destroy_fn});
 }
-LlvmSymbolizer::~LlvmSymbolizer() = default;
 
 SymbolizationResultBatch LlvmSymbolizer::SymbolizeBatch(
     const std::vector<::SymbolizationRequest>& requests) {

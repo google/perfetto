@@ -1328,8 +1328,8 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   }
 #if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
   {
-    base::Status status =
-        perfetto_sql::RegisterSymbolizeFunction(*engine, *context);
+    base::Status status = perfetto_sql::RegisterSymbolizeFunction(
+        *engine, storage->mutable_string_pool());
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }

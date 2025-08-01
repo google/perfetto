@@ -47,12 +47,13 @@ struct Symbolize : public sqlite::Function<Symbolize> {
 
   struct UserData {
     PerfettoSqlEngine* engine;
-    TraceProcessorContext* context;
+    StringPool* pool;
+    profiling::LlvmSymbolizer symbolizer = profiling::LlvmSymbolizer();
   };
 
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     PERFETTO_DCHECK(argc == kArgCount);
-    auto* user_data = GetUserData(ctx);
+    Symbolize::UserData* user_data = GetUserData(ctx);
     SymbolizationInput* input = sqlite::value::Pointer<SymbolizationInput>(
         argv[0], SymbolizationInput::kName);
     if (!input) {
@@ -65,12 +66,11 @@ struct Symbolize : public sqlite::Function<Symbolize> {
     std::vector<CT> col_types{
         CT::kString, CT::kString, CT::kInt64, CT::kInt64, CT::kInt64,
     };
-    dataframe::AdhocDataframeBuilder builder(
-        col_names, user_data->context->storage->mutable_string_pool(),
-        col_types);
+    dataframe::AdhocDataframeBuilder builder(col_names, user_data->pool,
+                                             col_types);
 
-    profiling::LlvmSymbolizer* symbolizer =
-        profiling::LlvmSymbolizer::GetOrCreate(user_data->context);
+    profiling::LlvmSymbolizer* symbolizer = &user_data->symbolizer;
+
     profiling::SymbolizationResultBatch result =
         symbolizer->SymbolizeBatch(input->requests);
 
@@ -88,11 +88,9 @@ struct Symbolize : public sqlite::Function<Symbolize> {
       for (uint32_t j = 0; j < num_frames; ++j) {
         const auto& frame = frames[j];
         builder.PushNonNullUnchecked(
-            0, user_data->context->storage->mutable_string_pool()->InternString(
-                   frame.function_name));
+            0, user_data->pool->InternString(frame.function_name));
         builder.PushNonNullUnchecked(
-            1, user_data->context->storage->mutable_string_pool()->InternString(
-                   frame.file_name));
+            1, user_data->pool->InternString(frame.file_name));
         builder.PushNonNullUnchecked(2,
                                      static_cast<int64_t>(frame.line_number));
         builder.PushNonNullUnchecked(3, static_cast<int64_t>(mapping_id));
@@ -108,10 +106,10 @@ struct Symbolize : public sqlite::Function<Symbolize> {
 }  // namespace
 
 base::Status RegisterSymbolizeFunction(PerfettoSqlEngine& engine,
-                                       TraceProcessorContext& context) {
+                                       StringPool* pool) {
   return engine.RegisterSqliteFunction<Symbolize>(
       std::make_unique<Symbolize::UserData>(
-          Symbolize::UserData{&engine, &context}));
+          Symbolize::UserData{&engine, pool}));
 }
 
 }  // namespace perfetto::trace_processor::perfetto_sql

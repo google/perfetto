@@ -18,14 +18,14 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_SYMBOLIZE_H_
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
-#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::perfetto_sql {
 
 // Registers the __intrinsic_symbolize function with |engine|
 base::Status RegisterSymbolizeFunction(PerfettoSqlEngine& engine,
-                                       TraceProcessorContext& context);
+                                       StringPool* pool);
 
 }  // namespace perfetto::trace_processor::perfetto_sql
 

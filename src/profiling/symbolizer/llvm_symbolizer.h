@@ -23,7 +23,6 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/profiling/symbolizer/llvm_symbolizer_c_api.h"
-#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::profiling {
 
@@ -75,18 +74,9 @@ class SymbolizationResultBatch {
   uint32_t num_errors_ = 0;
 };
 
-class LlvmSymbolizer : public trace_processor::Destructible {
+class LlvmSymbolizer {
  public:
   LlvmSymbolizer();
-  ~LlvmSymbolizer() override;
-
-  static LlvmSymbolizer* GetOrCreate(
-      trace_processor::TraceProcessorContext* context) {
-    if (!context->llvm_symbolizer) {
-      context->llvm_symbolizer.reset(new LlvmSymbolizer());
-    }
-    return static_cast<LlvmSymbolizer*>(context->llvm_symbolizer.get());
-  }
 
   SymbolizationResultBatch SymbolizeBatch(
       const std::vector<::SymbolizationRequest>& requests);
