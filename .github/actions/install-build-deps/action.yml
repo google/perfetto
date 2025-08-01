@@ -103,7 +103,7 @@ runs:
       run: tools/install-build-deps ${{ inputs.install-flags }}
 
     - name: Save buildtools cache (only on main)
-#      if: github.ref == 'refs/heads/main'
+      if: github.ref == 'refs/heads/main'
       shell: bash
       env:
         GCS_BUCKET: gs://perfetto-ci-artifacts
