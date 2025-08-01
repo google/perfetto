@@ -40,7 +40,16 @@
 
 namespace perfetto::trace_processor::perfetto_sql {
 namespace {
-
+// Symbolize is essentially just a sql interface to profiling::LlvmSymbolizer
+// SymbolizeBatch. The function takes a pointer to SymbolizationInput, which is
+// constructed by __intrinsic_symbolize_agg from a  table with the columns
+// "file_name" "rel_pc" "mapping_id" "address" and then symbolizes each row
+// using llvm_symbolizer and returns function_name, file_name, line_number,
+// mapping_id, address.
+// Currently includes mapping_id and address as a way to join back symbolization
+// results to original data.
+// This function should be used with the _symbolize! macro in order to simpfly
+// it usage.
 struct Symbolize : public sqlite::Function<Symbolize> {
   static constexpr char kName[] = "__intrinsic_symbolize";
   static constexpr int kArgCount = 1;
