@@ -470,6 +470,8 @@ struct CounterPerTrackAgg
   }
 };
 
+#if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
+
 struct SymbolizeAgg
     : public sqlite::AggregateFunction<perfetto_sql::SymbolizationInput> {
   static constexpr char kName[] = "__intrinsic_symbolize_agg";
@@ -510,6 +512,7 @@ struct SymbolizeAgg
         perfetto_sql::SymbolizationInput::kName);
   }
 };
+#endif
 
 }  // namespace
 
@@ -523,8 +526,12 @@ base::Status RegisterTypeBuilderFunctions(PerfettoSqlEngine& engine) {
           nullptr));
   RETURN_IF_ERROR(
       engine.RegisterSqliteAggregateFunction<CounterPerTrackAgg>(nullptr));
+
+#if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
   RETURN_IF_ERROR(
       engine.RegisterSqliteAggregateFunction<SymbolizeAgg>(nullptr));
+#endif
+
   return engine.RegisterSqliteAggregateFunction<NodeAgg>(nullptr);
 }
 

@@ -72,6 +72,7 @@ if (enable_perfetto_llvm_symbolizer) {
     deps = [ "../../../gn:default_deps" ]
 
     libs = _llvm_flags_output.libs
+    libs += [ "dl" ]
     ldflags = _llvm_flags_output.ldflags
     cflags = _llvm_flags_output.cflags
     defines = _llvm_flags_output.defines
