@@ -48,8 +48,8 @@ namespace {
 // mapping_id, address.
 // Currently includes mapping_id and address as a way to join back symbolization
 // results to original data.
-// This function should be used with the _symbolize! macro in order to simpfly
-// it usage.
+// This function should be used with the _callstack_frame_symbolize! macro in
+// order to simpfly it usage.
 struct Symbolize : public sqlite::Function<Symbolize> {
   static constexpr char kName[] = "__intrinsic_symbolize";
   static constexpr int kArgCount = 1;
