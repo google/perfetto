@@ -48,8 +48,6 @@ WITH
     )) AS cli
     JOIN cpu_counter_track AS cct
       ON cli.track_id = cct.id
-    WHERE
-      dur > 0
   ),
   -- Adjusted ts if applicable, which makes the current active state longer if
   -- it is coming from an idle exit.
@@ -118,8 +116,6 @@ SELECT
   first_slices.cpu,
   NULL AS idle
 FROM first_cpu_idle_slices AS first_slices
-WHERE
-  dur > 0
 UNION ALL
 SELECT
   ts,
@@ -127,9 +123,6 @@ SELECT
   cpu,
   idle
 FROM _cpu_idle
--- Some durations are 0 post-adjustment and won't work with interval intersect
-WHERE
-  dur > 0
 UNION ALL
 -- Add empty cpu idle counters for CPUs that are physically present, but did not
 -- have a single idle event register. The time region needs to be defined so

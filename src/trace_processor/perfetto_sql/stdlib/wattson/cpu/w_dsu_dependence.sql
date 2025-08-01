@@ -17,7 +17,7 @@ INCLUDE PERFETTO MODULE intervals.intersect;
 
 INCLUDE PERFETTO MODULE linux.devfreq;
 
-INCLUDE PERFETTO MODULE wattson.cpu.split;
+INCLUDE PERFETTO MODULE wattson.cpu.pivot;
 
 INCLUDE PERFETTO MODULE wattson.curves.utils;
 
@@ -44,13 +44,7 @@ SELECT
   l3_hit_count,
   l3_miss_count,
   no_static,
-  min(
-    no_static,
-    coalesce(idle_4, 1),
-    coalesce(idle_5, 1),
-    coalesce(idle_6, 1),
-    coalesce(idle_7, 1)
-  ) AS all_cpu_deep_idle
+  all_cpu_deep_idle
 FROM _w_independent_cpus_calc AS base, _use_devfreq_for_calc;
 
 -- Get nominal devfreq_dsu counter, OR use a dummy one for Pixel 9 VM traces
@@ -110,8 +104,7 @@ SELECT
   c.l3_miss_count,
   c.no_static,
   c.all_cpu_deep_idle,
-  d.dsu_freq AS dependent_freq,
-  255 AS dependent_policy
+  d.dsu_freq AS dependency
 FROM _interval_intersect!(
   (
     _ii_subquery!(_cpu_curves),
