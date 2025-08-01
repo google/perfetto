@@ -25,6 +25,7 @@ source_set("types") {
     "partitioned_intervals.h",
     "row_dataframe.h",
     "struct.h",
+    "symbolization_input.h",
     "value.h",
   ]
   deps = [
