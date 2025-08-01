@@ -69,8 +69,11 @@ function drawHBar(
   const labelWidth = ctx.measureText(label).width;
 
   // Find a good position for the label:
-  // By default put the label in the middle of the H:
-  let labelXLeft = Math.floor(xWidth / 2 - labelWidth / 2 + xLeft);
+  // By default put the label in the middle of the visible portion of the H.
+  const visibleLeft = Math.max(xLeft, bounds.x);
+  const visibleRight = Math.min(xRight, bounds.x + bounds.width);
+  const visibleCenter = Math.floor((visibleLeft + visibleRight) / 2);
+  let labelXLeft = Math.floor(visibleCenter - labelWidth / 2);
 
   if (
     labelWidth > target.width ||
@@ -129,6 +132,30 @@ function drawIBar(
   ctx.fillStyle = FOREGROUND_COLOR;
   ctx.font = '10px Roboto Condensed';
   ctx.fillText(label, xPosLabel, yMid);
+}
+
+// Draws a marker: triangle pointing down.
+function drawMarker(ctx: CanvasRenderingContext2D, target: BBox, bounds: BBox) {
+  const xPos = Math.floor(target.x);
+  if (xPos < bounds.x || xPos > bounds.x + bounds.width) return;
+
+  ctx.fillStyle = FOREGROUND_COLOR;
+  const yMid = Math.floor(target.height / 2 + target.y);
+  const size = 4;
+
+  // Don't draw in the track shell.
+  ctx.beginPath();
+  ctx.rect(bounds.x, bounds.y, bounds.width, bounds.height);
+  ctx.clip();
+
+  // Draw triangle pointing down. Offset it down a bit to balance triange being top-heavy.
+  const yCenter = yMid + 1;
+  ctx.beginPath();
+  ctx.moveTo(xPos - size, yCenter - size);
+  ctx.lineTo(xPos + size, yCenter - size);
+  ctx.lineTo(xPos, yCenter + size);
+  ctx.closePath();
+  ctx.fill();
 }
 
 export class TimeSelectionPanel {
@@ -190,7 +217,9 @@ export class TimeSelectionPanel {
       ) {
         const start = selection.ts;
         const end = Time.add(selection.ts, selection.dur);
-        if (end > start) {
+        if (selection.dur === 0n) {
+          this.renderInstantEvent(ctx, timescale, size, selection.ts);
+        } else if (end > start) {
           this.renderSpan(ctx, timescale, size, start, end);
         }
       }
@@ -248,6 +277,25 @@ export class TimeSelectionPanel {
       },
       this.getBBoxFromSize(trackSize),
       label,
+    );
+  }
+
+  renderInstantEvent(
+    ctx: CanvasRenderingContext2D,
+    timescale: TimeScale,
+    trackSize: Size2D,
+    ts: time,
+  ) {
+    const xPos = timescale.timeToPx(ts);
+    drawMarker(
+      ctx,
+      {
+        x: xPos,
+        y: 0,
+        width: 0,
+        height: trackSize.height,
+      },
+      this.getBBoxFromSize(trackSize),
     );
   }
 
