@@ -12645,12 +12645,12 @@ class PackagesList(_message.Message):
     def __init__(self, packages: _Optional[_Iterable[_Union[PackagesList.PackageInfo, _Mapping]]] = ..., parse_error: bool = ..., read_error: bool = ...) -> None: ...
 
 class PackagesListConfig(_message.Message):
-    __slots__ = ["on_use_poll_ms", "package_name_filter"]
-    ON_USE_POLL_MS_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ["only_write_on_cpu_use_every_ms", "package_name_filter"]
+    ONLY_WRITE_ON_CPU_USE_EVERY_MS_FIELD_NUMBER: _ClassVar[int]
     PACKAGE_NAME_FILTER_FIELD_NUMBER: _ClassVar[int]
-    on_use_poll_ms: int
+    only_write_on_cpu_use_every_ms: int
     package_name_filter: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, package_name_filter: _Optional[_Iterable[str]] = ..., on_use_poll_ms: _Optional[int] = ...) -> None: ...
+    def __init__(self, package_name_filter: _Optional[_Iterable[str]] = ..., only_write_on_cpu_use_every_ms: _Optional[int] = ...) -> None: ...
 
 class PanelWriteGenericFtraceEvent(_message.Message):
     __slots__ = ["name", "pid", "trace_begin", "trace_name", "type", "value"]

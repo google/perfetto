@@ -44,9 +44,10 @@ const ProbesDataSource::Descriptor PackagesListDataSource::descriptor = {
     /*fill_descriptor_func*/ nullptr,
 };
 
-bool ParsePackagesListStream(base::FlatHashMap<uint64_t, Package>& packages,
-                             const base::ScopedFstream& fs,
-                             const std::set<std::string>& package_name_filter) {
+bool ParsePackagesListStream(
+    std::unordered_multimap<uint64_t, Package>& packages,
+    const base::ScopedFstream& fs,
+    const std::set<std::string>& package_name_filter) {
   bool parse_error = false;
   char line[2048];
   while (fgets(line, sizeof(line), *fs) != nullptr) {
@@ -59,7 +60,7 @@ bool ParsePackagesListStream(base::FlatHashMap<uint64_t, Package>& packages,
         package_name_filter.count(pkg_struct.name) == 0) {
       continue;
     }
-    packages.Insert(pkg_struct.uid, pkg_struct);
+    packages.insert({pkg_struct.uid, pkg_struct});
   }
   return parse_error;
 }
@@ -79,18 +80,17 @@ PackagesListDataSource::PackagesListDataSource(
     package_name_filter_.emplace((*name).ToStdString());
   }
 
-  if (cfg.has_on_use_poll_ms()) {
-    on_use_poll_ms_ = cfg.on_use_poll_ms();
-
-    if (on_use_poll_ms_ < kMinPollIntervalMs) {
+  only_write_on_cpu_use_every_ms_ = cfg.only_write_on_cpu_use_every_ms();
+  if (only_write_on_cpu_use_every_ms_ != 0) {
+    if (only_write_on_cpu_use_every_ms_ < kMinPollIntervalMs) {
       PERFETTO_ELOG("Package list on-use poll interval of %" PRIu32
                     " ms is too low. Capping to %" PRIu32 " ms",
-                    on_use_poll_ms_, kMinPollIntervalMs);
-      on_use_poll_ms_ = kMinPollIntervalMs;
+                    only_write_on_cpu_use_every_ms_, kMinPollIntervalMs);
+      only_write_on_cpu_use_every_ms_ = kMinPollIntervalMs;
     }
 
   } else {
-    on_use_poll_ms_ = kWriteAllAtStart;
+    only_write_on_cpu_use_every_ms_ = kWriteAllAtStart;
   }
 }
 
@@ -107,7 +107,7 @@ void PackagesListDataSource::Start() {
     packages_read_error_ = true;
   }
 
-  if (on_use_poll_ms_ == kWriteAllAtStart) {
+  if (only_write_on_cpu_use_every_ms_ == kWriteAllAtStart) {
     auto trace_packet = writer_->NewTracePacket();
     auto* packages_list_packet = trace_packet->set_packages_list();
     if (packages_parse_error_)
@@ -116,8 +116,8 @@ void PackagesListDataSource::Start() {
     if (packages_read_error_)
       packages_list_packet->set_read_error(true);
 
-    for (auto it = packages_.GetIterator(); it; ++it) {
-      auto package = it.value();
+    for (auto it = packages_.begin(); it != packages_.end(); ++it) {
+      auto package = it->second;
       auto* package_proto = packages_list_packet->add_packages();
       package_proto->set_name(package.name.c_str(), package.name.size());
       package_proto->set_uid(package.uid);
@@ -143,7 +143,8 @@ void PackagesListDataSource::Tick() {
         if (weak_this)
           weak_this->Tick();
       },
-      on_use_poll_ms_ - static_cast<uint32_t>(now_ms % on_use_poll_ms_));
+      only_write_on_cpu_use_every_ms_ -
+          static_cast<uint32_t>(now_ms % only_write_on_cpu_use_every_ms_));
 
   WriteIncrementalPacket();
 }
@@ -177,27 +178,30 @@ void PackagesListDataSource::WriteIncrementalPacket() {
       packages_list_packet->set_read_error(true);
 
     for (auto uid : new_uids) {
-      auto package = packages_.Find(uid);
-      if (!package) {
+      auto range = packages_.equal_range(uid);
+      if (range.first == range.second) {
         if (uid >= kFirstPackageUid) {
           PERFETTO_ELOG("No package in list for uid %u", uid);
         }
         continue;
       }
-      auto* package_proto = packages_list_packet->add_packages();
-      package_proto->set_name(package->name.c_str(), package->name.size());
-      package_proto->set_uid(package->uid);
-      package_proto->set_debuggable(package->debuggable);
-      package_proto->set_profileable_from_shell(
-          package->profileable_from_shell);
-      package_proto->set_version_code(package->version_code);
+      for (auto it = range.first; it != range.second; ++it) {
+        auto& package = it->second;
+        auto* package_proto = packages_list_packet->add_packages();
+        package_proto->set_name(package.name.c_str(), package.name.size());
+        package_proto->set_uid(package.uid);
+        package_proto->set_debuggable(package.debuggable);
+        package_proto->set_profileable_from_shell(
+            package.profileable_from_shell);
+        package_proto->set_version_code(package.version_code);
+      }
     }
   }
 }
 
 void PackagesListDataSource::Flush(FlushRequestID,
                                    std::function<void()> callback) {
-  if (on_use_poll_ms_ == kWriteAllAtStart) {
+  if (only_write_on_cpu_use_every_ms_ == kWriteAllAtStart) {
     // Flush is no-op. We flush after the first write.
     callback();
   } else {
@@ -207,7 +211,7 @@ void PackagesListDataSource::Flush(FlushRequestID,
 }
 
 void PackagesListDataSource::ClearIncrementalState() {
-  if (on_use_poll_ms_ != kWriteAllAtStart) {
+  if (only_write_on_cpu_use_every_ms_ != kWriteAllAtStart) {
     poller_->Clear();
   }
   first_time_ = true;

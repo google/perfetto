@@ -96,19 +96,19 @@ TEST(PackagesListDataSourceTest, EmptyNameFilterIncludesAll) {
   auto fs = base::ScopedFstream(fdopen(pipe.rd.get(), "r"));
   pipe.rd.release();  // now owned by |fs|
 
-  base::FlatHashMap<uint64_t, Package> packages;
+  std::unordered_multimap<uint64_t, Package> packages;
   std::set<std::string> filter{};
 
-  ASSERT_TRUE(ParsePackagesListStream(packages, fs, filter));
+  ASSERT_FALSE(ParsePackagesListStream(packages, fs, filter));
 
   // all entries
   EXPECT_EQ(packages.size(), 3lu);
-  EXPECT_EQ(packages[1000].name, "com.test.one");
-  EXPECT_EQ(packages[1000].version_code, 10);
-  EXPECT_EQ(packages[1001].name, "com.test.two");
-  EXPECT_EQ(packages[1001].version_code, 20);
-  EXPECT_EQ(packages[1002].name, "com.test.three");
-  EXPECT_EQ(packages[1002].version_code, 30);
+  EXPECT_EQ(packages.find(1000)->second.name, "com.test.one");
+  EXPECT_EQ(packages.find(1000)->second.version_code, 10);
+  EXPECT_EQ(packages.find(1001)->second.name, "com.test.two");
+  EXPECT_EQ(packages.find(1001)->second.version_code, 20);
+  EXPECT_EQ(packages.find(1002)->second.name, "com.test.three");
+  EXPECT_EQ(packages.find(1002)->second.version_code, 30);
 }
 
 TEST(PackagesListDataSourceTest, NameFilter) {
@@ -128,17 +128,17 @@ TEST(PackagesListDataSourceTest, NameFilter) {
   auto fs = base::ScopedFstream(fdopen(pipe.rd.get(), "r"));
   pipe.rd.release();  // now owned by |fs|
 
-  base::FlatHashMap<uint64_t, Package> packages;
+  std::unordered_multimap<uint64_t, Package> packages;
   std::set<std::string> filter{"com.test.one", "com.test.three"};
 
-  ASSERT_TRUE(ParsePackagesListStream(packages, fs, filter));
+  ASSERT_FALSE(ParsePackagesListStream(packages, fs, filter));
 
   // two named entries
   EXPECT_EQ(packages.size(), 2lu);
-  EXPECT_EQ(packages[1000].name, "com.test.one");
-  EXPECT_EQ(packages[1000].version_code, 10);
-  EXPECT_EQ(packages[1001].name, "com.test.three");
-  EXPECT_EQ(packages[1001].version_code, 30);
+  EXPECT_EQ(packages.find(1000)->second.name, "com.test.one");
+  EXPECT_EQ(packages.find(1000)->second.version_code, 10);
+  EXPECT_EQ(packages.find(1002)->second.name, "com.test.three");
+  EXPECT_EQ(packages.find(1002)->second.version_code, 30);
 }
 
 }  // namespace

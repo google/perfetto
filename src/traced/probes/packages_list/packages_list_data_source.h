@@ -20,10 +20,10 @@
 #include <functional>
 #include <memory>
 #include <set>
+#include <unordered_map>
 #include <unordered_set>
 
 #include "perfetto/base/task_runner.h"
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/weak_ptr.h"
 
@@ -40,9 +40,10 @@ class TraceWriter;
 class AndroidCpuPerUidPoller;
 struct Package;
 
-bool ParsePackagesListStream(base::FlatHashMap<uint64_t, Package>& packages,
-                             const base::ScopedFstream& fs,
-                             const std::set<std::string>& package_name_filter);
+bool ParsePackagesListStream(
+    std::unordered_multimap<uint64_t, Package>& packages,
+    const base::ScopedFstream& fs,
+    const std::set<std::string>& package_name_filter);
 
 class PackagesListDataSource : public ProbesDataSource {
  public:
@@ -66,13 +67,13 @@ class PackagesListDataSource : public ProbesDataSource {
   base::WeakPtr<PackagesListDataSource> GetWeakPtr() const;
 
   // Used in polling mode.
-  uint32_t on_use_poll_ms_;
+  uint32_t only_write_on_cpu_use_every_ms_;
   std::unordered_set<uint32_t> seen_uids_;
   base::TaskRunner* const task_runner_;
   std::unique_ptr<AndroidCpuPerUidPoller> poller_;
   bool first_time_ = true;
 
-  base::FlatHashMap<uint64_t, Package> packages_;
+  std::unordered_multimap<uint64_t, Package> packages_;
   bool packages_parse_error_;
   bool packages_read_error_;
 
