@@ -6321,6 +6321,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/ftrace/gpu_mem.proto",
         "protos/perfetto/trace/ftrace/gpu_scheduler.proto",
         "protos/perfetto/trace/ftrace/hyp.proto",
+        "protos/perfetto/trace/ftrace/hypervisor.proto",
         "protos/perfetto/trace/ftrace/i2c.proto",
         "protos/perfetto/trace/ftrace/ion.proto",
         "protos/perfetto/trace/ftrace/ipi.proto",
@@ -6522,6 +6523,7 @@ perfetto_cc_protozero_library(
 perfetto_proto_library(
     name = "protos_perfetto_trace_non_minimal_protos",
     srcs = [
+        "protos/perfetto/trace/evdev.proto",
         "protos/perfetto/trace/extension_descriptor.proto",
         "protos/perfetto/trace/memory_graph.proto",
         "protos/perfetto/trace/remote_clock_sync.proto",
