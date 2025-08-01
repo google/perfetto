@@ -80,7 +80,7 @@ runs:
         if cp_output=$(gcloud storage cp "$GCS_CACHE_PATH" "$CACHED_TAR_PATH" 2>&1); then
           cp_duration=$((SECONDS - cp_start_time))
           echo "$cp_output"
-          echo "The 'gcloud storage cp' took cp_duration seconds to complete."
+          echo "The 'gcloud storage cp' took $cp_duration seconds to complete."
         
           # '--exclude-from' is used to not overwrite files or folders that are stored in git.
           # '--keep-old-files' flag causes 'tar' to fail instead of overwriting files.
@@ -139,7 +139,7 @@ runs:
           gcloud storage cp "$TAR_PATH" "$GCS_CACHE_PATH"
 
           cp_duration=$((SECONDS - cp_start_time))
-          echo "The 'gcloud storage cp' took cp_duration seconds to complete."
+          echo "The 'gcloud storage cp' took $cp_duration seconds to complete."
 
           rm "$TAR_PATH"
         else
