@@ -14,6 +14,23 @@
 
 @import "theme";
 
+// This checkbox element is expected to contain a checkbox type input followed
+// by an empty span element.
+// The input is completely hidden and an entirely new checkbox is drawn inside
+// the span element. This allows us to style it how we like, and also add some
+// fancy transitions.
+// The box of the checkbox is a fixed sized span element. The tick is also a
+// fixed sized rectange rotated 45 degrees with only the bottom and right
+// borders visible.
+// When unchecked, the tick size and border width is 0, so the tick is
+// completely invsible. When we transition to checked, the border size on the
+// bottom and right sides is immmdiately set to full width, and the tick morphs
+// into view first by expanding along the x axis first, then expanding up the
+// y-axis. This has the effect of making the tick look like it's being drawn
+// onto the page with a pen.
+// When transitioning from checked to unchecked, the animation plays in reverse,
+// and the border width is set to 0 right at the end in order to make the tick
+// completely invisible again.
 .pf-switch {
   display: inline-flex;
   align-items: center;
