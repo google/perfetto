@@ -244,7 +244,7 @@ ProbesProducer::CreateDSInstance<PackagesListDataSource>(
     const DataSourceConfig& config) {
   auto buffer_id = static_cast<BufferID>(config.target_buffer());
   return std::make_unique<PackagesListDataSource>(
-      config, session_id,
+      config, task_runner_, session_id,
       endpoint_->CreateTraceWriter(buffer_id, BufferExhaustedPolicy::kStall));
 }
 
