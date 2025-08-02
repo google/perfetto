@@ -737,6 +737,7 @@ function renderValue(
         );
       } else {
         rhs = m(TimestampWidget, {
+          trace,
           ts: Time.fromRaw(ts),
         });
       }
@@ -752,6 +753,7 @@ function renderValue(
         right:
           typeof dur === 'bigint' &&
           m(DurationWidget, {
+            trace,
             dur,
           }),
       });
@@ -764,6 +766,7 @@ function renderValue(
         right:
           typeof dur === 'bigint' &&
           m(DurationWidget, {
+            trace,
             dur,
           }),
       });

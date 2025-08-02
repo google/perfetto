@@ -93,6 +93,7 @@ async function getFtraceCounters(engine: Engine): Promise<FtraceStat[]> {
 }
 
 export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
+  private readonly trace: Trace;
   private pagination: Pagination = {
     offset: 0,
     count: 0,
@@ -104,6 +105,7 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
   private data?: FtracePanelData;
 
   constructor({attrs}: m.CVnode<FtraceExplorerAttrs>) {
+    this.trace = attrs.trace;
     this.monitor = new Monitor([
       () => attrs.trace.timeline.visibleWindow.toTimeSpan().start,
       () => attrs.trace.timeline.visibleWindow.toTimeSpan().end,
@@ -184,7 +186,7 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
 
     return this.data.events.map((event) => {
       const {ts, name, cpu, process, args, id} = event;
-      const timestamp = m(Timestamp, {ts});
+      const timestamp = m(Timestamp, {trace: this.trace, ts});
       const color = materialColorScheme(name).base.cssString;
 
       return {
