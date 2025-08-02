@@ -164,6 +164,21 @@ proto_groups = {
     }
 }
 
+protozero_groups = {
+    'trace_zero': {
+        'sources': [
+            '//protos/perfetto/trace:minimal_zero',
+            '//protos/perfetto/trace:non_minimal_zero',
+        ],
+        'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
+    },
+    # Required for building Chromium's `//base` with Bazel.
+    'chromium_zero': {
+        'sources': ['//protos/third_party/chromium:zero'],
+        'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
+    }
+}
+
 # Path for the protobuf sources in the standalone build.
 buildtools_protobuf_src = '//buildtools/protobuf/src'
 
@@ -922,14 +937,11 @@ def gen_target_helper(gn_target: GnParser.Target,
   return [label]
 
 
-def gen_protozero_group_target(gn: GnParser):
-  label = BazelLabel('trace_zero', 'perfetto_cc_library')
+def gen_protozero_group_target(gn: GnParser, name: str, desc: Dict[str, Any]):
+  label = BazelLabel(name, 'perfetto_cc_library')
 
   deps = set()
-  for ss in [
-      '//protos/perfetto/trace:minimal_zero',
-      '//protos/perfetto/trace:non_minimal_zero',
-  ]:
+  for ss in desc['sources']:
     deps.add(ss)
     deps.update(t.name for t in gn.get_target(ss).transitive_proto_deps())
 
@@ -940,7 +952,7 @@ def gen_protozero_group_target(gn: GnParser):
 
   label.deps = sorted(label.deps)
   label.hdrs = sorted(label.hdrs)
-  label.visibility = ALLOWLIST_PUBLIC_VISIBILITY
+  label.visibility = desc['visibility']
 
   return [label]
 
@@ -1080,8 +1092,10 @@ exports_files(["NOTICE"])
   for l_name, t_desc in proto_groups.items():
     res += ''.join(str(x) for x in gen_proto_group_target(gn, l_name, t_desc))
 
-  # Generate targets for protozero group.
-  res += ''.join(str(x) for x in gen_protozero_group_target(gn))
+  # Generate targets for protozero groups.
+  for l_name, t_desc in protozero_groups.items():
+    res += ''.join(
+        str(x) for x in gen_protozero_group_target(gn, l_name, t_desc))
 
   # For any non-source set and non-descriptor targets, ensure the source set
   # associated to that target is discovered.
