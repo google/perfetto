@@ -47,8 +47,7 @@ import {createProxy} from '../base/utils';
 import {PageManagerImpl} from './page_manager';
 import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
 import {featureFlags} from './feature_flags';
-import {SerializedAppState} from './state_serialization_schema';
-import {PostedTrace} from './trace_source';
+import {TraceSource} from '../public/trace_source';
 import {PerfManager} from './perf_manager';
 import {EvtSource} from '../base/events';
 import {Raf} from '../public/raf';
@@ -298,11 +297,11 @@ export class TraceImpl implements Trace {
   async getTraceFile(): Promise<Blob> {
     const src = this.traceInfo.source;
     if (this.traceInfo.downloadable) {
-      if (src.type === 'ARRAY_BUFFER') {
+      if (src.kind === 'ARRAY_BUFFER') {
         return new Blob([src.buffer]);
-      } else if (src.type === 'FILE') {
+      } else if (src.kind === 'FILE') {
         return src.file;
-      } else if (src.type === 'URL') {
+      } else if (src.kind === 'URL') {
         return await fetchWithProgress(src.url, (progressPercent: number) =>
           this.omnibox.showStatusMessage(
             `Downloading trace ${progressPercent}%`,
@@ -317,12 +316,12 @@ export class TraceImpl implements Trace {
     // dialog).
     // The caller was supposed to check that traceInfo.downloadable === true
     // before calling this. Throwing while downloadable is true is a bug.
-    throw new Error(`Cannot getTraceFile(${src.type})`);
+    throw new Error(`Cannot getTraceFile(${src.kind})`);
   }
 
   get openerPluginArgs(): {[key: string]: unknown} | undefined {
     const traceSource = this.traceCtx.traceInfo.source;
-    if (traceSource.type !== 'ARRAY_BUFFER') {
+    if (traceSource.kind !== 'ARRAY_BUFFER') {
       return undefined;
     }
     const pluginArgs = traceSource.pluginArgs;
@@ -445,16 +444,8 @@ export class TraceImpl implements Trace {
     this.appImpl.navigate(newHash);
   }
 
-  openTraceFromFile(file: File): void {
-    this.appImpl.openTraceFromFile(file);
-  }
-
-  openTraceFromUrl(url: string, serializedAppState?: SerializedAppState) {
-    this.appImpl.openTraceFromUrl(url, serializedAppState);
-  }
-
-  openTraceFromBuffer(args: PostedTrace): void {
-    this.appImpl.openTraceFromBuffer(args);
+  openTrace(source: TraceSource): void {
+    this.appImpl.openTrace(source);
   }
 
   closeCurrentTrace(): void {

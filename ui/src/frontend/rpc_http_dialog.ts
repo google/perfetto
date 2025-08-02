@@ -210,7 +210,7 @@ export async function CheckHttpRpcConnection(): Promise<void> {
     switch (result) {
       case PreloadedDialogResult.Dismissed:
       case PreloadedDialogResult.UseRpcWithPreloadedTrace:
-        AppImpl.instance.openTraceFromHttpRpc();
+        AppImpl.instance.openTrace({kind: 'HTTP_RPC'});
         return;
       case PreloadedDialogResult.UseRpc:
         // Resetting state is the default.

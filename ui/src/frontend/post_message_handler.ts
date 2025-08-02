@@ -14,13 +14,46 @@
 
 import m from 'mithril';
 import {Time} from '../base/time';
-import {PostedTrace} from '../core/trace_source';
 import {showModal} from '../widgets/modal';
 import {initCssConstants} from './css_constants';
 import {toggleHelp} from './help_modal';
 import {AppImpl} from '../core/app_impl';
+import {SerializedAppState} from '../public/state_serialization_schema';
+import {parseAppState} from '../core/state_serialization';
+import {BUCKET_NAME} from '../base/gcs_uploader';
 
 const TRUSTED_ORIGINS_KEY = 'trustedOrigins';
+
+interface PostedTrace {
+  buffer: ArrayBuffer;
+  title: string;
+  fileName?: string;
+  url?: string;
+
+  appStateHash?: string;
+
+  // |uuid| is set only when loading via ?local_cache_key=1234. When set,
+  // this matches global.state.traceUuid, with the exception of the following
+  // time window: When a trace T1 is loaded and the user loads another trace T2,
+  // this |uuid| will be == T2, but the globals.state.traceUuid will be
+  // temporarily == T1 until T2 has been loaded (consistently to what happens
+  // with all other state fields).
+  uuid?: string;
+
+  // if |localOnly| is true then the trace should not be shared or downloaded.
+  localOnly?: boolean;
+  keepApiOpen?: boolean;
+
+  // Allows to pass extra arguments to plugins. This can be read by plugins
+  // onTraceLoad() and can be used to trigger plugin-specific-behaviours (e.g.
+  // allow dashboards like APC to pass extra data to materialize onto tracks).
+  // The format is the following:
+  // pluginArgs: {
+  //   'dev.perfetto.PluginFoo': { 'key1': 'value1', 'key2': 1234 }
+  //   'dev.perfetto.PluginBar': { 'key3': '...', 'key4': ... }
+  // }
+  pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
+}
 
 interface PostedTraceWrapped {
   perfetto: PostedTrace;
@@ -206,8 +239,29 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     window.removeEventListener('message', postMessageHandler);
   }
 
-  const openTrace = () => {
-    AppImpl.instance.openTraceFromBuffer(postedTrace);
+  const openTrace = async () => {
+    // Maybe load the app state from the URL.
+    let appState: SerializedAppState | undefined;
+    if (postedTrace.appStateHash) {
+      const url = `https://storage.googleapis.com/${BUCKET_NAME}/${postedTrace.appStateHash}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch app state from ${url}: ` +
+            `${response.status} ${response.statusText}`,
+        );
+      }
+      const json = (await response.json()).appState;
+      const parsedState = parseAppState(json);
+      if (parsedState.ok) {
+        appState = parsedState.value;
+      }
+    }
+    AppImpl.instance.openTrace({
+      kind: 'ARRAY_BUFFER',
+      serializedAppState: appState,
+      ...postedTrace,
+    });
   };
 
   const trustAndOpenTrace = () => {
@@ -237,7 +291,13 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     ),
     buttons: [
       {text: 'No', primary: true},
-      {text: 'Yes', primary: false, action: openTrace},
+      {
+        text: 'Yes',
+        primary: false,
+        action: () => {
+          openTrace();
+        },
+      },
     ].concat(
       originUnknown
         ? []
@@ -254,11 +314,12 @@ function sanitizePostedTrace(postedTrace: PostedTrace): PostedTrace {
     // For external traces, we need to disable other features such as
     // downloading and sharing a trace, unless the caller allows it.
     localOnly: postedTrace.localOnly ?? true,
+    appStateHash: postedTrace.appStateHash,
+    pluginArgs: postedTrace.pluginArgs,
   };
   if (postedTrace.url !== undefined) {
     result.url = sanitizeString(postedTrace.url);
   }
-  result.pluginArgs = postedTrace.pluginArgs;
   return result;
 }
 

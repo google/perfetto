@@ -18,7 +18,7 @@
  * containing it is discarded by Chrome (e.g. because the tab was not used for
  * a long time) or when the user accidentally hits reload.
  */
-import {TraceArrayBufferSource, TraceSource} from './trace_source';
+import {TraceArrayBufferSource, TraceSource} from '../public/trace_source';
 
 const TRACE_CACHE_NAME = 'cached_traces';
 const TRACE_CACHE_SIZE = 10;
@@ -97,7 +97,7 @@ export async function cacheTrace(
   let url = '';
   let contentLength = 0;
   let localOnly = false;
-  switch (traceSource.type) {
+  switch (traceSource.kind) {
     case 'ARRAY_BUFFER':
       trace = traceSource.buffer;
       title = traceSource.title;
@@ -144,7 +144,7 @@ export async function tryGetTrace(
 
   if (!response) return undefined;
   return {
-    type: 'ARRAY_BUFFER',
+    kind: 'ARRAY_BUFFER',
     buffer: await response.arrayBuffer(),
     title: decodeURI(response.headers.get('x-trace-title') ?? ''),
     fileName: response.headers.get('x-trace-filename') ?? undefined,

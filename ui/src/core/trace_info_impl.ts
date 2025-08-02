@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TraceSource} from '../core/trace_source';
+import {TraceSource} from '../public/trace_source';
 import {TraceInfo} from '../public/trace_info';
 
 export interface TraceInfoImpl extends TraceInfo {
