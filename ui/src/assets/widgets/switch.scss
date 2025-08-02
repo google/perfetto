@@ -32,14 +32,15 @@
 // and the border width is set to 0 right at the end in order to make the tick
 // completely invisible again.
 .pf-switch {
-  display: inline-block;
-  position: relative; // Turns this container into a positioned element
+  display: inline-flex;
+  align-items: center;
+  position: relative;
   font-family: $pf-font;
   font-size: inherit;
   color: $pf-minimal-foreground;
   user-select: none;
   cursor: pointer;
-  padding-left: 32px + 6px;
+  gap: 6px;
 
   // Hide the default checkbox
   input {
@@ -48,14 +49,13 @@
     pointer-events: none;
   }
 
-  // The span forms the "box" of the checkbox
-  span {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    margin-top: auto;
-    margin-bottom: auto;
+  .pf-switch-label-left {
+    order: 1;
+  }
+
+  .pf-switch-visual {
+    order: 2;
+    position: relative;
     height: 16px;
     width: 32px;
     border-radius: 8px;
@@ -63,7 +63,7 @@
     background: grey;
     vertical-align: middle;
 
-    // The :after element forms the "tick" of the checkbox
+    // The :after element forms the "thumb" of the switch
     &:after {
       content: "";
       display: block;
@@ -82,15 +82,19 @@
     }
   }
 
-  input:checked + span {
+  .pf-switch-label {
+    order: 3;
+  }
+
+  input:checked ~ .pf-switch-visual {
     background: $pf-primary-background;
   }
 
-  input:checked + span:after {
+  input:checked ~ .pf-switch-visual:after {
     left: 18px;
   }
 
-  input:focus-visible + span {
+  input:focus-visible ~ .pf-switch-visual {
     @include focus;
   }
 
@@ -98,7 +102,7 @@
     cursor: not-allowed;
     color: $pf-minimal-foreground-disabled;
 
-    span {
+    .pf-switch-visual {
       border-color: $pf-minimal-foreground-disabled;
       background: $pf-minimal-foreground-disabled;
       &:after {
@@ -106,7 +110,7 @@
       }
     }
 
-    input:checked ~ span {
+    input:checked ~ .pf-switch-visual {
       border-color: $pf-primary-background-disabled;
       background: $pf-primary-background-disabled;
     }
