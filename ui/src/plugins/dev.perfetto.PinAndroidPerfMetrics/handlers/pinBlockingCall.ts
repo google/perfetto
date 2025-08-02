@@ -23,6 +23,7 @@ import {
   addLatencyCUJDebugTrack,
 } from '../../dev.perfetto.AndroidCujs';
 import {addDebugSliceTrack} from '../../../components/tracks/debug_tracks';
+import {LONG} from '../../../trace_processor/query_result';
 
 class BlockingCallMetricHandler implements MetricHandler {
   /**
@@ -59,6 +60,14 @@ class BlockingCallMetricHandler implements MetricHandler {
     this.pinSingleCuj(ctx, metricData);
     const config = this.blockingCallTrackConfig(metricData);
     addDebugSliceTrack({trace: ctx, ...config});
+    // Only trigger adding track for frame when the aggregation is for max duration per frame.
+    if (metricData.aggregation === 'max_dur_per_frame_ns') {
+      this.frameWithMaxDurBlockingCallTrackConfig(ctx, metricData).then(
+        (frameConfigArgs) => {
+          addDebugSliceTrack({trace: ctx, ...frameConfigArgs});
+        },
+      );
+    }
   }
 
   private async pinSingleCuj(ctx: Trace, metricData: BlockingCallMetricData) {
@@ -102,6 +111,51 @@ class BlockingCallMetricHandler implements MetricHandler {
       argColumns: ['name', 'ts', 'dur'],
       title: trackName,
     };
+  }
+
+  private async frameWithMaxDurBlockingCallTrackConfig(
+    ctx: Trace,
+    metricData: BlockingCallMetricData,
+  ) {
+    const cuj = metricData.cujName;
+    const processName = metricData.process;
+    const blockingCallName = metricData.blockingCallName;
+
+    // Fetch the frame_id of the frame with the max duration blocking call.
+    const result = await ctx.engine.query(`
+        INCLUDE PERFETTO MODULE android.frame_blocking_calls.blocking_calls_aggregation;
+
+        SELECT
+          frame_id
+        FROM _blocking_calls_frame_cuj
+        WHERE
+          process_name = "${processName}"
+          AND name = "${blockingCallName}"
+          AND cuj_name = "${cuj}"
+          -- select frame_id for the metric with the maximum duration.
+        ORDER BY dur DESC limit 1`);
+    const row = result.firstRow({frame_id: LONG});
+    // Fetch the ts and dur of the frame corresponding to the above frame_id.
+    const frameWithMaxDurBlockingCallQuery = `
+        SELECT
+          cast_string!(frame_id) as frame_id,
+          ts,
+          dur
+        FROM android_frames_layers
+        WHERE frame_id = ${row.frame_id}
+      `;
+
+    const trackName = 'Frame with max duration blocking call';
+    const config = {
+      data: {
+        sqlSource: frameWithMaxDurBlockingCallQuery,
+        columns: ['frame_id', 'ts', 'dur'],
+      },
+      columns: {ts: 'ts', dur: 'dur', name: 'frame_id'},
+      argColumns: ['frame_id', 'ts', 'dur'],
+      title: trackName,
+    };
+    return Promise.resolve(config);
   }
 }
 
