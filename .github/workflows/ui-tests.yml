@@ -96,7 +96,7 @@ jobs:
           if [ -d out/ui/ui-test-artifacts ]; then
             cp -a out/ui/ui-test-artifacts "$PERFETTO_ARTIFACTS_DIR/ui-test-artifacts"
           fi
-          /opt/ci/artifacts_uploader.py --rm ${{ env.PERFETTO_ARTIFACTS_ROOT }}
+          /opt/ci/artifacts_uploader.py ${{ env.PERFETTO_ARTIFACTS_ROOT }}
           echo "UI integration test report with screnshots:"
           echo "https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui-test-artifacts/index.html"
           echo ""
@@ -105,6 +105,21 @@ jobs:
           echo ""
           echo "Perfetto UI build for this CL"
           echo "https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui/index.html"
+
+      - name: Upload artifacts to GCS using CLI
+        if: ${{ always() }}
+        env:
+          GCS_PATH: gs://perfetto-ci-artifacts
+        run: |
+          # Setup Google Cloud config.
+          # Token is generated in 'infra/ci/worker/sandbox_runner.py'.
+          gcloud config set auth/access_token_file $SVC_TOKEN_PATH
+          # Suppress warning about "parallel composite upload".
+          gcloud config set storage/parallel_composite_upload_enabled True
+          
+          # the '/*' at the end of dst is important!          
+          gcloud storage cp --recursive "$PERFETTO_ARTIFACTS_DIR/*" "$GCS_PATH/$PERFETTO_CI_JOB_ID" 
+
 
       - name: Update cache (if on main)
         if: github.ref == 'refs/heads/main'
