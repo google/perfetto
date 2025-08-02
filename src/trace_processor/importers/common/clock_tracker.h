@@ -17,17 +17,15 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_CLOCK_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_CLOCK_TRACKER_H_
 
-#include <stdint.h>
-
 #include <array>
 #include <cinttypes>
+#include <cstddef>
 #include <cstdint>
-#include <list>
 #include <map>
 #include <optional>
-#include <queue>
 #include <random>
 #include <set>
+#include <tuple>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -37,7 +35,9 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 
 namespace perfetto {
 namespace trace_processor {

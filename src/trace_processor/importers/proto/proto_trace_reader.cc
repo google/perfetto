@@ -31,6 +31,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
@@ -571,9 +572,9 @@ ProtoTraceReader::CalculateClockOffsets(
         continue;
 
       int64_t offset1 =
-          static_cast<int64_t>(t1c + t2c) / 2 - static_cast<int64_t>(t1h);
+          (static_cast<int64_t>(t1c + t2c) / 2) - static_cast<int64_t>(t1h);
       int64_t offset2 =
-          static_cast<int64_t>(t2c) - static_cast<int64_t>(t1h + t2h) / 2;
+          static_cast<int64_t>(t2c) - (static_cast<int64_t>(t1h + t2h) / 2);
 
       // Clock values are taken in the order of t1c, t1h, t2c, t2h. Offset
       // calculation requires at least 3 timestamps as a round trip. We have 4,
