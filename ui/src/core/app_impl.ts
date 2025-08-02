@@ -13,7 +13,8 @@
 // limitations under the License.
 
 import {AsyncLimiter} from '../base/async_limiter';
-import {assertExists, assertTrue} from '../base/logging';
+import {EvtSource} from '../base/events';
+import {assertExists, assertIsInstance, assertTrue} from '../base/logging';
 import {createProxy, getOrCreate} from '../base/utils';
 import {ServiceWorkerController} from '../frontend/service_worker_controller';
 import {App} from '../public/app';
@@ -24,6 +25,7 @@ import {Raf} from '../public/raf';
 import {RouteArgs} from '../public/route_schema';
 import {Setting, SettingsManager} from '../public/settings';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
+import {Trace} from '../public/trace';
 import {NewEngineMode} from '../trace_processor/engine';
 import {AnalyticsInternal, initAnalytics} from './analytics_impl';
 import {CommandManagerImpl} from './command_manager';
@@ -75,7 +77,15 @@ export class AppContext {
     httpRpcAvailable: false,
   };
   initialRouteArgs: RouteArgs;
-  isLoadingTrace = false; // Set when calling openTrace().
+
+  // Tracks the loading state for each TraceSource, allowing concurrent loads.
+  private traceLoadingState = new WeakMap<TraceSource, boolean>();
+  private loadedTraces: TraceContext[] = [];
+  private _multiTraceEnabled = false;
+
+  // Event: notify when the active trace changes (fires with TraceContext or undefined)
+  readonly onActiveTraceChanged = new EvtSource<TraceContext | undefined>();
+
   readonly initArgs: AppInitArgs;
   readonly embeddedMode: boolean;
   readonly testingMode: boolean;
@@ -86,8 +96,10 @@ export class AppContext {
   // via is_internal_user.js
   extraSqlPackages: SqlPackage[] = [];
 
-  // The currently open trace.
-  currentTrace?: TraceContext;
+  // The currently active trace (top of loadedTraces or undefined).
+  get currentTrace(): TraceContext | undefined {
+    return this.loadedTraces.length > 0 ? this.loadedTraces[this.loadedTraces.length - 1] : undefined;
+  }
 
   private static _instance: AppContext;
 
@@ -119,6 +131,7 @@ export class AppContext {
       self.location !== undefined &&
       self.location.search.indexOf('testing=1') >= 0;
     this.sidebarMgr = new SidebarManagerImpl({
+      id: 'app',
       disabled: this.embeddedMode,
       hidden: this.initialRouteArgs.hideSidebar,
     });
@@ -139,25 +152,82 @@ export class AppContext {
     });
   }
 
-  closeCurrentTrace() {
-    this.omniboxMgr.reset(/* focus= */ false);
+  // ----- Trace loading state helpers -----
 
-    if (this.currentTrace !== undefined) {
-      // This will trigger the unregistration of trace-scoped commands and
-      // sidebar menuitems (and few similar things).
-      this.currentTrace[Symbol.dispose]();
-      this.currentTrace = undefined;
+  /**
+   * Query whether this application supports maintaining multiple
+   * open traces. If so, it is the responsibility of the embedding
+   * application to render them individually and switch between them.
+   */
+  get multiTraceEnabled(): boolean {
+    return this._multiTraceEnabled;
+  }
+
+  set multiTraceEnabled(enabled: boolean) {
+    if (enabled === this._multiTraceEnabled) {
+      return;
+    }
+    this._multiTraceEnabled = enabled;
+    if (!this._multiTraceEnabled) {
+      // close all but the active trace
+      this.closeAllExcept(this.currentTrace);
     }
   }
 
-  // Called by trace_loader.ts soon after it has created a new TraceImpl.
+  setTraceLoading(traceSource: TraceSource, loading: boolean) {
+    this.traceLoadingState.set(traceSource, loading);
+  }
+
+  isTraceLoading(traceSource: TraceSource): boolean {
+    return this.traceLoadingState.get(traceSource) || false;
+  }
+
+  // Add loaded trace to the stack (unless already present).
+  addLoadedTrace(traceCtx: TraceContext) {
+    if (!this.multiTraceEnabled) {
+      // Close the active trace
+      this.closeAllExcept(traceCtx);
+    }
+
+    if (!this.loadedTraces.includes(traceCtx)) {
+      this.loadedTraces.push(traceCtx);
+    }
+  }
+
+  // Remove a loaded trace (e.g., on close/dispose)
+  removeLoadedTrace(traceCtx: TraceContext) {
+    const idx = this.loadedTraces.indexOf(traceCtx);
+    if (idx !== -1) {
+      this.loadedTraces.splice(idx, 1);
+    }
+  }
+
+  // Called when a new trace is made active.
   setActiveTrace(traceCtx: TraceContext) {
-    // In 99% this closeCurrentTrace() call is not needed because the real one
-    // is performed by openTrace() in this file. However in some rare cases we
-    // might end up loading a trace while another one is still loading, and this
-    // covers races in that case.
-    this.closeCurrentTrace();
-    this.currentTrace = traceCtx;
+    // Remove it if already present, then push to the end (top of stack).
+    this.removeLoadedTrace(traceCtx);
+    this.addLoadedTrace(traceCtx);
+    this.onActiveTraceChanged.notify(traceCtx);
+  }
+
+  closeTrace(traceCtx: TraceContext) {
+    this.omniboxMgr.reset(/* focus= */ false);
+    this.removeLoadedTrace(traceCtx);
+    traceCtx[Symbol.dispose]();
+
+    // If it was the active trace, notify listeners.
+    if (this.currentTrace !== traceCtx) return;
+    if (traceCtx !== undefined) {
+      this.onActiveTraceChanged.notify(this.currentTrace);
+    }
+  }
+
+  /**
+   * Close all currently open traces, optionally except for some indicated trace to keep open.
+   */
+  closeAllExcept(traceCtx?: TraceContext): void {
+    const toClose = traceCtx ? this.loadedTraces.filter((trace) => trace !== traceCtx) : [...this.loadedTraces];
+    toClose.forEach((trace) => this.closeTrace(trace));
   }
 }
 
@@ -167,7 +237,6 @@ export class AppContext {
  * plugins.
  * The instance exists for the whole duration a plugin is active.
  */
-
 export class AppImpl implements App {
   readonly pluginId: string;
   readonly initialPluginRouteArgs: {
@@ -175,6 +244,7 @@ export class AppImpl implements App {
   };
   private readonly appCtx: AppContext;
   private readonly pageMgrProxy: PageManagerImpl;
+  readonly onActiveTraceChanged = new EvtSource<Trace | undefined>();
 
   // Invoked by frontend/index.ts.
   static initialize(args: AppInitArgs) {
@@ -192,6 +262,10 @@ export class AppImpl implements App {
   constructor(appCtx: AppContext, pluginId: string) {
     this.appCtx = appCtx;
     this.pluginId = pluginId;
+
+    appCtx.onActiveTraceChanged.addListener((traceCtx) => this.onActiveTraceChanged.notify(
+      traceCtx?.forPlugin(this.pluginId),
+    ));
 
     const args: {[key: string]: string | number | boolean} = {};
     this.initialPluginRouteArgs = Object.entries(
@@ -316,8 +390,11 @@ export class AppImpl implements App {
     // complete trace loading (we don't bother supporting cancellations. If the
     // user is too bothered, they can reload the tab).
     this.appCtx.openTraceAsyncLimiter.schedule(async () => {
-      this.appCtx.closeCurrentTrace();
-      this.appCtx.isLoadingTrace = true;
+      if (!this.appCtx.multiTraceEnabled) {
+        this.appCtx.closeAllExcept();
+      }
+
+      this.appCtx.setTraceLoading(src, true);
       try {
         // loadTrace() in trace_loader.ts will do the following:
         // - Create a new engine.
@@ -334,7 +411,7 @@ export class AppImpl implements App {
         // implementation details of loadTrace() rely on that trace to be current
         // to work properly (mainly the router hash uuid).
       } finally {
-        this.appCtx.isLoadingTrace = false;
+        this.appCtx.setTraceLoading(src, false);
         raf.scheduleFullRedraw();
       }
     });
@@ -345,8 +422,9 @@ export class AppImpl implements App {
     this.appCtx.setActiveTrace(traceImpl.__traceCtxForApp);
   }
 
-  closeCurrentTrace() {
-    this.appCtx.closeCurrentTrace();
+  closeTrace(trace: Trace) {
+    const traceCtx = assertIsInstance(trace, TraceImpl).__traceCtxForApp;
+    this.appCtx.closeTrace(traceCtx);
   }
 
   get embeddedMode(): boolean {
@@ -357,8 +435,8 @@ export class AppImpl implements App {
     return this.appCtx.testingMode;
   }
 
-  get isLoadingTrace() {
-    return this.appCtx.isLoadingTrace;
+  isTraceLoading(traceSource: TraceSource): boolean {
+    return this.appCtx.isTraceLoading(traceSource);
   }
 
   get extraSqlPackages(): SqlPackage[] {

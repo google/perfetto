@@ -24,6 +24,7 @@ import {exists} from '../../base/utils';
 import {TrackNode} from '../../public/workspace';
 import {escapeSearchQuery} from '../../trace_processor/query_utils';
 import {Anchor} from '../../widgets/anchor';
+import {AsyncLimiter} from '../../base/async_limiter';
 import {Icons} from '../../base/semantic_icons';
 
 const VERSION = 1;
@@ -70,6 +71,11 @@ export default class implements PerfettoPlugin {
         : DEFAULT_STATE;
     });
 
+    // Every time the log panel is rendered, it must use the same query limiter
+    // otherwise a task from one limiter may be interleaved with another,
+    // defeating the purpose of the async limiter and, worse, causing queries to
+    // be attempted in between dropping and recreating the filtered_logs view
+    const queryLimiter = new AsyncLimiter();
     const result = await ctx.engine.query(
       `select count(1) as cnt from android_logs`,
     );
@@ -119,7 +125,7 @@ export default class implements PerfettoPlugin {
       isEphemeral: false,
       uri: androidLogsTabUri,
       content: {
-        render: () => m(LogPanel, {filterStore, cache, trace: ctx}),
+        render: () => m(LogPanel, {filterStore, cache, trace: ctx, queryLimiter}),
         getTitle: () => 'Android Logs',
       },
     });

@@ -15,7 +15,6 @@
 import {DisposableStack} from '../base/disposable_stack';
 import {createStore, Migrate, Store} from '../base/store';
 import {TimelineImpl} from './timeline';
-import {Command} from '../public/command';
 import {Trace} from '../public/trace';
 import {ScrollToArgs} from '../public/scroll_helper';
 import {Track} from '../public/track';
@@ -29,7 +28,6 @@ import {SidebarManagerImpl} from './sidebar_manager';
 import {TabManagerImpl} from './tab_manager';
 import {TrackManagerImpl} from './track_manager';
 import {WorkspaceManagerImpl} from './workspace_manager';
-import {SidebarMenuItem} from '../public/sidebar';
 import {ScrollHelper} from './scroll_helper';
 import {Selection, SelectionOpts} from '../public/selection';
 import {SearchResult} from '../public/search';
@@ -42,7 +40,7 @@ import {Analytics} from '../public/analytics';
 import {getOrCreate} from '../base/utils';
 import {fetchWithProgress} from '../base/http_utils';
 import {TraceInfoImpl} from './trace_info_impl';
-import {PageHandler, PageManager} from '../public/page';
+import {PageHandler} from '../public/page';
 import {createProxy} from '../base/utils';
 import {PageManagerImpl} from './page_manager';
 import {FeatureFlagManager, FlagSettings} from '../public/feature_flag';
@@ -50,10 +48,11 @@ import {featureFlags} from './feature_flags';
 import {SerializedAppState} from './state_serialization_schema';
 import {PostedTrace} from './trace_source';
 import {PerfManager} from './perf_manager';
-import {EvtSource} from '../base/events';
+import {Evt, EvtSource} from '../base/events';
 import {Raf} from '../public/raf';
 import {StatusbarManagerImpl} from './statusbar_manager';
-import {Setting, SettingDescriptor, SettingsManager} from '../public/settings';
+import {PerfettoPlugin, PerfettoPluginStatic} from '../public/plugin';
+import {SettingsManager} from '../public/settings';
 import {SettingsManagerImpl} from './settings_manager';
 import {MinimapManagerImpl} from './minimap_manager';
 
@@ -69,7 +68,11 @@ export class TraceContext implements Disposable {
   private readonly pluginInstances = new Map<string, TraceImpl>();
   readonly appCtx: AppContext;
   readonly engine: EngineBase;
-  readonly omniboxMgr = new OmniboxManagerImpl();
+  readonly commandMgr: CommandManagerImpl;
+  readonly pageMgr: PageManagerImpl;
+  readonly sidebarMgr: SidebarManagerImpl;
+  readonly settingsManager: SettingsManagerImpl;
+  readonly pluginMgr: PluginManagerImpl;
   readonly searchMgr: SearchManagerImpl;
   readonly selectionMgr: SelectionManagerImpl;
   readonly tabMgr = new TabManagerImpl();
@@ -96,6 +99,13 @@ export class TraceContext implements Disposable {
     this.engine = engine;
     this.trash.use(engine);
     this.traceInfo = traceInfo;
+
+    // Trace-scoped children of app-scoped managers
+    this.commandMgr = gctx.commandMgr.createChild();
+    this.pageMgr = gctx.pageMgr.createChild();
+    this.sidebarMgr = gctx.sidebarMgr.createChild(engine.id);
+    this.settingsManager = gctx.settingsManager.createChild();
+    this.pluginMgr = gctx.pluginMgr.createChild();
 
     this.timeline = new TimelineImpl(
       traceInfo,
@@ -192,10 +202,8 @@ export class TraceImpl implements Trace {
   // same engineBase.
   private readonly engineProxy: EngineProxy;
   private readonly trackMgrProxy: TrackManagerImpl;
-  private readonly commandMgrProxy: CommandManagerImpl;
-  private readonly sidebarProxy: SidebarManagerImpl;
   private readonly pageMgrProxy: PageManagerImpl;
-  private readonly settingsProxy: SettingsManagerImpl;
+  private readonly pluginMgrProxy: PluginManagerImpl;
 
   // This is called by TraceController when loading a new trace, soon after the
   // engine has been set up. It obtains a new TraceImpl for the core. From that
@@ -232,43 +240,22 @@ export class TraceImpl implements Trace {
       },
     });
 
-    // CommandManager is global. Here we intercept the registerCommand() because
-    // we want any commands registered via the Trace interface to be
-    // unregistered when the trace unloads (before a new trace is loaded) to
-    // avoid ending up with duplicate commands.
-    this.commandMgrProxy = createProxy(ctx.appCtx.commandMgr, {
-      registerCommand(cmd: Command): Disposable {
-        const disposable = appImpl.commands.registerCommand(cmd);
-        traceUnloadTrash.use(disposable);
-        return disposable;
-      },
-    });
-
-    // Likewise, remove all trace-scoped sidebar entries when the trace unloads.
-    this.sidebarProxy = createProxy(ctx.appCtx.sidebarMgr, {
-      addMenuItem(menuItem: SidebarMenuItem): Disposable {
-        const disposable = appImpl.sidebar.addMenuItem(menuItem);
-        traceUnloadTrash.use(disposable);
-        return disposable;
-      },
-    });
-
-    this.pageMgrProxy = createProxy(ctx.appCtx.pageMgr, {
+    // Inject the plugin ID into page registrations
+    this.pageMgrProxy = createProxy(ctx.pageMgr, {
       registerPage(pageHandler: PageHandler): Disposable {
-        const disposable = appImpl.pages.registerPage({
+        return ctx.pageMgr.registerPage({
           ...pageHandler,
           pluginId: appImpl.pluginId,
         });
-        traceUnloadTrash.use(disposable);
-        return disposable;
       },
     });
 
-    this.settingsProxy = createProxy(ctx.appCtx.settingsManager, {
-      register<T>(setting: SettingDescriptor<T>): Setting<T> {
-        const settingInstance = ctx.appCtx.settingsManager.register(setting);
-        traceUnloadTrash.use(settingInstance);
-        return settingInstance;
+    // Default the trace to myself when plugins access other plugins
+    const pluginMgr = ctx.pluginMgr;
+    const defaultTrace = this;
+    this.pluginMgrProxy = createProxy(pluginMgr, {
+      getPlugin<T extends PerfettoPlugin>(pluginDescriptor: PerfettoPluginStatic<T>, trace?: Trace): T {
+        return pluginMgr.getPlugin(pluginDescriptor, trace ?? defaultTrace);
       },
     });
   }
@@ -331,6 +318,10 @@ export class TraceImpl implements Trace {
 
   get trace() {
     return this;
+  }
+
+  get onActiveTraceChanged(): Evt<Trace | undefined> {
+    return this.appImpl.onActiveTraceChanged;
   }
 
   get minimap() {
@@ -400,14 +391,14 @@ export class TraceImpl implements Trace {
   }
 
   get commands(): CommandManagerImpl {
-    return this.commandMgrProxy;
+    return this.traceCtx.commandMgr;
   }
 
   get sidebar(): SidebarManagerImpl {
-    return this.sidebarProxy;
+    return this.traceCtx.sidebarMgr;
   }
 
-  get pages(): PageManager {
+  get pages(): PageManagerImpl {
     return this.pageMgrProxy;
   }
 
@@ -416,7 +407,7 @@ export class TraceImpl implements Trace {
   }
 
   get plugins(): PluginManagerImpl {
-    return this.appImpl.plugins;
+    return this.pluginMgrProxy;
   }
 
   get analytics(): Analytics {
@@ -457,8 +448,8 @@ export class TraceImpl implements Trace {
     this.appImpl.openTraceFromBuffer(args);
   }
 
-  closeCurrentTrace(): void {
-    this.appImpl.closeCurrentTrace();
+  closeTrace(trace: Trace): void {
+    this.appImpl.closeTrace(trace);
   }
 
   get onTraceReady() {
@@ -479,7 +470,7 @@ export class TraceImpl implements Trace {
   }
 
   get settings(): SettingsManager {
-    return this.settingsProxy;
+    return this.traceCtx.settingsManager;
   }
 }
 

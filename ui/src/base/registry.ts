@@ -78,4 +78,52 @@ export class Registry<T> {
   unregisterAllForTesting(): void {
     this.registry.clear();
   }
+
+  createChild(): Registry<T>;
+  createChild(id: string): Registry<T> & {id: string};
+  createChild(id?: string): Registry<T> & {id?: string} {
+    // A proxy is not sufficient because we need non-overridden
+    // methods to delegate to overridden methods.
+    const result = new (class ChildRegistry extends Registry<T> {
+      constructor (private readonly parent: Registry<T>) {
+        super(parent.key);
+      }
+
+      override has(kind: string): boolean {
+        return this.registry.has(kind) || this.parent.has(kind);
+      }
+
+      override get(kind: string): T {
+        return this.tryGet(kind) ?? this.parent.get(kind);
+      }
+
+      override tryGet(kind: string): T | undefined {
+        return this.registry.get(kind) ?? this.parent.tryGet(kind);
+      }
+
+      override *values() {
+        // Yield own values first
+        yield* this.registry.values();
+
+        // Then yield parent values not shadowed by my keys
+        for (const value of this.parent.values()) {
+          const kind = this.key(value);
+          if (!this.registry.has(kind)) {
+            yield value;
+          }
+        }
+      }
+    })(this);
+
+    if (id) {
+      Object.defineProperty(result, 'id', {
+        enumerable: true,
+        value: id,
+        writable: false,
+        configurable: false,
+      });
+    }
+
+    return result;
+  }
 }

@@ -32,7 +32,7 @@ import {shareTrace} from './trace_share_utils';
 import {OmniboxMode} from '../core/omnibox_manager';
 import {DisposableStack} from '../base/disposable_stack';
 import {Spinner} from '../widgets/spinner';
-import {TraceImpl} from '../core/trace_impl';
+import {OptionalTraceImplAttrs, TraceImpl} from '../core/trace_impl';
 import {AppImpl} from '../core/app_impl';
 import {getTimeSpanOfSelectionOrVisibleWindow} from '../public/utils';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
@@ -69,9 +69,12 @@ export class UiMain implements m.ClassComponent {
   }
 }
 
+export interface UiMainPerTraceAttrs extends OptionalTraceImplAttrs {
+}
+
 // This components gets destroyed and recreated every time the current trace
 // changes. Note that in the beginning the current trace is undefined.
-export class UiMainPerTrace implements m.ClassComponent {
+export class UiMainPerTrace implements m.ClassComponent<UiMainPerTraceAttrs> {
   // NOTE: this should NOT need to be an AsyncDisposableStack. If you feel the
   // need of making it async because you want to clean up SQL resources, that
   // will cause bugs (see comments in oncreate()).
@@ -81,9 +84,9 @@ export class UiMainPerTrace implements m.ClassComponent {
   private trace?: TraceImpl;
 
   // This function is invoked once per trace.
-  constructor() {
-    const app = AppImpl.instance;
-    const trace = app.trace;
+  constructor({attrs}: m.Vnode<UiMainPerTraceAttrs>) {
+    const omnibox = AppImpl.instance.omnibox;
+    const trace = attrs.trace ?? AppImpl.instance.trace;
     this.trace = trace;
 
     // Register global commands (commands that are useful even without a trace
@@ -92,7 +95,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       {
         id: 'perfetto.OpenCommandPalette',
         name: 'Open command palette',
-        callback: () => app.omnibox.setMode(OmniboxMode.Command),
+        callback: () => AppImpl.instance.omnibox.setMode(OmniboxMode.Command),
         defaultHotkey: '!Mod+Shift+P',
       },
 
@@ -104,7 +107,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       },
     ];
     globalCmds.forEach((cmd) => {
-      this.trash.use(app.commands.registerCommand(cmd));
+      this.trash.use(this.preferredApp.commands.registerCommand(cmd));
     });
 
     // When the UI loads there is no trace. There is no point registering
@@ -120,7 +123,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         callback: async () => {
           const TF = TimestampFormat;
           const timeZone = formatTimezone(trace.traceInfo.tzOffMin);
-          const result = await app.omnibox.prompt('Select format...', {
+          const result = await omnibox.prompt('Select format...', {
             values: [
               {format: TF.Timecode, name: 'Timecode'},
               {format: TF.UTC, name: 'Realtime (UTC)'},
@@ -141,7 +144,7 @@ export class UiMainPerTrace implements m.ClassComponent {
           if (!result) return;
 
           if (result.format === TF.CustomTimezone) {
-            const result = await app.omnibox.prompt('Select format...', {
+            const result = await omnibox.prompt('Select format...', {
               values: Object.entries(timezoneOffsetMap),
               getName: ([key]) => key,
             });
@@ -158,7 +161,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         name: 'Set duration precision',
         callback: async () => {
           const DF = DurationPrecision;
-          const result = await app.omnibox.prompt(
+          const result = await omnibox.prompt(
             'Select duration precision mode...',
             {
               values: [
@@ -175,7 +178,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         id: 'perfetto.TogglePerformanceMetrics',
         name: 'Toggle performance metrics',
         callback: () =>
-          (app.perfDebugging.enabled = !app.perfDebugging.enabled),
+          (this.preferredApp.perfDebugging.enabled = !this.preferredApp.perfDebugging.enabled),
       },
       {
         id: 'perfetto.ShareTrace',
@@ -448,7 +451,7 @@ export class UiMainPerTrace implements m.ClassComponent {
         },
       },
       {
-        id: `${app.pluginId}#RestoreDefaults`,
+        id: `${this.preferredApp.pluginId}#RestoreDefaults`,
         name: 'Reset all flags back to default values',
         callback: () => {
           featureFlags.resetAll();
@@ -558,7 +561,8 @@ export class UiMainPerTrace implements m.ClassComponent {
 
   renderCommandOmnibox(): m.Children {
     // Fuzzy-filter commands by the filter string.
-    const {commands, omnibox} = AppImpl.instance;
+    const {omnibox} = AppImpl.instance;
+    const commands = this.preferredApp.commands;
     const filteredCmds = commands.fuzzyFilterCommands(omnibox.text);
 
     // Create an array of commands with attached heuristics from the recent
@@ -740,20 +744,23 @@ export class UiMainPerTrace implements m.ClassComponent {
     this.maybeFocusOmnibar();
   }
 
+  private get preferredApp(): AppImpl | TraceImpl {
+    return this.trace ?? AppImpl.instance;
+  }
+
   view(): m.Children {
-    const app = AppImpl.instance;
     const hotkeys: HotkeyConfig[] = [];
-    for (const {id, defaultHotkey} of app.commands.commands) {
+    for (const {id, defaultHotkey} of this.preferredApp.commands.commands) {
       if (defaultHotkey) {
         hotkeys.push({
-          callback: () => app.commands.runCommand(id),
+          callback: () => this.preferredApp.commands.runCommand(id),
           hotkey: defaultHotkey,
         });
       }
     }
 
     const isSomethingLoading =
-      AppImpl.instance.isLoadingTrace ||
+      (this.trace && AppImpl.instance.isTraceLoading(this.trace.traceInfo.source)) ||
       (this.trace?.engine.numRequestsPending ?? 0) > 0 ||
       taskTracker.hasPendingTasks();
 
@@ -771,11 +778,11 @@ export class UiMainPerTrace implements m.ClassComponent {
           className: 'pf-ui-main__loading',
           state: isSomethingLoading ? 'indeterminate' : 'none',
         }),
-        app.pages.renderPageForCurrentRoute(),
+        this.preferredApp.pages.renderPageForCurrentRoute(),
         m(CookieConsent),
         maybeRenderFullscreenModalDialog(),
-        showStatusBarFlag.get() && renderStatusBar(app.trace),
-        app.perfDebugging.renderPerfStats(),
+        showStatusBarFlag.get() && renderStatusBar(this.trace),
+        this.preferredApp.perfDebugging.renderPerfStats(),
       ),
     );
   }

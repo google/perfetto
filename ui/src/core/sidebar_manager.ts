@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Registry} from '../base/registry';
+import {createProxy} from '../base/utils';
 import {SidebarManager, SidebarMenuItem} from '../public/sidebar';
 
 export type SidebarMenuItemInternal = SidebarMenuItem & {
@@ -23,18 +24,21 @@ export class SidebarManagerImpl implements SidebarManager {
   readonly enabled: boolean;
   private _visible: boolean;
   private lastId = 0;
+  private readonly id: string;
 
-  readonly menuItems = new Registry<SidebarMenuItemInternal>((m) => m.id);
+  readonly menuItems: Registry<SidebarMenuItemInternal>;
 
-  constructor(args: {disabled?: boolean; hidden?: boolean}) {
+  constructor(args: {id: string, disabled?: boolean; hidden?: boolean, parentMenuItems?: Registry<SidebarMenuItemInternal>} = {id: 'root'}) {
+    this.id = args.id;
     this.enabled = !args.disabled;
     this._visible = !args.hidden;
+    this.menuItems = args.parentMenuItems?.createChild(args.id) ?? new Registry<SidebarMenuItemInternal>((m) => m.id);
   }
 
   addMenuItem(item: SidebarMenuItem): Disposable {
     // Assign a unique id to every item. This simplifies the job of the mithril
     // component that renders the sidebar.
-    const id = `sidebar_${++this.lastId}`;
+    const id = `sidebar_${this.id}_${++this.lastId}`;
     const itemInt: SidebarMenuItemInternal = {...item, id};
     return this.menuItems.register(itemInt);
   }
@@ -46,5 +50,26 @@ export class SidebarManagerImpl implements SidebarManager {
   public toggleVisibility() {
     if (!this.enabled) return;
     this._visible = !this._visible;
+  }
+
+  /**
+   * Create a subordinate sidebar manager with the given `id`, as for trace-scoped menu items.
+   */
+  createChild(id: string): SidebarManagerImpl {
+    const parent = this;
+    return createProxy(new SidebarManagerImpl({
+        id,
+        disabled: !parent.enabled,
+        hidden: !parent.visible,
+        parentMenuItems: parent.menuItems,
+      }), {
+
+      get visible() {
+        return parent.visible;
+      },
+      toggleVisibility() {
+        parent.toggleVisibility();
+      },
+    });
   }
 }

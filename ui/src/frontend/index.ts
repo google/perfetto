@@ -261,7 +261,7 @@ function onCssLoaded() {
 
   const pages = AppImpl.instance.pages;
   pages.registerPage({route: '/', render: () => m(HomePage)});
-  pages.registerPage({route: '/viewer', render: () => renderViewerPage()});
+  pages.registerPage({route: '/viewer', renderPage: ({trace}) => renderViewerPage(trace)});
   const router = new Router();
   router.onRouteChanged = routeChange;
 
