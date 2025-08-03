@@ -124,24 +124,25 @@ const char* MapToFriendlyPowerRailName(base::StringView raw) {
 
 using perfetto::protos::pbzero::TracePacket;
 
-AndroidProbesModule::AndroidProbesModule(TraceProcessorContext* context)
-    : parser_(context),
+AndroidProbesModule::AndroidProbesModule(
+    ProtoImporterModuleContext* module_context,
+    TraceProcessorContext* context)
+    : ProtoImporterModule(module_context),
+      parser_(context),
       context_(context),
       power_rail_raw_name_id_(context->storage->InternString("raw_name")),
       power_rail_subsys_name_arg_id_(
           context->storage->InternString("subsystem_name")) {
-  RegisterForField(TracePacket::kBatteryFieldNumber, context);
-  RegisterForField(TracePacket::kPowerRailsFieldNumber, context);
-  RegisterForField(TracePacket::kAndroidEnergyEstimationBreakdownFieldNumber,
-                   context);
-  RegisterForField(TracePacket::kEntityStateResidencyFieldNumber, context);
-  RegisterForField(TracePacket::kAndroidLogFieldNumber, context);
-  RegisterForField(TracePacket::kPackagesListFieldNumber, context);
-  RegisterForField(TracePacket::kAndroidGameInterventionListFieldNumber,
-                   context);
-  RegisterForField(TracePacket::kInitialDisplayStateFieldNumber, context);
-  RegisterForField(TracePacket::kAndroidSystemPropertyFieldNumber, context);
-  RegisterForField(TracePacket::kBluetoothTraceEventFieldNumber, context);
+  RegisterForField(TracePacket::kBatteryFieldNumber);
+  RegisterForField(TracePacket::kPowerRailsFieldNumber);
+  RegisterForField(TracePacket::kAndroidEnergyEstimationBreakdownFieldNumber);
+  RegisterForField(TracePacket::kEntityStateResidencyFieldNumber);
+  RegisterForField(TracePacket::kAndroidLogFieldNumber);
+  RegisterForField(TracePacket::kPackagesListFieldNumber);
+  RegisterForField(TracePacket::kAndroidGameInterventionListFieldNumber);
+  RegisterForField(TracePacket::kInitialDisplayStateFieldNumber);
+  RegisterForField(TracePacket::kAndroidSystemPropertyFieldNumber);
+  RegisterForField(TracePacket::kBluetoothTraceEventFieldNumber);
 }
 
 ModuleResult AndroidProbesModule::TokenizePacket(
@@ -246,11 +247,10 @@ ModuleResult AndroidProbesModule::TokenizePacket(
     energy->set_index(data.index());
     energy->set_timestamp_ms(static_cast<uint64_t>(actual_ts / 1000000));
 
-    std::vector<uint8_t> vec = data_packet.SerializeAsArray();
-    TraceBlob blob = TraceBlob::CopyFrom(vec.data(), vec.size());
-    context_->sorter->PushTracePacket(actual_ts, state,
-                                      TraceBlobView(std::move(blob)),
-                                      context_->machine_id());
+    auto [vec, size] = data_packet.SerializeAsUniquePtr();
+    TraceBlobView tbv(TraceBlob::TakeOwnership(std::move(vec), size));
+    module_context_->trace_packet_stream->Push(
+        actual_ts, TracePacketData{std::move(tbv), state});
   }
   return ModuleResult::Handled();
 }
@@ -343,8 +343,7 @@ ModuleResult AndroidProbesModule::ParseAndroidPackagesList(
     context_->storage->mutable_package_list_table()->Insert(
         {context_->storage->InternString(pkg.name()),
          static_cast<int64_t>(pkg.uid()), pkg.debuggable(),
-         pkg.profileable_from_shell(),
-         static_cast<int64_t>(pkg.version_code())});
+         pkg.profileable_from_shell(), pkg.version_code()});
     tracker->InsertedPackage(std::move(pkg_name));
   }
   return ModuleResult::Handled();

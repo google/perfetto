@@ -15,6 +15,8 @@
  */
 
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
+#include "src/trace_processor/importers/android_bugreport/android_log_event_parser_impl.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 
 #include <algorithm>
 #include <chrono>
@@ -123,7 +125,11 @@ AndroidLogReader::AndroidLogReader(TraceProcessorContext* context)
 AndroidLogReader::AndroidLogReader(TraceProcessorContext* context,
                                    int32_t year,
                                    bool wait_for_tz)
-    : context_(context), year_(year), wait_for_tz_(wait_for_tz) {}
+    : context_(context),
+      year_(year),
+      wait_for_tz_(wait_for_tz),
+      stream_(context->sorter->CreateStream(
+          std::make_unique<AndroidLogEventParserImpl>(context))) {}
 
 AndroidLogReader::~AndroidLogReader() = default;
 
@@ -242,7 +248,7 @@ base::Status AndroidLogReader::SendToSorter(std::chrono::nanoseconds event_ts,
   ASSIGN_OR_RETURN(int64_t trace_ts,
                    context_->clock_tracker->ToTraceTime(
                        protos::pbzero::ClockSnapshot::Clock::REALTIME, ts));
-  context_->sorter->PushAndroidLogEvent(trace_ts, std::move(event));
+  stream_->Push(trace_ts, std::move(event));
   return base::OkStatus();
 }
 

@@ -28,7 +28,8 @@ namespace trace_processor {
 
 class HeapGraphModule : public ProtoImporterModule {
  public:
-  explicit HeapGraphModule(TraceProcessorContext* context);
+  explicit HeapGraphModule(ProtoImporterModuleContext* module_context,
+                           TraceProcessorContext* context);
 
   void ParseTracePacketData(const protos::pbzero::TracePacket_Decoder& decoder,
                             int64_t ts,

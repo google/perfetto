@@ -23,7 +23,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -108,12 +107,11 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
     // The UI's error_dialog.ts uses it to make the dialog more graceful.
     return base::ErrStatus("Unknown trace type provided (ERR:fmt)");
   }
-  context_->trace_file_tracker->StartParsing(file_id_, trace_type_);
-  ASSIGN_OR_RETURN(reader_,
-                   context_->reader_registry->CreateTraceReader(trace_type_));
-
   PERFETTO_DLOG("%s trace detected", TraceTypeToString(trace_type_));
   UpdateSorterForTraceType(trace_type_);
+  ASSIGN_OR_RETURN(reader_,
+                   context_->reader_registry->CreateTraceReader(trace_type_));
+  context_->trace_file_tracker->StartParsing(file_id_, trace_type_);
 
   // TODO(b/334978369) Make sure kProtoTraceType and kSystraceTraceType are
   // parsed first so that we do not get issues with

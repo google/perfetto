@@ -27,7 +27,9 @@ namespace trace_processor {
 
 class MemoryTrackerSnapshotModule : public ProtoImporterModule {
  public:
-  explicit MemoryTrackerSnapshotModule(TraceProcessorContext* context);
+  explicit MemoryTrackerSnapshotModule(
+      ProtoImporterModuleContext* module_context,
+      TraceProcessorContext* context);
 
   ~MemoryTrackerSnapshotModule() override;
 

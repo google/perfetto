@@ -30,10 +30,12 @@ namespace trace_processor {
 
 using perfetto::protos::pbzero::TracePacket;
 
-MetadataMinimalModule::MetadataMinimalModule(TraceProcessorContext* context)
-    : context_(context) {
-  RegisterForField(TracePacket::kChromeMetadataFieldNumber, context);
-  RegisterForField(TracePacket::kChromeBenchmarkMetadataFieldNumber, context);
+MetadataMinimalModule::MetadataMinimalModule(
+    ProtoImporterModuleContext* module_context,
+    TraceProcessorContext* context)
+    : ProtoImporterModule(module_context), context_(context) {
+  RegisterForField(TracePacket::kChromeMetadataFieldNumber);
+  RegisterForField(TracePacket::kChromeBenchmarkMetadataFieldNumber);
 }
 
 ModuleResult MetadataMinimalModule::TokenizePacket(

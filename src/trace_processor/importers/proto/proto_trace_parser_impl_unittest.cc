@@ -256,8 +256,6 @@ class ProtoTraceParserTest : public ::testing::Test {
     clock_ = new ClockTracker(&context_);
     context_.clock_tracker.reset(clock_);
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
-    context_.proto_trace_parser =
-        std::make_unique<ProtoTraceParserImpl>(&context_);
     context_.sorter = std::make_shared<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
     context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
@@ -266,9 +264,6 @@ class ProtoTraceParserTest : public ::testing::Test {
 
     context_.perf_sample_tracker.reset(new PerfSampleTracker(&context_));
     context_.track_compressor.reset(new TrackCompressor(&context_));
-
-    RegisterDefaultModules(&context_);
-    RegisterAdditionalModules(&context_);
   }
 
   void ResetTraceBuffers() { trace_.Reset(); }
@@ -280,12 +275,12 @@ class ProtoTraceParserTest : public ::testing::Test {
     std::vector<uint8_t> trace_bytes = trace_.SerializeAsArray();
     std::unique_ptr<uint8_t[]> raw_trace(new uint8_t[trace_bytes.size()]);
     memcpy(raw_trace.get(), trace_bytes.data(), trace_bytes.size());
-    context_.chunk_readers.push_back(
-        std::make_unique<ProtoTraceReader>(&context_));
-    auto status = context_.chunk_readers.back()->Parse(TraceBlobView(
+
+    auto reader = std::make_unique<ProtoTraceReader>(&context_);
+    auto status = reader->Parse(TraceBlobView(
         TraceBlob::TakeOwnership(std::move(raw_trace), trace_bytes.size())));
     if (status.ok()) {
-      status = context_.chunk_readers.back()->NotifyEndOfFile();
+      status = reader->NotifyEndOfFile();
     }
 
     ResetTraceBuffers();

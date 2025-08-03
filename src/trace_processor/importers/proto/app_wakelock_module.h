@@ -29,7 +29,8 @@ namespace perfetto::trace_processor {
 
 class AppWakelockModule : public ProtoImporterModule {
  public:
-  explicit AppWakelockModule(TraceProcessorContext* context);
+  explicit AppWakelockModule(ProtoImporterModuleContext* module_context,
+                             TraceProcessorContext* context);
   ~AppWakelockModule() override = default;
 
   // Tokenize and de-intern WakelockBundles so that bundles of multiple

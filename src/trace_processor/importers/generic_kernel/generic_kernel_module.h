@@ -27,7 +27,8 @@ namespace trace_processor {
 
 class GenericKernelModule : public ProtoImporterModule {
  public:
-  explicit GenericKernelModule(TraceProcessorContext* context);
+  explicit GenericKernelModule(ProtoImporterModuleContext* module_context,
+                               TraceProcessorContext* context);
 
   void ParseTracePacketData(const protos::pbzero::TracePacket_Decoder& decoder,
                             int64_t ts,

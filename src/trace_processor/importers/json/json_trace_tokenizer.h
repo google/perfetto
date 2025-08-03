@@ -18,15 +18,20 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_TOKENIZER_H_
 
 #include <cstdint>
+#include <memory>
 #include <string>
-#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
+#include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/json/json_parser.h"
+#include "src/trace_processor/importers/json/json_trace_parser_impl.h"
+#include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/importers/systrace/systrace_line_tokenizer.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 
 namespace perfetto::trace_processor {
 
@@ -52,7 +57,7 @@ ReadKeyRes ReadOneJsonKey(const char* start,
                           std::string* key,
                           const char** next);
 
-enum class ReadSystemLineRes {
+enum class ReadSystemLineRes : uint8_t {
   kFoundLine,
   kNeedsMoreData,
   kEndOfSystemTrace,
@@ -76,7 +81,7 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
 
  private:
   // Enum which tracks which type of JSON trace we are dealing with.
-  enum class TraceFormat {
+  enum class TraceFormat : uint8_t {
     // Enum value when ther outer-most layer is a dictionary with multiple
     // key value pairs
     kOuterDictionary,
@@ -87,7 +92,7 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
   };
 
   // Enum which tracks our current position within the trace.
-  enum class TracePosition {
+  enum class TracePosition : uint8_t {
     // This indicates that we are inside the outermost dictionary of the
     // trace and need to read the next key of the dictionary.
     // This position is only valid when the |format_| == |kOuterDictionary|.
@@ -125,6 +130,43 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
                                       const char** out);
 
   TraceProcessorContext* const context_;
+
+  class JsonSink : public TraceSorter::Sink<JsonEvent, JsonSink> {
+   public:
+    explicit JsonSink(JsonTraceParserImpl* parser) : parser_(parser) {}
+    void Parse(int64_t ts, JsonEvent data) {
+      parser_->ParseJsonPacket(ts, std::move(data));
+    }
+
+   private:
+    JsonTraceParserImpl* parser_;
+  };
+  class SystraceSink : public TraceSorter::Sink<SystraceLine, SystraceSink> {
+   public:
+    explicit SystraceSink(JsonTraceParserImpl* parser) : parser_(parser) {}
+    void Parse(int64_t ts, SystraceLine data) {
+      parser_->ParseSystraceLine(ts, std::move(data));
+    }
+
+   private:
+    JsonTraceParserImpl* parser_;
+  };
+  class V8Sink : public TraceSorter::Sink<LegacyV8CpuProfileEvent, V8Sink> {
+   public:
+    explicit V8Sink(LegacyV8CpuProfileTracker* tracker) : tracker_(tracker) {}
+    void Parse(int64_t ts, LegacyV8CpuProfileEvent data) {
+      tracker_->Parse(ts, std::move(data));
+    }
+
+   private:
+    LegacyV8CpuProfileTracker* tracker_;
+  };
+
+  JsonTraceParserImpl parser_;
+  std::unique_ptr<LegacyV8CpuProfileTracker> v8_tracker_;
+  std::unique_ptr<TraceSorter::Stream<JsonEvent>> json_stream_;
+  std::unique_ptr<TraceSorter::Stream<SystraceLine>> systrace_stream_;
+  std::unique_ptr<TraceSorter::Stream<LegacyV8CpuProfileEvent>> v8_stream_;
 
   TraceFormat format_ = TraceFormat::kOuterDictionary;
   TracePosition position_ = TracePosition::kDictionaryKey;

@@ -30,7 +30,8 @@ namespace trace_processor {
 // TODO(eseckler): consider moving heap profiles here as well.
 class ProfileModule : public ProtoImporterModule {
  public:
-  explicit ProfileModule(TraceProcessorContext* context);
+  explicit ProfileModule(ProtoImporterModuleContext* module_context,
+                         TraceProcessorContext* context);
   ~ProfileModule() override;
 
   ModuleResult TokenizePacket(

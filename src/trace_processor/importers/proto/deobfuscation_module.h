@@ -32,7 +32,8 @@ namespace perfetto::trace_processor {
 // Importer module for deobfuscation data.
 class DeobfuscationModule : public ProtoImporterModule {
  public:
-  explicit DeobfuscationModule(TraceProcessorContext* context);
+  explicit DeobfuscationModule(ProtoImporterModuleContext* module_context,
+                               TraceProcessorContext* context);
   ~DeobfuscationModule() override;
 
   // TODO (ddiproietto): Is it better to use TokenizePacket instead?

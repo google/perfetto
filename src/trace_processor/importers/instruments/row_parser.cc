@@ -34,7 +34,7 @@ namespace perfetto::trace_processor::instruments_importer {
 RowParser::RowParser(TraceProcessorContext* context)
     : context_(context), data_(RowDataTracker::GetOrCreate(context)) {}
 
-void RowParser::ParseInstrumentsRow(int64_t ts, instruments_importer::Row row) {
+void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
   if (!row.backtrace) {
     return;
   }

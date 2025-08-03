@@ -30,7 +30,8 @@ namespace trace_processor {
 
 class TranslationTableModule : public ProtoImporterModule {
  public:
-  explicit TranslationTableModule(TraceProcessorContext* context);
+  explicit TranslationTableModule(ProtoImporterModuleContext* module_context,
+                                  TraceProcessorContext* context);
 
   ~TranslationTableModule() override;
 

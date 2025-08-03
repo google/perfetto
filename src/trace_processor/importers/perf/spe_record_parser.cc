@@ -119,7 +119,7 @@ StringId SpeRecordParserImpl::ToStringId(spe::DataSource ds) {
 SpeRecordParserImpl::SpeRecordParserImpl(TraceProcessorContext* context)
     : context_(context), reader_(TraceBlobView()) {}
 
-void SpeRecordParserImpl::ParseSpeRecord(int64_t ts, TraceBlobView data) {
+void SpeRecordParserImpl::Parse(int64_t ts, TraceBlobView data) {
   reader_ = Reader(std::move(data));
   inflight_row_ = {};
   inflight_row_.ts = ts;

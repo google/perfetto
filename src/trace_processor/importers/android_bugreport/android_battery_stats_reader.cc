@@ -16,6 +16,9 @@
 
 #include "src/trace_processor/importers/android_bugreport/android_battery_stats_reader.h"
 
+#include "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser_impl.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
+
 #include <chrono>
 #include <cstdint>
 #include <ctime>
@@ -50,7 +53,9 @@ base::StatusOr<int64_t> StringToStatusOrInt64(base::StringView str) {
 
 AndroidBatteryStatsReader::AndroidBatteryStatsReader(
     TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context),
+      stream_(context->sorter->CreateStream(
+          std::make_unique<AndroidDumpstateEventParserImpl>(context))) {}
 
 AndroidBatteryStatsReader::~AndroidBatteryStatsReader() = default;
 
@@ -150,7 +155,7 @@ base::Status AndroidBatteryStatsReader::SendToSorter(
       int64_t trace_ts,
       context_->clock_tracker->ToTraceTime(
           protos::pbzero::ClockSnapshot::Clock::REALTIME, event_ts.count()));
-  context_->sorter->PushAndroidDumpstateEvent(trace_ts, std::move(event));
+  stream_->Push(trace_ts, std::move(event));
   return base::OkStatus();
 }
 

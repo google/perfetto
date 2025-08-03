@@ -36,7 +36,8 @@ namespace trace_processor {
 
 class NetworkTraceModule : public ProtoImporterModule {
  public:
-  explicit NetworkTraceModule(TraceProcessorContext* context);
+  explicit NetworkTraceModule(ProtoImporterModuleContext* module_context,
+                              TraceProcessorContext* context);
   ~NetworkTraceModule() override = default;
 
   // Tokenize and de-intern NetworkPacketBundles so that bundles of multiple

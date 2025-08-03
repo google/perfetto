@@ -16,14 +16,21 @@
 
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <utility>
+
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
-ProtoImporterModule::ProtoImporterModule() {}
+ProtoImporterModule::ProtoImporterModule(
+    ProtoImporterModuleContext* module_context)
+    : module_context_(module_context) {}
 
 ProtoImporterModule::~ProtoImporterModule() {}
 
@@ -45,17 +52,67 @@ void ProtoImporterModule::ParseTracePacketData(
 void ProtoImporterModule::ParseTraceConfig(
     const protos::pbzero::TraceConfig_Decoder&) {}
 
-void ProtoImporterModule::RegisterForField(uint32_t field_id,
-                                           TraceProcessorContext* context) {
-  if (context->modules_by_field.size() <= field_id) {
-    context->modules_by_field.resize(field_id + 1);
+void ProtoImporterModule::RegisterForField(uint32_t field_id) {
+  if (module_context_->modules_by_field.size() <= field_id) {
+    module_context_->modules_by_field.resize(field_id + 1);
   }
-  context->modules_by_field[field_id].push_back(this);
+  module_context_->modules_by_field[field_id].push_back(this);
 }
 
-void ProtoImporterModule::RegisterForAllFields(TraceProcessorContext* context) {
-  context->modules_for_all_fields.push_back(this);
+void ProtoImporterModuleContext::PushFtraceEvent(uint32_t cpu,
+                                                 int64_t ts,
+                                                 TracePacketData data) {
+  auto& streams = ftrace_event_streams;
+  if (PERFETTO_UNLIKELY(cpu >= streams.size())) {
+    size_t old_size = streams.size();
+    streams.resize(cpu + 1);
+    for (size_t i = old_size; i <= cpu; ++i) {
+      streams[i] = ftrace_stream_factory(i);
+    }
+  }
+  streams[cpu]->Push(ts, std::move(data));
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+void ProtoImporterModuleContext::PushEtwEvent(uint32_t cpu,
+                                              int64_t ts,
+                                              TracePacketData data) {
+  auto& streams = etw_event_streams;
+  if (PERFETTO_UNLIKELY(cpu >= streams.size())) {
+    size_t old_size = streams.size();
+    streams.resize(cpu + 1);
+    for (size_t i = old_size; i <= cpu; ++i) {
+      streams[i] = etw_stream_factory(i);
+    }
+  }
+  streams[cpu]->Push(ts, std::move(data));
+}
+
+void ProtoImporterModuleContext::PushInlineSchedSwitch(uint32_t cpu,
+                                                       int64_t ts,
+                                                       InlineSchedSwitch data) {
+  auto& streams = inline_sched_switch_streams;
+  if (PERFETTO_UNLIKELY(cpu >= streams.size())) {
+    size_t old_size = streams.size();
+    streams.resize(cpu + 1);
+    for (size_t i = old_size; i <= cpu; ++i) {
+      streams[i] = inline_sched_switch_stream_factory(i);
+    }
+  }
+  streams[cpu]->Push(ts, std::move(data));
+}
+
+void ProtoImporterModuleContext::PushInlineSchedWaking(uint32_t cpu,
+                                                       int64_t ts,
+                                                       InlineSchedWaking data) {
+  auto& streams = inline_sched_waking_streams;
+  if (PERFETTO_UNLIKELY(cpu >= streams.size())) {
+    size_t old_size = streams.size();
+    streams.resize(cpu + 1);
+    for (size_t i = old_size; i <= cpu; ++i) {
+      streams[i] = inline_sched_waking_stream_factory(i);
+    }
+  }
+  streams[cpu]->Push(ts, std::move(data));
+}
+
+}  // namespace perfetto::trace_processor

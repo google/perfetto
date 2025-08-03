@@ -28,9 +28,11 @@ namespace trace_processor {
 
 using perfetto::protos::pbzero::TracePacket;
 
-TranslationTableModule::TranslationTableModule(TraceProcessorContext* context)
-    : context_(context) {
-  RegisterForField(TracePacket::kTranslationTableFieldNumber, context);
+TranslationTableModule::TranslationTableModule(
+    ProtoImporterModuleContext* module_context,
+    TraceProcessorContext* context)
+    : ProtoImporterModule(module_context), context_(context) {
+  RegisterForField(TracePacket::kTranslationTableFieldNumber);
 }
 
 TranslationTableModule::~TranslationTableModule() = default;

@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
 #include "src/trace_processor/importers/android_bugreport/chunked_line_reader.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 
 namespace perfetto ::trace_processor {
 
@@ -96,6 +97,7 @@ class AndroidLogReader : public ChunkedLineReader {
   int32_t year_;
   bool wait_for_tz_;
   std::vector<TimestampedAndroidLogEvent> non_tz_adjusted_events_;
+  std::unique_ptr<TraceSorter::Stream<AndroidLogEvent>> stream_;
 };
 
 // Same as AndroidLogReader (sends events to sorter), but also stores them in a

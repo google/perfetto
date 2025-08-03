@@ -46,13 +46,16 @@ using ::perfetto::protos::pbzero::V8WasmCode;
 
 }  // namespace
 
-V8Module::V8Module(TraceProcessorContext* context)
-    : context_(context), v8_tracker_(V8Tracker::GetOrCreate(context_)) {
-  RegisterForField(TracePacket::kV8JsCodeFieldNumber, context_);
-  RegisterForField(TracePacket::kV8InternalCodeFieldNumber, context_);
-  RegisterForField(TracePacket::kV8WasmCodeFieldNumber, context_);
-  RegisterForField(TracePacket::kV8RegExpCodeFieldNumber, context_);
-  RegisterForField(TracePacket::kV8CodeMoveFieldNumber, context_);
+V8Module::V8Module(ProtoImporterModuleContext* module_context,
+                   TraceProcessorContext* context)
+    : ProtoImporterModule(module_context),
+      context_(context),
+      v8_tracker_(V8Tracker::GetOrCreate(context)) {
+  RegisterForField(TracePacket::kV8JsCodeFieldNumber);
+  RegisterForField(TracePacket::kV8InternalCodeFieldNumber);
+  RegisterForField(TracePacket::kV8WasmCodeFieldNumber);
+  RegisterForField(TracePacket::kV8RegExpCodeFieldNumber);
+  RegisterForField(TracePacket::kV8CodeMoveFieldNumber);
 }
 
 V8Module::~V8Module() = default;

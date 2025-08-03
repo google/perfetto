@@ -26,13 +26,15 @@ namespace trace_processor {
 
 using perfetto::protos::pbzero::TracePacket;
 
-SystemProbesModule::SystemProbesModule(TraceProcessorContext* context)
-    : parser_(context) {
-  RegisterForField(TracePacket::kProcessTreeFieldNumber, context);
-  RegisterForField(TracePacket::kProcessStatsFieldNumber, context);
-  RegisterForField(TracePacket::kSysStatsFieldNumber, context);
-  RegisterForField(TracePacket::kSystemInfoFieldNumber, context);
-  RegisterForField(TracePacket::kCpuInfoFieldNumber, context);
+SystemProbesModule::SystemProbesModule(
+    ProtoImporterModuleContext* module_context,
+    TraceProcessorContext* context)
+    : ProtoImporterModule(module_context), parser_(context) {
+  RegisterForField(TracePacket::kProcessTreeFieldNumber);
+  RegisterForField(TracePacket::kProcessStatsFieldNumber);
+  RegisterForField(TracePacket::kSysStatsFieldNumber);
+  RegisterForField(TracePacket::kSystemInfoFieldNumber);
+  RegisterForField(TracePacket::kCpuInfoFieldNumber);
 }
 
 ModuleResult SystemProbesModule::TokenizePacket(

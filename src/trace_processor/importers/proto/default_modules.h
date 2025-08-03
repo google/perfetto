@@ -22,7 +22,10 @@
 namespace perfetto {
 namespace trace_processor {
 
-void RegisterDefaultModules(TraceProcessorContext*);
+struct ProtoImporterModuleContext;
+
+void RegisterDefaultModules(ProtoImporterModuleContext*,
+                            TraceProcessorContext*);
 
 }  // namespace trace_processor
 }  // namespace perfetto

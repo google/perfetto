@@ -32,7 +32,8 @@ namespace trace_processor {
 
 class GraphicsEventModule : public ProtoImporterModule {
  public:
-  explicit GraphicsEventModule(TraceProcessorContext* context);
+  explicit GraphicsEventModule(ProtoImporterModuleContext* module_context,
+                               TraceProcessorContext* context);
 
   ~GraphicsEventModule() override;
 

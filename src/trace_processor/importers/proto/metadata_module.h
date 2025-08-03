@@ -17,7 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_METADATA_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_METADATA_MODULE_H_
 
-#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
@@ -30,7 +29,8 @@ namespace trace_processor {
 class MetadataModule : public ProtoImporterModule {
  public:
   using ConstBytes = protozero::ConstBytes;
-  explicit MetadataModule(TraceProcessorContext* context);
+  explicit MetadataModule(ProtoImporterModuleContext* module_context,
+                          TraceProcessorContext* context);
 
   ModuleResult TokenizePacket(
       const protos::pbzero::TracePacket::Decoder& decoder,

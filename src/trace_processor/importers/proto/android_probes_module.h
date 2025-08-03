@@ -30,7 +30,8 @@ namespace trace_processor {
 
 class AndroidProbesModule : public ProtoImporterModule {
  public:
-  explicit AndroidProbesModule(TraceProcessorContext* context);
+  explicit AndroidProbesModule(ProtoImporterModuleContext* module_context,
+                               TraceProcessorContext* context);
 
   ModuleResult TokenizePacket(const protos::pbzero::TracePacket_Decoder&,
                               TraceBlobView* packet,

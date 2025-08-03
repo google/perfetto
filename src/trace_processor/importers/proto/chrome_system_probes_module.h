@@ -30,7 +30,8 @@ namespace trace_processor {
 // SystemProbesModule due to the binary size impact of the system probes parser.
 class ChromeSystemProbesModule : public ProtoImporterModule {
  public:
-  explicit ChromeSystemProbesModule(TraceProcessorContext* context);
+  explicit ChromeSystemProbesModule(ProtoImporterModuleContext* module_context,
+                                    TraceProcessorContext* context);
 
   void ParseTracePacketData(const protos::pbzero::TracePacket_Decoder& decoder,
                             int64_t ts,

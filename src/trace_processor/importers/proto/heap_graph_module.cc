@@ -62,9 +62,10 @@ bool ForEachVarInt(const T& decoder, F fn) {
 
 using perfetto::protos::pbzero::TracePacket;
 
-HeapGraphModule::HeapGraphModule(TraceProcessorContext* context)
-    : context_(context) {
-  RegisterForField(TracePacket::kHeapGraphFieldNumber, context);
+HeapGraphModule::HeapGraphModule(ProtoImporterModuleContext* module_context,
+                                 TraceProcessorContext* context)
+    : ProtoImporterModule(module_context), context_(context) {
+  RegisterForField(TracePacket::kHeapGraphFieldNumber);
 }
 
 void HeapGraphModule::ParseTracePacketData(

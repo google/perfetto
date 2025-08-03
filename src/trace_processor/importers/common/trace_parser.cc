@@ -13,21 +13,3 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#include "src/trace_processor/importers/common/trace_parser.h"
-
-namespace perfetto::trace_processor {
-
-AndroidDumpstateEventParser::~AndroidDumpstateEventParser() = default;
-AndroidLogEventParser::~AndroidLogEventParser() = default;
-FuchsiaRecordParser::~FuchsiaRecordParser() = default;
-InstrumentsRowParser::~InstrumentsRowParser() = default;
-JsonTraceParser::~JsonTraceParser() = default;
-PerfRecordParser::~PerfRecordParser() = default;
-ProtoTraceParser::~ProtoTraceParser() = default;
-SpeRecordParser::~SpeRecordParser() = default;
-GeckoTraceParser::~GeckoTraceParser() = default;
-ArtMethodParser::~ArtMethodParser() = default;
-PerfTextTraceParser::~PerfTextTraceParser() = default;
-
-}  // namespace perfetto::trace_processor

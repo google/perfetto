@@ -44,8 +44,10 @@ namespace perfetto::trace_processor {
 using perfetto::protos::pbzero::TracePacket;
 using perfetto::protos::pbzero::WinscopeExtensionsImpl;
 
-WinscopeModule::WinscopeModule(TraceProcessorContext* context)
-    : context_{context},
+WinscopeModule::WinscopeModule(ProtoImporterModuleContext* module_context,
+                               TraceProcessorContext* context)
+    : ProtoImporterModule(module_context),
+      context_{context},
       args_parser_{*context->descriptor_pool_},
       surfaceflinger_layers_parser_(&context_),
       surfaceflinger_transactions_parser_(context),
@@ -55,15 +57,13 @@ WinscopeModule::WinscopeModule(TraceProcessorContext* context)
       viewcapture_parser_(context) {
   context->descriptor_pool_->AddFromFileDescriptorSet(
       kWinscopeDescriptor.data(), kWinscopeDescriptor.size());
-  RegisterForField(TracePacket::kSurfaceflingerLayersSnapshotFieldNumber,
-                   context);
-  RegisterForField(TracePacket::kSurfaceflingerTransactionsFieldNumber,
-                   context);
-  RegisterForField(TracePacket::kShellTransitionFieldNumber, context);
-  RegisterForField(TracePacket::kShellHandlerMappingsFieldNumber, context);
-  RegisterForField(TracePacket::kProtologMessageFieldNumber, context);
-  RegisterForField(TracePacket::kProtologViewerConfigFieldNumber, context);
-  RegisterForField(TracePacket::kWinscopeExtensionsFieldNumber, context);
+  RegisterForField(TracePacket::kSurfaceflingerLayersSnapshotFieldNumber);
+  RegisterForField(TracePacket::kSurfaceflingerTransactionsFieldNumber);
+  RegisterForField(TracePacket::kShellTransitionFieldNumber);
+  RegisterForField(TracePacket::kShellHandlerMappingsFieldNumber);
+  RegisterForField(TracePacket::kProtologMessageFieldNumber);
+  RegisterForField(TracePacket::kProtologViewerConfigFieldNumber);
+  RegisterForField(TracePacket::kWinscopeExtensionsFieldNumber);
 }
 
 ModuleResult WinscopeModule::TokenizePacket(

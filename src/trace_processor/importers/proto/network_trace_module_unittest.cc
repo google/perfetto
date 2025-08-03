@@ -70,22 +70,18 @@ class NetworkTraceModuleTest : public testing::Test {
     context_.args_translation_table =
         std::make_unique<ArgsTranslationTable>(storage_);
     context_.track_compressor = std::make_unique<TrackCompressor>(&context_);
-    context_.proto_trace_parser =
-        std::make_unique<ProtoTraceParserImpl>(&context_);
     context_.sorter = std::make_shared<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
   }
 
   base::Status TokenizeAndParse() {
-    context_.chunk_readers.push_back(
-        std::make_unique<ProtoTraceReader>(&context_));
-
     trace_->Finalize();
     std::vector<uint8_t> v = trace_.SerializeAsArray();
     trace_.Reset();
 
-    auto status = context_.chunk_readers.back()->Parse(
-        TraceBlobView(TraceBlob::CopyFrom(v.data(), v.size())));
+    auto reader = std::make_unique<ProtoTraceReader>(&context_);
+    auto status =
+        reader->Parse(TraceBlobView(TraceBlob::CopyFrom(v.data(), v.size())));
     context_.sorter->ExtractEventsForced();
     context_.slice_tracker->FlushPendingSlices();
     context_.args_tracker->Flush();

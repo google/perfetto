@@ -29,7 +29,8 @@ namespace trace_processor {
 
 class PixelModemModule : public ProtoImporterModule {
  public:
-  explicit PixelModemModule(TraceProcessorContext* context);
+  explicit PixelModemModule(ProtoImporterModuleContext* module_context,
+                            TraceProcessorContext* context);
 
   ModuleResult TokenizePacket(const protos::pbzero::TracePacket_Decoder&,
                               TraceBlobView* packet,

@@ -31,9 +31,11 @@ namespace perfetto::trace_processor {
 using ::perfetto::protos::pbzero::TracePacket;
 using ::protozero::ConstBytes;
 
-DeobfuscationModule::DeobfuscationModule(TraceProcessorContext* context)
-    : context_(context) {
-  RegisterForField(TracePacket::kDeobfuscationMappingFieldNumber, context);
+DeobfuscationModule::DeobfuscationModule(
+    ProtoImporterModuleContext* module_context,
+    TraceProcessorContext* context)
+    : ProtoImporterModule(module_context), context_(context) {
+  RegisterForField(TracePacket::kDeobfuscationMappingFieldNumber);
 }
 
 DeobfuscationModule::~DeobfuscationModule() = default;

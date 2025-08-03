@@ -35,7 +35,8 @@ namespace trace_processor {
 
 class AndroidCameraEventModule : public ProtoImporterModule {
  public:
-  explicit AndroidCameraEventModule(TraceProcessorContext* context);
+  explicit AndroidCameraEventModule(ProtoImporterModuleContext* module_context,
+                                    TraceProcessorContext* context);
 
   ~AndroidCameraEventModule() override;
 

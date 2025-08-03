@@ -46,7 +46,8 @@ class V8Tracker;
 // associated debug information has been loaded in each of the isolates.
 class V8Module : public ProtoImporterModule {
  public:
-  explicit V8Module(TraceProcessorContext* context);
+  explicit V8Module(ProtoImporterModuleContext* module_context,
+                    TraceProcessorContext* context);
 
   ~V8Module() override;
 

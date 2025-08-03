@@ -34,7 +34,8 @@ namespace trace_processor {
 
 class WinscopeModule : public ProtoImporterModule {
  public:
-  explicit WinscopeModule(TraceProcessorContext* context);
+  explicit WinscopeModule(ProtoImporterModuleContext* module_context,
+                          TraceProcessorContext* context);
 
   ModuleResult TokenizePacket(
       const protos::pbzero::TracePacket::Decoder& decoder,

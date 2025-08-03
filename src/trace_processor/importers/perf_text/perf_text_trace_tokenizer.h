@@ -22,6 +22,8 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
+#include "src/trace_processor/importers/perf_text/perf_text_event.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
@@ -39,6 +41,7 @@ class PerfTextTraceTokenizer : public ChunkedTraceReader {
   TraceProcessorContext* const context_;
   util::TraceBlobViewReader reader_;
   base::FlatHashMap<std::string, DummyMemoryMapping*> mappings_;
+  std::unique_ptr<TraceSorter::Stream<PerfTextEvent>> stream_;
 };
 
 }  // namespace perfetto::trace_processor::perf_text_importer

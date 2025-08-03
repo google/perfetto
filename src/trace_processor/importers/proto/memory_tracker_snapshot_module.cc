@@ -23,9 +23,10 @@ namespace trace_processor {
 using perfetto::protos::pbzero::TracePacket;
 
 MemoryTrackerSnapshotModule::MemoryTrackerSnapshotModule(
+    ProtoImporterModuleContext* module_context,
     TraceProcessorContext* context)
-    : parser_(context) {
-  RegisterForField(TracePacket::kMemoryTrackerSnapshotFieldNumber, context);
+    : ProtoImporterModule(module_context), parser_(context) {
+  RegisterForField(TracePacket::kMemoryTrackerSnapshotFieldNumber);
 }
 
 MemoryTrackerSnapshotModule::~MemoryTrackerSnapshotModule() = default;

@@ -26,9 +26,10 @@ namespace trace_processor {
 using perfetto::protos::pbzero::TracePacket;
 
 ChromeSystemProbesModule::ChromeSystemProbesModule(
+    ProtoImporterModuleContext* module_context,
     TraceProcessorContext* context)
-    : parser_(context) {
-  RegisterForField(TracePacket::kProcessStatsFieldNumber, context);
+    : ProtoImporterModule(module_context), parser_(context) {
+  RegisterForField(TracePacket::kProcessStatsFieldNumber);
 }
 
 void ChromeSystemProbesModule::ParseTracePacketData(
