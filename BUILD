@@ -3149,6 +3149,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_callstacks_callstacks",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/callstacks/stack_profile.sql",
+        "src/trace_processor/perfetto_sql/stdlib/callstacks/symbolize.sql",
     ],
 )
 
@@ -3396,7 +3397,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/freq_idle.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/hotplug.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/idle.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/split.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/pivot.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/w_cpu_dependence.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/w_dsu_dependence.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/device_cpu.sql",
