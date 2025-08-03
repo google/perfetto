@@ -27,11 +27,17 @@ RETURNS TABLE (
   -- Name of the file containing the instruction.
   file_name STRING,
   -- Relative program counter of the instruction.
-  rel_pc LONG
+  rel_pc LONG,
+  -- The mapping id of the instruction.
+  mapping_id LONG,
+  -- The address of the instruction.
+  address LONG
 ) AS
 SELECT
   __intrinsic_file.name AS file_name,
-  __intrinsic_etm_iterate_instruction_range.address - stack_profile_mapping.start + stack_profile_mapping.exact_offset + __intrinsic_elf_file.load_bias AS rel_pc
+  __intrinsic_etm_iterate_instruction_range.address - stack_profile_mapping.start + stack_profile_mapping.exact_offset + __intrinsic_elf_file.load_bias AS rel_pc,
+  __intrinsic_etm_decode_trace.mapping_id AS mapping_id,
+  __intrinsic_etm_iterate_instruction_range.address AS address
 FROM __intrinsic_etm_decode_trace($trace_id)
 JOIN __intrinsic_etm_iterate_instruction_range
   ON __intrinsic_etm_decode_trace.instruction_range = __intrinsic_etm_iterate_instruction_range.instruction_range
