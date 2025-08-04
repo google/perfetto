@@ -315,9 +315,9 @@ export class AppImpl implements App {
         src.buffer.byteOffset === 0 &&
         src.buffer.byteLength === src.buffer.buffer.byteLength
       ) {
-        src.buffer = src.buffer.buffer;
+        src = {...src, buffer: src.buffer.buffer};
       } else {
-        src.buffer = src.buffer.slice().buffer;
+        src = {...src, buffer: src.buffer.slice().buffer};
       }
     }
 
