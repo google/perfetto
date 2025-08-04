@@ -56,17 +56,17 @@ class BlockingCallMetricHandler implements MetricHandler {
    * @param {Trace} ctx PluginContextTrace for trace related properties and methods
    * @returns {void} Adds one track for Jank CUJ slice and one for Janky CUJ frames
    */
-  public addMetricTrack(metricData: BlockingCallMetricData, ctx: Trace): void {
+  public async addMetricTrack(metricData: BlockingCallMetricData, ctx: Trace) {
     this.pinSingleCuj(ctx, metricData);
     const config = this.blockingCallTrackConfig(metricData);
     addDebugSliceTrack({trace: ctx, ...config});
     // Only trigger adding track for frame when the aggregation is for max duration per frame.
     if (metricData.aggregation === 'max_dur_per_frame_ns') {
-      this.frameWithMaxDurBlockingCallTrackConfig(ctx, metricData).then(
-        (frameConfigArgs) => {
-          addDebugSliceTrack({trace: ctx, ...frameConfigArgs});
-        },
+      const frameConfigArgs = await this.frameWithMaxDurBlockingCallTrackConfig(
+        ctx,
+        metricData,
       );
+      addDebugSliceTrack({trace: ctx, ...frameConfigArgs});
     }
   }
 
