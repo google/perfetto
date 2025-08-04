@@ -17,20 +17,23 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROFILE_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROFILE_MODULE_H_
 
+#include <cstdint>
 #include "perfetto/protozero/field.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Importer module for heap and CPU sampling profile data.
 // TODO(eseckler): consider moving heap profiles here as well.
 class ProfileModule : public ProtoImporterModule {
  public:
-  explicit ProfileModule(TraceProcessorContext* context);
+  explicit ProfileModule(ProtoImporterModuleContext* module_context,
+                         TraceProcessorContext* context);
   ~ProfileModule() override;
 
   ModuleResult TokenizePacket(
@@ -73,7 +76,6 @@ class ProfileModule : public ProtoImporterModule {
   TraceProcessorContext* context_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROFILE_MODULE_H_

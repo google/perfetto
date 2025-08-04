@@ -15,10 +15,20 @@
  */
 
 #include "src/trace_processor/importers/proto/profile_module.h"
+
+#include <cstdint>
 #include <optional>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
@@ -30,6 +40,7 @@
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/profile_packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
@@ -42,20 +53,21 @@
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "protos/perfetto/trace/profiling/smaps.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 using perfetto::protos::pbzero::TracePacket;
 using protozero::ConstBytes;
 
-ProfileModule::ProfileModule(TraceProcessorContext* context)
-    : context_(context) {
-  RegisterForField(TracePacket::kStreamingProfilePacketFieldNumber, context);
-  RegisterForField(TracePacket::kPerfSampleFieldNumber, context);
-  RegisterForField(TracePacket::kProfilePacketFieldNumber, context);
-  RegisterForField(TracePacket::kModuleSymbolsFieldNumber, context);
-  RegisterForField(TracePacket::kSmapsPacketFieldNumber, context);
+ProfileModule::ProfileModule(ProtoImporterModuleContext* module_context,
+                             TraceProcessorContext* context)
+    : ProtoImporterModule(module_context), context_(context) {
+  RegisterForField(TracePacket::kStreamingProfilePacketFieldNumber);
+  RegisterForField(TracePacket::kPerfSampleFieldNumber);
+  RegisterForField(TracePacket::kProfilePacketFieldNumber);
+  RegisterForField(TracePacket::kModuleSymbolsFieldNumber);
+  RegisterForField(TracePacket::kSmapsPacketFieldNumber);
 }
 
 ProfileModule::~ProfileModule() = default;
@@ -516,5 +528,4 @@ void ProfileModule::NotifyEndOfFile() {
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

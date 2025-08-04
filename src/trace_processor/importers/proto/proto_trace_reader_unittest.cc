@@ -15,14 +15,23 @@
  */
 
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
-#include <memory>
 
+#include <cstdint>
+#include <cstring>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/status.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace_processor/trace_blob.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "protos/perfetto/trace/trace.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
+#include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/storage/trace_storage.h"
-
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -41,6 +50,7 @@ class ProtoTraceReaderTest : public ::testing::Test {
     context_.machine_tracker =
         std::make_unique<MachineTracker>(&context_, 0x1001);
     context_.clock_tracker = std::make_unique<ClockTracker>(&context_);
+    context_.register_additional_proto_modules = &RegisterAdditionalModules;
     proto_trace_reader_ = std::make_unique<ProtoTraceReader>(&context_);
   }
 

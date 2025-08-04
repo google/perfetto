@@ -25,6 +25,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
@@ -33,14 +34,15 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
-#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/ftrace/generic_ftrace_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
@@ -62,7 +64,7 @@ using protos::pbzero::FtraceEventBundle;
 
 namespace {
 
-static constexpr uint32_t kSequenceScopedClockId = 64;
+constexpr uint32_t kSequenceScopedClockId = 64;
 
 // Fast path for parsing the event id of an ftrace event.
 // Speculate on the fact that, if the timestamp was found, the common pid
@@ -268,15 +270,17 @@ void FtraceTokenizer::TokenizeFtraceEvent(
           event_id == protos::pbzero::FtraceEvent::kGpuWorkPeriodFieldNumber)) {
     TokenizeFtraceGpuWorkPeriod(cpu, std::move(event), std::move(state));
     return;
-  } else if (PERFETTO_UNLIKELY(event_id ==
-                               protos::pbzero::FtraceEvent::
-                                   kThermalExynosAcpmBulkFieldNumber)) {
+  }
+  if (PERFETTO_UNLIKELY(
+          event_id ==
+          protos::pbzero::FtraceEvent::kThermalExynosAcpmBulkFieldNumber)) {
     TokenizeFtraceThermalExynosAcpmBulk(cpu, std::move(event),
                                         std::move(state));
     return;
-  } else if (PERFETTO_UNLIKELY(
-                 event_id ==
-                 protos::pbzero::FtraceEvent::kParamSetValueCpmFieldNumber)) {
+  }
+  if (PERFETTO_UNLIKELY(
+          event_id ==
+          protos::pbzero::FtraceEvent::kParamSetValueCpmFieldNumber)) {
     TokenizeFtraceParamSetValueCpm(cpu, std::move(event), std::move(state));
     return;
   }

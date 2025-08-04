@@ -48,7 +48,9 @@ struct TrackEventData;
 
 class TrackEventTokenizer {
  public:
-  explicit TrackEventTokenizer(TraceProcessorContext*, TrackEventTracker*);
+  explicit TrackEventTokenizer(ProtoImporterModuleContext*,
+                               TraceProcessorContext*,
+                               TrackEventTracker*);
 
   ModuleResult TokenizeRangeOfInterestPacket(
       RefPtr<PacketSequenceStateGeneration> state,
@@ -86,6 +88,7 @@ class TrackEventTokenizer {
 
   TraceProcessorContext* const context_;
   TrackEventTracker* const track_event_tracker_;
+  ProtoImporterModuleContext* const module_context_;
 
   const StringId counter_name_thread_time_id_;
   const StringId counter_name_thread_instruction_count_id_;

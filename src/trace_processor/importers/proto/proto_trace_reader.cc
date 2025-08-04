@@ -40,6 +40,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -67,6 +68,7 @@ ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx)
       skipped_packet_key_id_(ctx->storage->InternString("skipped_packet")),
       invalid_incremental_state_key_id_(
           ctx->storage->InternString("invalid_incremental_state")) {}
+
 ProtoTraceReader::~ProtoTraceReader() = default;
 
 base::Status ProtoTraceReader::Parse(TraceBlobView blob) {
@@ -275,16 +277,9 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
   }
   latest_timestamp_ = std::max(timestamp, latest_timestamp_);
 
-  auto& modules = context_->modules_by_field;
+  auto& modules = context_->proto_importer_module_context->modules_by_field;
   for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
     if (!modules[field_id].empty() && decoder.Get(field_id).valid()) {
-      for (ProtoImporterModule* global_module :
-           context_->modules_for_all_fields) {
-        ModuleResult res = global_module->TokenizePacket(
-            decoder, &packet, timestamp, state->current_generation(), field_id);
-        if (!res.ignored())
-          return res.ToStatus();
-      }
       for (ProtoImporterModule* module : modules[field_id]) {
         ModuleResult res = module->TokenizePacket(
             decoder, &packet, timestamp, state->current_generation(), field_id);
@@ -331,7 +326,7 @@ void ProtoTraceReader::HandleIncrementalStateCleared(
   GetIncrementalStateForPacketSequence(
       packet_decoder.trusted_packet_sequence_id())
       ->OnIncrementalStateCleared();
-  for (auto& module : context_->modules) {
+  for (auto& module : context_->proto_importer_module_context->modules) {
     module->OnIncrementalStateCleared(
         packet_decoder.trusted_packet_sequence_id());
   }
@@ -339,7 +334,7 @@ void ProtoTraceReader::HandleIncrementalStateCleared(
 
 void ProtoTraceReader::HandleFirstPacketOnSequence(
     uint32_t packet_sequence_id) {
-  for (auto& module : context_->modules) {
+  for (auto& module : context_->proto_importer_module_context->modules) {
     module->OnFirstPacketOnSequence(packet_sequence_id);
   }
 }
@@ -798,6 +793,9 @@ base::Status ProtoTraceReader::NotifyEndOfFile() {
   received_eof_ = true;
   for (auto& packet : eof_deferred_packets_) {
     RETURN_IF_ERROR(TimestampTokenizeAndPushToSorter(std::move(packet)));
+  }
+  for (auto& module : context_->proto_importer_module_context->modules) {
+    module->NotifyEndOfFile();
   }
   return base::OkStatus();
 }

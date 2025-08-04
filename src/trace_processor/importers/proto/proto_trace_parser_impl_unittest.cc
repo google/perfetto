@@ -53,6 +53,7 @@
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/importers/proto/trace.descriptor.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -256,19 +257,24 @@ class ProtoTraceParserTest : public ::testing::Test {
     clock_ = new ClockTracker(&context_);
     context_.clock_tracker.reset(clock_);
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
-    context_.proto_trace_parser =
-        std::make_unique<ProtoTraceParserImpl>(&context_);
+
+    context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
+
+    context_.register_additional_proto_modules = &RegisterAdditionalModules;
+    context_.proto_importer_module_context =
+        std::make_unique<ProtoImporterModuleContext>();
+    RegisterDefaultModules(context_.proto_importer_module_context.get(),
+                           &context_);
+    RegisterAdditionalModules(context_.proto_importer_module_context.get(),
+                              &context_);
+
+    context_.proto_trace_parser = std::make_unique<ProtoTraceParserImpl>(
+        &context_, context_.proto_importer_module_context.get());
     context_.sorter = std::make_shared<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
-    context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
-    context_.descriptor_pool_->AddFromFileDescriptorSet(
-        kTraceDescriptor.data(), kTraceDescriptor.size());
 
     context_.perf_sample_tracker.reset(new PerfSampleTracker(&context_));
     context_.track_compressor.reset(new TrackCompressor(&context_));
-
-    RegisterDefaultModules(&context_);
-    RegisterAdditionalModules(&context_);
   }
 
   void ResetTraceBuffers() { trace_.Reset(); }

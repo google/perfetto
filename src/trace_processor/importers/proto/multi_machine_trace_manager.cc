@@ -42,11 +42,8 @@ std::unique_ptr<TraceProcessorContext> MultiMachineTraceManager::CreateContext(
       default_context_->config, default_context_->storage, raw_machine_id};
   auto new_context = std::make_unique<TraceProcessorContext>(args);
 
-  // Register default and additional modules (if enabled).
-  RegisterDefaultModules(new_context.get());
-  // Register additional modules through the registered function pointer.
-  if (additional_modules_factory_)
-    additional_modules_factory_(new_context.get());
+  new_context->register_additional_proto_modules =
+      default_context_->register_additional_proto_modules;
 
   // Set up shared member fields:
   // arg_set_id is a monotonically increasing ID.
@@ -56,15 +53,19 @@ std::unique_ptr<TraceProcessorContext> MultiMachineTraceManager::CreateContext(
   new_context->sorter = default_context_->sorter;
   new_context->sorter->AddMachineContext(new_context.get());
   new_context->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
-  new_context->proto_trace_parser.reset(
-      new ProtoTraceParserImpl(new_context.get()));
+  new_context->proto_importer_module_context =
+      std::make_unique<ProtoImporterModuleContext>();
+
+  RegisterDefaultModules(new_context->proto_importer_module_context.get(),
+                         new_context.get());
+  if (new_context->register_additional_proto_modules) {
+    new_context->register_additional_proto_modules(
+        new_context->proto_importer_module_context.get(), new_context.get());
+  }
+  new_context->proto_trace_parser = std::make_unique<ProtoTraceParserImpl>(
+      new_context.get(), new_context->proto_importer_module_context.get());
 
   return new_context;
-}
-
-void MultiMachineTraceManager::EnableAdditionalModules(
-    ProtoImporterModuleFactory factory) {
-  additional_modules_factory_ = factory;
 }
 
 ProtoTraceReader* MultiMachineTraceManager::GetOrCreateReader(
