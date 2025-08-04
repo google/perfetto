@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE counters.intervals;
+
 -- Raw ftrace events
 CREATE PERFETTO TABLE _raw_dmabuf_events AS
 SELECT
@@ -144,3 +146,35 @@ LEFT JOIN process
   USING (upid)
 ORDER BY
   ts;
+
+-- Provides a timeseries of "dmabuf allocs" counter for each process.
+CREATE PERFETTO TABLE android_dmabuf_allocs_counter_per_process (
+  -- ID of the row in the underlying counter table.
+  id ID(counter.id),
+  -- Upid of the process.
+  upid ID(process_counter_track.upid),
+  -- Timestamp of the start of the interval.
+  ts TIMESTAMP,
+  -- Duration of the interval.
+  dur DURATION,
+  -- dmabuf allocations
+  value LONG
+) AS
+SELECT
+  intervals.id,
+  upid,
+  ts,
+  dur,
+  value
+FROM counter_leading_intervals!((
+  SELECT
+        c.id,
+        c.track_id,
+        c.ts,
+        c.value
+      FROM counter AS c
+  JOIN process_counter_track AS pct ON pct.id = c.track_id
+      WHERE pct.name = "dmabuf allocs"
+)) AS intervals
+JOIN process_counter_track AS pct
+  ON pct.id = track_id;

@@ -325,3 +325,62 @@ class AndroidMemory(TestSuite):
         4144792258492,10399744,13583,3,591,"[NULL]","[NULL]","[NULL]","[NULL]"
         4145263509021,-10399744,13583,3,591,"[NULL]","[NULL]","[NULL]","[NULL]"
          """))
+
+  def test_memory_dmabuf_per_process(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          process_tree {
+            processes {
+              pid: 1000
+              ppid: 1000
+              cmdline: "com.android.systemui"
+              uid: 10001
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 1000
+              pid: 1000
+              print {
+                buf: "C|1000|dmabuf allocs|10"
+              }
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 2000
+              pid: 1000
+              print {
+                buf: "C|1000|dmabuf allocs|20"
+              }
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 1000
+              pid: 1000
+              print {
+                buf: "C|1000|Random Counter|111"
+              }
+            }
+          }
+        }"""),
+        query="""
+        INCLUDE PERFETTO MODULE android.memory.dmabuf;
+        SELECT * FROM android_dmabuf_allocs_counter_per_process;
+        """,
+        out=Csv("""
+        "id","upid","ts","dur","value"
+        0,1,1000,1000,10.000000
+        2,1,2000,0,20.000000
+        """))
