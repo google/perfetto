@@ -23,10 +23,10 @@
 #include <string.h>
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <Windows.h>
 #include <direct.h>
 #include <fileapi.h>
 #include <io.h>
+#include <windows.h>
 #else
 #include <unistd.h>
 #endif

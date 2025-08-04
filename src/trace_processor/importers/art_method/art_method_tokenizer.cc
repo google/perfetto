@@ -37,7 +37,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/art_method/art_method_event.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
-#include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
@@ -120,7 +120,7 @@ base::Status ArtMethodTokenizer::ParseMethodLine(std::string_view l) {
         tokens[0].c_str());
   }
 
-  std::string class_name = tokens[1];
+  const std::string& class_name = tokens[1];
   std::string method_name;
   std::string signature;
   std::optional<StringId> pathname;
@@ -377,7 +377,7 @@ base::Status ArtMethodTokenizer::Streaming::ParseSummary(
   }
 }
 
-base::Status ArtMethodTokenizer::Streaming::NotifyEndOfFile() {
+base::Status ArtMethodTokenizer::Streaming::NotifyEndOfFile() const {
   if (mode_ != kDone) {
     return base::ErrStatus("ART Method trace: trace is incomplete");
   }
