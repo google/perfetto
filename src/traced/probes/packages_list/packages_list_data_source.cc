@@ -162,13 +162,12 @@ void PackagesListDataSource::WriteIncrementalPacket() {
 
   std::vector<uint32_t> new_uids;
   for (auto& time : cpu_times) {
-    if (seen_uids_.find(time.uid) == seen_uids_.end()) {
-      seen_uids_.insert(time.uid);
+    if (seen_uids_.insert(time.uid).second) {
       new_uids.push_back(time.uid);
     }
   }
 
-  if (new_uids.size() > 0) {
+  if (!new_uids.empty()) {
     auto trace_packet = writer_->NewTracePacket();
     auto* packages_list_packet = trace_packet->set_packages_list();
     if (packages_parse_error_)
@@ -211,10 +210,7 @@ void PackagesListDataSource::Flush(FlushRequestID,
 }
 
 void PackagesListDataSource::ClearIncrementalState() {
-  if (only_write_on_cpu_use_every_ms_ != kWriteAllAtStart) {
-    poller_->Clear();
-  }
-  first_time_ = true;
+  seen_uids_.clear();
 }
 
 PackagesListDataSource::~PackagesListDataSource() = default;
