@@ -114,7 +114,7 @@ void AndroidCpuPerUidModule::UpdateCounter(int64_t ts,
       tracks::DimensionBlueprints(tracks::UintDimensionBlueprint("uid"),
                                   tracks::UintDimensionBlueprint("cluster")),
       tracks::FnNameBlueprint([](uint32_t uid, uint32_t cluster) {
-        return base::StackString<1024>("%d CL%d", uid, cluster);
+        return base::StackString<1024>("CPU for UID %d CL%d", uid, cluster);
       }));
 
   TrackId track = context_->track_tracker->InternTrack(
