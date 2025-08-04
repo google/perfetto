@@ -12,18 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { Trace } from '../../public/trace';
-import { App } from '../../public/app';
-import { MetricVisualisation } from '../../public/plugin';
-import { PerfettoPlugin } from '../../public/plugin';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { CallableTool, FunctionCallingConfigMode, GoogleGenAI, mcpToTool } from '@google/genai';
-import { registerTraceTools } from './tracetools';
-import { z } from 'zod';
-import { Setting } from 'src/public/settings';
-import { ChatPage } from './chat_page';
+import {Trace} from '../../public/trace';
+import {App} from '../../public/app';
+import {MetricVisualisation} from '../../public/plugin';
+import {PerfettoPlugin} from '../../public/plugin';
+import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
+import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {InMemoryTransport} from '@modelcontextprotocol/sdk/inMemory.js';
+import {
+  CallableTool,
+  FunctionCallingConfigMode,
+  GoogleGenAI,
+  mcpToTool,
+} from '@google/genai';
+import {registerTraceTools} from './tracetools';
+import {z} from 'zod';
+import {Setting} from 'src/public/settings';
+import {ChatPage} from './chat_page';
 import m from 'mithril';
 export default class PerfettoMcpPlugin implements PerfettoPlugin {
   static readonly id = 'com.google.PerfettoMcp';
@@ -55,17 +60,18 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
       name: 'Gemini Model',
       description: 'The Gemini model to use, such as gemini-2.5-pro.',
       schema: z.string(),
-      defaultValue: "gemini-2.5-pro",
+      defaultValue: 'gemini-2.5-pro',
     });
 
     PerfettoMcpPlugin.promptSetting = app.settings.register({
       id: `${app.pluginId}#PromptSetting`,
       name: 'Gemini Prompt',
-      description: 'Upload a .txt or .md file containing the initial Gemini prompt. (minimum of 2048 tokens)',
+      description:
+        'Upload a .txt or .md file containing the initial Gemini prompt. (minimum of 2048 tokens)',
       schema: z.string(),
-      defaultValue: "",
+      defaultValue: '',
       render: (setting) => {
-        const handleFileSelect = (event: any) => {
+        const handleFileSelect = (event) => {
           const input = event.target as HTMLInputElement;
           const file = input.files?.[0];
 
@@ -90,9 +96,10 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
         };
 
         return m(
-          'div', {
-          style: 'padding: 10px; border: 1px solid #ccc; border-radius: 8px;'
-        },
+          'div',
+          {
+            style: 'padding: 10px; border: 1px solid #ccc; border-radius: 8px;',
+          },
           [
             m('input', {
               type: 'file',
@@ -100,10 +107,15 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
               style: 'margin-top: 10px; display: block;',
               onchange: handleFileSelect,
             }),
-            m('p', {
-              style: 'margin-top: 8px; font-style: italic; font-size: 0.9em; color: #555;'
-            }, 'Select a file')
-          ]
+            m(
+              'p',
+              {
+                style:
+                  'margin-top: 8px; font-style: italic; font-size: 0.9em; color: #555;',
+              },
+              'Select a file',
+            ),
+          ],
         );
       },
     });
@@ -130,14 +142,16 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
       mcpServer.server.connect(serverTransport),
     ]);
 
-    var tool: CallableTool = mcpToTool(client)
+    const tool: CallableTool = mcpToTool(client);
 
-    const ai = new GoogleGenAI({ apiKey: PerfettoMcpPlugin.tokenSetting.get() });
+    const ai = new GoogleGenAI({apiKey: PerfettoMcpPlugin.tokenSetting.get()});
 
-    var chat = await ai.chats.create({
+    const chat = await ai.chats.create({
       model: PerfettoMcpPlugin.modelNameSetting.get(),
       config: {
-        systemInstruction: "You are an expert in analyzing perfetto traces. \n\n" + PerfettoMcpPlugin.promptSetting.get(),
+        systemInstruction:
+          'You are an expert in analyzing perfetto traces. \n\n' +
+          PerfettoMcpPlugin.promptSetting.get(),
         tools: [tool],
         toolConfig: {
           functionCallingConfig: {
@@ -150,9 +164,9 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
         },
         automaticFunctionCalling: {
           maximumRemoteCalls: 100,
-        }
-      }
-    })
+        },
+      },
+    });
 
     trace.pages.registerPage({
       route: '/aichat',

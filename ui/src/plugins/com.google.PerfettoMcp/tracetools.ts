@@ -1,7 +1,7 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp';
-import { Engine } from 'src/trace_processor/engine';
-import { z } from 'zod';
-import { runQueryForMcp } from './query';
+import {McpServer} from '@modelcontextprotocol/sdk/server/mcp';
+import {Engine} from 'src/trace_processor/engine';
+import {z} from 'zod';
+import {runQueryForMcp} from './query';
 
 export function registerTraceTools(server: McpServer, engine: Engine) {
   server.tool(
@@ -39,11 +39,11 @@ export function registerTraceTools(server: McpServer, engine: Engine) {
         \`INCLUDE PERFETTO MODULE\` for \`viz.*\`, \`slices.*\`, \`android.*\`. More can be loaded dynamically if
         needed. But loading extra must always be done in separate queries or it messes up the SQL results.
         `,
-    { query: z.string() },
-    async ({ query }) => {
+    {query: z.string()},
+    async ({query}) => {
       const data = await runQueryForMcp(engine, query);
       return {
-        content: [{ type: 'text', text: data }],
+        content: [{type: 'text', text: data}],
       };
     },
   );
@@ -56,14 +56,14 @@ export function registerTraceTools(server: McpServer, engine: Engine) {
         This lists all the processes in the trace from the \`process\` table.
         `,
     {},
-    async ({ }) => {
+    async ({}) => {
       const data = await runQueryForMcp(
         engine,
         `select *
       from process`,
       );
       return {
-        content: [{ type: 'text', text: data }],
+        content: [{type: 'text', text: data}],
       };
     },
   );
@@ -83,7 +83,7 @@ export function registerTraceTools(server: McpServer, engine: Engine) {
         tweak the tool to automatically include them.
         `,
     {},
-    async ({ }) => {
+    async ({}) => {
       const data = await runQueryForMcp(
         engine,
         `
@@ -98,7 +98,7 @@ export function registerTraceTools(server: McpServer, engine: Engine) {
 `,
       );
       return {
-        content: [{ type: 'text', text: data }],
+        content: [{type: 'text', text: data}],
       };
     },
   );
@@ -116,7 +116,7 @@ export function registerTraceTools(server: McpServer, engine: Engine) {
         But this is not always true, so ask the user if it's missing.
         `,
     {},
-    async ({ }) => {
+    async ({}) => {
       const data = await runQueryForMcp(
         engine,
         `
@@ -141,7 +141,7 @@ export function registerTraceTools(server: McpServer, engine: Engine) {
 `,
       );
       return {
-        content: [{ type: 'text', text: data }],
+        content: [{type: 'text', text: data}],
       };
     },
   );
@@ -153,11 +153,14 @@ export function registerTraceTools(server: McpServer, engine: Engine) {
         
         It's basically a query of \`pragma table_info('TABLE_NAME')\`.   
         `,
-    { table: z.string() },
-    async ({ table }) => {
-      const data = await runQueryForMcp(engine, `pragma table_info('${table}')`);
+    {table: z.string()},
+    async ({table}) => {
+      const data = await runQueryForMcp(
+        engine,
+        `pragma table_info('${table}')`,
+      );
       return {
-        content: [{ type: 'text', text: data }],
+        content: [{type: 'text', text: data}],
       };
     },
   );
