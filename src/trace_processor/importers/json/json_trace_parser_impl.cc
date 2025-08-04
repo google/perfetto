@@ -37,6 +37,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -76,6 +77,18 @@ inline std::string_view GetStringValue(const json::JsonValue& value) {
     return *str;
   }
   return {};
+}
+
+TrackCompressor::AsyncSliceType AsyncSliceTypeForPhase(char phase) {
+  switch (phase) {
+    case 'b':
+      return TrackCompressor::AsyncSliceType::kBegin;
+    case 'e':
+      return TrackCompressor::AsyncSliceType::kEnd;
+    case 'n':
+      return TrackCompressor::AsyncSliceType::kInstant;
+  }
+  PERFETTO_FATAL("For GCC");
 }
 
 }  // namespace
@@ -154,8 +167,8 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
     case 'b':
     case 'e':
     case 'n': {
-      if (event.pid == 0 ||
-          event.async_cookie == std::numeric_limits<int64_t>::max()) {
+      if (!event.pid_exists ||
+          event.async_cookie_type == JsonEvent::AsyncCookieType::kNone) {
         context_->storage->IncrementStats(stats::json_parser_failure);
         return;
       }
@@ -163,17 +176,19 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
       TrackId track_id;
       if (event.async_cookie_type == JsonEvent::AsyncCookieType::kId ||
           event.async_cookie_type == JsonEvent::AsyncCookieType::kId2Global) {
-        track_id = context_->track_tracker->InternLegacyAsyncTrack(
+        track_id = context_->track_compressor->InternLegacyAsyncTrack(
             event.name, upid, event.async_cookie,
             false /* source_id_is_process_scoped */,
-            kNullStringId /* source_scope */);
+            kNullStringId /* source_scope */,
+            AsyncSliceTypeForPhase(event.phase));
       } else {
         PERFETTO_DCHECK(event.async_cookie_type ==
                         JsonEvent::AsyncCookieType::kId2Local);
-        track_id = context_->track_tracker->InternLegacyAsyncTrack(
+        track_id = context_->track_compressor->InternLegacyAsyncTrack(
             event.name, upid, event.async_cookie,
             true /* source_id_is_process_scoped */,
-            kNullStringId /* source_scope */);
+            kNullStringId /* source_scope */,
+            AsyncSliceTypeForPhase(event.phase));
       }
       if (event.phase == 'b') {
         slice_tracker->Begin(timestamp, track_id, event.cat, slice_name_id,
@@ -287,7 +302,7 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
                   Variadic::String(context_->storage->InternString("chrome")));
             });
       } else if (event.scope == JsonEvent::Scope::kProcess) {
-        if (event.pid == 0) {
+        if (!event.pid_exists) {
           context_->storage->IncrementStats(stats::json_parser_failure);
           break;
         }
@@ -303,7 +318,7 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
             });
       } else if (event.scope == JsonEvent::Scope::kThread ||
                  event.scope == JsonEvent::Scope::kNone) {
-        if (event.tid == 0) {
+        if (!event.tid_exists) {
           context_->storage->IncrementStats(stats::json_parser_failure);
           return;
         }

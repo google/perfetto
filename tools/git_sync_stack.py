@@ -168,7 +168,12 @@ def main():
         ]
         if args.draft:
           create_command.append('--draft')
-        run_command(create_command)
+        result = run_command(create_command)
+
+      # Print the URL of the PR that was just created or updated.
+      pr_info = get_existing_pr_info(branch)
+      if pr_info:
+        print(f"\nhttps://github.com/google/perfetto/pull/{pr_info['number']}")
     except SystemExit:
       errors_occurred = True
       print(

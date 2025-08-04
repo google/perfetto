@@ -136,7 +136,7 @@ RETURNS STRING AS
 SELECT
   substr($cuj_slice_name, 3, length($cuj_slice_name) - 3);
 
--- Track all frames that overlap with the CUJ slice.
+-- Track all distinct frames that overlap with the CUJ slice.
 CREATE PERFETTO VIEW _android_frames_in_cuj AS
 SELECT
   row_number() OVER (PARTITION BY cuj.cuj_id ORDER BY frame.ts) AS frame_idx,

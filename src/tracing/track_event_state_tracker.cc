@@ -16,7 +16,7 @@
 
 #include "perfetto/tracing/track_event_state_tracker.h"
 
-#include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
 
 #include "protos/perfetto/common/interceptor_descriptor.gen.h"
@@ -92,7 +92,7 @@ void TrackEventStateTracker::ProcessTracePacket(
   }
 
   if (name.data) {
-    base::Hasher hash;
+    base::FnvHasher hash;
     hash.Update(name.data, name.size);
     name_hash = hash.digest();
   }
