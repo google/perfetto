@@ -93,8 +93,7 @@ TEST_F(AndroidLogReaderTest, PersistentLogFormat) {
   auto mock_parser = std::make_unique<EventParserMock>();
   auto* mock_parser_ptr = mock_parser.get();
   AndroidLogReader reader(
-      context(), 2020,
-      context()->sorter->CreateStream(std::move(mock_parser)));
+      context(), 2020, context()->sorter->CreateStream(std::move(mock_parser)));
 
   EXPECT_CALL(*mock_parser_ptr,
               Parse(base::MkTime(2020, 1, 2, 3, 4, 5) * kStoNs + 678901000,
@@ -137,8 +136,7 @@ TEST_F(AndroidLogReaderTest, BugreportFormat) {
   auto mock_parser = std::make_unique<EventParserMock>();
   auto* mock_parser_ptr = mock_parser.get();
   AndroidLogReader reader(
-      context(), 2020,
-      context()->sorter->CreateStream(std::move(mock_parser)));
+      context(), 2020, context()->sorter->CreateStream(std::move(mock_parser)));
 
   EXPECT_CALL(*mock_parser_ptr,
               Parse(base::MkTime(2020, 7, 28, 14, 25, 20) * kStoNs + 355000000,
@@ -206,35 +204,28 @@ TEST_F(AndroidLogReaderTest, Dedupe) {
   EXPECT_CALL(*mock_parser_for_logcat_ptr,
               Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100000000,
                     AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M1")}));
-  EXPECT_CALL(
-      *mock_parser_for_logcat_ptr,
-      Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100111000,
-            AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M2")}));
-  EXPECT_CALL(
-      *mock_parser_for_logcat_ptr,
-      Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100111000,
-            AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M3")}));
-  EXPECT_CALL(
-      *mock_parser_for_logcat_ptr,
-      Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100222000,
-            AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M4")}));
-  EXPECT_CALL(
-      *mock_parser_for_logcat_ptr,
-      Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 101000000,
-            AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M5")}));
+  EXPECT_CALL(*mock_parser_for_logcat_ptr,
+              Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100111000,
+                    AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M2")}));
+  EXPECT_CALL(*mock_parser_for_logcat_ptr,
+              Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100111000,
+                    AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M3")}));
+  EXPECT_CALL(*mock_parser_for_logcat_ptr,
+              Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100222000,
+                    AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M4")}));
+  EXPECT_CALL(*mock_parser_for_logcat_ptr,
+              Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 101000000,
+                    AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M5")}));
 
-  EXPECT_CALL(
-      *mock_parser_for_dumpstate_ptr,
-      Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100000000,
-            AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M1")}));
-  EXPECT_CALL(
-      *mock_parser_for_dumpstate_ptr,
-      Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100000000,
-            AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M1.5")}));
-  EXPECT_CALL(
-      *mock_parser_for_dumpstate_ptr,
-      Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 101000000,
-            AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M6")}));
+  EXPECT_CALL(*mock_parser_for_dumpstate_ptr,
+              Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100000000,
+                    AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M1")}));
+  EXPECT_CALL(*mock_parser_for_dumpstate_ptr,
+              Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100000000,
+                    AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M1.5")}));
+  EXPECT_CALL(*mock_parser_for_dumpstate_ptr,
+              Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 101000000,
+                    AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M6")}));
   EXPECT_TRUE(dumstate_reader
                   .Parse(TraceBlobView(TraceBlob::CopyFrom(
                       kDumpstateInput, sizeof(kDumpstateInput))))
