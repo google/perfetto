@@ -14,7 +14,6 @@
 
 import {Trace} from '../../public/trace';
 import {App} from '../../public/app';
-import {MetricVisualisation} from '../../public/plugin';
 import {PerfettoPlugin} from '../../public/plugin';
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
@@ -185,9 +184,5 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
       icon: 'smart_toy',
       sortOrder: 10,
     });
-  }
-
-  static metricVisualisations(): MetricVisualisation[] {
-    return [];
   }
 }
