@@ -37,7 +37,7 @@ export class Operator implements m.ClassComponent<OperatorAttrs> {
     return m('.pf-exp-query-operations', [
       m(FilterOperation, attrs.filter),
       this.showAggregations
-        ? m('.pf-exp-query-operations', m(AggregationsOperator, attrs.groupby))
+        ? m(AggregationsOperator, attrs.groupby)
         : m(Button, {
             label: 'Aggregate data',
             onclick: () => {
