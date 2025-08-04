@@ -44,6 +44,7 @@ source_set("sorter") {
     "../storage",
     "../types",
     "../util:bump_allocator",
+    "../util:trace_type",
   ]
 }
 
