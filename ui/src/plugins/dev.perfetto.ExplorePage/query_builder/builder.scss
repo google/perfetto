@@ -78,4 +78,14 @@
       grid-row: 2;
     }
   }
+  &.full-page {
+    .pf-qb-node-graph,
+    .pf-qb-explorer {
+      display: none;
+    }
+    .pf-qb-viewer {
+      grid-column: 1 / span 2;
+      grid-row: 1 / span 2;
+    }
+  }
 }
