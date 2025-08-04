@@ -29,6 +29,7 @@
 
 // clang-format off
 #include <windows.h>
+
 #include <Psapi.h>
 // clang-format on
 #else  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
