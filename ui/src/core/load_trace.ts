@@ -35,6 +35,7 @@ import {
   TraceBufferStream,
   TraceFileStream,
   TraceHttpStream,
+  TraceMultipleFilesStream,
   TraceStream,
 } from '../core/trace_stream';
 import {
@@ -142,6 +143,7 @@ async function createEngine(
     console.log('Opening trace using built-in WASM engine');
     engine = new WasmEngineProxy(engineId);
     engine.resetTraceProcessor({
+      tokenizeOnly: false,
       cropTrackEvents: CROP_TRACK_EVENTS_FLAG.get(),
       ingestFtraceInRawTable: INGEST_FTRACE_IN_RAW_TABLE_FLAG.get(),
       analyzeTraceProtoContent: ANALYZE_TRACE_PROTO_CONTENT_FLAG.get(),
@@ -172,6 +174,8 @@ async function loadTraceIntoEngine(
     serializedAppState = traceSource.serializedAppState;
   } else if (traceSource.type === 'HTTP_RPC') {
     traceStream = undefined;
+  } else if (traceSource.type === 'MULTIPLE_FILES') {
+    traceStream = new TraceMultipleFilesStream(traceSource.files);
   } else {
     throw new Error(`Unknown source: ${JSON.stringify(traceSource)}`);
   }
