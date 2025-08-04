@@ -17,6 +17,7 @@ import {Chat, GenerateContentResponse} from '@google/genai';
 import {Trace} from '../../public/trace';
 import {TextInput} from '../../widgets/text_input';
 import markdownit from 'markdown-it';
+import {Button} from '../../widgets/button';
 
 // Interface for a single message in the chat display
 interface ChatMessage {
@@ -143,9 +144,9 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
   view() {
     // We return a fragment (an array) containing the style and the chat container.
     return m(
-      'section.chat-container',
+      '.pf-ai-chat-panel',
       m(
-        '.conversation',
+        '.pf-ai-chat-panel__conversation',
         {
           // This onupdate hook automatically scrolls to the bottom
           // whenever the messages are updated.
@@ -179,15 +180,18 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
               break;
           }
           return m(
-            `.message-wrapper.${msg.role}`,
-            m('b.role-label', role),
+            `.pf-ai-chat-message.${msg.role}`,
+            m('b.pf-ai-chat-role-label', role),
             // TODO: Need to sanitize input
-            m('span.message-text', m.trust(this.md.render(msg.text))), // Use m.trust to render markdown html
+            m(
+              'span.pf-ai-chat-message-text',
+              m.trust(this.md.render(msg.text)),
+            ), // Use m.trust to render markdown html
           );
         }),
       ),
       m(
-        'footer.chat-input-area',
+        'footer.pf-ai-chat-panel__input-area',
         m(TextInput, {
           value: this.userInput,
           oninput: (e: Event) => {
@@ -204,12 +208,13 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
             : 'Ask me about your trace...',
           disabled: this.isLoading,
         }),
-        // Disable the button while loading to prevent multiple submissions
-        m(
-          'button',
-          {onclick: this.sendMessage, disabled: this.isLoading},
-          'Send',
-        ),
+
+        m(Button, {
+          icon: 'arrow_forward',
+          title: 'Send',
+          onclick: () => this.sendMessage(),
+          loading: this.isLoading,
+        }),
       ),
     );
   }

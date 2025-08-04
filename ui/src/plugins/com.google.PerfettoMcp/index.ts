@@ -70,9 +70,8 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
       schema: z.string(),
       defaultValue: '',
       render: (setting) => {
-        const handleFileSelect = (event) => {
-          const input = event.target as HTMLInputElement;
-          const file = input.files?.[0];
+        const handleFileSelect = (event: {target: HTMLInputElement}) => {
+          const file = event.target.files?.[0];
 
           if (!file) {
             return;
