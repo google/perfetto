@@ -23,10 +23,8 @@ import { CallableTool, FunctionCallingConfigMode, GoogleGenAI, mcpToTool } from 
 import { registerTraceTools } from './tracetools';
 import { z } from 'zod';
 import { Setting } from 'src/public/settings';
-import { registerCommands } from './commands';
 import { ChatPage } from './chat_page';
 import m from 'mithril';
-import { registerUiTools } from './uitools';
 export default class PerfettoMcpPlugin implements PerfettoPlugin {
   static readonly id = 'com.google.PerfettoMcp';
 
@@ -118,7 +116,6 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
     });
 
     registerTraceTools(mcpServer, trace.engine);
-    registerUiTools(mcpServer, trace);
 
     const client = new Client({
       name: 'PerfettoMcpClient',
@@ -156,8 +153,6 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
         }
       }
     })
-
-    registerCommands(ai, client, trace, PerfettoMcpPlugin.modelNameSetting.get());
 
     trace.pages.registerPage({
       route: '/aichat',

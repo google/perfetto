@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-const { uglify } = require('rollup-plugin-uglify');
+const {uglify} = require('rollup-plugin-uglify');
 const commonjs = require('@rollup/plugin-commonjs');
 const nodeResolve = require('@rollup/plugin-node-resolve');
 const path = require('path');
@@ -38,11 +38,11 @@ function defBundle(tsRoot, bundle, distDir) {
         patterns:
           process.env['IS_MEMORY64_ONLY'] != 'true'
             ? [
-              {
-                test: './trace_processor_32_stub',
-                replace: '../gen/trace_processor',
-              },
-            ]
+                {
+                  test: './trace_processor_32_stub',
+                  replace: '../gen/trace_processor',
+                },
+              ]
             : [],
       }),
 
@@ -63,12 +63,12 @@ function defBundle(tsRoot, bundle, distDir) {
         patterns: [
           // Protobufjs's inquire() uses eval but that's not really needed in
           // the browser. https://github.com/protobufjs/protobuf.js/issues/593
-          { test: /eval\(.*\(moduleName\);/g, replace: 'undefined;' },
+          {test: /eval\(.*\(moduleName\);/g, replace: 'undefined;'},
 
           // Immer entry point has a if (process.env.NODE_ENV === 'production')
           // but |process| is not defined in the browser. Bypass.
           // https://github.com/immerjs/immer/issues/557
-          { test: /process\.env\.NODE_ENV/g, replace: "'production'" },
+          {test: /process\.env\.NODE_ENV/g, replace: "'production'"},
         ],
       }),
 
@@ -120,7 +120,7 @@ function maybeUglify() {
   const minifyEnv = process.env['MINIFY_JS'];
   if (!minifyEnv) return [];
   const opts =
-    minifyEnv === 'preserve_comments' ? { output: { comments: 'all' } } : undefined;
+    minifyEnv === 'preserve_comments' ? {output: {comments: 'all'}} : undefined;
   return [uglify(opts)];
 }
 

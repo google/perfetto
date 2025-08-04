@@ -5,39 +5,39 @@ import { runQueryForMcp } from './query';
 
 export function registerTraceTools(server: McpServer, engine: Engine) {
   server.tool(
-    'execute-perfetto-trace-query',
+    'perfetto-execute-query',
     `
-                Tool to query the perfetto trace file loaded in Perfettu UI currently.
-                
-                The query is SQL to execute against Perfetto's trace_processor.
-                
-                If you are not sure about a query, then it's useful to show the SQL to the user and ask them to confirm.
-                 
-                 The stdlib is documented at https://perfetto.dev/docs/analysis/stdlib-docs 
-                 It is worth fetching this fully in order to use best practices in queries.
-                 
-                It's generally faster to use the existing stdlib tables, and aggregated results rather than
-                querying large result sets and processing after retrieved. So reuse standard views where possible
-                In addition, if querying some of the perfetto modules listed are resulting in error or empty results,
-                try using the prelude module listed at https://perfetto.dev/docs/analysis/stdlib-docs#package-prelude
-                 
-                The Perfetto SQL syntax is described here https://perfetto.dev/docs/analysis/perfetto-sql-syntax
-                 
-                 Jank is a common topic and described here https://perfetto.dev/docs/data-sources/frametimeline
-                 Using the information in expected_frame_timeline_slice and actual_frame_timeline_slice as the primary
-                 source for jank is preferred.
-                 
-                 Power is a less common topic and is described here https://perfetto.dev/docs/data-sources/battery-counters
-                 
-                 CPU is described a bit here https://perfetto.dev/docs/data-sources/cpu-scheduling
-                 
-                 Memory is described here https://perfetto.dev/docs/data-sources/memory-counters
-                 
-                 Android logs are described here https://perfetto.dev/docs/data-sources/android-log
-                
-                Parts of the perfetto stdlib will be included automatically by executing 
-                 \`INCLUDE PERFETTO MODULE\` for \`viz.*\`, \`slices.*\`, \`android.*\`. More can be loaded dynamically if 
-                 needed. But loading extra must always be done in separate queries or it messes up the SQL results.   
+       Tool to query the perfetto trace file loaded in Perfettu UI currently.
+
+       The query is SQL to execute against Perfetto's trace_processor.
+
+       If you are not sure about a query, then it's useful to show the SQL to the user and ask them to confirm.
+
+       The stdlib is documented at https://perfetto.dev/docs/analysis/stdlib-docs
+       It is worth fetching this fully in order to use best practices in queries.
+
+       It's generally faster to use the existing stdlib tables, and aggregated results rather than
+       querying large result sets and processing after retrieved. So reuse standard views where possible
+       In addition, if querying some of the perfetto modules listed are resulting in error or empty results,
+       try using the prelude module listed at https://perfetto.dev/docs/analysis/stdlib-docs#package-prelude
+
+       The Perfetto SQL syntax is described here https://perfetto.dev/docs/analysis/perfetto-sql-syntax
+
+       Jank is a common topic and described here https://perfetto.dev/docs/data-sources/frametimeline
+       Using the information in expected_frame_timeline_slice and actual_frame_timeline_slice as the primary
+       source for jank is preferred.
+
+       Power is a less common topic and is described here https://perfetto.dev/docs/data-sources/battery-counters
+
+       CPU is described a bit here https://perfetto.dev/docs/data-sources/cpu-scheduling
+
+       Memory is described here https://perfetto.dev/docs/data-sources/memory-counters
+
+       Android logs are described here https://perfetto.dev/docs/data-sources/android-log
+
+       The perfetto stdlib can be included by executing
+        \`INCLUDE PERFETTO MODULE\` for \`viz.*\`, \`slices.*\`, \`android.*\`. More can be loaded dynamically if
+        needed. But loading extra must always be done in separate queries or it messes up the SQL results.
         `,
     { query: z.string() },
     async ({ query }) => {
@@ -49,11 +49,11 @@ export function registerTraceTools(server: McpServer, engine: Engine) {
   );
 
   server.tool(
-    'list_android_processes_in_trace',
+    'perfetto-list-android-processes',
     `
-Tool to list process details from the trace.
-        
-This lists all the processes in the trace from the \`process\` table.
+        Tool to list process details from the trace.
+
+        This lists all the processes in the trace from the \`process\` table.
         `,
     {},
     async ({ }) => {
@@ -69,18 +69,18 @@ This lists all the processes in the trace from the \`process\` table.
   );
 
   server.tool(
-    'list_interesting_trace_tables',
+    'perfetto-list-interesting-tables',
     `
         Tool to list interesting tables and views.
         
         It's basically a query on [sqlite_schema], but excluding 'sqlite_' and '_' prefixed tables which tend to
-         be internal implementation details.
+        be internal implementation details.
         
         This is relevant if queries aren't working, they may need to be loaded via the 'INCLUDE PERFETTO MODULE'
-         query.
+        query.
          
-         If tables you expect to be there based on public samples aren't, please mention it so that the user can 
-         tweak the tool to automatically include them.
+        If tables you expect to be there based on public samples aren't, please mention it so that the user can
+        tweak the tool to automatically include them.
         `,
     {},
     async ({ }) => {
@@ -104,7 +104,7 @@ This lists all the processes in the trace from the \`process\` table.
   );
 
   server.tool(
-    'list_macrobenchmark_slices',
+    'perfetto-list-macrobenchmark-slices',
     `
         Tool to list macrobenchmark slices.
         
@@ -113,6 +113,7 @@ This lists all the processes in the trace from the \`process\` table.
 
         So a \`measureBlock\` in the app \`com.google.android.horologist.mediasample.benchmark\`, 
         would usually be testing against an app called \`com.google.android.horologist.mediasample\`.
+        But this is not always true, so ask the user if it's missing.
         `,
     {},
     async ({ }) => {
@@ -146,9 +147,9 @@ This lists all the processes in the trace from the \`process\` table.
   );
 
   server.tool(
-    'list_table_structure',
+    'perfetto-list-table-structure',
     `
-        Tool to list the structure of tables.
+        Tool to list the structure of a table.
         
         It's basically a query of \`pragma table_info('TABLE_NAME')\`.   
         `,
