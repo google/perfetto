@@ -214,7 +214,9 @@ source_set("full") {
     "../common",
     "../common:parser_types",
     "../etw:full",
+    "../etw:minimal",
     "../ftrace:full",
+    "../ftrace:minimal",
     "../generic_kernel:full",
     "../syscalls:full",
   ]
@@ -236,7 +238,8 @@ source_set("proto_importer_module") {
     "../../../../include/perfetto/trace_processor:trace_processor",
     "../../../base",
     "../../types",
-    "../common:trace_parser_hdr",
+    "../../sorter",
+    "../common:parser_types",
   ]
 }
 
