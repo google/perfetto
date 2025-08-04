@@ -94,9 +94,11 @@ if (enable_perfetto_llvm_symbolizer) {
       "../../../gn:default_deps",
       "../../../include/perfetto/ext/base",
     ]
+    libs = [ "dl" ]
     visibility = [
       "../../../buildtools/*",
       "../../src/trace_processor/*",
+      "../../trace_processor/perfetto_sql/intrinsics/functions",
       "./*",
     ]
   }
