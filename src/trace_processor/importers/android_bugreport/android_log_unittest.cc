@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
+#include <cstdint>
 #include <memory>
 #include <ostream>
 #include <utility>
-#include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -32,6 +31,7 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
