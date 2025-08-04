@@ -237,8 +237,8 @@ source_set("proto_importer_module") {
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor:trace_processor",
     "../../../base",
-    "../../types",
     "../../sorter",
+    "../../types",
     "../common:parser_types",
   ]
 }
