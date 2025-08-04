@@ -23,6 +23,7 @@ import {
   createSelectColumnsProto,
   QueryNodeState,
   createFinalColumns,
+  nextNodeId,
 } from '../../query_node';
 import {
   ColumnInfo,
@@ -41,22 +42,23 @@ import {closeModal, showModal} from '../../../../widgets/modal';
 import {TableList} from '../table_list';
 import {redrawModal} from '../../../../widgets/modal';
 
-export interface StdlibTableAttrs extends QueryNodeState {
+export interface TableSourceState extends QueryNodeState {
   readonly trace: Trace;
   readonly sqlModules: SqlModules;
 
   sqlTable?: SqlTable;
+  onchange?: () => void;
 }
 
-interface StdlibTableSelectionResult {
+interface TableSelectionResult {
   sqlTable: SqlTable;
   sourceCols: ColumnInfo[];
   groupByColumns: ColumnInfo[];
 }
 
-export function modalForStdlibTableSelection(
+export function modalForTableSelection(
   sqlModules: SqlModules,
-): Promise<StdlibTableSelectionResult | undefined> {
+): Promise<TableSelectionResult | undefined> {
   return new Promise((resolve) => {
     let searchQuery = '';
 
@@ -94,33 +96,35 @@ export function modalForStdlibTableSelection(
   });
 }
 
-export class StdlibTableNode implements QueryNode {
-  readonly type: NodeType = NodeType.kStdlibTable;
+export class TableSourceNode implements QueryNode {
+  readonly nodeId: string;
+  readonly graphTableName: string;
+  readonly type: NodeType = NodeType.kTable;
   readonly prevNode = undefined;
   nextNode?: QueryNode;
 
   readonly sourceCols: ColumnInfo[];
   readonly finalCols: ColumnInfo[];
-  readonly state: StdlibTableAttrs;
+  readonly state: TableSourceState;
 
   showColumns: boolean = false;
 
-  constructor(attrs: StdlibTableAttrs) {
+  constructor(attrs: TableSourceState) {
+    this.nodeId = nextNodeId();
+    this.graphTableName = `exp_${this.nodeId}`;
     this.state = attrs;
+    this.state.onchange = attrs.onchange;
 
-    if (attrs.sqlTable) {
-      this.sourceCols = attrs.sourceCols;
-      this.state.filters = attrs.filters ?? [];
-      this.state.groupByColumns = attrs.groupByColumns;
-      this.state.aggregations = attrs.aggregations ?? [];
-    } else {
-      this.sourceCols = attrs.sourceCols ?? [];
-    }
+    this.sourceCols = attrs.sourceCols ?? [];
+    this.state.filters = attrs.filters ?? [];
+    this.state.groupByColumns =
+      attrs.groupByColumns ?? newColumnInfoList(this.sourceCols, false);
+    this.state.aggregations = attrs.aggregations ?? [];
     this.finalCols = createFinalColumns(this);
   }
 
-  getStateCopy(): QueryNodeState {
-    const newState: StdlibTableAttrs = {
+  clone(): QueryNode {
+    const stateCopy: TableSourceState = {
       trace: this.state.trace,
       sqlModules: this.state.sqlModules,
       sqlTable: this.state.sqlTable,
@@ -129,8 +133,9 @@ export class StdlibTableNode implements QueryNode {
       filters: this.state.filters.map((f) => ({...f})),
       aggregations: this.state.aggregations.map((a) => ({...a})),
       customTitle: this.state.customTitle,
+      onchange: this.state.onchange,
     };
-    return newState;
+    return new TableSourceNode(stateCopy);
   }
 
   nodeSpecificModify(): m.Child {

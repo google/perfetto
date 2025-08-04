@@ -42,6 +42,7 @@ export interface FilterAttrs {
   readonly onFiltersChanged?: (
     filters: ReadonlyArray<FilterDefinition>,
   ) => void;
+  readonly onchange?: () => void;
 }
 
 export class FilterOperation implements m.ClassComponent<FilterAttrs> {
@@ -72,6 +73,7 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
     if (this.editingFilter === undefined) {
       attrs.onFiltersChanged?.(this.uiFilters.filter(isFilterDefinitionValid));
     }
+    attrs.onchange?.();
     m.redraw();
   }
 
@@ -267,7 +269,12 @@ class FilterEditor implements m.ClassComponent<FilterEditorAttrs> {
             oninput: (e: Event) => {
               const target = e.target as HTMLInputElement;
               const value = parseFilterValue(target.value);
-              onUpdate({...filter, value});
+              const {value: _value, ...rest} = filter;
+              if (value !== undefined) {
+                onUpdate({...rest, value});
+              } else {
+                onUpdate(rest);
+              }
             },
           }),
         m(Button, {
