@@ -16,30 +16,36 @@ import {SerializedAppState} from './state_serialization_schema';
 
 export type TraceSource =
   | TraceFileSource
+  | TraceMultipleFilesSource
   | TraceArrayBufferSource
   | TraceUrlSource
   | TraceHttpRpcSource;
 
 export interface TraceFileSource {
-  type: 'FILE';
-  file: File;
+  readonly type: 'FILE';
+  readonly file: File;
+}
+
+export interface TraceMultipleFilesSource {
+  readonly type: 'MULTIPLE_FILES';
+  readonly files: ReadonlyArray<File>;
 }
 
 export interface TraceUrlSource {
-  type: 'URL';
-  url: string;
+  readonly type: 'URL';
+  readonly url: string;
 
   // When loading from a permalink, the permalink might supply also the app
   // state alongside the URL of the trace.
-  serializedAppState?: SerializedAppState;
+  readonly serializedAppState?: SerializedAppState;
 }
 
 export interface TraceHttpRpcSource {
-  type: 'HTTP_RPC';
+  readonly type: 'HTTP_RPC';
 }
 
 export interface TraceArrayBufferSource extends PostedTrace {
-  type: 'ARRAY_BUFFER';
+  readonly type: 'ARRAY_BUFFER';
   // See PostedTrace (which this interface extends).
 }
 

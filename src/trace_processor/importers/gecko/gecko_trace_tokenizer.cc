@@ -35,7 +35,7 @@
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/gecko/gecko_event.h"
 #include "src/trace_processor/importers/json/json_utils.h"
-#include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 

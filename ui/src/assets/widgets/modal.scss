@@ -84,6 +84,12 @@
     justify-content: space-between;
     align-items: center;
 
+    .modal-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     h2 {
       margin-top: 0;
       margin-bottom: 0;

@@ -19,7 +19,7 @@
 #include <thread>
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <Windows.h>
+#include <windows.h>
 #else
 #include <signal.h>
 #include <sys/stat.h>

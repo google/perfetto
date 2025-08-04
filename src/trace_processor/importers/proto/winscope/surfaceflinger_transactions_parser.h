@@ -34,11 +34,11 @@ class SurfaceFlingerTransactionsParser {
 
  private:
   void ParseTransaction(int64_t timestamp,
-                        protozero::ConstBytes blob,
+                        protozero::ConstBytes transaction,
                         tables::SurfaceFlingerTransactionsTable::Id);
 
   void ParseAddedLayer(int64_t timestamp,
-                       protozero::ConstBytes blob,
+                       protozero::ConstBytes layer_creation_args,
                        tables::SurfaceFlingerTransactionsTable::Id);
 
   void AddNoopRow(tables::SurfaceFlingerTransactionsTable::Id snapshot_id,
@@ -48,25 +48,28 @@ class SurfaceFlingerTransactionsParser {
 
   void AddLayerChangedRow(
       int64_t timestamp,
-      protozero::ConstBytes blob,
+      protozero::ConstBytes layer_state,
       tables::SurfaceFlingerTransactionsTable::Id snapshot_id,
       uint64_t transaction_id,
       int32_t pid,
-      int32_t uid);
+      int32_t uid,
+      protozero::ConstBytes transaction);
 
   void ParseDisplayState(
       int64_t timestamp,
-      protozero::ConstBytes blob,
+      protozero::ConstBytes display_state,
       tables::SurfaceFlingerTransactionsTable::Id snapshot_id,
       StringPool::Id transaction_type,
       std::optional<uint64_t> transaction_id,
       std::optional<int32_t> pid,
-      std::optional<int32_t> uid);
+      std::optional<int32_t> uid,
+      std::optional<protozero::ConstBytes> transaction);
 
   void AddArgs(int64_t timestamp,
                protozero::ConstBytes blob,
                tables::SurfaceFlingerTransactionTable::Id row_id,
-               std::string message_type);
+               std::string message_type,
+               std::optional<protozero::ConstBytes> transaction);
 
   std::vector<int32_t> DecodeFlags(uint32_t bitset,
                                    std::vector<int32_t> all_flags);

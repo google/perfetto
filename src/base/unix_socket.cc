@@ -28,10 +28,10 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 // The include order matters on these three Windows header groups.
-#include <Windows.h>
+#include <windows.h>
 
-#include <WS2tcpip.h>
-#include <WinSock2.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
 
 #include <afunix.h>
 #else

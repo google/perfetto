@@ -40,13 +40,14 @@ export default class implements PerfettoPlugin {
 
   private async addPowerRailCounterTracks(ctx: Trace): Promise<void> {
     const result = await ctx.engine.query(`
+      INCLUDE PERFETTO MODULE android.power_rails;
+
       SELECT
-        id as trackId,
-        name,
+        track_id as trackId,
+        raw_power_rail_name as name,
         machine_id as machine
-      FROM counter_track
-      WHERE type = 'power_rails'
-      ORDER BY name
+      FROM android_power_rails_metadata
+      ORDER BY raw_power_rail_name
     `);
 
     if (result.numRows() === 0) {
@@ -83,7 +84,7 @@ export default class implements PerfettoPlugin {
           sqlSource: `
             SELECT
               ts,
-              value
+              value / 1000.0 AS value -- convert uJ to mJ
             FROM counter
             WHERE track_id = ${trackId}
           `,
@@ -91,6 +92,8 @@ export default class implements PerfettoPlugin {
         options: {
           yMode: 'rate',
           yRangeSharingKey: 'power_rails',
+          unit: 'mJ',
+          rateUnit: 'mW',
         },
       });
 

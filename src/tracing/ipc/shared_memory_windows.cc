@@ -21,7 +21,7 @@
 #include <memory>
 #include <random>
 
-#include <Windows.h>
+#include <windows.h>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"

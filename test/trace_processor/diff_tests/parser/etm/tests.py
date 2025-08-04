@@ -101,27 +101,29 @@ class Etm(TestSuite):
           INCLUDE PERFETTO MODULE linux.perf.etm;
           SELECT
             replace(file_name, rtrim(file_name, replace(file_name, '/', '')), '') AS short_file_name,
-            rel_pc
+            rel_pc,
+            mapping_id,
+            address
           FROM _linux_perf_etm_metadata(0)
           WHERE short_file_name="etm"
         ''',
         out=Csv('''
-          "short_file_name","rel_pc"
-          "etm",18504
-          "etm",18508
-          "etm",18512
-          "etm",18492
-          "etm",18536
-          "etm",18540
-          "etm",18544
-          "etm",18548
-          "etm",18552
-          "etm",18556
-          "etm",18560
-          "etm",18564
-          "etm",18568
-          "etm",18976
-          "etm",18980
-          "etm",18984
-          "etm",18988
+          "short_file_name","rel_pc","mapping_id","address"
+          "etm",18504,1,434500225096
+          "etm",18508,1,434500225100
+          "etm",18512,1,434500225104
+          "etm",18492,1,434500225084
+          "etm",18536,1,434500225128
+          "etm",18540,1,434500225132
+          "etm",18544,1,434500225136
+          "etm",18548,1,434500225140
+          "etm",18552,1,434500225144
+          "etm",18556,1,434500225148
+          "etm",18560,1,434500225152
+          "etm",18564,1,434500225156
+          "etm",18568,1,434500225160
+          "etm",18976,1,434500225568
+          "etm",18980,1,434500225572
+          "etm",18984,1,434500225576
+          "etm",18988,1,434500225580
         '''))

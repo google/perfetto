@@ -39,52 +39,13 @@ WITH
     ORDER BY
       ts ASC
     LIMIT 1
-  ),
-  window AS (
-    SELECT
-      start_ts AS ts,
-      trace_end() - start_ts AS dur
-    FROM window_start
   )
 SELECT
-  *,
-  0 AS cpu
-FROM window
-UNION ALL
-SELECT
-  *,
-  1 AS cpu
-FROM window
-UNION ALL
-SELECT
-  *,
-  2 AS cpu
-FROM window
-UNION ALL
-SELECT
-  *,
-  3 AS cpu
-FROM window
-UNION ALL
-SELECT
-  *,
-  4 AS cpu
-FROM window
-UNION ALL
-SELECT
-  *,
-  5 AS cpu
-FROM window
-UNION ALL
-SELECT
-  *,
-  6 AS cpu
-FROM window
-UNION ALL
-SELECT
-  *,
-  7 AS cpu
-FROM window;
+  start_ts AS ts,
+  trace_end() - start_ts AS dur,
+  cpu
+FROM window_start
+CROSS JOIN _dev_cpu_policy_map;
 
 -- Start matching CPUs with 1D curves based on combination of freq and idle
 CREATE PERFETTO TABLE _idle_freq_materialized AS

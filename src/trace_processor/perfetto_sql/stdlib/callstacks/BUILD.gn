@@ -15,5 +15,8 @@
 import("../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("callstacks") {
-  sources = [ "stack_profile.sql" ]
+  sources = [
+    "stack_profile.sql",
+    "symbolize.sql",
+  ]
 }
