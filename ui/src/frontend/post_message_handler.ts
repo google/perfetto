@@ -253,12 +253,12 @@ export function postMessageHandler(messageEvent: MessageEvent) {
       }
       const json = (await response.json()).appState;
       const parsedState = parseAppState(json);
-      if (parsedState.ok) {
-        appState = parsedState.value;
+      if (parsedState.success) {
+        appState = parsedState.data;
       }
     }
     AppImpl.instance.openTrace({
-      kind: 'ARRAY_BUFFER',
+      type: 'ARRAY_BUFFER',
       serializedAppState: appState,
       ...postedTrace,
     });

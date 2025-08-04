@@ -76,12 +76,12 @@ export async function uploadTraceBlob(
   const traceSource = trace.traceInfo.source;
   let dataToUpload: File | ArrayBuffer | undefined = undefined;
   let traceName = trace.traceInfo.traceTitle || 'trace';
-  if (traceSource.kind === 'FILE') {
+  if (traceSource.type === 'FILE') {
     dataToUpload = traceSource.file;
     traceName = dataToUpload.name;
-  } else if (traceSource.kind === 'ARRAY_BUFFER') {
+  } else if (traceSource.type === 'ARRAY_BUFFER') {
     dataToUpload = traceSource.buffer;
-  } else if (traceSource.kind === 'URL') {
+  } else if (traceSource.type === 'URL') {
     alreadyUploadedUrl = traceSource.url;
   } else {
     throw new Error(`Cannot share trace ${JSON.stringify(traceSource)}`);
@@ -175,15 +175,15 @@ export async function loadPermalink(gcsFileName: string): Promise<void> {
     // This is the most common case where the permalink contains the app state
     // (and optionally a traceUrl, below).
     const parseRes = parseAppState(permalink.appState);
-    if (parseRes.ok) {
-      serializedAppState = parseRes.value;
+    if (parseRes.success) {
+      serializedAppState = parseRes.data;
     } else {
       error = parseRes.error;
     }
   }
   if (permalink.traceUrl) {
     AppImpl.instance.openTrace({
-      kind: 'URL',
+      type: 'URL',
       url: permalink.traceUrl,
       serializedAppState,
     });

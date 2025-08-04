@@ -102,10 +102,10 @@ function downloadTrace(trace: TraceImpl) {
       accept: {'*/*': ['.pftrace']},
     },
   ];
-  if (src.kind === 'URL') {
+  if (src.type === 'URL') {
     const fileName = src.url.split('/').slice(-1)[0];
     downloadUrl({url: src.url, fileName});
-  } else if (src.kind === 'ARRAY_BUFFER') {
+  } else if (src.type === 'ARRAY_BUFFER') {
     const blob = new Blob([src.buffer], {type: 'application/octet-stream'});
     const fileName = src.fileName ?? `trace${TRACE_SUFFIX}`;
     download({
@@ -115,7 +115,7 @@ function downloadTrace(trace: TraceImpl) {
         types: filePickerAcceptTypes,
       },
     });
-  } else if (src.kind === 'FILE') {
+  } else if (src.type === 'FILE') {
     download({
       content: src.file,
       fileName: src.file.name,

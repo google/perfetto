@@ -274,7 +274,7 @@ export class AppImpl implements App {
   }
 
   openTrace(src: TraceSource) {
-    if (src.kind === 'ARRAY_BUFFER' && src.buffer instanceof Uint8Array) {
+    if (src.type === 'ARRAY_BUFFER' && src.buffer instanceof Uint8Array) {
       // Even though the type of `buffer` is ArrayBuffer, it's possible to
       // accidentally pass a Uint8Array here, because the interface of
       // Uint8Array is compatible with ArrayBuffer. That can cause subtle bugs

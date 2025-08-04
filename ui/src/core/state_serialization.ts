@@ -22,7 +22,6 @@ import {
 } from '../public/state_serialization_schema';
 import {TimeSpan} from '../base/time';
 import {TraceImpl} from './trace_impl';
-import {errResult, okResult, Result} from '../base/result';
 
 // When it comes to serialization & permalinks there are two different use cases
 // 1. Uploading the current trace in a Cloud Storage (GCS) file AND serializing
@@ -118,27 +117,31 @@ export function serializeAppState(trace: TraceImpl): SerializedAppState {
   };
 }
 
+export type ParseStateResult =
+  | {success: true; data: SerializedAppState}
+  | {success: false; error: string};
+
 /**
  * Parses the app state from a JSON blob.
  * @param jsonDecodedObj the output of JSON.parse() that needs validation
  * @returns Either a @type {SerializedAppState} object or an error.
  */
-export function parseAppState(
-  jsonDecodedObj: unknown,
-): Result<SerializedAppState> {
+export function parseAppState(jsonDecodedObj: unknown): ParseStateResult {
   const parseRes = APP_STATE_SCHEMA.safeParse(jsonDecodedObj);
   if (parseRes.success) {
     if (parseRes.data.version == SERIALIZED_STATE_VERSION) {
-      return okResult(parseRes.data);
+      return {success: true, data: parseRes.data};
     } else {
-      return errResult(
-        `SERIALIZED_STATE_VERSION mismatch ` +
+      return {
+        success: false,
+        error:
+          `SERIALIZED_STATE_VERSION mismatch ` +
           `(actual: ${parseRes.data.version}, ` +
           `expected: ${SERIALIZED_STATE_VERSION})`,
-      );
+      };
     }
   }
-  return errResult(parseRes.error.toString());
+  return {success: false, error: parseRes.error.toString()};
 }
 
 /**

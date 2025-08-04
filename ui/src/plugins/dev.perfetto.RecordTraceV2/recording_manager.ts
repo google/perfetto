@@ -294,7 +294,7 @@ export class CurrentTracingSession {
     const traceData: Uint8Array | undefined = this.session?.getTraceData();
     if (traceData === undefined) return;
     this.recMgr.app.openTrace({
-      kind: 'ARRAY_BUFFER',
+      type: 'ARRAY_BUFFER',
       buffer: traceData,
       title: this.fileName,
       fileName: this.fileName,

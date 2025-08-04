@@ -97,7 +97,7 @@ export async function cacheTrace(
   let url = '';
   let contentLength = 0;
   let localOnly = false;
-  switch (traceSource.kind) {
+  switch (traceSource.type) {
     case 'ARRAY_BUFFER':
       trace = traceSource.buffer;
       title = traceSource.title;
@@ -144,7 +144,7 @@ export async function tryGetTrace(
 
   if (!response) return undefined;
   return {
-    kind: 'ARRAY_BUFFER',
+    type: 'ARRAY_BUFFER',
     buffer: await response.arrayBuffer(),
     title: decodeURI(response.headers.get('x-trace-title') ?? ''),
     fileName: response.headers.get('x-trace-filename') ?? undefined,

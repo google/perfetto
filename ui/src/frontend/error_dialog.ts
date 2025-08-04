@@ -124,7 +124,7 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
     this.traceState = 'NOT_AVAILABLE';
     const traceSource = AppImpl.instance.trace?.traceInfo.source;
     if (traceSource === undefined) return;
-    this.traceType = traceSource.kind;
+    this.traceType = traceSource.type;
     // If the trace is either already uploaded, or comes from a postmessage+url
     // we don't need any re-upload.
     if ('url' in traceSource && traceSource.url !== undefined) {
@@ -139,11 +139,11 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
     // If the user is not a googler, don't even offer the option to upload it.
     if (!globals.isInternalUser) return;
 
-    if (traceSource.kind === 'FILE') {
+    if (traceSource.type === 'FILE') {
       this.traceState = 'NOT_UPLOADED';
       this.traceData = traceSource.file;
       // this.traceSize = this.traceData.size;
-    } else if (traceSource.kind === 'ARRAY_BUFFER') {
+    } else if (traceSource.type === 'ARRAY_BUFFER') {
       this.traceData = traceSource.buffer;
       // this.traceSize = this.traceData.byteLength;
     } else {

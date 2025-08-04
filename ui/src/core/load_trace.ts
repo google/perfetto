@@ -161,13 +161,13 @@ async function loadTraceIntoEngine(
   engine: EngineBase,
 ): Promise<TraceImpl> {
   let traceStream: TraceStream | undefined;
-  if (traceSource.kind === 'FILE') {
+  if (traceSource.type === 'FILE') {
     traceStream = new TraceFileStream(traceSource.file);
-  } else if (traceSource.kind === 'ARRAY_BUFFER') {
+  } else if (traceSource.type === 'ARRAY_BUFFER') {
     traceStream = new TraceBufferStream(traceSource.buffer);
-  } else if (traceSource.kind === 'URL') {
+  } else if (traceSource.type === 'URL') {
     traceStream = new TraceHttpStream(traceSource.url);
-  } else if (traceSource.kind === 'HTTP_RPC') {
+  } else if (traceSource.type === 'HTTP_RPC') {
     traceStream = undefined;
   } else {
     throw new Error(`Unknown source: ${JSON.stringify(traceSource)}`);
@@ -412,7 +412,7 @@ async function getTraceInfo(
 
   let traceTitle = '';
   let traceUrl = '';
-  switch (traceSource.kind) {
+  switch (traceSource.type) {
     case 'FILE':
       // Split on both \ and / (because C:\Windows\paths\are\like\this).
       traceTitle = traceSource.file.name.split(/[/\\]/).pop()!;
@@ -449,9 +449,9 @@ async function getTraceInfo(
   const cached = await cacheTrace(traceSource, uuid);
 
   const downloadable =
-    (traceSource.kind === 'ARRAY_BUFFER' && !traceSource.localOnly) ||
-    traceSource.kind === 'FILE' ||
-    traceSource.kind === 'URL';
+    (traceSource.type === 'ARRAY_BUFFER' && !traceSource.localOnly) ||
+    traceSource.type === 'FILE' ||
+    traceSource.type === 'URL';
 
   return {
     ...traceTime,

@@ -23,7 +23,7 @@ import {AppImpl} from '../core/app_impl';
 
 function getCurrentTraceUrl(): undefined | string {
   const source = AppImpl.instance.trace?.traceInfo.source;
-  if (source && source.kind === 'URL') {
+  if (source && source.type === 'URL') {
     return source.url;
   }
   return undefined;
@@ -121,7 +121,7 @@ async function maybeOpenCachedTrace(traceUuid: string) {
   // being loaded.
   if (
     curTrace !== undefined &&
-    curTrace.source.kind === 'ARRAY_BUFFER' &&
+    curTrace.source.type === 'ARRAY_BUFFER' &&
     curTrace.source.uuid === traceUuid
   ) {
     return;
@@ -229,14 +229,14 @@ function loadTraceFromUrl(url: string) {
       .then((response) => response.blob())
       .then((b) =>
         AppImpl.instance.openTrace({
-          kind: 'FILE',
+          type: 'FILE',
           file: new File([b], fileName),
         }),
       )
       .catch((e) => alert(`Could not load local trace ${e}`));
     taskTracker.trackPromise(request, 'Downloading local trace');
   } else {
-    AppImpl.instance.openTrace({kind: 'URL', url});
+    AppImpl.instance.openTrace({type: 'URL', url});
   }
 }
 
@@ -246,6 +246,6 @@ function openTraceFromAndroidBugTool() {
   const loadInfo = loadAndroidBugToolInfo();
   taskTracker.trackPromise(loadInfo, msg);
   loadInfo
-    .then((info) => AppImpl.instance.openTrace({kind: 'FILE', file: info.file}))
+    .then((info) => AppImpl.instance.openTrace({type: 'FILE', file: info.file}))
     .catch((e) => console.error(e));
 }

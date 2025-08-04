@@ -42,7 +42,7 @@ export function installFileDropHandler() {
       const file = evt.dataTransfer.files[0];
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (file) {
-        AppImpl.instance.openTrace({kind: 'FILE', file});
+        AppImpl.instance.openTrace({type: 'FILE', file});
       }
     }
     evt.preventDefault();

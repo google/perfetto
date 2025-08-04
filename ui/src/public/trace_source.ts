@@ -16,7 +16,7 @@ import {SerializedAppState} from './state_serialization_schema';
 
 interface CommonTraceProps {
   // When loading via postmessage, we can also inject
-  readonly serializedAppState?: SerializedAppState;
+  serializedAppState?: SerializedAppState;
 }
 
 export type TraceSource = CommonTraceProps &
@@ -28,25 +28,25 @@ export type TraceSource = CommonTraceProps &
   );
 
 export interface TraceFileSource {
-  readonly kind: 'FILE';
-  readonly file: File;
+  type: 'FILE';
+  file: File;
 }
 
 export interface TraceUrlSource {
-  readonly kind: 'URL';
-  readonly url: string;
+  type: 'URL';
+  url: string;
 }
 
 export interface TraceHttpRpcSource {
-  readonly kind: 'HTTP_RPC';
+  type: 'HTTP_RPC';
 }
 
 export interface TraceArrayBufferSource {
-  readonly kind: 'ARRAY_BUFFER';
-  readonly buffer: ArrayBuffer;
-  readonly title: string;
-  readonly fileName?: string;
-  readonly url?: string;
+  type: 'ARRAY_BUFFER';
+  buffer: ArrayBuffer;
+  title: string;
+  fileName?: string;
+  url?: string;
 
   // |uuid| is set only when loading via ?local_cache_key=1234. When set,
   // this matches global.state.traceUuid, with the exception of the following
@@ -54,10 +54,10 @@ export interface TraceArrayBufferSource {
   // this |uuid| will be == T2, but the globals.state.traceUuid will be
   // temporarily == T1 until T2 has been loaded (consistently to what happens
   // with all other state fields).
-  readonly uuid?: string;
+  uuid?: string;
 
   // if |localOnly| is true then the trace should not be shared or downloaded.
-  readonly localOnly?: boolean;
+  localOnly?: boolean;
 
   // Allows to pass extra arguments to plugins. This can be read by plugins
   // onTraceLoad() and can be used to trigger plugin-specific-behaviours (e.g.
@@ -67,5 +67,5 @@ export interface TraceArrayBufferSource {
   //   'dev.perfetto.PluginFoo': { 'key1': 'value1', 'key2': 1234 }
   //   'dev.perfetto.PluginBar': { 'key3': '...', 'key4': ... }
   // }
-  readonly pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
+  pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
 }

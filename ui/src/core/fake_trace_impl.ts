@@ -69,7 +69,7 @@ export function initializeAppImplForTesting(): AppImpl {
 export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
   initializeAppImplForTesting();
   const fakeTraceInfo: TraceInfoImpl = {
-    source: {kind: 'URL', url: ''},
+    source: {type: 'URL', url: ''},
     traceTitle: '',
     traceUrl: '',
     start: Time.fromSeconds(0),

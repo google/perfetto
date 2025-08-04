@@ -297,11 +297,11 @@ export class TraceImpl implements Trace {
   async getTraceFile(): Promise<Blob> {
     const src = this.traceInfo.source;
     if (this.traceInfo.downloadable) {
-      if (src.kind === 'ARRAY_BUFFER') {
+      if (src.type === 'ARRAY_BUFFER') {
         return new Blob([src.buffer]);
-      } else if (src.kind === 'FILE') {
+      } else if (src.type === 'FILE') {
         return src.file;
-      } else if (src.kind === 'URL') {
+      } else if (src.type === 'URL') {
         return await fetchWithProgress(src.url, (progressPercent: number) =>
           this.omnibox.showStatusMessage(
             `Downloading trace ${progressPercent}%`,
@@ -316,12 +316,12 @@ export class TraceImpl implements Trace {
     // dialog).
     // The caller was supposed to check that traceInfo.downloadable === true
     // before calling this. Throwing while downloadable is true is a bug.
-    throw new Error(`Cannot getTraceFile(${src.kind})`);
+    throw new Error(`Cannot getTraceFile(${src.type})`);
   }
 
   get openerPluginArgs(): {[key: string]: unknown} | undefined {
     const traceSource = this.traceCtx.traceInfo.source;
-    if (traceSource.kind !== 'ARRAY_BUFFER') {
+    if (traceSource.type !== 'ARRAY_BUFFER') {
       return undefined;
     }
     const pluginArgs = traceSource.pluginArgs;
