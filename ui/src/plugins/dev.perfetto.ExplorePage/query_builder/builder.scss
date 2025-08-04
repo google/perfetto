@@ -13,19 +13,18 @@
 // limitations under the License.
 
 @import "../../../assets/widgets/theme";
-@import "./node_graph.scss";
+@import "./data_explorer.scss";
+@import "./graph.scss";
+@import "./help.scss";
 @import "./node_box.scss";
-@import "./query_node_explorer.scss";
-@import "./node_data_viewer.scss";
-@import "./sources/stdlib_table.scss";
-@import "./sources/slices_source.scss";
+@import "./node_explorer.scss";
 @import "./operations/operation_component.scss";
-@import "./explore_page_help.scss";
+@import "./sources/slices_source.scss";
+@import "./sources/table_source.scss";
 
 .pf-query-builder-layout {
   display: grid;
   grid-template-columns: 50% 50%;
-  gap: 10px;
   height: 100%;
 
   &.no-selection {

@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {classNames} from '../../../base/classnames';
 import {AsyncLimiter} from '../../../base/async_limiter';
-import {ExplorePageHelp} from './explore_page_help';
+import {ExplorePageHelp} from './help';
 import {
   analyzeNode,
   isAQuery,
@@ -24,6 +24,7 @@ import {
   Query,
   QueryNode,
   queryToRun,
+  setOperationChanged,
 } from '../query_node';
 import {copyToClipboard} from '../../../base/clipboard';
 import {Button} from '../../../widgets/button';
@@ -36,11 +37,12 @@ import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {TextInput} from '../../../widgets/text_input';
 import {SqlSourceNode} from './sources/sql_source';
 
-export interface QueryNodeExplorerAttrs {
+export interface NodeExplorerAttrs {
   readonly node?: QueryNode;
   readonly trace: Trace;
   readonly onQueryAnalyzed: (query: Query | Error, reexecute?: boolean) => void;
   readonly onExecute: () => void;
+  readonly onchange?: () => void;
 }
 
 enum SelectedView {
@@ -49,9 +51,7 @@ enum SelectedView {
   kProto = 2,
 }
 
-export class QueryNodeExplorer
-  implements m.ClassComponent<QueryNodeExplorerAttrs>
-{
+export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
   private readonly tableAsyncLimiter = new AsyncLimiter();
 
   private selectedView: number = 0;
@@ -61,7 +61,7 @@ export class QueryNodeExplorer
   private currentQuery?: Query | Error;
   private sqlForDisplay?: string;
 
-  view({attrs}: m.CVnode<QueryNodeExplorerAttrs>) {
+  view({attrs}: m.CVnode<NodeExplorerAttrs>) {
     const {node} = attrs;
     if (!node) {
       return m(ExplorePageHelp);
@@ -101,7 +101,7 @@ export class QueryNodeExplorer
     const operators = (): m.Child => {
       switch (node.type) {
         case NodeType.kSimpleSlices:
-        case NodeType.kStdlibTable:
+        case NodeType.kTable:
           return m(Operator, {
             filter: {
               sourceCols: node.state.sourceCols,
@@ -110,11 +110,16 @@ export class QueryNodeExplorer
                 newFilters: ReadonlyArray<FilterDefinition>,
               ) => {
                 node.state.filters = newFilters as FilterDefinition[];
+                attrs.onchange?.();
               },
             },
             groupby: {
               groupByColumns: node.state.groupByColumns,
               aggregations: node.state.aggregations,
+            },
+            onchange: () => {
+              setOperationChanged(node);
+              attrs.onchange?.();
             },
           });
         case NodeType.kSqlSource:
