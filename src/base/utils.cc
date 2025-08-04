@@ -57,7 +57,7 @@
 #endif  // OS_LINUX | OS_ANDROID
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <Windows.h>
+#include <windows.h>
 #include <io.h>
 #include <malloc.h>  // For _aligned_malloc().
 #endif

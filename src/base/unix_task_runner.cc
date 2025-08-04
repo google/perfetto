@@ -23,7 +23,7 @@
 #include <stdlib.h>
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <Windows.h>
+#include <windows.h>
 #include <synchapi.h>
 #else
 #include <unistd.h>

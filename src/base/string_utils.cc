@@ -25,7 +25,7 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 #include <xlocale.h>
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <Windows.h>
+#include <windows.h>
 #endif
 
 #include <cinttypes>

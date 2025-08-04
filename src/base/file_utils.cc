@@ -36,7 +36,7 @@
 #include "perfetto/ext/base/utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <Windows.h>
+#include <windows.h>
 #include <direct.h>
 #include <io.h>
 #include <stringapiset.h>
