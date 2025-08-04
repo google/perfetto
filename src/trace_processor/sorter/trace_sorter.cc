@@ -21,7 +21,6 @@
 #include <cstring>
 #include <limits>
 #include <memory>
-#include <utility>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
