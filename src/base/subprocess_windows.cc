@@ -26,7 +26,7 @@
 #include <mutex>
 #include <tuple>
 
-#include <Windows.h>
+#include <windows.h>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
