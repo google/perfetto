@@ -123,39 +123,38 @@ class BlockingCallMetricHandler implements MetricHandler {
 
     // Fetch the frame_id of the frame with the max duration blocking call.
     const result = await ctx.engine.query(`
-        INCLUDE PERFETTO MODULE android.frame_blocking_calls.blocking_calls_aggregation;
+      INCLUDE PERFETTO MODULE android.frame_blocking_calls.blocking_calls_aggregation;
 
-        SELECT
-          frame_id
-        FROM _blocking_calls_frame_cuj
-        WHERE
-          process_name = "${processName}"
-          AND name = "${blockingCallName}"
-          AND cuj_name = "${cuj}"
-          -- select frame_id for the metric with the maximum duration.
-        ORDER BY dur DESC limit 1`);
+      SELECT
+        frame_id
+      FROM _blocking_calls_frame_cuj
+      WHERE
+        process_name = "${processName}"
+        AND name = "${blockingCallName}"
+        AND cuj_name = "${cuj}"
+      -- select frame_id for the metric with the maximum duration.
+      ORDER BY dur DESC
+      LIMIT 1`);
     const row = result.firstRow({frame_id: LONG});
     // Fetch the ts and dur of the frame corresponding to the above frame_id.
     const frameWithMaxDurBlockingCallQuery = `
-        SELECT
-          cast_string!(frame_id) as frame_id,
-          ts,
-          dur
-        FROM android_frames_layers
-        WHERE frame_id = ${row.frame_id}
+      SELECT
+        cast_string!(frame_id) AS frame_id,
+        ts,
+        dur
+      FROM android_frames_layers
+      WHERE frame_id = ${row.frame_id}
       `;
 
-    const trackName = 'Frame with max duration blocking call';
-    const config = {
+    return {
       data: {
         sqlSource: frameWithMaxDurBlockingCallQuery,
         columns: ['frame_id', 'ts', 'dur'],
       },
       columns: {ts: 'ts', dur: 'dur', name: 'frame_id'},
       argColumns: ['frame_id', 'ts', 'dur'],
-      title: trackName,
+      title: 'Frame with max duration blocking call',
     };
-    return Promise.resolve(config);
   }
 }
 
