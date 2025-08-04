@@ -30,15 +30,8 @@ interface PostedTrace {
   fileName?: string;
   url?: string;
 
+  // The hash of the app state to load from GCS after the trace is loaded
   appStateHash?: string;
-
-  // |uuid| is set only when loading via ?local_cache_key=1234. When set,
-  // this matches global.state.traceUuid, with the exception of the following
-  // time window: When a trace T1 is loaded and the user loads another trace T2,
-  // this |uuid| will be == T2, but the globals.state.traceUuid will be
-  // temporarily == T1 until T2 has been loaded (consistently to what happens
-  // with all other state fields).
-  uuid?: string;
 
   // if |localOnly| is true then the trace should not be shared or downloaded.
   localOnly?: boolean;
