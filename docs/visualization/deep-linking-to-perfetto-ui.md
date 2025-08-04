@@ -34,47 +34,68 @@ sending a 'PING' message until the opened window replies with a 'PONG'.
 When this happens, that is the signal that the Perfetto UI is ready to open
 traces.
 
-#### Post a message the following JavaScript object
+#### Post the trace data
+
+Once the PING/PONG handshake is complete, you can post a message to the Perfetto
+UI window. The message should be a JavaScript object with a single `perfetto`
+key.
 
 ```js
   {
     'perfetto': {
       buffer: ArrayBuffer;
       title: string;
-      fileName?: string;  // Optional
-      url?: string;       // Optional
+      fileName?: string;    // Optional
+      url?: string;         // Optional
+      appStateHash?: string // Optional
     }
   }
 ```
 
-`buffer` is the ArrayBuffer with the actual trace file content. This is
-typically something that you obtain by doing a `fetch()` on your backend
-storage.
+The properties of the `perfetto` object are:
 
-`title` is the human friendly trace title that will be shown in the
-sidebar. This can help people to disambiguate traces from several tabs.
+*   `buffer`: An `ArrayBuffer` containing the raw trace data. You would
+    typically get this by fetching a trace file from your backend.
+*   `title`: A human-readable string that will be displayed as the title of the
+    trace in the UI. This helps users to distinguish between different traces if
+    they have multiple tabs open.
+*   `fileName` (optional): The suggested file name if a user decides to download
+    the trace from the Perfetto UI. If omitted, a generic name will be used.
+*   `url` (optional): A URL for sharing the trace. See the "Sharing" section
+    below.
+*   `appStateHash` (optional): A hash for restoring the UI state when sharing.
+    See the "Sharing" section below.
 
-`fileName` will be used if the user clicks on "Download". A generic name will
-be used if omitted.
+### Sharing Traces and UI State
 
-`url` is used if the user clicks on the "Share" link in the sidebar. This should
-print to a URL owned by you that would cause your dashboard to re-open the
-current trace, by re-kicking-off the window.open() process herein described.
-If omitted traces won't be shareable.
+The `url` and `appStateHash` properties work together to allow users to share a
+link to a trace that, when opened, restores the UI to the same state (e.g. zoom
+level, selected event).
 
-`appStateHash` If you want your users to be able to share the UI state (e.g.
-pinned tracks, selections, etc), Perfetto can upload the state to the perfetto
-servers and restore it the next time you load the trace, with a little help from
-you.
+When a user clicks the "Share" button in the Perfetto UI, Perfetto looks at the
+`url` you provided when opening the trace. If this `url` contains the special
+placeholder `perfettoStateHashPlaceholder`, Perfetto will:
+1. Save the current UI state and generate a unique hash for it.
+2. Replace `perfettoStateHashPlaceholder` in your `url` with this new hash.
+3. Present this final URL to the user for sharing.
 
-In order to get this working, Perfetto needs to be told the hash of the app
-state so that it can find and download it again when re-opening the trace. The
-usual way to do this is to pass the placeholder text
-`perfettoStateHashPlaceholder` in your url some where where your app can receive
-this hash - e.g.
-`http://example.com/?reopen=<someTrace>&state=stateHashPlaceholder`, and inject it
-back into perfetto via the postmessage interface via the `appStateHash` arg.
-Perfetto will open your trace, download and restore the app state.
+For example, if you provided this `url`:
+`'https://my-dashboard.com/trace?id=1234&state=perfettoStateHashPlaceholder'`
+
+Perfetto might generate a shareable URL like this:
+`'https://my-dashboard.com/trace?id=1234&state=a1b2c3d4'`
+
+When another user opens this shared URL, your application should:
+1. Extract the state hash (`a1b2c3d4` in this example) from the URL.
+2. `postMessage` the trace `buffer` as usual, but this time also include the
+   `appStateHash` property with the extracted hash.
+
+Perfetto will then load the trace and automatically restore the UI state
+associated with that hash.
+
+If the `url` property is omitted, the share functionality will be disabled. If
+the `perfettoStateHashPlaceholder` is omitted from the `url`, the trace can be
+shared but the UI state will not be saved.
 
 ### Code samples
 
