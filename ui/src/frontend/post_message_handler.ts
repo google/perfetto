@@ -18,7 +18,7 @@ import {showModal} from '../widgets/modal';
 import {initCssConstants} from './css_constants';
 import {toggleHelp} from './help_modal';
 import {AppImpl} from '../core/app_impl';
-import {SerializedAppState} from '../public/state_serialization_schema';
+import {SerializedAppState} from '../core/state_serialization_schema';
 import {parseAppState} from '../core/state_serialization';
 import {BUCKET_NAME} from '../base/gcs_uploader';
 
@@ -257,11 +257,7 @@ export function postMessageHandler(messageEvent: MessageEvent) {
         appState = parsedState.data;
       }
     }
-    AppImpl.instance.openTrace({
-      type: 'ARRAY_BUFFER',
-      serializedAppState: appState,
-      ...postedTrace,
-    });
+    AppImpl.instance.openTraceFromBuffer(postedTrace, appState);
   };
 
   const trustAndOpenTrace = () => {

@@ -15,7 +15,6 @@
 import {SerializedAppState} from './state_serialization_schema';
 
 interface CommonTraceProps {
-  // When loading via postmessage, we can also inject
   serializedAppState?: SerializedAppState;
 }
 

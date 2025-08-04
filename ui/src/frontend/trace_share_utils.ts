@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {TraceUrlSource} from '../public/trace_source';
+import {TraceUrlSource} from '../core/trace_source';
 import {createPermalink, uploadTraceBlob} from './permalink';
 import {showModal} from '../widgets/modal';
 import {globals} from './globals';

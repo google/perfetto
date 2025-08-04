@@ -23,7 +23,6 @@ import {PageManager} from './page';
 import {FeatureFlagManager} from './feature_flag';
 import {Raf} from './raf';
 import {SettingsManager} from './settings';
-import {TraceSource} from './trace_source';
 
 /**
  * The API endpoint to interact programmaticaly with the UI before a trace has
@@ -71,14 +70,12 @@ export interface App {
    */
   navigate(newHash: string): void;
 
-  /**
-   * Open a trace from a given source. Different sources have different
-   * configurations.
-   */
-  openTrace(source: TraceSource): void;
-
-  /**
-   * Close the current trace.
-   */
+  openTraceFromFile(file: File): void;
+  openTraceFromUrl(url: string): void;
+  openTraceFromBuffer(args: {
+    buffer: ArrayBuffer;
+    title: string;
+    fileName: string;
+  }): void;
   closeCurrentTrace(): void;
 }

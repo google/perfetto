@@ -18,7 +18,7 @@
  * containing it is discarded by Chrome (e.g. because the tab was not used for
  * a long time) or when the user accidentally hits reload.
  */
-import {TraceArrayBufferSource, TraceSource} from '../public/trace_source';
+import {TraceArrayBufferSource, TraceSource} from './trace_source';
 
 const TRACE_CACHE_NAME = 'cached_traces';
 const TRACE_CACHE_SIZE = 10;

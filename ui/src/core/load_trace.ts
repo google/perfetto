@@ -44,7 +44,7 @@ import {
 import {AppImpl} from './app_impl';
 import {raf} from './raf_scheduler';
 import {TraceImpl} from './trace_impl';
-import {TraceSource} from '../public/trace_source';
+import {TraceSource} from './trace_source';
 import {Router} from '../core/router';
 import {TraceInfoImpl} from './trace_info_impl';
 
@@ -161,6 +161,7 @@ async function loadTraceIntoEngine(
   engine: EngineBase,
 ): Promise<TraceImpl> {
   let traceStream: TraceStream | undefined;
+  const serializedAppState = traceSource.serializedAppState;
   if (traceSource.type === 'FILE') {
     traceStream = new TraceFileStream(traceSource.file);
   } else if (traceSource.type === 'ARRAY_BUFFER') {
@@ -225,7 +226,6 @@ async function loadTraceIntoEngine(
 
   await defineMaxLayoutDepthSqlFunction(engine);
 
-  const serializedAppState = traceSource.serializedAppState;
   if (serializedAppState !== undefined) {
     deserializeAppStatePhase1(serializedAppState, trace);
   }
