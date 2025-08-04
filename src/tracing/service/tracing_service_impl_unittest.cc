@@ -21,10 +21,8 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
-#include <map>
 #include <memory>
 #include <optional>
-#include <set>
 #include <string>
 #include <thread>
 #include <utility>
@@ -109,6 +107,7 @@ using ::testing::Pointee;
 using ::testing::Property;
 using ::testing::Return;
 using ::testing::SaveArg;
+using testing::StrEq;
 using ::testing::StrictMock;
 using ::testing::StringMatchResultListener;
 using ::testing::StrNe;
@@ -6627,6 +6626,130 @@ TEST_F(TracingServiceImplTest, FlushTimeoutEventsEmitted) {
   consumer->DisableTracing();
   producer->WaitForDataSourceStop("ds_1");
   consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, ExclusiveSessionInvalidUser) {
+  // A non-privileged user cannot start an exclusive session.
+  TraceConfig exclusive_cfg;
+  exclusive_cfg.add_buffers()->set_size_kb(128);
+  exclusive_cfg.set_exclusive_mode_priority(1);
+
+  std::unique_ptr<MockConsumer> unprivileged_consumer = CreateMockConsumer();
+  unprivileged_consumer->Connect(svc.get(), 1234 /* uid */);
+  unprivileged_consumer->EnableTracing(exclusive_cfg);
+  unprivileged_consumer->WaitForTracingDisabledWithError(
+      StrEq("Exclusive mode can only be requested by root or shell."));
+}
+
+TEST_F(TracingServiceImplTest, ExclusiveSessionBlocksNewSessions) {
+  TraceConfig exclusive_cfg;
+  exclusive_cfg.add_buffers()->set_size_kb(128);
+  exclusive_cfg.set_exclusive_mode_priority(1);
+
+  // Start an exclusive session.
+  std::unique_ptr<MockConsumer> exclusive_consumer = CreateMockConsumer();
+  exclusive_consumer->Connect(svc.get(), 0 /* root */);
+  exclusive_consumer->EnableTracing(exclusive_cfg);
+
+  // Now that an exclusive session is running, a new non-exclusive one should
+  // be rejected.
+  TraceConfig non_exclusive_cfg;
+  non_exclusive_cfg.add_buffers()->set_size_kb(128);
+  std::unique_ptr<MockConsumer> non_exclusive_consumer = CreateMockConsumer();
+  non_exclusive_consumer->Connect(svc.get());
+  non_exclusive_consumer->EnableTracing(non_exclusive_cfg);
+  non_exclusive_consumer->WaitForTracingDisabledWithError(
+      StrEq("Cannot start non-exclusive session while an exclusive "
+            "session with priority 1 is active."));
+
+  // A new exclusive session with lower-or-equal priority should be rejected.
+  std::unique_ptr<MockConsumer> new_exclusive_consumer = CreateMockConsumer();
+  new_exclusive_consumer->Connect(svc.get(), 0 /* root */);
+  new_exclusive_consumer->EnableTracing(exclusive_cfg);
+  new_exclusive_consumer->WaitForTracingDisabledWithError(
+      StrEq("An exclusive session with priority 1 >= requested priority "
+            "1 is already active."));
+
+  exclusive_consumer->DisableTracing();
+  exclusive_consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, ExclusiveSessionAbortRunningSessions) {
+  // Start a normal session.
+  TraceConfig non_exclusive_cfg;
+  non_exclusive_cfg.add_buffers()->set_size_kb(128);
+  std::unique_ptr<MockConsumer> non_exclusive_consumer = CreateMockConsumer();
+  non_exclusive_consumer->Connect(svc.get());
+  non_exclusive_consumer->EnableTracing(non_exclusive_cfg);
+
+  // Start a CLONE_SNAPSHOT session.
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("ds_1");
+  TraceConfig clone_cfg;
+  clone_cfg.add_buffers()->set_size_kb(128);
+  clone_cfg.add_data_sources()->mutable_config()->set_name("ds_1");
+  auto* trigger_config = clone_cfg.mutable_trigger_config();
+  trigger_config->set_trigger_mode(TraceConfig::TriggerConfig::CLONE_SNAPSHOT);
+  trigger_config->set_trigger_timeout_ms(8.64e+7);
+  auto* trigger = trigger_config->add_triggers();
+  trigger->set_stop_delay_ms(1);
+  std::unique_ptr<MockConsumer> clone_consumer = CreateMockConsumer();
+  clone_consumer->Connect(svc.get());
+  clone_consumer->EnableTracing(clone_cfg);
+
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+
+  // Start an exclusive session which should abort all other non-exclusive
+  // sessions.
+  TraceConfig exclusive_cfg;
+  exclusive_cfg.add_buffers()->set_size_kb(128);
+  exclusive_cfg.set_exclusive_mode_priority(1);
+  std::unique_ptr<MockConsumer> exclusive_consumer = CreateMockConsumer();
+  exclusive_consumer->Connect(svc.get(), 0 /* root */);
+
+  const std::string abort_reason =
+      "Aborted due to user requested higher-priority (1) exclusive session.";
+  EXPECT_CALL(*non_exclusive_consumer,
+              OnTracingDisabled(HasSubstr(abort_reason)));
+  EXPECT_CALL(*clone_consumer, OnTracingDisabled(HasSubstr(abort_reason)));
+  exclusive_consumer->EnableTracing(exclusive_cfg);
+  producer->WaitForDataSourceStop("ds_1");
+  // The aborted clone session should not have any data.
+  EXPECT_THAT(clone_consumer->ReadBuffers(), IsEmpty());
+
+  exclusive_consumer->DisableTracing();
+  exclusive_consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, ExclusiveSessionHigherPriorityAbortsLower) {
+  // Start a low-priority exclusive session.
+  TraceConfig exclusive_cfg_1;
+  exclusive_cfg_1.add_buffers()->set_size_kb(128);
+  exclusive_cfg_1.set_exclusive_mode_priority(1);
+  std::unique_ptr<MockConsumer> exclusive_consumer = CreateMockConsumer();
+  exclusive_consumer->Connect(svc.get(), 0 /* root */);
+  exclusive_consumer->EnableTracing(exclusive_cfg_1);
+
+  // A new exclusive session with higher priority should be accepted, and should
+  // abort the existing one.
+  TraceConfig exclusive_cfg_2;
+  exclusive_cfg_2.add_buffers()->set_size_kb(128);
+  exclusive_cfg_2.set_exclusive_mode_priority(2);
+  std::unique_ptr<MockConsumer> new_exclusive_consumer = CreateMockConsumer();
+  new_exclusive_consumer->Connect(svc.get(), 2000 /* shell */);
+
+  EXPECT_CALL(
+      *exclusive_consumer,
+      OnTracingDisabled(HasSubstr("Aborted due to user requested "
+                                  "higher-priority (2) exclusive session.")));
+  new_exclusive_consumer->EnableTracing(exclusive_cfg_2);
+
+  // Finally, disable the last exclusive session.
+  new_exclusive_consumer->DisableTracing();
+  new_exclusive_consumer->WaitForTracingDisabled();
 }
 
 }  // namespace
