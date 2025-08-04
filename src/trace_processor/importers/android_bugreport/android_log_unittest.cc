@@ -50,13 +50,11 @@ static void PrintTo(const AndroidLogEvent& event, std::ostream* os) {
 namespace {
 const int64_t kStoNs = 1000000000LL;
 
-class EventParserMock : public AndroidLogEventParser {
+class EventParserMock
+    : public TraceSorter::Sink<AndroidLogEvent, EventParserMock> {
  public:
   ~EventParserMock() override = default;
-  MOCK_METHOD(void,
-              ParseAndroidLogEvent,
-              (int64_t, AndroidLogEvent),
-              (override));
+  MOCK_METHOD(void, Parse, (int64_t, AndroidLogEvent), ());
 };
 
 class AndroidLogReaderTest : public ::testing::Test {
@@ -70,8 +68,7 @@ class AndroidLogReaderTest : public ::testing::Test {
         protos::pbzero::ClockSnapshot::Clock::REALTIME);
     context_.sorter = std::make_unique<TraceSorter>(
         &context_, TraceSorter::SortingMode::kDefault);
-    mock_parser_ = new EventParserMock();
-    context_.android_log_event_parser.reset(mock_parser_);
+    mock_parser_ = std::make_unique<EventParserMock>();
   }
 
   using P = ::perfetto::protos::pbzero::AndroidLogPriority;
@@ -83,7 +80,7 @@ class AndroidLogReaderTest : public ::testing::Test {
 
  private:
   TraceProcessorContext context_;
-  EventParserMock* mock_parser_;
+  std::unique_ptr<EventParserMock> mock_parser_;
 };
 
 TEST_F(AndroidLogReaderTest, PersistentLogFormat) {
@@ -96,32 +93,27 @@ TEST_F(AndroidLogReaderTest, PersistentLogFormat) {
 
   AndroidLogReader reader(context(), 2020);
 
-  EXPECT_CALL(
-      mock_parser(),
-      ParseAndroidLogEvent(
-          base::MkTime(2020, 1, 2, 3, 4, 5) * kStoNs + 678901000,
-          AndroidLogEvent{1000, 2000, P::PRIO_DEBUG, S("Tag"), S("message")}));
+  EXPECT_CALL(mock_parser(),
+              Parse(base::MkTime(2020, 1, 2, 3, 4, 5) * kStoNs + 678901000,
+                    AndroidLogEvent{1000, 2000, P::PRIO_DEBUG, S("Tag"),
+                                    S("message")}));
 
   EXPECT_CALL(mock_parser(),
-              ParseAndroidLogEvent(
-                  base::MkTime(2020, 12, 31, 23, 59, 0) * kStoNs + 123456000,
-                  AndroidLogEvent{1, 2, P::PRIO_INFO, S("[tag:with:colon]"),
-                                  S("moar long message")}));
+              Parse(base::MkTime(2020, 12, 31, 23, 59, 0) * kStoNs + 123456000,
+                    AndroidLogEvent{1, 2, P::PRIO_INFO, S("[tag:with:colon]"),
+                                    S("moar long message")}));
   EXPECT_CALL(mock_parser(),
-              ParseAndroidLogEvent(
-                  base::MkTime(2020, 12, 31, 23, 59, 0) * kStoNs + 123000000,
-                  AndroidLogEvent{1, 2, P::PRIO_WARN, S("[tag:with:colon]"),
-                                  S("moar long message")}));
+              Parse(base::MkTime(2020, 12, 31, 23, 59, 0) * kStoNs + 123000000,
+                    AndroidLogEvent{1, 2, P::PRIO_WARN, S("[tag:with:colon]"),
+                                    S("moar long message")}));
   EXPECT_CALL(mock_parser(),
-              ParseAndroidLogEvent(
-                  base::MkTime(2020, 12, 31, 23, 59, 0) * kStoNs + 100000000,
-                  AndroidLogEvent{1, 2, P::PRIO_ERROR, S("[tag:with:colon]"),
-                                  S("moar long message")}));
+              Parse(base::MkTime(2020, 12, 31, 23, 59, 0) * kStoNs + 100000000,
+                    AndroidLogEvent{1, 2, P::PRIO_ERROR, S("[tag:with:colon]"),
+                                    S("moar long message")}));
   EXPECT_CALL(mock_parser(),
-              ParseAndroidLogEvent(
-                  base::MkTime(2020, 12, 31, 23, 59, 0) * kStoNs + 10000000,
-                  AndroidLogEvent{1, 2, P::PRIO_FATAL, S("[tag:with:colon]"),
-                                  S("moar long message")}));
+              Parse(base::MkTime(2020, 12, 31, 23, 59, 0) * kStoNs + 10000000,
+                    AndroidLogEvent{1, 2, P::PRIO_FATAL, S("[tag:with:colon]"),
+                                    S("moar long message")}));
 
   EXPECT_TRUE(
       reader.Parse(TraceBlobView(TraceBlob::CopyFrom(kInput, sizeof(kInput))))
@@ -142,25 +134,21 @@ TEST_F(AndroidLogReaderTest, BugreportFormat) {
   AndroidLogReader reader(context(), 2020);
 
   EXPECT_CALL(mock_parser(),
-              ParseAndroidLogEvent(
-                  base::MkTime(2020, 7, 28, 14, 25, 20) * kStoNs + 355000000,
-                  AndroidLogEvent{1, 2, P::PRIO_INFO, S("init"),
-                                  S("Loaded kernel module")}));
+              Parse(base::MkTime(2020, 7, 28, 14, 25, 20) * kStoNs + 355000000,
+                    AndroidLogEvent{1, 2, P::PRIO_INFO, S("init"),
+                                    S("Loaded kernel module")}));
   EXPECT_CALL(mock_parser(),
-              ParseAndroidLogEvent(
-                  base::MkTime(2020, 7, 28, 14, 25, 54) * kStoNs + 876000000,
-                  AndroidLogEvent{643, 644, P::PRIO_DEBUG, S("PackageManager"),
-                                  S("No files")}));
+              Parse(base::MkTime(2020, 7, 28, 14, 25, 54) * kStoNs + 876000000,
+                    AndroidLogEvent{643, 644, P::PRIO_DEBUG,
+                                    S("PackageManager"), S("No files")}));
   EXPECT_CALL(mock_parser(),
-              ParseAndroidLogEvent(
-                  base::MkTime(2020, 8, 24, 23, 39, 12) * kStoNs + 272000000,
-                  AndroidLogEvent{0, 1, P::PRIO_INFO, S(""),
-                                  S("c0  11835 binder: 1")}));
+              Parse(base::MkTime(2020, 8, 24, 23, 39, 12) * kStoNs + 272000000,
+                    AndroidLogEvent{0, 1, P::PRIO_INFO, S(""),
+                                    S("c0  11835 binder: 1")}));
   EXPECT_CALL(mock_parser(),
-              ParseAndroidLogEvent(
-                  base::MkTime(2020, 8, 24, 23, 39, 12) * kStoNs + 421000000,
-                  AndroidLogEvent{2532, 2533, P::PRIO_DEBUG,
-                                  S("TelephonyProvider"), S("Using old")}));
+              Parse(base::MkTime(2020, 8, 24, 23, 39, 12) * kStoNs + 421000000,
+                    AndroidLogEvent{2532, 2533, P::PRIO_DEBUG,
+                                    S("TelephonyProvider"), S("Using old")}));
 
   EXPECT_TRUE(
       reader.Parse(TraceBlobView(TraceBlob::CopyFrom(kInput, sizeof(kInput))))
@@ -191,34 +179,27 @@ TEST_F(AndroidLogReaderTest, Dedupe) {
       "01-01 00:00:01.101  0 1 1 I tag : M6\n";
 
   EXPECT_CALL(mock_parser(),
-              ParseAndroidLogEvent(
-                  base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100000000,
-                  AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M1")}))
+              Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100000000,
+                    AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M1")}))
       .Times(2);
   EXPECT_CALL(mock_parser(),
-              ParseAndroidLogEvent(
-                  base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100000000,
-                  AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M1.5")}));
+              Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100000000,
+                    AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M1.5")}));
   EXPECT_CALL(mock_parser(),
-              ParseAndroidLogEvent(
-                  base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100111000,
-                  AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M2")}));
+              Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100111000,
+                    AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M2")}));
   EXPECT_CALL(mock_parser(),
-              ParseAndroidLogEvent(
-                  base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100111000,
-                  AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M3")}));
+              Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100111000,
+                    AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M3")}));
   EXPECT_CALL(mock_parser(),
-              ParseAndroidLogEvent(
-                  base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100222000,
-                  AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M4")}));
+              Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 100222000,
+                    AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M4")}));
   EXPECT_CALL(mock_parser(),
-              ParseAndroidLogEvent(
-                  base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 101000000,
-                  AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M5")}));
+              Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 101000000,
+                    AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M5")}));
   EXPECT_CALL(mock_parser(),
-              ParseAndroidLogEvent(
-                  base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 101000000,
-                  AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M6")}));
+              Parse(base::MkTime(2020, 1, 1, 0, 0, 1) * kStoNs + 101000000,
+                    AndroidLogEvent{1, 1, P::PRIO_INFO, S("tag"), S("M6")}));
 
   BufferingAndroidLogReader logcat_reader(context(), 2020);
 

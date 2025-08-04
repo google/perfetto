@@ -341,7 +341,7 @@ class TraceSorter::Sink : public TraceSorter::UntypedSink {
  public:
   using type = T;
 
-  ~Sink() = default;
+  ~Sink() override = default;
 
   // Implements the generic dispatch method from the base class.
   void OnSortedEvent(TraceSorter* sorter,

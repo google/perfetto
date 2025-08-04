@@ -116,12 +116,13 @@ class NetworkTraceModuleTest : public testing::Test {
 
  protected:
   protozero::HeapBuffered<protos::pbzero::Trace> trace_;
+  ProtoImporterModuleContext module_context_;
   TraceProcessorContext context_;
   TraceStorage* storage_;
 };
 
 TEST_F(NetworkTraceModuleTest, ParseAndFormatPacket) {
-  NetworkTraceModule module(&context_);
+  NetworkTraceModule module(&module_context_, &context_);
 
   auto* packet = trace_->add_packet();
   packet->set_timestamp(123);
@@ -159,7 +160,7 @@ TEST_F(NetworkTraceModuleTest, ParseAndFormatPacket) {
 }
 
 TEST_F(NetworkTraceModuleTest, TokenizeAndParsePerPacketBundle) {
-  NetworkTraceModule module(&context_);
+  NetworkTraceModule module(&module_context_, &context_);
 
   auto* packet = trace_->add_packet();
   packet->set_timestamp(123);
@@ -196,7 +197,7 @@ TEST_F(NetworkTraceModuleTest, TokenizeAndParsePerPacketBundle) {
 }
 
 TEST_F(NetworkTraceModuleTest, TokenizeAndParseAggregateBundle) {
-  NetworkTraceModule module(&context_);
+  NetworkTraceModule module(&module_context_, &context_);
 
   auto* packet = trace_->add_packet();
   packet->set_timestamp(123);
