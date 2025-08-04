@@ -22,15 +22,6 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Setup Google Cloud config
-      shell: bash
-      run: |
-        # Setup Google Cloud config.
-        # Token is generated in 'infra/ci/worker/sandbox_runner.py'.
-        gcloud config set auth/access_token_file $SVC_TOKEN_PATH
-        # Suppress warning about "parallel composite upload".
-        gcloud config set storage/parallel_composite_upload_enabled True
-
     - name: Compute cache key
       id: cachekey
       shell: bash
