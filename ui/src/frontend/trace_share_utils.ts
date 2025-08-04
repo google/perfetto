@@ -36,9 +36,7 @@ export async function shareTrace(trace: TraceImpl) {
   const traceSource = trace.traceInfo.source;
   const traceUrl = (traceSource as TraceUrlSource).url ?? '';
   const hasPlaceholder = urlHasPlaceholder(traceUrl);
-  // determine if the trace has a placeholder for the state to be injected into.
 
-  // If the trace is not sharable (has been pushed via postMessage()) and
   if (isShareable(trace)) {
     // Just upload the trace and create a permalink.
     const result = confirm(
