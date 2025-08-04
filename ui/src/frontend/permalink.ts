@@ -153,8 +153,8 @@ export async function loadPermalink(gcsFileName: string): Promise<void> {
     // This is the most common case where the permalink contains the app state
     // (and optionally a traceUrl, below).
     const parseRes = parseAppState(permalink.appState);
-    if (parseRes.success) {
-      serializedAppState = parseRes.data;
+    if (parseRes.ok) {
+      serializedAppState = parseRes.value;
     } else {
       error = parseRes.error;
     }
