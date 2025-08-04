@@ -22,7 +22,6 @@ source_set("minimal") {
   deps = [
     "../../../../gn:default_deps",
     "../common:parser_types",
-    "../common:trace_parser_hdr",
     "../proto:proto_importer_module",
   ]
 }

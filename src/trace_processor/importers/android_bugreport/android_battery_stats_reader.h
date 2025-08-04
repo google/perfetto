@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event.h"
 #include "src/trace_processor/importers/android_bugreport/chunked_line_reader.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 
 namespace perfetto ::trace_processor {
 
@@ -56,6 +57,7 @@ class AndroidBatteryStatsReader : public ChunkedLineReader {
   base::Status ProcessItemStr(base::StringView item);
 
   TraceProcessorContext* const context_;
+  std::unique_ptr<TraceSorter::Stream<AndroidDumpstateEvent>> stream_;
 
   int64_t current_timestamp_ms_;
 };

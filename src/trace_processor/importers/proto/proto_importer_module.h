@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_IMPORTER_MODULE_H_
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -26,8 +27,9 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/ref_counted.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 
 namespace perfetto {
 
@@ -43,6 +45,9 @@ class FtraceModule;
 class TrackEventModule;
 class TraceBlobView;
 class TraceProcessorContext;
+class TrackEventModule;
+struct InlineSchedSwitch;
+struct InlineSchedWaking;
 
 // This file contains a base class for ProtoTraceReader/Parser modules.
 // A module implements support for a subset of features of the TracePacket
@@ -153,7 +158,13 @@ class ProtoImporterModule {
   ProtoImporterModuleContext* module_context_;
 };
 
+// TODO(gemini): add comment on this here.
 struct ProtoImporterModuleContext {
+  void PushFtraceEvent(uint32_t cpu, int64_t ts, TracePacketData data);
+  void PushEtwEvent(uint32_t cpu, int64_t ts, TracePacketData data);
+  void PushInlineSchedSwitch(uint32_t cpu, int64_t ts, InlineSchedSwitch data);
+  void PushInlineSchedWaking(uint32_t cpu, int64_t ts, InlineSchedWaking data);
+
   // The module at the index N is registered to handle field id N in
   // TracePacket.
   std::vector<std::vector<ProtoImporterModule*>> modules_by_field;
@@ -161,6 +172,37 @@ struct ProtoImporterModuleContext {
   FtraceModule* ftrace_module = nullptr;
   EtwModule* etw_module = nullptr;
   TrackEventModule* track_module = nullptr;
+
+  std::unique_ptr<TraceSorter::Stream<TracePacketData>> trace_packet_stream;
+  std::unique_ptr<TraceSorter::Stream<TrackEventData>> track_event_stream;
+
+  using FtraceStreamFactory =
+      std::function<std::unique_ptr<TraceSorter::Stream<TracePacketData>>(
+          uint32_t)>;
+  FtraceStreamFactory ftrace_stream_factory;
+  std::vector<std::unique_ptr<TraceSorter::Stream<TracePacketData>>>
+      ftrace_event_streams;
+
+  using EtwStreamFactory =
+      std::function<std::unique_ptr<TraceSorter::Stream<TracePacketData>>(
+          uint32_t)>;
+  EtwStreamFactory etw_stream_factory;
+  std::vector<std::unique_ptr<TraceSorter::Stream<TracePacketData>>>
+      etw_event_streams;
+
+  using InlineSchedSwitchStreamFactory =
+      std::function<std::unique_ptr<TraceSorter::Stream<InlineSchedSwitch>>(
+          uint32_t)>;
+  InlineSchedSwitchStreamFactory inline_sched_switch_stream_factory;
+  std::vector<std::unique_ptr<TraceSorter::Stream<InlineSchedSwitch>>>
+      inline_sched_switch_streams;
+
+  using InlineSchedWakingStreamFactory =
+      std::function<std::unique_ptr<TraceSorter::Stream<InlineSchedWaking>>(
+          uint32_t)>;
+  InlineSchedWakingStreamFactory inline_sched_waking_stream_factory;
+  std::vector<std::unique_ptr<TraceSorter::Stream<InlineSchedWaking>>>
+      inline_sched_waking_streams;
 };
 
 }  // namespace trace_processor

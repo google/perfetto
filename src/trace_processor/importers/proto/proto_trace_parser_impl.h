@@ -22,8 +22,6 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/parser_types.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
-#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
@@ -35,32 +33,25 @@ class TracePacket_Decoder;
 namespace trace_processor {
 
 class PacketSequenceState;
+struct ProtoImporterModuleContext;
 class TraceProcessorContext;
 
-class ProtoTraceParserImpl : public ProtoTraceParser {
+class ProtoTraceParserImpl {
  public:
   using ConstBytes = protozero::ConstBytes;
   ProtoTraceParserImpl(TraceProcessorContext*, ProtoImporterModuleContext*);
-  ~ProtoTraceParserImpl() override;
+  ~ProtoTraceParserImpl();
 
-  void ParseTrackEvent(int64_t ts, TrackEventData data) override;
-  void ParseTracePacket(int64_t ts, TracePacketData data) override;
-
-  void ParseEtwEvent(uint32_t cpu,
-                     int64_t /*ts*/,
-                     TracePacketData data) override;
-
-  void ParseFtraceEvent(uint32_t cpu,
-                        int64_t /*ts*/,
-                        TracePacketData data) override;
-
+  void ParseTrackEvent(int64_t ts, TrackEventData data);
+  void ParseTracePacket(int64_t ts, TracePacketData data);
+  void ParseEtwEvent(uint32_t cpu, int64_t /*ts*/, TracePacketData data);
+  void ParseFtraceEvent(uint32_t cpu, int64_t /*ts*/, TracePacketData data);
   void ParseInlineSchedSwitch(uint32_t cpu,
                               int64_t /*ts*/,
-                              InlineSchedSwitch data) override;
-
+                              InlineSchedSwitch data);
   void ParseInlineSchedWaking(uint32_t cpu,
                               int64_t /*ts*/,
-                              InlineSchedWaking data) override;
+                              InlineSchedWaking data);
 
  private:
   StringId GetMetatraceInternedString(uint64_t iid);

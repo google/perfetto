@@ -61,17 +61,6 @@ class NetworkTraceModuleTest : public testing::Test {
   NetworkTraceModuleTest() {
     context_.storage = std::make_shared<TraceStorage>();
     storage_ = context_.storage.get();
-
-    context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
-
-    context_.register_additional_proto_modules = &RegisterAdditionalModules;
-    context_.proto_importer_module_context =
-        std::make_unique<ProtoImporterModuleContext>();
-    RegisterDefaultModules(context_.proto_importer_module_context.get(),
-                           &context_);
-    RegisterAdditionalModules(context_.proto_importer_module_context.get(),
-                              &context_);
-
     storage_ = context_.storage.get();
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
@@ -85,22 +74,19 @@ class NetworkTraceModuleTest : public testing::Test {
     context_.args_translation_table =
         std::make_unique<ArgsTranslationTable>(storage_);
     context_.track_compressor = std::make_unique<TrackCompressor>(&context_);
-    context_.proto_trace_parser = std::make_unique<ProtoTraceParserImpl>(
-        &context_, context_.proto_importer_module_context.get());
     context_.sorter = std::make_shared<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
+    context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
   }
 
   base::Status TokenizeAndParse() {
-    context_.chunk_readers.push_back(
-        std::make_unique<ProtoTraceReader>(&context_));
-
     trace_->Finalize();
     std::vector<uint8_t> v = trace_.SerializeAsArray();
     trace_.Reset();
 
-    auto status = context_.chunk_readers.back()->Parse(
-        TraceBlobView(TraceBlob::CopyFrom(v.data(), v.size())));
+    auto reader = std::make_unique<ProtoTraceReader>(&context_);
+    auto status =
+        reader->Parse(TraceBlobView(TraceBlob::CopyFrom(v.data(), v.size())));
     context_.sorter->ExtractEventsForced();
     context_.slice_tracker->FlushPendingSlices();
     context_.args_tracker->Flush();

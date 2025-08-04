@@ -247,8 +247,8 @@ ModuleResult AndroidProbesModule::TokenizePacket(
 
     auto [vec, size] = data_packet.SerializeAsUniquePtr();
     TraceBlobView tbv(TraceBlob::TakeOwnership(std::move(vec), size));
-    context_->sorter->PushTracePacket(actual_ts, state, std::move(tbv),
-                                      context_->machine_id());
+    module_context_->trace_packet_stream->Push(
+        actual_ts, TracePacketData{std::move(tbv), state});
   }
   return ModuleResult::Handled();
 }

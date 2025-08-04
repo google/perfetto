@@ -293,9 +293,8 @@ void FtraceTokenizer::TokenizeFtraceEvent(
     DlogWithLimit(timestamp.status());
     return;
   }
-
-  context_->sorter->PushFtraceEvent(cpu, *timestamp, std::move(event),
-                                    std::move(state), context_->machine_id());
+  module_context_->PushFtraceEvent(
+      cpu, *timestamp, TracePacketData{std::move(event), std::move(state)});
 }
 
 PERFETTO_ALWAYS_INLINE
@@ -358,8 +357,7 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedSwitch(
       DlogWithLimit(timestamp.status());
       return;
     }
-    context_->sorter->PushInlineFtraceEvent(cpu, *timestamp, event,
-                                            context_->machine_id());
+    module_context_->PushInlineSchedSwitch(cpu, *timestamp, event);
   }
 
   // Check that all packed buffers were decoded correctly, and fully.
@@ -418,8 +416,7 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedWaking(
       DlogWithLimit(timestamp.status());
       return;
     }
-    context_->sorter->PushInlineFtraceEvent(cpu, *timestamp, event,
-                                            context_->machine_id());
+    module_context_->PushInlineSchedWaking(cpu, *timestamp, event);
   }
 
   // Check that all packed buffers were decoded correctly, and fully.
@@ -508,9 +505,8 @@ void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(
     DlogWithLimit(timestamp.status());
     return;
   }
-
-  context_->sorter->PushFtraceEvent(cpu, *timestamp, std::move(event),
-                                    std::move(state), context_->machine_id());
+  module_context_->PushFtraceEvent(
+      cpu, *timestamp, TracePacketData{std::move(event), std::move(state)});
 }
 
 void FtraceTokenizer::TokenizeFtraceThermalExynosAcpmBulk(
@@ -531,10 +527,10 @@ void FtraceTokenizer::TokenizeFtraceThermalExynosAcpmBulk(
     context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
     return;
   }
-  int64_t timestamp =
+  auto timestamp =
       static_cast<int64_t>(thermal_exynos_acpm_bulk_event.timestamp());
-  context_->sorter->PushFtraceEvent(cpu, timestamp, std::move(event),
-                                    std::move(state), context_->machine_id());
+  module_context_->PushFtraceEvent(
+      cpu, timestamp, TracePacketData{std::move(event), std::move(state)});
 }
 
 void FtraceTokenizer::TokenizeFtraceParamSetValueCpm(
@@ -555,10 +551,9 @@ void FtraceTokenizer::TokenizeFtraceParamSetValueCpm(
     context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
     return;
   }
-  int64_t timestamp =
-      static_cast<int64_t>(param_set_value_cpm_event.timestamp());
-  context_->sorter->PushFtraceEvent(cpu, timestamp, std::move(event),
-                                    std::move(state), context_->machine_id());
+  int64_t timestamp = param_set_value_cpm_event.timestamp();
+  module_context_->PushFtraceEvent(
+      cpu, timestamp, TracePacketData{std::move(event), std::move(state)});
 }
 
 std::optional<protozero::Field> FtraceTokenizer::GetFtraceEventField(
