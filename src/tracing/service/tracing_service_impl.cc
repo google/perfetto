@@ -793,8 +793,14 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     for (auto it = tracing_sessions_.begin(); it != tracing_sessions_.end();) {
       auto next_it = it;
       ++next_it;
-      // FreeBuffers() will remove the session from tracing_sessions_.
+      const auto session_consumer = it->second.consumer_maybe_null;
+      // FreeBuffers() will complete the teardown of the TracingSession and also
+      // remove it from tracing_sessions_.
       FreeBuffers(it->first, abort_reason);
+      // Disassociate the consumer from the obsolete tracing session.
+      if (session_consumer) {
+        session_consumer->tracing_session_id_ = 0;
+      }
       it = next_it;
     }
   }
