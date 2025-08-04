@@ -26,12 +26,14 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
@@ -74,7 +76,7 @@ constexpr uint32_t kZxObjTypeThread = 2;
 
 FuchsiaTraceTokenizer::FuchsiaTraceTokenizer(TraceProcessorContext* context)
     : context_(context),
-      proto_reader_(context),
+      proto_parser_(context, context->trace_file_tracker->AddFile()),
       process_id_(context->storage->InternString("process")) {
   auto parser = std::make_unique<FuchsiaTraceParser>(context);
   parser_ = parser.get();
@@ -192,7 +194,7 @@ base::Status FuchsiaTraceTokenizer::Parse(TraceBlobView blob) {
       TraceBlob::CopyFrom(proto_trace_data_.data(), proto_trace_data_.size());
   proto_trace_data_.clear();
 
-  return proto_reader_.Parse(TraceBlobView(std::move(perfetto_blob)));
+  return proto_parser_.Parse(TraceBlobView(std::move(perfetto_blob)));
 }
 
 // Most record types are read and recorded in |TraceStorage| here directly.
@@ -673,6 +675,7 @@ void FuchsiaTraceTokenizer::RegisterProvider(uint32_t provider_id,
 }
 
 base::Status FuchsiaTraceTokenizer::NotifyEndOfFile() {
+  RETURN_IF_ERROR(proto_parser_.NotifyEndOfFile());
   return base::OkStatus();
 }
 

@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
@@ -84,9 +85,7 @@ class FuchsiaTraceTokenizer : public ChunkedTraceReader {
   FuchsiaTraceParser* parser_;
   std::vector<uint8_t> leftover_bytes_;
 
-  // Proto reader creates state that the blobs it emits reference, so the
-  // proto_reader needs to live for as long as the tokenizer.
-  ProtoTraceReader proto_reader_;
+  ProtoTraceReader proto_trace_reader_;
   std::vector<uint8_t> proto_trace_data_;
 
   std::unordered_map<uint32_t, std::unique_ptr<ProviderInfo>> providers_;
