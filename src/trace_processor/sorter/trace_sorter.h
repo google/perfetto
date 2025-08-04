@@ -407,11 +407,11 @@ class TraceSorter {
       bool operator()(const TimestampedEvent& a,
                       const TimestampedEvent& b) const {
         int64_t a_key =
-            a.event_type == kJsonTraceType
+            a.event_type == static_cast<uint64_t>(Type::kJsonValue)
                 ? KeyForType(*buffer.Get<JsonEvent>(GetTokenBufferId(a)))
                 : std::numeric_limits<int64_t>::max();
         int64_t b_key =
-            b.event_type == kJsonTraceType
+            b.event_type == static_cast<uint64_t>(Type::kJsonValue)
                 ? KeyForType(*buffer.Get<JsonEvent>(GetTokenBufferId(b)))
                 : std::numeric_limits<int64_t>::max();
         return std::tie(a.ts, a_key, a.chunk_index, a.chunk_offset) <
