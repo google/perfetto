@@ -30,8 +30,8 @@
 // The include order matters on these three Windows header groups.
 #include <windows.h>
 
-#include <ws2tcpip.h>
 #include <winsock2.h>
+#include <ws2tcpip.h>
 
 #include <afunix.h>
 #else

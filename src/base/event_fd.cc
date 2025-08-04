@@ -20,8 +20,8 @@
 #include <stdint.h>
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <windows.h>
 #include <synchapi.h>
+#include <windows.h>
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_QNX)
 #include <unistd.h>
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
