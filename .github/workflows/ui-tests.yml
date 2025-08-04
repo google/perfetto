@@ -118,7 +118,7 @@ jobs:
           gcloud config set storage/parallel_composite_upload_enabled True
           
           # the '/*' at the end of dst is important!          
-          gcloud storage cp --recursive "$PERFETTO_ARTIFACTS_DIR/*" "$GCS_PATH/$PERFETTO_CI_JOB_ID" 
+          gcloud storage cp --recursive "$PERFETTO_ARTIFACTS_DIR/*" "$GCS_PATH/$PERFETTO_CI_JOB_ID-from-cli" 
 
 
       - name: Update cache (if on main)
