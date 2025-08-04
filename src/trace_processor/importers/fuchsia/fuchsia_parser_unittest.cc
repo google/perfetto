@@ -205,7 +205,8 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     context_.sorter = std::make_shared<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
     context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
-    context_.trace_file_tracker = std::make_unique<TraceFileTracker>(&context_);
+    context_.register_additional_proto_modules = &RegisterAdditionalModules;
+    tokenizer_ = std::make_unique<FuchsiaTraceTokenizer>(&context_);
   }
 
   void push_word(uint64_t word) { trace_bytes_.push_back(word); }
@@ -223,8 +224,7 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     std::unique_ptr<uint8_t[]> raw_trace(new uint8_t[num_bytes]);
     memcpy(raw_trace.get(), trace_bytes_.data(), num_bytes);
 
-    auto reader = std::make_unique<FuchsiaTraceTokenizer>(&context_);
-    auto status = reader->Parse(TraceBlobView(
+    auto status = tokenizer_->Parse(TraceBlobView(
         TraceBlob::TakeOwnership(std::move(raw_trace), num_bytes)));
 
     ResetTraceBuffers();
@@ -240,6 +240,7 @@ class FuchsiaTraceParserTest : public ::testing::Test {
   MockProcessTracker* process_;
   ClockTracker* clock_;
   TraceStorage* storage_;
+  std::unique_ptr<FuchsiaTraceTokenizer> tokenizer_;
 };
 
 TEST_F(FuchsiaTraceParserTest, CorruptedFxt) {

@@ -76,7 +76,7 @@ constexpr uint32_t kZxObjTypeThread = 2;
 
 FuchsiaTraceTokenizer::FuchsiaTraceTokenizer(TraceProcessorContext* context)
     : context_(context),
-      proto_parser_(context, context->trace_file_tracker->AddFile()),
+      proto_trace_reader_(context),
       process_id_(context->storage->InternString("process")) {
   auto parser = std::make_unique<FuchsiaTraceParser>(context);
   parser_ = parser.get();
@@ -194,7 +194,7 @@ base::Status FuchsiaTraceTokenizer::Parse(TraceBlobView blob) {
       TraceBlob::CopyFrom(proto_trace_data_.data(), proto_trace_data_.size());
   proto_trace_data_.clear();
 
-  return proto_parser_.Parse(TraceBlobView(std::move(perfetto_blob)));
+  return proto_trace_reader_.Parse(TraceBlobView(std::move(perfetto_blob)));
 }
 
 // Most record types are read and recorded in |TraceStorage| here directly.
@@ -669,13 +669,13 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
 void FuchsiaTraceTokenizer::RegisterProvider(uint32_t provider_id,
                                              std::string name) {
   std::unique_ptr<ProviderInfo> provider(new ProviderInfo());
-  provider->name = name;
+  provider->name = std::move(name);
   current_provider_ = provider.get();
   providers_[provider_id] = std::move(provider);
 }
 
 base::Status FuchsiaTraceTokenizer::NotifyEndOfFile() {
-  RETURN_IF_ERROR(proto_parser_.NotifyEndOfFile());
+  RETURN_IF_ERROR(proto_trace_reader_.NotifyEndOfFile());
   return base::OkStatus();
 }
 
