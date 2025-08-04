@@ -18,12 +18,10 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <iomanip>
-#include <sstream>
-#include <utility>
-#include <vector>
+#include <optional>
 
 #include "perfetto/base/status.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"

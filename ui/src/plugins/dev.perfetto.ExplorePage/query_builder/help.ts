@@ -27,7 +27,7 @@ export class ExplorePageHelp implements m.ClassComponent<ExplorePageHelpAttrs> {
 
   view({attrs}: m.CVnode<ExplorePageHelpAttrs>) {
     return m(
-      '.pf-table-list',
+      '.pf-explore-page-help',
       this.renderGettingStarted(),
       m(TableList, {
         ...attrs,

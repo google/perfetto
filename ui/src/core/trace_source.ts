@@ -24,28 +24,34 @@ export type TraceSource = CommonTraceProps &
     | TraceArrayBufferSource
     | TraceUrlSource
     | TraceHttpRpcSource
+    | TraceMultipleFilesSource
   );
 
 export interface TraceFileSource {
-  type: 'FILE';
-  file: File;
+  readonly type: 'FILE';
+  readonly file: File;
+}
+
+export interface TraceMultipleFilesSource {
+  readonly type: 'MULTIPLE_FILES';
+  readonly files: ReadonlyArray<File>;
 }
 
 export interface TraceUrlSource {
-  type: 'URL';
-  url: string;
+  readonly type: 'URL';
+  readonly url: string;
 }
 
 export interface TraceHttpRpcSource {
-  type: 'HTTP_RPC';
+  readonly type: 'HTTP_RPC';
 }
 
 export interface TraceArrayBufferSource {
-  type: 'ARRAY_BUFFER';
-  buffer: ArrayBuffer;
-  title: string;
-  fileName?: string;
-  url?: string;
+  readonly type: 'ARRAY_BUFFER';
+  readonly buffer: ArrayBuffer;
+  readonly title: string;
+  readonly fileName?: string;
+  readonly url?: string;
 
   // |uuid| is set only when loading via ?local_cache_key=1234. When set,
   // this matches global.state.traceUuid, with the exception of the following
@@ -53,10 +59,10 @@ export interface TraceArrayBufferSource {
   // this |uuid| will be == T2, but the globals.state.traceUuid will be
   // temporarily == T1 until T2 has been loaded (consistently to what happens
   // with all other state fields).
-  uuid?: string;
+  readonly uuid?: string;
 
   // if |localOnly| is true then the trace should not be shared or downloaded.
-  localOnly?: boolean;
+  readonly localOnly?: boolean;
 
   // Allows to pass extra arguments to plugins. This can be read by plugins
   // onTraceLoad() and can be used to trigger plugin-specific-behaviours (e.g.
@@ -66,5 +72,5 @@ export interface TraceArrayBufferSource {
   //   'dev.perfetto.PluginFoo': { 'key1': 'value1', 'key2': 1234 }
   //   'dev.perfetto.PluginBar': { 'key3': '...', 'key4': ... }
   // }
-  pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
+  readonly pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
 }
