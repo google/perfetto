@@ -2998,6 +2998,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/android/frame_blocking_calls:frame_blocking_calls
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_android_frame_blocking_calls_frame_blocking_calls",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/android/frame_blocking_calls/blocking_calls_aggregation.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/android/frames:frames
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_frames_frames",
@@ -3141,6 +3149,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_callstacks_callstacks",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/callstacks/stack_profile.sql",
+        "src/trace_processor/perfetto_sql/stdlib/callstacks/symbolize.sql",
     ],
 )
 
@@ -3388,7 +3397,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/freq_idle.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/hotplug.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/idle.sql",
-        "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/split.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/pivot.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/w_cpu_dependence.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/cpu/w_dsu_dependence.sql",
         "src/trace_processor/perfetto_sql/stdlib/wattson/curves/device_cpu.sql",
@@ -3416,6 +3425,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_android_cpu_cpu",
         ":src_trace_processor_perfetto_sql_stdlib_android_cujs_cujs",
         ":src_trace_processor_perfetto_sql_stdlib_android_dumpsys_dumpsys",
+        ":src_trace_processor_perfetto_sql_stdlib_android_frame_blocking_calls_frame_blocking_calls",
         ":src_trace_processor_perfetto_sql_stdlib_android_frames_frames",
         ":src_trace_processor_perfetto_sql_stdlib_android_gpu_gpu",
         ":src_trace_processor_perfetto_sql_stdlib_android_memory_heap_graph_heap_graph",

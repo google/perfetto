@@ -58,8 +58,9 @@
 #include "src/trace_processor/importers/perf/reader.h"
 #include "src/trace_processor/importers/perf/record.h"
 #include "src/trace_processor/importers/perf/sample_id.h"
+#include "src/trace_processor/importers/perf/time_conv_record.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
-#include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/util/build_id.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
@@ -508,8 +509,7 @@ base::Status PerfDataTokenizer::ProcessTimeConvRecord(Record record) {
   if (!reader.Read(time_conv)) {
     return base::ErrStatus("Failed to parse PERF_RECORD_TIME_CONV");
   }
-
-  return aux_manager_.OnTimeConvRecord(std::move(time_conv));
+  return aux_manager_.OnTimeConvRecord(time_conv);
 }
 
 base::StatusOr<PerfDataTokenizer::ParsingResult>
@@ -526,8 +526,8 @@ PerfDataTokenizer::ParseAuxtraceData() {
       buffer_.SliceOff(buffer_.start_offset(), size);
   buffer_.PopFrontBytes(size);
   PERFETTO_CHECK(data.has_value());
-  base::Status status = aux_manager_.OnAuxtraceRecord(
-      std::move(*current_auxtrace_), std::move(*data));
+  base::Status status =
+      aux_manager_.OnAuxtraceRecord(*current_auxtrace_, std::move(*data));
   current_auxtrace_.reset();
   parsing_state_ = ParsingState::kParseRecords;
   RETURN_IF_ERROR(status);

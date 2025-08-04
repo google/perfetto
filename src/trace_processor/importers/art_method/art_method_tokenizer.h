@@ -83,7 +83,7 @@ class ArtMethodTokenizer : public ChunkedTraceReader {
   };
   struct Streaming {
     base::Status Parse();
-    base::Status NotifyEndOfFile();
+    base::Status NotifyEndOfFile() const;
 
     base::StatusOr<bool> ParseHeaderStart(Iterator&);
     base::StatusOr<bool> ParseData(Iterator&);

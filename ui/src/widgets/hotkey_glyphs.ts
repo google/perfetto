@@ -15,16 +15,19 @@
 import m from 'mithril';
 import {getPlatform, Hotkey, Key, parseHotkey, Platform} from '../base/hotkeys';
 import {Icon} from './icon';
+import {classForSpacing, HTMLAttrs} from './common';
+import {classNames} from '../base/classnames';
 
 export interface HotkeyGlyphsAttrs {
-  hotkey: Hotkey;
-  spoof?: Platform;
+  readonly hotkey: Hotkey;
+  readonly spoof?: Platform;
+  readonly spacing?: 'medium' | 'large';
 }
 
 // Renders a hotkey as a series of little keycaps.
 export class HotkeyGlyphs implements m.ClassComponent<HotkeyGlyphsAttrs> {
   view({attrs}: m.Vnode<HotkeyGlyphsAttrs>) {
-    const {hotkey, spoof} = attrs;
+    const {hotkey, spoof, spacing} = attrs;
 
     const platform = spoof || getPlatform();
     const result = parseHotkey(hotkey);
@@ -37,29 +40,45 @@ export class HotkeyGlyphs implements m.ClassComponent<HotkeyGlyphsAttrs> {
 
       return m(
         'span.pf-hotkey',
-        hasMod && m('span.pf-keycap', glyphForMod(platform)),
-        hasCtrl && m('span.pf-keycap', glyphForCtrl(platform)),
-        hasAlt && m('span.pf-keycap', glyphForAlt(platform)),
-        hasShift && m('span.pf-keycap', glyphForShift()),
-        m('span.pf-keycap', glyphForKey(key, platform)),
+        hasMod && m(Keycap, {spacing}, glyphForMod(platform)),
+        hasCtrl && m(Keycap, {spacing}, glyphForCtrl(platform)),
+        hasAlt && m(Keycap, {spacing}, glyphForAlt(platform)),
+        hasShift && m(Keycap, {spacing}, glyphForShift()),
+        m(Keycap, {spacing}, glyphForKey(key, platform)),
       );
     } else {
-      return m('span.pf-keycap', '???');
+      return m(Keycap, {spacing}, '???');
     }
   }
 }
 
 export interface KeycapGlyphsAttrs {
-  keyValue: Key;
-  spoof?: Platform;
+  readonly keyValue: Key;
+  readonly spoof?: Platform;
+  readonly spacing?: 'medium' | 'large';
 }
 
 // Renders a single keycap.
 export class KeycapGlyph implements m.ClassComponent<KeycapGlyphsAttrs> {
   view({attrs}: m.Vnode<KeycapGlyphsAttrs>) {
-    const {keyValue, spoof} = attrs;
+    const {keyValue, spoof, spacing} = attrs;
     const platform = spoof || getPlatform();
-    return m('span.pf-keycap', glyphForKey(keyValue, platform));
+    return m(Keycap, {spacing}, glyphForKey(keyValue, platform));
+  }
+}
+
+export interface KeycapAttrs extends HTMLAttrs {
+  readonly spacing?: 'medium' | 'large';
+}
+
+export class Keycap implements m.ClassComponent<KeycapAttrs> {
+  view({attrs, children}: m.Vnode<KeycapAttrs>) {
+    const {spacing = 'medium'} = attrs;
+    return m(
+      'span.pf-keycap',
+      {className: classNames(classForSpacing(spacing)), ...attrs},
+      children,
+    );
   }
 }
 

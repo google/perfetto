@@ -23,14 +23,11 @@
 #include <limits>
 #include <memory>
 #include <optional>
-#include <string>
 #include <tuple>
 #include <type_traits>
 #include <utility>
-#include <variant>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/public/compiler.h"
@@ -52,6 +49,7 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/bump_allocator.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 
@@ -103,11 +101,11 @@ namespace perfetto::trace_processor {
 // from there to the end.
 class TraceSorter {
  public:
-  enum class SortingMode {
+  enum class SortingMode : uint8_t {
     kDefault,
     kFullSort,
   };
-  enum class EventHandling {
+  enum class EventHandling : uint8_t {
     // Indicates that events should be sorted and pushed to the parsing stage.
     kSortAndPush,
 
@@ -408,8 +406,14 @@ class TraceSorter {
       // For std::sort() in slow mode.
       bool operator()(const TimestampedEvent& a,
                       const TimestampedEvent& b) const {
-        int64_t a_key = KeyForType(*buffer.Get<JsonEvent>(GetTokenBufferId(a)));
-        int64_t b_key = KeyForType(*buffer.Get<JsonEvent>(GetTokenBufferId(b)));
+        int64_t a_key =
+            a.event_type == static_cast<uint64_t>(Type::kJsonValue)
+                ? KeyForType(*buffer.Get<JsonEvent>(GetTokenBufferId(a)))
+                : std::numeric_limits<int64_t>::max();
+        int64_t b_key =
+            b.event_type == static_cast<uint64_t>(Type::kJsonValue)
+                ? KeyForType(*buffer.Get<JsonEvent>(GetTokenBufferId(b)))
+                : std::numeric_limits<int64_t>::max();
         return std::tie(a.ts, a_key, a.chunk_index, a.chunk_offset) <
                std::tie(b.ts, b_key, b.chunk_index, b.chunk_offset);
       }
@@ -447,12 +451,13 @@ class TraceSorter {
                 TraceTokenBuffer::Id id,
                 bool use_slow_sorting) {
       {
-        TimestampedEvent event;
+        events_.emplace_back();
+
+        TimestampedEvent& event = events_.back();
         event.ts = ts;
         event.chunk_index = id.alloc_id.chunk_index;
         event.chunk_offset = id.alloc_id.chunk_offset;
         event.event_type = static_cast<uint8_t>(type);
-        events_.emplace_back(std::move(event));
       }
 
       // Events are often seen in order.

@@ -1,4 +1,4 @@
-@import "../../../assets/widgets/theme";
+@import "../../../assets/theme";
 
 .pf-node-graph {
   position: relative;
@@ -55,11 +55,9 @@
 .pf-source-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 1rem;
   padding: 1.5rem;
   border-radius: 0.5rem;
-  cursor: pointer;
   width: 200px;
   text-align: center;
 
@@ -78,6 +76,7 @@
 
   p {
     font-size: 0.9rem;
+    flex-grow: 1;
     color: $pf-minimal-foreground-disabled;
   }
 }
