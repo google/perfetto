@@ -12,10 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../../assets/widgets/theme";
+@import "../../../assets/theme";
+
+.pf-explore-page-help {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
 
 .pf-getting-started {
-  margin-bottom: 2rem;
+  position: sticky;
+  top: 0;
+  background: var(--perfetto-primary-background);
+  padding: 0.5rem;
+  z-index: 1;
+  margin-bottom: 1rem;
 
   .step-cards {
     display: flex;

@@ -28,6 +28,7 @@ import {ColumnInfo} from '../column_info';
 export interface OperatorAttrs {
   filter: FilterAttrs;
   groupby: AggregationsOperatorAttrs;
+  onchange?: () => void;
 }
 
 export class Operator implements m.ClassComponent<OperatorAttrs> {
@@ -35,13 +36,23 @@ export class Operator implements m.ClassComponent<OperatorAttrs> {
 
   view({attrs}: m.CVnode<OperatorAttrs>): m.Children {
     return m('.pf-exp-query-operations', [
-      m(FilterOperation, attrs.filter),
+      m(FilterOperation, {
+        ...attrs.filter,
+        onFiltersChanged: (filters: ReadonlyArray<FilterDefinition>) => {
+          attrs.filter.onFiltersChanged?.(filters);
+          attrs.onchange?.();
+        },
+      }),
       this.showAggregations
-        ? m(AggregationsOperator, attrs.groupby)
+        ? m(AggregationsOperator, {
+            ...attrs.groupby,
+            onchange: attrs.onchange,
+          })
         : m(Button, {
             label: 'Aggregate data',
             onclick: () => {
               this.showAggregations = true;
+              attrs.onchange?.();
             },
             variant: ButtonVariant.Filled,
           }),
