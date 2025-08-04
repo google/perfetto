@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -eux -o pipefail
+set -eu -o pipefail
 
 # Move to tmpfs, as GitHub Action runner checks out the repo under
 # a _work subdirectory
