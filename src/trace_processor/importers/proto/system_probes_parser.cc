@@ -130,10 +130,6 @@ std::optional<int> FingerprintToSdkVersion(const std::string& fingerprint) {
   return VersionStringToSdkVersion(version);
 }
 
-bool IsSupportedDiskStatDevice(const std::string& device_name) {
-  return device_name == "sda";  // Primary SCSI disk device name
-}
-
 struct ArmCpuIdentifier {
   uint32_t implementer;
   uint32_t architecture;
@@ -240,12 +236,17 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
 
 void SystemProbesParser::ParseDiskStats(int64_t ts, ConstBytes blob) {
   protos::pbzero::SysStats::DiskStat::Decoder ds(blob);
+
+  // TODO(https://github.com/google/perfetto/issues/2427): this constant assumes
+  // that the disk's logical sector size is 512. This is very commonly true but
+  // enterprise SSDs can have a logical size of 4K.
+  //
+  // Unfortunately the only way we could figure this out is by pollling
+  // `/sys/block/<device_name>/queue/logical_block_size` on device which
+  // requires changing the recording code.
   static constexpr double SECTORS_PER_MB = 2048.0;
   static constexpr double MS_PER_SEC = 1000.0;
   std::string device_name = ds.device_name().ToStdString();
-  if (!IsSupportedDiskStatDevice(device_name)) {
-    return;
-  }
 
   static constexpr auto kBlueprint = tracks::CounterBlueprint(
       "diskstat", tracks::UnknownUnitBlueprint(),
