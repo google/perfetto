@@ -325,7 +325,7 @@ class TraceSorter {
 // The non-templated base class for polymorphism.
 class TraceSorter::UntypedSink {
  public:
-  virtual ~UntypedSink() = default;
+  virtual ~UntypedSink();
 
   // The generic dispatch method called by the sorter.
   virtual void OnSortedEvent(TraceSorter* sorter,

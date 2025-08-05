@@ -41,6 +41,7 @@ class LegacyV8CpuProfileTracker
                                LegacyV8CpuProfileTracker> {
  public:
   explicit LegacyV8CpuProfileTracker(TraceProcessorContext*);
+  ~LegacyV8CpuProfileTracker();
 
   void Parse(int64_t ts, LegacyV8CpuProfileEvent);
 

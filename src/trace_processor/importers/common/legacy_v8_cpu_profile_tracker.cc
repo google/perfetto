@@ -42,6 +42,8 @@ LegacyV8CpuProfileTracker::LegacyV8CpuProfileTracker(
     TraceProcessorContext* context)
     : context_(context) {}
 
+LegacyV8CpuProfileTracker::~LegacyV8CpuProfileTracker() = default;
+
 void LegacyV8CpuProfileTracker::Parse(int64_t ts,
                                       LegacyV8CpuProfileEvent event) {
   base::Status status =

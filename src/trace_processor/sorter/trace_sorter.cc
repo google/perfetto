@@ -249,4 +249,6 @@ void TraceSorter::MaybeExtractEvent(size_t queue_idx,
   sink->OnSortedEvent(this, timestamp, GetTokenBufferId(event));
 }
 
+TraceSorter::UntypedSink::~UntypedSink() = default;
+
 }  // namespace perfetto::trace_processor

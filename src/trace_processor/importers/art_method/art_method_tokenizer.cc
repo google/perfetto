@@ -93,9 +93,7 @@ uint16_t ToShort(const TraceBlobView& tbv) {
 ArtMethodTokenizer::ArtMethodTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
       stream_(ctx->sorter->CreateStream(
-          std::make_unique<ArtMethodParserImpl>(ctx))) {
-  PERFETTO_ELOG("%p", static_cast<void*>(ctx->sorter.get()));
-}
+          std::make_unique<ArtMethodParserImpl>(ctx))) {}
 ArtMethodTokenizer::~ArtMethodTokenizer() = default;
 
 base::Status ArtMethodTokenizer::Parse(TraceBlobView blob) {
