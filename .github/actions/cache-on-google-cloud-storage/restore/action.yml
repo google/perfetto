@@ -31,10 +31,9 @@ runs:
       shell: bash
       env:
         INPUT_FOLDER_PATH: ${{ inputs.folder }}
-        INPUT_KEY: ${{ inputs.cache_key }}
+        INPUT_CACHE_KEY: ${{ inputs.cache_key }}
         INPUT_EXCLUDE_FILES_PATH: ${{ inputs.exclude_files }}
         INPUT_ACTION: "restore"
         ACTION_PATH: ${{ github.action_path }}
       run: |
-        echo "action_path: $ACTION_PATH" 
         $ACTION_PATH/../cache_on_google_storage_action.sh

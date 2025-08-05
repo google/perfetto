@@ -35,6 +35,5 @@ runs:
         INPUT_EXCLUDE_FILES_PATH: ${{ inputs.exclude_files }}
         INPUT_ACTION: "save"
         ACTION_PATH: ${{ github.action_path }}
-      run: |
-        echo "action_path: $ACTION_PATH" 
+      run: | 
         $ACTION_PATH/../cache_on_google_storage_action.sh
