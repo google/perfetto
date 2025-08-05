@@ -21,8 +21,9 @@
 #include "perfetto/base/logging.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <io.h>
 #include <windows.h>
+
+#include <io.h>
 #else
 #include <signal.h>
 #include <unistd.h>

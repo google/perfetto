@@ -28,26 +28,38 @@ import {
   DEFAULT_NODE_WIDTH,
 } from './node_box';
 
+const BUTTONS_AREA_WIDTH = 300;
+const BUTTONS_AREA_HEIGHT = 50;
+
+function keycap(glyph: m.Children): m.Children {
+  return m('.pf-keycap', glyph);
+}
+
 interface SourceCardAttrs {
   title: string;
   description: string;
   icon: string;
+  hotkey: string;
   onclick: () => void;
 }
 
 const SourceCard: m.Component<SourceCardAttrs> = {
   view({attrs}) {
-    const {title, description, icon, onclick} = attrs;
+    const {title, description, icon, hotkey, onclick} = attrs;
     return m(
       '.pf-source-card',
       {onclick},
-      m('i.material-icons', icon),
-      m('h3', title),
+      m(
+        '.pf-source-card-clickable',
+        m('i.material-icons', icon),
+        m('h3', title),
+      ),
       m('p', description),
+      m('.pf-source-card-hotkey', keycap(hotkey)),
     );
   },
 };
-export interface NodeGraphAttrs {
+export interface GraphAttrs {
   readonly rootNodes: QueryNode[];
   readonly selectedNode?: QueryNode;
   readonly onNodeSelected: (node: QueryNode) => void;
@@ -60,12 +72,12 @@ export interface NodeGraphAttrs {
   readonly onDeleteNode: (node: QueryNode) => void;
 }
 
-export class NodeGraph implements m.ClassComponent<NodeGraphAttrs> {
+export class Graph implements m.ClassComponent<GraphAttrs> {
   private dragNode?: QueryNode;
   private nodeLayouts: Map<QueryNode, NodeBoxLayout> = new Map();
   private nodeGraphWidth: number = 0;
 
-  oncreate({dom}: m.VnodeDOM<NodeGraphAttrs>) {
+  oncreate({dom}: m.VnodeDOM<GraphAttrs>) {
     const box = dom as HTMLElement;
     this.nodeGraphWidth = box.getBoundingClientRect().width;
 
@@ -74,73 +86,7 @@ export class NodeGraph implements m.ClassComponent<NodeGraphAttrs> {
     };
 
     box.ondrop = (event) => {
-      event.preventDefault();
-      if (!this.dragNode) return;
-      const dragNodeLayout = this.nodeLayouts.get(this.dragNode);
-      if (!dragNodeLayout) return;
-
-      const rect = box.getBoundingClientRect();
-      const w = dragNodeLayout.width ?? DEFAULT_NODE_WIDTH;
-      const h = dragNodeLayout.height ?? NODE_HEIGHT;
-
-      const x = event.clientX - rect.left - w / 2;
-      const y = event.clientY - rect.top - h / 2;
-
-      const newLayout: NodeBoxLayout = {
-        ...dragNodeLayout,
-        x: Math.max(0, Math.min(x, rect.width - w)),
-        y: Math.max(0, Math.min(y, rect.height - h)),
-      };
-
-      const BUTTONS_AREA_WIDTH = 300;
-      const BUTTONS_AREA_HEIGHT = 50;
-      const buttonsReservedArea: NodeBoxLayout = {
-        x: this.nodeGraphWidth - BUTTONS_AREA_WIDTH - PADDING,
-        y: PADDING,
-        width: BUTTONS_AREA_WIDTH,
-        height: BUTTONS_AREA_HEIGHT,
-      };
-
-      const otherLayouts = [...this.nodeLayouts.entries()]
-        .filter(([node, _]) => node !== this.dragNode)
-        .map(([, layout]) => layout);
-
-      const allLayouts = [...otherLayouts, buttonsReservedArea];
-
-      for (const layout of allLayouts) {
-        if (isOverlapping(newLayout, layout, PADDING)) {
-          const layoutW = layout.width ?? DEFAULT_NODE_WIDTH;
-          const layoutH = layout.height ?? NODE_HEIGHT;
-
-          const right = layout.x + layoutW + PADDING;
-          const left = layout.x - w - PADDING;
-          const bottom = layout.y + layoutH + PADDING;
-          const top = layout.y - h - PADDING;
-
-          const distRight = Math.abs(newLayout.x - right);
-          const distLeft = Math.abs(newLayout.x - left);
-          const distBottom = Math.abs(newLayout.y - bottom);
-          const distTop = Math.abs(newLayout.y - top);
-
-          const minDist = Math.min(distRight, distLeft, distBottom, distTop);
-
-          if (minDist === distRight) {
-            newLayout.x = right;
-          } else if (minDist === distLeft) {
-            newLayout.x = left;
-          } else if (minDist === distBottom) {
-            newLayout.y = bottom;
-          } else {
-            newLayout.y = top;
-          }
-        }
-      }
-
-      newLayout.x = Math.max(0, Math.min(newLayout.x, rect.width - w));
-      newLayout.y = Math.max(0, Math.min(newLayout.y, rect.height - h));
-
-      this.nodeLayouts.set(this.dragNode, newLayout);
-      m.redraw();
+      this.onDrop(event, box);
     };
 
     box.ondragend = () => {
@@ -150,6 +96,74 @@ export class NodeGraph implements m.ClassComponent<NodeGraphAttrs> {
       }
     };
   }
+
+  private onDrop = (event: DragEvent, box: HTMLElement) => {
+    event.preventDefault();
+    if (!this.dragNode) return;
+    const dragNodeLayout = this.nodeLayouts.get(this.dragNode);
+    if (!dragNodeLayout) return;
+
+    const rect = box.getBoundingClientRect();
+    const w = dragNodeLayout.width ?? DEFAULT_NODE_WIDTH;
+    const h = dragNodeLayout.height ?? NODE_HEIGHT;
+
+    const x = event.clientX - rect.left - w / 2;
+    const y = event.clientY - rect.top - h / 2;
+
+    const newLayout: NodeBoxLayout = {
+      ...dragNodeLayout,
+      x: Math.max(0, Math.min(x, rect.width - w)),
+      y: Math.max(0, Math.min(y, rect.height - h)),
+    };
+
+    const buttonsReservedArea: NodeBoxLayout = {
+      x: this.nodeGraphWidth - BUTTONS_AREA_WIDTH - PADDING,
+      y: PADDING,
+      width: BUTTONS_AREA_WIDTH,
+      height: BUTTONS_AREA_HEIGHT,
+    };
+
+    const otherLayouts = [...this.nodeLayouts.entries()]
+      .filter(([node, _]) => node !== this.dragNode)
+      .map(([, layout]) => layout);
+
+    const allLayouts = [...otherLayouts, buttonsReservedArea];
+
+    for (const layout of allLayouts) {
+      if (isOverlapping(newLayout, layout, PADDING)) {
+        const layoutW = layout.width ?? DEFAULT_NODE_WIDTH;
+        const layoutH = layout.height ?? NODE_HEIGHT;
+
+        const right = layout.x + layoutW + PADDING;
+        const left = layout.x - w - PADDING;
+        const bottom = layout.y + layoutH + PADDING;
+        const top = layout.y - h - PADDING;
+
+        const distRight = Math.abs(newLayout.x - right);
+        const distLeft = Math.abs(newLayout.x - left);
+        const distBottom = Math.abs(newLayout.y - bottom);
+        const distTop = Math.abs(newLayout.y - top);
+
+        const minDist = Math.min(distRight, distLeft, distBottom, distTop);
+
+        if (minDist === distRight) {
+          newLayout.x = right;
+        } else if (minDist === distLeft) {
+          newLayout.x = left;
+        } else if (minDist === distBottom) {
+          newLayout.y = bottom;
+        } else {
+          newLayout.y = top;
+        }
+      }
+    }
+
+    newLayout.x = Math.max(0, Math.min(newLayout.x, rect.width - w));
+    newLayout.y = Math.max(0, Math.min(newLayout.y, rect.height - h));
+
+    this.nodeLayouts.set(this.dragNode, newLayout);
+    m.redraw();
+  };
 
   onNodeRendered = (node: QueryNode, element: HTMLElement) => {
     const layout = this.nodeLayouts.get(node);
@@ -185,7 +199,7 @@ export class NodeGraph implements m.ClassComponent<NodeGraphAttrs> {
     }
   };
 
-  private renderEmptyNodeGraph(attrs: NodeGraphAttrs) {
+  private renderEmptyNodeGraph(attrs: GraphAttrs) {
     return m(
       '.pf-node-graph-add-button-container.pf-hero',
       m('h2.hero-title', 'Welcome to the Explore Page'),
@@ -202,12 +216,14 @@ export class NodeGraph implements m.ClassComponent<NodeGraphAttrs> {
             'Query and explore data from any table in the Perfetto ' +
             'standard library.',
           icon: 'table_chart',
+          hotkey: 'T',
           onclick: attrs.onAddStdlibTableSource,
         }),
         m(SourceCard, {
           title: 'Slices',
           description: 'Explore all the slices from your trace.',
           icon: 'bar_chart',
+          hotkey: 'S',
           onclick: attrs.onAddSlicesSource,
         }),
         m(SourceCard, {
@@ -216,13 +232,14 @@ export class NodeGraph implements m.ClassComponent<NodeGraphAttrs> {
             'Start with a custom SQL query to act as a source for ' +
             'further exploration.',
           icon: 'code',
+          hotkey: 'Q',
           onclick: attrs.onAddSqlSource,
         }),
       ),
     );
   }
 
-  private renderControls(attrs: NodeGraphAttrs) {
+  private renderControls(attrs: GraphAttrs) {
     return m(
       '.pf-node-graph__controls',
       m(
@@ -257,7 +274,7 @@ export class NodeGraph implements m.ClassComponent<NodeGraphAttrs> {
     );
   }
 
-  view({attrs}: m.CVnode<NodeGraphAttrs>) {
+  view({attrs}: m.CVnode<GraphAttrs>) {
     const {rootNodes, onNodeSelected, selectedNode} = attrs;
 
     const allNodes: QueryNode[] = [];
@@ -268,6 +285,16 @@ export class NodeGraph implements m.ClassComponent<NodeGraphAttrs> {
         curr = curr.nextNode;
       }
     }
+
+    // Prune layouts for nodes that no longer exist.
+    const newLayouts = new Map<QueryNode, NodeBoxLayout>();
+    for (const node of allNodes) {
+      const layout = this.nodeLayouts.get(node);
+      if (layout) {
+        newLayouts.set(node, layout);
+      }
+    }
+    this.nodeLayouts = newLayouts;
 
     const children: m.Child[] = [];
 
@@ -342,8 +369,6 @@ function findNextAvailablePosition(
   const w = Math.max(DEFAULT_NODE_WIDTH, node.getTitle().length * 8 + 60);
   const h = NODE_HEIGHT;
 
-  const BUTTONS_AREA_WIDTH = 300;
-  const BUTTONS_AREA_HEIGHT = 50;
   const buttonsReservedArea: NodeBoxLayout = {
     x: nodeGraphWidth - BUTTONS_AREA_WIDTH - PADDING,
     y: PADDING,

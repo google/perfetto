@@ -18,8 +18,11 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_WINSCOPE_MODULE_H_
 
 #include <cstdint>
+#include "perfetto/protozero/field.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/winscope/android_input_event_parser.h"
 #include "src/trace_processor/importers/proto/winscope/protolog_parser.h"
@@ -28,13 +31,14 @@
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_transactions_parser.h"
 #include "src/trace_processor/importers/proto/winscope/viewcapture_parser.h"
 #include "src/trace_processor/importers/proto/winscope/winscope_context.h"
+#include "src/trace_processor/util/proto_to_args_parser.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class WinscopeModule : public ProtoImporterModule {
  public:
-  explicit WinscopeModule(TraceProcessorContext* context);
+  explicit WinscopeModule(ProtoImporterModuleContext* module_context,
+                          TraceProcessorContext* context);
 
   ModuleResult TokenizePacket(
       const protos::pbzero::TracePacket::Decoder& decoder,
@@ -73,7 +77,6 @@ class WinscopeModule : public ProtoImporterModule {
   ViewCaptureParser viewcapture_parser_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_WINSCOPE_MODULE_H_

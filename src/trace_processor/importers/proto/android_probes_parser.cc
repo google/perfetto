@@ -492,8 +492,17 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
             tracks::StringDimensionBlueprint("sysprop_name")),
         tracks::DynamicNameBlueprint());
 
-    if (name.StartsWith("debug.tracing.battery_stats.") ||
-        name == "debug.tracing.mcc" || name == "debug.tracing.mnc" ||
+    if (name.StartsWith("debug.tracing.battery_stats.")) {
+      // Track name and definition should be kept in sync with
+      // systrace_parser.cc
+      TrackId track = context_->track_tracker->InternTrack(
+          tracks::kAndroidBatteryStatsBlueprint,
+          tracks::Dimensions(name.substr(strlen("debug.tracing."))));
+      context_->event_tracker->PushCounter(ts, *state, track);
+      continue;
+    }
+
+    if (name == "debug.tracing.mcc" || name == "debug.tracing.mnc" ||
         name == "debug.tracing.desktop_mode_visible_tasks") {
       StringId name_id = context_->storage->InternString(
           name.substr(strlen("debug.tracing.")));
