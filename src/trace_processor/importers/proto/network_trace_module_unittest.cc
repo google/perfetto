@@ -59,6 +59,7 @@ using ::perfetto::protos::pbzero::TrafficDirection;
 class NetworkTraceModuleTest : public testing::Test {
  public:
   NetworkTraceModuleTest() {
+    context_.register_additional_proto_modules = &RegisterAdditionalModules;
     context_.storage = std::make_shared<TraceStorage>();
     storage_ = context_.storage.get();
     storage_ = context_.storage.get();

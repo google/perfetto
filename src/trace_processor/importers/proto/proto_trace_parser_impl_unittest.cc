@@ -229,6 +229,7 @@ class MockBoundInserter : public ArgsTracker::BoundInserter {
 class ProtoTraceParserTest : public ::testing::Test {
  public:
   ProtoTraceParserTest() {
+    context_.register_additional_proto_modules = &RegisterAdditionalModules;
     storage_ = new TraceStorage();
     context_.storage.reset(storage_);
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
