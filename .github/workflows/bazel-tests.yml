@@ -30,23 +30,26 @@ jobs:
     env:
       PERFETTO_CI_JOB_NAME: bazel
       PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-bazel
+      PERFETTO_CI_BUILD_CACHE_KEY: build-cache-bazel
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup ccache
-        run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
+      - name: Setup cache directory
+        run: |
+          mkdir -p "$PERFETTO_CACHE_DIR"
+          bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
 
-      - name: Setup artifacts
+      - name: Setup artifacts directory
         run: |
           PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_ROOT/$PERFETTO_CI_JOB_ID
           echo "PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_DIR" >> $GITHUB_ENV
           mkdir -p $PERFETTO_ARTIFACTS_DIR
 
       - name: Restore cache
-        uses: actions/cache/restore@v4
+        uses: ./.github/actions/cache-on-google-cloud-storage/restore
         with:
-          path: ${{ env.PERFETTO_CACHE_DIR }}
-          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}
+          folder: ${{ env.PERFETTO_CACHE_DIR }}
+          cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
 
       - uses: ./.github/actions/install-build-deps
         with:
@@ -75,8 +78,8 @@ jobs:
           ./bazel-bin/trace_processor_shell -q <(echo 'select count(1) from sched') $TRACE
 
       - name: Update cache (if on main)
-        if: github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
+#        if: github.ref == 'refs/heads/main'
+        uses: ./.github/actions/cache-on-google-cloud-storage/save
         with:
-          path: ${{ env.PERFETTO_CACHE_DIR }}
-          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}
+          folder: ${{ env.PERFETTO_CACHE_DIR }}
+          cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
