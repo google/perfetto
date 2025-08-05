@@ -158,7 +158,9 @@ class ProtoImporterModule {
   ProtoImporterModuleContext* module_context_;
 };
 
-// TODO(gemini): add comment on this here.
+// Contains the common state for all proto modules and the proto parser.
+//
+// Used to store per-trace state in a place where everyone can access it.
 struct ProtoImporterModuleContext {
   void PushFtraceEvent(uint32_t cpu, int64_t ts, TracePacketData data);
   void PushEtwEvent(uint32_t cpu, int64_t ts, TracePacketData data);
