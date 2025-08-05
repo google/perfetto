@@ -30,6 +30,7 @@ jobs:
     env:
       PERFETTO_CI_JOB_NAME: ui
       PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-ui
+      PERFETTO_CI_BUILD_CACHE_KEY: build-cache-ui
       CI: 1
     steps:
       - uses: actions/checkout@v4
@@ -50,14 +51,17 @@ jobs:
         with:
           install-flags: --ui
 
-      - name: Setup ccache
-        run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
+      - name: Setup cache directory
+        run: |
+          mkdir -p "$PERFETTO_CACHE_DIR"
+          bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
 
       - name: Restore cache
-        uses: actions/cache/restore@v4
+        id: restore_cache
+        uses: ./.github/actions/cache-on-google-cloud-storage/restore
         with:
-          path: ${{ env.PERFETTO_CACHE_DIR }}
-          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}
+          directory: ${{ env.PERFETTO_CACHE_DIR }}
+          cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
 
       - name: Build Perfetto UI
         run: |

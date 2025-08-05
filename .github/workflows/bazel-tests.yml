@@ -39,7 +39,7 @@ jobs:
           mkdir -p "$PERFETTO_CACHE_DIR"
           bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
 
-      - name: Setup artifacts directory
+      - name: Setup artifacts
         run: |
           PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_ROOT/$PERFETTO_CI_JOB_ID
           echo "PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_DIR" >> $GITHUB_ENV
@@ -51,13 +51,6 @@ jobs:
         with:
           directory: ${{ env.PERFETTO_CACHE_DIR }}
           cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
-
-      - name: Print Cache hit
-        shell: bash
-        env:
-          CACHE_HIT: ${{ steps.restore_cache.outputs.cache_hit }}
-        run: |
-          echo "CACHE_HIT: $CACHE_HIT" 
 
       - uses: ./.github/actions/install-build-deps
         with:
