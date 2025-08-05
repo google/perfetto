@@ -441,9 +441,9 @@ export class UiMainPerTrace implements m.ClassComponent {
           }
           const parsed = JSON.parse(json);
           const state = parseAppState(parsed);
-          if (state.success) {
-            deserializeAppStatePhase1(state.data, trace);
-            deserializeAppStatePhase2(state.data, trace);
+          if (state.ok) {
+            deserializeAppStatePhase1(state.value, trace);
+            deserializeAppStatePhase2(state.value, trace);
           }
         },
       },
