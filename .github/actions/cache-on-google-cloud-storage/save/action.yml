@@ -36,4 +36,4 @@ runs:
         INPUT_ACTION: "save"
         ACTION_PATH: ${{ github.action_path }}
       run: | 
-        $ACTION_PATH/../cache_on_google_storage_action.sh
+        bash $ACTION_PATH/../cache_on_google_storage_action.sh
