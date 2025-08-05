@@ -42,6 +42,7 @@ import {
 import LynxThreadGroupPlugin from '../lynx.ThreadGroups';
 import FrameJankPlugin from '../lynx.frameJank';
 import LynxNativeModule from '../lynx.nativemodule';
+import {eventLoggerState} from '../../event_logger';
 
 export default class FocusMode implements PerfettoPlugin {
   static readonly id = 'lynx.FocusMode';
@@ -323,6 +324,14 @@ export default class FocusMode implements PerfettoPlugin {
       otherSlicesQuery,
       trackIdToCountMap,
     );
+    if (
+      lynxPerfGlobals.state.selectedLynxviewInstances.length <
+      lynxPerfGlobals.state.lynxviewInstances.length
+    ) {
+      eventLoggerState.state.eventLogger.logEvent('lynx_feature_usage', {
+        type: 'FocusLynxView',
+      });
+    }
     lynxPerfGlobals.updateFilteredTraceSet(filteredTraceSet);
     // Step 4: Reorder workspace tracks
     const workspace = AppImpl.instance.trace?.workspace;

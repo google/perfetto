@@ -77,6 +77,7 @@ DEPS_ALLOWLIST = [
             '/components/*',
             '/lynx_perf/*',
             '/core/*',
+            '/event_logger/*',
         ],
     ),
     ('/lynx_perf/*', [
@@ -142,7 +143,7 @@ DEPS_ALLOWLIST = [
     ('/components/details/*',
      ['/event_logger/index', '/source_map/*', '/description/*',
       '/lynx_perf/*']),
-    ('/source_map/*', ['/core/*', '/widgets/*']),
+    ('/source_map/*', ['/core/*', '/widgets/*', '/event_logger/*']),
     ('/plugins/lynx.sourcefile/index', ['/source_map/*']),
     ('/plugins/lynx.sourcemap/*',
      ['/source_map/*', '/frontend/trace_converter', '/core/*']),

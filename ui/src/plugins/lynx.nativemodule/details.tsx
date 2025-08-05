@@ -48,6 +48,7 @@ import {hasArgs, renderArguments} from '../../components/details/slice_args';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {DurationWidget} from '../../components/widgets/duration';
 import {lynxPerfGlobals} from '../../lynx_perf/lynx_perf_globals';
+import {eventLoggerState} from '../../event_logger';
 
 const STAGE_CONVERT_INPUT_PARAMS = 'Convert Parameters';
 const STAGE_DESCRIPTION_CONVERT_INPUT_PARAMS = `Convert the parameters from JavaScript types to platform-specific types. For more details about the parameters, refer to the 'arg0','arg1','arg2'... fields in the Arguments section.`;
@@ -101,6 +102,11 @@ export class NativeModuleDetailsPanel implements TrackEventDetailsPanel {
       this.nativeModuleSections,
     );
     this.loading = false;
+    if (this.sliceDetail) {
+      eventLoggerState.state.eventLogger.logEvent('lynx_feature_usage', {
+        type: 'NativeModule'
+      });
+    }
   }
 
   /**

@@ -36,6 +36,7 @@ import {hasArgs, renderArguments} from '../../components/details/slice_args';
 import {renderProcessRef} from '../../components/widgets/process';
 import {DurationWidget} from '../../components/widgets/duration';
 import {Timestamp} from '../../components/widgets/timestamp';
+import {eventLoggerState} from '../../event_logger';
 
 export class LynxScrollDetailsPanel implements TrackEventDetailsPanel {
   private loading: boolean;
@@ -64,6 +65,9 @@ export class LynxScrollDetailsPanel implements TrackEventDetailsPanel {
         Number(this.sliceDetail.ts),
         Number(this.sliceDetail.ts) + Number(this.sliceDetail.dur),
       );
+      eventLoggerState.state.eventLogger.logEvent('lynx_feature_usage', {
+        type: 'Scroll',
+      });
     }
     this.loading = false;
   }

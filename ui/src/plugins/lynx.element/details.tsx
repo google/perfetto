@@ -22,6 +22,7 @@ import {TrackEventSelection} from '../../public/selection';
 import {ElementDetailView} from './element_detail_panel';
 import ElementManager from './element_manager';
 import {LynxElement} from '../../lynx_perf/common_components/element_tree/types';
+import {eventLoggerState} from '../../event_logger';
 
 export class ElementDetailsPanel implements TrackEventDetailsPanel {
   private elementTreeDetails: LynxElement[] | undefined;
@@ -36,6 +37,12 @@ export class ElementDetailsPanel implements TrackEventDetailsPanel {
     this.loading = true;
 
     this.elementTreeDetails = ElementManager.getTraceIssueElements(eventId);
+
+    if (this.elementTreeDetails) {
+      eventLoggerState.state.eventLogger.logEvent('lynx_feature_usage', {
+        type: 'Element'
+      });
+    }
 
     this.loading = false;
   }
