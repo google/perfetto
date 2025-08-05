@@ -50,13 +50,15 @@ jobs:
             PERFETTO_TEST_GN_ARGS: 'is_debug=false is_clang=false enable_perfetto_grpc=true cc=\"gcc-8\" cxx=\"g++-8\" cc_wrapper=\"ccache\" enable_perfetto_llvm_symbolizer=true'
             PERFETTO_INSTALL_BUILD_DEPS_ARGS: '--grpc'
     env:
-      PERFETTO_CI_JOB_NAME: ${{ matrix.config.name }}
+      PERFETTO_CI_BUILD_CACHE_KEY: build-cache-${{ matrix.config.name }}
       PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-${{ matrix.config.name }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup ccache
-        run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
+      - name: Setup cache directory
+        run: |
+          mkdir -p "$PERFETTO_CACHE_DIR"
+          bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
 
       - name: Setup artifacts
         run: |
@@ -65,10 +67,10 @@ jobs:
           mkdir -p $PERFETTO_ARTIFACTS_DIR
 
       - name: Restore cache
-        uses: actions/cache/restore@v4
+        uses: ./.github/actions/cache-on-google-cloud-storage/restore
         with:
-          path: ${{ env.PERFETTO_CACHE_DIR }}
-          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}
+          directory: ${{ env.PERFETTO_CACHE_DIR }}
+          cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
 
       - uses: ./.github/actions/install-build-deps
         with:
@@ -143,8 +145,8 @@ jobs:
           /opt/ci/artifacts_uploader.py --rm ${{ env.PERFETTO_ARTIFACTS_ROOT }}
 
       - name: Update cache (if on main)
-        if: github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
+#        if: github.ref == 'refs/heads/main'
+        uses: ./.github/actions/cache-on-google-cloud-storage/save
         with:
-          path: ${{ env.PERFETTO_CACHE_DIR }}
-          key: cache-${{ env.PERFETTO_CI_JOB_NAME }}
+          directory: ${{ env.PERFETTO_CACHE_DIR }}
+          cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
