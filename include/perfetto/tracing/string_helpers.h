@@ -31,7 +31,7 @@ class PERFETTO_EXPORT_COMPONENT StaticString {
  public:
   // Implicit constructor for string literals.
   template <size_t N>
-  constexpr StaticString(const char (&str)[N]) : value(str), length(N) {}
+  constexpr StaticString(const char (&str)[N]) : value(str) {}
 
   // Implicit constructor for null strings.
   constexpr StaticString(std::nullptr_t) : value(nullptr) {}
@@ -41,7 +41,6 @@ class PERFETTO_EXPORT_COMPONENT StaticString {
   operator bool() const { return !!value; }
 
   const char* value;
-  size_t length;
 };
 
 // A explicit wrapper for marking strings as dynamic to ensure that perfetto
