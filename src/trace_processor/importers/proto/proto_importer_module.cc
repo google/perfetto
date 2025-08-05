@@ -67,7 +67,7 @@ void ProtoImporterModuleContext::PushFtraceEvent(uint32_t cpu,
     size_t old_size = streams.size();
     streams.resize(cpu + 1);
     for (size_t i = old_size; i <= cpu; ++i) {
-      streams[i] = ftrace_stream_factory(i);
+      streams[i] = ftrace_stream_factory(static_cast<uint32_t>(i));
     }
   }
   streams[cpu]->Push(ts, std::move(data));
@@ -81,7 +81,7 @@ void ProtoImporterModuleContext::PushEtwEvent(uint32_t cpu,
     size_t old_size = streams.size();
     streams.resize(cpu + 1);
     for (size_t i = old_size; i <= cpu; ++i) {
-      streams[i] = etw_stream_factory(i);
+      streams[i] = etw_stream_factory(static_cast<uint32_t>(i));
     }
   }
   streams[cpu]->Push(ts, std::move(data));
@@ -95,10 +95,10 @@ void ProtoImporterModuleContext::PushInlineSchedSwitch(uint32_t cpu,
     size_t old_size = streams.size();
     streams.resize(cpu + 1);
     for (size_t i = old_size; i <= cpu; ++i) {
-      streams[i] = inline_sched_switch_stream_factory(i);
+      streams[i] = inline_sched_switch_stream_factory(static_cast<uint32_t>(i));
     }
   }
-  streams[cpu]->Push(ts, std::move(data));
+  streams[cpu]->Push(ts, data);
 }
 
 void ProtoImporterModuleContext::PushInlineSchedWaking(uint32_t cpu,
@@ -109,10 +109,10 @@ void ProtoImporterModuleContext::PushInlineSchedWaking(uint32_t cpu,
     size_t old_size = streams.size();
     streams.resize(cpu + 1);
     for (size_t i = old_size; i <= cpu; ++i) {
-      streams[i] = inline_sched_waking_stream_factory(i);
+      streams[i] = inline_sched_waking_stream_factory(static_cast<uint32_t>(i));
     }
   }
-  streams[cpu]->Push(ts, std::move(data));
+  streams[cpu]->Push(ts, data);
 }
 
 }  // namespace perfetto::trace_processor

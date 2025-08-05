@@ -38,7 +38,7 @@ class SpeRecordParserImpl
     : public TraceSorter::Sink<TraceBlobView, SpeRecordParserImpl> {
  public:
   explicit SpeRecordParserImpl(TraceProcessorContext* context);
-  ~SpeRecordParserImpl();
+  ~SpeRecordParserImpl() override;
 
   void Parse(int64_t, TraceBlobView);
 
