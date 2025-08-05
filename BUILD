@@ -4001,6 +4001,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_traced_probes_common_common",
     srcs = [
+        "src/traced/probes/common/android_cpu_per_uid_poller.cc",
+        "src/traced/probes/common/android_cpu_per_uid_poller.h",
         "src/traced/probes/common/cpu_freq_info.cc",
         "src/traced/probes/common/cpu_freq_info.h",
     ],
