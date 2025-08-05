@@ -36,8 +36,9 @@ jobs:
 
       - name: Setup cache directory
         run: |
+          shell: bash
           mkdir -p "$PERFETTO_CACHE_DIR"
-          bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
+          .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
 
       - name: Setup artifacts
         run: |
