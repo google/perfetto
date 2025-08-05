@@ -13,24 +13,24 @@
 # limitations under the License.
 
 name: Save cache in Google Cloud Storage
-description: Save a 'folder' in Google Cloud Storage using the 'cache_key'.
+description: Save a 'directory' in Google Cloud Storage using the 'cache_key'.
 inputs:
-  folder:
+  directory:
     required: true
-    description: A path to folder to upload.
+    description: A directory to upload.
   cache_key:
     required: true
     description: A unique identifier for the cache entry. If an entry with this key already exists, it will be overwritten.
   exclude_files:
     required: false
-    description: The path to a file containing a list of files or folders to be excluded from the cache.
+    description: A file containing a list of files or directories to be excluded from the cache.
 runs:
   using: "composite"
   steps:
     - name: Invoke acton script
       shell: bash
       env:
-        INPUT_FOLDER_PATH: ${{ inputs.folder }}
+        INPUT_DIRECTORY: ${{ inputs.directory }}
         INPUT_CACHE_KEY: ${{ inputs.cache_key }}
         INPUT_EXCLUDE_FILES_PATH: ${{ inputs.exclude_files }}
         INPUT_ACTION: "save"

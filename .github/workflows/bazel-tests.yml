@@ -48,7 +48,7 @@ jobs:
       - name: Restore cache
         uses: ./.github/actions/cache-on-google-cloud-storage/restore
         with:
-          folder: ${{ env.PERFETTO_CACHE_DIR }}
+          directory: ${{ env.PERFETTO_CACHE_DIR }}
           cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
 
       - uses: ./.github/actions/install-build-deps
@@ -81,5 +81,5 @@ jobs:
 #        if: github.ref == 'refs/heads/main'
         uses: ./.github/actions/cache-on-google-cloud-storage/save
         with:
-          folder: ${{ env.PERFETTO_CACHE_DIR }}
+          directory: ${{ env.PERFETTO_CACHE_DIR }}
           cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}

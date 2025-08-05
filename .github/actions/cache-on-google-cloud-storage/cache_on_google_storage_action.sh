@@ -7,9 +7,9 @@ function do_validate_input() {
     exit 1
   fi
 
-  # Check if 'inputs.folder' exists and is a directory
-  if [[ ! -d "$INPUT_FOLDER_PATH" ]]; then
-    echo "Invalid input 'folder': the folder '$INPUT_FOLDER_PATH' does not exist."
+  # Check if 'inputs.directory' exists.
+  if [[ ! -d "$INPUT_DIRECTORY" ]]; then
+    echo "Invalid input 'directory': the directory '$INPUT_DIRECTORY' does not exist."
     exit 1
   fi
 
@@ -46,7 +46,7 @@ function do_restore_cache() {
     if [[ -n "$INPUT_EXCLUDE_FILES_PATH" ]]; then
       tar_args+=("--exclude-from=$INPUT_EXCLUDE_FILES_PATH")
     fi
-    tar_args+=("--file=$CACHED_TAR_PATH" "--directory=$INPUT_FOLDER_PATH")
+    tar_args+=("--file=$CACHED_TAR_PATH" "--directory=$INPUT_DIRECTORY")
 
     tar "${tar_args[@]}"
 
@@ -68,11 +68,11 @@ function do_save_cache() {
   declare -a tar_args
   # '--sort=name' is used to make archive more reproducible.
   tar_args=("--create" "--sort=name" "--preserve-permissions")
-  # '--exclude-from' is used to not cache files or folders that we don't want to.
+  # '--exclude-from' is used to not cache files or directories that we don't want to.
   if [[ -n "$INPUT_EXCLUDE_FILES_PATH" ]]; then
     tar_args+=("--exclude-from=$INPUT_EXCLUDE_FILES_PATH")
   fi
-  tar_args+=("--file=$TAR_PATH" "--directory=$INPUT_FOLDER_PATH" ".")
+  tar_args+=("--file=$TAR_PATH" "--directory=$INPUT_DIRECTORY" ".")
 
   tar "${tar_args[@]}"
 
@@ -106,6 +106,6 @@ readonly ALLOWED_CACHE_KEY_REGEX="[a-zA-Z0-9._ -]+"
 
 # This script is called from 'save/action.yml' and 'restore/action.yml' GitHub actions.
 # It expect the following variable being set by the caller:
-# `$INPUT_ACTION`, `$INPUT_FOLDER_PATH`, `$INPUT_CACHE_KEY`, `$INPUT_EXCLUDE_FILES_PATH`.
-# When restoring cache, the cache output folder is not created, it should be already created by the caller.
+# `$INPUT_ACTION`, `$INPUT_DIRECTORY`, `$INPUT_CACHE_KEY`, `$INPUT_EXCLUDE_FILES_PATH`.
+# When restoring cache, the cache output directory is not created, it should be already created by the caller.
 main "$@"
