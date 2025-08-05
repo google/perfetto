@@ -24,11 +24,16 @@ inputs:
   exclude_files:
     required: false
     description: A file containing a list of files or directories to not restore from the cache.
+outputs:
+  cache_hit:
+    description: A boolean value to indicate that 'cache_key' was found.
+    value: ${{ restore_action_script.outputs.cache_hit }}
 runs:
   using: "composite"
   steps:
     - name: Invoke acton script
       shell: bash
+      id: restore_action_script
       env:
         INPUT_DIRECTORY: ${{ inputs.directory }}
         INPUT_CACHE_KEY: ${{ inputs.cache_key }}

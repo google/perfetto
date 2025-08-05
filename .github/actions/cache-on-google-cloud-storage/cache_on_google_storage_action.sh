@@ -52,11 +52,14 @@ function do_restore_cache() {
 
     rm "$CACHED_TAR_PATH"
 
+    echo "cache_hit=true" >> "$GITHUB_OUTPUT"
     echo "Cache restored, OK"
   elif [[ "$cp_output" =~ "The following URLs matched no objects or files" ]]; then
+    echo "cache_hit=false" >> "$GITHUB_OUTPUT"
     echo "Cache not found, OK"
   else
     echo "Can't download cache: $cp_output"
+    echo "cache_hit=false" >> "$GITHUB_OUTPUT"
     exit 1
   fi
 }
