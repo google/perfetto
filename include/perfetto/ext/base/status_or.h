@@ -40,10 +40,10 @@ class StatusOr {
   // Intentionally implicit to allow idomatic usage (e.g. returning value/status
   // from base::StatusOr returning function).
   StatusOr(base::Status status) : StatusOr(std::move(status), std::nullopt) {
-    if (status.ok()) {
+    if (status_.ok()) {
       // Matches what Abseil's approach towards OkStatus being passed to
       // absl::StatusOr<T>.
-      PERFETTO_FATAL("base::OkStatus passed to StatusOr: this is not allowd");
+      PERFETTO_FATAL("base::OkStatus passed to StatusOr: this is not allowed");
     }
   }
   StatusOr(T value) : StatusOr(base::OkStatus(), std::move(value)) {}

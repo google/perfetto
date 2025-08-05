@@ -455,16 +455,4 @@ void JsonTraceParserImpl::MaybeAddFlow(StringPool* pool,
   }
 }
 
-void JsonTraceParserImpl::ParseLegacyV8ProfileEvent(
-    int64_t ts,
-    LegacyV8CpuProfileEvent event) {
-  base::Status status = context_->legacy_v8_cpu_profile_tracker->AddSample(
-      ts, event.session_id, event.pid, event.tid, event.callsite_id);
-  if (!status.ok()) {
-    context_->storage->IncrementStats(
-        stats::legacy_v8_cpu_profile_invalid_sample);
-  }
-  context_->args_tracker->Flush();
-}
-
 }  // namespace perfetto::trace_processor

@@ -17,18 +17,21 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_HEAP_GRAPH_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_HEAP_GRAPH_MODULE_H_
 
+#include <cstdint>
+
+#include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class HeapGraphModule : public ProtoImporterModule {
  public:
-  explicit HeapGraphModule(TraceProcessorContext* context);
+  explicit HeapGraphModule(ProtoImporterModuleContext* module_context,
+                           TraceProcessorContext* context);
 
   void ParseTracePacketData(const protos::pbzero::TracePacket_Decoder& decoder,
                             int64_t ts,
@@ -43,7 +46,6 @@ class HeapGraphModule : public ProtoImporterModule {
   TraceProcessorContext* context_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_HEAP_GRAPH_MODULE_H_

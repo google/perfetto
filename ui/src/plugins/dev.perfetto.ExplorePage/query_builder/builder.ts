@@ -17,17 +17,16 @@ import {classNames} from '../../../base/classnames';
 
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
 import {QueryNode, NodeType, Query, isAQuery} from '../query_node';
-import {ExplorePageHelp} from './explore_page_help';
-import {QueryNodeExplorer} from './query_node_explorer';
-import {NodeGraph} from './node_graph';
+import {ExplorePageHelp} from './help';
+import {NodeExplorer} from './node_explorer';
+import {Graph} from './graph';
 import {Trace} from 'src/public/trace';
-import {NodeDataViewer} from './node_data_viewer';
-import {FilterDefinition} from '../../../components/widgets/data_grid/common';
+import {DataExplorer} from './data_explorer';
 import {columnInfoFromSqlColumn, newColumnInfoList} from './column_info';
-import {StdlibTableNode} from './sources/stdlib_table';
+import {TableSourceNode} from './sources/table_source';
 import {SqlSourceNode} from './sources/sql_source';
 
-export interface QueryBuilderAttrs {
+export interface BuilderAttrs {
   readonly trace: Trace;
 
   readonly sqlModules: SqlModules;
@@ -45,14 +44,14 @@ export interface QueryBuilderAttrs {
   readonly onDeleteNode: (node: QueryNode) => void;
 }
 
-export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
+export class Builder implements m.ClassComponent<BuilderAttrs> {
   private query?: Query | Error;
   private queryExecuted: boolean = false;
   private tablePosition: 'left' | 'right' | 'bottom' = 'bottom';
   private previousSelectedNode?: QueryNode;
   private isNodeDataViewerFullScreen: boolean = false;
 
-  view({attrs}: m.CVnode<QueryBuilderAttrs>) {
+  view({attrs}: m.CVnode<BuilderAttrs>) {
     const {
       trace,
       rootNodes,
@@ -83,7 +82,11 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       ) || '';
 
     const explorer = selectedNode
-      ? m(QueryNodeExplorer, {
+      ? m(NodeExplorer, {
+          // The key to force mithril to re-create the component when the
+          // selected node changes, preventing state from leaking between
+          // different nodes.
+          key: selectedNode.nodeId,
           trace,
           node: selectedNode,
           onQueryAnalyzed: (query: Query | Error, reexecute = true) => {
@@ -93,6 +96,10 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             }
           },
           onExecute: () => {
+            this.queryExecuted = false;
+            m.redraw();
+          },
+          onchange: () => {
             this.queryExecuted = false;
             m.redraw();
           },
@@ -110,7 +117,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
             const groupByColumns = newColumnInfoList(sourceCols, false);
 
             onRootNodeCreated(
-              new StdlibTableNode({
+              new TableSourceNode({
                 trace,
                 sqlModules,
                 sqlTable,
@@ -127,7 +134,7 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
       `.${layoutClasses.split(' ').join('.')}`,
       m(
         '.pf-qb-node-graph',
-        m(NodeGraph, {
+        m(Graph, {
           rootNodes,
           selectedNode,
           onNodeSelected,
@@ -137,47 +144,44 @@ export class QueryBuilder implements m.ClassComponent<QueryBuilderAttrs> {
           onAddSqlSource,
           onClearAllNodes,
           onDuplicateNode: attrs.onDuplicateNode,
-          onDeleteNode: attrs.onDeleteNode,
+          onDeleteNode: (node: QueryNode) => {
+            if (node.state.isExecuted && node.graphTableName) {
+              trace.engine.query(`DROP TABLE IF EXISTS ${node.graphTableName}`);
+            }
+            attrs.onDeleteNode(node);
+          },
         }),
       ),
       m('.pf-qb-explorer', explorer),
       selectedNode &&
         m(
           '.pf-qb-viewer',
-          m(NodeDataViewer, {
+          m(DataExplorer, {
             trace,
             query: this.query,
             node: selectedNode,
             executeQuery: !this.queryExecuted,
-            filters:
-              // TODO(mayzner): This is a temporary fix for handling the filtering of SQL node.
-              selectedNode.type === NodeType.kSqlSource
-                ? []
-                : selectedNode.state.filters,
-            onFiltersChanged:
-              selectedNode.type === NodeType.kSqlSource
-                ? undefined
-                : (filters: ReadonlyArray<FilterDefinition>) => {
-                    selectedNode.state.filters = filters as FilterDefinition[];
-                    this.queryExecuted = false;
-                    m.redraw();
-                  },
+            onchange: () => {
+              this.query = undefined;
+              this.queryExecuted = false;
+              m.redraw();
+            },
             onQueryExecuted: ({
               columns,
-              queryError,
-              responseError,
-              dataError,
+              error,
+              warning,
+              noDataWarning,
             }: {
               columns: string[];
-              queryError?: Error;
-              responseError?: Error;
-              dataError?: Error;
+              error?: Error;
+              warning?: Error;
+              noDataWarning?: Error;
             }) => {
               this.queryExecuted = true;
 
-              selectedNode.state.queryError = queryError;
-              selectedNode.state.responseError = responseError;
-              selectedNode.state.dataError = dataError;
+              selectedNode.state.queryError = error;
+              selectedNode.state.responseError = warning;
+              selectedNode.state.dataError = noDataWarning;
 
               if (selectedNode instanceof SqlSourceNode) {
                 selectedNode.setSourceColumns(columns);

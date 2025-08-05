@@ -41,41 +41,38 @@ import {Query, queryToRun, NodeType, QueryNode} from '../query_node';
 import {Intent} from '../../../widgets/common';
 import {AggregationsOperator} from './operations/aggregations';
 
-export interface NodeDataViewerAttrs {
+export interface DataExplorerAttrs {
   readonly node: QueryNode;
   readonly query?: Query | Error;
   readonly executeQuery: boolean;
   readonly trace: Trace;
   readonly onQueryExecuted: (result: {
     columns: string[];
-    queryError?: Error;
-    responseError?: Error;
-    dataError?: Error;
+    error?: Error;
+    warning?: Error;
+    noDataWarning?: Error;
   }) => void;
   readonly onPositionChange: (pos: 'left' | 'right' | 'bottom') => void;
-  readonly filters?: ReadonlyArray<FilterDefinition>;
-  readonly onFiltersChanged?: (
-    filters: ReadonlyArray<FilterDefinition>,
-  ) => void;
   readonly isFullScreen: boolean;
   readonly onFullScreenToggle: () => void;
+  readonly onchange?: () => void;
 }
 
-export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
+export class DataExplorer implements m.ClassComponent<DataExplorerAttrs> {
   private readonly asyncLimiter = new AsyncLimiter();
   private response?: QueryResponse;
   private dataSource?: DataGridDataSource;
   private showAggregationCard: boolean = false;
 
-  oncreate({attrs}: m.CVnode<NodeDataViewerAttrs>) {
+  oncreate({attrs}: m.CVnode<DataExplorerAttrs>) {
     this.runQuery(attrs);
   }
 
-  onupdate({attrs}: m.CVnode<NodeDataViewerAttrs>) {
+  onupdate({attrs}: m.CVnode<DataExplorerAttrs>) {
     this.runQuery(attrs);
   }
 
-  private runQuery(attrs: NodeDataViewerAttrs) {
+  private runQuery(attrs: DataExplorerAttrs) {
     this.asyncLimiter.schedule(async () => {
       if (
         attrs.query === undefined ||
@@ -106,31 +103,28 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
         },
       };
 
-      const queryError = getQueryError(attrs.query, this.response);
-      const responseError = getResponseError(this.response);
-      const dataError =
+      const error = findErrors(attrs.query, this.response);
+      const warning = findWarnings(this.response, attrs.node);
+      const noDataWarning =
         this.response?.totalRowCount === 0
           ? new Error('Query returned no rows')
           : undefined;
 
       attrs.onQueryExecuted({
         columns: this.response.columns,
-        queryError,
-        responseError,
-        dataError,
+        error,
+        warning,
+        noDataWarning,
       });
 
       m.redraw();
     });
   }
 
-  view({attrs}: m.CVnode<NodeDataViewerAttrs>) {
-    const queryError = getQueryError(attrs.query, this.response);
-    const responseError = getResponseError(this.response);
-    const error = queryError ?? responseError;
-
+  view({attrs}: m.CVnode<DataExplorerAttrs>) {
+    const errors = findErrors(attrs.query, this.response);
     const statusText = this.getStatusText(attrs.query);
-    const message = error ? `Error: ${error.message}` : statusText;
+    const message = errors ? `Error: ${errors.message}` : statusText;
 
     return m(
       DetailsShell,
@@ -152,7 +146,7 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
     return undefined;
   }
 
-  private renderMenu(attrs: NodeDataViewerAttrs): m.Children {
+  private renderMenu(attrs: DataExplorerAttrs): m.Children {
     const fullScreenButton = m(Button, {
       label: attrs.isFullScreen ? 'Exit full screen' : 'Full screen',
       onclick: () => attrs.onFullScreenToggle(),
@@ -189,7 +183,7 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
   }
 
   private renderContent(
-    attrs: NodeDataViewerAttrs,
+    attrs: DataExplorerAttrs,
     message?: string,
   ): m.Children {
     if (message) {
@@ -233,6 +227,9 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
           }),
         );
 
+      const hasAggregations = (attrs.node.state.aggregations?.length ?? 0) > 0;
+      const isSqlSource = attrs.node.type === NodeType.kSqlSource;
+
       return [
         warning,
         m(DataGrid, {
@@ -240,8 +237,14 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
           columns: this.response.columns.map((c) => ({name: c})),
           data: this.dataSource,
           showFiltersInToolbar: true,
-          filters: attrs.filters,
-          onFiltersChanged: attrs.onFiltersChanged,
+          filters: isSqlSource ? [] : attrs.node.state.filters,
+          onFiltersChanged:
+            hasAggregations || isSqlSource
+              ? undefined
+              : (filters: ReadonlyArray<FilterDefinition>) => {
+                  attrs.node.state.filters = [...filters];
+                  attrs.onchange?.();
+                },
           cellRenderer: (value: SqlValue, name: string) => {
             return renderCell(value, name);
           },
@@ -254,7 +257,7 @@ export class NodeDataViewer implements m.ClassComponent<NodeDataViewerAttrs> {
   }
 }
 
-function getQueryError(
+function findErrors(
   query?: Query | Error,
   response?: QueryResponse,
 ): Error | undefined {
@@ -267,7 +270,10 @@ function getQueryError(
   return undefined;
 }
 
-function getResponseError(response?: QueryResponse): Error | undefined {
+function findWarnings(
+  response: QueryResponse | undefined,
+  node: QueryNode,
+): Error | undefined {
   if (!response || response.error) {
     return undefined;
   }
@@ -280,7 +286,7 @@ function getResponseError(response?: QueryResponse): Error | undefined {
     return new Error('The last statement must produce an output.');
   }
 
-  if (response.statementCount > 1) {
+  if (node.type === NodeType.kSqlSource && response.statementCount > 1) {
     const statements = response.query
       .split(';')
       .map((x) => x.trim())

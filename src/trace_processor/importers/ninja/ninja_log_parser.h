@@ -23,7 +23,6 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
 
 namespace perfetto::trace_processor {
 

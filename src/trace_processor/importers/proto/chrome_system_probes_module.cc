@@ -15,20 +15,23 @@
  */
 
 #include "src/trace_processor/importers/proto/chrome_system_probes_module.h"
-#include "perfetto/base/build_config.h"
+#include <cstdint>
+
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/chrome_system_probes_parser.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 using perfetto::protos::pbzero::TracePacket;
 
 ChromeSystemProbesModule::ChromeSystemProbesModule(
+    ProtoImporterModuleContext* module_context,
     TraceProcessorContext* context)
-    : parser_(context) {
-  RegisterForField(TracePacket::kProcessStatsFieldNumber, context);
+    : ProtoImporterModule(module_context), parser_(context) {
+  RegisterForField(TracePacket::kProcessStatsFieldNumber);
 }
 
 void ChromeSystemProbesModule::ParseTracePacketData(
@@ -43,5 +46,4 @@ void ChromeSystemProbesModule::ParseTracePacketData(
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

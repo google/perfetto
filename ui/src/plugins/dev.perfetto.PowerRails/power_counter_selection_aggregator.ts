@@ -62,7 +62,7 @@ export class PowerCounterSelectionAggregator implements Aggregator {
             GROUP BY track_id
           )
           SELECT
-            raw_power_rail_name AS name,
+            COALESCE(friendly_name, raw_power_rail_name) AS name,
             count,
             (last - first) / 1000 AS delta_value,
             ROUND((last - first)/${durationSec} / 1000, 2) AS rate

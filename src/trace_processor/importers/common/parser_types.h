@@ -24,12 +24,9 @@
 #include <memory>
 #include <optional>
 #include <utility>
-#include <variant>
-#include <vector>
 
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/containers/interval_tree.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 

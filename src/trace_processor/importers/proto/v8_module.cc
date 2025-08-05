@@ -19,12 +19,15 @@
 #include <cstdint>
 #include <optional>
 
-#include "perfetto/base/logging.h"
+#include "perfetto/protozero/field.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/chrome/v8.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/v8_sequence_state.h"
 #include "src/trace_processor/importers/proto/v8_tracker.h"
 #include "src/trace_processor/storage/stats.h"
@@ -46,13 +49,16 @@ using ::perfetto::protos::pbzero::V8WasmCode;
 
 }  // namespace
 
-V8Module::V8Module(TraceProcessorContext* context)
-    : context_(context), v8_tracker_(V8Tracker::GetOrCreate(context_)) {
-  RegisterForField(TracePacket::kV8JsCodeFieldNumber, context_);
-  RegisterForField(TracePacket::kV8InternalCodeFieldNumber, context_);
-  RegisterForField(TracePacket::kV8WasmCodeFieldNumber, context_);
-  RegisterForField(TracePacket::kV8RegExpCodeFieldNumber, context_);
-  RegisterForField(TracePacket::kV8CodeMoveFieldNumber, context_);
+V8Module::V8Module(ProtoImporterModuleContext* module_context,
+                   TraceProcessorContext* context)
+    : ProtoImporterModule(module_context),
+      context_(context),
+      v8_tracker_(V8Tracker::GetOrCreate(context)) {
+  RegisterForField(TracePacket::kV8JsCodeFieldNumber);
+  RegisterForField(TracePacket::kV8InternalCodeFieldNumber);
+  RegisterForField(TracePacket::kV8WasmCodeFieldNumber);
+  RegisterForField(TracePacket::kV8RegExpCodeFieldNumber);
+  RegisterForField(TracePacket::kV8CodeMoveFieldNumber);
 }
 
 V8Module::~V8Module() = default;

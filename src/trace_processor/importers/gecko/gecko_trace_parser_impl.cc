@@ -42,7 +42,7 @@ GeckoTraceParserImpl::GeckoTraceParserImpl(TraceProcessorContext* context)
 
 GeckoTraceParserImpl::~GeckoTraceParserImpl() = default;
 
-void GeckoTraceParserImpl::ParseGeckoEvent(int64_t ts, GeckoEvent evt) {
+void GeckoTraceParserImpl::Parse(int64_t ts, GeckoEvent evt) {
   switch (evt.oneof.index()) {
     case GeckoOneOf<GeckoEvent::ThreadMetadata>(): {
       auto thread = std::get<GeckoEvent::ThreadMetadata>(evt.oneof);

@@ -29,7 +29,6 @@
 #include "src/trace_processor/importers/art_hprof/art_heap_graph.h"
 #include "src/trace_processor/importers/art_hprof/art_heap_graph_builder.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"

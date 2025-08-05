@@ -28,8 +28,7 @@ namespace perfetto::trace_processor {
 
 AndroidLogEventParserImpl::~AndroidLogEventParserImpl() = default;
 
-void AndroidLogEventParserImpl::ParseAndroidLogEvent(int64_t ts,
-                                                     AndroidLogEvent event) {
+void AndroidLogEventParserImpl::Parse(int64_t ts, AndroidLogEvent event) {
   tables::AndroidLogTable::Row row;
   row.ts = ts;
   row.utid = context_->process_tracker->UpdateThread(event.tid, event.pid);

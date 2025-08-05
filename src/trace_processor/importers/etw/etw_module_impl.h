@@ -17,6 +17,11 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ETW_ETW_MODULE_IMPL_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ETW_ETW_MODULE_IMPL_H_
 
+#include <cstdint>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/etw/etw_module.h"
 #include "src/trace_processor/importers/etw/etw_parser.h"
@@ -26,14 +31,14 @@
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceBlobView;
 
 class EtwModuleImpl : public EtwModule {
  public:
-  explicit EtwModuleImpl(TraceProcessorContext* context);
+  explicit EtwModuleImpl(ProtoImporterModuleContext* module_context,
+                         TraceProcessorContext* context);
 
   ModuleResult TokenizePacket(
       const protos::pbzero::TracePacket::Decoder& decoder,
@@ -56,7 +61,6 @@ class EtwModuleImpl : public EtwModule {
   EtwParser parser_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ETW_ETW_MODULE_IMPL_H_

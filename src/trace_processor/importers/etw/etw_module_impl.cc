@@ -16,20 +16,25 @@
 
 #include "src/trace_processor/importers/etw/etw_module_impl.h"
 
+#include <cstdint>
+#include <utility>
+
+#include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/etw/etw_tokenizer.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 using perfetto::protos::pbzero::TracePacket;
 
-EtwModuleImpl::EtwModuleImpl(TraceProcessorContext* context)
-    : tokenizer_(context), parser_(context) {
-  RegisterForField(TracePacket::kEtwEventsFieldNumber, context);
+EtwModuleImpl::EtwModuleImpl(ProtoImporterModuleContext* module_context,
+                             TraceProcessorContext* context)
+    : EtwModule(module_context), tokenizer_(module_context), parser_(context) {
+  RegisterForField(TracePacket::kEtwEventsFieldNumber);
 }
 
 ModuleResult EtwModuleImpl::TokenizePacket(
@@ -49,5 +54,4 @@ ModuleResult EtwModuleImpl::TokenizePacket(
   return ModuleResult::Ignored();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

@@ -17,22 +17,21 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ETW_ETW_TOKENIZER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ETW_ETW_TOKENIZER_H_
 
+#include <cstdint>
 #include <optional>
 
 #include "perfetto/base/status.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
-#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-#include "protos/perfetto/trace/etw/etw_event_bundle.pbzero.h"
-
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class EtwTokenizer {
  public:
-  explicit EtwTokenizer(TraceProcessorContext* context) : context_(context) {}
+  explicit EtwTokenizer(ProtoImporterModuleContext* module_context)
+      : module_context_(module_context) {}
 
   base::Status TokenizeEtwBundle(TraceBlobView bundle,
                                  RefPtr<PacketSequenceStateGeneration> state);
@@ -42,10 +41,9 @@ class EtwTokenizer {
                                 TraceBlobView event,
                                 RefPtr<PacketSequenceStateGeneration> state);
 
-  TraceProcessorContext* context_;
+  ProtoImporterModuleContext* module_context_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ETW_ETW_TOKENIZER_H_

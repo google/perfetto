@@ -23,7 +23,6 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/etm/opencsd.h"
 #include "src/trace_processor/importers/perf/aux_data_tokenizer.h"
 #include "src/trace_processor/importers/perf/perf_data_tokenizer.h"

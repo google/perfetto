@@ -16,13 +16,27 @@
 
 #include "src/trace_processor/importers/proto/deobfuscation_module.h"
 
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
+#include "perfetto/trace_processor/trace_blob.h"
 #include "protos/perfetto/trace/profiling/deobfuscation.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/deobfuscation_mapping_table.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/profiler_util.h"
 
@@ -31,9 +45,11 @@ namespace perfetto::trace_processor {
 using ::perfetto::protos::pbzero::TracePacket;
 using ::protozero::ConstBytes;
 
-DeobfuscationModule::DeobfuscationModule(TraceProcessorContext* context)
-    : context_(context) {
-  RegisterForField(TracePacket::kDeobfuscationMappingFieldNumber, context);
+DeobfuscationModule::DeobfuscationModule(
+    ProtoImporterModuleContext* module_context,
+    TraceProcessorContext* context)
+    : ProtoImporterModule(module_context), context_(context) {
+  RegisterForField(TracePacket::kDeobfuscationMappingFieldNumber);
 }
 
 DeobfuscationModule::~DeobfuscationModule() = default;

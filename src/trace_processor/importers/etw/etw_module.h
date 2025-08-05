@@ -17,20 +17,22 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ETW_ETW_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ETW_ETW_MODULE_H_
 
+#include <cstdint>
+
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class EtwModule : public ProtoImporterModule {
  public:
+  explicit EtwModule(ProtoImporterModuleContext* module_context);
+
   virtual void ParseEtwEventData(uint32_t cpu,
                                  int64_t ts,
                                  const TracePacketData& data);
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ETW_ETW_MODULE_H_

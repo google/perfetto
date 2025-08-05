@@ -21,19 +21,18 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "protos/perfetto/trace/android/winscope_extensions.pbzero.h"
 #include "protos/perfetto/trace/android/winscope_extensions_impl.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.h"
-#include "src/trace_processor/importers/proto/winscope/viewcapture_args_parser.h"
 #include "src/trace_processor/importers/proto/winscope/winscope.descriptor.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
@@ -44,8 +43,10 @@ namespace perfetto::trace_processor {
 using perfetto::protos::pbzero::TracePacket;
 using perfetto::protos::pbzero::WinscopeExtensionsImpl;
 
-WinscopeModule::WinscopeModule(TraceProcessorContext* context)
-    : context_{context},
+WinscopeModule::WinscopeModule(ProtoImporterModuleContext* module_context,
+                               TraceProcessorContext* context)
+    : ProtoImporterModule(module_context),
+      context_{context},
       args_parser_{*context->descriptor_pool_},
       surfaceflinger_layers_parser_(&context_),
       surfaceflinger_transactions_parser_(context),
@@ -55,15 +56,13 @@ WinscopeModule::WinscopeModule(TraceProcessorContext* context)
       viewcapture_parser_(context) {
   context->descriptor_pool_->AddFromFileDescriptorSet(
       kWinscopeDescriptor.data(), kWinscopeDescriptor.size());
-  RegisterForField(TracePacket::kSurfaceflingerLayersSnapshotFieldNumber,
-                   context);
-  RegisterForField(TracePacket::kSurfaceflingerTransactionsFieldNumber,
-                   context);
-  RegisterForField(TracePacket::kShellTransitionFieldNumber, context);
-  RegisterForField(TracePacket::kShellHandlerMappingsFieldNumber, context);
-  RegisterForField(TracePacket::kProtologMessageFieldNumber, context);
-  RegisterForField(TracePacket::kProtologViewerConfigFieldNumber, context);
-  RegisterForField(TracePacket::kWinscopeExtensionsFieldNumber, context);
+  RegisterForField(TracePacket::kSurfaceflingerLayersSnapshotFieldNumber);
+  RegisterForField(TracePacket::kSurfaceflingerTransactionsFieldNumber);
+  RegisterForField(TracePacket::kShellTransitionFieldNumber);
+  RegisterForField(TracePacket::kShellHandlerMappingsFieldNumber);
+  RegisterForField(TracePacket::kProtologMessageFieldNumber);
+  RegisterForField(TracePacket::kProtologViewerConfigFieldNumber);
+  RegisterForField(TracePacket::kWinscopeExtensionsFieldNumber);
 }
 
 ModuleResult WinscopeModule::TokenizePacket(

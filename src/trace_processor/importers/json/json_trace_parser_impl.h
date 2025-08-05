@@ -21,7 +21,6 @@
 
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/parser_types.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/json/json_parser.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/importers/systrace/systrace_line_parser.h"
@@ -33,15 +32,13 @@ class TraceProcessorContext;
 
 // Parses legacy chrome JSON traces. The support for now is extremely rough
 // and supports only explicit TRACE_EVENT_BEGIN/END events.
-class JsonTraceParserImpl : public JsonTraceParser {
+class JsonTraceParserImpl {
  public:
   explicit JsonTraceParserImpl(TraceProcessorContext*);
-  ~JsonTraceParserImpl() override;
+  ~JsonTraceParserImpl();
 
-  // TraceParser implementation.
-  void ParseJsonPacket(int64_t, JsonEvent) override;
-  void ParseSystraceLine(int64_t, SystraceLine) override;
-  void ParseLegacyV8ProfileEvent(int64_t, LegacyV8CpuProfileEvent) override;
+  void ParseJsonPacket(int64_t, JsonEvent);
+  void ParseSystraceLine(int64_t, SystraceLine);
 
  private:
   TraceProcessorContext* const context_;

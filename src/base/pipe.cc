@@ -21,8 +21,9 @@
 #include <fcntl.h>  // For O_BINARY (Windows) and F_SETxx (UNIX)
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <namedpipeapi.h>
 #include <windows.h>
+
+#include <namedpipeapi.h>
 #else
 #include <sys/types.h>
 #include <unistd.h>

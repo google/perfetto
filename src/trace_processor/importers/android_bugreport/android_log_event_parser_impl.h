@@ -20,19 +20,20 @@
 #include <cstdint>
 
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 
 namespace perfetto ::trace_processor {
 
 class TraceProcessorContext;
 
-class AndroidLogEventParserImpl : public AndroidLogEventParser {
+class AndroidLogEventParserImpl
+    : public TraceSorter::Sink<AndroidLogEvent, AndroidLogEventParserImpl> {
  public:
   explicit AndroidLogEventParserImpl(TraceProcessorContext* context)
       : context_(context) {}
   ~AndroidLogEventParserImpl() override;
 
-  void ParseAndroidLogEvent(int64_t, AndroidLogEvent) override;
+  void Parse(int64_t, AndroidLogEvent);
 
  private:
   TraceProcessorContext* const context_;

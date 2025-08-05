@@ -34,7 +34,9 @@ struct KernelWakelockLastValue;
 
 class AndroidKernelWakelocksModule : public ProtoImporterModule {
  public:
-  explicit AndroidKernelWakelocksModule(TraceProcessorContext* context);
+  explicit AndroidKernelWakelocksModule(
+      ProtoImporterModuleContext* module_context,
+      TraceProcessorContext* context);
 
   ~AndroidKernelWakelocksModule() override;
 

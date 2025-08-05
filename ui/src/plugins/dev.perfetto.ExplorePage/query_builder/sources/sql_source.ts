@@ -16,6 +16,7 @@ import m from 'mithril';
 import {
   createFinalColumns,
   createSelectColumnsProto,
+  nextNodeId,
   NodeType,
   QueryNode,
   QueryNodeState,
@@ -47,6 +48,7 @@ export interface SqlSourceState extends QueryNodeState {
 }
 
 export class SqlSourceNode implements QueryNode {
+  readonly nodeId: string;
   readonly type: NodeType = NodeType.kSqlSource;
   readonly prevNode = undefined;
   nextNode?: QueryNode;
@@ -55,13 +57,12 @@ export class SqlSourceNode implements QueryNode {
   finalCols: ColumnInfo[];
 
   readonly state: SqlSourceState;
-  private text: string;
 
   constructor(attrs: SqlSourceState) {
+    this.nodeId = nextNodeId();
     this.state = attrs;
     this.sourceCols = attrs.sourceCols ?? [];
     this.finalCols = createFinalColumns(this);
-    this.text = this.state.sql ?? '';
   }
 
   setSourceColumns(columns: string[]) {
@@ -69,8 +70,8 @@ export class SqlSourceNode implements QueryNode {
     m.redraw();
   }
 
-  getStateCopy(): QueryNodeState {
-    const newState: SqlSourceState = {
+  clone(): QueryNode {
+    const stateCopy: SqlSourceState = {
       sql: this.state.sql,
       onExecute: this.state.onExecute,
       sourceCols: newColumnInfoList(this.sourceCols),
@@ -80,7 +81,7 @@ export class SqlSourceNode implements QueryNode {
       customTitle: this.state.customTitle,
       trace: this.state.trace,
     };
-    return newState;
+    return new SqlSourceNode(stateCopy);
   }
 
   validate(): boolean {
@@ -153,9 +154,9 @@ export class SqlSourceNode implements QueryNode {
               `Response error: ${this.state.responseError.message}`,
           }),
         m(Editor, {
-          text: this.text,
+          text: this.state.sql ?? '',
           onUpdate: (text: string) => {
-            this.text = text;
+            this.state.sql = text;
           },
           onExecute: (text: string) => {
             queryHistoryStorage.saveQuery(text);
@@ -169,7 +170,7 @@ export class SqlSourceNode implements QueryNode {
         trace: this.state.trace,
         runQuery,
         setQuery: (q: string) => {
-          this.text = q;
+          this.state.sql = q;
           m.redraw();
         },
       }),

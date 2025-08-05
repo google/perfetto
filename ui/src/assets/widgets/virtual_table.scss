@@ -13,7 +13,7 @@
 // limitations under the License.
 
 @use "sass:math";
-@import "theme";
+@import "../theme";
 
 // Adding these to a new layer makes other rules take precedence
 @layer widgets {

@@ -28,11 +28,10 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/ftrace/drm_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/importers/ftrace/generic_ftrace_tracker.h"
@@ -44,6 +43,7 @@
 #include "src/trace_processor/importers/ftrace/rss_stat_tracker.h"
 #include "src/trace_processor/importers/ftrace/thermal_tracker.h"
 #include "src/trace_processor/importers/ftrace/virtio_gpu_tracker.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 

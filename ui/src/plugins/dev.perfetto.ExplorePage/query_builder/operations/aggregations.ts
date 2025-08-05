@@ -31,6 +31,7 @@ export interface Aggregation {
 export interface AggregationsOperatorAttrs {
   groupByColumns: ColumnInfo[];
   aggregations: Aggregation[];
+  onchange?: () => void;
 }
 
 const AGGREGATION_OPS = [
@@ -77,6 +78,7 @@ export class AggregationsOperator
             const column = attrs.groupByColumns.find((c) => c.name === key);
             if (column) {
               column.checked = true;
+              attrs.onchange?.();
               m.redraw();
             }
           },
@@ -84,6 +86,7 @@ export class AggregationsOperator
             const column = attrs.groupByColumns.find((c) => c.name === key);
             if (column) {
               column.checked = false;
+              attrs.onchange?.();
               m.redraw();
             }
           },
@@ -137,6 +140,7 @@ export class AggregationsOperator
               agg.column = attrs.groupByColumns.find(
                 (c) => c.name === target.value,
               );
+              attrs.onchange?.();
               m.redraw();
             },
           },
@@ -156,6 +160,7 @@ export class AggregationsOperator
           icon: 'delete',
           onclick: () => {
             attrs.aggregations.splice(index, 1);
+            attrs.onchange?.();
           },
         }),
         m(Button, {
@@ -167,6 +172,7 @@ export class AggregationsOperator
               agg.newColumnName = placeholderNewColumnName(agg);
             }
             agg.isEditing = false;
+            attrs.onchange?.();
           },
         }),
       );
@@ -193,7 +199,7 @@ export class AggregationsOperator
       }
 
       const lastAgg = attrs.aggregations[attrs.aggregations.length - 1];
-      const showAddButton = lastAgg && lastAgg.isValid && !lastAgg.isEditing;
+      const showAddButton = lastAgg.isValid && !lastAgg.isEditing;
 
       return [
         ...attrs.aggregations.map((agg, index) => {
@@ -208,6 +214,7 @@ export class AggregationsOperator
             label: 'Add more aggregations',
             onclick: () => {
               attrs.aggregations.push({isEditing: true});
+              attrs.onchange?.();
             },
           }),
       ];

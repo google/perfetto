@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_FORWARDING_TRACE_PARSER_H_
 #define SRC_TRACE_PROCESSOR_FORWARDING_TRACE_PARSER_H_
 
+#include <cstddef>
 #include <memory>
 
 #include "perfetto/base/status.h"
@@ -44,6 +45,7 @@ class ForwardingTraceParser : public ChunkedTraceReader {
  private:
   base::Status Init(const TraceBlobView&);
   void UpdateSorterForTraceType(TraceType trace_type);
+
   TraceProcessorContext* const context_;
   tables::TraceFileTable::Id file_id_;
   size_t trace_size_ = 0;
