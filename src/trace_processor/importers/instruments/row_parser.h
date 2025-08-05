@@ -17,6 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_INSTRUMENTS_ROW_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_INSTRUMENTS_ROW_PARSER_H_
 
+#include <cstdint>
+
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/instruments/row.h"
@@ -32,7 +34,7 @@ class RowParser
     : public TraceSorter::Sink<instruments_importer::Row, RowParser> {
  public:
   explicit RowParser(TraceProcessorContext*);
-  ~RowParser() override = default;
+  ~RowParser() override;
 
   void Parse(int64_t, instruments_importer::Row);
 

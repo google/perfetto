@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -118,6 +119,8 @@ StringId SpeRecordParserImpl::ToStringId(spe::DataSource ds) {
 
 SpeRecordParserImpl::SpeRecordParserImpl(TraceProcessorContext* context)
     : context_(context), reader_(TraceBlobView()) {}
+
+SpeRecordParserImpl::~SpeRecordParserImpl() = default;
 
 void SpeRecordParserImpl::Parse(int64_t ts, TraceBlobView data) {
   reader_ = Reader(std::move(data));

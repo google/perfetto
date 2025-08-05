@@ -20,6 +20,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
@@ -37,6 +38,7 @@ class SpeRecordParserImpl
     : public TraceSorter::Sink<TraceBlobView, SpeRecordParserImpl> {
  public:
   explicit SpeRecordParserImpl(TraceProcessorContext* context);
+  ~SpeRecordParserImpl();
 
   void Parse(int64_t, TraceBlobView);
 
