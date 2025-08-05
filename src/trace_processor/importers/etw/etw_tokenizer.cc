@@ -14,24 +14,28 @@
  * limitations under the License.
  */
 
+#include <cstddef>
+#include <cstdint>
 #include <optional>
-
-#include "src/trace_processor/importers/etw/etw_tokenizer.h"
+#include <utility>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "perfetto/public/compiler.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/etw/etw_tokenizer.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
-#include "src/trace_processor/storage/trace_storage.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/etw/etw_event.pbzero.h"
 #include "protos/perfetto/trace/etw/etw_event_bundle.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 using protozero::ProtoDecoder;
 using protozero::proto_utils::MakeTagVarInt;
@@ -110,5 +114,4 @@ base::Status EtwTokenizer::TokenizeEtwEvent(
   return base::OkStatus();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

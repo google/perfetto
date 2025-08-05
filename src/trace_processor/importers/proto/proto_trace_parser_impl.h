@@ -23,6 +23,7 @@
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
@@ -39,7 +40,7 @@ class TraceProcessorContext;
 class ProtoTraceParserImpl : public ProtoTraceParser {
  public:
   using ConstBytes = protozero::ConstBytes;
-  explicit ProtoTraceParserImpl(TraceProcessorContext*);
+  ProtoTraceParserImpl(TraceProcessorContext*, ProtoImporterModuleContext*);
   ~ProtoTraceParserImpl() override;
 
   void ParseTrackEvent(int64_t ts, TrackEventData data) override;
@@ -68,6 +69,7 @@ class ProtoTraceParserImpl : public ProtoTraceParser {
   void ParseMetatraceEvent(int64_t ts, ConstBytes);
 
   TraceProcessorContext* context_;
+  ProtoImporterModuleContext* module_context_ = nullptr;
 
   const StringId metatrace_id_;
   const StringId data_name_id_;

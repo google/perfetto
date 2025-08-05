@@ -68,7 +68,6 @@
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/ninja/ninja_log_parser.h"
 #include "src/trace_processor/importers/perf/perf_data_tokenizer.h"
-#include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_tracker.h"
 #include "src/trace_processor/importers/perf/record_parser.h"
 #include "src/trace_processor/importers/perf/spe_record_parser.h"
@@ -457,6 +456,12 @@ std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     : TraceProcessorStorageImpl(cfg), config_(cfg) {
+  context_.register_additional_proto_modules = &RegisterAdditionalModules;
+  if (context_.register_additional_proto_modules) {
+    context_.register_additional_proto_modules(
+        context_.proto_importer_module_context.get(), &context_);
+  }
+
   context_.reader_registry->RegisterTraceReader<AndroidDumpstateReader>(
       kAndroidDumpstateTraceType);
   context_.android_dumpstate_event_parser =
@@ -559,7 +564,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
         kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size());
     PERFETTO_CHECK(status.ok());
   }
-  RegisterAdditionalModules(&context_);
 
   // Register stdlib packages.
   auto packages = GetStdlibPackages();

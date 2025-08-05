@@ -24,6 +24,7 @@
 #include <utility>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
@@ -62,22 +63,26 @@
 #include "src/trace_processor/types/variadic.h"
 
 namespace perfetto::trace_processor {
-
 namespace {
 using protos::pbzero::CounterDescriptor;
 }
 
-TrackEventTokenizer::TrackEventTokenizer(TraceProcessorContext* context,
-                                         TrackEventTracker* track_event_tracker)
+TrackEventTokenizer::TrackEventTokenizer(
+    ProtoImporterModuleContext* module_context,
+    TraceProcessorContext* context,
+    TrackEventTracker* track_event_tracker)
     : context_(context),
       track_event_tracker_(track_event_tracker),
+      module_context_(module_context),
       counter_name_thread_time_id_(
           context_->storage->InternString("thread_time")),
       counter_name_thread_instruction_count_id_(
           context_->storage->InternString("thread_instruction_count")),
       counter_unit_ids_{{kNullStringId, context_->storage->InternString("ns"),
                          context_->storage->InternString("count"),
-                         context_->storage->InternString("bytes")}} {}
+                         context_->storage->InternString("bytes")}} {
+  base::ignore_result(module_context_);
+}
 
 ModuleResult TrackEventTokenizer::TokenizeRangeOfInterestPacket(
     RefPtr<PacketSequenceStateGeneration> /*state*/,

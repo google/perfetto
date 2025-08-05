@@ -31,6 +31,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -50,8 +51,10 @@ constexpr std::optional<MachineId> kNullMachineId = std::nullopt;
 
 class MockTraceParser : public ProtoTraceParserImpl {
  public:
-  explicit MockTraceParser(TraceProcessorContext* context)
-      : ProtoTraceParserImpl(context), machine_id_(context->machine_id()) {}
+  explicit MockTraceParser(TraceProcessorContext* context,
+                           ProtoImporterModuleContext* module_context)
+      : ProtoTraceParserImpl(context, module_context),
+        machine_id_(context->machine_id()) {}
 
   MOCK_METHOD(void,
               MOCK_ParseFtracePacket,
@@ -98,7 +101,7 @@ class TraceSorterTest : public ::testing::Test {
   }
 
   void CreateSorter(bool full_sort = true) {
-    parser_ = new MockTraceParser(&context_);
+    parser_ = new MockTraceParser(&context_, &module_context_);
     context_.proto_trace_parser.reset(parser_);
     auto sorting_mode = full_sort ? TraceSorter::SortingMode::kFullSort
                                   : TraceSorter::SortingMode::kDefault;
@@ -107,6 +110,7 @@ class TraceSorterTest : public ::testing::Test {
 
  protected:
   TraceProcessorContext context_;
+  ProtoImporterModuleContext module_context_;
   MockTraceParser* parser_;
   NiceMock<MockTraceStorage>* storage_;
   TraceBlobView test_buffer_;
@@ -342,7 +346,10 @@ TEST_F(TraceSorterTest, MultiMachineSorting) {
   for (auto i = 1u; i < num_machines; i++) {
     TraceProcessorContext::InitArgs args{context_.config, context_.storage, i};
     auto ctx = std::make_unique<TraceProcessorContext>(args);
-    auto parser = std::make_unique<MockTraceParser>(ctx.get());
+    ctx->proto_importer_module_context =
+        std::make_unique<ProtoImporterModuleContext>();
+    auto parser = std::make_unique<MockTraceParser>(
+        ctx.get(), ctx->proto_importer_module_context.get());
     extra_parsers.push_back(parser.get());
     ctx->proto_trace_parser = std::move(parser);
     extra_contexts.push_back(std::move(ctx));

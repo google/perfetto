@@ -38,6 +38,9 @@
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/proto/additional_modules.h"
+#include "src/trace_processor/importers/proto/default_modules.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -45,6 +48,7 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor {
@@ -58,6 +62,17 @@ class NetworkTraceModuleTest : public testing::Test {
     context_.storage = std::make_shared<TraceStorage>();
     storage_ = context_.storage.get();
 
+    context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
+
+    context_.register_additional_proto_modules = &RegisterAdditionalModules;
+    context_.proto_importer_module_context =
+        std::make_unique<ProtoImporterModuleContext>();
+    RegisterDefaultModules(context_.proto_importer_module_context.get(),
+                           &context_);
+    RegisterAdditionalModules(context_.proto_importer_module_context.get(),
+                              &context_);
+
+    storage_ = context_.storage.get();
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
     context_.args_tracker = std::make_unique<ArgsTracker>(&context_);
@@ -70,8 +85,8 @@ class NetworkTraceModuleTest : public testing::Test {
     context_.args_translation_table =
         std::make_unique<ArgsTranslationTable>(storage_);
     context_.track_compressor = std::make_unique<TrackCompressor>(&context_);
-    context_.proto_trace_parser =
-        std::make_unique<ProtoTraceParserImpl>(&context_);
+    context_.proto_trace_parser = std::make_unique<ProtoTraceParserImpl>(
+        &context_, context_.proto_importer_module_context.get());
     context_.sorter = std::make_shared<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
   }
@@ -125,8 +140,6 @@ class NetworkTraceModuleTest : public testing::Test {
 };
 
 TEST_F(NetworkTraceModuleTest, ParseAndFormatPacket) {
-  NetworkTraceModule module(&context_);
-
   auto* packet = trace_->add_packet();
   packet->set_timestamp(123);
 
@@ -163,8 +176,6 @@ TEST_F(NetworkTraceModuleTest, ParseAndFormatPacket) {
 }
 
 TEST_F(NetworkTraceModuleTest, TokenizeAndParsePerPacketBundle) {
-  NetworkTraceModule module(&context_);
-
   auto* packet = trace_->add_packet();
   packet->set_timestamp(123);
 
@@ -200,8 +211,6 @@ TEST_F(NetworkTraceModuleTest, TokenizeAndParsePerPacketBundle) {
 }
 
 TEST_F(NetworkTraceModuleTest, TokenizeAndParseAggregateBundle) {
-  NetworkTraceModule module(&context_);
-
   auto* packet = trace_->add_packet();
   packet->set_timestamp(123);
 

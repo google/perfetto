@@ -48,6 +48,7 @@
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
@@ -178,6 +179,17 @@ class FuchsiaTraceParserTest : public ::testing::Test {
   FuchsiaTraceParserTest() {
     context_.storage = std::make_shared<TraceStorage>();
     storage_ = context_.storage.get();
+
+    context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
+
+    context_.register_additional_proto_modules = &RegisterAdditionalModules;
+    context_.proto_importer_module_context =
+        std::make_unique<ProtoImporterModuleContext>();
+    RegisterDefaultModules(context_.proto_importer_module_context.get(),
+                           &context_);
+    RegisterAdditionalModules(context_.proto_importer_module_context.get(),
+                              &context_);
+
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.global_args_tracker =
         std::make_shared<GlobalArgsTracker>(context_.storage.get());
@@ -204,14 +216,11 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
     context_.fuchsia_record_parser =
         std::make_unique<FuchsiaTraceParser>(&context_);
-    context_.proto_trace_parser =
-        std::make_unique<ProtoTraceParserImpl>(&context_);
+
+    context_.proto_trace_parser = std::make_unique<ProtoTraceParserImpl>(
+        &context_, context_.proto_importer_module_context.get());
     context_.sorter = std::make_shared<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
-    context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
-
-    RegisterDefaultModules(&context_);
-    RegisterAdditionalModules(&context_);
   }
 
   void push_word(uint64_t word) { trace_bytes_.push_back(word); }

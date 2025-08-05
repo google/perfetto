@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include "src/trace_processor/importers/proto/statsd_module.h"
 
 #include <cstddef>
@@ -107,9 +108,12 @@ base::Status ParseGenericEvent(const protozero::ConstBytes& cb,
 using perfetto::protos::pbzero::StatsdAtom;
 using perfetto::protos::pbzero::TracePacket;
 
-StatsdModule::StatsdModule(TraceProcessorContext* context)
-    : context_(context), args_parser_(*context_->descriptor_pool_) {
-  RegisterForField(TracePacket::kStatsdAtomFieldNumber, context);
+StatsdModule::StatsdModule(ProtoImporterModuleContext* module_context,
+                           TraceProcessorContext* context)
+    : ProtoImporterModule(module_context),
+      context_(context),
+      args_parser_(*context_->descriptor_pool_) {
+  RegisterForField(TracePacket::kStatsdAtomFieldNumber);
   context_->descriptor_pool_->AddFromFileDescriptorSet(kAtomsDescriptor.data(),
                                                        kAtomsDescriptor.size());
   if (auto i = context_->descriptor_pool_->FindDescriptorIdx(kAtomProtoName)) {
@@ -143,17 +147,14 @@ ModuleResult StatsdModule::TokenizePacket(
     }
 
     protozero::HeapBuffered<TracePacket> forged;
-
     forged->set_timestamp(static_cast<uint64_t>(atom_timestamp));
 
     auto* statsd = forged->set_statsd_atom();
     statsd->AppendBytes(StatsdAtom::kAtomFieldNumber, (*it).data, (*it).size);
 
-    std::vector<uint8_t> vec = forged.SerializeAsArray();
-    TraceBlob blob = TraceBlob::CopyFrom(vec.data(), vec.size());
-
-    context_->sorter->PushTracePacket(atom_timestamp, state,
-                                      TraceBlobView(std::move(blob)),
+    auto [vec, size] = forged.SerializeAsUniquePtr();
+    TraceBlobView tbv(TraceBlob::TakeOwnership(std::move(vec), size));
+    context_->sorter->PushTracePacket(atom_timestamp, state, std::move(tbv),
                                       context_->machine_id());
   }
 

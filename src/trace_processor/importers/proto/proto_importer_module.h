@@ -18,8 +18,10 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_IMPORTER_MODULE_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -36,6 +38,9 @@ class TracePacket_Decoder;
 
 namespace trace_processor {
 
+class EtwModule;
+class FtraceModule;
+class TrackEventModule;
 class TraceBlobView;
 class TraceProcessorContext;
 
@@ -94,10 +99,12 @@ class ModuleResult {
   std::optional<std::string> error_;
 };
 
+struct ProtoImporterModuleContext;
+
 // Base class for modules.
 class ProtoImporterModule {
  public:
-  ProtoImporterModule();
+  explicit ProtoImporterModule(ProtoImporterModuleContext* module_context);
 
   virtual ~ProtoImporterModule();
 
@@ -141,11 +148,22 @@ class ProtoImporterModule {
   virtual void NotifyEndOfFile() {}
 
  protected:
-  void RegisterForField(uint32_t field_id, TraceProcessorContext*);
-  // Primarily intended for special modules that need to get all TracePacket's,
-  // for example for trace proto content analysis. Most modules need to register
-  // for specific fields using the method above.
-  void RegisterForAllFields(TraceProcessorContext*);
+  void RegisterForField(uint32_t field_id);
+
+  ProtoImporterModuleContext* module_context_;
+};
+
+// Contains the common state for all proto modules and the proto parser.
+//
+// Used to store per-trace state in a place where everyone can access it.
+struct ProtoImporterModuleContext {
+  // The module at the index N is registered to handle field id N in
+  // TracePacket.
+  std::vector<std::vector<ProtoImporterModule*>> modules_by_field;
+  std::vector<std::unique_ptr<ProtoImporterModule>> modules;
+  FtraceModule* ftrace_module = nullptr;
+  EtwModule* etw_module = nullptr;
+  TrackEventModule* track_module = nullptr;
 };
 
 }  // namespace trace_processor

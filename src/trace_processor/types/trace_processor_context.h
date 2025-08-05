@@ -64,7 +64,7 @@ class PerfSampleTracker;
 class PerfTextTraceParser;
 class ProcessTracker;
 class ProcessTrackTranslationTable;
-class ProtoImporterModule;
+struct ProtoImporterModuleContext;
 class ProtoTraceParser;
 class SchedEventTracker;
 class SliceTracker;
@@ -171,6 +171,7 @@ class TraceProcessorContext {
   // clang-format on
 
   std::unique_ptr<ProtoTraceParser> proto_trace_parser;
+  std::unique_ptr<ProtoImporterModuleContext> proto_importer_module_context;
 
   // These fields are trace parsers which will be called by |forwarding_parser|
   // once the format of the trace is discovered. They are placed here as they
@@ -190,17 +191,6 @@ class TraceProcessorContext {
   // reflection-based parsers.
   std::unique_ptr<DescriptorPool> descriptor_pool_;
 
-  // The module at the index N is registered to handle field id N in
-  // TracePacket.
-  std::vector<std::vector<ProtoImporterModule*>> modules_by_field;
-  std::vector<std::unique_ptr<ProtoImporterModule>> modules;
-  // Pointers to modules from the modules vector that need to be called for
-  // all fields.
-  std::vector<ProtoImporterModule*> modules_for_all_fields;
-  FtraceModule* ftrace_module = nullptr;
-  EtwModule* etw_module = nullptr;
-  TrackEventModule* track_module = nullptr;
-
   // Marks whether the uuid was read from the trace.
   // If the uuid was NOT read, the uuid will be made from the hash of the first
   // 4KB of the trace.
@@ -210,6 +200,13 @@ class TraceProcessorContext {
 
   // Manages the contexts for reading trace data emitted from remote machines.
   std::unique_ptr<MultiMachineTraceManager> multi_machine_trace_manager;
+
+  // The registration function for additional proto modules.
+  // This is populated by TraceProcessorImpl to allow for late registration of
+  // modules.
+  using RegisterAdditionalProtoModulesFn = void(ProtoImporterModuleContext*,
+                                                TraceProcessorContext*);
+  RegisterAdditionalProtoModulesFn* register_additional_proto_modules = nullptr;
 };
 
 }  // namespace perfetto::trace_processor

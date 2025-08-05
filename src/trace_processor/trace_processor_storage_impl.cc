@@ -59,9 +59,12 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg)
       kProtoTraceType);
   context_.reader_registry->RegisterTraceReader<ProtoTraceReader>(
       kSymbolsTraceType);
-  context_.proto_trace_parser =
-      std::make_unique<ProtoTraceParserImpl>(&context_);
-  RegisterDefaultModules(&context_);
+  context_.proto_importer_module_context =
+      std::make_unique<ProtoImporterModuleContext>();
+  context_.proto_trace_parser = std::make_unique<ProtoTraceParserImpl>(
+      &context_, context_.proto_importer_module_context.get());
+  RegisterDefaultModules(context_.proto_importer_module_context.get(),
+                         &context_);
 }
 
 TraceProcessorStorageImpl::~TraceProcessorStorageImpl() {}
@@ -124,9 +127,6 @@ base::Status TraceProcessorStorageImpl::NotifyEndOfFile() {
   RETURN_IF_ERROR(parser_->NotifyEndOfFile());
   // NotifyEndOfFile might have pushed packets to the sorter.
   Flush();
-  for (std::unique_ptr<ProtoImporterModule>& module : context_.modules) {
-    module->NotifyEndOfFile();
-  }
   if (context_.content_analyzer) {
     PacketAnalyzer::Get(&context_)->NotifyEndOfFile();
   }
