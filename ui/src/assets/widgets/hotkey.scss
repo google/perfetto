@@ -24,9 +24,12 @@
   box-shadow: inset 0 -1px 0 #c6cbd1;
   color: #444d56;
   display: inline-block;
-  font-family: $pf-font;
   vertical-align: baseline;
   padding: 2px 4px;
+
+  &.pf-spacing-large {
+    padding: 4px 6px;
+  }
 }
 
 .pf-hotkey {

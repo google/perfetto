@@ -13,18 +13,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -eu
+set -eu -o pipefail
 
 # Move to tmpfs, as GitHub Action runner checks out the repo under
 # a _work subdirectory
 cp -a github-action-runner /tmp
 cd /tmp/github-action-runner/
 
-GITHUB_TOKEN=$(cat $GITHUB_TOKEN_PATH)
+GITHUB_TOKEN=$(cat "$GITHUB_TOKEN_PATH")
 
 ./config.sh --unattended --ephemeral --replace \
     --url "https://github.com/$GITHUB_REPO" \
     --token "$GITHUB_TOKEN"
+
+# Setup Google Cloud config.
+# Token is generated in 'infra/ci/worker/sandbox_runner.py'.
+gcloud config set auth/access_token_file "$SVC_TOKEN_PATH"
+# Suppress warning about "parallel composite upload" when doing 'gcloud storage cp ...' .
+gcloud config set storage/parallel_composite_upload_enabled True
 
 trap cleanup SIGTERM
 
