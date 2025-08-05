@@ -2,11 +2,6 @@
 set -eu -o pipefail
 
 function do_validate_input() {
-  if [[ "$INPUT_ACTION" != "save" && "$INPUT_ACTION" != "restore" ]]; then
-    echo "Invalid \$INPUT_ACTION: should be 'save' or 'restore', got: '$INPUT_ACTION'."
-    exit 1
-  fi
-
   # Check if 'inputs.directory' exists.
   if [[ ! -d "$INPUT_DIRECTORY" ]]; then
     echo "Invalid input 'directory': the directory '$INPUT_DIRECTORY' does not exist."
@@ -26,6 +21,14 @@ function do_validate_input() {
       exit 1
     fi
   fi
+}
+
+function set_github_output() {
+    local key="$1"
+    local value="$2"
+    if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+        echo "${key}=${value}" >> "$GITHUB_OUTPUT"
+    fi
 }
 
 function do_restore_cache() {
@@ -52,14 +55,14 @@ function do_restore_cache() {
 
     rm "$CACHED_TAR_PATH"
 
-    echo "cache_hit=true" >> "$GITHUB_OUTPUT"
+    set_github_output "cache_hit" "true"
     echo "Cache restored, OK"
   elif [[ "$cp_output" =~ "The following URLs matched no objects or files" ]]; then
-    echo "cache_hit=false" >> "$GITHUB_OUTPUT"
+    set_github_output "cache_hit" "false"
     echo "Cache not found, OK"
   else
     echo "Can't download cache: $cp_output"
-    echo "cache_hit=false" >> "$GITHUB_OUTPUT"
+    set_github_output "cache_hit" "false"
     exit 1
   fi
 }
@@ -98,7 +101,7 @@ function main() {
   elif [[ "$INPUT_ACTION" == "restore" ]]; then
     do_restore_cache
   else
-    echo "Unsupported \$INPUT_ACTION: '$INPUT_ACTION'."
+    echo "Unsupported \$INPUT_ACTION: should be 'save' or 'restore', got: '$INPUT_ACTION'."
     exit 1
   fi
 }
