@@ -35,7 +35,6 @@ WITH blocking_calls_aggregate_values AS (
   SELECT
     COUNT(*) AS cnt,
     SUM(dur) AS total_dur_per_frame_ns,
-    MAX(dur) AS max_dur_per_frame_ns,
     cuj_name,
     upid,
     process_name,
