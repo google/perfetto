@@ -52,10 +52,9 @@ jobs:
           install-flags: --ui
 
       - name: Setup cache directory
-        shell: bash
         run: |
           mkdir -p "$PERFETTO_CACHE_DIR"
-          .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
+          bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
 
       - name: Restore cache
         id: restore_cache
