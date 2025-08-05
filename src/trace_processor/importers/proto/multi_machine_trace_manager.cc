@@ -21,9 +21,10 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
-#include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
@@ -40,6 +41,7 @@ std::unique_ptr<TraceProcessorContext> MultiMachineTraceManager::CreateContext(
   TraceProcessorContext::InitArgs args{
       default_context_->config, default_context_->storage, raw_machine_id};
   auto new_context = std::make_unique<TraceProcessorContext>(args);
+
   new_context->register_additional_proto_modules =
       default_context_->register_additional_proto_modules;
 
@@ -49,7 +51,19 @@ std::unique_ptr<TraceProcessorContext> MultiMachineTraceManager::CreateContext(
   new_context->global_args_tracker = default_context_->global_args_tracker;
   // Share the sorter, but enable for the parser.
   new_context->sorter = default_context_->sorter;
+  new_context->sorter->AddMachineContext(new_context.get());
   new_context->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
+  new_context->proto_importer_module_context =
+      std::make_unique<ProtoImporterModuleContext>();
+
+  RegisterDefaultModules(new_context->proto_importer_module_context.get(),
+                         new_context.get());
+  if (new_context->register_additional_proto_modules) {
+    new_context->register_additional_proto_modules(
+        new_context->proto_importer_module_context.get(), new_context.get());
+  }
+  new_context->proto_trace_parser = std::make_unique<ProtoTraceParserImpl>(
+      new_context.get(), new_context->proto_importer_module_context.get());
 
   return new_context;
 }

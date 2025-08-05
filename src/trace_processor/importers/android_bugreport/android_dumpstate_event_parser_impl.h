@@ -22,21 +22,19 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event.h"
-#include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/importers/common/trace_parser.h"
 
 namespace perfetto ::trace_processor {
 
 class TraceProcessorContext;
 
-class AndroidDumpstateEventParserImpl
-    : public TraceSorter::Sink<AndroidDumpstateEvent,
-                               AndroidDumpstateEventParserImpl> {
+class AndroidDumpstateEventParserImpl : public AndroidDumpstateEventParser {
  public:
   explicit AndroidDumpstateEventParserImpl(TraceProcessorContext* context)
       : context_(context) {}
   ~AndroidDumpstateEventParserImpl() override;
 
-  void Parse(int64_t, AndroidDumpstateEvent);
+  void ParseAndroidDumpstateEvent(int64_t, AndroidDumpstateEvent) override;
 
  private:
   TraceProcessorContext* const context_;

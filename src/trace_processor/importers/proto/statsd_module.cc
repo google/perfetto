@@ -154,8 +154,8 @@ ModuleResult StatsdModule::TokenizePacket(
 
     auto [vec, size] = forged.SerializeAsUniquePtr();
     TraceBlobView tbv(TraceBlob::TakeOwnership(std::move(vec), size));
-    module_context_->trace_packet_stream->Push(
-        atom_timestamp, TracePacketData{std::move(tbv), state});
+    context_->sorter->PushTracePacket(atom_timestamp, state, std::move(tbv),
+                                      context_->machine_id());
   }
 
   return ModuleResult::Handled();

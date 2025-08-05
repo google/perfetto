@@ -20,10 +20,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <map>
-#include <memory>
-#include <optional>
-#include <string>
-#include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
@@ -52,7 +48,7 @@ class TarTraceReader : public ChunkedTraceReader {
     uint64_t size;
     char type_flag;
   };
-  enum class ParseResult : uint8_t {
+  enum class ParseResult {
     kOk,
     kNeedsMoreData,
   };
@@ -62,7 +58,7 @@ class TarTraceReader : public ChunkedTraceReader {
     std::vector<TraceBlobView> data;
   };
 
-  enum class State : uint8_t { kMetadata, kContent, kZeroMetadata, kDone };
+  enum class State { kMetadata, kContent, kZeroMetadata, kDone };
 
   base::StatusOr<ParseResult> ParseMetadata();
   base::StatusOr<ParseResult> ParseContent();
@@ -79,7 +75,6 @@ class TarTraceReader : public ChunkedTraceReader {
   std::optional<Metadata> metadata_;
   std::optional<std::string> long_name_;
   std::map<ArchiveEntry, File> ordered_files_;
-  std::vector<std::unique_ptr<ChunkedTraceReader>> parsers_;
 };
 
 }  // namespace perfetto::trace_processor

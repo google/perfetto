@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
@@ -27,37 +28,55 @@
 
 namespace perfetto::trace_processor {
 
+class AndroidDumpstateEventParser;
+class AndroidLogEventParser;
 class ArgsTracker;
 class ArgsTranslationTable;
+class ArtMethodParser;
+class ArtHprofParser;
+class TrackCompressor;
+class ChunkedTraceReader;
 class ClockConverter;
 class ClockTracker;
 class CpuTracker;
+class DeobfuscationMappingTable;
+class DeobfuscationTracker;
 class DescriptorPool;
 class EtwModule;
 class EventTracker;
 class FlowTracker;
+class ForwardingTraceParser;
 class FtraceModule;
+class FuchsiaRecordParser;
+class GeckoTraceParser;
 class GlobalArgsTracker;
 class HeapGraphTracker;
+class InstrumentsRowParser;
+class JsonTraceParser;
+class LegacyV8CpuProfileTracker;
 class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
 class MultiMachineTraceManager;
 class PacketAnalyzer;
+class PerfRecordParser;
 class PerfSampleTracker;
+class PerfTextTraceParser;
 class ProcessTracker;
 class ProcessTrackTranslationTable;
+struct ProtoImporterModuleContext;
+class ProtoTraceParser;
 class SchedEventTracker;
 class SliceTracker;
 class SliceTranslationTable;
+class SpeRecordParser;
 class StackProfileTracker;
 class TraceFileTracker;
 class TraceReaderRegistry;
 class TraceSorter;
 class TraceStorage;
-class TrackCompressor;
+class TrackEventModule;
 class TrackTracker;
-struct ProtoImporterModuleContext;
 
 using MachineId = tables::MachineTable::Id;
 
@@ -84,6 +103,11 @@ class TraceProcessorContext {
   std::shared_ptr<TraceStorage> storage;
 
   std::unique_ptr<TraceReaderRegistry> reader_registry;
+
+  // We might create multiple `ChunkedTraceReader` instances (e.g. one for each
+  // file in a ZIP ). The instances are kept around here as some tokenizers
+  // might keep state that is later needed after sorting.
+  std::vector<std::unique_ptr<ChunkedTraceReader>> chunk_readers;
 
   // The sorter is used to sort trace data by timestamp and is shared among
   // multiple machines.
@@ -114,6 +138,7 @@ class TraceProcessorContext {
   std::unique_ptr<MetadataTracker> metadata_tracker;
   std::unique_ptr<CpuTracker> cpu_tracker;
   std::unique_ptr<TraceFileTracker> trace_file_tracker;
+  std::unique_ptr<LegacyV8CpuProfileTracker> legacy_v8_cpu_profile_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass
@@ -133,6 +158,7 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> thread_state_tracker;                   // ThreadStateTracker
   std::unique_ptr<Destructible> i2c_tracker;                            // I2CTracker
   std::unique_ptr<Destructible> perf_data_tracker;                      // PerfDataTracker
+  std::unique_ptr<Destructible> content_analyzer;                       // ProtoContentAnalyzer
   std::unique_ptr<Destructible> protolog_messages_tracker;              // ProtoLogMessagesTracker
   std::unique_ptr<Destructible> ftrace_sched_tracker;                   // FtraceSchedEventTracker
   std::unique_ptr<Destructible> v8_tracker;                             // V8Tracker
@@ -144,7 +170,22 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> file_tracker;                           // FileTracker
   // clang-format on
 
-  std::unique_ptr<Destructible> content_analyzer;
+  std::unique_ptr<ProtoTraceParser> proto_trace_parser;
+  std::unique_ptr<ProtoImporterModuleContext> proto_importer_module_context;
+
+  // These fields are trace parsers which will be called by |forwarding_parser|
+  // once the format of the trace is discovered. They are placed here as they
+  // are only available in the lib target.
+  std::unique_ptr<JsonTraceParser> json_trace_parser;
+  std::unique_ptr<FuchsiaRecordParser> fuchsia_record_parser;
+  std::unique_ptr<PerfRecordParser> perf_record_parser;
+  std::unique_ptr<SpeRecordParser> spe_record_parser;
+  std::unique_ptr<InstrumentsRowParser> instruments_row_parser;
+  std::unique_ptr<AndroidDumpstateEventParser> android_dumpstate_event_parser;
+  std::unique_ptr<AndroidLogEventParser> android_log_event_parser;
+  std::unique_ptr<GeckoTraceParser> gecko_trace_parser;
+  std::unique_ptr<ArtMethodParser> art_method_parser;
+  std::unique_ptr<PerfTextTraceParser> perf_text_parser;
 
   // This field contains the list of proto descriptors that can be used by
   // reflection-based parsers.

@@ -32,7 +32,6 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -43,7 +42,6 @@
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/json/json_parser.h"
-#include "src/trace_processor/importers/json/json_trace_parser_impl.h"
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
@@ -354,37 +352,6 @@ void ParseId2(json::Iterator& inner_it,
   }
 }
 
-class JsonSink : public TraceSorter::Sink<JsonEvent, JsonSink> {
- public:
-  explicit JsonSink(JsonTraceParserImpl* parser) : parser_(parser) {}
-  void Parse(int64_t ts, JsonEvent data) {
-    parser_->ParseJsonPacket(ts, std::move(data));
-  }
-
- private:
-  JsonTraceParserImpl* parser_;
-};
-class SystraceSink : public TraceSorter::Sink<SystraceLine, SystraceSink> {
- public:
-  explicit SystraceSink(JsonTraceParserImpl* parser) : parser_(parser) {}
-  void Parse(int64_t ts, SystraceLine data) {
-    parser_->ParseSystraceLine(ts, std::move(data));
-  }
-
- private:
-  JsonTraceParserImpl* parser_;
-};
-class V8Sink : public TraceSorter::Sink<LegacyV8CpuProfileEvent, V8Sink> {
- public:
-  explicit V8Sink(LegacyV8CpuProfileTracker* tracker) : tracker_(tracker) {}
-  void Parse(int64_t ts, LegacyV8CpuProfileEvent data) {
-    tracker_->Parse(ts, data);
-  }
-
- private:
-  LegacyV8CpuProfileTracker* tracker_;
-};
-
 }  // namespace
 
 ReadKeyRes ReadOneJsonKey(const char* start,
@@ -480,15 +447,7 @@ ReadSystemLineRes ReadOneSystemTraceLine(const char* start,
 }
 
 JsonTraceTokenizer::JsonTraceTokenizer(TraceProcessorContext* ctx)
-    : context_(ctx),
-      parser_(ctx),
-      v8_tracker_(std::make_unique<LegacyV8CpuProfileTracker>(ctx)),
-      json_stream_(
-          context_->sorter->CreateStream(std::make_unique<JsonSink>(&parser_))),
-      systrace_stream_(context_->sorter->CreateStream(
-          std::make_unique<SystraceSink>(&parser_))),
-      v8_stream_(context_->sorter->CreateStream(
-          std::make_unique<V8Sink>(v8_tracker_.get()))) {}
+    : context_(ctx) {}
 JsonTraceTokenizer::~JsonTraceTokenizer() = default;
 
 base::Status JsonTraceTokenizer::Parse(TraceBlobView blob) {
@@ -801,7 +760,7 @@ bool JsonTraceTokenizer::ParseTraceEventContents() {
     }
     return true;
   }
-  json_stream_->Push(ts, std::move(event));
+  context_->sorter->PushJsonValue(ts, std::move(event));
   return true;
 }
 
@@ -827,8 +786,8 @@ base::Status JsonTraceTokenizer::ParseV8SampleEvent(const JsonEvent& event) {
   }
   const auto& val = (*args)["data"];
   if (val.isMember("startTime")) {
-    v8_tracker_->SetStartTsForSessionAndPid(id, event.pid,
-                                            val["startTime"].asInt64() * 1000);
+    context_->legacy_v8_cpu_profile_tracker->SetStartTsForSessionAndPid(
+        id, event.pid, val["startTime"].asInt64() * 1000);
     return base::OkStatus();
   }
   const auto& profile = val["cpuProfile"];
@@ -849,7 +808,7 @@ base::Status JsonTraceTokenizer::ParseV8SampleEvent(const JsonEvent& event) {
     base::StringView url =
         frame.isMember("url") ? frame["url"].asCString() : base::StringView();
     base::StringView function_name = frame["functionName"].asCString();
-    base::Status status = v8_tracker_->AddCallsite(
+    base::Status status = context_->legacy_v8_cpu_profile_tracker->AddCallsite(
         id, event.pid, node_id, parent_node_id, url, function_name, children);
     if (!status.ok()) {
       context_->storage->IncrementStats(
@@ -865,10 +824,10 @@ base::Status JsonTraceTokenizer::ParseV8SampleEvent(const JsonEvent& event) {
   }
   for (uint32_t i = 0; i < samples.size(); ++i) {
     ASSIGN_OR_RETURN(int64_t ts,
-                     v8_tracker_->AddDeltaAndGetTs(id, event.pid,
-                                                   deltas[i].asInt64() * 1000));
-    v8_stream_->Push(ts, LegacyV8CpuProfileEvent{id, event.pid, event.tid,
-                                                 samples[i].asUInt()});
+                     context_->legacy_v8_cpu_profile_tracker->AddDeltaAndGetTs(
+                         id, event.pid, deltas[i].asInt64() * 1000));
+    context_->sorter->PushLegacyV8CpuProfileEvent(ts, id, event.pid, event.tid,
+                                                  samples[i].asUInt());
   }
   return base::OkStatus();
 }
@@ -982,7 +941,7 @@ base::Status JsonTraceTokenizer::HandleSystemTraceEvent(const char* start,
 
     SystraceLine line;
     RETURN_IF_ERROR(systrace_line_tokenizer_.Tokenize(raw_line, &line));
-    systrace_stream_->Push(line.ts, std::move(line));
+    context_->sorter->PushSystraceLine(std::move(line));
   }
   return SetOutAndReturn(next, out);
 }

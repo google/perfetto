@@ -28,26 +28,6 @@
 
 namespace perfetto::trace_processor {
 
-namespace {
-
-template <typename T, typename StreamVector, typename Factory>
-PERFETTO_ALWAYS_INLINE void PushToStream(uint32_t cpu,
-                                         int64_t ts,
-                                         T& data,
-                                         StreamVector& streams,
-                                         const Factory& factory) {
-  if (PERFETTO_UNLIKELY(cpu >= streams.size())) {
-    size_t old_size = streams.size();
-    streams.resize(cpu + 1);
-    for (size_t i = old_size; i <= cpu; ++i) {
-      streams[i] = factory(static_cast<uint32_t>(i));
-    }
-  }
-  streams[cpu]->Push(ts, std::move(data));
-}
-
-}  // namespace
-
 ProtoImporterModule::ProtoImporterModule(
     ProtoImporterModuleContext* module_context)
     : module_context_(module_context) {}
@@ -77,32 +57,6 @@ void ProtoImporterModule::RegisterForField(uint32_t field_id) {
     module_context_->modules_by_field.resize(field_id + 1);
   }
   module_context_->modules_by_field[field_id].push_back(this);
-}
-
-void ProtoImporterModuleContext::PushFtraceEvent(uint32_t cpu,
-                                                 int64_t ts,
-                                                 TracePacketData data) {
-  PushToStream(cpu, ts, data, ftrace_event_streams, ftrace_stream_factory);
-}
-
-void ProtoImporterModuleContext::PushEtwEvent(uint32_t cpu,
-                                              int64_t ts,
-                                              TracePacketData data) {
-  PushToStream(cpu, ts, data, etw_event_streams, etw_stream_factory);
-}
-
-void ProtoImporterModuleContext::PushInlineSchedSwitch(uint32_t cpu,
-                                                       int64_t ts,
-                                                       InlineSchedSwitch data) {
-  PushToStream(cpu, ts, data, inline_sched_switch_streams,
-               inline_sched_switch_stream_factory);
-}
-
-void ProtoImporterModuleContext::PushInlineSchedWaking(uint32_t cpu,
-                                                       int64_t ts,
-                                                       InlineSchedWaking data) {
-  PushToStream(cpu, ts, data, inline_sched_waking_streams,
-               inline_sched_waking_stream_factory);
 }
 
 }  // namespace perfetto::trace_processor

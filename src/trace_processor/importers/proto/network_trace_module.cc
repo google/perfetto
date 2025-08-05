@@ -332,8 +332,8 @@ void NetworkTraceModule::PushPacketBufferForSort(
     RefPtr<PacketSequenceStateGeneration> state) {
   auto [vec, size] = packet_buffer_.SerializeAsUniquePtr();
   TraceBlobView tbv(TraceBlob::TakeOwnership(std::move(vec), size));
-  module_context_->trace_packet_stream->Push(
-      timestamp, TracePacketData{std::move(tbv), std::move(state)});
+  context_->sorter->PushTracePacket(timestamp, std::move(state),
+                                    std::move(tbv));
   packet_buffer_.Reset();
 }
 

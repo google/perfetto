@@ -17,18 +17,13 @@
 #ifndef SRC_TRACE_PROCESSOR_TRACE_PROCESSOR_STORAGE_IMPL_H_
 #define SRC_TRACE_PROCESSOR_TRACE_PROCESSOR_STORAGE_IMPL_H_
 
-#include <cstddef>
-#include <memory>
-
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor_storage.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto::trace_processor {
+namespace perfetto {
+namespace trace_processor {
 
 class ForwardingTraceParser;
 
@@ -51,9 +46,10 @@ class TraceProcessorStorageImpl : public TraceProcessorStorage {
   bool unrecoverable_parse_error_ = false;
   bool eof_ = false;
   size_t hash_input_size_remaining_ = 4096;
-  std::unique_ptr<ForwardingTraceParser> parser_;
+  ForwardingTraceParser* parser_ = nullptr;
 };
 
-}  // namespace perfetto::trace_processor
+}  // namespace trace_processor
+}  // namespace perfetto
 
 #endif  // SRC_TRACE_PROCESSOR_TRACE_PROCESSOR_STORAGE_IMPL_H_

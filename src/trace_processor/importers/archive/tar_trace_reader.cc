@@ -17,11 +17,10 @@
 #include "src/trace_processor/importers/archive/tar_trace_reader.h"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <functional>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -32,7 +31,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/archive/archive_entry.h"
@@ -109,7 +108,7 @@ base::StatusOr<uint64_t> ExtractUint64(const char (&ptr)[Size]) {
   return ParseOctal(ptr);
 }
 
-enum class TarType : uint8_t { kUnknown, kUstar, kGnu };
+enum class TarType { kUnknown, kUstar, kGnu };
 
 struct alignas(1) Header {
   char name[100];
@@ -200,7 +199,7 @@ base::Status TarTraceReader::NotifyEndOfFile() {
     auto chunk_reader =
         std::make_unique<ForwardingTraceParser>(context_, file.second.id);
     auto& parser = *chunk_reader;
-    parsers_.push_back(std::move(chunk_reader));
+    context_->chunk_readers.push_back(std::move(chunk_reader));
 
     for (auto& data : file.second.data) {
       RETURN_IF_ERROR(parser.Parse(std::move(data)));

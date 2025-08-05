@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <optional>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -30,8 +31,11 @@ namespace perfetto::trace_processor {
 
 class EtwTokenizer {
  public:
-  explicit EtwTokenizer(ProtoImporterModuleContext* module_context)
-      : module_context_(module_context) {}
+  explicit EtwTokenizer(ProtoImporterModuleContext* module_context,
+                        TraceProcessorContext* context)
+      : module_context_(module_context), context_(context) {
+    base::ignore_result(module_context_);
+  }
 
   base::Status TokenizeEtwBundle(TraceBlobView bundle,
                                  RefPtr<PacketSequenceStateGeneration> state);
@@ -42,6 +46,7 @@ class EtwTokenizer {
                                 RefPtr<PacketSequenceStateGeneration> state);
 
   ProtoImporterModuleContext* module_context_;
+  TraceProcessorContext* context_;
 };
 
 }  // namespace perfetto::trace_processor

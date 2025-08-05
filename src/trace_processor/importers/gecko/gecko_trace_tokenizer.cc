@@ -19,7 +19,6 @@
 #include <json/value.h>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -31,13 +30,12 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
-#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/gecko/gecko_event.h"
-#include "src/trace_processor/importers/gecko/gecko_trace_parser_impl.h"
 #include "src/trace_processor/importers/json/json_utils.h"
+#include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -52,9 +50,7 @@ struct Callsite {
 }  // namespace
 
 GeckoTraceTokenizer::GeckoTraceTokenizer(TraceProcessorContext* ctx)
-    : context_(ctx),
-      stream_(ctx->sorter->CreateStream(
-          std::make_unique<GeckoTraceParserImpl>(ctx))) {}
+    : context_(ctx) {}
 GeckoTraceTokenizer::~GeckoTraceTokenizer() = default;
 
 base::Status GeckoTraceTokenizer::Parse(TraceBlobView blob) {
@@ -149,7 +145,7 @@ base::Status GeckoTraceTokenizer::NotifyEndOfFile() {
       auto ts =
           static_cast<int64_t>(sample[time_index].asDouble() * 1000 * 1000);
       if (!added_metadata) {
-        stream_->Push(
+        context_->sorter->PushGeckoEvent(
             ts, GeckoEvent{GeckoEvent::ThreadMetadata{
                     t["tid"].asUInt(), t["pid"].asUInt(),
                     context_->storage->InternString(t["name"].asCString())}});
@@ -159,9 +155,9 @@ base::Status GeckoTraceTokenizer::NotifyEndOfFile() {
           int64_t converted,
           context_->clock_tracker->ToTraceTime(
               protos::pbzero::ClockSnapshot::Clock::MONOTONIC, ts));
-      stream_->Push(converted,
-                    GeckoEvent{GeckoEvent::StackSample{
-                        t["tid"].asUInt(), callsites[stack_idx].id}});
+      context_->sorter->PushGeckoEvent(
+          converted, GeckoEvent{GeckoEvent::StackSample{
+                         t["tid"].asUInt(), callsites[stack_idx].id}});
     }
   }
   return base::OkStatus();

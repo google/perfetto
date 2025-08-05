@@ -32,7 +32,8 @@ PerfTextTraceParserImpl::PerfTextTraceParserImpl(TraceProcessorContext* context)
 
 PerfTextTraceParserImpl::~PerfTextTraceParserImpl() = default;
 
-void PerfTextTraceParserImpl::Parse(int64_t ts, PerfTextEvent evt) {
+void PerfTextTraceParserImpl::ParsePerfTextEvent(int64_t ts,
+                                                 PerfTextEvent evt) {
   auto* ss = context_->storage->mutable_cpu_profile_stack_sample_table();
   tables::CpuProfileStackSampleTable::Row row;
   row.ts = ts;

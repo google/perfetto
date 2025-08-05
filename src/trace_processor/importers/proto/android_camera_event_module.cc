@@ -60,9 +60,9 @@ ModuleResult AndroidCameraEventModule::TokenizePacket(
   const auto android_camera_frame_event =
       protos::pbzero::AndroidCameraFrameEvent::Decoder(
           decoder.android_camera_frame_event());
-  module_context_->trace_packet_stream->Push(
+  context_->sorter->PushTracePacket(
       android_camera_frame_event.request_processing_started_ns(),
-      TracePacketData{std::move(*packet), state});
+      std::move(state), std::move(*packet), context_->machine_id());
   return ModuleResult::Handled();
 }
 

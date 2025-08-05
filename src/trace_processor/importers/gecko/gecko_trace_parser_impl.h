@@ -19,19 +19,17 @@
 
 #include <cstdint>
 
-#include "src/trace_processor/importers/gecko/gecko_event.h"
-#include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::gecko_importer {
 
-class GeckoTraceParserImpl
-    : public TraceSorter::Sink<GeckoEvent, GeckoTraceParserImpl> {
+class GeckoTraceParserImpl : public GeckoTraceParser {
  public:
   explicit GeckoTraceParserImpl(TraceProcessorContext*);
   ~GeckoTraceParserImpl() override;
 
-  void Parse(int64_t ts, GeckoEvent);
+  void ParseGeckoEvent(int64_t ts, GeckoEvent) override;
 
  private:
   TraceProcessorContext* const context_;

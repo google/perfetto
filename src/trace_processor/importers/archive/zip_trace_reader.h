@@ -18,11 +18,11 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ARCHIVE_ZIP_TRACE_READER_H_
 
 #include <cstddef>
-#include <memory>
-#include <vector>
+#include <map>
 
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/archive/archive_entry.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/util/zip_reader.h"
@@ -50,7 +50,6 @@ class ZipTraceReader : public ChunkedTraceReader {
   };
   TraceProcessorContext* const context_;
   util::ZipReader zip_reader_;
-  std::vector<std::unique_ptr<ChunkedTraceReader>> parsers_;
 };
 
 }  // namespace perfetto::trace_processor

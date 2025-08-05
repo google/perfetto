@@ -38,7 +38,6 @@
 #include "src/trace_processor/importers/perf/auxtrace_record.h"
 #include "src/trace_processor/importers/perf/perf_file.h"
 #include "src/trace_processor/importers/perf/perf_session.h"
-#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
 
 namespace perfetto {
@@ -98,7 +97,6 @@ class PerfDataTokenizer : public ChunkedTraceReader {
   base::StatusOr<int64_t> ExtractTraceTimestamp(const Record& record);
 
   TraceProcessorContext* context_;
-  std::unique_ptr<TraceSorter::Stream<Record>> stream_;
 
   ParsingState parsing_state_ = ParsingState::kParseHeader;
 

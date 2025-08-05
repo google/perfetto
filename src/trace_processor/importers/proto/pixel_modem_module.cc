@@ -99,8 +99,8 @@ ModuleResult PixelModemModule::TokenizePacket(
     data_packet->set_pixel_modem_events()->add_events(event_bytes);
     auto [vec, size] = data_packet.SerializeAsUniquePtr();
     TraceBlobView tbv(TraceBlob::TakeOwnership(std::move(vec), size));
-    module_context_->trace_packet_stream->Push(
-        ts, TracePacketData{std::move(tbv), state});
+    context_->sorter->PushTracePacket(ts, state, std::move(tbv),
+                                      context_->machine_id());
   }
 
   return ModuleResult::Handled();

@@ -118,8 +118,6 @@ class ProtoTraceReader : public ChunkedTraceReader {
 
   TraceProcessorContext* context_;
   ProtoTraceTokenizer tokenizer_;
-  ProtoImporterModuleContext module_context_;
-  std::unique_ptr<ProtoTraceParserImpl> parser_;
 
   // Temporary. Currently trace packets do not have a timestamp, so the
   // timestamp given is latest_timestamp_.

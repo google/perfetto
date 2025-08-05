@@ -17,12 +17,10 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_INSTRUMENTS_ROW_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_INSTRUMENTS_ROW_PARSER_H_
 
-#include <cstdint>
-
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/instruments/row.h"
-#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -30,13 +28,12 @@ namespace perfetto::trace_processor::instruments_importer {
 
 class RowDataTracker;
 
-class RowParser
-    : public TraceSorter::Sink<instruments_importer::Row, RowParser> {
+class RowParser : public InstrumentsRowParser {
  public:
   explicit RowParser(TraceProcessorContext*);
-  ~RowParser() override;
+  ~RowParser() override = default;
 
-  void Parse(int64_t, instruments_importer::Row);
+  void ParseInstrumentsRow(int64_t, instruments_importer::Row) override;
 
  private:
   DummyMemoryMapping* GetDummyMapping(UniquePid upid);

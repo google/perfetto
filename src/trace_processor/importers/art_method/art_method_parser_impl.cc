@@ -37,7 +37,7 @@ ArtMethodParserImpl::ArtMethodParserImpl(TraceProcessorContext* context)
 
 ArtMethodParserImpl::~ArtMethodParserImpl() = default;
 
-void ArtMethodParserImpl::Parse(int64_t ts, ArtMethodEvent e) {
+void ArtMethodParserImpl::ParseArtMethodEvent(int64_t ts, ArtMethodEvent e) {
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(e.tid);
   if (e.comm) {
     context_->process_tracker->UpdateThreadNameAndMaybeProcessName(

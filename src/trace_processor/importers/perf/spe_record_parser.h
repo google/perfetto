@@ -20,13 +20,12 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <optional>
 
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/perf/reader.h"
 #include "src/trace_processor/importers/perf/spe.h"
-#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/perf_tables_py.h"
 
@@ -34,13 +33,11 @@ namespace perfetto::trace_processor {
 class TraceProcessorContext;
 namespace perf_importer {
 
-class SpeRecordParserImpl
-    : public TraceSorter::Sink<TraceBlobView, SpeRecordParserImpl> {
+class SpeRecordParserImpl : public SpeRecordParser {
  public:
   explicit SpeRecordParserImpl(TraceProcessorContext* context);
-  ~SpeRecordParserImpl() override;
 
-  void Parse(int64_t, TraceBlobView);
+  void ParseSpeRecord(int64_t, TraceBlobView) override;
 
  private:
   template <typename Enum>

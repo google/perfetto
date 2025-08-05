@@ -16,8 +16,6 @@
 
 #include "src/trace_processor/importers/instruments/instruments_xml_tokenizer.h"
 
-#include "src/trace_processor/importers/instruments/row_parser.h"
-
 #include <expat.h>
 #include <algorithm>
 #include <cctype>
@@ -147,10 +145,7 @@ std::string MakeTrimmed(const char* chars, int len) {
 class InstrumentsXmlTokenizer::Impl {
  public:
   explicit Impl(TraceProcessorContext* context)
-      : context_(context),
-        data_(RowDataTracker::GetOrCreate(context)),
-        stream_(context->sorter->CreateStream(
-            std::make_unique<RowParser>(context))) {
+      : context_(context), data_(RowDataTracker::GetOrCreate(context_)) {
     parser_ = XML_ParserCreate(nullptr);
     XML_SetElementHandler(parser_, ElementStart, ElementEnd);
     XML_SetCharacterDataHandler(parser_, CharacterData);
@@ -378,7 +373,7 @@ class InstrumentsXmlTokenizer::Impl {
           PERFETTO_DLOG("Skipping timestamp %" PRId64 ", no clock snapshot yet",
                         current_row_.timestamp_);
         } else {
-          stream_->Push(*trace_ts, std::move(current_row_));
+          context_->sorter->PushInstrumentsRow(*trace_ts, current_row_);
         }
       } else if (current_subsystem_ref_ != nullptr) {
         // Rows without backtraces are assumed to be signpost events -- filter
@@ -536,7 +531,6 @@ class InstrumentsXmlTokenizer::Impl {
   uint64_t* current_os_log_metadata_uint64_ref_ = nullptr;
   uint64_t* current_uint64_ref_ = nullptr;
   uint64_t latest_clock_sync_timestamp_ = 0;
-  std::unique_ptr<TraceSorter::Stream<Row>> stream_;
 };
 
 InstrumentsXmlTokenizer::InstrumentsXmlTokenizer(TraceProcessorContext* context)

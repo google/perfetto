@@ -209,8 +209,9 @@ base::StatusOr<int64_t> StringToStatusOrInt64(base::StringView str) {
 
 AndroidDumpstateEventParserImpl::~AndroidDumpstateEventParserImpl() = default;
 
-void AndroidDumpstateEventParserImpl::Parse(int64_t ts,
-                                            AndroidDumpstateEvent event) {
+void AndroidDumpstateEventParserImpl::ParseAndroidDumpstateEvent(
+    int64_t ts,
+    AndroidDumpstateEvent event) {
   switch (event.type) {
     case AndroidDumpstateEvent::EventType::kBatteryStatsHistoryEvent:
       ProcessBatteryStatsHistoryItem(ts, event.raw_event);
