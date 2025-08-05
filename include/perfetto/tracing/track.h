@@ -217,7 +217,7 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
       : Track(id ^ internal::Fnv1a(name.value) ^ kNamedTrackMagic, parent),
         static_name_(name) {}
 
-  // Construct a track using |ptr| as identifier.
+  // Construct a track using `name` and `ptr` as identifier.
   template <class TrackEventName>
   static NamedTrack FromPointer(TrackEventName&& name,
                                 const void* ptr,
