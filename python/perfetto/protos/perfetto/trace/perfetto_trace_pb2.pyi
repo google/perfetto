@@ -12629,14 +12629,14 @@ class NetworkPacketContext(_message.Message):
     def __init__(self, iid: _Optional[int] = ..., ctx: _Optional[_Union[NetworkPacketEvent, _Mapping]] = ...) -> None: ...
 
 class NetworkPacketEvent(_message.Message):
-    __slots__ = ["direction", "icmp_code", "icmp_type", "interface", "ip_proto", "length", "local_port", "remote_port", "tag", "tcp_flags", "uid"]
+    __slots__ = ["direction", "icmp_code", "icmp_type", "ip_proto", "length", "local_port", "network_interface", "remote_port", "tag", "tcp_flags", "uid"]
     DIRECTION_FIELD_NUMBER: _ClassVar[int]
     ICMP_CODE_FIELD_NUMBER: _ClassVar[int]
     ICMP_TYPE_FIELD_NUMBER: _ClassVar[int]
-    INTERFACE_FIELD_NUMBER: _ClassVar[int]
     IP_PROTO_FIELD_NUMBER: _ClassVar[int]
     LENGTH_FIELD_NUMBER: _ClassVar[int]
     LOCAL_PORT_FIELD_NUMBER: _ClassVar[int]
+    NETWORK_INTERFACE_FIELD_NUMBER: _ClassVar[int]
     REMOTE_PORT_FIELD_NUMBER: _ClassVar[int]
     TAG_FIELD_NUMBER: _ClassVar[int]
     TCP_FLAGS_FIELD_NUMBER: _ClassVar[int]
@@ -12644,15 +12644,15 @@ class NetworkPacketEvent(_message.Message):
     direction: TrafficDirection
     icmp_code: int
     icmp_type: int
-    interface: str
     ip_proto: int
     length: int
     local_port: int
+    network_interface: str
     remote_port: int
     tag: int
     tcp_flags: int
     uid: int
-    def __init__(self, direction: _Optional[_Union[TrafficDirection, str]] = ..., interface: _Optional[str] = ..., length: _Optional[int] = ..., uid: _Optional[int] = ..., tag: _Optional[int] = ..., ip_proto: _Optional[int] = ..., tcp_flags: _Optional[int] = ..., local_port: _Optional[int] = ..., remote_port: _Optional[int] = ..., icmp_type: _Optional[int] = ..., icmp_code: _Optional[int] = ...) -> None: ...
+    def __init__(self, direction: _Optional[_Union[TrafficDirection, str]] = ..., network_interface: _Optional[str] = ..., length: _Optional[int] = ..., uid: _Optional[int] = ..., tag: _Optional[int] = ..., ip_proto: _Optional[int] = ..., tcp_flags: _Optional[int] = ..., local_port: _Optional[int] = ..., remote_port: _Optional[int] = ..., icmp_type: _Optional[int] = ..., icmp_code: _Optional[int] = ...) -> None: ...
 
 class NetworkPacketTraceConfig(_message.Message):
     __slots__ = ["aggregation_threshold", "drop_local_port", "drop_remote_port", "drop_tcp_flags", "intern_limit", "poll_ms"]
