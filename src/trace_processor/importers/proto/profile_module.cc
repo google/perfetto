@@ -141,8 +141,9 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
     sequence_state->IncrementAndGetTrackEventTimeNs(*timestamp_it * 1000);
   }
 
-  context_->sorter->PushTracePacket(packet_ts, std::move(sequence_state),
-                                    std::move(*packet), context_->machine_id());
+  module_context_->trace_packet_stream->Push(
+      packet_ts,
+      TracePacketData{std::move(*packet), std::move(sequence_state)});
   return ModuleResult::Handled();
 }
 

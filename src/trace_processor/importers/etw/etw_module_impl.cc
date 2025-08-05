@@ -33,9 +33,7 @@ using perfetto::protos::pbzero::TracePacket;
 
 EtwModuleImpl::EtwModuleImpl(ProtoImporterModuleContext* module_context,
                              TraceProcessorContext* context)
-    : EtwModule(module_context),
-      tokenizer_(module_context, context),
-      parser_(context) {
+    : EtwModule(module_context), tokenizer_(module_context), parser_(context) {
   RegisterForField(TracePacket::kEtwEventsFieldNumber);
 }
 

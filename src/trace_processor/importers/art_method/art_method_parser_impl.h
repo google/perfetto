@@ -21,17 +21,18 @@
 
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/art_method/art_method_event.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::art_method {
 
-class ArtMethodParserImpl : public ArtMethodParser {
+class ArtMethodParserImpl
+    : public TraceSorter::Sink<ArtMethodEvent, ArtMethodParserImpl> {
  public:
   explicit ArtMethodParserImpl(TraceProcessorContext*);
   ~ArtMethodParserImpl() override;
 
-  void ParseArtMethodEvent(int64_t ts, ArtMethodEvent) override;
+  void Parse(int64_t ts, ArtMethodEvent);
 
  private:
   TraceProcessorContext* const context_;
