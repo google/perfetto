@@ -46,10 +46,18 @@ jobs:
           mkdir -p $PERFETTO_ARTIFACTS_DIR
 
       - name: Restore cache
+        id: restore_cache
         uses: ./.github/actions/cache-on-google-cloud-storage/restore
         with:
           directory: ${{ env.PERFETTO_CACHE_DIR }}
           cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
+
+      - name: Print Cache hit
+        shell: bash
+        env:
+          CACHE_HIT: ${{ steps.restore_cache.outputs.cache_hit }}
+        run: |
+          echo "CACHE_HIT: $CACHE_HIT" 
 
       - uses: ./.github/actions/install-build-deps
         with:
