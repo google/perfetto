@@ -587,6 +587,7 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   // Trigger CI build.
   // Trigger one more CI build.
   // Trigger one more CI build.
+  // Trigger one more CI build.
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
   // If the producer is specifying a UUID, respect that (at least for the first
