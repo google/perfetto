@@ -131,37 +131,6 @@ class JsonTraceTokenizer : public ChunkedTraceReader {
 
   TraceProcessorContext* const context_;
 
-  class JsonSink : public TraceSorter::Sink<JsonEvent, JsonSink> {
-   public:
-    explicit JsonSink(JsonTraceParserImpl* parser) : parser_(parser) {}
-    void Parse(int64_t ts, JsonEvent data) {
-      parser_->ParseJsonPacket(ts, std::move(data));
-    }
-
-   private:
-    JsonTraceParserImpl* parser_;
-  };
-  class SystraceSink : public TraceSorter::Sink<SystraceLine, SystraceSink> {
-   public:
-    explicit SystraceSink(JsonTraceParserImpl* parser) : parser_(parser) {}
-    void Parse(int64_t ts, SystraceLine data) {
-      parser_->ParseSystraceLine(ts, std::move(data));
-    }
-
-   private:
-    JsonTraceParserImpl* parser_;
-  };
-  class V8Sink : public TraceSorter::Sink<LegacyV8CpuProfileEvent, V8Sink> {
-   public:
-    explicit V8Sink(LegacyV8CpuProfileTracker* tracker) : tracker_(tracker) {}
-    void Parse(int64_t ts, LegacyV8CpuProfileEvent data) {
-      tracker_->Parse(ts, std::move(data));
-    }
-
-   private:
-    LegacyV8CpuProfileTracker* tracker_;
-  };
-
   JsonTraceParserImpl parser_;
   std::unique_ptr<LegacyV8CpuProfileTracker> v8_tracker_;
   std::unique_ptr<TraceSorter::Stream<JsonEvent>> json_stream_;

@@ -43,6 +43,7 @@
 #include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/json/json_parser.h"
+#include "src/trace_processor/importers/json/json_trace_parser_impl.h"
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
@@ -352,6 +353,37 @@ void ParseId2(json::Iterator& inner_it,
     }
   }
 }
+
+class JsonSink : public TraceSorter::Sink<JsonEvent, JsonSink> {
+ public:
+  explicit JsonSink(JsonTraceParserImpl* parser) : parser_(parser) {}
+  void Parse(int64_t ts, JsonEvent data) {
+    parser_->ParseJsonPacket(ts, std::move(data));
+  }
+
+ private:
+  JsonTraceParserImpl* parser_;
+};
+class SystraceSink : public TraceSorter::Sink<SystraceLine, SystraceSink> {
+ public:
+  explicit SystraceSink(JsonTraceParserImpl* parser) : parser_(parser) {}
+  void Parse(int64_t ts, SystraceLine data) {
+    parser_->ParseSystraceLine(ts, std::move(data));
+  }
+
+ private:
+  JsonTraceParserImpl* parser_;
+};
+class V8Sink : public TraceSorter::Sink<LegacyV8CpuProfileEvent, V8Sink> {
+ public:
+  explicit V8Sink(LegacyV8CpuProfileTracker* tracker) : tracker_(tracker) {}
+  void Parse(int64_t ts, LegacyV8CpuProfileEvent data) {
+    tracker_->Parse(ts, std::move(data));
+  }
+
+ private:
+  LegacyV8CpuProfileTracker* tracker_;
+};
 
 }  // namespace
 
