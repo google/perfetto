@@ -26,7 +26,7 @@ import {
   addDebugSliceTrack,
   DebugSliceTrackArgs,
 } from '../../../components/tracks/debug_tracks';
-import {LONG, QueryResult} from '../../../trace_processor/query_result';
+import {LONG, QueryResult, Row} from '../../../trace_processor/query_result';
 
 class BlockingCallMetricHandler implements MetricHandler {
   /**
@@ -132,9 +132,9 @@ class BlockingCallMetricHandler implements MetricHandler {
         frame_id
       FROM _blocking_calls_frame_cuj
       WHERE
-        process_name = "${processName}"
-        AND name = "${blockingCallName}"
-        AND cuj_name = "${cuj}"
+        process_name = '${processName}'
+        AND name = '${blockingCallName}'
+        AND cuj_name = '${cuj}'
       -- select frame_id for the metric with the maximum duration.
       ORDER BY dur DESC
       LIMIT 1`);
@@ -145,9 +145,20 @@ class BlockingCallMetricHandler implements MetricHandler {
   ): Promise<
     Pick<DebugSliceTrackArgs, 'data' | 'columns' | 'argColumns' | 'title'>
   > {
-    const row = (
-      await this.getFrameIdWithMaxDurationBlockingCall(ctx, metricData)
-    ).firstRow({frame_id: LONG});
+    let row: Row = {
+      frame_id: null,
+    };
+
+    try {
+      row = (
+        await this.getFrameIdWithMaxDurationBlockingCall(ctx, metricData)
+      ).firstRow({frame_id: LONG});
+    } catch (e) {
+      throw new Error(
+        `${e.message} caused by: No frame found for the given process, CUJ and blocking call.`,
+      );
+    }
+
     // Fetch the ts and dur of the frame corresponding to the above frame_id.
     const frameWithMaxDurBlockingCallQuery = `
       SELECT
