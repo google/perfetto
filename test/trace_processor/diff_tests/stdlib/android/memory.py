@@ -326,16 +326,18 @@ class AndroidMemory(TestSuite):
         4145263509021,-10399744,13583,3,591,"[NULL]","[NULL]","[NULL]","[NULL]"
          """))
 
-  def test_memory_dmabuf_per_process(self):
+  def test_memory_dmabuf_cumulative(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
         packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 0
           process_tree {
             processes {
-              pid: 1000
-              ppid: 1000
-              cmdline: "com.android.systemui"
-              uid: 10001
+              pid: 3000
+              ppid: 1
+              uid: 0
+              cmdline: "process1"
             }
           }
         }
@@ -343,44 +345,91 @@ class AndroidMemory(TestSuite):
           ftrace_events {
             cpu: 0
             event {
-              timestamp: 1000
-              pid: 1000
-              print {
-                buf: "C|1000|dmabuf allocs|10"
+              timestamp: 1
+              pid: 3000
+              dma_heap_stat {
+                inode: 13583
+                len: 3000
+                total_allocated: 3000
               }
             }
-          }
-        }
-        packet {
-          ftrace_events {
-            cpu: 0
             event {
-              timestamp: 2000
-              pid: 1000
-              print {
-                buf: "C|1000|dmabuf allocs|20"
+              timestamp: 2
+              pid: 3000
+              dma_heap_stat {
+                inode: 13583
+                len: -3000
+                total_allocated: 0
               }
             }
-          }
-        }
-        packet {
-          ftrace_events {
-            cpu: 0
             event {
-              timestamp: 1000
-              pid: 1000
-              print {
-                buf: "C|1000|Random Counter|111"
+              timestamp: 4144791776152
+              pid: 9403
+              binder_transaction {
+                debug_id: 3052940
+                target_node: 256
+                to_proc: 572
+                to_thread: 0
+                reply: 0
+                code: 1
+                flags: 16
+              }
+            }
+            event {
+              timestamp: 4144791793486
+              pid: 591
+              binder_transaction_received {
+                debug_id: 3052940
+              }
+            }
+            event {
+              timestamp: 4144792258492
+              pid: 591
+              dma_heap_stat {
+                inode: 13583
+                len: 10399744
+                total_allocated: 254873600
+              }
+            }
+            event {
+              timestamp: 4144792517566
+              pid: 591
+              binder_transaction {
+                debug_id: 3052950
+                target_node: 0
+                to_proc: 2051
+                to_thread: 9403
+                reply: 1
+                code: 0
+                flags: 0
+              }
+            }
+            event {
+              timestamp: 4144792572498
+              pid: 9403
+              binder_transaction_received {
+                debug_id: 3052950
+              }
+            }
+            event {
+              timestamp: 4145263509021
+              pid: 613
+              dma_heap_stat {
+                inode: 13583
+                len: -10399744
+                total_allocated: 390160384
               }
             }
           }
         }"""),
         query="""
         INCLUDE PERFETTO MODULE android.memory.dmabuf;
-        SELECT * FROM android_dmabuf_allocs_counter_per_process;
+        SELECT * FROM android_memory_cumulative_dmabuf;
         """,
         out=Csv("""
-        "id","upid","ts","dur","value"
-        0,1,1000,1000,10.000000
-        2,1,2000,0,20.000000
+        "upid","utid","ts","value"
+        2,2,1,3000
+        2,2,2,0
+        "[NULL]",4,4144792258492,10399744
+        "[NULL]",4,4145263509021,0
         """))

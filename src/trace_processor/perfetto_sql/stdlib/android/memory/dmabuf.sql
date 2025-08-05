@@ -147,34 +147,23 @@ LEFT JOIN process
 ORDER BY
   ts;
 
--- Provides a timeseries of "dmabuf allocs" counter for each process.
-CREATE PERFETTO TABLE android_dmabuf_allocs_counter_per_process (
-  -- ID of the row in the underlying counter table.
-  id ID(counter.id),
-  -- Upid of the process.
-  upid ID(process_counter_track.upid),
-  -- Timestamp of the start of the interval.
+-- Provides a timeseries of dmabuf allocations for each process.
+-- To populate this table, tracing must be enabled with the "dmabuf_allocs" ftrace event.
+CREATE PERFETTO TABLE android_memory_cumulative_dmabuf (
+  -- upid of process responsible for the allocation (matches utid)
+  upid JOINID(process.id),
+  -- utid of thread responsible for the allocation
+  -- if a dmabuf is allocated by gralloc we follow the binder transaction
+  -- to the requesting thread (requires binder tracing)
+  utid JOINID(thread.id),
+  -- timestamp of the allocation
   ts TIMESTAMP,
-  -- Duration of the interval.
-  dur DURATION,
-  -- dmabuf allocations
+  -- total allocation size per process and thread
   value LONG
 ) AS
 SELECT
-  intervals.id,
   upid,
+  utid,
   ts,
-  dur,
-  value
-FROM counter_leading_intervals!((
-  SELECT
-        c.id,
-        c.track_id,
-        c.ts,
-        c.value
-      FROM counter AS c
-  JOIN process_counter_track AS pct ON pct.id = c.track_id
-      WHERE pct.name = "dmabuf allocs"
-)) AS intervals
-JOIN process_counter_track AS pct
-  ON pct.id = track_id;
+  sum(buf_size) OVER (PARTITION BY coalesce(upid, utid) ORDER BY ts) AS value
+FROM android_dmabuf_allocs;
