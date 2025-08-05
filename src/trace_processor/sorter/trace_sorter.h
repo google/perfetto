@@ -167,7 +167,7 @@ class TraceSorter {
 
     // Indicates whether the event is a JSON event: may have special rules based
     // on the event type and duration.
-    uint64_t is_json_event : 1;
+    bool is_json_event : 1;
 
     BumpAllocator::AllocId alloc_id() const {
       return BumpAllocator::AllocId{chunk_index, chunk_offset};
