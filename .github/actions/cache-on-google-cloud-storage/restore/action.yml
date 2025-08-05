@@ -27,7 +27,7 @@ inputs:
 outputs:
   cache_hit:
     description: A boolean value to indicate that 'cache_key' was found.
-    value: ${{ restore_action_script.outputs.cache_hit }}
+    value: ${{ steps.restore_action_script.outputs.cache_hit }}
 runs:
   using: "composite"
   steps:
