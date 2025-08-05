@@ -153,6 +153,9 @@ class ProtoImporterModule {
   ProtoImporterModuleContext* module_context_;
 };
 
+// Contains the common state for all proto modules and the proto parser.
+//
+// Used to store per-trace state in a place where everyone can access it.
 struct ProtoImporterModuleContext {
   // The module at the index N is registered to handle field id N in
   // TracePacket.
