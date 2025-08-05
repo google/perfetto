@@ -56,7 +56,7 @@ SELECT
     cast_double!(SUM(cnt)) / frame_cnt AS mean_cnt_per_frame,
     MAX(cnt) AS max_cnt_per_frame,
     SUM(total_dur_per_frame_ns) / frame_cnt AS mean_dur_per_frame_ns,
-    MAX(max_dur_per_frame_ns) AS max_dur_per_frame_ns,
+    MAX(total_dur_per_frame_ns) AS max_dur_per_frame_ns,
     name,
     upid,
     bc.cuj_name,
