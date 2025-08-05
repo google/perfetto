@@ -378,7 +378,7 @@ class V8Sink : public TraceSorter::Sink<LegacyV8CpuProfileEvent, V8Sink> {
  public:
   explicit V8Sink(LegacyV8CpuProfileTracker* tracker) : tracker_(tracker) {}
   void Parse(int64_t ts, LegacyV8CpuProfileEvent data) {
-    tracker_->Parse(ts, std::move(data));
+    tracker_->Parse(ts, data);
   }
 
  private:
