@@ -218,7 +218,9 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
         static_name_(name) {}
 
   // Construct a track using |ptr| as identifier.
-  static NamedTrack FromPointer(const void* ptr,
+  template <class TrackEventName>
+  static NamedTrack FromPointer(TrackEventName&& name,
+                                const void* ptr,
                                 Track parent = MakeProcessTrack()) {
     // Using pointers as global TrackIds isn't supported as pointers are
     // per-proccess and the same pointer value can be used in different
@@ -226,7 +228,8 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
     // verify that Tracing::Initialize() was called for the current process.
     PERFETTO_DCHECK(parent.uuid != Track().uuid);
 
-    return NamedTrack(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(ptr)),
+    return NamedTrack(std::forward<TrackEventName>(name),
+                      static_cast<uint64_t>(reinterpret_cast<uintptr_t>(ptr)),
                       parent);
   }
 
