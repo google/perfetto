@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "src/trace_processor/importers/etw/etw_tokenizer.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -26,10 +28,9 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/importers/etw/etw_tokenizer.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
-#include "src/trace_processor/sorter/trace_sorter.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/etw/etw_event.pbzero.h"
