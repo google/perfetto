@@ -51,7 +51,7 @@ class TraceProcessorStorageImpl : public TraceProcessorStorage {
   bool unrecoverable_parse_error_ = false;
   bool eof_ = false;
   size_t hash_input_size_remaining_ = 4096;
-  std::unique_ptr<ForwardingTraceParser> parser_ = nullptr;
+  std::unique_ptr<ForwardingTraceParser> parser_;
 };
 
 }  // namespace perfetto::trace_processor
