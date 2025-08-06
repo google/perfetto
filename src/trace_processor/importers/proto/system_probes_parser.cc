@@ -238,37 +238,32 @@ void SystemProbesParser::ParseDiskStats(int64_t ts, ConstBytes blob) {
   protos::pbzero::SysStats::DiskStat::Decoder ds(blob);
 
   // TODO(https://github.com/google/perfetto/issues/2427): this constant assumes
-  // that the disk's logical sector size is 512. This is very commonly true but
-  // enterprise SSDs can have a logical size of 4K.
+  // that the disk's logical sector size is 512 bytes. This is very commonly
+  // true but enterprise SSDs can have a logical size of 4KB.
   //
   // Unfortunately the only way we could figure this out is by pollling
   // `/sys/block/<device_name>/queue/logical_block_size` on device which
   // requires changing the recording code.
   static constexpr double SECTORS_PER_MB = 2048.0;
   static constexpr double MS_PER_SEC = 1000.0;
-  std::string device_name = ds.device_name().ToStdString();
 
   static constexpr auto kBlueprint = tracks::CounterBlueprint(
       "diskstat", tracks::UnknownUnitBlueprint(),
       tracks::DimensionBlueprints(
-          tracks::StringDimensionBlueprint("device_name")),
+          tracks::StringIdDimensionBlueprint("device_name")),
       tracks::DynamicNameBlueprint());
 
-  base::StackString<512> tag_prefix("diskstat.[%s]", device_name.c_str());
+  StringId device_name_id = context_->storage->InternString(ds.device_name());
+  base::StackString<512> tag_prefix(
+      "diskstat.[%.*s]", int(ds.device_name().size), ds.device_name().data);
   auto push_counter = [&, this](const char* counter_name, double value) {
     base::StackString<512> track_name("%s.%s", tag_prefix.c_str(),
                                       counter_name);
     StringId string_id = context_->storage->InternString(track_name.c_str());
     TrackId track = context_->track_tracker->InternTrack(
-        kBlueprint, tracks::Dimensions(track_name.string_view()),
+        kBlueprint, tracks::Dimensions(device_name_id),
         tracks::DynamicName(string_id));
     context_->event_tracker->PushCounter(ts, value, track);
-  };
-
-  // TODO(rsavitski): with the UI now supporting rate mode for counter tracks,
-  // this is likely redundant.
-  auto calculate_throughput = [](double amount, int64_t diff) {
-    return diff == 0 ? 0 : amount * MS_PER_SEC / static_cast<double>(diff);
   };
 
   auto cur_read_amount = static_cast<int64_t>(ds.read_sectors());
@@ -280,23 +275,30 @@ void SystemProbesParser::ParseDiskStats(int64_t ts, ConstBytes blob) {
   auto cur_discard_time = static_cast<int64_t>(ds.discard_time_ms());
   auto cur_flush_time = static_cast<int64_t>(ds.flush_time_ms());
 
-  if (prev_read_amount != -1) {
+  DiskStatState& state = disk_state_map_[device_name_id];
+  if (state.prev_read_amount != -1) {
     double read_amount =
-        static_cast<double>(cur_read_amount - prev_read_amount) /
+        static_cast<double>(cur_read_amount - state.prev_read_amount) /
         SECTORS_PER_MB;
     double write_amount =
-        static_cast<double>(cur_write_amount - prev_write_amount) /
+        static_cast<double>(cur_write_amount - state.prev_write_amount) /
         SECTORS_PER_MB;
     double discard_amount =
-        static_cast<double>(cur_discard_amount - prev_discard_amount) /
+        static_cast<double>(cur_discard_amount - state.prev_discard_amount) /
         SECTORS_PER_MB;
-    auto flush_count = static_cast<double>(cur_flush_count - prev_flush_count);
-    int64_t read_time_diff = cur_read_time - prev_read_time;
-    int64_t write_time_diff = cur_write_time - prev_write_time;
-    int64_t discard_time_diff = cur_discard_time - prev_discard_time;
+    auto flush_count =
+        static_cast<double>(cur_flush_count - state.prev_flush_count);
+    int64_t read_time_diff = cur_read_time - state.prev_read_time;
+    int64_t write_time_diff = cur_write_time - state.prev_write_time;
+    int64_t discard_time_diff = cur_discard_time - state.prev_discard_time;
     auto flush_time_diff =
-        static_cast<double>(cur_flush_time - prev_flush_time);
+        static_cast<double>(cur_flush_time - state.prev_flush_time);
 
+    // TODO(rsavitski): with the UI now supporting rate mode for counter tracks,
+    // this is likely redundant.
+    auto calculate_throughput = [](double amount, int64_t diff) {
+      return diff == 0 ? 0 : amount * MS_PER_SEC / static_cast<double>(diff);
+    };
     double read_thpt = calculate_throughput(read_amount, read_time_diff);
     double write_thpt = calculate_throughput(write_amount, write_time_diff);
     double discard_thpt =
@@ -311,15 +313,14 @@ void SystemProbesParser::ParseDiskStats(int64_t ts, ConstBytes blob) {
     push_counter("flush_amount(count)", flush_count);
     push_counter("flush_time(ms)", flush_time_diff);
   }
-
-  prev_read_amount = cur_read_amount;
-  prev_write_amount = cur_write_amount;
-  prev_discard_amount = cur_discard_amount;
-  prev_flush_count = cur_flush_count;
-  prev_read_time = cur_read_time;
-  prev_write_time = cur_write_time;
-  prev_discard_time = cur_discard_time;
-  prev_flush_time = cur_flush_time;
+  state.prev_read_amount = cur_read_amount;
+  state.prev_write_amount = cur_write_amount;
+  state.prev_discard_amount = cur_discard_amount;
+  state.prev_flush_count = cur_flush_count;
+  state.prev_read_time = cur_read_time;
+  state.prev_write_time = cur_write_time;
+  state.prev_discard_time = cur_discard_time;
+  state.prev_flush_time = cur_flush_time;
 }
 
 void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
