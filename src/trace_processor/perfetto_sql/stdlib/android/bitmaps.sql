@@ -51,7 +51,7 @@ CREATE PERFETTO TABLE android_bitmap_memory (
   -- ID of the row in the underlying counter table.
   id ID(counter.id),
   -- Upid of the process.
-  upid ID(process.upid),
+  upid JOINID(process.upid),
   -- Timestamp of the start of the interval.
   ts TIMESTAMP,
   -- Duration of the interval.
@@ -83,7 +83,7 @@ CREATE PERFETTO TABLE android_bitmap_count (
   -- ID of the row in the underlying counter table.
   id ID(counter.id),
   -- Upid of the process.
-  upid ID(process.upid),
+  upid JOINID(process.upid),
   -- Timestamp of the start of the interval.
   ts TIMESTAMP,
   -- Duration of the interval.
