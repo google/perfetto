@@ -247,6 +247,18 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
     return NamedTrack(std::forward<TrackEventName>(name), id, parent);
   }
 
+  // Same as above using `name` and `ptr` as identifier within thread-scope.
+  template <class TrackEventName>
+  static NamedTrack ThreadScoped(TrackEventName&& name,
+                                 const void* ptr,
+                                 Track parent = Track()) {
+    if (parent.uuid == 0) {
+      return NamedTrack::FromPointer(std::forward<TrackEventName>(name), ptr,
+                                     ThreadTrack::Current());
+    }
+    return Track::FromPointer(std::forward<TrackEventName>(name), ptr, parent);
+  }
+
   void Serialize(protos::pbzero::TrackDescriptor*) const;
   protos::gen::TrackDescriptor Serialize() const;
 
