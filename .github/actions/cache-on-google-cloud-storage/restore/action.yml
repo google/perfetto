@@ -32,7 +32,6 @@ runs:
   using: "composite"
   steps:
     - name: Invoke acton script
-      shell: bash
       id: restore_action_script
       env:
         INPUT_DIRECTORY: ${{ inputs.directory }}
@@ -40,5 +39,5 @@ runs:
         INPUT_EXCLUDE_FILES_PATH: ${{ inputs.exclude_files }}
         INPUT_ACTION: "restore"
         ACTION_PATH: ${{ github.action_path }}
-      run: |
-        bash $ACTION_PATH/../cache_on_google_storage_action.sh
+      shell: bash
+      run: bash $ACTION_PATH/../cache_on_google_storage_action.sh
