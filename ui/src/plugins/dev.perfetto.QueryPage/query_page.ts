@@ -181,7 +181,10 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   ) {
     const queryTimeString = `${queryResult.durationMs.toFixed(1)} ms`;
     if (queryResult.error) {
-      return m('.query-error', `SQL error: ${queryResult.error}`);
+      return m(
+        '.pf-query-page__query-error',
+        `SQL error: ${queryResult.error}`,
+      );
     } else {
       return [
         queryResult.statementWithOutputCount > 1 &&
