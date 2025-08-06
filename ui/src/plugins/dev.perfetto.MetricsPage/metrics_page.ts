@@ -346,7 +346,7 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
     const v1Controller = assertExists(this.v1Controller);
     const json = v1Controller.resultAsJson;
     return m(
-      '.metrics-page',
+      '.pf-metrics-page',
       m(
         '',
         m(SegmentedButtons, {
