@@ -37,9 +37,10 @@ jobs:
         shell: bash
         run: |
           echo "PERFETTO_CACHE_DIR: $PERFETTO_CACHE_DIR"
-          file "$PERFETTO_CACHE_DIR"
           if [[ -d "$PERFETTO_CACHE_DIR" ]]; then
             echo "folder exists"
+          else
+            echo "folder DOESN'T exist"
           fi
 
       - name: Setup ccahe
@@ -50,9 +51,10 @@ jobs:
         shell: bash
         run: |
           echo "PERFETTO_CACHE_DIR: $PERFETTO_CACHE_DIR"
-          file "$PERFETTO_CACHE_DIR"
           if [[ -d "$PERFETTO_CACHE_DIR" ]]; then
             echo "folder exists"
+          else
+            echo "folder DOESN'T exist"
           fi
 
       - uses: ./.github/actions/install-build-deps
@@ -64,6 +66,16 @@ jobs:
         with:
           directory: ${{ env.PERFETTO_CACHE_DIR }}
           cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
+
+      - name: Print /tmp/cache status 3
+        shell: bash
+        run: |
+          echo "PERFETTO_CACHE_DIR: $PERFETTO_CACHE_DIR"
+          if [[ -d "$PERFETTO_CACHE_DIR" ]]; then
+            echo "folder exists"
+          else
+            echo "folder DOESN'T exist"
+          fi
 
       - name: Start emulator in the background
         shell: bash
