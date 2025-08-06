@@ -33,9 +33,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup cache directory
+      - name: Print /tmp/cache status
+        shell: bash
+        run: |
+          echo "PERFETTO_CACHE_DIR: $PERFETTO_CACHE_DIR"
+          file "$PERFETTO_CACHE_DIR"
+          if [[ -d "$PERFETTO_CACHE_DIR" ]]; then
+            echo "folder exists"
+          fi
+
+      - name: Setup ccahe
         shell: bash
         run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
+
+      - name: Print /tmp/cache status 2
+        shell: bash
+        run: |
+          echo "PERFETTO_CACHE_DIR: $PERFETTO_CACHE_DIR"
+          file "$PERFETTO_CACHE_DIR"
+          if [[ -d "$PERFETTO_CACHE_DIR" ]]; then
+            echo "folder exists"
+          fi
 
       - uses: ./.github/actions/install-build-deps
         with:
