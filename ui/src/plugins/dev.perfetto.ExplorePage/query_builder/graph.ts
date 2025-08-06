@@ -27,6 +27,7 @@ import {
   PADDING,
   DEFAULT_NODE_WIDTH,
 } from './node_box';
+import { Icon } from '../../../widgets/icon';
 
 const BUTTONS_AREA_WIDTH = 300;
 const BUTTONS_AREA_HEIGHT = 50;
@@ -51,7 +52,7 @@ const SourceCard: m.Component<SourceCardAttrs> = {
       {onclick},
       m(
         '.pf-source-card-clickable',
-        m('i.material-icons', icon),
+        m(Icon, {icon}),
         m('h3', title),
       ),
       m('p', description),

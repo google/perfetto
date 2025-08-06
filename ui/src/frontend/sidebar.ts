@@ -48,6 +48,8 @@ import {classNames} from '../base/classnames';
 import {formatHotkey} from '../base/hotkeys';
 import {assetSrc} from '../base/assets';
 import {assertExists} from '../base/logging';
+import {Icon} from '../widgets/icon';
+import {Button} from '../widgets/button';
 
 const GITILES_URL = 'https://github.com/google/perfetto';
 
@@ -388,19 +390,11 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
       m(
         `header.pf-sidebar__channel--${getCurrentChannel()}`,
         m(`img[src=${assetSrc('assets/brand.png')}].pf-sidebar__brand`),
-        m(
-          'button.pf-sidebar-button',
-          {
-            onclick: () => sidebar.toggleVisibility(),
-          },
-          m(
-            'i.material-icons',
-            {
-              title: sidebar.visible ? 'Hide menu' : 'Show menu',
-            },
-            'menu',
-          ),
-        ),
+        m(Button, {
+          icon: 'menu',
+          className: 'pf-sidebar-button',
+          onclick: () => sidebar.toggleVisibility(),
+        }),
       ),
       m(
         '.pf-sidebar__scroll',
@@ -503,7 +497,11 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
           disabled,
           title: tooltip,
         },
-        exists(item.icon) && m('i.material-icons', valueOrCallback(item.icon)),
+        exists(item.icon) &&
+          m(Icon, {
+            className: 'pf-sidebar__button-icon',
+            icon: valueOrCallback(item.icon),
+          }),
         text,
       ),
     );

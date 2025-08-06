@@ -19,6 +19,8 @@ import {traceConfigToTxt} from '../config/trace_config_utils_wasm';
 import protos from '../../../protos';
 import {RecordSubpage} from '../config/config_interfaces';
 import {Anchor} from '../../../widgets/anchor';
+import {Button} from '../../../widgets/button';
+import {Icons} from '../../../base/semantic_icons';
 
 export function instructionsPage(recMgr: RecordingManager): RecordSubpage {
   return {
@@ -87,14 +89,11 @@ class InstructionsPage implements m.ClassComponent<RecMgrAttrs> {
       m('p', 'Save the file below as: config.pbtx'),
       m(
         '.code-snippet',
-        m(
-          'button',
-          {
-            title: 'Copy to clipboard',
-            onclick: () => copyToClipboard(this.configTxt),
-          },
-          m('i.material-icons', 'assignment'),
-        ),
+        m(Button, {
+          title: 'Copy to clipboard',
+          icon: Icons.Copy,
+          onclick: () => copyToClipboard(this.configTxt),
+        }),
         m('code', this.configTxt),
       ),
     ];

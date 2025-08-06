@@ -17,6 +17,7 @@ import {Engine, EngineAttrs} from '../../trace_processor/engine';
 import {QueryResult, UNKNOWN} from '../../trace_processor/query_result';
 import {assertExists} from '../../base/logging';
 import {Trace, TraceAttrs} from '../../public/trace';
+import {Icon} from '../../widgets/icon';
 
 /**
  * Extracts and copies fields from a source object based on the keys present in
@@ -112,7 +113,12 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
     const tableRows = data.map((row) => {
       const help = [];
       if (Boolean(row.description)) {
-        help.push(m('i.material-icons.contextual-help', 'help_outline'));
+        help.push(
+          m(Icon, {
+            icon: 'help_outline',
+            className: 'pf-trace-info-page__help-icon',
+          }),
+        );
       }
       const idx = row.idx !== '' ? `[${row.idx}]` : '';
       return m(

@@ -17,6 +17,13 @@
   overflow-x: hidden;
   padding: 0 20px;
 
+  &__help-icon {
+    font-size: 18px;
+    margin-left: 10px;
+    color: #43a047;
+    cursor: default;
+  }
+
   section {
     margin: 20px auto;
     max-width: 800px;
@@ -57,13 +64,6 @@
       line-height: 1.25rem;
       margin: 10px 0;
       color: #333;
-    }
-
-    .contextual-help {
-      font-size: 18px;
-      margin-left: 10px;
-      color: #43a047;
-      cursor: default;
     }
 
     table {

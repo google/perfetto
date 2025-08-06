@@ -16,6 +16,8 @@ import m from 'mithril';
 import {raf} from './raf_scheduler';
 import {PerfStats, PerfStatsContainer, runningStatStr} from './perf_stats';
 import {MithrilEvent} from '../base/mithril_utils';
+import {Button} from '../widgets/button';
+import {Icons} from '../base/semantic_icons';
 
 export class PerfManager {
   private _enabled = false;
@@ -75,18 +77,15 @@ class PerfStatsUi implements m.ClassComponent<PerfStatsUiAttrs> {
   view({attrs}: m.Vnode<PerfStatsUiAttrs>) {
     return m(
       '.pf-perf-stats',
-      {},
       m('section', this.renderRafSchedulerStats()),
-      m(
-        'button.pf-perf-stats__close-button',
-        {
-          onclick: () => {
-            attrs.perfMgr.enabled = false;
-            raf.scheduleFullRedraw();
-          },
+      m(Button, {
+        className: 'pf-perf-stats__close',
+        icon: Icons.Close,
+        onclick: () => {
+          attrs.perfMgr.enabled = false;
+          raf.scheduleFullRedraw();
         },
-        m('i.material-icons', 'close'),
-      ),
+      }),
       attrs.perfMgr.containers.map((c, i) =>
         m('section', m('div', `Container #${i + 1}`), c.renderPerfStats()),
       ),
