@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -29,8 +30,9 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/art_method/art_method_event.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
@@ -83,7 +85,7 @@ class ArtMethodTokenizer : public ChunkedTraceReader {
   };
   struct Streaming {
     base::Status Parse();
-    base::Status NotifyEndOfFile();
+    base::Status NotifyEndOfFile() const;
 
     base::StatusOr<bool> ParseHeaderStart(Iterator&);
     base::StatusOr<bool> ParseData(Iterator&);
@@ -119,6 +121,7 @@ class ArtMethodTokenizer : public ChunkedTraceReader {
   uint32_t record_size_ = std::numeric_limits<uint32_t>::max();
   base::FlatHashMap<uint32_t, Method> method_map_;
   base::FlatHashMap<uint32_t, Thread> thread_map_;
+  std::unique_ptr<TraceSorter::Stream<ArtMethodEvent>> stream_;
 };
 
 }  // namespace perfetto::trace_processor::art_method

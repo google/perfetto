@@ -19,18 +19,19 @@
 
 #include <cstdint>
 
-#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/perf_text/perf_text_event.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::perf_text_importer {
 
-class PerfTextTraceParserImpl : public PerfTextTraceParser {
+class PerfTextTraceParserImpl
+    : public TraceSorter::Sink<PerfTextEvent, PerfTextTraceParserImpl> {
  public:
   explicit PerfTextTraceParserImpl(TraceProcessorContext*);
   ~PerfTextTraceParserImpl() override;
 
-  void ParsePerfTextEvent(int64_t ts, PerfTextEvent) override;
+  void Parse(int64_t ts, PerfTextEvent);
 
  private:
   TraceProcessorContext* const context_;

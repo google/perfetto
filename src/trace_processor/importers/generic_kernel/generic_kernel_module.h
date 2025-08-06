@@ -17,17 +17,20 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_GENERIC_KERNEL_GENERIC_KERNEL_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_GENERIC_KERNEL_GENERIC_KERNEL_MODULE_H_
 
+#include <cstdint>
+
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/generic_kernel/generic_kernel_parser.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class GenericKernelModule : public ProtoImporterModule {
  public:
-  explicit GenericKernelModule(TraceProcessorContext* context);
+  explicit GenericKernelModule(ProtoImporterModuleContext* module_context,
+                               TraceProcessorContext* context);
 
   void ParseTracePacketData(const protos::pbzero::TracePacket_Decoder& decoder,
                             int64_t ts,
@@ -38,7 +41,6 @@ class GenericKernelModule : public ProtoImporterModule {
   GenericKernelParser parser_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_GENERIC_KERNEL_GENERIC_KERNEL_MODULE_H_
