@@ -24,7 +24,7 @@ function set_github_output() {
 }
 
 function do_restore_cache() {
-  local CACHED_TAR_PATH
+  # Variable used in a trap, so not declared as local.
   CACHED_TAR_PATH=$(mktemp /tmp/restored-cache-XXXXXX.tar)
   trap 'rm -f "$CACHED_TAR_PATH"' EXIT
 
@@ -56,8 +56,6 @@ function do_restore_cache() {
     tar "${tar_args[@]}"
     set +x
 
-    rm "$CACHED_TAR_PATH"
-
     set_github_output "cache_hit" "true"
     echo "Cache restored, OK"
   elif [[ "$cp_output" =~ "The following URLs matched no objects or files" ]]; then
@@ -71,7 +69,7 @@ function do_restore_cache() {
 }
 
 function do_save_cache() {
-  local TAR_PATH
+  # Variable used in a trap, so not declared as local.
   TAR_PATH=$(mktemp /tmp/cache-XXXXXX.tar)
   trap 'rm -f "$TAR_PATH"' EXIT
 
@@ -93,8 +91,6 @@ function do_save_cache() {
   gcloud storage cp "$TAR_PATH" "$GCS_CACHE_PATH"
   cp_duration=$((SECONDS - cp_start_time))
   echo "The 'gcloud storage cp' took $cp_duration seconds to complete."
-
-  rm "$TAR_PATH"
 }
 
 function main() {
