@@ -15,28 +15,6 @@
 
 set -eu -o pipefail
 
-function do_validate_input() {
-  # Check if 'inputs.directory' exists.
-  if [[ ! -d "$INPUT_DIRECTORY" ]]; then
-    echo "Invalid input 'directory': the directory '$INPUT_DIRECTORY' does not exist."
-    exit 1
-  fi
-
-  # Check if 'inputs.cache_key' exists and matches the regex.
-  if [[ ! "$INPUT_CACHE_KEY" =~ $ALLOWED_CACHE_KEY_REGEX ]]; then
-    echo "Invalid input 'cache_key': '$INPUT_CACHE_KEY', allowed regex: '$ALLOWED_CACHE_KEY_REGEX'"
-    exit 1
-  fi
-
-  # Check if 'inputs.exclude_files' is provided and if the file actually exists
-  if [[ -n "$INPUT_EXCLUDE_FILES_PATH" ]]; then
-    if [[ ! -f "$INPUT_EXCLUDE_FILES_PATH" ]]; then
-      echo "Invalid input 'exclude_files': file '$INPUT_EXCLUDE_FILES_PATH' was specified but does not exist."
-      exit 1
-    fi
-  fi
-}
-
 function set_github_output() {
     local key="$1"
     local value="$2"
@@ -59,12 +37,19 @@ function do_restore_cache() {
 
     declare -a tar_args
     # '--keep-old-files' flag causes 'tar' to fail instead of overwriting files.
-    tar_args=("--keep-old-files" "--preserve-permissions" "--extract")
+    tar_args=("--extract" "--preserve-permissions" "--keep-old-files")
     # '--exclude-from' is used to not overwrite files that already exists in the output directory.
     if [[ -n "$INPUT_EXCLUDE_FILES_PATH" ]]; then
       tar_args+=("--exclude-from=$INPUT_EXCLUDE_FILES_PATH")
     fi
-    tar_args+=("--file=$CACHED_TAR_PATH" "--directory=$INPUT_DIRECTORY")
+    if [[ -d "$INPUT_DIRECTORY" ]]; then
+      # Extract to the existing directory.
+      tar_args+=("--directory=$INPUT_DIRECTORY")
+    else
+      # If there is no "$INPUT_DIRECTORY" tar creates it.
+      tar_args+=("--one-top-level=$INPUT_DIRECTORY")
+    fi
+    tar_args+=("--file=$CACHED_TAR_PATH")
 
     tar "${tar_args[@]}"
 
@@ -89,7 +74,7 @@ function do_save_cache() {
 
   declare -a tar_args
   # '--sort=name' is used to make archive more reproducible.
-  tar_args=("--create" "--sort=name" "--preserve-permissions")
+  tar_args=("--create" "--preserve-permissions" "--sort=name")
   # '--exclude-from' is used to not cache files or directories that we don't want to.
   if [[ -n "$INPUT_EXCLUDE_FILES_PATH" ]]; then
     tar_args+=("--exclude-from=$INPUT_EXCLUDE_FILES_PATH")
@@ -107,7 +92,10 @@ function do_save_cache() {
 }
 
 function main() {
-  do_validate_input
+  if [[ ! "$INPUT_CACHE_KEY" =~ $ALLOWED_CACHE_KEY_REGEX ]]; then
+    echo "Invalid input 'cache_key': '$INPUT_CACHE_KEY', allowed regex: '$ALLOWED_CACHE_KEY_REGEX'"
+    exit 1
+  fi
 
   local FIXED_CACHE_KEY
   FIXED_CACHE_KEY=$(echo "$INPUT_CACHE_KEY" | tr ' -' '_')
@@ -128,7 +116,9 @@ readonly GCS_BUCKET="gs://perfetto-ci-artifacts"
 readonly ALLOWED_CACHE_KEY_REGEX="[a-zA-Z0-9._ -]+"
 
 # This script is called from 'save/action.yml' and 'restore/action.yml' GitHub actions.
-# It expect the following variable being set by the caller:
+# It expect the following variable to be set by the caller:
 # `$INPUT_ACTION`, `$INPUT_DIRECTORY`, `$INPUT_CACHE_KEY`, `$INPUT_EXCLUDE_FILES_PATH`.
-# When restoring cache, the cache output directory is not created, it should be already created by the caller.
+# This scripts is started with 'set -eu', so it fails if any of the variables are not set.
+# We don't explicitly check that input paths are valid,
+# 'tar' will check it anyway and report an error.
 main "$@"

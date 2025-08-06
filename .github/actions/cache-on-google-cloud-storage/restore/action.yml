@@ -17,7 +17,7 @@ description: Restore a 'directory' from Google Cloud Storage using the 'cache_ke
 inputs:
   directory:
     required: true
-    description: A directory to restore. The directory should exists before calling this action.
+    description: A directory to restore. It will be created if doesn't exist.
   cache_key:
     required: true
     description: A unique identifier for the cache entry.
