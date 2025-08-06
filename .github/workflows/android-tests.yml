@@ -34,9 +34,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup cache directory
-        run: |
-          mkdir -p "$PERFETTO_CACHE_DIR"
-          bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
+        run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
 
       - uses: ./.github/actions/install-build-deps
         with:
