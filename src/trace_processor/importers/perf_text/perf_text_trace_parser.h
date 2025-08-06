@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PERF_TEXT_PERF_TEXT_TRACE_PARSER_IMPL_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_TEXT_PERF_TEXT_TRACE_PARSER_IMPL_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PERF_TEXT_PERF_TEXT_TRACE_PARSER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_TEXT_PERF_TEXT_TRACE_PARSER_H_
 
 #include <cstdint>
 
@@ -25,11 +25,11 @@
 
 namespace perfetto::trace_processor::perf_text_importer {
 
-class PerfTextTraceParserImpl
-    : public TraceSorter::Sink<PerfTextEvent, PerfTextTraceParserImpl> {
+class PerfTextTraceParser
+    : public TraceSorter::Sink<PerfTextEvent, PerfTextTraceParser> {
  public:
-  explicit PerfTextTraceParserImpl(TraceProcessorContext*);
-  ~PerfTextTraceParserImpl() override;
+  explicit PerfTextTraceParser(TraceProcessorContext*);
+  ~PerfTextTraceParser() override;
 
   void Parse(int64_t ts, PerfTextEvent);
 
@@ -39,4 +39,4 @@ class PerfTextTraceParserImpl
 
 }  // namespace perfetto::trace_processor::perf_text_importer
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PERF_TEXT_PERF_TEXT_TRACE_PARSER_IMPL_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PERF_TEXT_PERF_TEXT_TRACE_PARSER_H_
