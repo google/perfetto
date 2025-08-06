@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/gecko/gecko_trace_parser_impl.h"
+#include "src/trace_processor/importers/gecko/gecko_trace_parser.h"
 
 #include <cstdint>
 
@@ -37,12 +37,12 @@ constexpr uint32_t GeckoOneOf() {
 
 }  // namespace
 
-GeckoTraceParserImpl::GeckoTraceParserImpl(TraceProcessorContext* context)
+GeckoTraceParser::GeckoTraceParser(TraceProcessorContext* context)
     : context_(context) {}
 
-GeckoTraceParserImpl::~GeckoTraceParserImpl() = default;
+GeckoTraceParser::~GeckoTraceParser() = default;
 
-void GeckoTraceParserImpl::Parse(int64_t ts, GeckoEvent evt) {
+void GeckoTraceParser::Parse(int64_t ts, GeckoEvent evt) {
   switch (evt.oneof.index()) {
     case GeckoOneOf<GeckoEvent::ThreadMetadata>(): {
       auto thread = std::get<GeckoEvent::ThreadMetadata>(evt.oneof);
