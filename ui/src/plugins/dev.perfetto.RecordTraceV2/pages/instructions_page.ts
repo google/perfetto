@@ -85,10 +85,10 @@ class InstructionsPage implements m.ClassComponent<RecMgrAttrs> {
             this.docsLink.replace('https://', ''),
           ),
         ),
-      this.cmdline && m('.code-snippet', m('code', this.cmdline)),
+      this.cmdline && m('.pf-code-snippet', m('code', this.cmdline)),
       m('p', 'Save the file below as: config.pbtx'),
       m(
-        '.code-snippet',
+        '.pf-code-snippet',
         m(Button, {
           title: 'Copy to clipboard',
           icon: Icons.Copy,
