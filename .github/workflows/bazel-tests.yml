@@ -94,7 +94,13 @@ jobs:
           # that's why we specify _idle_delay=0.
           BAZEL_DISK_CACHE_GC_OPTIONS+=" --experimental_disk_cache_gc_idle_delay=0"
           BAZEL_DISK_CACHE_FLAGS="--disk_cache=${BAZEL_DISK_CACHE_FOLDER} ${BAZEL_DISK_CACHE_GC_OPTIONS}"
-          tools/bazel build //:all ${BAZEL_DISK_CACHE_FLAGS} --verbose_failures
+          
+          BUILD_LOGS_DIR="$PERFETTO_CACHE_DIR/bazel-build-logs"
+          mkdir -p "$BUILD_LOGS_DIR"
+          
+          BAZEL_EXPLAIN_FLAGS="--execution_log_json_file=$BUILD_LOGS_DIR/execution.log --explain=$BUILD_LOGS_DIR/explain.log --verbose_explanations"
+          
+          tools/bazel build //:all ${BAZEL_DISK_CACHE_FLAGS} ${BAZEL_EXPLAIN_FLAGS} --verbose_failures
           tools/bazel build //python:all ${BAZEL_DISK_CACHE_FLAGS} --verbose_failures
 
       - name: Smoke tests
