@@ -12,24 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-ui-main {
-  display: grid;
-  grid-template-areas:
-    "sidebar topbar"
-    "sidebar loading"
-    "sidebar alerts"
-    "sidebar page"
-    "statusbar statusbar";
-  grid-template-rows: auto auto auto 1fr auto;
-  grid-template-columns: auto 1fr;
-  color: #121212;
-  overflow: hidden;
+.pf-query-panel {
+  display: contents;
 
-  &__loading {
-    grid-area: loading;
+  .pf-query-warning {
+    padding: 4px;
+    position: sticky;
+    left: 0;
   }
-}
 
-.page {
-  grid-area: page;
+  .query-error {
+    padding: 20px 10px;
+    color: hsl(-10, 50%, 50%);
+    font-family: "Roboto Mono", sans-serif;
+    font-size: 12px;
+    font-weight: 300;
+    white-space: pre;
+  }
 }
