@@ -133,7 +133,6 @@ WITH
       ("Tensor G4", 5, 4),
       ("Tensor G4", 6, 4),
       ("Tensor G4", 7, 7),
-      ("Tensor G4", 255, 255),
       ("neo", 0, 0),
       ("neo", 1, 0),
       ("neo", 2, 0),
