@@ -24,6 +24,22 @@ const SAVED_TRACKS_KEY = `${PLUGIN_ID}#savedPerfettoTracks`;
 
 const RESTORE_COMMAND_ID = `${PLUGIN_ID}#restore`;
 
+const URL_PARAM_EXPAND_TRACKS = 'expand_tracks';
+const URL_PARAM_PINNED_TRACKS = 'pinned_tracks';
+
+
+function getQueryValues(queryString: string, paramName: string) {
+  const regex = new RegExp(`${paramName}=\\(([^)]*)\\)`);
+  const match = queryString.match(regex);
+  if (match && match[1]) {
+    return match[1].split('--').map(s => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+let expand_tracks: string[];
+let pin_tracks: string[];
+
 /**
  * Fuzzy save and restore of pinned tracks.
  *
@@ -62,6 +78,8 @@ export default class implements PerfettoPlugin {
       addOrReplaceNamedPinnedTracks(parsed.data);
     });
     document.body.appendChild(input);
+    expand_tracks = getQueryValues(location.hash, URL_PARAM_EXPAND_TRACKS);
+    pin_tracks = getQueryValues(location.hash, URL_PARAM_PINNED_TRACKS);
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -161,6 +179,19 @@ export default class implements PerfettoPlugin {
         assertIsInstance<HTMLInputElement>(files, HTMLInputElement).click();
       },
     });
+
+    // Process URL parameters for auto-expanding groups and pinning tracks
+    this.processUrlParameters();
+  }
+
+  private processUrlParameters(): void {
+    if (expand_tracks.length > 0) {
+        this.ctx.workspace.flatTracks.filter((t) => expand_tracks.some((prefix) => t.name.startsWith(prefix))).forEach((t) => t.expand());
+    }
+
+    if (pin_tracks.length > 0) {
+       this.ctx.workspace.flatTracks.filter((t) => pin_tracks.some((prefix) => t.name.startsWith(prefix))).forEach((t) => t.pin());
+    }
   }
 
   private restoreTracks(tracks: ReadonlyArray<SavedPinnedTrack>) {
