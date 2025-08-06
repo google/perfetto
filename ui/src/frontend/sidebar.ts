@@ -147,7 +147,7 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
 `;
     showModal({
       title: `Trace processor doesn't have high-precision timers`,
-      content: m('.modal-pre', PROMPT),
+      content: m('.pf-modal-pre', PROMPT),
       buttons: [
         {
           text: 'YES, record metatrace',

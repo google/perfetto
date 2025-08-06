@@ -44,7 +44,7 @@
 
   display: inline-block;
   position: relative; // Turns this container into a positioned element
-  font-family: $pf-font;
+  font-family: inherit;
   font-size: inherit;
   color: $pf-minimal-foreground;
   user-select: none;

@@ -429,7 +429,9 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     static constexpr auto kTrackBlueprint = tracks::CounterBlueprint(
         "num_irq", tracks::UnknownUnitBlueprint(),
         tracks::DimensionBlueprints(tracks::kIrqDimensionBlueprint),
-        tracks::StaticNameBlueprint("num_irq"));
+        tracks::FnNameBlueprint([](uint32_t irq) {
+          return base::StackString<1024>("num_irq (id: %u)", irq);
+        }));
     protos::pbzero::SysStats::InterruptCount::Decoder ic(*it);
     TrackId track = context_->track_tracker->InternTrack(
         kTrackBlueprint, tracks::Dimensions(ic.irq()));
@@ -441,7 +443,9 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     static constexpr auto kTrackBlueprint = tracks::CounterBlueprint(
         "num_softirq", tracks::UnknownUnitBlueprint(),
         tracks::DimensionBlueprints(tracks::kIrqDimensionBlueprint),
-        tracks::StaticNameBlueprint("num_softirq"));
+        tracks::FnNameBlueprint([](uint32_t irq) {
+          return base::StackString<1024>("num_softirq (id: %u)", irq);
+        }));
     protos::pbzero::SysStats::InterruptCount::Decoder ic(*it);
     TrackId track = context_->track_tracker->InternTrack(
         kTrackBlueprint, tracks::Dimensions(ic.irq()));
