@@ -97,7 +97,7 @@ RecordParser::RecordParser(TraceProcessorContext* context)
 
 RecordParser::~RecordParser() = default;
 
-void RecordParser::ParsePerfRecord(int64_t ts, Record record) {
+void RecordParser::Parse(int64_t ts, Record record) {
   if (base::Status status = ParseRecord(ts, std::move(record)); !status.ok()) {
     context_->storage->IncrementIndexedStats(
         stats::perf_record_skipped, static_cast<int>(record.header.type));

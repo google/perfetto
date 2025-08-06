@@ -16,18 +16,24 @@
 
 #include "src/trace_processor/importers/generic_kernel/generic_kernel_module.h"
 
-namespace perfetto {
-namespace trace_processor {
+#include <cstdint>
+
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/generic_kernel/generic_kernel_parser.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
+
+namespace perfetto::trace_processor {
 
 using perfetto::protos::pbzero::TracePacket;
 
-GenericKernelModule::GenericKernelModule(TraceProcessorContext* context)
-    : parser_(context) {
-  RegisterForField(TracePacket::kGenericKernelTaskStateEventFieldNumber,
-                   context);
-  RegisterForField(TracePacket::kGenericKernelTaskRenameEventFieldNumber,
-                   context);
-  RegisterForField(TracePacket::kGenericKernelCpuFreqEventFieldNumber, context);
+GenericKernelModule::GenericKernelModule(
+    ProtoImporterModuleContext* module_context,
+    TraceProcessorContext* context)
+    : ProtoImporterModule(module_context), parser_(context) {
+  RegisterForField(TracePacket::kGenericKernelTaskStateEventFieldNumber);
+  RegisterForField(TracePacket::kGenericKernelTaskRenameEventFieldNumber);
+  RegisterForField(TracePacket::kGenericKernelCpuFreqEventFieldNumber);
 }
 
 void GenericKernelModule::ParseTracePacketData(
@@ -51,5 +57,4 @@ void GenericKernelModule::ParseTracePacketData(
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

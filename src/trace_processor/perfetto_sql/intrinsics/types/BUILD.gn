@@ -33,4 +33,8 @@ source_set("types") {
     "../../../../../include/perfetto/trace_processor:basic_types",
     "../../../containers",
   ]
+  if (enable_perfetto_llvm_symbolizer) {
+    sources += [ "symbolization_input.h" ]
+    deps += [ "../../../../profiling/symbolizer:llvm_symbolizer_c_api" ]
+  }
 }

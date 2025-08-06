@@ -831,10 +831,15 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
       m(WidgetShowcase, {
         label: 'Switch',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        renderWidget: ({label, ...rest}: any) =>
-          m(Switch, {label: arg(label, 'Switch'), ...rest}),
+        renderWidget: ({label, labelLeft, ...rest}: any) =>
+          m(Switch, {
+            label: arg(label, 'Switch'),
+            labelLeft: arg(labelLeft, 'Left Label'),
+            ...rest,
+          }),
         initialOpts: {
           label: true,
+          labelLeft: false,
           disabled: false,
         },
       }),
@@ -1448,6 +1453,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             onclick: () => {
               showModal({
                 title: 'Attention',
+                icon: Icons.Help,
                 content: () => 'This is a modal dialog',
                 buttons: [
                   {
@@ -1944,7 +1950,10 @@ class ModalShowcase implements m.ClassComponent {
 
     let content;
     if (staticContent) {
-      content = m('.modal-pre', 'Content of the modal dialog.\nEnd of content');
+      content = m(
+        '.pf-modal-pre',
+        'Content of the modal dialog.\nEnd of content',
+      );
     } else {
       // The humble counter is basically the VDOM 'Hello world'!
       function CounterComponent() {

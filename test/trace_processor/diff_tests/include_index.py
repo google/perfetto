@@ -14,7 +14,7 @@
 # limitations under the License.
 import os
 import sys
-from typing import List
+from typing import List, Tuple
 
 from python.generators.diff_tests import testing
 
@@ -92,6 +92,7 @@ from diff_tests.parser.parsing.tests_rss_stats import ParsingRssStats
 from diff_tests.parser.parsing.tests_sys_stats import ParsingSysStats
 from diff_tests.parser.parsing.tests_traced_stats import ParsingTracedStats
 from diff_tests.parser.perf_text.tests import PerfTextParser
+from diff_tests.parser.power.tests_battery_stats import BatteryStats
 from diff_tests.parser.power.tests_energy_breakdown import PowerEnergyBreakdown
 from diff_tests.parser.power.tests_entity_state_residency import EntityStateResidency
 from diff_tests.parser.power.tests_linux_sysfs_power import LinuxSysfsPower
@@ -172,7 +173,8 @@ from diff_tests.summary.metrics_v2_tests import SummaryMetricsV2
 sys.path.pop()
 
 
-def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
+def fetch_all_diff_tests(
+    index_path: str) -> List[Tuple[str, 'testing.DiffTestBlueprint']]:
   parser_tests = [
       AndroidBugreport,
       AndroidDumpstate,
@@ -197,6 +199,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       JsonParser,
       MemoryParser,
       NetworkParser,
+      BatteryStats,
       PowerEnergyBreakdown,
       PowerPowerRails,
       PowerVoltageAndScaling,

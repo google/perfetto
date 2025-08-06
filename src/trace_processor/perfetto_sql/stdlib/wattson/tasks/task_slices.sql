@@ -35,7 +35,7 @@ SELECT
   _auto_id AS group_id
 FROM _adjusted_deep_idle
 WHERE
-  idle = -1 AND dur > 0;
+  idle = -1;
 
 -- Establish relationships between tasks, such as thread/process/package
 CREATE PERFETTO TABLE _task_wo_irq_infos AS
@@ -59,6 +59,8 @@ LEFT JOIN process
 LEFT JOIN android_process_metadata AS package
   USING (upid)
 WHERE
+  -- Some slices have -1 duration when there is no end (e.g. slices at the end
+  -- of a trace), so need this check to exclude negative dur slices.
   dur > 0;
 
 -- Flatten hard IRQs, since they can preempt each other. Only hard IRQs can use

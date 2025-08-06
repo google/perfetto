@@ -154,40 +154,6 @@ JOIN _wattson_device AS device
 ORDER BY
   cpu;
 
--- Policy and freq that will give minimum volt vote
-CREATE PERFETTO TABLE _device_min_volt_vote AS
-WITH
-  data(device, policy, freq) AS (
-    SELECT
-      *
-    FROM (VALUES
-      ("monaco", 0, 614400),
-      ("Tensor", 4, 400000),
-      ("Tensor G4", 0, 700000),
-      ("neo", 0, 691200)) AS _values
-  )
-SELECT
-  *
-FROM data;
-
--- Get policy corresponding to minimum volt vote
-CREATE PERFETTO FUNCTION _get_min_policy_vote()
-RETURNS LONG AS
-SELECT
-  vote_tbl.policy
-FROM _device_min_volt_vote AS vote_tbl, _wattson_device AS device
-WHERE
-  vote_tbl.device = device.name;
-
--- Get frequency corresponding to minimum volt vote
-CREATE PERFETTO FUNCTION _get_min_freq_vote()
-RETURNS LONG AS
-SELECT
-  vote_tbl.freq
-FROM _device_min_volt_vote AS vote_tbl, _wattson_device AS device
-WHERE
-  vote_tbl.device = device.name;
-
 -- Devices that require using devfreq
 CREATE PERFETTO TABLE _use_devfreq AS
 WITH
