@@ -28,11 +28,11 @@ const URL_PARAM_EXPAND_TRACKS = 'expand_tracks';
 const URL_PARAM_PINNED_TRACKS = 'pinned_tracks';
 
 
-function getQueryValues(queryString: string, paramName: string) {
-  const regex = new RegExp(`${paramName}=\\(([^)]*)\\)`);
+function getParamValues(queryString: string, paramName: string) {
+  const regex = new RegExp(`${PLUGIN_ID}:${paramName}=\\(([^)]*)\\)`);
   const match = queryString.match(regex);
   if (match && match[1]) {
-    return match[1].split('--').map(s => s.trim()).filter(Boolean);
+    return match[1].split(',').map(s => s.trim()).filter(Boolean);
   }
   return [];
 }
@@ -78,8 +78,8 @@ export default class implements PerfettoPlugin {
       addOrReplaceNamedPinnedTracks(parsed.data);
     });
     document.body.appendChild(input);
-    expand_tracks = getQueryValues(location.hash, URL_PARAM_EXPAND_TRACKS);
-    pin_tracks = getQueryValues(location.hash, URL_PARAM_PINNED_TRACKS);
+    expand_tracks = getParamValues(location.hash, URL_PARAM_EXPAND_TRACKS);
+    pin_tracks = getParamValues(location.hash, URL_PARAM_PINNED_TRACKS);
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
