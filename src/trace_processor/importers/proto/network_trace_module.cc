@@ -187,7 +187,7 @@ void NetworkTraceModule::ParseGenericEvent(
       break;
   }
   StringId direction_id = context_->storage->InternString(direction);
-  StringId iface = context_->storage->InternString(evt.interface());
+  StringId iface = context_->storage->InternString(evt.network_interface());
 
   if (!loaded_package_names_) {
     loaded_package_names_ = true;
@@ -220,15 +220,16 @@ void NetworkTraceModule::ParseGenericEvent(
       "network_packets",
       tracks::Dimensions(tracks::StringDimensionBlueprint("net_interface"),
                          tracks::StringDimensionBlueprint("net_direction")),
-      tracks::FnNameBlueprint([](base::StringView interface,
-                                 base::StringView direction) {
-        return base::StackString<64>("%.*s %.*s", int(interface.size()),
-                                     interface.data(), int(direction.size()),
-                                     direction.data());
-      }));
+      tracks::FnNameBlueprint(
+          [](base::StringView network, base::StringView direction) {
+            return base::StackString<64>("%.*s %.*s", int(network.size()),
+                                         network.data(), int(direction.size()),
+                                         direction.data());
+          }));
 
   TrackId track_id = context_->track_compressor->InternScoped(
-      kBlueprint, tracks::Dimensions(evt.interface(), direction), ts, dur);
+      kBlueprint, tracks::Dimensions(evt.network_interface(), direction), ts,
+      dur);
 
   tables::AndroidNetworkPacketsTable::Row actual_row;
   actual_row.iface = iface;
