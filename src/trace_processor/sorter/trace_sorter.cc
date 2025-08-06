@@ -143,8 +143,9 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
     bool all_queues_empty = true;
     for (size_t i = 0; i < queues_.size(); i++) {
       auto& queue = queues_[i];
-      if (queue.events_.empty())
+      if (queue.events_.empty()) {
         continue;
+      }
       PERFETTO_DCHECK(queue.max_ts_ <= append_max_ts_);
 
       // Checking for |all_queues_empty| is necessary here as in fuzzer cases
@@ -159,13 +160,15 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
       }
       all_queues_empty = false;
     }
-    if (all_queues_empty)
+    if (all_queues_empty) {
       break;
+    }
 
     auto& queue = queues_[min_queue_idx];
     auto& events = queue.events_;
-    if (queue.needs_sorting())
+    if (queue.needs_sorting()) {
       queue.Sort(token_buffer_, use_slow_sorting_);
+    }
     PERFETTO_DCHECK(queue.min_ts_ == events.front().ts);
 
     // Now that we identified the min-queue, extract all events from it until
@@ -183,14 +186,30 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
         PERFETTO_DCHECK(num_extracted > 0);
         break;
       }
-
       ++num_extracted;
-      MaybeExtractEvent(min_queue_idx, event);
+
+      if (event.ts < latest_pushed_event_ts_) {
+        storage_->IncrementStats(stats::sorter_push_event_out_of_order);
+        queue.sink->OnDiscardedEvent(this, GetTokenBufferId(event));
+        continue;
+      }
+      latest_pushed_event_ts_ = event.ts;
+
+      if (PERFETTO_UNLIKELY(event_handling_ == EventHandling::kSortAndDrop)) {
+        // Parse* would extract this event and push it to the next stage. Since
+        // we are skipping that, just extract and discard it.
+        queue.sink->OnDiscardedEvent(this, GetTokenBufferId(event));
+        continue;
+      }
+      PERFETTO_DCHECK(event_handling_ == EventHandling::kSortAndPush);
+
+      queue.sink->OnSortedEvent(this, event.ts, GetTokenBufferId(event));
     }  // for (event: events)
 
     // The earliest event cannot be extracted without going past the limit.
-    if (!num_extracted)
+    if (!num_extracted) {
       break;
+    }
 
     // Now remove the entries from the event buffer and update the queue-local
     // and global time bounds.
@@ -209,44 +228,6 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
       queue.min_ts_ = queue.events_.front().ts;
     }
   }  // for(;;)
-}
-
-void TraceSorter::PushEvent(size_t queue_idx,
-                            int64_t ts,
-                            TraceTokenBuffer::Id id,
-                            bool is_json_event) {
-  if (PERFETTO_UNLIKELY(event_handling_ == EventHandling::kDrop)) {
-    return;
-  }
-  if (PERFETTO_UNLIKELY(ts < 0)) {
-    storage_->IncrementStats(stats::trace_sorter_negative_timestamp_dropped);
-    return;
-  }
-  Queue& queue = queues_[queue_idx];
-  queue.Append(ts, id, is_json_event, use_slow_sorting_);
-  append_max_ts_ = std::max(append_max_ts_, queue.max_ts_);
-}
-
-void TraceSorter::MaybeExtractEvent(size_t queue_idx,
-                                    const TimestampedEvent& event) {
-  auto& sink = queues_[queue_idx].sink;
-  int64_t timestamp = event.ts;
-  if (timestamp < latest_pushed_event_ts_) {
-    storage_->IncrementStats(stats::sorter_push_event_out_of_order);
-    sink->OnDiscardedEvent(this, GetTokenBufferId(event));
-    return;
-  }
-  latest_pushed_event_ts_ = std::max(latest_pushed_event_ts_, timestamp);
-
-  if (PERFETTO_UNLIKELY(event_handling_ == EventHandling::kSortAndDrop)) {
-    // Parse* would extract this event and push it to the next stage. Since we
-    // are skipping that, just extract and discard it.
-    sink->OnDiscardedEvent(this, GetTokenBufferId(event));
-    return;
-  }
-  PERFETTO_DCHECK(event_handling_ == EventHandling::kSortAndPush);
-
-  sink->OnSortedEvent(this, timestamp, GetTokenBufferId(event));
 }
 
 TraceSorter::UntypedSink::~UntypedSink() = default;

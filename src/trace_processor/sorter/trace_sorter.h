@@ -33,6 +33,7 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/sorter/trace_token_buffer.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/bump_allocator.h"
@@ -276,13 +277,7 @@ class TraceSorter {
     std::unique_ptr<UntypedSink> sink;
   };
 
-  void PushEvent(size_t queue_idx,
-                 int64_t ts,
-                 TraceTokenBuffer::Id id,
-                 bool is_json_event);
   void SortAndExtractEventsUntilAllocId(BumpAllocator::AllocId alloc_id);
-
-  void MaybeExtractEvent(size_t queue_idx, const TimestampedEvent&);
 
   static TraceTokenBuffer::Id GetTokenBufferId(const TimestampedEvent& event) {
     return TraceTokenBuffer::Id{event.alloc_id()};
@@ -367,12 +362,23 @@ class TraceSorter::Stream {
  public:
   // Public API for tokenizers.
   void Push(int64_t ts, T data) {
+    if (PERFETTO_UNLIKELY(sorter_->event_handling_ == EventHandling::kDrop)) {
+      return;
+    }
+    if (PERFETTO_UNLIKELY(ts < 0)) {
+      sorter_->storage_->IncrementStats(
+          stats::trace_sorter_negative_timestamp_dropped);
+      return;
+    }
     if constexpr (std::is_same_v<T, JsonEvent>) {
       sorter_->use_slow_sorting_ =
           sorter_->use_slow_sorting_ || data.phase == 'X';
     }
     TraceTokenBuffer::Id id = sorter_->token_buffer_.Append(std::move(data));
-    sorter_->PushEvent(queue_idx_, ts, id, std::is_same_v<T, JsonEvent>);
+    Queue& queue = sorter_->queues_[queue_idx_];
+    queue.Append(ts, id, std::is_same_v<T, JsonEvent>,
+                 sorter_->use_slow_sorting_);
+    sorter_->append_max_ts_ = std::max(sorter_->append_max_ts_, queue.max_ts_);
   }
 
  private:
