@@ -36,7 +36,7 @@ WITH
   )
 SELECT
   id as cls_id, ancestor_class_name as category
-FROM android_heap_graph_class_ancestor!(special_classes);
+FROM android_heap_graph_class_find_descendants!(special_classes);
 
 DROP TABLE IF EXISTS heap_obj_histograms;
 CREATE PERFETTO TABLE heap_obj_histograms AS

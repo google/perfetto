@@ -17,7 +17,7 @@ INCLUDE PERFETTO MODULE graphs.scan;
 
 -- Given a list of classes as ancestor classes, return all the classes that
 -- decend from them.
-CREATE PERFETTO MACRO android_heap_graph_class_ancestor(
+CREATE PERFETTO MACRO android_heap_graph_class_find_descendants(
     -- ancestor class `id`'s from the heap_graph_class table containing a
     -- single column: `id`
     ancestor_class_ids TableOrSubquery
