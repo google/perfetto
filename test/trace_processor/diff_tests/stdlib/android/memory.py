@@ -427,9 +427,9 @@ class AndroidMemory(TestSuite):
         SELECT * FROM android_memory_cumulative_dmabuf;
         """,
         out=Csv("""
-        "upid","utid","ts","value"
-        2,2,1,3000
-        2,2,2,0
-        "[NULL]",4,4144792258492,10399744
-        "[NULL]",4,4145263509021,0
+        "upid","process_name","utid","thread_name","ts","value"
+        2,"process1",2,"[NULL]",1,3000
+        2,"process1",2,"[NULL]",2,0
+        "[NULL]","[NULL]",4,"[NULL]",4144792258492,10399744
+        "[NULL]","[NULL]",4,"[NULL]",4145263509021,0
         """))

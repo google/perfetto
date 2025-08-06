@@ -152,10 +152,14 @@ ORDER BY
 CREATE PERFETTO TABLE android_memory_cumulative_dmabuf (
   -- upid of process responsible for the allocation (matches utid)
   upid JOINID(process.id),
+  -- process name
+  process_name STRING,
   -- utid of thread responsible for the allocation
   -- if a dmabuf is allocated by gralloc we follow the binder transaction
   -- to the requesting thread (requires binder tracing)
   utid JOINID(thread.id),
+  -- thread name
+  thread_name STRING,
   -- timestamp of the allocation
   ts TIMESTAMP,
   -- total allocation size per process and thread
@@ -163,7 +167,9 @@ CREATE PERFETTO TABLE android_memory_cumulative_dmabuf (
 ) AS
 SELECT
   upid,
+  process_name,
   utid,
+  thread_name,
   ts,
   sum(buf_size) OVER (PARTITION BY coalesce(upid, utid) ORDER BY ts) AS value
 FROM android_dmabuf_allocs;
