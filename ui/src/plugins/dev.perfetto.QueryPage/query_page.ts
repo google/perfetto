@@ -188,19 +188,13 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
     } else {
       return [
         queryResult.statementWithOutputCount > 1 &&
-          m(
-            '.pf-query-warning',
-            m(
-              Box,
-              m(
-                Callout,
-                {icon: 'warning', intent: Intent.None},
-                `${queryResult.statementWithOutputCount} out of ${queryResult.statementCount} `,
-                'statements returned a result. ',
-                'Only the results for the last statement are displayed.',
-              ),
-            ),
-          ),
+          m(Box, [
+            m(Callout, {icon: 'warning', intent: Intent.None}, [
+              `${queryResult.statementWithOutputCount} out of ${queryResult.statementCount} `,
+              'statements returned a result. ',
+              'Only the results for the last statement are displayed.',
+            ]),
+          ]),
         m(DataGrid, {
           className: 'pf-query-page__results',
           data: dataSource,

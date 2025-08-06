@@ -15,13 +15,7 @@
 .pf-query-panel {
   display: contents;
 
-  .pf-query-warning {
-    padding: 4px;
-    position: sticky;
-    left: 0;
-  }
-
-  .query-error {
+  &__query-error {
     padding: 20px 10px;
     color: hsl(-10, 50%, 50%);
     font-family: "Roboto Mono", sans-serif;
