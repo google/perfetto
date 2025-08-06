@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.trace-info-page {
+.pf-trace-info-page {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0 20px;
@@ -24,11 +24,11 @@
     padding: 20px;
     border-radius: 8px;
 
-    &.errors {
+    &__errors {
       background-color: #f3e5f5;
     }
 
-    .metric-error {
+    &__metric-error {
       font-family: var(--monospace-font);
       font-size: 12px;
       padding: 5px;

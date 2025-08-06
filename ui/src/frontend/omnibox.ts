@@ -180,7 +180,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
         matchWidth: true,
         offset: 2,
         trigger: m(
-          '.omnibox',
+          '.pf-omnibox',
           {
             class: extraClasses,
           },

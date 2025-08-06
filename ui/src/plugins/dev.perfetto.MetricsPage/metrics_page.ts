@@ -185,7 +185,7 @@ class MetricResultView implements m.ClassComponent<MetricResultAttrs> {
     const result = attrs.result;
 
     if (result === undefined) {
-      return m('pre.metric-error', 'No metric provided');
+      return m('pre.pf-trace-info-page__metric-error', 'No metric provided');
     }
 
     if (result === 'pending') {
@@ -193,7 +193,7 @@ class MetricResultView implements m.ClassComponent<MetricResultAttrs> {
     }
 
     if (!result.ok) {
-      return m('pre.metric-error', `${result.error}`);
+      return m('pre.pf-trace-info-page__metric-error', `${result.error}`);
     }
 
     return m('pre', result.value);
