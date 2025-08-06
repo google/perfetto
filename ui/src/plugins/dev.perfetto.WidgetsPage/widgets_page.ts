@@ -1950,7 +1950,10 @@ class ModalShowcase implements m.ClassComponent {
 
     let content;
     if (staticContent) {
-      content = m('.modal-pre', 'Content of the modal dialog.\nEnd of content');
+      content = m(
+        '.pf-modal-pre',
+        'Content of the modal dialog.\nEnd of content',
+      );
     } else {
       // The humble counter is basically the VDOM 'Hello world'!
       function CounterComponent() {

@@ -60,4 +60,7 @@ export class Icons {
   static readonly SortDesc = 'arrow_downward';
   static readonly ResetState = 'restart_alt';
   static readonly Remove = 'clear';
+
+  static readonly Play = 'play_arrow';
+  static readonly Edit = 'edit';
 }
