@@ -14,6 +14,7 @@
 # limitations under the License.
 
 
+: "${PERFETTO_CI_JOB_NAME:?PERFETTO_CI_JOB_NAME is not set}"
 : "${PERFETTO_CACHE_DIR:?PERFETTO_CACHE_DIR is not set}"
 
 CCACHE_DIR=$PERFETTO_CACHE_DIR/ccache
