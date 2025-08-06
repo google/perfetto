@@ -18,7 +18,6 @@ import {ConfigManager} from '../config/config_manager';
 import {RecordProbe} from '../config/config_interfaces';
 import {exists} from '../../../base/utils';
 import {classNames} from '../../../base/classnames';
-import {Button} from '../../../widgets/button';
 import {Anchor} from '../../../widgets/anchor';
 import {Icons} from '../../../base/semantic_icons';
 

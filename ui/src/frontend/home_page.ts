@@ -80,7 +80,12 @@ export class HomePage implements m.ClassComponent {
         m(
           '.pf-home-page__channel-select',
           m('', 'Feeling adventurous? Try our bleeding edge Canary version'),
-          m('fieldset', mkChan('stable'), mkChan('canary'), m('.pf-home-page__highlight')),
+          m(
+            'fieldset',
+            mkChan('stable'),
+            mkChan('canary'),
+            m('.pf-home-page__highlight'),
+          ),
           m(
             `.pf-home-page__reload${channelChanged() ? '.show' : ''}`,
             'You need to reload the page for the changes to have effect',
