@@ -12,24 +12,37 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-ui-main {
-  display: grid;
-  grid-template-areas:
-    "sidebar topbar"
-    "sidebar loading"
-    "sidebar alerts"
-    "sidebar page"
-    "statusbar statusbar";
-  grid-template-rows: auto auto auto 1fr auto;
-  grid-template-columns: auto 1fr;
-  color: #121212;
-  overflow: hidden;
+.cookie-consent {
+  position: absolute;
+  z-index: 10;
+  left: 10px;
+  bottom: 10px;
+  width: 550px;
+  background-color: #19212b;
+  font-size: 14px;
+  color: rgb(180, 183, 186);
+  border-radius: 5px;
+  padding: 20px;
 
-  &__loading {
-    grid-area: loading;
+  .buttons {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+    font-size: 15px;
   }
-}
 
-.page {
-  grid-area: page;
+  button {
+    padding: 10px;
+    border-radius: 3px;
+    color: #fff;
+    margin-left: 5px;
+    a {
+      text-decoration: none;
+      color: #fff;
+    }
+  }
+  button:hover {
+    background-color: #373f4b;
+    cursor: pointer;
+  }
 }
