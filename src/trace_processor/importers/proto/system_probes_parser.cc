@@ -248,21 +248,25 @@ void SystemProbesParser::ParseDiskStats(int64_t ts, ConstBytes blob) {
   static constexpr double MS_PER_SEC = 1000.0;
 
   static constexpr auto kBlueprint = tracks::CounterBlueprint(
-      "diskstat", tracks::UnknownUnitBlueprint(),
+      "diskstat", tracks::DynamicUnitBlueprint(),
       tracks::DimensionBlueprints(
-          tracks::StringIdDimensionBlueprint("device_name")),
-      tracks::DynamicNameBlueprint());
+          tracks::StringDimensionBlueprint("device_name"),
+          tracks::StringDimensionBlueprint("counter_name")),
+      tracks::FnNameBlueprint([](base::StringView device_name,
+                                 base::StringView counter_name) {
+        return base::StackString<1024>(
+            "diskstat.[%.*s].%.*s", int(device_name.size()), device_name.data(),
+            int(counter_name.size()), counter_name.data());
+      }));
 
-  StringId device_name_id = context_->storage->InternString(ds.device_name());
-  base::StackString<512> tag_prefix(
-      "diskstat.[%.*s]", int(ds.device_name().size), ds.device_name().data);
-  auto push_counter = [&, this](const char* counter_name, double value) {
-    base::StackString<512> track_name("%s.%s", tag_prefix.c_str(),
-                                      counter_name);
-    StringId string_id = context_->storage->InternString(track_name.c_str());
+  auto push_counter = [&, this](base::StringView counter_name,
+                                base::StringView unit, double value) {
     TrackId track = context_->track_tracker->InternTrack(
-        kBlueprint, tracks::Dimensions(device_name_id),
-        tracks::DynamicName(string_id));
+        kBlueprint,
+        tracks::Dimensions(base::StringView(ds.device_name()),
+                           base::StringView(counter_name)),
+        tracks::BlueprintName(), {},
+        tracks::DynamicUnit(context_->storage->InternString(unit)));
     context_->event_tracker->PushCounter(ts, value, track);
   };
 
@@ -275,6 +279,7 @@ void SystemProbesParser::ParseDiskStats(int64_t ts, ConstBytes blob) {
   auto cur_discard_time = static_cast<int64_t>(ds.discard_time_ms());
   auto cur_flush_time = static_cast<int64_t>(ds.flush_time_ms());
 
+  StringId device_name_id = context_->storage->InternString(ds.device_name());
   DiskStatState& state = disk_state_map_[device_name_id];
   if (state.prev_read_amount != -1) {
     double read_amount =
@@ -294,8 +299,6 @@ void SystemProbesParser::ParseDiskStats(int64_t ts, ConstBytes blob) {
     auto flush_time_diff =
         static_cast<double>(cur_flush_time - state.prev_flush_time);
 
-    // TODO(rsavitski): with the UI now supporting rate mode for counter tracks,
-    // this is likely redundant.
     auto calculate_throughput = [](double amount, int64_t diff) {
       return diff == 0 ? 0 : amount * MS_PER_SEC / static_cast<double>(diff);
     };
@@ -304,14 +307,14 @@ void SystemProbesParser::ParseDiskStats(int64_t ts, ConstBytes blob) {
     double discard_thpt =
         calculate_throughput(discard_amount, discard_time_diff);
 
-    push_counter("read_amount(mg)", read_amount);
-    push_counter("read_throughput(mg/s)", read_thpt);
-    push_counter("write_amount(mg)", write_amount);
-    push_counter("write_throughput(mg/s)", write_thpt);
-    push_counter("discard_amount(mg)", discard_amount);
-    push_counter("discard_throughput(mg/s)", discard_thpt);
-    push_counter("flush_amount(count)", flush_count);
-    push_counter("flush_time(ms)", flush_time_diff);
+    push_counter("read_amount", "MB", read_amount);
+    push_counter("read_throughput", "MB/s", read_thpt);
+    push_counter("write_amount", "MB", write_amount);
+    push_counter("write_throughput", "MB/s", write_thpt);
+    push_counter("discard_amount", "MB", discard_amount);
+    push_counter("discard_throughput", "MB/s", discard_thpt);
+    push_counter("flush_amount", "count", flush_count);
+    push_counter("flush_time", "ms", flush_time_diff);
   }
   state.prev_read_amount = cur_read_amount;
   state.prev_write_amount = cur_write_amount;
