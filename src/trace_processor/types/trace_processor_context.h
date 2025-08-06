@@ -44,7 +44,6 @@ class MappingTracker;
 class MetadataTracker;
 class MultiMachineTraceManager;
 class PacketAnalyzer;
-class PerfSampleTracker;
 class ProcessTracker;
 class ProcessTrackTranslationTable;
 class SchedEventTracker;
@@ -109,7 +108,6 @@ class TraceProcessorContext {
   std::unique_ptr<ClockConverter> clock_converter;
   std::unique_ptr<MappingTracker> mapping_tracker;
   std::unique_ptr<MachineTracker> machine_tracker;
-  std::unique_ptr<PerfSampleTracker> perf_sample_tracker;
   std::unique_ptr<StackProfileTracker> stack_profile_tracker;
   std::unique_ptr<MetadataTracker> metadata_tracker;
   std::unique_ptr<CpuTracker> cpu_tracker;
