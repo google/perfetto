@@ -227,7 +227,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
               }),
             m(TextInput, {
               placeholder: node.getTitle(),
-              oninput: (e: KeyboardEvent) => {
+              oninput: (e: InputEvent) => {
                 if (!e.target) return;
                 node.state.customTitle = (
                   e.target as HTMLInputElement
