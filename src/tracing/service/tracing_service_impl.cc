@@ -114,7 +114,9 @@ constexpr int kMinWriteIntoFilePeriodMs = 100;
 constexpr uint32_t kAllDataSourceStartedTimeout = 20000;
 constexpr int kMaxConcurrentTracingSessions = 15;
 constexpr int kMaxConcurrentTracingSessionsPerUid = 5;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 constexpr int kMaxConcurrentTracingSessionsForStatsdUid = 10;
+#endif
 constexpr int64_t kMinSecondsBetweenTracesGuardrail = 5 * 60;
 
 constexpr uint32_t kMillisPerHour = 3600000;
@@ -761,35 +763,33 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     }
   }
 
-  uint32_t current_exclusive_mode_priority = 0;
+  uint32_t current_exclusive_prio = 0;
   for (const auto& [_, session] : tracing_sessions_) {
-    current_exclusive_mode_priority =
-        std::max(current_exclusive_mode_priority,
-                 session.config.exclusive_mode_priority());
+    current_exclusive_prio =
+        std::max(current_exclusive_prio, session.config.exclusive_prio());
   }
-  if (cfg.exclusive_mode_priority() == 0 &&
-      current_exclusive_mode_priority > 0) {
+
+  // If an exclusive session is active, any new session must have a strictly
+  // higher priority.
+  if (current_exclusive_prio > 0 &&
+      current_exclusive_prio >= cfg.exclusive_prio()) {
     return PERFETTO_SVC_ERR(
-        "Cannot start non-exclusive session while an exclusive session with "
-        "priority %u is active.",
-        current_exclusive_mode_priority);
+        "An exclusive session with priority %u >= requested priority %u is "
+        "already active.",
+        current_exclusive_prio, cfg.exclusive_prio());
   }
-  if (cfg.exclusive_mode_priority() > 0) {  // Exclusive mode.
-    if (consumer->uid_ != 0 /* AID_ROOT */ &&
-        consumer->uid_ != 2000 /* AID_SHELL */) {
+
+  if (cfg.exclusive_prio() > 0) {  // Exclusive mode.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+    if (consumer->uid_ != AID_ROOT && consumer->uid_ != AID_SHELL) {
       return PERFETTO_SVC_ERR(
           "Exclusive mode can only be requested by root or shell.");
     }
-    if (current_exclusive_mode_priority >= cfg.exclusive_mode_priority()) {
-      return PERFETTO_SVC_ERR(
-          "An exclusive session with priority %u >= requested priority %u is "
-          "already active.",
-          current_exclusive_mode_priority, cfg.exclusive_mode_priority());
-    }
+#endif
     // Abort all existing sessions.
     const std::string abort_reason =
         "Aborted due to user requested higher-priority (" +
-        std::to_string(cfg.exclusive_mode_priority()) + ") exclusive session.";
+        std::to_string(cfg.exclusive_prio()) + ") exclusive session.";
     for (auto it = tracing_sessions_.begin(); it != tracing_sessions_.end();) {
       auto next_it = it;
       ++next_it;
@@ -911,9 +911,11 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
       }));
 
   int per_uid_limit = kMaxConcurrentTracingSessionsPerUid;
-  if (consumer->uid_ == 1066 /* AID_STATSD*/) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  if (consumer->uid_ == AID_STATSD) {
     per_uid_limit = kMaxConcurrentTracingSessionsForStatsdUid;
   }
+#endif
   if (sessions_for_uid >= per_uid_limit) {
     MaybeLogUploadEvent(
         cfg, uuid,
@@ -2837,7 +2839,7 @@ void TracingServiceImpl::FreeBuffers(TracingSessionID tsid,
     PERFETTO_DLOG("FreeBuffers() failed, invalid session ID %" PRIu64, tsid);
     return;  // TODO(primiano): signal failure?
   }
-  DisableTracing(tsid, /*disable_immediately=*/true, /*error=*/error);
+  DisableTracing(tsid, /*disable_immediately=*/true, error);
 
   PERFETTO_DCHECK(tracing_session->AllDataSourceInstancesStopped());
   tracing_session->data_source_instances.clear();
@@ -3065,11 +3067,11 @@ void TracingServiceImpl::UnregisterDataSource(ProducerID producer_id,
 bool TracingServiceImpl::IsInitiatorPrivileged(
     const TracingSession& tracing_session) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  if (tracing_session.consumer_uid == 1066 /* AID_STATSD */ &&
+  if (tracing_session.consumer_uid == AID_STATSD &&
       tracing_session.config.statsd_metadata().triggering_config_uid() !=
-          2000 /* AID_SHELL */
-      && tracing_session.config.statsd_metadata().triggering_config_uid() !=
-             0 /* AID_ROOT */) {
+          AID_SHELL &&
+      tracing_session.config.statsd_metadata().triggering_config_uid() !=
+          AID_ROOT) {
     // StatsD can be triggered either by shell, root or an app that has DUMP and
     // USAGE_STATS permission. When triggered by shell or root, we do not want
     // to consider the trace a trusted system trace, as it was initiated by the

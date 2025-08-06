@@ -290,7 +290,7 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   VARINT,
                   uint32_t,
-                  exclusive_mode_priority,
+                  exclusive_prio,
                   41);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_SessionSemaphore);

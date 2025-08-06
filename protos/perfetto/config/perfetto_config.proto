@@ -4787,12 +4787,15 @@ message TraceConfig {
   // "exclusive mode". This has the following semantics:
   // - It can only be set by shell or root users.
   // - A new exclusive session will only be started if its priority is strictly
-  //   higher than any other active exclusive session.
+  //   higher than any other active tracing session.
   // - If a new exclusive session is started, all other existing tracing
   //   sessions (exclusive or not) are aborted.
+  // - While an exclusive session is active, any new non-exclusive session (or
+  //   any exclusive session with a lower or equal priority) will be rejected.
   //
-  // Introduced in 25Q3.
-  optional uint32 exclusive_mode_priority = 41;
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  optional uint32 exclusive_prio = 41;
 }
 
 // End of protos/perfetto/config/trace_config.proto
