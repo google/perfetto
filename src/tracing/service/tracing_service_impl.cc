@@ -783,7 +783,7 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     if (consumer->uid_ != AID_ROOT && consumer->uid_ != AID_SHELL) {
       return PERFETTO_SVC_ERR(
-          "Exclusive mode can only be requested by root or shell.");
+          "On android, exclusive mode can only be requested by root or shell.");
     }
 #endif
     // Abort all existing sessions.

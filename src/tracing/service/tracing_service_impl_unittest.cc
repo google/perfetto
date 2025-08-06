@@ -6638,21 +6638,21 @@ TEST_F(TracingServiceImplTest, ExclusiveSessionInvalidUser) {
   std::unique_ptr<MockConsumer> unprivileged_consumer = CreateMockConsumer();
   unprivileged_consumer->Connect(svc.get(), 1234 /* uid */);
   unprivileged_consumer->EnableTracing(exclusive_cfg);
-  unprivileged_consumer->WaitForTracingDisabledWithError(
-      StrEq("Exclusive mode can only be requested by root or shell."));
+  unprivileged_consumer->WaitForTracingDisabledWithError(StrEq(
+      "On android, exclusive mode can only be requested by root or shell."));
 
   // A privileged user (root) can start an exclusive session.
   std::unique_ptr<MockConsumer> root_consumer = CreateMockConsumer();
   root_consumer->Connect(svc.get(), AID_ROOT);
   root_consumer->EnableTracing(exclusive_cfg);
-  root_consumer->DisableTracing();
+  root_consumer->FreeBuffers();
   root_consumer->WaitForTracingDisabled();
 
   // A privileged user (shell) can start an exclusive session.
   std::unique_ptr<MockConsumer> shell_consumer = CreateMockConsumer();
   shell_consumer->Connect(svc.get(), AID_SHELL);
   shell_consumer->EnableTracing(exclusive_cfg);
-  shell_consumer->DisableTracing();
+  shell_consumer->FreeBuffers();
   shell_consumer->WaitForTracingDisabled();
 }
 #endif  // OS_ANDROID
@@ -6686,7 +6686,7 @@ TEST_F(TracingServiceImplTest, ExclusiveSessionBlocksNewSessions) {
       StrEq("An exclusive session with priority 1 >= requested priority "
             "1 is already active."));
 
-  exclusive_consumer->DisableTracing();
+  exclusive_consumer->FreeBuffers();
   exclusive_consumer->WaitForTracingDisabled();
 }
 
@@ -6736,7 +6736,7 @@ TEST_F(TracingServiceImplTest, ExclusiveSessionAbortRunningSessions) {
   // The aborted clone session should not have any data.
   EXPECT_THAT(clone_consumer->ReadBuffers(), IsEmpty());
 
-  exclusive_consumer->DisableTracing();
+  exclusive_consumer->FreeBuffers();
   exclusive_consumer->WaitForTracingDisabled();
 }
 
@@ -6764,7 +6764,7 @@ TEST_F(TracingServiceImplTest, ExclusiveSessionHigherPriorityAbortsLower) {
   new_exclusive_consumer->EnableTracing(exclusive_cfg_2);
 
   // Finally, disable the last exclusive session.
-  new_exclusive_consumer->DisableTracing();
+  new_exclusive_consumer->FreeBuffers();
   new_exclusive_consumer->WaitForTracingDisabled();
 }
 
