@@ -46,11 +46,12 @@ function set_github_output() {
 }
 
 function do_restore_cache() {
+  local CACHED_TAR_PATH
   CACHED_TAR_PATH=$(mktemp /tmp/restored-cache-XXXXXX.tar)
   trap 'rm -f "$CACHED_TAR_PATH"' EXIT
 
-  cp_start_time=$SECONDS
-  cp_output=""
+  local cp_start_time=$SECONDS
+  local cp_output=""
   if cp_output=$(gcloud storage cp "$GCS_CACHE_PATH" "$CACHED_TAR_PATH" 2>&1); then
     cp_duration=$((SECONDS - cp_start_time))
     echo "$cp_output"
@@ -75,13 +76,14 @@ function do_restore_cache() {
     set_github_output "cache_hit" "false"
     echo "Cache not found, OK"
   else
-    echo "Can't download cache: $cp_output"
     set_github_output "cache_hit" "false"
+    echo "Can't download cache: $cp_output"
     exit 1
   fi
 }
 
 function do_save_cache() {
+  local TAR_PATH
   TAR_PATH=$(mktemp /tmp/cache-XXXXXX.tar)
   trap 'rm -f "$TAR_PATH"' EXIT
 
@@ -96,7 +98,7 @@ function do_save_cache() {
 
   tar "${tar_args[@]}"
 
-  cp_start_time=$SECONDS
+  local cp_start_time=$SECONDS
   gcloud storage cp "$TAR_PATH" "$GCS_CACHE_PATH"
   cp_duration=$((SECONDS - cp_start_time))
   echo "The 'gcloud storage cp' took $cp_duration seconds to complete."
@@ -107,15 +109,16 @@ function do_save_cache() {
 function main() {
   do_validate_input
 
-  VALIDATED_KEY=$(echo "$INPUT_CACHE_KEY" | tr ' -' '_')
-  readonly GCS_CACHE_PATH="$GCS_BUCKET/cache/$VALIDATED_KEY/archive.tar"
+  local FIXED_CACHE_KEY
+  FIXED_CACHE_KEY=$(echo "$INPUT_CACHE_KEY" | tr ' -' '_')
+  readonly GCS_CACHE_PATH="$GCS_BUCKET/cache/$FIXED_CACHE_KEY/archive.tar"
 
   if [[ "$INPUT_ACTION" == "save" ]]; then
     do_save_cache
   elif [[ "$INPUT_ACTION" == "restore" ]]; then
     do_restore_cache
   else
-    echo "Unsupported \$INPUT_ACTION: should be 'save' or 'restore', got: '$INPUT_ACTION'."
+    echo "Unsupported \$INPUT_ACTION: should be 'save' or 'restore', got '$INPUT_ACTION'."
     exit 1
   fi
 }
