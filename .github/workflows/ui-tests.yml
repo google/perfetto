@@ -38,9 +38,11 @@ jobs:
       # changed files (unless this is a post-submit test).
       - name: Fetch upstream branch
         if: ${{ github.base_ref != '' }}
+        shell: bash
         run: git fetch origin ${{ github.base_ref }} --depth=1
 
       - name: Setup artifacts
+        shell: bash
         run: |
           PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_ROOT/$PERFETTO_CI_JOB_ID
           echo "PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_DIR" >> $GITHUB_ENV
@@ -51,6 +53,7 @@ jobs:
           install-flags: --ui
 
       - name: Setup cache directory
+        shell: bash
         run: |
           mkdir -p "$PERFETTO_CACHE_DIR"
           bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
@@ -62,18 +65,22 @@ jobs:
           cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
 
       - name: Build Perfetto UI
+        shell: bash
         run: |
           ui/build --out out/ui
           cp -a out/ui/ui/dist/ "$PERFETTO_ARTIFACTS_DIR/ui"
 
       - name: Print ccache stats
+        shell: bash
         run: ccache --show-stats
 
 
       - name: UI unittests
+        shell: bash
         run: ui/run-unittests --out out/ui --no-build
 
       - name: Install Chrome
+        shell: bash
         run: |
           mkdir /tmp/chrome
           cd /tmp/chrome
@@ -82,6 +89,7 @@ jobs:
           dpkg-deb -x chrome.deb  .
 
       - name: UI integrationtests
+        shell: bash
         run: ui/run-integrationtests --out out/ui --no-build
 
         # UI code formatting checks must be done here, rather than repo-checks,
@@ -90,10 +98,12 @@ jobs:
         # base_ref is "" in post-submit, skip the presubmit check in postsubmit
         # as there is nothing do diff against.
         if: ${{ github.base_ref != '' }}
+        shell: bash
         run: ui/format-sources --check-only --upstream origin/${{ github.base_ref }}
 
       - name: Upload artifacts to GCS
         if: ${{ always() }}
+        shell: bash
         run: |
           if [ -d out/ui/ui-test-artifacts ]; then
             cp -a out/ui/ui-test-artifacts "$PERFETTO_ARTIFACTS_DIR/ui-test-artifacts"

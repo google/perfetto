@@ -33,7 +33,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+
       - name: Setup cache directory
+        shell: bash
         run: |
           mkdir -p "$PERFETTO_CACHE_DIR"
           bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
@@ -49,25 +51,32 @@ jobs:
           cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
 
       - name: Start emulator in the background
+        shell: bash
         run: tools/run_android_emulator --pid /tmp/emulator.pid -v &
 
       - name: Run GN
+        shell: bash
         run: tools/gn gen out/dist --args="${{ env.PERFETTO_TEST_GN_ARGS }}" --check
 
       - name: Build
+        shell: bash
         run: tools/ninja -C out/dist
 
       - name: Print ccache stats
+        shell: bash
         run: ccache --show-stats
 
       - name: perfetto_unittests
+        shell: bash
         run: tools/run_android_test -n out/dist perfetto_unittests
 
       - name: perfetto_integrationtests
+        shell: bash
         run: tools/run_android_test -n -x out/dist perfetto_integrationtests
 
       - name: Stop emulator
         if: ${{ always() }}
+        shell: bash
         run: test -f /tmp/emulator.pid && kill -9 $(cat /tmp/emulator.pid); true
 
       - name: Update cache (if on main)
