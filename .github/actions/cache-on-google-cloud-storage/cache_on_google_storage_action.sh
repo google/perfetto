@@ -51,7 +51,10 @@ function do_restore_cache() {
     fi
     tar_args+=("--file=$CACHED_TAR_PATH")
 
+    # Log the expanded command to help debug issues caused by bad arguments.
+    set -x
     tar "${tar_args[@]}"
+    set +x
 
     rm "$CACHED_TAR_PATH"
 
@@ -81,7 +84,10 @@ function do_save_cache() {
   fi
   tar_args+=("--file=$TAR_PATH" "--directory=$INPUT_DIRECTORY" ".")
 
+  # Log the expanded command to help debug issues caused by bad arguments.
+  set -x
   tar "${tar_args[@]}"
+  set +x
 
   local cp_start_time=$SECONDS
   gcloud storage cp "$TAR_PATH" "$GCS_CACHE_PATH"
