@@ -12,34 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-query-page {
-  font-family: "Roboto Condensed", sans-serif;
-  overflow: hidden auto;
+.pf-query-panel {
+  display: contents;
 
-  &__elapsed-time {
-    font-size: 0.9em;
-    color: rgb(83, 83, 83);
-    margin-left: 0.2rem;
+  .pf-query-warning {
+    padding: 4px;
+    position: sticky;
+    left: 0;
   }
 
-  &__toolbar {
-    border-bottom: 1px solid lightgray;
-  }
-
-  .pf-editor {
-    contain: strict; // See b/388579546
-    min-height: 3rem;
-  }
-
-  &__hotkeys {
-    display: inline-flex;
-    color: gray;
-    font-style: italic;
-    font-size: smaller;
-    user-select: none;
-  }
-
-  &__query-error {
+  .query-error {
     padding: 20px 10px;
     color: hsl(-10, 50%, 50%);
     font-family: "Roboto Mono", sans-serif;
