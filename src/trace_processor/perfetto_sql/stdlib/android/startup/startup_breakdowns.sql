@@ -146,7 +146,8 @@ FROM _slice_remove_nulls_and_reparent
       name) AS p
 JOIN thread_slice
   USING (id)
-ORDER BY p.id;
+ORDER BY
+  p.id;
 
 -- Subset of _startup_normalized_slices that occurred during any app startups on the main thread.
 -- Their timestamps and durations are chopped to fit within the respective app startup duration.
