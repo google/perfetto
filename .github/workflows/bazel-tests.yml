@@ -43,9 +43,9 @@ jobs:
             echo "folder DOESN'T exist"
           fi
 
-      - name: Setup ccahe
-        shell: bash
-        run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
+#      - name: Setup ccahe
+#        shell: bash
+#        run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
 
       - name: Print /tmp/cache status 2
         shell: bash
