@@ -719,6 +719,12 @@ message PackagesListConfig {
   // If not empty, emit info about only the following list of package names
   // (exact match, no regex). Otherwise, emit info about all packages.
   repeated string package_name_filter = 1;
+
+  // If present and non-zero, the data source will periodically poll for CPU
+  // use by packages and only emit results for those that it sees. If absent,
+  // the data source will emit results for all packages at startup. The package
+  // name filter applies either way.
+  optional uint32 only_write_on_cpu_use_every_ms = 2;
 }
 
 // End of protos/perfetto/config/android/packages_list_config.proto
@@ -5718,8 +5724,8 @@ message NetworkPacketEvent {
   // The direction traffic is flowing for this event.
   optional TrafficDirection direction = 1;
 
-  // The name of the interface if available (e.g. 'rmnet0').
-  optional string interface = 2;
+  // The name of the network interface if available (e.g. 'rmnet0').
+  optional string network_interface = 2;
 
   // The length of the packet in bytes (wire_size - L2_header_size). Ignored
   // when using NetworkPacketEvent as the ctx in either NetworkPacketBundle or

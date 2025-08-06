@@ -15,17 +15,23 @@
  */
 
 #include "src/trace_processor/importers/proto/memory_tracker_snapshot_module.h"
-#include "src/trace_processor/importers/common/parser_types.h"
 
-namespace perfetto {
-namespace trace_processor {
+#include <cstdint>
+
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/types/trace_processor_context.h"
+
+namespace perfetto::trace_processor {
 
 using perfetto::protos::pbzero::TracePacket;
 
 MemoryTrackerSnapshotModule::MemoryTrackerSnapshotModule(
+    ProtoImporterModuleContext* module_context,
     TraceProcessorContext* context)
-    : parser_(context) {
-  RegisterForField(TracePacket::kMemoryTrackerSnapshotFieldNumber, context);
+    : ProtoImporterModule(module_context), parser_(context) {
+  RegisterForField(TracePacket::kMemoryTrackerSnapshotFieldNumber);
 }
 
 MemoryTrackerSnapshotModule::~MemoryTrackerSnapshotModule() = default;
@@ -46,5 +52,4 @@ void MemoryTrackerSnapshotModule::NotifyEndOfFile() {
   parser_.NotifyEndOfFile();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

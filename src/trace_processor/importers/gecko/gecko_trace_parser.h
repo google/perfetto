@@ -14,22 +14,24 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_GECKO_GECKO_TRACE_PARSER_IMPL_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_GECKO_GECKO_TRACE_PARSER_IMPL_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_GECKO_GECKO_TRACE_PARSER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_GECKO_GECKO_TRACE_PARSER_H_
 
 #include <cstdint>
 
-#include "src/trace_processor/importers/common/trace_parser.h"
+#include "src/trace_processor/importers/gecko/gecko_event.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::gecko_importer {
 
-class GeckoTraceParserImpl : public GeckoTraceParser {
+class GeckoTraceParser
+    : public TraceSorter::Sink<GeckoEvent, GeckoTraceParser> {
  public:
-  explicit GeckoTraceParserImpl(TraceProcessorContext*);
-  ~GeckoTraceParserImpl() override;
+  explicit GeckoTraceParser(TraceProcessorContext*);
+  ~GeckoTraceParser() override;
 
-  void ParseGeckoEvent(int64_t ts, GeckoEvent) override;
+  void Parse(int64_t ts, GeckoEvent);
 
  private:
   TraceProcessorContext* const context_;
@@ -37,4 +39,4 @@ class GeckoTraceParserImpl : public GeckoTraceParser {
 
 }  // namespace perfetto::trace_processor::gecko_importer
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_GECKO_GECKO_TRACE_PARSER_IMPL_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_GECKO_GECKO_TRACE_PARSER_H_
