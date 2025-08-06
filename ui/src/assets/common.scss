@@ -141,17 +141,6 @@ button.close {
   font-family: var(--monospace-font);
 }
 
-.full-page-loading-screen {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-direction: row;
-  background: #3e4a5a url("assets/logo-3d.png") no-repeat fixed center;
-}
-
 .page {
   grid-area: page;
 }
@@ -172,76 +161,6 @@ button.close {
   font-size: 12px;
   font-weight: 300;
   white-space: pre;
-}
-
-.dropdown {
-  display: inline-block;
-  position: relative;
-}
-
-.dropdown-button {
-  cursor: pointer;
-}
-
-.popup-menu {
-  position: absolute;
-  background-color: white;
-  right: 0;
-  box-shadow: 0 0 4px 0 #999;
-  /* TODO(hjd): Reduce and make z-index use sensible. */
-  z-index: 1000;
-
-  &.closed {
-    display: none;
-  }
-
-  &.opened {
-    display: block;
-  }
-
-  button.open-menu {
-    border-radius: 0;
-    margin: 0;
-    height: auto;
-    background: transparent;
-    color: #111;
-    font-size: 12px;
-    padding: 0.4em 1em;
-    white-space: nowrap;
-    width: 100%;
-    text-align: right;
-    line-height: 1;
-    display: block; // Required in order for inherited white-space property not
-    // to screw up vertical rendering of the popup menu items.
-
-    &:hover {
-      background: #c7d0db;
-    }
-  }
-
-  .nested-menu {
-    padding-right: 1em;
-  }
-}
-
-.x-scrollable {
-  overflow-x: auto;
-}
-
-.text-select {
-  user-select: text;
-  -webkit-user-select: text;
-}
-
-button.query-ctrl {
-  background: #262f3c;
-  color: white;
-  border-radius: 10px;
-  font-size: 10px;
-  height: 18px;
-  line-height: 18px;
-  min-width: 7em;
-  margin: auto 0 auto 1rem;
 }
 
 .perf-stats {
@@ -322,31 +241,5 @@ button.query-ctrl {
   button:hover {
     background-color: #373f4b;
     cursor: pointer;
-  }
-}
-
-.disallow-selection {
-  user-select: none;
-}
-
-.name-completion {
-  input {
-    width: 90%;
-  }
-  min-height: 20vh;
-  min-width: 30vw;
-
-  .arguments-popup-sizer {
-    color: transparent;
-    user-select: none;
-    height: 0;
-  }
-}
-
-.context-wrapper {
-  white-space: nowrap;
-
-  i.material-icons {
-    margin-left: 0;
   }
 }
