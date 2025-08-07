@@ -27,7 +27,7 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Invoke acton script
+    - name: Invoke action script
       env:
         INPUT_DIRECTORY: ${{ inputs.directory }}
         INPUT_CACHE_KEY: ${{ inputs.cache_key }}
