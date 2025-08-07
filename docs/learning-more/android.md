@@ -173,15 +173,17 @@ The full reference for the `perfetto` cmdline interface can be found
 
 ## Exclusive Tracing Sessions
 
-Perfetto is designed to support [multiple concurrent tracing sessions](concepts/concurrent-tracing-sessions.md) from different sources (e.g., adb, on-device apps, automated testing). While this works for most data sources, some advanced features cannot be reliably multiplexed and require a guarantee that no other tracing session is active.
+Perfetto is designed to support [multiple concurrent tracing sessions](concepts/concurrent-tracing-sessions.md) from different sources (e.g., adb, on-device apps, automated testing). While this works for most data sources, some advanced features cannot be reliably multiplexed, and sensitive performance measurements require minimizing interference from other traces. In these situations, Perfetto requires a guarantee that no other tracing session is active.
 
 To address this, Perfetto offers an "exclusive" mode. When a session is started in exclusive mode, it ensures no other sessions are running, providing a clean tracing environment. This is controlled by the `exclusive_prio` field in the `TraceConfig`.
 
 ### When to use exclusive mode
 
-You should use an exclusive session when tracing with data sources that:
-*   Require a pristine state for accurate measurements, free from the potential interference of other concurrent traces.
-*   Have high overhead (e.g., `function_graph` in ftrace).
+You should use an exclusive session in the following scenarios:
+
+* For sensitive performance measurements where you need to minimize interference from other concurrent tracing activities.
+* When using data sources with high overhead, such as `function_graph` in ftrace, to ensure their behavior is not affected by other sessions.
+* When configuring parameters that apply globally and are not multiplexed, like the ftrace buffer size (`buffer_size_kb`), which is only configured by the first active session.
 
 ### Behavior
 
@@ -206,8 +208,8 @@ buffers: {
 }
 
 # Request an exclusive session with priority 10.
-# This will abort any running sessions (provided they are of lower priority) &
-# block new sessions with lower or equal priority.
+# This will abort any running sessions (provided they have a lower priority) and
+# block new sessions with a lower or equal priority.
 exclusive_prio: 10
 
 data_sources: {
