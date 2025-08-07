@@ -119,7 +119,6 @@ class TraceProcessorContext {
   // the GetOrCreate() method on their subclass type, e.g.
   // SyscallTracker::GetOrCreate(context)
   // clang-format off
-  std::unique_ptr<Destructible> android_probes_tracker;                 // AndroidProbesTracker
   std::unique_ptr<Destructible> android_battery_stats_history_tracker;  // AndroidBatteryStatsHistoryStringTracker
   std::unique_ptr<Destructible> binder_tracker;                         // BinderTracker
   std::unique_ptr<Destructible> heap_graph_tracker;                     // HeapGraphTracker
