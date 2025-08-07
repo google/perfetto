@@ -77,7 +77,7 @@ jobs:
         run: test -f /tmp/emulator.pid && kill -9 $(cat /tmp/emulator.pid); true
 
       - name: Update cache (if on main)
-#        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main'
         uses: ./.github/actions/cache-on-google-cloud-storage/save
         with:
           directory: ${{ env.PERFETTO_CACHE_DIR }}
