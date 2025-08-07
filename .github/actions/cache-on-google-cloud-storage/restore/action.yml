@@ -31,7 +31,7 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Invoke acton script
+    - name: Invoke action script
       id: restore_action_script
       env:
         INPUT_DIRECTORY: ${{ inputs.directory }}

@@ -19,7 +19,7 @@ on:
 env:
   # /tmp/cache contains {ccache, bazelcache} and generally any other cache
   # that should be persisted across jobs, but only updated from the main
-  # branch. This is populated by the "actions/cache/restore" step below.
+  # branch. This is populated by the "Restore cache" step below.
   PERFETTO_CACHE_DIR: /tmp/cache
   PERFETTO_ARTIFACTS_ROOT: /tmp/artifacts
   PYTHONUNBUFFERED: 1
@@ -55,10 +55,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup cache directory
-        run: |
-          mkdir -p "$PERFETTO_CACHE_DIR"
-          bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
+      - name: Setup ccache
+        shell: bash
+        run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
 
       - name: Setup artifacts
         shell: bash
@@ -158,7 +157,7 @@ jobs:
           /opt/ci/artifacts_uploader.py --rm ${{ env.PERFETTO_ARTIFACTS_ROOT }}
 
       - name: Update cache (if on main)
-#        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main'
         uses: ./.github/actions/cache-on-google-cloud-storage/save
         with:
           directory: ${{ env.PERFETTO_CACHE_DIR }}

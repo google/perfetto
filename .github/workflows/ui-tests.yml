@@ -19,7 +19,7 @@ on:
 env:
   # /tmp/cache contains {ccache, bazelcache} and generally any other cache
   # that should be persisted across jobs, but only updated from the main
-  # branch. This is populated by the "actions/cache/restore" step below.
+  # branch. This is populated by the "Restore cache" step below.
   PERFETTO_CACHE_DIR: /tmp/cache
   PERFETTO_ARTIFACTS_ROOT: /tmp/artifacts
   PYTHONUNBUFFERED: 1
@@ -28,8 +28,8 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 45
     env:
-      PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-ui
       PERFETTO_CI_BUILD_CACHE_KEY: build-cache-ui
+      PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-ui
       CI: 1
     steps:
       - uses: actions/checkout@v4
@@ -52,11 +52,9 @@ jobs:
         with:
           install-flags: --ui
 
-      - name: Setup cache directory
+      - name: Setup ccache
         shell: bash
-        run: |
-          mkdir -p "$PERFETTO_CACHE_DIR"
-          bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
+        run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
 
       - name: Restore cache
         uses: ./.github/actions/cache-on-google-cloud-storage/restore
@@ -119,7 +117,7 @@ jobs:
           echo "https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui/index.html"
 
       - name: Update cache (if on main)
-#        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main'
         uses: ./.github/actions/cache-on-google-cloud-storage/save
         with:
           directory: ${{ env.PERFETTO_CACHE_DIR }}

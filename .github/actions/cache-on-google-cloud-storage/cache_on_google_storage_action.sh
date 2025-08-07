@@ -51,10 +51,7 @@ function do_restore_cache() {
     fi
     tar_args+=("--file=$CACHED_TAR_PATH")
 
-    # Log the expanded command to help debug issues caused by bad arguments.
-    set -x
     tar "${tar_args[@]}"
-    set +x
 
     set_github_output "cache_hit" "true"
     echo "Cache restored, OK"
@@ -82,10 +79,7 @@ function do_save_cache() {
   fi
   tar_args+=("--file=$TAR_PATH" "--directory=$INPUT_DIRECTORY" ".")
 
-  # Log the expanded command to help debug issues caused by bad arguments.
-  set -x
   tar "${tar_args[@]}"
-  set +x
 
   local cp_start_time=$SECONDS
   gcloud storage cp "$TAR_PATH" "$GCS_CACHE_PATH"
@@ -121,6 +115,8 @@ readonly ALLOWED_CACHE_KEY_REGEX="[a-zA-Z0-9._ -]+"
 # It expect the following variable to be set by the caller:
 # `$INPUT_ACTION`, `$INPUT_DIRECTORY`, `$INPUT_CACHE_KEY`, `$INPUT_EXCLUDE_FILES_PATH`.
 # This scripts is started with 'set -eu', so it fails if any of the variables are not set.
-# We don't explicitly check that input paths are valid,
-# 'tar' will check it anyway and report an error.
+# We don't explicitly check that input paths are valid; 'tar' will check them
+# and report any errors.
+# We don't compress the archive before uploading because it mainly contains
+# binary data that doesn't compress well.
 main "$@"
