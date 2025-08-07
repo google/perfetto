@@ -252,9 +252,50 @@ export class TimeSelectionPanel {
     ts: time,
   ) {
     const xPos = Math.floor(timescale.timeToPx(ts));
-    const domainTime = this.trace.timeline.toDomainTime(ts);
-    const label = this.stringifyTimestamp(domainTime);
-    drawIBar(ctx, xPos, this.getBBoxFromSize(size), label);
+    const bounds = this.getBBoxFromSize(size);
+
+    const hoverVisible = bounds.x <= xPos && xPos <= bounds.x + bounds.width;
+
+    if (hoverVisible) {
+      const domainTime = this.trace.timeline.toDomainTime(ts);
+      const label = this.stringifyTimestamp(domainTime);
+      drawIBar(ctx, xPos, bounds, label);
+      return;
+    }
+
+    ctx.save();
+    ctx.font = '10px Roboto Condensed';
+    ctx.textBaseline = 'middle';
+
+    const yMid = Math.floor(bounds.height / 2);
+
+    const {label, labelWidth, textX} = (() => {
+      if (xPos < bounds.x) {
+        const distance = Time.sub(timescale.timeSpan.start.toTime(), ts);
+        const label = `← ${formatDuration(this.trace, distance)}`;
+        const labelWidth = ctx.measureText(label).width;
+        return {
+          textX: bounds.x,
+          label,
+          labelWidth,
+        };
+      } else {
+        const distance = Time.sub(ts, timescale.timeSpan.end.toTime());
+        const label = `${formatDuration(this.trace, distance)} →`;
+        const labelWidth = ctx.measureText(label).width;
+        return {
+          label,
+          labelWidth,
+          textX: bounds.x + bounds.width - labelWidth,
+        };
+      }
+    })();
+
+    ctx.fillStyle = BACKGROUND_COLOR;
+    ctx.fillRect(textX - 1, 0, labelWidth + 2, bounds.height);
+    ctx.fillStyle = FOREGROUND_COLOR;
+    ctx.fillText(label, textX, yMid);
+    ctx.restore();
   }
 
   renderSpan(
