@@ -1278,6 +1278,7 @@ void PerfettoCmd::OnDetach(bool success) {
 }
 
 void PerfettoCmd::OnAttach(bool success, const TraceConfig& trace_config) {
+  // Trigger CI build.
   if (!success) {
     if (!redetach_once_attached_) {
       // Print an error message if attach fails, with the exception of the
