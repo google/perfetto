@@ -21,7 +21,7 @@ export function registerTraceTools(server: McpServer, engine: Engine) {
   server.tool(
     'perfetto-execute-query',
     `
-       Tool to query the perfetto trace file loaded in Perfettu UI currently.
+       Tool to query the perfetto trace file loaded in Perfetto UI currently.
 
        The query is SQL to execute against Perfetto's trace_processor.
 
