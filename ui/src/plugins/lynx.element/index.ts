@@ -36,6 +36,7 @@ import LynxPerf from '../lynx.perf';
 import {lynxPerfGlobals} from '../../lynx_perf/lynx_perf_globals';
 import {findPrecedingIdenticalFlowIdSlice} from '../../lynx_perf/trace_utils';
 import {LynxElement} from '../../lynx_perf/common_components/element_tree/types';
+import {stringToJsonObject} from '../../lynx_perf/string_utils';
 
 /**
  * Lynx Element Performance Analysis Plugin
@@ -149,7 +150,10 @@ export default class LynxElementPlugin implements PerfettoPlugin {
       args.forEach((arg) => {
         if (arg.key === 'debug.content' || arg.key === 'args.content') {
           const content = arg.value as string;
-          const rootElementAbbr = JSON.parse(content);
+          const rootElementAbbr = stringToJsonObject(content);
+          if (rootElementAbbr === undefined) {
+            return;
+          }
           const rootElement = reConstructElementTree(
             rootElementAbbr,
             undefined,
