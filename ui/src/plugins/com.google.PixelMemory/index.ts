@@ -28,55 +28,37 @@ const CREATE_BREAKDOWN_TABLE_SQL = `
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.google.PixelMemory';
+  private tablesInitialized = false;
 
-  async onTraceLoad(ctx: Trace): Promise<void> {
-    // Helper function to set up the breakdown tables.
-    const setupTable = async () => {
-      await ctx.engine.query('INCLUDE PERFETTO MODULE android.gpu.memory;');
-      await ctx.engine.query('INCLUDE PERFETTO MODULE linux.memory.process;');
-      await ctx.engine.query(CREATE_BREAKDOWN_TABLE_SQL);
-    };
+  // Helper to set up the breakdown tables idempotently.
+  private async setupTables(ctx: Trace) {
+    if (this.tablesInitialized) {
+      return;
+    }
+    await ctx.engine.query('INCLUDE PERFETTO MODULE android.gpu.memory;');
+    await ctx.engine.query('INCLUDE PERFETTO MODULE linux.memory.process;');
+    await ctx.engine.query(CREATE_BREAKDOWN_TABLE_SQL);
+    this.tablesInitialized = true;
+  }
 
-    // This command shows the total memory track.
+  // Helper to register a command that adds a memory counter track.
+  private registerMemoryCommand(
+    ctx: Trace,
+    id: string,
+    name: string,
+    sqlValueExpr: string,
+    titleSuffix: string,
+  ) {
     ctx.commands.registerCommand({
-      id: 'dev.perfetto.PixelMemory#ShowTotalMemory',
-      name: 'Add tracks: show a process total memory',
-      callback: async (pid) => {
+      id,
+      name,
+      callback: async (pid?: string) => {
         if (pid === undefined) {
-          pid = prompt('Enter a process pid', '');
-          if (pid === null) return;
+          pid = prompt('Enter a process pid', '') || '';
+          if (!pid) return;
         }
 
-        await setupTable();
-
-        await addDebugCounterTrack({
-          trace: ctx,
-          data: {
-            sqlSource: `
-                SELECT
-                  ts,
-                  COALESCE(rss_and_swap, 0) + COALESCE(gpu_memory, 0) AS value
-                FROM process_memory_breakdown
-                WHERE pid = ${pid}
-            `,
-            columns: ['ts', 'value'],
-          },
-          title: pid + '_rss_anon_file_swap_shmem_gpu',
-        });
-      },
-    });
-
-    // This command shows the memory track excluding file RSS.
-    ctx.commands.registerCommand({
-      id: 'dev.perfetto.PixelMemory#ShowRssAnonShmemSwapGpuMemory',
-      name: 'Add tracks: show a process total memory (excluding file RSS)',
-      callback: async (pid) => {
-        if (pid === undefined) {
-          pid = prompt('Enter a process pid', '');
-          if (pid === null) return;
-        }
-
-        await setupTable();
+        await this.setupTables(ctx);
 
         await addDebugCounterTrack({
           trace: ctx,
@@ -84,15 +66,34 @@ export default class implements PerfettoPlugin {
             sqlSource: `
               SELECT
                 ts,
-                COALESCE(anon_rss_and_swap, 0) + COALESCE(shmem_rss, 0) + COALESCE(gpu_memory, 0) AS value
+                (${sqlValueExpr}) AS value
               FROM process_memory_breakdown
               WHERE pid = ${pid}
             `,
             columns: ['ts', 'value'],
           },
-          title: `${pid}_rss_anon_shmem_swap_gpu`,
+          title: `${pid}${titleSuffix}`,
         });
       },
     });
+  }
+
+  async onTraceLoad(ctx: Trace): Promise<void> {
+    this.registerMemoryCommand(
+      ctx,
+      'dev.perfetto.PixelMemory#ShowTotalMemory',
+      'Add tracks: show a process total memory',
+      'COALESCE(rss_and_swap, 0) + COALESCE(gpu_memory, 0)',
+      '_rss_anon_file_swap_shmem_gpu',
+    );
+
+    this.registerMemoryCommand(
+      ctx,
+      'dev.perfetto.PixelMemory#ShowRssAnonShmemSwapGpuMemory',
+      'Add tracks: show a process total memory (excluding file RSS)',
+      'COALESCE(anon_rss_and_swap, 0) + COALESCE(shmem_rss, 0) + ' +
+        'COALESCE(gpu_memory, 0)',
+      '_rss_anon_shmem_swap_gpu',
+    );
   }
 }
