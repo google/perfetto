@@ -32,6 +32,8 @@
 
 namespace perfetto::trace_processor {
 
+class AndroidProbesTracker;
+
 class AndroidProbesModule : public ProtoImporterModule {
  public:
   explicit AndroidProbesModule(ProtoImporterModuleContext* module_context,
@@ -55,6 +57,7 @@ class AndroidProbesModule : public ProtoImporterModule {
   void ParseEntityStateDescriptor(protozero::ConstBytes blob);
 
  private:
+  std::unique_ptr<AndroidProbesTracker> tracker_;
   AndroidProbesParser parser_;
   TraceProcessorContext* context_ = nullptr;
 
