@@ -16,7 +16,7 @@
 @import "../theme";
 
 // Adding these to a new layer makes other rules take precedence
-@layer widgets {
+@layer pf-widgets {
   .pf-vtable {
     overflow: auto;
     font-family: $pf-font;

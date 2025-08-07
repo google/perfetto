@@ -519,7 +519,7 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
     sql_name='window_manager_shell_transitions',
     columns=[
         C('ts', CppInt64(), cpp_access=CppAccess.READ_AND_LOW_PERF_WRITE),
-        C('transition_id', CppInt64(), ColumnFlag.SORTED),
+        C('transition_id', CppInt64()),
         C(
             'arg_set_id',
             CppOptional(CppUint32()),

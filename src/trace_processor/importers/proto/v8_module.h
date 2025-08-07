@@ -22,18 +22,17 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/v8_tables_py.h"
 
-namespace perfetto {
-namespace protos {
-namespace pbzero {
+namespace perfetto::protos::pbzero {
 class TracePacket_Decoder;
 }
-}  // namespace protos
-namespace trace_processor {
+
+namespace perfetto::trace_processor {
 
 class PacketSequenceState;
 struct TracePacketData;
@@ -46,7 +45,8 @@ class V8Tracker;
 // associated debug information has been loaded in each of the isolates.
 class V8Module : public ProtoImporterModule {
  public:
-  explicit V8Module(TraceProcessorContext* context);
+  explicit V8Module(ProtoImporterModuleContext* module_context,
+                    TraceProcessorContext* context);
 
   ~V8Module() override;
 
@@ -95,7 +95,6 @@ class V8Module : public ProtoImporterModule {
   base::FlatHashMap<tables::V8IsolateTable::Id, uint32_t> isolate_to_pid_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_V8_MODULE_H_

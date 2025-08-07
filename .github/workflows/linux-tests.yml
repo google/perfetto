@@ -56,9 +56,11 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup ccache
+        shell: bash
         run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
 
       - name: Setup artifacts
+        shell: bash
         run: |
           PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_ROOT/$PERFETTO_CI_JOB_ID
           echo "PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_DIR" >> $GITHUB_ENV
@@ -78,15 +80,19 @@ jobs:
         env:
           # We hop through this env var to preserve quote escaping.
           GN_ARGS: ${{ matrix.config.PERFETTO_TEST_GN_ARGS }}
+        shell: bash
         run: tools/gn gen out/dist --args="${{ env.GN_ARGS }}" --check
 
       - name: Build
+        shell: bash
         run: tools/ninja -C out/dist
 
       - name: Print ccache stats
+        shell: bash
         run: ccache --show-stats
 
       - name: setup symbolizer paths
+        shell: bash
         run: |
           if [[ -e buildtools/linux64/clang/bin/llvm-symbolizer ]]; then
             echo "ASAN_SYMBOLIZER_PATH=$(readlink -f buildtools/linux64/clang/bin/llvm-symbolizer)" >> $GITHUB_ENV
@@ -94,15 +100,19 @@ jobs:
           fi
 
       - name: perfetto_unittests
+        shell: bash
         run: out/dist/perfetto_unittests
 
       - name: perfetto_integrationtests
+        shell: bash
         run: out/dist/perfetto_integrationtests
 
       - name: trace_processor_minimal_smoke_tests
+        shell: bash
         run: out/dist/trace_processor_minimal_smoke_tests
 
       - name: Find trace_processor_shell
+        shell: bash
         run: |
           # If this is a split host+target build, use the trace_processor_shell
           # binary from the host directory. In some cases (e.g. lsan x86 builds)
@@ -116,6 +126,7 @@ jobs:
           echo "HOST_OUT_PATH=$HOST_OUT_PATH" >> $GITHUB_ENV
 
       - name: TraceProcessor diff tests
+        shell: bash
         run: |
           mkdir -p "$PERFETTO_ARTIFACTS_DIR/perf"
           tools/diff_test_trace_processor.py \
@@ -123,10 +134,12 @@ jobs:
             $HOST_OUT_PATH/trace_processor_shell
 
       - name: TraceProcessor python tests
+        shell: bash
         run: python/run_tests.py $HOST_OUT_PATH
 
       - name: perfetto_benchmarks (functional-only)
         if: ${{ !(contains(matrix.name, 'msan') || contains(matrix.name, 'asan') || contains(matrix.name, 'tsan')) }}
+        shell: bash
         run: |
           # Don't run benchmarks under x86 (running out of address space because
           # of 4GB) limit or debug (too slow and pointless).
@@ -139,6 +152,7 @@ jobs:
 
       - name: Upload artifacts to GCS
         if: ${{ always() }}
+        shell: bash
         run: |
           /opt/ci/artifacts_uploader.py --rm ${{ env.PERFETTO_ARTIFACTS_ROOT }}
 

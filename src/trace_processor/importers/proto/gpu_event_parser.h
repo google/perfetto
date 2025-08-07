@@ -118,6 +118,7 @@ class GpuEventParser {
 
   // For GpuRenderStageEvent
   const StringId description_id_;
+  const StringId correlation_id_;
   std::vector<std::optional<TrackId>> gpu_hw_queue_ids_;
 
   // Map of stage ID -> pair(stage name, stage description)

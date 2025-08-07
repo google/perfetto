@@ -29,6 +29,11 @@ $pf-responsive-gutter: 8px;
     flex-direction: column;
     gap: $pf-responsive-gutter;
   }
+
+  .pf-grid-layout-column > * {
+    word-break: break-word;
+  }
+
   td {
     word-break: break-all;
   }

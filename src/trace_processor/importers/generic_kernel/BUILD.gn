@@ -31,7 +31,6 @@ source_set("full") {
     "../../types",
     "../common",
     "../common:parser_types",
-    "../common:trace_parser_hdr",
     "../proto:proto_importer_module",
   ]
 }

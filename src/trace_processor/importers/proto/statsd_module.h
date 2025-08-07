@@ -25,7 +25,6 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -37,7 +36,8 @@ namespace perfetto::trace_processor {
 
 class StatsdModule : public ProtoImporterModule {
  public:
-  explicit StatsdModule(TraceProcessorContext* context);
+  explicit StatsdModule(ProtoImporterModuleContext* module_context,
+                        TraceProcessorContext* context);
 
   ~StatsdModule() override;
 

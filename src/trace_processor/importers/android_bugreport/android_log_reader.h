@@ -19,14 +19,18 @@
 
 #include <chrono>
 #include <cstdint>
+#include <memory>
 #include <optional>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
 #include "src/trace_processor/importers/android_bugreport/chunked_line_reader.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 
-namespace perfetto ::trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
@@ -65,6 +69,7 @@ class AndroidLogReader : public ChunkedLineReader {
   explicit AndroidLogReader(TraceProcessorContext* context);
   AndroidLogReader(TraceProcessorContext* context,
                    int32_t year,
+                   std::unique_ptr<TraceSorter::Stream<AndroidLogEvent>> stream,
                    bool wait_for_tz = false);
 
   ~AndroidLogReader() override;
@@ -90,8 +95,10 @@ class AndroidLogReader : public ChunkedLineReader {
   // offset becomes known, or we reach the end of the input without any TZ info.
   base::Status FlushNonTzAdjustedEvents();
 
- private:
   TraceProcessorContext* const context_;
+  std::unique_ptr<TraceSorter::Stream<AndroidLogEvent>> stream_;
+
+ private:
   std::optional<AndroidLogEvent::Format> format_;
   int32_t year_;
   bool wait_for_tz_;
@@ -102,10 +109,14 @@ class AndroidLogReader : public ChunkedLineReader {
 // vector that can later be feed to a `DedupingAndroidLogReader` instance.
 class BufferingAndroidLogReader : public AndroidLogReader {
  public:
-  BufferingAndroidLogReader(TraceProcessorContext* context,
-                            int32_t year,
-                            bool wait_for_tz = false)
-      : AndroidLogReader(context, year, wait_for_tz) {}
+  explicit BufferingAndroidLogReader(TraceProcessorContext* context,
+                                     int32_t year,
+                                     bool wait_for_tz = false);
+  BufferingAndroidLogReader(
+      TraceProcessorContext* context,
+      int32_t year,
+      std::unique_ptr<TraceSorter::Stream<AndroidLogEvent>> stream,
+      bool wait_for_tz = false);
   ~BufferingAndroidLogReader() override;
 
   base::Status ProcessEvent(std::chrono::nanoseconds event_ts,
@@ -132,10 +143,16 @@ class DedupingAndroidLogReader : public AndroidLogReader {
                            int32_t year,
                            bool wait_for_tz,
                            std::vector<TimestampedAndroidLogEvent> events);
+  DedupingAndroidLogReader(
+      TraceProcessorContext* context,
+      int32_t year,
+      std::unique_ptr<TraceSorter::Stream<AndroidLogEvent>> stream,
+      bool wait_for_tz,
+      std::vector<TimestampedAndroidLogEvent> events);
   DedupingAndroidLogReader(TraceProcessorContext* context,
                            int32_t year,
                            std::vector<TimestampedAndroidLogEvent> events)
-      : DedupingAndroidLogReader(context, year, false, events) {}
+      : DedupingAndroidLogReader(context, year, false, std::move(events)) {}
   ~DedupingAndroidLogReader() override;
 
   base::Status ProcessEvent(std::chrono::nanoseconds event_ts,

@@ -36,12 +36,14 @@ jobs:
     steps:
       - name: Check if PR is from a fork
         id: fork_check
+        shell: bash
         run: |
           echo "is_fork=${{ github.event.pull_request.head.repo.full_name != github.repository }}" >> $GITHUB_ENV
           echo "Triggered by: ${{ github.event_name }}, ${{ github.event.review.state }} by ${{ github.event.review.user.login }}"
 
       - name: Fetch approved reviews
         if: env.is_fork == 'true'
+        shell: bash
         run: |
           PR_NUMBER=${{ github.event.pull_request.number }}
           REPO="${{ github.repository }}"
