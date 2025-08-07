@@ -17,7 +17,6 @@ import {TraceUrlSource} from '../core/trace_source';
 import {createPermalink, uploadTraceBlob} from './permalink';
 import {showModal} from '../widgets/modal';
 import {globals} from './globals';
-import {AppImpl} from '../core/app_impl';
 import {Trace} from '../public/trace';
 import {TraceImpl} from '../core/trace_impl';
 import {CopyableLink} from '../widgets/copyable_link';
@@ -45,7 +44,6 @@ export async function shareTrace(trace: TraceImpl) {
     );
 
     if (result) {
-      AppImpl.instance.analytics.logEvent('Trace Actions', 'Create permalink');
       const traceUrl = await uploadTraceBlob(trace);
       const hash = await createPermalink(trace, traceUrl);
       showModal({
@@ -68,10 +66,6 @@ export async function shareTrace(trace: TraceImpl) {
         );
 
         if (result) {
-          AppImpl.instance.analytics.logEvent(
-            'Trace Actions',
-            'Create permalink',
-          );
           const hash = await createPermalink(trace, undefined);
           const urlWithHash = traceUrl.replace(STATE_HASH_PLACEHOLDER, hash);
           showModal({

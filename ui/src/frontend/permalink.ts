@@ -119,6 +119,8 @@ export async function createPermalink(
   trace: TraceImpl,
   traceUrl: string | undefined,
 ): Promise<string> {
+  AppImpl.instance.analytics.logEvent('Trace Actions', 'Create permalink');
+
   const permalinkData: PermalinkState = {
     traceUrl,
     appState: serializeAppState(trace),
