@@ -76,6 +76,7 @@ interface LogEntries {
 }
 
 export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
+  private readonly trace: Trace;
   private entries?: LogEntries;
 
   private pagination: Pagination = {
@@ -87,6 +88,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
   private readonly queryLimiter = new AsyncLimiter();
 
   constructor({attrs}: m.CVnode<LogPanelAttrs>) {
+    this.trace = attrs.trace;
     this.rowsMonitor = new Monitor([
       () => attrs.filterStore.state,
       () => attrs.trace.timeline.visibleWindow.toTimeSpan().start,
@@ -178,6 +180,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       return [];
     }
 
+    const trace = this.trace;
     const machineIds = this.entries.machineIds;
     const timestamps = this.entries.timestamps;
     const pids = this.entries.pids;
@@ -202,7 +205,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
         ),
         cells: [
           ...(hasMachineIds ? [machineIds[i]] : []),
-          m(Timestamp, {ts}),
+          m(Timestamp, {trace, ts}),
           pids[i],
           tids[i],
           priorityLetter || '?',
