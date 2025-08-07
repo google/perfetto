@@ -173,7 +173,7 @@ The full reference for the `perfetto` cmdline interface can be found
 
 ## Exclusive Tracing Sessions
 
-Perfetto is designed to support [multiple concurrent tracing sessions](concepts/concurrent-tracing-sessions.md) from different sources (e.g., adb, on-device apps, automated testing). While this works for most data sources, some advanced features cannot be reliably multiplexed, and sensitive performance measurements require minimizing interference from other traces. In these situations, Perfetto requires a guarantee that no other tracing session is active.
+Perfetto is designed to support [multiple concurrent tracing sessions](/docs/concepts/concurrent-tracing-sessions.md) from different sources (e.g., adb, on-device apps, automated testing). While this works for most data sources, some advanced features cannot be reliably multiplexed, and sensitive performance measurements require minimizing interference from other traces. In these situations, Perfetto requires a guarantee that no other tracing session is active.
 
 To address this, Perfetto offers an "exclusive" mode. When a session is started in exclusive mode, it ensures no other sessions are running, providing a clean tracing environment. This is controlled by the `exclusive_prio` field in the `TraceConfig`.
 
