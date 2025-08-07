@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser_impl.h"
+#include "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser.h"
 
 #include <cstdint>
 #include <optional>
@@ -207,11 +207,10 @@ base::StatusOr<int64_t> StringToStatusOrInt64(base::StringView str) {
 
 }  // namespace
 
-AndroidDumpstateEventParserImpl::~AndroidDumpstateEventParserImpl() = default;
+AndroidDumpstateEventParser::~AndroidDumpstateEventParser() = default;
 
-void AndroidDumpstateEventParserImpl::ParseAndroidDumpstateEvent(
-    int64_t ts,
-    AndroidDumpstateEvent event) {
+void AndroidDumpstateEventParser::Parse(int64_t ts,
+                                            AndroidDumpstateEvent event) {
   switch (event.type) {
     case AndroidDumpstateEvent::EventType::kBatteryStatsHistoryEvent:
       ProcessBatteryStatsHistoryItem(ts, event.raw_event);
@@ -221,7 +220,7 @@ void AndroidDumpstateEventParserImpl::ParseAndroidDumpstateEvent(
   }
 }
 
-base::Status AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryItem(
+base::Status AndroidDumpstateEventParser::ProcessBatteryStatsHistoryItem(
     int64_t ts,
     const std::string& raw_event) {
   base::StringViewSplitter splitter(base::StringView(raw_event), '=');
@@ -267,7 +266,7 @@ base::Status AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryItem(
 }
 
 base::StatusOr<bool>
-AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryEvent(
+AndroidDumpstateEventParser::ProcessBatteryStatsHistoryEvent(
     const TokenizedBatteryStatsHistoryItem& item) {
   if (!item.key.StartsWith("E")) {
     return false;
@@ -299,7 +298,7 @@ AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryEvent(
 }
 
 base::StatusOr<bool>
-AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryState(
+AndroidDumpstateEventParser::ProcessBatteryStatsHistoryState(
     const TokenizedBatteryStatsHistoryItem& item) {
   // Process a history state of the form "+state" or "-state"
   if (!item.prefix.empty() && item.value.empty()) {
@@ -352,7 +351,7 @@ AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryState(
 }
 
 base::StatusOr<bool>
-AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryBatteryCounter(
+AndroidDumpstateEventParser::ProcessBatteryStatsHistoryBatteryCounter(
     const TokenizedBatteryStatsHistoryItem& item) {
   if (!item.prefix.empty() || item.value.empty() || !item.key.StartsWith("B")) {
     return false;
@@ -447,7 +446,7 @@ AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryBatteryCounter(
 }
 
 base::StatusOr<bool>
-AndroidDumpstateEventParserImpl::ProcessBatteryStatsHistoryWakeLocks(
+AndroidDumpstateEventParser::ProcessBatteryStatsHistoryWakeLocks(
     const TokenizedBatteryStatsHistoryItem& item) {
   if (item.prefix.empty() || item.key != "w" || item.value.empty()) {
     return false;

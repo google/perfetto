@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
+@import "../../assets/theme";
 
 .pf-metrics-page-picker {
   display: flex;
@@ -22,7 +22,7 @@
   margin-right: 1rem;
 }
 
-.metrics-page {
+.pf-metrics-page {
   padding: 30px;
   font-family: "Roboto", sans-serif;
   overflow-y: scroll;

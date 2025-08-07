@@ -17,15 +17,13 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_MULTI_MACHINE_TRACE_MANAGER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_MULTI_MACHINE_TRACE_MANAGER_H_
 
+#include <cstdint>
 #include <memory>
-#include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 class ProtoTraceReader;
@@ -83,11 +81,8 @@ class MultiMachineTraceManager {
   // Owns contexts for remote machines.
   base::FlatHashMap<RawMachineId, RemoteMachineContext>
       remote_machine_contexts_;
-
-  ProtoImporterModuleFactory additional_modules_factory_ = nullptr;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_MULTI_MACHINE_TRACE_MANAGER_H_

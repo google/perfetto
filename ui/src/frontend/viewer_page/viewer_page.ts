@@ -56,7 +56,7 @@ class ViewerPage implements m.ClassComponent<ViewerPageAttrs> {
   view({attrs}: m.CVnode<ViewerPageAttrs>) {
     const {trace} = attrs;
     return m(
-      '.pf-viewer-page.page',
+      '.pf-viewer-page.pf-page',
       m(
         TabPanel,
         {trace},
