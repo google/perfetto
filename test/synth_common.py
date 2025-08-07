@@ -883,6 +883,7 @@ def create_trace():
       'ChromeRAILMode',
       'ChromeLatencyInfo',
       'ChromeProcessDescriptor',
+      'ChromeTrackEvent',
       'CounterDescriptor',
       'ThreadDescriptor',
   ])
@@ -905,6 +906,8 @@ def create_trace():
           pool,
           pool.FindMessageTypeByName(
               'perfetto.protos.ChromeProcessDescriptor')),
+      ChromeTrackEvent=get_message_class(
+          pool, pool.FindMessageTypeByName('perfetto.protos.ChromeTrackEvent')),
       CounterDescriptor=get_message_class(
           pool,
           pool.FindMessageTypeByName('perfetto.protos.CounterDescriptor')),
