@@ -246,8 +246,8 @@ export function postMessageHandler(messageEvent: MessageEvent) {
       }
       const json = (await response.json()).appState;
       const parsedState = parseAppState(json);
-      if (parsedState.success) {
-        appState = parsedState.data;
+      if (parsedState.ok) {
+        appState = parsedState.value;
       }
     }
     AppImpl.instance.openTraceFromBuffer(postedTrace, appState);
