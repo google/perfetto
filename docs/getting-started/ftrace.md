@@ -651,7 +651,7 @@ TRACE_EVENT(tgid_counter_example,
 #include <trace/define_trace.h>
 ```
 
-Example convenience marcos, using the current process context (`current->tgid`)
+Example convenience macros, using the current process context (`current->tgid`)
 for grouping events:
 
 ```h
