@@ -44,6 +44,7 @@
     border-radius $time ease;
 }
 
+// Mixin for using material icons inside a pseudo-element.
 @mixin material-icon($content) {
   @include icon;
   content: $content;
