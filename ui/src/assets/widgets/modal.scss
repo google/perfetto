@@ -15,8 +15,8 @@
 @import "../theme";
 
 // The opacity changes are only transitional. Once the `modalFadeOut` animation
-// reaches the end, the Mithril component that renders .modal-backdrop
-// (and .modal-dialog) is fully destroyed and removed from the DOM.
+// reaches the end, the Mithril component that renders .pf-modal-backdrop
+// (and .pf-modal-dialog) is fully destroyed and removed from the DOM.
 // We use keyframes+animation, rather than transition, because the former allow
 // hooking the onanimationend events to synchronize the Mithril removal with
 // the end of the CSS animation.
@@ -38,7 +38,7 @@
   }
 }
 
-.modal-backdrop {
+.pf-modal-backdrop {
   position: absolute;
   z-index: 99;
   background-color: rgba(0, 0, 0, 0.6);
@@ -56,7 +56,7 @@
   }
 }
 
-.modal-dialog {
+.pf-modal-dialog {
   position: absolute;
   z-index: 100;
   background-color: #fff;
@@ -74,7 +74,7 @@
   font-family: Roboto, sans-serif;
   font-weight: 300;
 
-  &.modal-dialog-valign-top {
+  &.pf-modal-dialog-valign-top {
     top: 1rem;
     transform: translate(-50%, 0);
   }
@@ -126,29 +126,13 @@
   } // footer
 }
 
-.help {
-  table {
-    margin-bottom: 15px;
-    td {
-      min-width: 250px;
-    }
-    td:first-child {
-      font-family: var(--monospace-font);
-    }
-  }
-  h2 {
-    font: inherit;
-    font-weight: bold;
-  }
-}
-
-.modal-pre {
+.pf-modal-pre {
   white-space: pre-line;
   font-size: 13px;
 }
 
-.modal-logs,
-.modal-bash {
+.pf-modal-logs,
+.pf-modal-bash {
   white-space: pre-wrap;
   border: 1px solid #999;
   background: #eee;
@@ -161,20 +145,20 @@
   overflow: auto;
 }
 
-.modal-bash {
+.pf-modal-bash {
   margin: 0;
   padding: 5px 0;
   overflow: auto;
   min-height: 0;
 }
 
-.modal-textarea {
+.pf-modal-textarea {
   display: block;
   margin-top: 10px;
   margin-bottom: 10px;
   width: 100%;
 }
 
-.modal-small {
+.pf-modal-small {
   font-size: 0.75rem;
 }

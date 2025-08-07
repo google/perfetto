@@ -16,8 +16,8 @@ import("../../../../gn/test.gni")
 
 source_set("perf_text") {
   sources = [
-    "perf_text_trace_parser_impl.cc",
-    "perf_text_trace_parser_impl.h",
+    "perf_text_trace_parser.cc",
+    "perf_text_trace_parser.h",
     "perf_text_trace_tokenizer.cc",
     "perf_text_trace_tokenizer.h",
   ]

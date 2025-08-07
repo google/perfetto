@@ -268,7 +268,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
       m(
         VirtualOverlayCanvas,
         {
-          className: 'virtual-canvas',
+          className: 'pf-virtual-canvas',
           overflowX: 'hidden',
           overflowY: 'auto',
           onCanvasRedraw: ({ctx, virtualCanvasSize, canvasRect}) => {

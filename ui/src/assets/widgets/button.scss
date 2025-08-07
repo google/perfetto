@@ -55,12 +55,6 @@
     margin-left: 6px; // Make some room between the icon and label
   }
 
-  & > .material-icons,
-  & > .material-icons-filled {
-    font-size: inherit;
-    line-height: inherit;
-  }
-
   &:focus-visible {
     @include focus;
   }

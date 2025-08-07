@@ -56,6 +56,8 @@ SELECT
   d.l3_miss_count,
   d.no_static,
   d.all_cpu_deep_idle,
+  d.freq_1d_static,
+  d.freq_2d_static,
   -- If dependency_max is 0, dependent CPUs are not active, so use the minimum
   -- freq/voltage vote
   iif(d.dependency_max = 0, m.min_dependency, d.dependency_max) AS dependency

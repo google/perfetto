@@ -34,7 +34,7 @@
 #include "protos/perfetto/common/android_log_constants.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
-#include "src/trace_processor/importers/android_bugreport/android_log_event_parser_impl.h"
+#include "src/trace_processor/importers/android_bugreport/android_log_event_parser.h"
 #include "src/trace_processor/importers/common/clock_converter.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -123,11 +123,10 @@ int32_t GuessYear(TraceProcessorContext* context) {
 }  // namespace
 
 AndroidLogReader::AndroidLogReader(TraceProcessorContext* context)
-    : AndroidLogReader(
-          context,
-          GuessYear(context),
-          context->sorter->CreateStream(
-              std::make_unique<AndroidLogEventParserImpl>(context))) {}
+    : AndroidLogReader(context,
+                       GuessYear(context),
+                       context->sorter->CreateStream(
+                           std::make_unique<AndroidLogEventParser>(context))) {}
 
 AndroidLogReader::AndroidLogReader(
     TraceProcessorContext* context,
@@ -281,7 +280,7 @@ BufferingAndroidLogReader::BufferingAndroidLogReader(
           context,
           year,
           context->sorter->CreateStream(
-              std::make_unique<AndroidLogEventParserImpl>(context)),
+              std::make_unique<AndroidLogEventParser>(context)),
           wait_for_tz) {}
 
 BufferingAndroidLogReader::BufferingAndroidLogReader(
@@ -312,7 +311,7 @@ DedupingAndroidLogReader::DedupingAndroidLogReader(
           context,
           year,
           context->sorter->CreateStream(
-              std::make_unique<AndroidLogEventParserImpl>(context)),
+              std::make_unique<AndroidLogEventParser>(context)),
           wait_for_tz,
           std::move(events)) {}
 

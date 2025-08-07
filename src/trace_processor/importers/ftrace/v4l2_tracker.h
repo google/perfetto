@@ -42,13 +42,6 @@ class V4l2Tracker : public Destructible {
   V4l2Tracker& operator=(const V4l2Tracker&) = delete;
   ~V4l2Tracker() override;
 
-  static V4l2Tracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->v4l2_tracker) {
-      context->v4l2_tracker.reset(new V4l2Tracker(context));
-    }
-    return static_cast<V4l2Tracker*>(context->v4l2_tracker.get());
-  }
-
   void ParseV4l2Event(uint64_t fld_id,
                       int64_t timestamp,
                       uint32_t pid,

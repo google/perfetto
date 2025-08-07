@@ -185,7 +185,7 @@ class ColumnFilter implements m.ClassComponent<ColumnFilterAttrs> {
             id: 'column_filter_value',
             ref: 'COLUMN_FILTER_VALUE',
             autofocus: true,
-            oninput: (e: KeyboardEvent) => {
+            oninput: (e: InputEvent) => {
               if (!e.target) return;
 
               this.inputValue = (e.target as HTMLInputElement).value;

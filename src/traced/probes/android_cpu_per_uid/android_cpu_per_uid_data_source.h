@@ -19,7 +19,6 @@
 
 #include <memory>
 
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/tracing/core/data_source_config.h"
@@ -29,6 +28,7 @@
 namespace perfetto {
 
 class TraceWriter;
+class AndroidCpuPerUidPoller;
 namespace base {
 class TaskRunner;
 }
@@ -50,20 +50,17 @@ class AndroidCpuPerUidDataSource : public ProbesDataSource {
   void ClearIncrementalState() override;
 
  private:
-  struct DynamicLibLoader;
-
   void Tick();
   void WriteCpuPerUid();
 
   base::WeakPtr<AndroidCpuPerUidDataSource> GetWeakPtr() const;
 
   uint32_t poll_interval_ms_ = 0;
-  uint64_t last_update_ns_ = 0;
-  base::FlatHashMap<uint64_t, uint64_t> previous_times_;
+  bool first_time_ = true;
 
   base::TaskRunner* const task_runner_;
   std::unique_ptr<TraceWriter> writer_;
-  std::unique_ptr<DynamicLibLoader> lib_;
+  std::unique_ptr<AndroidCpuPerUidPoller> poller_;
   base::WeakPtrFactory<AndroidCpuPerUidDataSource> weak_factory_;  // Keep last.
 };
 

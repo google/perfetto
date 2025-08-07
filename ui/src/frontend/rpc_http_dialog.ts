@@ -239,7 +239,7 @@ async function showDialogVersionMismatch(
   let result = MismatchedVersionDialog.Dismissed;
   await showModal({
     title: 'Version mismatch',
-    content: m('.modal-pre', getVersionMismatchMessage(tpStatus)),
+    content: m('.pf-modal-pre', getVersionMismatchMessage(tpStatus)),
     buttons: [
       {
         primary: true,
@@ -277,7 +277,7 @@ async function showDialogIncompatibleRPC(
   let result = IncompatibleRpcDialogResult.Dismissed;
   await showModal({
     title: 'Incompatible RPC version',
-    content: m('.modal-pre', getIncompatibleRpcMessage(tpStatus)),
+    content: m('.pf-modal-pre', getIncompatibleRpcMessage(tpStatus)),
     buttons: [
       {
         text: 'Use builtin Wasm',
@@ -310,7 +310,7 @@ async function showDialogToUsePreloadedTrace(
   let result = PreloadedDialogResult.Dismissed;
   await showModal({
     title: 'Use trace processor native acceleration?',
-    content: m('.modal-pre', getPromptMessage(tpStatus)),
+    content: m('.pf-modal-pre', getPromptMessage(tpStatus)),
     buttons: [
       {
         text: 'YES, use loaded trace',

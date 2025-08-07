@@ -16,24 +16,27 @@
 
 SELECT RUN_METRIC('android/process_metadata.sql');
 
+INCLUDE PERFETTO MODULE android.memory.heap_graph.class_relationship;
+
 DROP TABLE IF EXISTS android_special_classes;
 CREATE PERFETTO TABLE android_special_classes AS
-WITH RECURSIVE cls_visitor(cls_id, category) AS (
-  SELECT id, name FROM heap_graph_class WHERE name IN (
-    'android.view.View',
-    'android.app.Activity',
-    'android.app.Fragment',
-    'android.content.ContentProviderClient',
-    'android.os.Binder',
-    'android.os.BinderProxy',
-    'android.os.Parcel',
-    'com.android.server.am.ConnectionRecord',
-    'com.android.server.am.PendingIntentRecord')
-  UNION ALL
-  SELECT child.id, parent.category
-  FROM heap_graph_class child JOIN cls_visitor parent ON parent.cls_id = child.superclass_id
-)
-SELECT * FROM cls_visitor;
+WITH
+  special_classes(id) AS (
+    SELECT id
+    FROM heap_graph_class WHERE name IN (
+      'android.view.View',
+      'android.app.Activity',
+      'android.app.Fragment',
+      'android.content.ContentProviderClient',
+      'android.os.Binder',
+      'android.os.BinderProxy',
+      'android.os.Parcel',
+      'com.android.server.am.ConnectionRecord',
+      'com.android.server.am.PendingIntentRecord')
+  )
+SELECT
+  id as cls_id, ancestor_class_name as category
+FROM android_heap_graph_class_find_descendants!(special_classes);
 
 DROP TABLE IF EXISTS heap_obj_histograms;
 CREATE PERFETTO TABLE heap_obj_histograms AS

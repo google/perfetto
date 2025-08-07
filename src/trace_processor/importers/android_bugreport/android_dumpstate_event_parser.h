@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_BUGREPORT_ANDROID_DUMPSTATE_EVENT_PARSER_IMPL_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_BUGREPORT_ANDROID_DUMPSTATE_EVENT_PARSER_IMPL_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_BUGREPORT_ANDROID_DUMPSTATE_EVENT_PARSER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_BUGREPORT_ANDROID_DUMPSTATE_EVENT_PARSER_H_
 
 #include <cstdint>
 
@@ -28,13 +28,13 @@ namespace perfetto ::trace_processor {
 
 class TraceProcessorContext;
 
-class AndroidDumpstateEventParserImpl
+class AndroidDumpstateEventParser
     : public TraceSorter::Sink<AndroidDumpstateEvent,
-                               AndroidDumpstateEventParserImpl> {
+                               AndroidDumpstateEventParser> {
  public:
-  explicit AndroidDumpstateEventParserImpl(TraceProcessorContext* context)
+  explicit AndroidDumpstateEventParser(TraceProcessorContext* context)
       : context_(context) {}
-  ~AndroidDumpstateEventParserImpl() override;
+  ~AndroidDumpstateEventParser() override;
 
   void Parse(int64_t, AndroidDumpstateEvent);
 
@@ -66,4 +66,4 @@ class AndroidDumpstateEventParserImpl
 
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_BUGREPORT_ANDROID_DUMPSTATE_EVENT_PARSER_IMPL_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_BUGREPORT_ANDROID_DUMPSTATE_EVENT_PARSER_H_

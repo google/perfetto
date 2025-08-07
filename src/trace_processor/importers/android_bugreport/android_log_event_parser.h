@@ -14,28 +14,31 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/android_bugreport/android_log_event_parser_impl.h"
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_BUGREPORT_ANDROID_LOG_EVENT_PARSER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_BUGREPORT_ANDROID_LOG_EVENT_PARSER_H_
 
 #include <cstdint>
-#include <utility>
 
 #include "src/trace_processor/importers/android_bugreport/android_log_event.h"
-#include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/tables/android_tables_py.h"
-#include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 
-namespace perfetto::trace_processor {
+namespace perfetto ::trace_processor {
 
-AndroidLogEventParserImpl::~AndroidLogEventParserImpl() = default;
+class TraceProcessorContext;
 
-void AndroidLogEventParserImpl::Parse(int64_t ts, AndroidLogEvent event) {
-  tables::AndroidLogTable::Row row;
-  row.ts = ts;
-  row.utid = context_->process_tracker->UpdateThread(event.tid, event.pid);
-  row.prio = event.prio;
-  row.tag = event.tag;
-  row.msg = event.msg;
-  context_->storage->mutable_android_log_table()->Insert(std::move(row));
-}
+class AndroidLogEventParser
+    : public TraceSorter::Sink<AndroidLogEvent, AndroidLogEventParser> {
+ public:
+  explicit AndroidLogEventParser(TraceProcessorContext* context)
+      : context_(context) {}
+  ~AndroidLogEventParser() override;
+
+  void Parse(int64_t, AndroidLogEvent);
+
+ private:
+  TraceProcessorContext* const context_;
+};
 
 }  // namespace perfetto::trace_processor
+
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ANDROID_BUGREPORT_ANDROID_LOG_EVENT_PARSER_H_

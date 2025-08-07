@@ -114,7 +114,7 @@ export class AddDebugTrackMenu
             // Allow Esc to close popup.
             if (e.key === 'Escape') return;
           },
-          oninput: (e: KeyboardEvent) => {
+          oninput: (e: InputEvent) => {
             if (!e.target) return;
             this.trackName = (e.target as HTMLInputElement).value;
           },

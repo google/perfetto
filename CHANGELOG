@@ -16,6 +16,8 @@ Unreleased:
       arguments as multiple track_event tracks could have contributed to a
       single trace processor track. If you want the previous behaviour, specify
       `sibling_merge_behaviour: SIBLING_MERGE_BEHAVIOR_NONE`.
+    * Internal changes to packet sorting that might change the parsing order of
+      data with identical timestamps, relative to previous releases.
   UI:
     * Added support for controlling TrackEvent track merging through the
       `TrackDescriptor` proto. This is especially useful for users converting

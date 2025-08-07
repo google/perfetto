@@ -18,12 +18,12 @@ import {classForIntent, HTMLAttrs, Intent} from './common';
 
 export interface IconAttrs extends HTMLAttrs {
   // The material icon name.
-  icon: string;
+  readonly icon: string;
   // Whether to show the filled version of the icon.
   // Defaults to false.
-  filled?: boolean;
+  readonly filled?: boolean;
   // Color the icon by specifying an intent.
-  intent?: Intent;
+  readonly intent?: Intent;
 }
 
 export class Icon implements m.ClassComponent<IconAttrs> {

@@ -42,7 +42,10 @@
 #include "src/trace_processor/importers/ftrace/pkvm_hyp_cpu_tracker.h"
 #include "src/trace_processor/importers/ftrace/rss_stat_tracker.h"
 #include "src/trace_processor/importers/ftrace/thermal_tracker.h"
+#include "src/trace_processor/importers/ftrace/v4l2_tracker.h"
 #include "src/trace_processor/importers/ftrace/virtio_gpu_tracker.h"
+#include "src/trace_processor/importers/ftrace/virtio_video_tracker.h"
+#include "src/trace_processor/importers/i2c/i2c_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -346,15 +349,18 @@ class FtraceParser {
   TraceProcessorContext* context_;
   GenericFtraceTracker* generic_tracker_;
 
-  RssStatTracker rss_stat_tracker_;
   DrmTracker drm_tracker_;
-  IostatTracker iostat_tracker_;
-  VirtioGpuTracker virtio_gpu_tracker_;
-  MaliGpuEventTracker mali_gpu_event_tracker_;
-  PkvmHypervisorCpuTracker pkvm_hyp_cpu_tracker_;
   GpuWorkPeriodTracker gpu_work_period_tracker_;
-  ThermalTracker thermal_tracker_;
+  I2cTracker i2c_tracker_;
+  IostatTracker iostat_tracker_;
+  MaliGpuEventTracker mali_gpu_event_tracker_;
   PixelMmKswapdEventTracker pixel_mm_kswapd_event_tracker_;
+  PkvmHypervisorCpuTracker pkvm_hyp_cpu_tracker_;
+  RssStatTracker rss_stat_tracker_;
+  ThermalTracker thermal_tracker_;
+  V4l2Tracker v4l2_tracker_;
+  VirtioGpuTracker virtio_gpu_tracker_;
+  VirtioVideoTracker virtio_video_tracker_;
 
   const StringId sched_wakeup_name_id_;
   const StringId sched_waking_name_id_;

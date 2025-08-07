@@ -34,9 +34,11 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup ccache
+        shell: bash
         run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
 
       - name: Setup artifacts
+        shell: bash
         run: |
           PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_ROOT/$PERFETTO_CI_JOB_ID
           echo "PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_DIR" >> $GITHUB_ENV
@@ -53,6 +55,7 @@ jobs:
           install-flags: --bazel
 
       - name: Build Bazel
+        shell: bash
         run: |
           BAZEL_DISK_CACHE_FOLDER="$PERFETTO_CACHE_DIR/bazel-disk-cache"
           # Cleanup the cache if any of the two conditions are true.
@@ -65,6 +68,7 @@ jobs:
           tools/bazel build //python:all ${BAZEL_DISK_CACHE_FLAGS} --verbose_failures
 
       - name: Smoke tests
+        shell: bash
         run: |
           ./bazel-bin/traced &
           ./bazel-bin/traced_probes &

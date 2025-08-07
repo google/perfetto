@@ -100,7 +100,6 @@
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
-#include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -262,7 +261,6 @@ class ProtoTraceParserTest : public ::testing::Test {
         &context_, TraceSorter::SortingMode::kFullSort);
     context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
 
-    context_.perf_sample_tracker.reset(new PerfSampleTracker(&context_));
     context_.track_compressor.reset(new TrackCompressor(&context_));
 
     reader_ = std::make_unique<ProtoTraceReader>(&context_);

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/art_method/art_method_parser_impl.h"
+#include "src/trace_processor/importers/art_method/art_method_parser.h"
 
 #include <cstdint>
 
@@ -30,14 +30,14 @@
 
 namespace perfetto::trace_processor::art_method {
 
-ArtMethodParserImpl::ArtMethodParserImpl(TraceProcessorContext* context)
+ArtMethodParser::ArtMethodParser(TraceProcessorContext* context)
     : context_(context),
       pathname_id_(context->storage->InternString("pathname")),
       line_number_id_(context->storage->InternString("line_number")) {}
 
-ArtMethodParserImpl::~ArtMethodParserImpl() = default;
+ArtMethodParser::~ArtMethodParser() = default;
 
-void ArtMethodParserImpl::Parse(int64_t ts, ArtMethodEvent e) {
+void ArtMethodParser::Parse(int64_t ts, ArtMethodEvent e) {
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(e.tid);
   if (e.comm) {
     context_->process_tracker->UpdateThreadNameAndMaybeProcessName(

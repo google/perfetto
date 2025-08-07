@@ -22,7 +22,11 @@ import {
   addJankCUJDebugTrack,
   addLatencyCUJDebugTrack,
 } from '../../dev.perfetto.AndroidCujs';
-import {addDebugSliceTrack} from '../../../components/tracks/debug_tracks';
+import {
+  addDebugSliceTrack,
+  DebugSliceTrackArgs,
+} from '../../../components/tracks/debug_tracks';
+import {LONG, QueryResult, Row} from '../../../trace_processor/query_result';
 
 class BlockingCallMetricHandler implements MetricHandler {
   /**
@@ -55,10 +59,18 @@ class BlockingCallMetricHandler implements MetricHandler {
    * @param {Trace} ctx PluginContextTrace for trace related properties and methods
    * @returns {void} Adds one track for Jank CUJ slice and one for Janky CUJ frames
    */
-  public addMetricTrack(metricData: BlockingCallMetricData, ctx: Trace): void {
+  public async addMetricTrack(metricData: BlockingCallMetricData, ctx: Trace) {
     this.pinSingleCuj(ctx, metricData);
     const config = this.blockingCallTrackConfig(metricData);
     addDebugSliceTrack({trace: ctx, ...config});
+    // Only trigger adding track for frame when the aggregation is for max duration per frame.
+    if (metricData.aggregation === 'max_dur_per_frame_ns') {
+      const frameConfigArgs = await this.frameWithMaxDurBlockingCallTrackConfig(
+        ctx,
+        metricData,
+      );
+      addDebugSliceTrack({trace: ctx, ...frameConfigArgs});
+    }
   }
 
   private async pinSingleCuj(ctx: Trace, metricData: BlockingCallMetricData) {
@@ -101,6 +113,70 @@ class BlockingCallMetricHandler implements MetricHandler {
       columns: {ts: 'ts', dur: 'dur', name: 'name'},
       argColumns: ['name', 'ts', 'dur'],
       title: trackName,
+    };
+  }
+
+  private async getFrameIdWithMaxDurationBlockingCall(
+    ctx: Trace,
+    metricData: BlockingCallMetricData,
+  ): Promise<QueryResult> {
+    const cuj = metricData.cujName;
+    const processName = metricData.process;
+    const blockingCallName = metricData.blockingCallName;
+
+    // Fetch the frame_id of the frame with the max duration blocking call.
+    return ctx.engine.query(`
+      INCLUDE PERFETTO MODULE android.frame_blocking_calls.blocking_calls_aggregation;
+
+      SELECT
+        frame_id
+      FROM _blocking_calls_frame_cuj
+      WHERE
+        process_name = '${processName}'
+        AND name = '${blockingCallName}'
+        AND cuj_name = '${cuj}'
+      -- select frame_id for the metric with the maximum duration.
+      ORDER BY dur DESC
+      LIMIT 1`);
+  }
+  private async frameWithMaxDurBlockingCallTrackConfig(
+    ctx: Trace,
+    metricData: BlockingCallMetricData,
+  ): Promise<
+    Pick<DebugSliceTrackArgs, 'data' | 'columns' | 'argColumns' | 'title'>
+  > {
+    let row: Row = {
+      frame_id: null,
+    };
+
+    try {
+      row = (
+        await this.getFrameIdWithMaxDurationBlockingCall(ctx, metricData)
+      ).firstRow({frame_id: LONG});
+    } catch (e) {
+      throw new Error(
+        `${e.message} caused by: No frame found for the given process, CUJ and blocking call.`,
+      );
+    }
+
+    // Fetch the ts and dur of the frame corresponding to the above frame_id.
+    const frameWithMaxDurBlockingCallQuery = `
+      SELECT
+        cast_string!(frame_id) AS frame_id,
+        ts,
+        dur
+      FROM android_frames_layers
+      WHERE frame_id = ${row.frame_id}
+      `;
+
+    return {
+      data: {
+        sqlSource: frameWithMaxDurBlockingCallQuery,
+        columns: ['frame_id', 'ts', 'dur'],
+      },
+      columns: {ts: 'ts', dur: 'dur', name: 'frame_id'},
+      argColumns: ['frame_id', 'ts', 'dur'],
+      title: 'Frame with max duration blocking call',
     };
   }
 }

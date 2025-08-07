@@ -486,10 +486,8 @@ class PerfettoTable(TestSuite):
         trace=Path('../parser/android/surfaceflinger_layers.textproto'),
         query="""
         SELECT flat_key, key, int_value, string_value, real_value FROM __intrinsic_winscope_proto_to_args_with_defaults('surfaceflinger_layer') AS sfl
-        WHERE
-          (flat_key GLOB "*id" AND int_value = 3)
-          OR flat_key IN (
-            "id",
+        WHERE flat_key IN (
+            'id',
             "z",
             "parent",
             "name",

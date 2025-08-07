@@ -30,8 +30,8 @@ message NetworkPacketEvent {
   // The direction traffic is flowing for this event.
   optional TrafficDirection direction = 1;
 
-  // The name of the interface if available (e.g. 'rmnet0').
-  optional string interface = 2;
+  // The name of the network interface if available (e.g. 'rmnet0').
+  optional string network_interface = 2;
 
   // The length of the packet in bytes (wire_size - L2_header_size). Ignored
   // when using NetworkPacketEvent as the ctx in either NetworkPacketBundle or

@@ -145,17 +145,17 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
     }
 
     const aria = '[aria-labelledby=mm-title][aria-model][role=dialog]';
-    const align = attrs.vAlign === 'TOP' ? '.modal-dialog-valign-top' : '';
+    const align = attrs.vAlign === 'TOP' ? '.pf-modal-dialog-valign-top' : '';
     const customClass = attrs.className ? '.' + attrs.className : '';
     return m(
-      '.modal-backdrop',
+      '.pf-modal-backdrop',
       {
         onclick: this.onBackdropClick.bind(this, attrs),
         onkeydown: this.onBackdropKeydown.bind(this, attrs),
         tabIndex: 0,
       },
       m(
-        `.modal-dialog${align}${customClass}${aria}`,
+        `.pf-modal-dialog${align}${customClass}${aria}`,
         m(
           'header',
           m(

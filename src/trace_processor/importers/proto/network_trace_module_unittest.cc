@@ -139,7 +139,7 @@ TEST_F(NetworkTraceModuleTest, ParseAndFormatPacket) {
   event->set_remote_port(443);
   event->set_tcp_flags(0b10010);
   event->set_ip_proto(6);
-  event->set_interface("wlan");
+  event->set_network_interface("wlan");
 
   ASSERT_TRUE(TokenizeAndParse().ok());
 

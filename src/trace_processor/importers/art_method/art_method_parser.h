@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ART_METHOD_ART_METHOD_PARSER_IMPL_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_ART_METHOD_ART_METHOD_PARSER_IMPL_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ART_METHOD_ART_METHOD_PARSER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_ART_METHOD_ART_METHOD_PARSER_H_
 
 #include <cstdint>
 
@@ -26,11 +26,11 @@
 
 namespace perfetto::trace_processor::art_method {
 
-class ArtMethodParserImpl
-    : public TraceSorter::Sink<ArtMethodEvent, ArtMethodParserImpl> {
+class ArtMethodParser
+    : public TraceSorter::Sink<ArtMethodEvent, ArtMethodParser> {
  public:
-  explicit ArtMethodParserImpl(TraceProcessorContext*);
-  ~ArtMethodParserImpl() override;
+  explicit ArtMethodParser(TraceProcessorContext*);
+  ~ArtMethodParser() override;
 
   void Parse(int64_t ts, ArtMethodEvent);
 
@@ -43,4 +43,4 @@ class ArtMethodParserImpl
 
 }  // namespace perfetto::trace_processor::art_method
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ART_METHOD_ART_METHOD_PARSER_IMPL_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ART_METHOD_ART_METHOD_PARSER_H_

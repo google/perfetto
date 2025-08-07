@@ -37,15 +37,10 @@ using I2cAdapterId = uint32_t;
 
 class I2cTracker : public Destructible {
  public:
+  explicit I2cTracker(TraceProcessorContext*);
   I2cTracker(const I2cTracker&) = delete;
   I2cTracker& operator=(const I2cTracker&) = delete;
   ~I2cTracker() override;
-  static I2cTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->i2c_tracker) {
-      context->i2c_tracker.reset(new I2cTracker(context));
-    }
-    return static_cast<I2cTracker*>(context->i2c_tracker.get());
-  }
 
   struct I2cAdapterMessageCount {
     I2cAdapterId adapter_nr{};
@@ -64,7 +59,6 @@ class I2cTracker : public Destructible {
   void Exit(int64_t ts, UniqueTid utid, uint32_t adapter_nr, uint32_t nr_msgs);
 
  private:
-  explicit I2cTracker(TraceProcessorContext*);
   TraceProcessorContext* const context_;
   std::array<StringId, kMaxI2cAdapters> i2c_adapter_to_string_id_{};
 

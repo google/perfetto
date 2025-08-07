@@ -37,7 +37,7 @@
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/art_method/art_method_event.h"
-#include "src/trace_processor/importers/art_method/art_method_parser_impl.h"
+#include "src/trace_processor/importers/art_method/art_method_parser.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -92,8 +92,8 @@ uint16_t ToShort(const TraceBlobView& tbv) {
 
 ArtMethodTokenizer::ArtMethodTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
-      stream_(ctx->sorter->CreateStream(
-          std::make_unique<ArtMethodParserImpl>(ctx))) {}
+      stream_(
+          ctx->sorter->CreateStream(std::make_unique<ArtMethodParser>(ctx))) {}
 ArtMethodTokenizer::~ArtMethodTokenizer() = default;
 
 base::Status ArtMethodTokenizer::Parse(TraceBlobView blob) {

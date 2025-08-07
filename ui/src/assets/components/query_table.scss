@@ -1,4 +1,4 @@
-// Copyright (C) 2024 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,19 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
+.pf-query-panel {
+  display: contents;
 
-interface DocsChipAttrs {
-  href: string;
-}
-
-export class DocsChip implements m.ClassComponent<DocsChipAttrs> {
-  view({attrs}: m.CVnode<DocsChipAttrs>) {
-    return m(
-      'a.inline-chip',
-      {href: attrs.href, title: 'Open docs in new tab', target: '_blank'},
-      m('i.material-icons', 'info'),
-      ' Docs',
-    );
+  &__query-error {
+    padding: 20px 10px;
+    color: hsl(-10, 50%, 50%);
+    font-family: "Roboto Mono", sans-serif;
+    font-size: 12px;
+    font-weight: 300;
+    white-space: pre;
   }
 }

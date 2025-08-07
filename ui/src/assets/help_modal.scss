@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@mixin bottom-panel-font {
-  font-family: "Roboto Condensed", sans-serif;
-  font-weight: 300;
-  color: #3c4b5d;
+.pf-help-modal {
+  table {
+    margin-bottom: 15px;
+    td {
+      min-width: 250px;
+    }
+    td:first-child {
+      font-family: var(--monospace-font);
+    }
+  }
+  h2 {
+    font: inherit;
+    font-weight: bold;
+  }
 }

@@ -57,9 +57,6 @@
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
 #include "src/trace_processor/importers/ftrace/generic_ftrace_tracker.h"
 #include "src/trace_processor/importers/ftrace/pkvm_hyp_cpu_tracker.h"
-#include "src/trace_processor/importers/ftrace/v4l2_tracker.h"
-#include "src/trace_processor/importers/ftrace/virtio_video_tracker.h"
-#include "src/trace_processor/importers/i2c/i2c_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
@@ -418,15 +415,18 @@ FtraceParser::FtraceParser(TraceProcessorContext* context,
                            GenericFtraceTracker* generic_tracker)
     : context_(context),
       generic_tracker_(generic_tracker),
-      rss_stat_tracker_(context),
       drm_tracker_(context),
-      iostat_tracker_(context),
-      virtio_gpu_tracker_(context),
-      mali_gpu_event_tracker_(context),
-      pkvm_hyp_cpu_tracker_(context),
       gpu_work_period_tracker_(context),
-      thermal_tracker_(context),
+      i2c_tracker_(context),
+      iostat_tracker_(context),
+      mali_gpu_event_tracker_(context),
       pixel_mm_kswapd_event_tracker_(context),
+      pkvm_hyp_cpu_tracker_(context),
+      rss_stat_tracker_(context),
+      thermal_tracker_(context),
+      v4l2_tracker_(context),
+      virtio_gpu_tracker_(context),
+      virtio_video_tracker_(context),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
@@ -1249,16 +1249,14 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       case FtraceEvent::kVb2V4l2BufDoneFieldNumber:
       case FtraceEvent::kVb2V4l2QbufFieldNumber:
       case FtraceEvent::kVb2V4l2DqbufFieldNumber: {
-        V4l2Tracker::GetOrCreate(context_)->ParseV4l2Event(fld.id(), ts, pid,
-                                                           fld_bytes);
+        v4l2_tracker_.ParseV4l2Event(fld.id(), ts, pid, fld_bytes);
         break;
       }
       case FtraceEvent::kVirtioVideoCmdFieldNumber:
       case FtraceEvent::kVirtioVideoCmdDoneFieldNumber:
       case FtraceEvent::kVirtioVideoResourceQueueFieldNumber:
       case FtraceEvent::kVirtioVideoResourceQueueDoneFieldNumber: {
-        VirtioVideoTracker::GetOrCreate(context_)->ParseVirtioVideoEvent(
-            fld.id(), ts, fld_bytes);
+        virtio_video_tracker_.ParseVirtioVideoEvent(fld.id(), ts, fld_bytes);
         break;
       }
       case FtraceEvent::kTrustySmcFieldNumber: {
@@ -2413,8 +2411,7 @@ void FtraceParser::ParseI2cReadEvent(int64_t timestamp,
   uint32_t msg_nr = static_cast<uint32_t>(evt.msg_nr());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
-  I2cTracker* i2c_tracker = I2cTracker::GetOrCreate(context_);
-  i2c_tracker->Enter(timestamp, utid, adapter_nr, msg_nr);
+  i2c_tracker_.Enter(timestamp, utid, adapter_nr, msg_nr);
 }
 
 void FtraceParser::ParseI2cWriteEvent(int64_t timestamp,
@@ -2425,8 +2422,7 @@ void FtraceParser::ParseI2cWriteEvent(int64_t timestamp,
   uint32_t msg_nr = static_cast<uint32_t>(evt.msg_nr());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
-  I2cTracker* i2c_tracker = I2cTracker::GetOrCreate(context_);
-  i2c_tracker->Enter(timestamp, utid, adapter_nr, msg_nr);
+  i2c_tracker_.Enter(timestamp, utid, adapter_nr, msg_nr);
 }
 
 void FtraceParser::ParseI2cResultEvent(int64_t timestamp,
@@ -2437,8 +2433,7 @@ void FtraceParser::ParseI2cResultEvent(int64_t timestamp,
   uint32_t nr_msgs = static_cast<uint32_t>(evt.nr_msgs());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
-  I2cTracker* i2c_tracker = I2cTracker::GetOrCreate(context_);
-  i2c_tracker->Exit(timestamp, utid, adapter_nr, nr_msgs);
+  i2c_tracker_.Exit(timestamp, utid, adapter_nr, nr_msgs);
 }
 
 void FtraceParser::ParseTaskNewTask(int64_t timestamp,

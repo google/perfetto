@@ -80,7 +80,7 @@ class KeyMappingsHelp implements m.ClassComponent {
 
   view(): m.Children {
     return m(
-      '.help',
+      '.pf-help-modal',
       m('h2', 'Navigation'),
       m(
         'table',

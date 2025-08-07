@@ -115,7 +115,7 @@ export class Tooltip implements m.ClassComponent<TooltipAttrs> {
         if (closestPopup) {
           return {container: closestPopup};
         }
-        const closestModal = dom.closest('.modal-dialog');
+        const closestModal = dom.closest('.pf-modal-dialog');
         if (closestModal) {
           return {container: closestModal};
         }

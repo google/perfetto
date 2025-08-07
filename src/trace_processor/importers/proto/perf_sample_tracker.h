@@ -22,7 +22,6 @@
 #include <utility>
 #include <vector>
 
-#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 

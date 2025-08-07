@@ -141,6 +141,7 @@ GpuEventParser::GpuEventParser(TraceProcessorContext* context)
       pid_id_(context_->storage->InternString("pid")),
       tid_id_(context_->storage->InternString("tid")),
       description_id_(context->storage->InternString("description")),
+      correlation_id_(context->storage->InternString("correlation_id")),
       tag_id_(context_->storage->InternString("tag")),
       log_message_id_(context->storage->InternString("message")),
       log_severity_ids_{{context_->storage->InternString("UNSPECIFIED"),
@@ -457,6 +458,7 @@ void GpuEventParser::ParseGpuRenderStageEvent(
         render_pass_name.has_value()
             ? context_->storage->InternString(render_pass_name.value().c_str())
             : kNullStringId;
+
     auto command_buffer_name = FindDebugName(VK_OBJECT_TYPE_COMMAND_BUFFER,
                                              event.command_buffer_handle());
     auto command_buffer_name_id = command_buffer_name.has_value()
@@ -490,6 +492,15 @@ void GpuEventParser::ParseGpuRenderStageEvent(
               }
             }
           }
+
+          if (event.render_pass_instance_id()) {
+            base::StackString<512> id_str("rp:#%" PRIu64,
+                                          event.render_pass_instance_id());
+            inserter->AddArg(correlation_id_,
+                             Variadic::String(context_->storage->InternString(
+                                 id_str.string_view())));
+          }
+
           for (auto it = event.extra_data(); it; ++it) {
             protos::pbzero::GpuRenderStageEvent_ExtraData_Decoder datum(*it);
             StringId name_id = context_->storage->InternString(datum.name());

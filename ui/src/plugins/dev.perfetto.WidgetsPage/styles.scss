@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.widgets-page {
+.pf-widgets-page {
   padding: 20px;
   font-size: 16px;
   overflow: auto;
@@ -38,24 +38,16 @@
     margin: 2px 0 0 0;
   }
 
-  .widget-row {
-    margin: 10px;
-
-    & > * {
-      margin-right: 5px;
-    }
-  }
-
-  .widget-block {
+  .pf-widget-block {
     display: flex;
     flex-direction: row;
   }
 
-  .widget-controls {
+  .pf-widget-controls {
     margin: 10px;
   }
 
-  .widget-container {
+  .pf-widget-container {
     display: flex;
 
     // Put the widget in the center of the container
@@ -74,11 +66,11 @@
     overflow: hidden;
   }
 
-  .widget-container-wide {
+  .pf-widget-container--wide {
     min-width: 450px;
   }
 
-  .virtual-canvas {
+  .pf-virtual-canvas {
     height: 100px;
   }
 }

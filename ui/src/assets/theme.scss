@@ -48,6 +48,8 @@ $color-success: #3c832b;
 $color-warning: #dca612;
 
 $pf-colour-thin-border: #aaa;
+$table-hover-color: hsl(214, 22%, 90%);
+$table-border-color: rgba(60, 76, 92, 0.4);
 
 @mixin focus {
   outline: 2px auto #64b5f6;

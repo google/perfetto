@@ -31,7 +31,7 @@
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 #include "src/trace_processor/importers/android_bugreport/android_battery_stats_history_string_tracker.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_event.h"
-#include "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser_impl.h"
+#include "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -53,7 +53,7 @@ AndroidBatteryStatsReader::AndroidBatteryStatsReader(
     TraceProcessorContext* context)
     : context_(context),
       stream_(context->sorter->CreateStream(
-          std::make_unique<AndroidDumpstateEventParserImpl>(context))) {}
+          std::make_unique<AndroidDumpstateEventParser>(context))) {}
 
 AndroidBatteryStatsReader::~AndroidBatteryStatsReader() = default;
 

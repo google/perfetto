@@ -32,6 +32,7 @@ import {DataGrid, renderCell} from '../widgets/data_grid/data_grid';
 import {DataGridDataSource} from '../widgets/data_grid/common';
 import {InMemoryDataSource} from '../widgets/data_grid/in_memory_data_source';
 import {Anchor} from '../../widgets/anchor';
+import {Box} from '../../widgets/box';
 
 type Numeric = bigint | number;
 
@@ -184,23 +185,20 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     return m(
       '.pf-query-panel',
       resp.statementWithOutputCount > 1 &&
-        m(
-          '.pf-query-warning',
-          m(
-            Callout,
-            {icon: 'warning'},
+        m(Box, [
+          m(Callout, {icon: 'warning'}, [
             `${resp.statementWithOutputCount} out of ${resp.statementCount} `,
             'statements returned a result. ',
             'Only the results for the last statement are displayed.',
-          ),
-        ),
+          ]),
+        ]),
       this.renderContent(resp, dataSource),
     );
   }
 
   private renderContent(resp: QueryResponse, dataSource: DataGridDataSource) {
     if (resp.error) {
-      return m('.query-error', `SQL error: ${resp.error}`);
+      return m('.pf-query-panel__query-error', `SQL error: ${resp.error}`);
     }
 
     const onViewerPage =

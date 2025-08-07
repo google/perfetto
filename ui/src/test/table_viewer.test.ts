@@ -28,7 +28,7 @@ async function clickTableHeader(headerName: string | RegExp) {
 
 function getTableCells(text?: string | RegExp): Locator {
   return page.locator(
-    '.pf-details-shell .generic-table tr:not(.header) a.pf-anchor',
+    '.pf-details-shell .pf-generic-table tr:not(.header) a.pf-anchor',
     {
       hasText: text,
     },

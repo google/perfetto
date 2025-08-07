@@ -24,6 +24,7 @@
 
 namespace perfetto::trace_processor {
 
+class AndroidProbesTracker;
 class ArgsTracker;
 class TraceProcessorContext;
 
@@ -31,7 +32,7 @@ class AndroidProbesParser {
  public:
   using ConstBytes = protozero::ConstBytes;
 
-  explicit AndroidProbesParser(TraceProcessorContext*);
+  explicit AndroidProbesParser(TraceProcessorContext*, AndroidProbesTracker*);
 
   void ParseBatteryCounters(int64_t ts, ConstBytes);
   void ParsePowerRails(int64_t ts, uint64_t trace_packet_ts, ConstBytes);
@@ -48,6 +49,7 @@ class AndroidProbesParser {
 
  private:
   TraceProcessorContext* const context_;
+  AndroidProbesTracker* const tracker_;
   std::unique_ptr<ArgsTracker> power_rails_args_tracker_;
 
   const StringId battery_status_id_;

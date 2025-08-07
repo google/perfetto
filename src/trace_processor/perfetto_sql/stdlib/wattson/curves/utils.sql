@@ -215,3 +215,21 @@ WHERE
       1
     FROM base
   );
+
+-- Find the exemplar CPU for the policy with no freq/voltage dependency. The CPU
+-- managing the policy is the first CPU that comes online for a given policy.
+-- This is usually the min(CPU #) since Linux initializes CPUs in ascending
+-- order (e.g. CPU4 for policy4).
+CREATE PERFETTO TABLE _cpu_for_1d_static AS
+SELECT
+  min(cpu) AS cpu
+FROM _cpus_with_no_dependency;
+
+-- Find the exemplar CPU for the policy with a freq/voltage dependency. The CPU
+-- managing the policy is the first CPU that comes online for a given policy.
+-- This is usually the min(CPU #) since Linux initializes CPUs in ascending
+-- order (e.g. CPU0 for policy0).
+CREATE PERFETTO TABLE _cpu_for_2d_static AS
+SELECT
+  min(cpu) AS cpu
+FROM _cpus_with_dependency;

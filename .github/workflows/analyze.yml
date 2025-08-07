@@ -56,10 +56,12 @@ jobs:
       # changed files.
       - name: Fetch upstream branch
         if: ${{ github.base_ref != '' }}
+        shell: bash
         run: git fetch origin ${{ github.base_ref }} --depth=1
 
       - name: Check if the change is trivial (docs/infra only)
         id: trivial
+        shell: bash
         run: |
           # In postsubmit (cron) github.base_ref is ""
           if [ -z "${{ github.base_ref }}" ] || git diff --name-only origin/${{ github.base_ref }} HEAD | egrep -qv '^(docs|infra|tools|test/data|[.]github)/'; then
@@ -70,6 +72,7 @@ jobs:
 
       - name: Check if the change is UI only (skip linux/android tests)
         id: ui_only
+        shell: bash
         run: |
           # In postsubmit (cron) github.base_ref is ""
           if [ -z "${{ github.base_ref }}" ] || git diff --name-only origin/${{ github.base_ref }} HEAD | egrep -qv '^(ui|test/data/ui-screenshots)/'; then
@@ -131,8 +134,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ensure all non-skipped jobs have suceeded
+        shell: bash
         run: |
-          set -e
           check() {
             job="$1"
             result="$2"

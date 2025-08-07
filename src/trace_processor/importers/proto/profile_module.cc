@@ -37,7 +37,6 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
-#include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/profile_packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -62,7 +61,9 @@ using protozero::ConstBytes;
 
 ProfileModule::ProfileModule(ProtoImporterModuleContext* module_context,
                              TraceProcessorContext* context)
-    : ProtoImporterModule(module_context), context_(context) {
+    : ProtoImporterModule(module_context),
+      context_(context),
+      perf_sample_tracker_(context) {
   RegisterForField(TracePacket::kStreamingProfilePacketFieldNumber);
   RegisterForField(TracePacket::kPerfSampleFieldNumber);
   RegisterForField(TracePacket::kProfilePacketFieldNumber);
@@ -201,7 +202,7 @@ void ProfileModule::ParsePerfSample(
 
   uint32_t seq_id = decoder.trusted_packet_sequence_id();
   PerfSampleTracker::SamplingStreamInfo sampling_stream =
-      context_->perf_sample_tracker->GetSamplingStreamInfo(
+      perf_sample_tracker_.GetSamplingStreamInfo(
           seq_id, sample.cpu(), sequence_state->GetTracePacketDefaults());
 
   // Not a sample, but an indication of data loss in the ring buffer shared with

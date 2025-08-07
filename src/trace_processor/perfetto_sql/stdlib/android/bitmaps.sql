@@ -49,15 +49,15 @@ JOIN process_counter_track AS pct ON pct.id = c.track_id
 -- category.
 CREATE PERFETTO TABLE android_bitmap_memory (
   -- ID of the row in the underlying counter table.
-  id LONG,
+  id ID(counter.id),
   -- Upid of the process.
-  upid LONG,
+  upid JOINID(process.upid),
   -- Timestamp of the start of the interval.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of the interval.
-  dur LONG,
+  dur DURATION,
   -- Duration of the interval.
-  track_id LONG,
+  track_id JOINID(counter.track_id),
   -- Memory consumed by bitmaps in bytes.
   value LONG
 ) AS
@@ -81,15 +81,15 @@ ORDER BY
 -- category.
 CREATE PERFETTO TABLE android_bitmap_count (
   -- ID of the row in the underlying counter table.
-  id LONG,
+  id ID(counter.id),
   -- Upid of the process.
-  upid LONG,
+  upid JOINID(process.upid),
   -- Timestamp of the start of the interval.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of the interval.
-  dur LONG,
+  dur DURATION,
   -- Duration of the interval.
-  track_id LONG,
+  track_id JOINID(counter.track_id),
   -- Number of allocated bitmaps.
   value LONG
 ) AS
@@ -117,9 +117,9 @@ CREATE PERFETTO TABLE android_bitmap_counters_per_process (
   -- Name of the process.
   process_name STRING,
   -- Timestamp of the start of the interval.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of the interval.
-  dur LONG,
+  dur DURATION,
   -- Memory consumed by bitmaps in bytes.
   bitmap_memory LONG,
   -- Number of allocated bitmaps.

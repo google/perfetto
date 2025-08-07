@@ -182,7 +182,7 @@ export async function loadPermalink(gcsFileName: string): Promise<void> {
             "state wont't be recovered",
         ),
         m('p', 'Error details:'),
-        m('.modal-logs', error),
+        m('.pf-modal-logs', error),
       ),
       buttons: [
         {

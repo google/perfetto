@@ -50,6 +50,7 @@ import {renderStatusBar} from './statusbar';
 import {formatTimezone, timezoneOffsetMap} from '../base/time';
 import {LinearProgress} from '../widgets/linear_progress';
 import {taskTracker} from './task_tracker';
+import {Button} from '../widgets/button';
 
 const showStatusBarFlag = featureFlags.register({
   id: 'Enable status bar',
@@ -493,7 +494,7 @@ export class UiMainPerTrace implements m.ClassComponent {
     const statusMessage = omnibox.statusMessage;
     if (statusMessage !== undefined) {
       return m(
-        `.omnibox.message-mode`,
+        `.pf-omnibox.pf-omnibox--message-mode`,
         m(`input[readonly][disabled][ref=omnibox]`, {
           value: '',
           placeholder: statusMessage,
@@ -536,7 +537,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       value: omnibox.text,
       placeholder: prompt.text,
       inputRef: OMNIBOX_INPUT_REF,
-      extraClasses: 'prompt-mode',
+      extraClasses: 'pf-omnibox--prompt-mode',
       closeOnOutsideClick: true,
       options,
       selectedOptionIndex: omnibox.selectionIndex,
@@ -594,7 +595,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       value: omnibox.text,
       placeholder: 'Filter commands...',
       inputRef: OMNIBOX_INPUT_REF,
-      extraClasses: 'command-mode',
+      extraClasses: 'pf-omnibox--command-mode',
       options,
       closeOnSubmit: true,
       closeOnOutsideClick: true,
@@ -636,7 +637,7 @@ export class UiMainPerTrace implements m.ClassComponent {
       value: AppImpl.instance.omnibox.text,
       placeholder: ph,
       inputRef: OMNIBOX_INPUT_REF,
-      extraClasses: 'query-mode',
+      extraClasses: 'pf-omnibox--query-mode',
 
       onInput: (value) => {
         AppImpl.instance.omnibox.setText(value);
@@ -709,30 +710,27 @@ export class UiMainPerTrace implements m.ClassComponent {
     const children = [];
     const results = this.trace?.search.searchResults;
     if (this.trace?.search.searchInProgress) {
-      children.push(m('.current', m(Spinner)));
+      children.push(m('.pf-omnibox__stepthrough-current', m(Spinner)));
     } else if (results !== undefined) {
       const searchMgr = assertExists(this.trace).search;
       const index = searchMgr.resultIndex;
       const total = results.totalResults ?? 0;
       children.push(
-        m('.current', `${total === 0 ? '0 / 0' : `${index + 1} / ${total}`}`),
         m(
-          'button',
-          {
-            onclick: () => searchMgr.stepBackwards(),
-          },
-          m('i.material-icons.left', 'keyboard_arrow_left'),
+          '.pf-omnibox__stepthrough-current',
+          `${total === 0 ? '0 / 0' : `${index + 1} / ${total}`}`,
         ),
-        m(
-          'button',
-          {
-            onclick: () => searchMgr.stepForward(),
-          },
-          m('i.material-icons.right', 'keyboard_arrow_right'),
-        ),
+        m(Button, {
+          onclick: () => searchMgr.stepBackwards(),
+          icon: 'keyboard_arrow_left',
+        }),
+        m(Button, {
+          onclick: () => searchMgr.stepForward(),
+          icon: 'keyboard_arrow_right',
+        }),
       );
     }
-    return m('.stepthrough', children);
+    return m('.pf-omnibox__stepthrough', children);
   }
 
   oncreate(vnode: m.VnodeDOM) {
