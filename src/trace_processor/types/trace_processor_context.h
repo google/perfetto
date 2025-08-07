@@ -36,7 +36,6 @@ class DescriptorPool;
 class EventTracker;
 class FlowTracker;
 class GlobalArgsTracker;
-class HeapGraphTracker;
 class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
@@ -124,7 +123,6 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> thread_state_tracker;                   // ThreadStateTracker
   std::unique_ptr<Destructible> ftrace_sched_tracker;                   // FtraceSchedEventTracker
   std::unique_ptr<Destructible> v8_tracker;                             // V8Tracker
-  std::unique_ptr<Destructible> instruments_row_data_tracker;           // RowDataTracker
   std::unique_ptr<Destructible> perf_tracker;                           // PerfTracker
   std::unique_ptr<Destructible> etm_tracker;                            // EtmTracker
   std::unique_ptr<Destructible> elf_tracker;                            // ElfTracker
