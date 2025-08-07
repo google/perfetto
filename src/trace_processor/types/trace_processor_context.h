@@ -33,17 +33,14 @@ class ClockConverter;
 class ClockTracker;
 class CpuTracker;
 class DescriptorPool;
-class EtwModule;
 class EventTracker;
 class FlowTracker;
-class FtraceModule;
 class GlobalArgsTracker;
 class HeapGraphTracker;
 class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
 class MultiMachineTraceManager;
-class PacketAnalyzer;
 class ProcessTracker;
 class ProcessTrackTranslationTable;
 class SchedEventTracker;
@@ -119,7 +116,6 @@ class TraceProcessorContext {
   // the GetOrCreate() method on their subclass type, e.g.
   // SyscallTracker::GetOrCreate(context)
   // clang-format off
-  std::unique_ptr<Destructible> android_battery_stats_history_tracker;  // AndroidBatteryStatsHistoryStringTracker
   std::unique_ptr<Destructible> binder_tracker;                         // BinderTracker
   std::unique_ptr<Destructible> heap_graph_tracker;                     // HeapGraphTracker
   std::unique_ptr<Destructible> syscall_tracker;                        // SyscallTracker
