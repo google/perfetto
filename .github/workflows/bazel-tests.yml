@@ -75,7 +75,7 @@ jobs:
           ./bazel-bin/trace_processor_shell -q <(echo 'select count(1) from sched') $TRACE
 
       - name: Update cache (if on main)
-        if: github.ref == 'refs/heads/main'
+#        if: github.ref == 'refs/heads/main'
         uses: ./.github/actions/cache-on-google-cloud-storage/save
         with:
           directory: ${{ env.PERFETTO_CACHE_DIR }}
