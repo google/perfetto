@@ -157,12 +157,6 @@ class TraceProcessorContext {
   using RegisterAdditionalProtoModulesFn = void(ProtoImporterModuleContext*,
                                                 TraceProcessorContext*);
   RegisterAdditionalProtoModulesFn* register_additional_proto_modules = nullptr;
-
-  // Indicates whether TrackEvent parsing should utilize synthetic tids for all
-  // thread descriptors and events. This is used as a workaround for older
-  // Linux Chrome traces, which don't yet specify is_sandboxed_tid in
-  // ThreadDescriptors.
-  bool force_synthetic_tids = false;
 };
 
 }  // namespace perfetto::trace_processor

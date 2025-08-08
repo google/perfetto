@@ -39,9 +39,9 @@ using perfetto::protos::pbzero::TracePacket;
 TrackEventModule::TrackEventModule(ProtoImporterModuleContext* module_context,
                                    TraceProcessorContext* context)
     : ProtoImporterModule(module_context),
-      track_event_tracker_(new TrackEventTracker(context)),
+      track_event_tracker_(new TrackEventTracker(module_context, context)),
       tokenizer_(module_context, context, track_event_tracker_.get()),
-      parser_(context, track_event_tracker_.get()) {
+      parser_(module_context, context, track_event_tracker_.get()) {
   RegisterForField(TracePacket::kTrackEventRangeOfInterestFieldNumber);
   RegisterForField(TracePacket::kTrackEventFieldNumber);
   RegisterForField(TracePacket::kTrackDescriptorFieldNumber);
@@ -52,7 +52,7 @@ TrackEventModule::TrackEventModule(ProtoImporterModuleContext* module_context,
   // from TrackEventSequenceState. This ensures that
   // TrackEventTracker::OnParsingStarted() is called before these packets are
   // parsed by the ProfileModule.
-  RegisterForField(TracePacket::kStreamingProfilePacketFieldNumber, context);
+  RegisterForField(TracePacket::kStreamingProfilePacketFieldNumber);
 
   context->descriptor_pool_->AddFromFileDescriptorSet(
       kTrackEventDescriptor.data(), kTrackEventDescriptor.size());

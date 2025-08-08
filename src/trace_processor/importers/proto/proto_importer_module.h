@@ -205,6 +205,12 @@ struct ProtoImporterModuleContext {
   InlineSchedWakingStreamFactory inline_sched_waking_stream_factory;
   std::vector<std::unique_ptr<TraceSorter::Stream<InlineSchedWaking>>>
       inline_sched_waking_streams;
+
+  // Indicates whether TrackEvent parsing should utilize synthetic tids for all
+  // thread descriptors and events. This is used as a workaround for older
+  // Linux Chrome traces, which don't yet specify is_sandboxed_tid in
+  // ThreadDescriptors.
+  bool force_synthetic_tids = false;
 };
 
 }  // namespace trace_processor

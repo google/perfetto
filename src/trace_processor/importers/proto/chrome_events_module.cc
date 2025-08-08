@@ -31,8 +31,11 @@ namespace trace_processor {
 
 using perfetto::protos::pbzero::TracePacket;
 
-ChromeEventsModule::ChromeEventsModule(TraceProcessorContext* context)
-    : context_(context),
+ChromeEventsModule::ChromeEventsModule(
+    ProtoImporterModuleContext* module_context,
+    TraceProcessorContext* context)
+    : ProtoImporterModule(module_context),
+      context_(context),
       raw_chrome_metadata_event_id_(
           context->storage->InternString("chrome_event.metadata")),
       raw_chrome_legacy_system_trace_event_id_(
@@ -40,7 +43,7 @@ ChromeEventsModule::ChromeEventsModule(TraceProcessorContext* context)
       raw_chrome_legacy_user_trace_event_id_(
           context->storage->InternString("chrome_event.legacy_user_trace")),
       data_name_id_(context->storage->InternString("data")) {
-  RegisterForField(TracePacket::kChromeEventsFieldNumber, context);
+  RegisterForField(TracePacket::kChromeEventsFieldNumber);
 }
 
 ModuleResult ChromeEventsModule::TokenizePacket(

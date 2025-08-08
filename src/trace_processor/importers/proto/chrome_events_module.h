@@ -29,7 +29,8 @@ class TraceProcessorContext;
 
 class ChromeEventsModule : public ProtoImporterModule {
  public:
-  explicit ChromeEventsModule(TraceProcessorContext* context);
+  explicit ChromeEventsModule(ProtoImporterModuleContext* module_context,
+                              TraceProcessorContext* context);
 
   ModuleResult TokenizePacket(
       const protos::pbzero::TracePacket::Decoder& decoder,

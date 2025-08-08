@@ -39,6 +39,7 @@
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -131,7 +132,8 @@ std::pair<uint32_t, StringId> GetMergeKey(
 
 }  // namespace
 
-TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
+TrackEventTracker::TrackEventTracker(ProtoImporterModuleContext* module_context,
+                                     TraceProcessorContext* context)
     : source_key_(context->storage->InternString("source")),
       source_id_key_(context->storage->InternString("trace_id")),
       is_root_in_scope_key_(context->storage->InternString("is_root_in_scope")),
@@ -151,6 +153,7 @@ TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
           context->storage->InternString("Default Track")),
       description_key_(context->storage->InternString("description")),
       cr_os_name_key_(context->storage->InternString("cr-os-name")),
+      module_context_(module_context),
       context_(context) {}
 
 void TrackEventTracker::ReserveDescriptorTrack(
@@ -263,7 +266,7 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
   if (resolved_tid) {
     reservation.tid = resolved_tid;
   } else if ((reservation.use_synthetic_tid ||
-              context_->force_synthetic_tids) &&
+              module_context_->force_synthetic_tids) &&
              reservation.tid && reservation.pid) {
     reservation.tid = CreateSyntheticTid(*reservation.tid, *reservation.pid);
   }
@@ -754,7 +757,7 @@ void TrackEventTracker::OnParsingStarted() {
   PERFETTO_DLOG(
       "Enabling synthetic TIDs for all TrackEvent tracks (Linux Chrome "
       "version older than 140.0.7326.0 detected)");
-  context_->force_synthetic_tids = true;
+  module_context_->force_synthetic_tids = true;
 }
 
 TrackEventTracker::ResolvedDescriptorTrack

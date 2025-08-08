@@ -172,7 +172,8 @@ class TrackEventTracker {
     UniquePid upid_;
   };
 
-  explicit TrackEventTracker(TraceProcessorContext*);
+  explicit TrackEventTracker(ProtoImporterModuleContext*,
+                             TraceProcessorContext*);
 
   // Associate a TrackDescriptor track identified by the given |uuid| with a
   // given track description. This is called during tokenization. If a
@@ -409,6 +410,7 @@ class TrackEventTracker {
   std::optional<int64_t> range_of_interest_start_us_;
   bool parsed_started_ = false;
 
+  ProtoImporterModuleContext* const module_context_;
   TraceProcessorContext* const context_;
 };
 

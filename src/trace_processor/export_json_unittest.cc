@@ -46,6 +46,7 @@
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
@@ -125,6 +126,7 @@ class ExportJsonTest : public ::testing::Test {
 
  protected:
   TraceProcessorContext context_;
+  ProtoImporterModuleContext module_context_;
 };
 
 TEST_F(ExportJsonTest, EmptyStorage) {
@@ -794,7 +796,7 @@ TEST_F(ExportJsonTest, InstantEvent) {
       {kTimestamp, 0, track, cat_id, name_id, 0, 0, 0});
 
   // Global track.
-  TrackEventTracker track_event_tracker(&context_);
+  TrackEventTracker track_event_tracker(&module_context_, &context_);
   TrackId track2 = *track_event_tracker.InternDescriptorTrackInstant(
       TrackEventTracker::kDefaultDescriptorTrackUuid, kNullStringId,
       std::nullopt);
