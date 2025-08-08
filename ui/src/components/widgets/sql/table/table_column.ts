@@ -63,7 +63,7 @@ export interface TableColumn<
     value: SqlValue,
     tableManager?: TableManager,
     supportingValues?: {[key in keyof SupportingColumns]: SqlValue},
-  ): m.Children;
+  ): {content: m.Children; menu?: m.Children};
 
   // A set of columns to be added when opening this table.
   // It has two primary purposes:

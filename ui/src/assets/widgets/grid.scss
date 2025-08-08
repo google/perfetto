@@ -1,0 +1,187 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "../theme";
+
+$border-1: 1px solid var(--pf-color-border);
+$border-2: 1px solid var(--pf-color-border-secondary);
+$border-3: 2px solid var(--pf-color-border);
+
+.pf-grid {
+  display: flex;
+  flex-direction: column;
+  white-space: nowrap;
+  font-family: var(--pf-font-compact);
+
+  // If fill height is set, the grid should fill the height of its parent, and
+  // the table content should scroll, otherwise it takes the height of the table
+  // content.
+  &--fill-height {
+    height: 100%;
+  }
+
+  &__table {
+    overflow: auto;
+    flex: 1; // Allow the table to grow and fill the available space.
+  }
+
+  table {
+    min-width: 100%;
+    border-spacing: 0;
+    border-collapse: separate;
+    font-weight: 300;
+  }
+
+  // Highlight rows on hover.
+  tr {
+    &:hover {
+      background-color: color_hover(transparent);
+    }
+  }
+
+  thead {
+    position: sticky;
+    top: 0;
+    background-color: var(--pf-color-background);
+
+    tr {
+      &:hover {
+        background-color: unset;
+      }
+    }
+  }
+
+  td,
+  th {
+    border-bottom: $border-2;
+    border-right: $border-2;
+
+    &:first-child {
+      border-left: none;
+    }
+
+    &:last-child {
+      border-right: none;
+    }
+
+    .pf-visible-on-hover {
+      visibility: hidden;
+    }
+
+    &:hover {
+      .pf-visible-on-hover {
+        visibility: visible;
+      }
+    }
+  }
+
+  th[draggable="true"] {
+    cursor: grab;
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+
+  th {
+    // Some header cells can be taller than others so keep everything aligned.
+    vertical-align: top;
+    text-align: left;
+    font-weight: 400;
+
+    border-bottom: $border-1;
+    border-right: $border-2;
+  }
+
+  th.pf-grid-cell--thick-right-border,
+  td.pf-grid-cell--thick-right-border {
+    border-right: $border-3;
+  }
+
+  th.pf-drag-over {
+    box-shadow: inset 2px 0 0 0 var(--pf-color-accent);
+    background-color: color_hover(transparent);
+  }
+
+  tr {
+    &:last-child {
+      td {
+        border-bottom: none;
+      }
+    }
+  }
+}
+
+.pf-grid-cell-header {
+  display: flex;
+  flex-direction: column;
+  font-weight: 500;
+}
+
+.pf-grid-cell__aggregation {
+  display: flex;
+  gap: 0.3em;
+  padding: 0.2em 0.4em;
+  justify-content: space-between;
+}
+
+.pf-grid-cell {
+  display: flex;
+  gap: 0.3em;
+  padding: 0.2em 0.4em;
+
+  &__content {
+    flex: 1;
+    display: flex;
+    gap: 0.3em;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+  }
+
+  &__aggregation {
+    grid-area: aggregation;
+  }
+
+  &__hint {
+    color: var(--pf-color-text-muted);
+  }
+
+  &__menu-button.pf-active {
+    visibility: visible;
+  }
+
+  .pf-grid-cell--align-center {
+    justify-content: center;
+  }
+
+  .pf-grid-cell--align-right {
+    justify-content: flex-end;
+  }
+}
+
+.pf-grid-cell--missing {
+  font-style: italic;
+  color: var(--pf-color-text-muted);
+}
+
+.pf-grid-cell__reorder-handle {
+  color: var(--text-color-light);
+}
+
+.pf-drag-over > * {
+  pointer-events: none;
+}

@@ -14,14 +14,13 @@
 
 import m from 'mithril';
 import {SqlColumn} from './sql_column';
-import {MenuItem, PopupMenu} from '../../../../widgets/menu';
+import {MenuItem} from '../../../../widgets/menu';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {isString} from '../../../../base/object_utils';
 import {sqliteString} from '../../../../base/string_utils';
 import {Icons} from '../../../../base/semantic_icons';
 import {copyToClipboard} from '../../../../base/clipboard';
 import {sqlValueToReadableString} from '../../../../trace_processor/sql_utils';
-import {Anchor} from '../../../../widgets/anchor';
 import {TableManager} from './table_column';
 
 export interface LegacySqlTableFilterOp {
@@ -185,20 +184,17 @@ export function renderStandardCell(
   value: SqlValue,
   column: SqlColumn,
   tableManager: TableManager | undefined,
-): m.Children {
+): {content: m.Children; menu?: m.Children} {
   if (tableManager === undefined) {
-    return displayValue(value);
+    return {content: displayValue(value)};
   }
   const contextMenuItems: m.Child[] = getStandardContextMenuItems(
     value,
     column,
     tableManager,
   );
-  return m(
-    PopupMenu,
-    {
-      trigger: m(Anchor, displayValue(value)),
-    },
-    ...contextMenuItems,
-  );
+  return {
+    content: displayValue(value),
+    menu: contextMenuItems,
+  };
 }
