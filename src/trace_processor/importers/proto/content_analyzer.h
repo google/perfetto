@@ -21,7 +21,6 @@
 #include <utility>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -47,7 +46,7 @@ class ProtoContentAnalyzer : public PacketAnalyzer {
     using result_type = size_t;
 
     result_type operator()(const argument_type& p) const {
-      base::Hasher hash;
+      base::FnvHasher hash;
       for (auto v : p) {
         hash.Update(v.first.raw_id());
         hash.Update(v.second.raw_id());

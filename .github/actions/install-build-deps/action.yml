@@ -26,37 +26,112 @@ runs:
       id: cachekey
       shell: bash
       run: |
-        # Replace spaces with underscores to keep the cache key valid
+        # Replace spaces with underscores to keep the cache key valid.
         flags="${{ inputs.install-flags }}"
         if [ -z "$flags" ]; then
-          echo "suffix=default" >> "$GITHUB_OUTPUT"
+          echo "flags_key=default" >> "$GITHUB_OUTPUT"
         else
-          echo "suffix=$(echo "$flags" | tr ' -' '_')" >> "$GITHUB_OUTPUT"
+          echo "flags_key=$(echo "$flags" | tr ' -' '_')" >> "$GITHUB_OUTPUT"
         fi
 
-    - name: Restore build-deps from cache
-      uses: actions/cache/restore@v4
-      with:
-        path: buildtools
-        # TODO(lalitm): buildtools folder has other files that are not
-        # covered by the cache key. This can lead to incorrect buildtools
-        # contents. Expand the cache key to include all files that are
-        # relevant for the buildtools folder or refactor the buildtools folder
-        # into two: one for the cachable outputs and the other for extra
-        # files which should not be cached.
-        key: buildtools-${{ hashFiles('buildtools/BUILD.gn') }}-${{ steps.cachekey.outputs.suffix }}-${{ hashFiles('tools/install-build-deps') }}
-        restore-keys: |
-          buildtools-${{ hashFiles('buildtools/BUILD.gn') }}-${{ steps.cachekey.outputs.suffix }}-
-          buildtools-${{ hashFiles('buildtools/BUILD.gn') }}
-
-    - name: install-build-deps
-      run: tools/install-build-deps ${{ inputs.install-flags }}
+    - name: Setup action variables
+      id: action_vars
       shell: bash
+      env:
+        GCS_BUCKET: gs://perfetto-ci-artifacts
+        CACHE_PATH: cache/buildtools-${{ steps.cachekey.outputs.flags_key }}/buildtools.tar
+      run: |
+        # Create global variables used in this action.        
+        echo "gcs_cache_path=$GCS_BUCKET/$CACHE_PATH" >> "$GITHUB_OUTPUT"
 
-    - name: Save build-deps cache (only on main)
+    # When restoring the buildtools cache, we don't want to overwrite files or folders that are stored in git.
+    - name: Generate list of files to ignore
+      id: files_to_ignore
+      shell: bash
+      run: |
+        # Generate list of files in 'buildtools/' stored in git.
+        FILES_TO_IGNORE_PATH=$(mktemp /tmp/files-to-ignore-XXXXX.txt)
+        git ls-tree HEAD:buildtools --name-only > "$FILES_TO_IGNORE_PATH"
+        echo "file_path=$FILES_TO_IGNORE_PATH" >> "$GITHUB_OUTPUT"
+
+    - name: Restore buildtools from cache
+      id: restore_buildtools_cache
+      shell: bash
+      env:
+        GCS_CACHE_PATH: ${{ steps.action_vars.outputs.gcs_cache_path }}
+        FILES_TO_IGNORE_PATH: ${{ steps.files_to_ignore.outputs.file_path }}
+        LOCAL_BUILDTOOLS_HASH: ${{ hashFiles('buildtools/**', 'tools/install-build-deps') }}
+        CACHED_BUILDTOOLS_HASH_FILE_PATH: buildtools/buildtools_hash_revision_for_cache_on_ci.txt
+      run: |
+        # Restore content of 'buildtools/' folder from cache.
+        CACHED_TAR_PATH=$(mktemp /tmp/buildtools-cache-XXXXXX.tar)
+        
+        cp_start_time=$SECONDS
+        cp_output=""
+        if cp_output=$(gcloud storage cp "$GCS_CACHE_PATH" "$CACHED_TAR_PATH" 2>&1); then
+          cp_duration=$((SECONDS - cp_start_time))
+          echo "$cp_output"
+          echo "The 'gcloud storage cp' took $cp_duration seconds to complete."
+        
+          # '--exclude-from' is used to not overwrite files or folders that are stored in git.
+          # '--keep-old-files' flag causes 'tar' to fail instead of overwriting files.
+          tar --keep-old-files --preserve-permissions --extract --exclude-from="$FILES_TO_IGNORE_PATH" --file="$CACHED_TAR_PATH" --directory=buildtools
+        
+          # Content of 'buildtools/' rarely changes, so we don't want to re-upload unchanged cache on each build.
+          # It changes when the 'tools/install-build-deps' or the files added to git inside `buildtools/' changes,
+          # so we calculate and save the sha256 hash of that files.
+          if [ -f "$CACHED_BUILDTOOLS_HASH_FILE_PATH" ]; then
+            CACHED_BUILDTOOLS_HASH=$(cat "$CACHED_BUILDTOOLS_HASH_FILE_PATH")
+          else
+            CACHED_BUILDTOOLS_HASH="0"
+          fi
+        
+          if [[ "$CACHED_BUILDTOOLS_HASH" != "$LOCAL_BUILDTOOLS_HASH" ]]; then
+            # Rewrite the hash file, it is saved as part of 'buildtools/' cache.
+            echo "$LOCAL_BUILDTOOLS_HASH" > "$CACHED_BUILDTOOLS_HASH_FILE_PATH"
+            echo "update_cache=true" >> "$GITHUB_OUTPUT" 
+          fi
+        
+          rm "$CACHED_TAR_PATH"
+        
+          echo "Cache restored, OK"
+        elif [[ "$cp_output" =~ "The following URLs matched no objects or files" ]]; then
+          echo "Cache not found, OK"
+        else
+          echo "Can't download cache: $cp_output"
+        fi
+
+    - name: Run install-build-deps
+      shell: bash
+      # 'tools/install-build-deps' script will check the hashes and download the correct deps if the restored cache is too old or too new.
+      run: tools/install-build-deps ${{ inputs.install-flags }}
+
+    - name: Save buildtools cache (only on main)
       if: github.ref == 'refs/heads/main'
-      uses: actions/cache/save@v4
-      with:
-        path: buildtools
-        # TODO(lalitm): see the comment above about the cache key.
-        key: buildtool-${{ hashFiles('buildtools/BUILD.gn') }}-${{ steps.cachekey.outputs.suffix }}-${{ hashFiles('tools/install-build-deps') }}
+      shell: bash
+      env:
+        GCS_CACHE_PATH: ${{ steps.action_vars.outputs.gcs_cache_path }}
+        FILES_TO_IGNORE_PATH: ${{ steps.files_to_ignore.outputs.file_path }}
+        UPDATE_CACHE: ${{steps.restore_buildtools_cache.outputs.update_cache  }}
+      run: |
+        # Save content of 'buildtools/' folder to cache.
+        
+        # Content of 'buildtools/' rarely changes, no need to upload the cache it on each build, even if nothing changes.
+        if [[ "$UPDATE_CACHE" == "true" ]]; then          
+          TAR_PATH=$(mktemp /tmp/buildtools-XXXXXX.tar)
+
+          # '--exclude-from' is used to not cache files or folders that are stored in git.
+          # '--sort=name' is used to make archive more reproducible.
+          tar --create --sort=name --preserve-permissions --exclude-from="$FILES_TO_IGNORE_PATH" --file="$TAR_PATH" --directory=buildtools .
+        
+          cp_start_time=$SECONDS
+
+          gcloud storage cp "$TAR_PATH" "$GCS_CACHE_PATH"
+
+          cp_duration=$((SECONDS - cp_start_time))
+          echo "The 'gcloud storage cp' took $cp_duration seconds to complete."
+
+          rm "$TAR_PATH"
+        else
+          echo "The buildtools cache doesn't change, no need to upload it."
+        fi

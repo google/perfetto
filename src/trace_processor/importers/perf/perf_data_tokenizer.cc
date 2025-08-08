@@ -57,8 +57,9 @@
 #include "src/trace_processor/importers/perf/perf_tracker.h"
 #include "src/trace_processor/importers/perf/reader.h"
 #include "src/trace_processor/importers/perf/record.h"
+#include "src/trace_processor/importers/perf/record_parser.h"
 #include "src/trace_processor/importers/perf/sample_id.h"
-#include "src/trace_processor/importers/proto/perf_sample_tracker.h"
+#include "src/trace_processor/importers/perf/time_conv_record.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/util/build_id.h"
@@ -119,7 +120,10 @@ bool ReadTime(const Record& record, std::optional<uint64_t>& time) {
 }  // namespace
 
 PerfDataTokenizer::PerfDataTokenizer(TraceProcessorContext* ctx)
-    : context_(ctx), aux_manager_(ctx) {}
+    : context_(ctx),
+      stream_(
+          ctx->sorter->CreateStream(std::make_unique<RecordParser>(context_))),
+      aux_manager_(ctx) {}
 
 PerfDataTokenizer::~PerfDataTokenizer() = default;
 
@@ -369,7 +373,7 @@ void PerfDataTokenizer::MaybePushRecord(Record record) {
         stats::perf_record_skipped, static_cast<int>(record.header.type));
     return;
   }
-  context_->sorter->PushPerfRecord(*trace_ts, std::move(record));
+  stream_->Push(*trace_ts, std::move(record));
 }
 
 base::StatusOr<PerfDataTokenizer::ParsingResult>
@@ -508,8 +512,7 @@ base::Status PerfDataTokenizer::ProcessTimeConvRecord(Record record) {
   if (!reader.Read(time_conv)) {
     return base::ErrStatus("Failed to parse PERF_RECORD_TIME_CONV");
   }
-
-  return aux_manager_.OnTimeConvRecord(std::move(time_conv));
+  return aux_manager_.OnTimeConvRecord(time_conv);
 }
 
 base::StatusOr<PerfDataTokenizer::ParsingResult>
@@ -526,8 +529,8 @@ PerfDataTokenizer::ParseAuxtraceData() {
       buffer_.SliceOff(buffer_.start_offset(), size);
   buffer_.PopFrontBytes(size);
   PERFETTO_CHECK(data.has_value());
-  base::Status status = aux_manager_.OnAuxtraceRecord(
-      std::move(*current_auxtrace_), std::move(*data));
+  base::Status status =
+      aux_manager_.OnAuxtraceRecord(*current_auxtrace_, std::move(*data));
   current_auxtrace_.reset();
   parsing_state_ = ParsingState::kParseRecords;
   RETURN_IF_ERROR(status);

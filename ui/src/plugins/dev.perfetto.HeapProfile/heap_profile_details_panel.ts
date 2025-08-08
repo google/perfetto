@@ -37,7 +37,6 @@ import {Intent} from '../../widgets/common';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Icon} from '../../widgets/icon';
 import {Modal, showModal} from '../../widgets/modal';
-import {Popup} from '../../widgets/popup';
 import {
   Flamegraph,
   FLAMEGRAPH_STATE_SCHEMA,
@@ -46,6 +45,8 @@ import {
 } from '../../widgets/flamegraph';
 import {SqlTableDescription} from '../../components/widgets/sql/table/table_description';
 import {StandardColumn} from '../../components/widgets/sql/table/columns';
+import {Stack} from '../../widgets/stack';
+import {Tooltip} from '../../widgets/tooltip';
 
 export enum ProfileType {
   HEAP_PROFILE = 'heap_profile',
@@ -103,31 +104,31 @@ export class HeapProfileFlamegraphDetailsPanel
   render() {
     const {type, ts} = this.props;
     return m(
-      '.flamegraph-profile',
+      '.pf-flamegraph-profile',
       this.maybeShowModal(this.trace, type, this.heapGraphIncomplete),
       m(
         DetailsShell,
         {
           fillParent: true,
           title: m(
-            '.title',
+            'span',
             getFlamegraphTitle(type),
-            type === ProfileType.MIXED_HEAP_PROFILE &&
+            type === ProfileType.MIXED_HEAP_PROFILE && [
+              ' ', // Some space between title and icon
               m(
-                Popup,
+                Tooltip,
                 {
-                  trigger: m(Icon, {icon: 'warning'}),
+                  trigger: m(Icon, {icon: 'warning', intent: Intent.Warning}),
                 },
                 m(
                   '',
-                  {style: {width: '300px'}},
                   'This is a mixed java/native heap profile, free()s are not visualized. To visualize free()s, remove "all_heaps: true" from the config.',
                 ),
               ),
+            ],
           ),
-          description: [],
-          buttons: [
-            m('.time', `Snapshot time: `, m(Timestamp, {ts})),
+          buttons: m(Stack, {orientation: 'horizontal', spacing: 'large'}, [
+            m('span', `Snapshot time: `, m(Timestamp, {ts})),
             (type === ProfileType.NATIVE_HEAP_PROFILE ||
               type === ProfileType.JAVA_HEAP_SAMPLES) &&
               m(Button, {
@@ -138,7 +139,7 @@ export class HeapProfileFlamegraphDetailsPanel
                   downloadPprof(this.trace, this.upid, ts);
                 },
               }),
-          ],
+          ]),
         },
         assertExists(this.flamegraph).render(),
       ),

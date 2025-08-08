@@ -81,6 +81,7 @@ source_set("functions") {
     "../../../storage",
     "../../../tables",
     "../../../types",
+    "../../../util:glob",
     "../../../util:profile_builder",
     "../../../util:regex",
     "../../../util:sql_argument",
@@ -90,6 +91,16 @@ source_set("functions") {
     "../types",
   ]
   public_deps = [ ":interface" ]
+  if (enable_perfetto_llvm_symbolizer) {
+    sources += [
+      "symbolize.cc",
+      "symbolize.h",
+    ]
+    deps += [
+      "../../../../profiling/symbolizer:llvm_symbolizer",
+      "../../../../profiling/symbolizer:llvm_symbolizer_c_api",
+    ]
+  }
 }
 
 source_set("interface") {

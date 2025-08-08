@@ -23,17 +23,16 @@
 #include "perfetto/ext/base/string_view.h"
 
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
 namespace trace_processor {
 
 class TraceProcessorContext;
 
-class AndroidProbesTracker : public Destructible {
+class AndroidProbesTracker {
  public:
   explicit AndroidProbesTracker(TraceStorage*);
-  ~AndroidProbesTracker() override;
+  ~AndroidProbesTracker();
 
   // For EnergyBreakdown Descriptor specifications
   struct EnergyConsumerSpecs {
@@ -47,15 +46,6 @@ class AndroidProbesTracker : public Destructible {
     StringId state_name;
     StringId overall_name;
   };
-
-  static AndroidProbesTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->android_probes_tracker) {
-      context->android_probes_tracker.reset(
-          new AndroidProbesTracker(context->storage.get()));
-    }
-    return static_cast<AndroidProbesTracker*>(
-        context->android_probes_tracker.get());
-  }
 
   bool ShouldInsertPackage(const std::string& package_name) const {
     auto it = seen_packages_.find(package_name);
