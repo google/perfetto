@@ -124,7 +124,7 @@ jobs:
           # Upload artifacts to GCS using CLI
           # '--no-user-output-enabled' prevents the `cp` from printing the names
           # of all copied files to stdout.
-          gcloud storage cp --no-user-output-enabled "$PERFETTO_ARTIFACTS_DIR/**" "$GCS_PATH/$PERFETTO_CI_JOB_ID-from-cli" 
+          gcloud storage cp --recursive "$PERFETTO_ARTIFACTS_DIR" "$GCS_PATH/$PERFETTO_CI_JOB_ID-from-cli" 
 
 
       - name: Update cache (if on main)
