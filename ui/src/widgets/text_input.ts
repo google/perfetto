@@ -16,7 +16,7 @@ import m from 'mithril';
 import {HTMLInputAttrs} from './common';
 import {Icon} from './icon'; // Import Icon component
 
-type TextInputAttrs = HTMLInputAttrs & {
+export type TextInputAttrs = HTMLInputAttrs & {
   // Whether the input should autofocus when it is created.
   readonly autofocus?: boolean;
   // Optional icon to display on the left of the text field.

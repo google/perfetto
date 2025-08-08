@@ -844,19 +844,21 @@ def read_descriptor(file_name):
 
 
 def create_pool(args):
-  trace_descriptor = read_descriptor(args.trace_descriptor)
-
   pool = descriptor_pool.DescriptorPool()
-  for file in trace_descriptor.file:
-    pool.Add(file)
-
+  for descriptor_file in args.trace_descriptors:
+    trace_descriptor = read_descriptor(descriptor_file)
+    for file in trace_descriptor.file:
+      pool.Add(file)
   return pool
 
 
 def create_trace():
   parser = argparse.ArgumentParser()
   parser.add_argument(
-      'trace_descriptor', type=str, help='location of trace descriptor')
+      'trace_descriptors',
+      type=str,
+      nargs='+',
+      help='locations of trace descriptors')
   args = parser.parse_args()
 
   pool = create_pool(args)
@@ -881,6 +883,7 @@ def create_trace():
       'ChromeRAILMode',
       'ChromeLatencyInfo',
       'ChromeProcessDescriptor',
+      'ChromeTrackEvent',
       'CounterDescriptor',
       'ThreadDescriptor',
   ])
@@ -903,6 +906,8 @@ def create_trace():
           pool,
           pool.FindMessageTypeByName(
               'perfetto.protos.ChromeProcessDescriptor')),
+      ChromeTrackEvent=get_message_class(
+          pool, pool.FindMessageTypeByName('perfetto.protos.ChromeTrackEvent')),
       CounterDescriptor=get_message_class(
           pool,
           pool.FindMessageTypeByName('perfetto.protos.CounterDescriptor')),

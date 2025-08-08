@@ -283,7 +283,7 @@ base::StatusOr<bool> ArtMethodTokenizer::Streaming::ParseHeaderStart(
       tokenizer_->record_size_ = ToShort(header->slice_off(16, 2));
       break;
     default:
-      PERFETTO_FATAL("Illegal version %u", tokenizer_->version_);
+      return base::ErrStatus("Illegal version %u", tokenizer_->version_);
   }
   mode_ = kData;
   return true;

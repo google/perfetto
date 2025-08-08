@@ -17,11 +17,6 @@ name: Perfetto CI [repo-checks]
 on:
   workflow_call:
 env:
-  # /tmp/cache contains {ccache, bazelcache} and generally any other cache
-  # that should be persisted across jobs, but only updated from the main
-  # branch. This is populated by the "actions/cache/restore" step below.
-  PERFETTO_CACHE_DIR: /tmp/cache
-  PERFETTO_ARTIFACTS_ROOT: /tmp/artifacts
   PYTHONUNBUFFERED: 1
 jobs:
   repo-checks:
@@ -44,10 +39,6 @@ jobs:
         if: ${{ github.base_ref != '' }}
         shell: bash
         run: git fetch origin ${{ github.base_ref }} --depth=1
-
-      - name: Setup ccache
-        shell: bash
-        run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
 
       - uses: ./.github/actions/install-build-deps
         with:

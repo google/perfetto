@@ -106,7 +106,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
 
   view({attrs}: m.CVnode<QueryPageAttrs>) {
     return m(
-      '.pf-query-page.pf-page',
+      '.pf-query-page',
       m(Box, {className: 'pf-query-page__toolbar'}, [
         m(Stack, {orientation: 'horizontal'}, [
           m(Button, {

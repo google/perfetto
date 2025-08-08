@@ -45,7 +45,6 @@ import {
 import {AppImpl} from './app_impl';
 import {raf} from './raf_scheduler';
 import {TraceImpl} from './trace_impl';
-import {SerializedAppState} from './state_serialization_schema';
 import {TraceSource} from './trace_source';
 import {Router} from '../core/router';
 import {TraceInfoImpl} from './trace_info_impl';
@@ -164,14 +163,13 @@ async function loadTraceIntoEngine(
   engine: EngineBase,
 ): Promise<TraceImpl> {
   let traceStream: TraceStream | undefined;
-  let serializedAppState: SerializedAppState | undefined;
+  const serializedAppState = traceSource.serializedAppState;
   if (traceSource.type === 'FILE') {
     traceStream = new TraceFileStream(traceSource.file);
   } else if (traceSource.type === 'ARRAY_BUFFER') {
     traceStream = new TraceBufferStream(traceSource.buffer);
   } else if (traceSource.type === 'URL') {
     traceStream = new TraceHttpStream(traceSource.url);
-    serializedAppState = traceSource.serializedAppState;
   } else if (traceSource.type === 'HTTP_RPC') {
     traceStream = undefined;
   } else if (traceSource.type === 'MULTIPLE_FILES') {

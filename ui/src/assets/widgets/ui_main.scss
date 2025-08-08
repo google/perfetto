@@ -28,8 +28,9 @@
   &__loading {
     grid-area: loading;
   }
-}
 
-.pf-page {
-  grid-area: page;
+  &__page-container {
+    grid-area: page;
+    overflow: auto;
+  }
 }
