@@ -44,7 +44,6 @@ class MappingTracker;
 class MetadataTracker;
 class MultiMachineTraceManager;
 class PacketAnalyzer;
-class PerfSampleTracker;
 class ProcessTracker;
 class ProcessTrackTranslationTable;
 class SchedEventTracker;
@@ -109,7 +108,6 @@ class TraceProcessorContext {
   std::unique_ptr<ClockConverter> clock_converter;
   std::unique_ptr<MappingTracker> mapping_tracker;
   std::unique_ptr<MachineTracker> machine_tracker;
-  std::unique_ptr<PerfSampleTracker> perf_sample_tracker;
   std::unique_ptr<StackProfileTracker> stack_profile_tracker;
   std::unique_ptr<MetadataTracker> metadata_tracker;
   std::unique_ptr<CpuTracker> cpu_tracker;
@@ -121,7 +119,6 @@ class TraceProcessorContext {
   // the GetOrCreate() method on their subclass type, e.g.
   // SyscallTracker::GetOrCreate(context)
   // clang-format off
-  std::unique_ptr<Destructible> android_probes_tracker;                 // AndroidProbesTracker
   std::unique_ptr<Destructible> android_battery_stats_history_tracker;  // AndroidBatteryStatsHistoryStringTracker
   std::unique_ptr<Destructible> binder_tracker;                         // BinderTracker
   std::unique_ptr<Destructible> heap_graph_tracker;                     // HeapGraphTracker

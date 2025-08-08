@@ -35,12 +35,6 @@
   // ... any smaller and it stops looking like a select input!
   min-width: 80px;
 
-  & > .material-icons {
-    font-size: inherit;
-    line-height: inherit;
-    float: left;
-  }
-
   &:hover {
     background: $pf-minimal-background-hover;
   }

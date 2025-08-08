@@ -14,12 +14,18 @@
 
 import {SerializedAppState} from './state_serialization_schema';
 
-export type TraceSource =
-  | TraceFileSource
-  | TraceMultipleFilesSource
-  | TraceArrayBufferSource
-  | TraceUrlSource
-  | TraceHttpRpcSource;
+interface CommonTraceProps {
+  serializedAppState?: SerializedAppState;
+}
+
+export type TraceSource = CommonTraceProps &
+  (
+    | TraceFileSource
+    | TraceArrayBufferSource
+    | TraceUrlSource
+    | TraceHttpRpcSource
+    | TraceMultipleFilesSource
+  );
 
 export interface TraceFileSource {
   readonly type: 'FILE';
@@ -34,26 +40,18 @@ export interface TraceMultipleFilesSource {
 export interface TraceUrlSource {
   readonly type: 'URL';
   readonly url: string;
-
-  // When loading from a permalink, the permalink might supply also the app
-  // state alongside the URL of the trace.
-  readonly serializedAppState?: SerializedAppState;
 }
 
 export interface TraceHttpRpcSource {
   readonly type: 'HTTP_RPC';
 }
 
-export interface TraceArrayBufferSource extends PostedTrace {
+export interface TraceArrayBufferSource {
   readonly type: 'ARRAY_BUFFER';
-  // See PostedTrace (which this interface extends).
-}
-
-export interface PostedTrace {
-  buffer: ArrayBuffer;
-  title: string;
-  fileName?: string;
-  url?: string;
+  readonly buffer: ArrayBuffer;
+  readonly title: string;
+  readonly fileName?: string;
+  readonly url?: string;
 
   // |uuid| is set only when loading via ?local_cache_key=1234. When set,
   // this matches global.state.traceUuid, with the exception of the following
@@ -61,11 +59,10 @@ export interface PostedTrace {
   // this |uuid| will be == T2, but the globals.state.traceUuid will be
   // temporarily == T1 until T2 has been loaded (consistently to what happens
   // with all other state fields).
-  uuid?: string;
+  readonly uuid?: string;
 
   // if |localOnly| is true then the trace should not be shared or downloaded.
-  localOnly?: boolean;
-  keepApiOpen?: boolean;
+  readonly localOnly?: boolean;
 
   // Allows to pass extra arguments to plugins. This can be read by plugins
   // onTraceLoad() and can be used to trigger plugin-specific-behaviours (e.g.
@@ -75,5 +72,5 @@ export interface PostedTrace {
   //   'dev.perfetto.PluginFoo': { 'key1': 'value1', 'key2': 1234 }
   //   'dev.perfetto.PluginBar': { 'key3': '...', 'key4': ... }
   // }
-  pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
+  readonly pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
 }

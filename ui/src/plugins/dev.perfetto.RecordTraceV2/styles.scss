@@ -14,12 +14,8 @@
 
 @import "../../assets/theme";
 
-:root {
-  --record-text-color: #333;
-}
-
 // The whole record page.
-.record-page {
+.pf-record-page {
   position: relative;
   overflow-y: scroll;
   background-color: #fefefe;
@@ -27,308 +23,29 @@
 }
 
 // The always-visible centered box that has menu and sections on the right.
-.record-container {
+.pf-record-page__container {
   position: relative;
   max-width: 900px;
   min-height: 500px;
   margin: auto;
-
-  // The body of the record container.
-  .record-container-content {
-    display: grid;
-    grid-template-columns: 2fr 5fr;
-    grid-template-areas: "sidebar section";
-
-    border-radius: $pf-border-radius;
-    box-shadow:
-      0 1px 2px 0 #aaa,
-      0 1px 3px 1px #eee;
-    background-color: #fff;
-    overflow: hidden;
-  }
-
-  .full-centered {
-    width: 100%;
-    height: 100%;
-    text-align: center;
-    padding: 180px 30px;
-    font-family: "Roboto", sans-serif;
-    font-size: 25px;
-  }
 }
 
-.record-modal {
-  display: flex;
-  flex-direction: column;
+// The body of the record container.
+.pf-record-page__container-content {
+  display: grid;
+  grid-template-columns: 2fr 5fr;
+  grid-template-areas: "sidebar section";
 
-  .line {
-    padding: 10px 10px 10px 10px;
-    border-bottom: 1px solid #808080;
-  }
-
-  .record-modal-section {
-    display: flex;
-    flex-direction: row;
-
-    .logo-wrapping {
-      width: 150px;
-      height: 150px;
-      display: inline-block;
-      margin: 50px 30px 0px 0px;
-      align-self: center;
-
-      i.material-icons {
-        color: #16161d;
-        font-size: 150px;
-      }
-    }
-
-    select {
-      min-width: 300px;
-      min-height: 80px;
-    }
-
-    .record-modal-description {
-      display: flex;
-      flex-direction: column;
-      align-items: left;
-
-      .record-modal-command {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        padding: 10px 0px 10px 0px;
-        color: #fff;
-
-        .code-snippet {
-          width: 100%;
-        }
-      }
-
-      h3 {
-        padding-top: 15px;
-        align-self: start;
-        font-size: 1.2rem;
-        color: #0000ff;
-      }
-
-      h4 {
-        align-self: start;
-        font-size: 1.1rem;
-      }
-
-      text {
-        padding: 10px 0px 10px 0px;
-        color: #000000;
-      }
-
-      input[type="text"] {
-        flex-grow: 1;
-        border-radius: $pf-border-radius;
-        border: 1px solid #dcdcdc;
-        padding: 3px;
-        margin: 0 10px;
-        min-width: 170px;
-
-        &:focus {
-          outline: none;
-          box-shadow: 1px 1px 1px rgba(23, 32, 44, 0.3);
-        }
-      }
-    }
-  }
-
-  .record-modal-button,
-  .record-modal-button-high,
-  .record-modal-logo-button {
-    font-size: 0.875rem;
-    padding-left: 1rem;
-    padding-right: 1rem;
-    padding-top: 0.5rem;
-    padding-bottom: 0.5rem;
-    background-color: #0000ff;
-    color: #fff;
-    cursor: pointer;
-    -webkit-appearance: button;
-    text-transform: none;
-    overflow: visible;
-    line-height: 1.15;
-    margin: 5px;
-    will-change: transform;
-    -moz-osx-font-smoothing: grayscale;
-    -webkit-backface-visibility: hidden;
-    backface-visibility: hidden;
-    transform: translateZ(0);
-    transition: transform 0.25s ease-out;
-    align-self: end;
-    text-align: center;
-  }
-
-  .record-modal-button,
-  .record-modal-button-high {
-    border-radius: $pf-border-radius;
-    border-style: none;
-    border-width: 0;
-  }
-
-  .record-modal-button-high:disabled {
-    background-color: #808080;
-  }
-
-  .record-modal-button-high {
-    height: 100%;
-    align-self: center;
-    display: flex;
-    align-items: center;
-  }
-
-  .record-modal-logo-button {
-    border-radius: 50%;
-    width: 35px;
-    height: 35px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-}
-
-.hider {
-  @include transition(0.2s);
-  position: fixed;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  right: 0;
-  background: #000;
-  opacity: 0.2;
-  z-index: 5;
-}
-
-.record-header {
-  grid-area: header;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  border-bottom: 1px solid #eee;
-
-  .top-part {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-
-    // Connect/start/stop tracing buttons.
-    .button {
-      display: flex;
-      justify-content: flex-end;
-      align-items: center;
-      width: auto;
-      height: 50px;
-      margin: 0;
-      > * {
-        @include transition(0.2s);
-        cursor: pointer;
-        border-radius: 10px;
-        margin: 10px;
-        text-align: center;
-        background-color: #eee;
-        font-family: "Roboto", sans-serif;
-        font-size: 17px;
-        @media (max-width: 1280px) {
-          font-size: 1.6vw;
-        }
-        padding: 7px;
-
-        &:hover {
-          background-color: hsl(88, 50%, 84%);
-          box-shadow: 0 0 4px 0 #999;
-        }
-
-        &.selected {
-          background-color: hsl(88, 50%, 67%);
-          box-shadow: 0 0 4px 0 #999;
-        }
-
-        &.disabled {
-          background-color: hsl(0, 0%, 97%);
-        }
-      }
-    }
-
-    .target-and-status {
-      display: flex;
-      flex-direction: column;
-      justify-content: space-evenly;
-
-      .target {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-      }
-
-      label,
-      select,
-      button {
-        font-weight: 300;
-        margin: 3px;
-        color: #333;
-        font-size: 17px;
-        font-family: "Roboto", sans-serif;
-        align-items: center;
-
-        &.error-label {
-          max-width: 500px;
-          color: rgb(255, 0, 0);
-          font-size: 15px;
-        }
-      }
-      .chip {
-        @include transition();
-        display: flex;
-        align-items: center;
-        border: 1px solid #eee;
-        outline: none;
-        margin: 4px;
-        border-radius: 20px;
-        padding: 4px;
-        height: 30px;
-        &:hover,
-        &:active {
-          box-shadow: 0 0 4px 0 #ccc;
-          background-color: #fafafa;
-        }
-        i {
-          margin: 3px;
-          align-items: center;
-        }
-      }
-    }
-  }
-
-  .note {
-    border-radius: 3px;
-    margin-bottom: 5px;
-    background: #f9eeba;
-    padding: 10px;
-    font-family: "Roboto", sans-serif;
-    font-size: 14px;
-    line-height: 20px;
-  }
-
-  select {
-    @include transition();
-    margin-left: 10px;
-    border-radius: 0;
-    border: 1px solid #eee;
-    outline: none;
-    &:hover,
-    &:active {
-      box-shadow: 0 0 6px #ccc;
-    }
-  }
+  border-radius: $pf-border-radius;
+  box-shadow:
+    0 1px 2px 0 #aaa,
+    0 1px 3px 1px #eee;
+  background-color: #fff;
+  overflow: hidden;
 }
 
 // The left-hand-side menu with 'Cpu', 'Memory' etc.
-.record-menu {
+.pf-record-page__menu {
   grid-area: sidebar;
   .rec {
     color: #ee3326;
@@ -467,9 +184,9 @@
     opacity: 0.5;
     pointer-events: none;
   }
-} // record-menu
+} // pf-record-page__menu
 
-.record-section {
+.pf-record-page__section {
   grid-area: section;
   background: #fff;
   transition: opacity 0.25s ease;
@@ -511,16 +228,7 @@
   }
 
   .config-button {
-    border-radius: 100%;
     margin-right: 10px;
-    text-align: center;
-    justify-items: center;
-    font-family: "Roboto", sans-serif;
-    padding: 7px;
-
-    &:hover:enabled {
-      box-shadow: 0 0 3px 0 #aaa;
-    }
 
     &:active:enabled {
       background-color: hsl(0, 0%, 83%);
@@ -721,7 +429,6 @@
       font-size: 14px;
       font-weight: 200;
       min-height: 50px;
-      color: var(--record-text-color);
       line-height: 20px;
     }
 
@@ -786,7 +493,6 @@
     > label {
       cursor: pointer;
       font-size: 14px;
-      color: var(--record-text-color);
 
       // The per-probe on-off switch.
       input[type="checkbox"] {
@@ -926,7 +632,6 @@
 
     &.thin > header {
       opacity: 1;
-      color: var(--record-text-color);
       font-size: 14px;
     }
 
@@ -1039,7 +744,6 @@
     .unit {
       grid-area: unit;
       font-size: 12px;
-      color: var(--record-text-color);
       position: relative;
       line-height: 37px;
       overflow: hidden;
@@ -1068,7 +772,6 @@
       @include transition();
       min-height: 25px;
       font-size: 12px;
-      color: var(--record-text-color);
       cursor: pointer;
       padding: 5px 0;
     }
@@ -1261,37 +964,9 @@
       background-color: #eee;
     }
   }
-} // record-section
+} // pf-record-page__section
 
-.inline-chip {
-  @include transition();
-  &:hover,
-  &:active {
-    box-shadow: 0 0 2px 0 #ccc;
-    background-color: #fafafa;
-  }
-
-  > i.material-icons {
-    color: rgb(60, 60, 60);
-    font-size: 14px;
-  }
-
-  display: inline-block;
-  font-size: smaller;
-  padding: 2px 4px;
-  border: 1px solid #eee;
-  margin: 2px;
-  border-radius: 9px;
-}
-
-a.inline-chip,
-a.inline-chip:link,
-a.inline-chip:visited {
-  text-decoration: none;
-  color: var(--record-text-color);
-}
-
-.code-snippet {
+.pf-code-snippet {
   display: grid;
   position: relative;
   padding: 0;
@@ -1299,24 +974,6 @@ a.inline-chip:visited {
   background-color: #111;
   border-radius: 4px;
   box-shadow: 0 0 12px #999;
-
-  @keyframes ripple {
-    0% {
-      transform: scale(1);
-    }
-    30% {
-      transform: scale(1.2);
-    }
-    60% {
-      transform: scale(1);
-    }
-    80% {
-      transform: scale(1.3);
-    }
-    100% {
-      transform: scale(1.2);
-    }
-  }
 
   &::before {
     height: 20px;
@@ -1349,40 +1006,16 @@ a.inline-chip:visited {
   }
 
   > button {
-    @include transition();
-    display: inline-block;
     position: absolute;
     top: 30px;
     right: 20px;
     color: white;
-    border-radius: 100%;
-    background-color: #333;
-    box-shadow: 0 0 2px rgba(255, 255, 255, 200);
-    padding: 5px;
-    font-size: 16px;
-    line-height: 13px; // Deliberately smaller to center the icon.
-    user-select: none;
-
-    &:hover {
-      background-color: #444;
-      transform: scale(1.1);
-    }
   }
-
-  &:active:hover > button:not(:hover) {
-    animation: ripple linear 0.5s;
-    background-color: #701d17;
-    transform: scale(1.1);
-  }
-
-  > button:active:hover {
-    transform: scale(0.9);
-  }
-} // code-snippet
+} // pf-code-snippet
 
 // For RecordingV2
 
-.record-section[id="target"] {
+.pf-record-page__section[id="target"] {
   header {
     font-size: 1rem;
     font-weight: 600;
