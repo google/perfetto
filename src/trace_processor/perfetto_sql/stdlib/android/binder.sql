@@ -417,7 +417,8 @@ JOIN process
   USING (upid)
 WHERE
   slice.name = 'binder transaction async'
-ORDER BY binder_txn_id;
+ORDER BY
+  binder_txn_id;
 
 CREATE PERFETTO TABLE _binder_async_txn AS
 SELECT
@@ -447,7 +448,8 @@ JOIN process AS reply_process
   ON reply_process.upid = reply_thread.upid
 WHERE
   binder_reply.name = 'binder async rcv'
-ORDER BY binder_txn_id;
+ORDER BY
+  binder_txn_id;
 
 -- Breakdown asynchronous binder transactions per txn.
 -- It returns data about the client and server ends of every binder transaction async.
@@ -561,7 +563,8 @@ LEFT JOIN android_process_metadata AS client_process_metadata
   ON all_binder.client_upid = client_process_metadata.upid
 LEFT JOIN android_process_metadata AS server_process_metadata
   ON all_binder.server_upid = server_process_metadata.upid
-ORDER BY binder_txn_id;
+ORDER BY
+  binder_txn_id;
 
 -- Returns a DAG of all outgoing binder txns from a process.
 -- The roots of the graph are the threads making the txns and the graph flows from:
