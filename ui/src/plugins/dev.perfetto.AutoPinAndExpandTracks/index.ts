@@ -13,32 +13,31 @@
 // limitations under the License.
 
 import {TrackNode} from '../../public/workspace';
+import {App} from '../../public/app';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Track} from '../../public/track';
 import {z} from 'zod';
 import {assertIsInstance} from '../../base/logging';
 
-const PLUGIN_ID = 'dev.perfetto.RestorePinnedTrack';
+const PLUGIN_ID = 'dev.perfetto.AutoPinAndExpandTracks';
 const SAVED_TRACKS_KEY = `${PLUGIN_ID}#savedPerfettoTracks`;
 
 const RESTORE_COMMAND_ID = `${PLUGIN_ID}#restore`;
 
-const URL_PARAM_EXPAND_TRACKS = 'expand_tracks';
-const URL_PARAM_PINNED_TRACKS = 'pinned_tracks';
+const URL_PARAM_EXPAND_TRACKS = 'expand_tracks_with_name_on_startup';
+const URL_PARAM_PINNED_TRACKS = 'pin_tracks_with_name_on_startup';
 
-
-function getParamValues(queryString: string, paramName: string) {
-  const regex = new RegExp(`${PLUGIN_ID}:${paramName}=\\(([^)]*)\\)`);
-  const match = queryString.match(regex);
-  if (match && match[1]) {
-    return match[1].split(',').map(s => s.trim()).filter(Boolean);
+function getParamValues(pluginParams: ReadonlyArray<string>, paramName: string): string[] {
+  const regex = new RegExp(`^${paramName}=\\(([^)]*)\\)$`);
+  for (const item of pluginParams) {
+    const match = item.match(regex);
+    if (match) {
+      return match[1].split('--').map(v => v.trim());
+    }
   }
   return [];
 }
-
-let expand_tracks: string[];
-let pin_tracks: string[];
 
 /**
  * Fuzzy save and restore of pinned tracks.
@@ -47,11 +46,14 @@ let pin_tracks: string[];
  * and group name. When no match is found for a saved track, it tries again
  * without numbers.
  */
-export default class implements PerfettoPlugin {
+export default class AutoPinAndExpandTracks implements PerfettoPlugin {
   static readonly id = PLUGIN_ID;
   private ctx!: Trace;
+  private static expandTracks: string[] = [];
+  private static pinTracks: string[] = [];
 
-  static onActivate() {
+  static onActivate(_app: App, pluginParams: ReadonlyArray<string> = []) {
+    console.log('[RestorePinnedTracks] pluginParams:', pluginParams);
     const input = document.createElement('input');
     input.classList.add('pinned_tracks_import_selector');
     input.setAttribute('type', 'file');
@@ -78,8 +80,10 @@ export default class implements PerfettoPlugin {
       addOrReplaceNamedPinnedTracks(parsed.data);
     });
     document.body.appendChild(input);
-    expand_tracks = getParamValues(location.hash, URL_PARAM_EXPAND_TRACKS);
-    pin_tracks = getParamValues(location.hash, URL_PARAM_PINNED_TRACKS);
+    AutoPinAndExpandTracks.expandTracks = getParamValues(pluginParams, URL_PARAM_EXPAND_TRACKS);
+    AutoPinAndExpandTracks.pinTracks = getParamValues(pluginParams, URL_PARAM_PINNED_TRACKS);
+    console.log('[RestorePinnedTracks] expandTracks:', AutoPinAndExpandTracks.expandTracks);
+    console.log('[RestorePinnedTracks] pinTracks:', AutoPinAndExpandTracks.pinTracks);
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -185,13 +189,18 @@ export default class implements PerfettoPlugin {
   }
 
   private processUrlParameters(): void {
-    if (expand_tracks.length > 0) {
-        this.ctx.workspace.flatTracks.filter((t) => expand_tracks.some((prefix) => t.name.startsWith(prefix))).forEach((t) => t.expand());
+    if (AutoPinAndExpandTracks.expandTracks.length > 0) {
+        this.ctx.workspace.flatTracks.filter((t) => AutoPinAndExpandTracks.expandTracks.some((prefix) => t.name.startsWith(prefix))).forEach((t) => t.expand());
+    }
+    
+
+    if (AutoPinAndExpandTracks.pinTracks.length > 0) {
+       this.ctx.workspace.flatTracks.filter((t) => AutoPinAndExpandTracks.pinTracks.some((prefix) => t.name.startsWith(prefix))).forEach((t) => t.pin());
     }
 
-    if (pin_tracks.length > 0) {
-       this.ctx.workspace.flatTracks.filter((t) => pin_tracks.some((prefix) => t.name.startsWith(prefix))).forEach((t) => t.pin());
-    }
+    //reset the tracks to process again
+    AutoPinAndExpandTracks.expandTracks = []
+    AutoPinAndExpandTracks.pinTracks = []
   }
 
   private restoreTracks(tracks: ReadonlyArray<SavedPinnedTrack>) {

@@ -106,18 +106,28 @@ export class PluginManagerImpl {
    *
    * @param enableOverrides - The list of plugins that are enabled regardless of
    * the current flag setting.
+   * @param pluginParams - The list of parmaeters passed in for the plugins
    */
-  activatePlugins(enableOverrides: ReadonlyArray<string> = []) {
+  activatePlugins(
+    enableOverrides: ReadonlyArray<string> = [],
+    pluginParams: ReadonlyArray<string> = [],
+  ) {
     const enabledPlugins = this.registry
       .valuesAsArray()
       .filter((p) => p.enableFlag.get() || enableOverrides.includes(p.desc.id));
+
+    console.log(
+      '[RestorePinnedTracks] pluginParams from PluginManagerImpl:',
+      pluginParams,
+    );
 
     this.orderedPlugins = this.sortPluginsTopologically(enabledPlugins);
 
     this.orderedPlugins.forEach((p) => {
       if (p.active) return;
       const app = this.app.forkForPlugin(p.desc.id);
-      p.desc.onActivate?.(app);
+      const params = this.getValuesById(pluginParams, p.desc.id);
+      p.desc.onActivate?.(app, params);
       p.active = true;
     });
   }
@@ -215,5 +225,18 @@ export class PluginManagerImpl {
     plugins.forEach((p) => visit(p));
 
     return orderedPlugins;
+  }
+
+  private getValuesById(
+    pluginParams: ReadonlyArray<string>,
+    id: string,
+  ): Array<string> {
+    const regex = new RegExp(`^${id}:(.*)$`);
+    return pluginParams
+      .map((param) => {
+        const match = param.match(regex);
+        return match ? match[1].trim() : null;
+      })
+      .filter((value) => value !== null);
   }
 }
