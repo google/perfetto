@@ -24,8 +24,6 @@ import {FeatureFlagManager} from './feature_flag';
 import {Raf} from './raf';
 import {SettingsManager} from './settings';
 
-// Trigger CI build for UI.
-
 /**
  * The API endpoint to interact programmaticaly with the UI before a trace has
  * been loaded. This is passed to plugins' OnActivate().
