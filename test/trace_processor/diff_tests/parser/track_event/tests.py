@@ -1042,3 +1042,21 @@ class TrackEvent(TestSuite):
         "name"
         "First Name"
         """))
+
+  def test_y_axis_share_key(self):
+    return DiffTestBlueprint(
+        trace=Path('y_axis_share_key.textproto'),
+        query="""
+        SELECT
+          t.name,
+          EXTRACT_ARG(t.source_arg_set_id, 'y_axis_share_key') AS y_axis_share_key
+        FROM track t
+        WHERE t.type GLOB '*counter*'
+        ORDER BY t.name;
+        """,
+        out=Csv("""
+        "name","y_axis_share_key"
+        "counter1","group1"
+        "counter2","group1"
+        "counter3","[NULL]"
+        """))

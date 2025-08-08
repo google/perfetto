@@ -1,0 +1,55 @@
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_descriptor {
+    uuid: 1
+    name: "counter1"
+    counter {
+      unit_name: "units"
+      y_axis_share_key: "group1"
+    }
+  }
+  track_descriptor {
+    uuid: 2
+    name: "counter2"
+    counter {
+      unit_name: "units"
+      y_axis_share_key: "group1"
+    }
+  }
+  track_descriptor {
+    uuid: 3
+    name: "counter3"
+    counter {
+      unit_name: "units"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  track_event {
+    track_uuid: 1
+    type: TYPE_COUNTER
+    counter_value: 100
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 2000
+  track_event {
+    track_uuid: 2
+    type: TYPE_COUNTER
+    counter_value: 200
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 3000
+  track_event {
+    track_uuid: 3
+    type: TYPE_COUNTER
+    counter_value: 300
+  }
+}
