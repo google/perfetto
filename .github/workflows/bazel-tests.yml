@@ -16,6 +16,12 @@
 name: Perfetto CI [bazel]
 on:
   workflow_call:
+  workflow_dispatch: # This allows manual triggering
+    inputs:
+      pr_number:
+        description: 'Pull Request Number'
+        required: true
+        type: number
 env:
   # /tmp/cache contains {ccache, bazelcache} and generally any other cache
   # that should be persisted across jobs, but only updated from the main
@@ -32,7 +38,10 @@ jobs:
       PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-bazel
       PERFETTO_BUILD_LOGS_DIR: /tmp/bazel-build-logs
     steps:
-      - uses: actions/checkout@v4
+      - name: Do checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number) || github.ref }}
 
       - name: Setup artifacts
         shell: bash
