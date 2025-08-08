@@ -42,6 +42,7 @@ import {showModal} from '../widgets/modal';
 import {IdleDetector} from './idle_detector';
 import {IdleDetectorWindow} from './idle_detector_interface';
 import {AppImpl} from '../core/app_impl';
+import {parseAndSplitParams} from '../core/plugin_manager';
 import {addLegacyTableTab} from '../components/details/sql_table_tab';
 import {configureExtensions} from '../components/extensions';
 import {
@@ -251,31 +252,6 @@ function main() {
   (window as {} as IdleDetectorWindow).waitForPerfettoIdle = (ms?: number) => {
     return new IdleDetector().waitForPerfettoIdle(ms);
   };
-}
-
-function parseAndSplitParams(pluginParams: string): Array<string> {
-  const result = [];
-  let current = '';
-  let inQuotes = false;
-  for (let i = 0; i < pluginParams.length; i++) {
-    const char = pluginParams[i];
-    if (char === '"') {
-      // Toggle inQuotes when encountering a quote
-      inQuotes = !inQuotes;
-      current += char;
-    } else if (char === ',' && !inQuotes) {
-      // Only split on commas outside of quotes
-      result.push(current.trim());
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  // Add the last segment
-  if (current) {
-    result.push(current.trim());
-  }
-  return result;
 }
 
 function onCssLoaded() {
