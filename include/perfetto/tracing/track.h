@@ -231,12 +231,40 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
     return NamedTrack(std::forward<TrackEventName>(name), id, parent);
   }
 
+  constexpr NamedTrack disable_sibling_merge() const {
+    return NamedTrack(
+        *this,
+        perfetto::protos::gen::TrackDescriptor::SIBLING_MERGE_BEHAVIOR_NONE,
+        nullptr);
+  }
+  constexpr NamedTrack set_sibling_merge_key(const char* key) {
+    return NamedTrack(*this,
+                      perfetto::protos::gen::TrackDescriptor::
+                          SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY,
+                      key);
+  }
+
   void Serialize(protos::pbzero::TrackDescriptor*) const;
   protos::gen::TrackDescriptor Serialize() const;
 
  private:
+  constexpr NamedTrack(
+      const NamedTrack& other,
+      perfetto::protos::gen::TrackDescriptor::SiblingMergeBehavior
+          sibling_merge_behavior,
+      const char* sibling_merge_key)
+      : Track(other),
+        static_name_(other.static_name_),
+        dynamic_name_(other.dynamic_name_),
+        sibling_merge_behavior_(sibling_merge_behavior),
+        sibling_merge_key_(sibling_merge_key) {}
+
   StaticString static_name_;
   DynamicString dynamic_name_;
+  perfetto::protos::gen::TrackDescriptor::SiblingMergeBehavior
+      sibling_merge_behavior_{perfetto::protos::gen::TrackDescriptor::
+                                  SIBLING_MERGE_BEHAVIOR_UNSPECIFIED};
+  const char* sibling_merge_key_{nullptr};
 };
 
 // A track for recording counter values with the TRACE_COUNTER macro. Counter
