@@ -29,7 +29,7 @@ namespace base {
 // Windows has two types of "handles", which, in UNIX-land, both map to int:
 // 1. File handles returned by the posix-compatibility API like _open().
 //    These are just int(s) and should stay such, because all the posix-like API
-//    in Windows.h take an int, not a HANDLE.
+//    in windows.h take an int, not a HANDLE.
 // 2. Handles returned by old-school WINAPI like CreateFile, CreateEvent etc.
 //    These are proper HANDLE(s). PlatformHandle should be used here.
 //
@@ -39,8 +39,8 @@ namespace base {
 // WaitForMultipleObjects, hence in base::TaskRunner.AddFileDescriptorWatch().
 // On POSIX OSes, a SocketHandle is really just an int (a file descriptor).
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-// Windows.h typedefs HANDLE to void*, and SOCKET to uintptr_t. We use their
-// types to avoid leaking Windows.h through our headers.
+// windows.h typedefs HANDLE to void*, and SOCKET to uintptr_t. We use their
+// types to avoid leaking windows.h through our headers.
 using PlatformHandle = void*;
 using SocketHandle = uintptr_t;
 
@@ -61,7 +61,7 @@ struct PlatformHandleChecker {
 // The definition of this lives in base/file_utils.cc (to avoid creating an
 // extra build edge for a one liner). This is really an alias for close() (UNIX)
 // CloseHandle() (Windows). THe indirection layer is just to avoid leaking
-// system headers like Windows.h through perfetto headers.
+// system headers like windows.h through perfetto headers.
 // Thre return value is always UNIX-style: 0 on success, -1 on failure.
 int ClosePlatformHandle(PlatformHandle);
 

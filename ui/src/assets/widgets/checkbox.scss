@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
+@import "../theme";
 
 // This checkbox element is expected to contain a checkbox type input followed
 // by an empty span element.
@@ -44,7 +44,7 @@
 
   display: inline-block;
   position: relative; // Turns this container into a positioned element
-  font-family: $pf-font;
+  font-family: inherit;
   font-size: inherit;
   color: $pf-minimal-foreground;
   user-select: none;

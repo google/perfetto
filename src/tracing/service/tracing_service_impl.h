@@ -359,7 +359,9 @@ class TracingServiceImpl : public TracingService {
   void ChangeTraceConfig(ConsumerEndpointImpl*, const TraceConfig&);
 
   void StartTracing(TracingSessionID);
-  void DisableTracing(TracingSessionID, bool disable_immediately = false);
+  void DisableTracing(TracingSessionID,
+                      bool disable_immediately = false,
+                      const std::string& error = {});
   void Flush(TracingSessionID tsid,
              uint32_t timeout_ms,
              ConsumerEndpoint::FlushCallback,
@@ -391,7 +393,7 @@ class TracingServiceImpl : public TracingService {
   // Returns false in case of error.
   bool ReadBuffersIntoFile(TracingSessionID);
 
-  void FreeBuffers(TracingSessionID);
+  void FreeBuffers(TracingSessionID tsid, const std::string& error = {});
 
   // Service implementation.
   std::unique_ptr<TracingService::ProducerEndpoint> ConnectProducer(
@@ -840,7 +842,8 @@ class TracingServiceImpl : public TracingService {
   void OnFlushTimeout(TracingSessionID, FlushRequestID, FlushFlags);
   void OnDisableTracingTimeout(TracingSessionID);
   void OnAllDataSourceStartedTimeout(TracingSessionID);
-  void DisableTracingNotifyConsumerAndFlushFile(TracingSession*);
+  void DisableTracingNotifyConsumerAndFlushFile(TracingSession*,
+                                                const std::string& error = {});
   void PeriodicFlushTask(TracingSessionID, bool post_next_only);
   void CompleteFlush(TracingSessionID tsid,
                      ConsumerEndpoint::FlushCallback callback,

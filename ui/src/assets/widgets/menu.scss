@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
+@import "../theme";
 
 // If we're in a popup menu, remove the padding
 .pf-popup-menu.pf-popup {
@@ -46,11 +46,6 @@
 
     .pf-menu-item__label {
       grid-area: label;
-    }
-
-    & > .material-icons {
-      font-size: inherit;
-      line-height: inherit;
     }
 
     &__left-icon {

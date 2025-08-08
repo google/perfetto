@@ -17,17 +17,21 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_MEMORY_TRACKER_SNAPSHOT_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_MEMORY_TRACKER_SNAPSHOT_MODULE_H_
 
+#include <cstdint>
+
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/memory_tracker_snapshot_parser.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class MemoryTrackerSnapshotModule : public ProtoImporterModule {
  public:
-  explicit MemoryTrackerSnapshotModule(TraceProcessorContext* context);
+  explicit MemoryTrackerSnapshotModule(
+      ProtoImporterModuleContext* module_context,
+      TraceProcessorContext* context);
 
   ~MemoryTrackerSnapshotModule() override;
 
@@ -42,7 +46,6 @@ class MemoryTrackerSnapshotModule : public ProtoImporterModule {
   MemoryTrackerSnapshotParser parser_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_MEMORY_TRACKER_SNAPSHOT_MODULE_H_

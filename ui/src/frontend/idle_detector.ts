@@ -77,7 +77,7 @@ export class IdleDetector {
       !taskTracker.hasPendingTasks(),
       !document.getAnimations().some((a) => a.playState === 'running'),
       document.querySelector('.progress.progress-anim') == null,
-      document.querySelector('.omnibox.message-mode') == null,
+      document.querySelector('.pf-omnibox--message-mode') == null,
     ];
   }
 }

@@ -24,10 +24,10 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/perf/mmap_record.h"
 #include "src/trace_processor/importers/perf/record.h"
 #include "src/trace_processor/importers/perf/sample.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/build_id.h"
 
@@ -44,12 +44,12 @@ class PerfDataTracker;
 class Reader;
 
 // Parses samples from perf.data files.
-class RecordParser : public PerfRecordParser {
+class RecordParser : public TraceSorter::Sink<Record, RecordParser> {
  public:
   explicit RecordParser(TraceProcessorContext*);
   ~RecordParser() override;
 
-  void ParsePerfRecord(int64_t timestamp, Record record) override;
+  void Parse(int64_t timestamp, Record record);
 
  private:
   base::Status ParseRecord(int64_t timestamp, Record record);

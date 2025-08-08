@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.h"
+#include "src/trace_processor/importers/perf_text/perf_text_trace_parser.h"
 
 #include <cctype>
 #include <cstddef>
@@ -56,7 +57,9 @@ std::string Slice(const std::string& str, size_t start, size_t end) {
 }  // namespace
 
 PerfTextTraceTokenizer::PerfTextTraceTokenizer(TraceProcessorContext* ctx)
-    : context_(ctx) {}
+    : context_(ctx),
+      stream_(ctx->sorter->CreateStream(
+          std::make_unique<PerfTextTraceParser>(ctx))) {}
 PerfTextTraceTokenizer::~PerfTextTraceTokenizer() = default;
 
 base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
@@ -154,7 +157,7 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
     evt.pid = sample->pid;
     evt.callsite_id = *parent_callsite;
 
-    context_->sorter->PushPerfTextEvent(sample->ts, evt);
+    stream_->Push(sample->ts, evt);
     reader_.PopFrontUntil(it.file_offset());
   }
 }
