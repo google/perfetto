@@ -16,6 +16,7 @@ import m from 'mithril';
 import {
   createFinalColumns,
   createSelectColumnsProto,
+  nextNodeId,
   NodeType,
   QueryNode,
   QueryNodeState,
@@ -34,14 +35,17 @@ import {
   createGroupByProto,
 } from '../operations/operation_component';
 
-export interface SlicesSourceAttrs extends QueryNodeState {
+export interface SlicesSourceState extends QueryNodeState {
   slice_name?: string;
   thread_name?: string;
   process_name?: string;
   track_name?: string;
+  onchange?: () => void;
 }
 
 export class SlicesSourceNode implements QueryNode {
+  nodeId: string;
+  graphTableName: string;
   type: NodeType = NodeType.kSimpleSlices;
   prevNode = undefined;
   nextNode?: QueryNode;
@@ -49,17 +53,19 @@ export class SlicesSourceNode implements QueryNode {
 
   readonly sourceCols: ColumnInfo[];
   readonly finalCols: ColumnInfo[];
+  readonly state: SlicesSourceState;
 
-  readonly state: SlicesSourceAttrs;
-
-  constructor(attrs: SlicesSourceAttrs) {
+  constructor(attrs: SlicesSourceState) {
+    this.nodeId = nextNodeId();
+    this.graphTableName = `exp_${this.nodeId}`;
     this.state = attrs;
+    this.state.onchange = attrs.onchange;
     this.sourceCols = slicesSourceNodeColumns(true);
     this.finalCols = createFinalColumns(this);
   }
 
-  getStateCopy(): QueryNodeState {
-    const newState: SlicesSourceAttrs = {
+  clone(): QueryNode {
+    const stateCopy: SlicesSourceState = {
       slice_name: this.state.slice_name?.slice(),
       thread_name: this.state.thread_name?.slice(),
       process_name: this.state.process_name?.slice(),
@@ -70,7 +76,7 @@ export class SlicesSourceNode implements QueryNode {
       aggregations: this.state.aggregations.map((a) => ({...a})),
       customTitle: this.state.customTitle,
     };
-    return newState;
+    return new SlicesSourceNode(stateCopy);
   }
 
   validate(): boolean {

@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme.scss";
+@import "../theme.scss";
 
 $border-radius: 4px;
 $box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.15);
 
-@layer widgets {
+@layer pf-widgets {
   .pf-card {
     padding: 12px 16px;
     box-shadow: $box-shadow;

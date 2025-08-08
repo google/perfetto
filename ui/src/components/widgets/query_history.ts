@@ -15,9 +15,10 @@
 import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
 import {assertTrue} from '../../base/logging';
-import {Icon} from '../../widgets/icon';
 import {z} from 'zod';
 import {Trace} from '../../public/trace';
+import {Button} from '../../widgets/button';
+import {Stack} from '../../widgets/stack';
 
 const QUERY_HISTORY_KEY = 'queryHistory';
 
@@ -46,7 +47,7 @@ export class QueryHistoryComponent
         ...rest,
       },
       m(
-        'header.overview',
+        '.pf-query-history__header',
         `Query history (${queryHistoryStorage.data.length} queries)`,
       ),
       starred.map((attrs) => m(HistoryItemComponent, attrs)),
@@ -69,44 +70,39 @@ export class HistoryItemComponent
   view(vnode: m.Vnode<HistoryItemComponentAttrs>): m.Child {
     const query = vnode.attrs.entry.query;
     return m(
-      '.pf-history-item',
+      '.pf-query-history__item',
       m(
-        '.pf-history-item-buttons',
-        m(
-          'button',
-          {
+        Stack,
+        {
+          className: 'pf-query-history__item-buttons',
+          orientation: 'horizontal',
+        },
+        [
+          m(Button, {
             onclick: () => {
               queryHistoryStorage.setStarred(
                 vnode.attrs.index,
                 !vnode.attrs.entry.starred,
               );
             },
-          },
-          m(Icon, {icon: Icons.Star, filled: vnode.attrs.entry.starred}),
-        ),
-        m(
-          'button',
-          {
+            icon: Icons.Star,
+            iconFilled: vnode.attrs.entry.starred,
+          }),
+          m(Button, {
             onclick: () => vnode.attrs.setQuery(query),
-          },
-          m(Icon, {icon: 'edit'}),
-        ),
-        m(
-          'button',
-          {
+            icon: Icons.Edit,
+          }),
+          m(Button, {
             onclick: () => vnode.attrs.runQuery(query),
-          },
-          m(Icon, {icon: 'play_arrow'}),
-        ),
-        m(
-          'button',
-          {
+            icon: Icons.Play,
+          }),
+          m(Button, {
             onclick: () => {
               queryHistoryStorage.remove(vnode.attrs.index);
             },
-          },
-          m(Icon, {icon: 'delete'}),
-        ),
+            icon: Icons.Delete,
+          }),
+        ],
       ),
       m(
         'pre',

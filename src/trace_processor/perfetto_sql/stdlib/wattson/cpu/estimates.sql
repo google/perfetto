@@ -50,6 +50,8 @@ CREATE PERFETTO VIEW _curves_w_dependencies (
   l3_miss_count LONG,
   no_static LONG,
   all_cpu_deep_idle LONG,
+  freq_1d_static LONG,
+  freq_2d_static LONG,
   dependency LONG
 ) AS
 -- Table that is dependent on differet CPU's frequency
@@ -81,7 +83,11 @@ SELECT
   coalesce(base.cpu5_curve, 0.0) AS cpu5_curve,
   coalesce(base.cpu6_curve, 0.0) AS cpu6_curve,
   coalesce(base.cpu7_curve, 0.0) AS cpu7_curve,
-  iif(no_static = 1, 0.0, coalesce(static_1d.curve_value, static_2d.curve_value)) AS static_curve,
+  iif(
+    no_static = 1,
+    0.0,
+    coalesce(static_1d.curve_value, 0.0) + coalesce(static_2d.curve_value, 0.0)
+  ) AS static_curve,
   iif(all_cpu_deep_idle = 1, 0, base.l3_hit_count * l3_hit_lut.curve_value) AS l3_hit_value,
   iif(all_cpu_deep_idle = 1, 0, base.l3_miss_count * l3_miss_lut.curve_value) AS l3_miss_value
 FROM _curves_w_dependencies AS base
@@ -103,18 +109,18 @@ LEFT JOIN _filtered_curves_2d AS lut3
   AND lut3.dependency = base.dependency
   AND lut3.idle = base.idle_3
 LEFT JOIN _filtered_curves_1d AS static_1d
-  ON static_1d.policy = 0 AND static_1d.freq_khz = base.freq_0 AND static_1d.idle = 255
+  ON static_1d.freq_khz = base.freq_1d_static AND static_1d.idle = 255
 LEFT JOIN _filtered_curves_2d AS static_2d
-  ON static_2d.freq_khz = base.freq_0
+  ON static_2d.freq_khz = base.freq_2d_static
   AND static_2d.dependency = base.dependency
   AND static_2d.idle = 255
 -- LUT joins for L3 cache
 LEFT JOIN _filtered_curves_l3 AS l3_hit_lut
-  ON l3_hit_lut.freq_khz = base.freq_0
+  ON l3_hit_lut.freq_khz = base.freq_2d_static
   AND l3_hit_lut.dependency = base.dependency
   AND l3_hit_lut.action = 'hit'
 LEFT JOIN _filtered_curves_l3 AS l3_miss_lut
-  ON l3_miss_lut.freq_khz = base.freq_0
+  ON l3_miss_lut.freq_khz = base.freq_2d_static
   AND l3_miss_lut.dependency = base.dependency
   AND l3_miss_lut.action = 'miss';
 
