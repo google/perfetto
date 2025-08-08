@@ -154,7 +154,7 @@ jobs:
         if: ${{ always() }}
         shell: bash
         run: |
-          /opt/ci/artifacts_uploader.py --rm ${{ env.PERFETTO_ARTIFACTS_ROOT }}
+          /opt/ci/artifacts_uploader.py ${{ env.PERFETTO_ARTIFACTS_ROOT }}
           
       - name: Upload artifacts to GCS using CLI
         if: ${{ always() }}
