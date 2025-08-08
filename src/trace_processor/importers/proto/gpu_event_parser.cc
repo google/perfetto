@@ -29,11 +29,11 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/protozero/field.h"
-#include "protos/perfetto/trace/android/gpu_mem_event.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -47,6 +47,7 @@
 #include "src/trace_processor/types/variadic.h"
 
 #include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
+#include "protos/perfetto/trace/android/gpu_mem_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_counter_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_log.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
@@ -111,12 +112,11 @@ using protos::pbzero::GpuCounterEvent;
 using protos::pbzero::GpuRenderStageEvent;
 using protos::pbzero::VulkanMemoryEvent;
 
-constexpr auto kRenderStageBlueprint = tracks::SliceBlueprint(
+constexpr auto kRenderStageBlueprint = TrackCompressor::SliceBlueprint(
     "gpu_render_stage",
     tracks::DimensionBlueprints(
         tracks::StringDimensionBlueprint("render_stage_source"),
-        tracks::UintDimensionBlueprint("hwqueue_id"),
-        tracks::StringDimensionBlueprint("hwqueue_name")),
+        tracks::UintDimensionBlueprint("hwqueue_id")),
     tracks::DynamicNameBlueprint());
 
 }  // anonymous namespace
@@ -289,25 +289,36 @@ void GpuEventParser::InsertTrackForUninternedRenderStage(
   StringId name = context_->storage->InternString(hw_queue.name());
   StringId description =
       context_->storage->InternString(hw_queue.description());
+  gpu_hw_queue_ids_[hw_queue_id] = HwQueueInfo{name, description};
 
-  auto args_fn = [&, this](ArgsTracker::BoundInserter& inserter) {
-    inserter.AddArg(description_id_, Variadic::String(description));
-  };
-
-  // If a gpu_render_stage_event is received before the specification, a track
-  // will be automatically generated. Just don't update anything in that case.
-  auto& track_id = gpu_hw_queue_ids_[hw_queue_id];
-  if (track_id) {
-    auto rr = *context_->storage->mutable_track_table()->FindById(*track_id);
-    rr.set_name(name);
-
-    auto inserter = context_->args_tracker->AddArgsTo(*track_id);
-    args_fn(inserter);
+  // Most weell behaved traces will not have to set the name.
+  if (gpu_hw_queue_ids_name_to_set_.size() == 0) {
     return;
   }
-  track_id = context_->track_tracker->InternTrack(
-      kRenderStageBlueprint, tracks::Dimensions("id", hw_queue_id, ""),
-      tracks::DynamicName(name), args_fn);
+
+  // The track might have been created before with a placeholder name.
+  // We need to update it if `gpu_hw_queue_ids_name_to_set_` says so.
+  auto* it = gpu_hw_queue_ids_name_to_set_.Find(hw_queue_id);
+  if (!it || !*it) {
+    return;
+  }
+
+  // Mark this as handled.
+  *it = false;
+
+  auto factory = context_->track_compressor->CreateTrackFactory(
+      kRenderStageBlueprint, tracks::Dimensions("id", hw_queue_id),
+      tracks::DynamicName(name),
+      [&, this](ArgsTracker::BoundInserter& inserter) {
+        inserter.AddArg(description_id_, Variadic::String(description));
+      });
+  TrackId track_id = context_->track_compressor->DefaultTrack(factory);
+  auto rr = *context_->storage->mutable_track_table()->FindById(track_id);
+  rr.set_name(name);
+
+  PERFETTO_DCHECK(!rr.source_arg_set_id());
+  auto inserter = context_->args_tracker->AddArgsTo(track_id);
+  inserter.AddArg(description_id_, Variadic::String(description));
 }
 
 std::optional<std::string> GpuEventParser::FindDebugName(
@@ -395,54 +406,38 @@ void GpuEventParser::ParseGpuRenderStageEvent(
   }
 
   if (event.has_event_id()) {
-    TrackId track_id;
+    StringId track_name = kNullStringId;
+    StringId track_description = kNullStringId;
     uint64_t hw_queue_id = 0;
+    const char* source = nullptr;
+
     if (event.has_hw_queue_iid()) {
+      source = "iid";
       hw_queue_id = event.hw_queue_iid();
       auto* decoder = sequence_state->LookupInternedMessage<
           protos::pbzero::InternedData::kGpuSpecificationsFieldNumber,
           protos::pbzero::InternedGpuRenderStageSpecification>(hw_queue_id);
       if (!decoder) {
-        // Skip
         return;
       }
-      // TODO: Add RenderStageCategory to track table.
-      track_id = context_->track_tracker->InternTrack(
-          kRenderStageBlueprint,
-          tracks::Dimensions("iid", hw_queue_id, decoder->name()),
-          tracks::DynamicName(context_->storage->InternString(decoder->name())),
-          [&, this](ArgsTracker::BoundInserter& inserter) {
-            if (decoder->description().size > 0) {
-              inserter.AddArg(description_id_,
-                              Variadic::String(context_->storage->InternString(
-                                  decoder->description())));
-            }
-          });
+      track_name = context_->storage->InternString(decoder->name());
+      if (decoder->description().size > 0) {
+        track_description =
+            context_->storage->InternString(decoder->description());
+      }
     } else {
+      source = "id";
       hw_queue_id = static_cast<uint32_t>(event.hw_queue_id());
       if (hw_queue_id < gpu_hw_queue_ids_.size() &&
           gpu_hw_queue_ids_[hw_queue_id].has_value()) {
-        track_id = gpu_hw_queue_ids_[hw_queue_id].value();
+        track_name = gpu_hw_queue_ids_[hw_queue_id]->name;
+        track_description = gpu_hw_queue_ids_[hw_queue_id]->description;
       } else {
         // If the event has a hw_queue_id that does not have a Specification,
         // create a new track for it.
-        char buf[128];
-        base::StringWriter writer(buf, sizeof(buf));
-        writer.AppendLiteral("Unknown GPU Queue ");
-        if (hw_queue_id > 1024) {
-          // We don't expect this to happen, but just in case there is a corrupt
-          // packet, make sure we don't allocate a ridiculous amount of memory.
-          hw_queue_id = 1024;
-          PERFETTO_ELOG("Invalid hw_queue_id.");
-        } else {
-          writer.AppendInt(event.hw_queue_id());
-        }
-        track_id = context_->track_tracker->InternTrack(
-            kRenderStageBlueprint, tracks::Dimensions("id", hw_queue_id, ""),
-            tracks::DynamicName(
-                context_->storage->InternString(writer.GetStringView())));
-        gpu_hw_queue_ids_.resize(hw_queue_id + 1);
-        gpu_hw_queue_ids_[hw_queue_id] = track_id;
+        base::StackString<64> name("Unknown GPU Queue %" PRIu64, hw_queue_id);
+        track_name = context_->storage->InternString(name.string_view());
+        gpu_hw_queue_ids_name_to_set_.Insert(hw_queue_id, true);
       }
     }
 
@@ -465,8 +460,20 @@ void GpuEventParser::ParseGpuRenderStageEvent(
                                       ? context_->storage->InternString(
                                             command_buffer_name.value().c_str())
                                       : kNullStringId;
-    StringId name_id = GetFullStageName(sequence_state, event);
+    TrackId track_id = context_->track_compressor->InternScoped(
+        kRenderStageBlueprint,
+        tracks::Dimensions(base::StringView(source),
+                           static_cast<uint32_t>(hw_queue_id)),
+        ts, static_cast<int64_t>(event.duration()),
+        tracks::DynamicName(track_name),
+        [&](ArgsTracker::BoundInserter& inserter) {
+          if (track_description != kNullStringId) {
+            inserter.AddArg(description_id_,
+                            Variadic::String(track_description));
+          }
+        });
 
+    StringId name_id = GetFullStageName(sequence_state, event);
     context_->slice_tracker->Scoped(
         ts, track_id, kNullStringId, name_id,
         static_cast<int64_t>(event.duration()),
