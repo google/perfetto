@@ -84,3 +84,9 @@ jobs:
         with:
           cache_key: bazel-build-logs-${{ env.PERFETTO_CI_JOB_ID }}
           directory: ${{ env.PERFETTO_BUILD_LOGS_DIR }}
+
+      - name: Update build cache
+        uses: ./.github/actions/cache-on-google-cloud-storage/save
+        with:
+          directory: ${{ env.PERFETTO_CACHE_DIR }}
+          cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
