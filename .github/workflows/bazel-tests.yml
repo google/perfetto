@@ -83,7 +83,7 @@ jobs:
           
           EXPLAIN_BUILD_ARGS="--execution_log_json_file=$EXEC_LOG_FILE --explain=$EXPLAIN_FILE --verbose_explanations"
           
-          tools/bazel build ${BAZEL_DISK_CACHE_FLAGS} ${EXPLAIN_BUILD_ARGS} --verbose_failures //:src_android_sdk_java_main_perfetto_trace_app
+          tools/bazel build ${BAZEL_DISK_CACHE_FLAGS} ${EXPLAIN_BUILD_ARGS} --verbose_failures //:all
 
       - name: Upload Bazel build logs
         uses: ./.github/actions/cache-on-google-cloud-storage/save
