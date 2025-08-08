@@ -33,6 +33,7 @@ export const defaultPlugins = [
   'dev.perfetto.AndroidPerf',
   'dev.perfetto.AndroidPerfTraceCounters',
   'dev.perfetto.AndroidStartup',
+  'dev.perfetto.AutoPinAndExpandTracks',
   'dev.perfetto.BookmarkletApi',
   'dev.perfetto.CpuFreq',
   'dev.perfetto.CpuidleTimeInState',
