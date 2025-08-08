@@ -253,6 +253,31 @@ function main() {
   };
 }
 
+function parseAndSplitParams(pluginParams: string): Array<string> {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < pluginParams.length; i++) {
+    const char = pluginParams[i];
+    if (char === '"') {
+      // Toggle inQuotes when encountering a quote
+      inQuotes = !inQuotes;
+      current += char;
+    } else if (char === ',' && !inQuotes) {
+      // Only split on commas outside of quotes
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  // Add the last segment
+  if (current) {
+    result.push(current.trim());
+  }
+  return result;
+}
+
 function onCssLoaded() {
   initCssConstants();
   // Clear all the contents of the initial page (e.g. the <pre> error message)
@@ -311,7 +336,7 @@ function onCssLoaded() {
   NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
-  const pluginParams = (route.args.pluginParams ?? '').split(',');
+  const pluginParams = parseAndSplitParams(route.args.pluginParams ?? '');
   pluginManager.activatePlugins(overrides, pluginParams);
 }
 
