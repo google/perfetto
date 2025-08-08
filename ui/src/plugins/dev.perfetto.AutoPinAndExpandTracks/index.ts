@@ -28,12 +28,15 @@ const RESTORE_COMMAND_ID = `${PLUGIN_ID}#restore`;
 const URL_PARAM_EXPAND_TRACKS = 'expand_tracks_with_name_on_startup';
 const URL_PARAM_PINNED_TRACKS = 'pin_tracks_with_name_on_startup';
 
-function getParamValues(pluginParams: ReadonlyArray<string>, paramName: string): string[] {
+function getParamValues(
+  pluginParams: ReadonlyArray<string>,
+  paramName: string,
+): string[] {
   const regex = new RegExp(`^${paramName}=\\(([^)]*)\\)$`);
   for (const item of pluginParams) {
     const match = item.match(regex);
     if (match) {
-      return match[1].split('--').map(v => v.trim());
+      return match[1].split('--').map((v) => v.trim());
     }
   }
   return [];
@@ -80,8 +83,14 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
     });
     document.body.appendChild(input);
 
-    AutoPinAndExpandTracks.expandTracks = getParamValues(pluginParams, URL_PARAM_EXPAND_TRACKS);
-    AutoPinAndExpandTracks.pinTracks = getParamValues(pluginParams, URL_PARAM_PINNED_TRACKS);
+    AutoPinAndExpandTracks.expandTracks = getParamValues(
+      pluginParams,
+      URL_PARAM_EXPAND_TRACKS,
+    );
+    AutoPinAndExpandTracks.pinTracks = getParamValues(
+      pluginParams,
+      URL_PARAM_PINNED_TRACKS,
+    );
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -182,23 +191,34 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
       },
     });
 
-     // Process URL parameters for auto-expanding groups and pinning tracks
+    // Process URL parameters for auto-expanding groups and pinning tracks
     this.processUrlParameters();
   }
 
   private processUrlParameters(): void {
     if (AutoPinAndExpandTracks.expandTracks.length > 0) {
-        this.ctx.workspace.flatTracks.filter((t) => AutoPinAndExpandTracks.expandTracks.some((prefix) => t.name.startsWith(prefix))).forEach((t) => t.expand());
+      this.ctx.workspace.flatTracks
+        .filter((t) =>
+          AutoPinAndExpandTracks.expandTracks.some((prefix) =>
+            t.name.match(new RegExp('^' + prefix)),
+          ),
+        )
+        .forEach((t) => t.expand());
     }
-    
 
     if (AutoPinAndExpandTracks.pinTracks.length > 0) {
-       this.ctx.workspace.flatTracks.filter((t) => AutoPinAndExpandTracks.pinTracks.some((prefix) => t.name.startsWith(prefix))).forEach((t) => t.pin());
+      this.ctx.workspace.flatTracks
+        .filter((t) =>
+          AutoPinAndExpandTracks.pinTracks.some((prefix) =>
+            t.name.match(new RegExp('^' + prefix)),
+          ),
+        )
+        .forEach((t) => t.pin());
     }
 
-    //Once the traces have been processed, we don’t want to expand or pin the tracks again.
-    AutoPinAndExpandTracks.expandTracks = []
-    AutoPinAndExpandTracks.pinTracks = []
+    // Once the traces have been processed, we don’t want to expand or pin the tracks again.
+    AutoPinAndExpandTracks.expandTracks = [];
+    AutoPinAndExpandTracks.pinTracks = [];
   }
 
   private restoreTracks(tracks: ReadonlyArray<SavedPinnedTrack>) {
