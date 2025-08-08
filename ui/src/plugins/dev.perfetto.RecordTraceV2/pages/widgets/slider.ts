@@ -16,6 +16,7 @@ import m from 'mithril';
 import {ProbeSetting} from '../../config/config_interfaces';
 import {assertTrue} from '../../../../base/logging';
 import {exists} from '../../../../base/utils';
+import {Icon} from '../../../../widgets/icon';
 
 export interface SliderAttrs {
   title: string;
@@ -121,7 +122,7 @@ export class Slider implements ProbeSetting {
       '.slider' + (attrs.cssClass ?? ''),
       m('header', attrs.title),
       description ? m('header.descr', attrs.description) : '',
-      attrs.icon !== undefined ? m('i.material-icons', attrs.icon) : [],
+      attrs.icon !== undefined && m(Icon, {icon: attrs.icon}),
       m(`input[id="${id}"][type=range][min=0][max=${maxIdx}][value=${idx}]`, {
         disabled,
         oninput: (e: InputEvent) => {

@@ -106,7 +106,7 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
 
   view({attrs}: m.CVnode<QueryPageAttrs>) {
     return m(
-      '.pf-query-page.page',
+      '.pf-query-page',
       m(Box, {className: 'pf-query-page__toolbar'}, [
         m(Stack, {orientation: 'horizontal'}, [
           m(Button, {
@@ -181,23 +181,20 @@ export class QueryPage implements m.ClassComponent<QueryPageAttrs> {
   ) {
     const queryTimeString = `${queryResult.durationMs.toFixed(1)} ms`;
     if (queryResult.error) {
-      return m('.query-error', `SQL error: ${queryResult.error}`);
+      return m(
+        '.pf-query-page__query-error',
+        `SQL error: ${queryResult.error}`,
+      );
     } else {
       return [
         queryResult.statementWithOutputCount > 1 &&
-          m(
-            '.pf-query-warning',
-            m(
-              Box,
-              m(
-                Callout,
-                {icon: 'warning', intent: Intent.None},
-                `${queryResult.statementWithOutputCount} out of ${queryResult.statementCount} `,
-                'statements returned a result. ',
-                'Only the results for the last statement are displayed.',
-              ),
-            ),
-          ),
+          m(Box, [
+            m(Callout, {icon: 'warning', intent: Intent.None}, [
+              `${queryResult.statementWithOutputCount} out of ${queryResult.statementCount} `,
+              'statements returned a result. ',
+              'Only the results for the last statement are displayed.',
+            ]),
+          ]),
         m(DataGrid, {
           className: 'pf-query-page__results',
           data: dataSource,

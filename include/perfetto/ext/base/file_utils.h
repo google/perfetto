@@ -68,7 +68,7 @@ ScopedFile OpenFile(const std::string& path,
                     FileOpenMode = kFileModeInvalid);
 ScopedFstream OpenFstream(const char* path, const char* mode);
 
-// This is an alias for close(). It's to avoid leaking Windows.h in headers.
+// This is an alias for close(). It's to avoid leaking windows.h in headers.
 // Exported because ScopedFile is used in the /include/ext API by Chromium
 // component builds.
 int PERFETTO_EXPORT_COMPONENT CloseFile(int fd);

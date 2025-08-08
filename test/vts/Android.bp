@@ -15,6 +15,7 @@ cc_test {
   ],
   static_libs: [
     "libgmock",
+    "perfetto_flags_c_lib",
     "perfetto_vts_deps",
   ],
   whole_static_libs: [

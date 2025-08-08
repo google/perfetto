@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../../../assets/widgets/theme";
+@import "../../../../assets/theme";
 
-.pf-filters-header {
+.pf-exp-filters-header {
   display: flex;
   align-items: baseline;
   gap: 1rem;
 
-  .pf-filters-title {
+  .pf-exp-filters-title {
     font-size: 1.2em;
     font-weight: 500;
     margin: 0;
@@ -30,7 +30,7 @@
   }
 }
 
-.pf-filter-editor-box {
+.pf-exp-filter-editor-box {
   padding: 1rem;
   margin-top: 1rem;
   border-radius: 6px;
@@ -38,20 +38,6 @@
   border: 1px solid $pf-minimal-border;
 }
 
-.pf-filter-editor {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-
-  .pf-select,
-  .pf-text-input {
-    flex: 1;
-  }
-
-  .delete-button {
-    color: $pf-minimal-foreground-disabled;
-    &:hover {
-      color: $color-danger;
-    }
-  }
+.pf-exp-filter-editor {
+  @extend .pf-exp-editor;
 }

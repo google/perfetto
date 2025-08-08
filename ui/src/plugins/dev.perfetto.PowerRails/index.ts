@@ -13,19 +13,106 @@
 // limitations under the License.
 
 import {createAggregationTab} from '../../components/aggregation_adapter';
+import {createQueryCounterTrack} from '../../components/tracks/query_counter_track';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
+import {COUNTER_TRACK_KIND} from '../../public/track_kinds';
+import {getTrackName} from '../../public/utils';
+import {TrackNode} from '../../public/workspace';
+import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
+import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import {PowerCounterSelectionAggregator} from './power_counter_selection_aggregator';
 
 /**
- * This plugin adds the aggregations for power rail counter tracks.
+ * This plugin handles power rail counter tracks.
  */
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.PowerRails';
+  static readonly dependencies = [StandardGroupsPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.selection.registerAreaSelectionTab(
       createAggregationTab(ctx, new PowerCounterSelectionAggregator(), 200),
     );
+
+    await this.addPowerRailCounterTracks(ctx);
+  }
+
+  private async addPowerRailCounterTracks(ctx: Trace): Promise<void> {
+    const result = await ctx.engine.query(`
+      INCLUDE PERFETTO MODULE android.power_rails;
+
+      SELECT
+        track_id as trackId,
+        COALESCE(friendly_name, raw_power_rail_name) as name,
+        machine_id as machine
+      FROM android_power_rails_metadata
+      ORDER BY name
+    `);
+
+    if (result.numRows() === 0) {
+      return;
+    }
+
+    const it = result.iter({
+      trackId: NUM,
+      name: STR_NULL,
+      machine: NUM_NULL,
+    });
+
+    const powerRailsGroup = new TrackNode({
+      name: 'Power Rails',
+      isSummary: true,
+    });
+    ctx.plugins
+      .getPlugin(StandardGroupsPlugin)
+      .getOrCreateStandardGroup(ctx.workspace, 'POWER')
+      .addChildInOrder(powerRailsGroup);
+
+    for (; it.valid(); it.next()) {
+      const {trackId, name, machine} = it;
+      const trackName = getTrackName({
+        name,
+        kind: COUNTER_TRACK_KIND,
+        machine,
+      });
+      const uri = `/counter_${trackId}`;
+      const track = await createQueryCounterTrack({
+        trace: ctx,
+        uri,
+        data: {
+          sqlSource: `
+            SELECT
+              ts,
+              value / 1000.0 AS value -- convert uJ to mJ
+            FROM counter
+            WHERE track_id = ${trackId}
+          `,
+        },
+        options: {
+          yMode: 'rate',
+          yRangeSharingKey: 'power_rails',
+          unit: 'mJ',
+          rateUnit: 'mW',
+        },
+      });
+
+      ctx.tracks.registerTrack({
+        uri,
+        tags: {
+          kind: COUNTER_TRACK_KIND,
+          trackIds: [trackId],
+          type: 'power_rails',
+        },
+        renderer: track,
+      });
+
+      powerRailsGroup.addChildInOrder(
+        new TrackNode({
+          uri,
+          name: trackName,
+        }),
+      );
+    }
   }
 }

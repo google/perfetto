@@ -18,7 +18,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
-#include <Windows.h>
+#include <windows.h>
 
 #include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/tracing/internal/tracing_tls.h"

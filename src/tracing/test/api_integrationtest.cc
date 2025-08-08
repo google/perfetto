@@ -36,7 +36,7 @@
 #include "test/integrationtest_initializer.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <Windows.h>  // For CreateFile().
+#include <windows.h>  // For CreateFile().
 #else
 #include <sys/socket.h>
 #include <sys/types.h>

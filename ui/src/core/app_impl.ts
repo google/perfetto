@@ -39,7 +39,12 @@ import {SettingsManagerImpl} from './settings_manager';
 import {SidebarManagerImpl} from './sidebar_manager';
 import {SerializedAppState} from './state_serialization_schema';
 import {TraceContext, TraceImpl} from './trace_impl';
-import {PostedTrace, TraceSource} from './trace_source';
+import {TraceArrayBufferSource, TraceSource} from './trace_source';
+
+export type OpenTraceArrayBufArgs = Omit<
+  Omit<TraceArrayBufferSource, 'type'>,
+  'serializedAppState'
+>;
 
 // The args that frontend/index.ts passes when calling AppImpl.initialize().
 // This is to deal with injections that would otherwise cause circular deps.
@@ -278,12 +283,19 @@ export class AppImpl implements App {
     this.openTrace({type: 'FILE', file});
   }
 
+  openTraceFromMultipleFiles(files: ReadonlyArray<File>): void {
+    this.openTrace({type: 'MULTIPLE_FILES', files});
+  }
+
   openTraceFromUrl(url: string, serializedAppState?: SerializedAppState) {
     this.openTrace({type: 'URL', url, serializedAppState});
   }
 
-  openTraceFromBuffer(postMessageArgs: PostedTrace): void {
-    this.openTrace({type: 'ARRAY_BUFFER', ...postMessageArgs});
+  openTraceFromBuffer(
+    args: OpenTraceArrayBufArgs,
+    serializedAppState?: SerializedAppState,
+  ): void {
+    this.openTrace({...args, type: 'ARRAY_BUFFER', serializedAppState});
   }
 
   openTraceFromHttpRpc(): void {
@@ -303,9 +315,9 @@ export class AppImpl implements App {
         src.buffer.byteOffset === 0 &&
         src.buffer.byteLength === src.buffer.buffer.byteLength
       ) {
-        src.buffer = src.buffer.buffer;
+        src = {...src, buffer: src.buffer.buffer};
       } else {
-        src.buffer = src.buffer.slice().buffer;
+        src = {...src, buffer: src.buffer.slice().buffer};
       }
     }
 

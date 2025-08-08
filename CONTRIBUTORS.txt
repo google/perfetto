@@ -37,3 +37,8 @@ Committers with write access to dev/* branches
 ----------------------------------------------
 See /docs/contributing/become-a-committer.md for instructions and rules.
 
+Power analysis in Trace Processor and UI:
+  Chris Phlipot <cphlipot@meta.com> - @cphlipot1
+
+Advanced query/data features in UI:
+  Alexander Timin <alexander@timin.me> - @altimin

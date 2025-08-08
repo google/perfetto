@@ -13,6 +13,7 @@
 // limitations under the License.
 
 .pf-query-page {
+  height: 100%;
   font-family: "Roboto Condensed", sans-serif;
   overflow: hidden auto;
 
@@ -37,5 +38,14 @@
     font-style: italic;
     font-size: smaller;
     user-select: none;
+  }
+
+  &__query-error {
+    padding: 20px 10px;
+    color: hsl(-10, 50%, 50%);
+    font-family: "Roboto Mono", sans-serif;
+    font-size: 12px;
+    font-weight: 300;
+    white-space: pre;
   }
 }
