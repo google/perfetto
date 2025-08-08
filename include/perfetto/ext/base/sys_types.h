@@ -41,9 +41,17 @@ using ssize_t = long;
 
 #endif  // OS_WIN
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && !defined(AID_SHELL)
-// From libcutils' android_filesystem_config.h .
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+// From libcutils' android_filesystem_config.h
+#ifndef AID_ROOT
+#define AID_ROOT 0
+#endif
+#ifndef AID_STATSD
+#define AID_STATSD 1066
+#endif
+#ifndef AID_SHELL
 #define AID_SHELL 2000
+#endif
 #endif
 
 namespace perfetto {

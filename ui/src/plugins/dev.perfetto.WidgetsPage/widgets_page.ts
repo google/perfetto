@@ -441,7 +441,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
     if (listItems.length === 0) {
       return null;
     }
-    return m('.widget-controls', m('h3', 'Options'), m('ul', listItems));
+    return m('.pf-widget-controls', m('h3', 'Options'), m('ul', listItems));
   }
 
   oninit({attrs: {initialOpts: opts}}: m.Vnode<WidgetShowcaseAttrs, this>) {
@@ -477,13 +477,13 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
       m(WidgetTitle, {label}),
       description && m('p', description),
       m(
-        '.widget-block',
+        '.pf-widget-block',
         m(
           'div',
           {
             class: classNames(
-              'widget-container',
-              wide && 'widget-container-wide',
+              'pf-widget-container',
+              wide && 'pf-widget-container--wide',
             ),
           },
           renderWidget(this.optValues),
@@ -721,7 +721,7 @@ function RadioButtonGroupDemo() {
 export class WidgetsPage implements m.ClassComponent<{app: App}> {
   view({attrs}: m.Vnode<{app: App}>) {
     return m(
-      '.widgets-page',
+      '.pf-widgets-page',
       m('h1', 'Widgets'),
       m(WidgetShowcase, {
         label: 'Button',
@@ -831,10 +831,15 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
       m(WidgetShowcase, {
         label: 'Switch',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        renderWidget: ({label, ...rest}: any) =>
-          m(Switch, {label: arg(label, 'Switch'), ...rest}),
+        renderWidget: ({label, labelLeft, ...rest}: any) =>
+          m(Switch, {
+            label: arg(label, 'Switch'),
+            labelLeft: arg(labelLeft, 'Left Label'),
+            ...rest,
+          }),
         initialOpts: {
           label: true,
+          labelLeft: false,
           disabled: false,
         },
       }),
@@ -1448,6 +1453,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             onclick: () => {
               showModal({
                 title: 'Attention',
+                icon: Icons.Help,
                 content: () => 'This is a modal dialog',
                 buttons: [
                   {
@@ -1625,7 +1631,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           return m(
             VirtualOverlayCanvas,
             {
-              className: 'virtual-canvas',
+              className: 'pf-virtual-canvas',
               overflowY: 'auto',
               onCanvasRedraw({ctx, canvasRect}) {
                 ctx.strokeStyle = 'red';
@@ -1944,7 +1950,10 @@ class ModalShowcase implements m.ClassComponent {
 
     let content;
     if (staticContent) {
-      content = m('.modal-pre', 'Content of the modal dialog.\nEnd of content');
+      content = m(
+        '.pf-modal-pre',
+        'Content of the modal dialog.\nEnd of content',
+      );
     } else {
       // The humble counter is basically the VDOM 'Hello world'!
       function CounterComponent() {

@@ -33,7 +33,7 @@ namespace perfetto::trace_processor {
 
 class PerfettoSqlEngine;
 
-struct CreatedFunction : public SqlFunction {
+struct CreatedFunction : public LegacySqlFunction {
   // Expose a do-nothing context
   using Context = Destructible;
 

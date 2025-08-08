@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
+@import "../theme";
 
 .pf-chip {
   font-family: $pf-font;
@@ -34,12 +34,6 @@
 
   & > .pf-right-icon {
     margin-left: 6px; // Make some room between the icon and label
-  }
-
-  & > .material-icons,
-  & > .material-icons-filled {
-    font-size: inherit;
-    line-height: inherit;
   }
 
   &:focus-visible {

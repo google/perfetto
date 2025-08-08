@@ -24,8 +24,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/util/trace_type.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class ChunkedTraceReader;
 class TraceProcessorContext;
@@ -64,7 +63,6 @@ class TraceReaderRegistry {
       factories_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_TRACE_READER_REGISTRY_H_

@@ -24,7 +24,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -47,33 +46,29 @@
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser_impl.h"
+#include "src/trace_processor/forwarding_trace_parser.h"
+#include "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser.h"
 #include "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.h"
-#include "src/trace_processor/importers/android_bugreport/android_log_event_parser_impl.h"
+#include "src/trace_processor/importers/android_bugreport/android_log_event_parser.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_reader.h"
 #include "src/trace_processor/importers/archive/gzip_trace_parser.h"
 #include "src/trace_processor/importers/archive/tar_trace_reader.h"
 #include "src/trace_processor/importers/archive/zip_trace_reader.h"
 #include "src/trace_processor/importers/art_hprof/art_hprof_parser.h"
-#include "src/trace_processor/importers/art_method/art_method_parser_impl.h"
 #include "src/trace_processor/importers/art_method/art_method_tokenizer.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
-#include "src/trace_processor/importers/gecko/gecko_trace_parser_impl.h"
 #include "src/trace_processor/importers/gecko/gecko_trace_tokenizer.h"
 #include "src/trace_processor/importers/json/json_trace_parser_impl.h"
 #include "src/trace_processor/importers/json/json_trace_tokenizer.h"
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/ninja/ninja_log_parser.h"
 #include "src/trace_processor/importers/perf/perf_data_tokenizer.h"
-#include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_tracker.h"
 #include "src/trace_processor/importers/perf/record_parser.h"
 #include "src/trace_processor/importers/perf/spe_record_parser.h"
-#include "src/trace_processor/importers/perf_text/perf_text_trace_parser_impl.h"
 #include "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
@@ -125,6 +120,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.h"
 #include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sql_stats_table.h"
@@ -151,7 +147,6 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_INSTRUMENTS)
 #include "src/trace_processor/importers/instruments/instruments_xml_tokenizer.h"
-#include "src/trace_processor/importers/instruments/row_parser.h"
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
@@ -167,8 +162,22 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/winscope_surfaceflinger_hierarchy_paths.h"
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/symbolize.h"
+#endif
+
 namespace perfetto::trace_processor {
 namespace {
+
+template <typename SqlFunction, typename Ptr = typename SqlFunction::UserData*>
+void RegisterSqliteFunction(PerfettoSqlEngine* engine,
+                            Ptr context = nullptr,
+                            bool deterministic = true) {
+  auto status = engine->RegisterSqliteFunction<SqlFunction>(std::move(context),
+                                                            deterministic);
+  if (!status.ok())
+    PERFETTO_ELOG("%s", status.c_message());
+}
 
 template <typename SqlFunction, typename Ptr = typename SqlFunction::Context*>
 void RegisterFunction(PerfettoSqlEngine* engine,
@@ -257,7 +266,7 @@ base::StatusOr<sql_modules::RegisteredPackage> ToRegisteredPackage(
   return std::move(new_package);
 }
 
-class ValueAtMaxTs : public SqliteAggregateFunction<ValueAtMaxTs> {
+class ValueAtMaxTs : public sqlite::AggregateFunction<ValueAtMaxTs> {
  public:
   static constexpr char kName[] = "VALUE_AT_MAX_TS";
   static constexpr int kArgCount = 2;
@@ -443,42 +452,25 @@ std::pair<int64_t, int64_t> GetTraceTimestampBoundsNs(
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     : TraceProcessorStorageImpl(cfg), config_(cfg) {
+  context_.register_additional_proto_modules = &RegisterAdditionalModules;
   context_.reader_registry->RegisterTraceReader<AndroidDumpstateReader>(
       kAndroidDumpstateTraceType);
-  context_.android_dumpstate_event_parser =
-      std::make_unique<AndroidDumpstateEventParserImpl>(&context_);
-
   context_.reader_registry->RegisterTraceReader<AndroidLogReader>(
       kAndroidLogcatTraceType);
-  context_.android_log_event_parser =
-      std::make_unique<AndroidLogEventParserImpl>(&context_);
-
   context_.reader_registry->RegisterTraceReader<FuchsiaTraceTokenizer>(
       kFuchsiaTraceType);
-  context_.fuchsia_record_parser =
-      std::make_unique<FuchsiaTraceParser>(&context_);
-
   context_.reader_registry->RegisterTraceReader<SystraceTraceParser>(
       kSystraceTraceType);
   context_.reader_registry->RegisterTraceReader<NinjaLogParser>(
       kNinjaLogTraceType);
-
   context_.reader_registry
       ->RegisterTraceReader<perf_importer::PerfDataTokenizer>(
           kPerfDataTraceType);
-  context_.perf_record_parser =
-      std::make_unique<perf_importer::RecordParser>(&context_);
-  context_.spe_record_parser =
-      std::make_unique<perf_importer::SpeRecordParserImpl>(&context_);
-
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_INSTRUMENTS)
   context_.reader_registry
       ->RegisterTraceReader<instruments_importer::InstrumentsXmlTokenizer>(
           kInstrumentsXmlTraceType);
-  context_.instruments_row_parser =
-      std::make_unique<instruments_importer::RowParser>(&context_);
 #endif
-
   if constexpr (util::IsGzipSupported()) {
     context_.reader_registry->RegisterTraceReader<GzipTraceParser>(
         kGzipTraceType);
@@ -486,34 +478,20 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
         kCtraceTraceType);
     context_.reader_registry->RegisterTraceReader<ZipTraceReader>(kZipFile);
   }
-
   if constexpr (json::IsJsonSupported()) {
     context_.reader_registry->RegisterTraceReader<JsonTraceTokenizer>(
         kJsonTraceType);
-    context_.json_trace_parser =
-        std::make_unique<JsonTraceParserImpl>(&context_);
-
     context_.reader_registry
         ->RegisterTraceReader<gecko_importer::GeckoTraceTokenizer>(
             kGeckoTraceType);
-    context_.gecko_trace_parser =
-        std::make_unique<gecko_importer::GeckoTraceParserImpl>(&context_);
   }
-
   context_.reader_registry->RegisterTraceReader<art_method::ArtMethodTokenizer>(
       kArtMethodTraceType);
-  context_.art_method_parser =
-      std::make_unique<art_method::ArtMethodParserImpl>(&context_);
-
   context_.reader_registry->RegisterTraceReader<art_hprof::ArtHprofParser>(
       kArtHprofTraceType);
-
   context_.reader_registry
       ->RegisterTraceReader<perf_text_importer::PerfTextTraceTokenizer>(
           kPerfTextTraceType);
-  context_.perf_text_parser =
-      std::make_unique<perf_text_importer::PerfTextTraceParserImpl>(&context_);
-
   context_.reader_registry->RegisterTraceReader<TarTraceReader>(kTarTraceType);
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
@@ -545,7 +523,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
         kTraceSummaryDescriptor.data(), kTraceSummaryDescriptor.size());
     PERFETTO_CHECK(status.ok());
   }
-  RegisterAdditionalModules(&context_);
 
   // Register stdlib packages.
   auto packages = GetStdlibPackages();
@@ -1215,7 +1192,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   if (config.enable_dev_features) {
     RegisterFunction<WriteFile>(engine.get(), "WRITE_FILE", 2);
   }
-  RegisterFunction<Glob>(engine.get(), "glob", 2);
+  RegisterSqliteFunction<Glob>(engine.get());
   RegisterFunction<Hash>(engine.get(), "HASH", -1);
   RegisterFunction<Base64Encode>(engine.get(), "BASE64_ENCODE", 1);
   RegisterFunction<Demangle>(engine.get(), "DEMANGLE", 1);
@@ -1223,7 +1200,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   RegisterFunction<TablePtrBind>(engine.get(), "__intrinsic_table_ptr_bind",
                                  -1);
   RegisterFunction<ExportJson>(engine.get(), "EXPORT_JSON", 1, storage, false);
-  RegisterFunction<ExtractArg>(engine.get(), "EXTRACT_ARG", 2, storage);
+  RegisterSqliteFunction<ExtractArg>(engine.get(), storage);
   RegisterFunction<AbsTimeStr>(engine.get(), "ABS_TIME_STR", 1,
                                context->clock_converter.get());
   RegisterFunction<Reverse>(engine.get(), "REVERSE", 1);
@@ -1245,9 +1222,8 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
                              std::make_unique<ToFtrace::Context>(context));
 
   if constexpr (regex::IsRegexSupported()) {
-    RegisterFunction<Regexp>(engine.get(), "regexp", 2);
-    RegisterFunction<RegexpExtract>(engine.get(), "regexp_extract", 2,
-                                    std::make_unique<RegexpExtract::Context>());
+    RegisterSqliteFunction<Regexp>(engine.get());
+    RegisterSqliteFunction<RegexpExtract>(engine.get());
   }
   // Old style function registration.
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate
@@ -1313,6 +1289,14 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
     base::Status status = perfetto_sql::RegisterCounterIntervalsFunctions(
         *engine, storage->mutable_string_pool());
   }
+#if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
+  {
+    base::Status status = perfetto_sql::RegisterSymbolizeFunction(
+        *engine, storage->mutable_string_pool());
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
+  }
+#endif
 
   // Operator tables.
   engine->RegisterVirtualTableModule<SpanJoinOperatorModule>(

@@ -40,6 +40,7 @@ message BlinkTaskScope {
     TASK_SCOPE_REQUEST_IDLE_CALLBACK = 7;
     TASK_SCOPE_XML_HTTP_REQUEST = 8;
     TASK_SCOPE_SOFT_NAVIGATION = 9;
+    TASK_SCOPE_MISC_EVENT = 10;
   }
   optional TaskScopeType type = 1;
   optional int64 scope_task_id = 2;
@@ -115,15 +116,15 @@ message RenderFrameImplDeletion {
   // The intent for the deletion.
   optional FrameDeleteIntention intent = 1;
 
-  // Whether the frame that's about to be deleted has a pending navigation
+  // Whether the frame that is about to be deleted has a pending navigation
   // commit.
   optional bool has_pending_commit = 2;
 
-  // Whether the frame that's about to be deleted has a pending cross-document
+  // Whether the frame that is about to be deleted has a pending cross-document
   // navigation commit.
   optional bool has_pending_cross_document_commit = 3;
 
-  // The FrameTreeNode ID of the frame that's about to be deleted.
+  // The FrameTreeNode ID of the frame that is about to be deleted.
   optional uint64 frame_tree_node_id = 4;
 }
 

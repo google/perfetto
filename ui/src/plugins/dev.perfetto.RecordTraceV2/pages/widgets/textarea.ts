@@ -14,7 +14,8 @@
 
 import m from 'mithril';
 import {ProbeSetting} from '../../config/config_interfaces';
-import {DocsChip} from './docs_chip';
+import {Anchor} from '../../../../widgets/anchor';
+import {Icons} from '../../../../base/semantic_icons';
 
 export interface TextareaAttrs {
   placeholder: string;
@@ -58,7 +59,14 @@ export class Textarea implements ProbeSetting {
       m(
         'header',
         this.attrs.title,
-        this.attrs.docsLink && [' ', m(DocsChip, {href: this.attrs.docsLink})],
+        this.attrs.docsLink && [
+          ' ',
+          m(
+            Anchor,
+            {icon: Icons.ExternalLink, href: this.attrs.docsLink},
+            'Docs',
+          ),
+        ],
       ),
       m(`textarea.extra-input${this.attrs.cssClass ?? ''}`, {
         onchange: (e: Event) => {

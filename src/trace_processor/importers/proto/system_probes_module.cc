@@ -15,24 +15,31 @@
  */
 
 #include "src/trace_processor/importers/proto/system_probes_module.h"
-#include "perfetto/base/build_config.h"
+
+#include <cstdint>
+
+#include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/system_probes_parser.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 using perfetto::protos::pbzero::TracePacket;
 
-SystemProbesModule::SystemProbesModule(TraceProcessorContext* context)
-    : parser_(context) {
-  RegisterForField(TracePacket::kProcessTreeFieldNumber, context);
-  RegisterForField(TracePacket::kProcessStatsFieldNumber, context);
-  RegisterForField(TracePacket::kSysStatsFieldNumber, context);
-  RegisterForField(TracePacket::kSystemInfoFieldNumber, context);
-  RegisterForField(TracePacket::kCpuInfoFieldNumber, context);
+SystemProbesModule::SystemProbesModule(
+    ProtoImporterModuleContext* module_context,
+    TraceProcessorContext* context)
+    : ProtoImporterModule(module_context), parser_(context) {
+  RegisterForField(TracePacket::kProcessTreeFieldNumber);
+  RegisterForField(TracePacket::kProcessStatsFieldNumber);
+  RegisterForField(TracePacket::kSysStatsFieldNumber);
+  RegisterForField(TracePacket::kSystemInfoFieldNumber);
+  RegisterForField(TracePacket::kCpuInfoFieldNumber);
 }
 
 ModuleResult SystemProbesModule::TokenizePacket(
@@ -70,5 +77,4 @@ void SystemProbesModule::ParseTracePacketData(
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

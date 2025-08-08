@@ -52,7 +52,7 @@ class TracedConnectioManagementDialog implements m.ClassComponent<DialogAttrs> {
   view({attrs}: m.CVnode<DialogAttrs>) {
     const provider = attrs.provider;
     return m(
-      '.record-page',
+      '.pf-record-page',
       m(
         'div',
         'Forward port 8037 with ssh from the local host to the ' +

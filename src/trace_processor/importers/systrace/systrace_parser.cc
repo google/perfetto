@@ -330,6 +330,8 @@ void SystraceParser::ParseSystracePoint(
         return;
       } else if (point.name.StartsWith("battery_stats.")) {
         // Promote battery_stats conters to global tracks.
+        // Track name and definition should be kept in sync with
+        // android_probes_parser.cc
         TrackId track = context_->track_tracker->InternTrack(
             tracks::kAndroidBatteryStatsBlueprint,
             tracks::Dimensions(point.name));

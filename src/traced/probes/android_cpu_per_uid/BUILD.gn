@@ -26,6 +26,7 @@ source_set("android_cpu_per_uid") {
     "../../../../protos/perfetto/trace/android:zero",
     "../../../android_internal:lazy_library_loader",
     "../../../base",
+    "../common",
   ]
   sources = [
     "android_cpu_per_uid_data_source.cc",
