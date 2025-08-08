@@ -28,7 +28,6 @@ sys.path.append(os.path.join(ROOT_DIR))
 
 from python.generators.diff_tests.utils import ctrl_c_handler
 from python.generators.diff_tests.runner import DiffTestsRunner
-from python.generators.diff_tests.models import Config
 
 
 def main():
@@ -78,27 +77,26 @@ def main():
                                            'trace_summary',
                                            'trace_summary.descriptor')
 
-  config = Config(
-      name_filter=args.name_filter,
-      trace_processor_path=args.trace_processor,
-      trace_descriptor=args.trace_descriptor,
-      no_colors=args.no_colors,
-      override_sql_package_paths=args.override_sql_package,
-      test_dir=args.test_dir,
-      quiet=args.quiet,
-      summary_descriptor=args.summary_descriptor,
-      metrics_descriptor_paths=args.metrics_descriptor,
-      chrome_extensions=args.chrome_track_event_descriptor,
-      test_extensions=args.test_extensions,
-      winscope_extensions=args.winscope_extensions,
-      keep_input=args.keep_input,
+  test_runner = DiffTestsRunner(
+      args.name_filter,
+      args.trace_processor,
+      args.trace_descriptor,
+      args.no_colors,
+      args.override_sql_package,
+      args.test_dir,
+      args.quiet,
   )
-  test_runner = DiffTestsRunner(config)
-  tests = test_runner.test_loader.discover_and_load_tests(
-      ROOT_DIR, config.name_filter)
-  sys.stderr.write(f"[==========] Running {len(tests)} tests.\n")
-  results = test_runner.run()
-  sys.stderr.write(results.str(args.no_colors, len(tests)))
+  sys.stderr.write(f"[==========] Running {len(test_runner.tests)} tests.\n")
+
+  results = test_runner.run_all_tests(
+      args.summary_descriptor,
+      args.metrics_descriptor,
+      args.chrome_track_event_descriptor,
+      args.test_extensions,
+      args.winscope_extensions,
+      args.keep_input,
+  )
+  sys.stderr.write(results.str(args.no_colors, len(test_runner.tests)))
 
   if len(results.test_failures) > 0:
     return 1
