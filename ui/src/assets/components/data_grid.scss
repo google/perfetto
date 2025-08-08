@@ -12,117 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-$border: 1px solid var(--pf-color-border-secondary);
-
 .pf-data-grid {
   display: flex;
   flex-direction: column;
-  white-space: nowrap;
   overflow: hidden;
   font-family: var(--pf-font-compact);
 
-  // If fill height is set, the grid should fill the height of its parent, and
-  // the table content should scroll, otherwise it takes the height of the table
-  // content.
   &--fill-height {
     height: 100%;
   }
 
+  &__toolbar {
+    border-bottom: solid 1px var(--pf-color-border);
+  }
+
   &__table {
+    flex: 1;
     overflow: auto;
-    flex: 1; // Allow the table to grow and fill the available space.
-  }
-
-  table {
-    min-width: 100%;
-    border-spacing: 0;
-    font-weight: 300;
-  }
-
-  // Highlight rows on hover.
-  tr {
-    &:hover {
-      background-color: color_hover(transparent);
-    }
-  }
-
-  thead {
-    position: sticky;
-    top: 0;
-    background-color: var(--pf-color-background);
-
-    tr {
-      &:hover {
-        background-color: unset;
-      }
-    }
-  }
-
-  th {
-    // Some header cells can be taller than others so keep everything aligned.
-    vertical-align: top;
-    text-align: left;
-    font-weight: 400;
-
-    border-top: $border;
-    border-bottom: $border;
-    border-right: $border;
-    &:last-child {
-      border-right: none;
-    }
-  }
-
-  td,
-  th {
-    border-bottom: $border;
-    border-right: $border;
-    &:last-child {
-      border-right: none;
-    }
-
-    .pf-visible-on-hover {
-      visibility: hidden;
-    }
-
-    &:hover {
-      .pf-visible-on-hover {
-        visibility: visible;
-      }
-    }
-  }
-
-  &__data-with-btn {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 0.3em;
-
-    &:hover {
-      .pf-data-grid__cell-button {
-        visibility: visible;
-      }
-    }
   }
 
   &__aggregation {
-    display: grid;
-    // Summary, Value, Button spacer
-    grid-template-columns: auto 1fr auto;
+    display: inline-flex;
     gap: 0.3em;
-  }
-
-  &__padded {
-    padding: 0.2em 0.4em;
-  }
-
-  &__cell-button {
-    visibility: hidden;
-    &.pf-active {
-      visibility: visible;
-    }
-  }
-
-  &__button-hint {
-    color: var(--pf-color-text-hint);
+    color: var(--pf-color-text-muted);
+    font-weight: 300;
   }
 
   &__cell--number {
@@ -131,12 +44,8 @@ $border: 1px solid var(--pf-color-border-secondary);
 
   &__cell--null {
     text-align: center;
-    color: var(--pf-color-text-hint);
+    color: var(--pf-color-text-muted);
     font-style: italic;
-  }
-
-  &__hidden {
-    visibility: hidden;
   }
 
   // Don't want the progress bar to squish!

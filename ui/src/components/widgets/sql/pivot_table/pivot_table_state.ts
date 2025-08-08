@@ -193,6 +193,22 @@ export class PivotTableState {
     this.data.result?.tree.sort(this.orderBy);
   }
 
+  public clearPivotSort(pivot: TableColumn) {
+    const id = pivotId(pivot);
+    this.orderBy = this.orderBy.filter(
+      (c) => !(c.type === 'pivot' && c.id === id),
+    );
+    this.data.result?.tree.sort(this.orderBy);
+  }
+
+  public clearAggregationSort(agg: Aggregation) {
+    const id = aggregationId(agg);
+    this.orderBy = this.orderBy.filter(
+      (c) => !(c.type === 'aggregation' && c.id === id),
+    );
+    this.data.result?.tree.sort(this.orderBy);
+  }
+
   public isSortedByPivot(pivot: TableColumn): SortDirection | undefined {
     if (this.orderBy.length === 0) return undefined;
     const id = pivotId(pivot);
