@@ -18,7 +18,6 @@ inputs:
   install-flags:
     required: false
     description: Optional flags to pass to install-build-deps (e.g., --android)
-    default: "default"
 
 runs:
   using: "composite"
@@ -26,9 +25,11 @@ runs:
     - name: Compute cache key
       id: cache_key
       env:
-        CACHE_KEY: buildtools-${{ inputs.install-flags }}
+        INSTALL_FLAGS: ${{ inputs.install-flags }}
       shell: bash
-      run: echo "key=$CACHE_KEY" >> "$GITHUB_OUTPUT"
+      run: |
+        flags="${INSTALL_FLAGS:-default}"
+        echo "key=buildtools-$flags" >> "$GITHUB_OUTPUT"
 
     # When restoring the buildtools cache, we don't want to overwrite files or
     # folders that are stored in git.
