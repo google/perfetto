@@ -414,7 +414,6 @@ In this example, we create two counter tracks with the same `y_axis_share_key`. 
         desc = packet.track_descriptor
         desc.uuid = track_uuid
         desc.name = name
-        desc.counter.unit_name = "units"
         if share_key:
             desc.counter.y_axis_share_key = share_key
 
