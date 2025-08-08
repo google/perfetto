@@ -21,6 +21,8 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
+#include "src/trace_processor/importers/gecko/gecko_event.h"
+#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::gecko_importer {
@@ -35,6 +37,7 @@ class GeckoTraceTokenizer : public ChunkedTraceReader {
 
  private:
   TraceProcessorContext* const context_;
+  std::unique_ptr<TraceSorter::Stream<GeckoEvent>> stream_;
   std::string pending_json_;
 };
 

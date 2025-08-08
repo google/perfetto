@@ -22,7 +22,6 @@
 #include <utility>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/hash.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
@@ -467,7 +466,7 @@ int64_t SliceTracker::GetStackHash(const SlicesStack& stack) {
 
   const auto& slices = context_->storage->slice_table();
 
-  base::Hasher hash;
+  base::FnvHasher hash;
   for (const auto& i : stack) {
     auto ref = i.row.ToRowReference(slices);
     hash.Update(ref.category().value_or(kNullStringId).raw_id());

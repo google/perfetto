@@ -17,7 +17,11 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_APP_WAKELOCK_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_APP_WAKELOCK_MODULE_H_
 
+#include <cstdint>
+
+#include "perfetto/protozero/field.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
@@ -29,7 +33,8 @@ namespace perfetto::trace_processor {
 
 class AppWakelockModule : public ProtoImporterModule {
  public:
-  explicit AppWakelockModule(TraceProcessorContext* context);
+  explicit AppWakelockModule(ProtoImporterModuleContext* module_context,
+                             TraceProcessorContext* context);
   ~AppWakelockModule() override = default;
 
   // Tokenize and de-intern WakelockBundles so that bundles of multiple

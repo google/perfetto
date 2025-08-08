@@ -36,15 +36,17 @@ namespace perfetto::trace_processor {
 
 using perfetto::protos::pbzero::TracePacket;
 
-TrackEventModule::TrackEventModule(TraceProcessorContext* context)
-    : track_event_tracker_(new TrackEventTracker(context)),
-      tokenizer_(context, track_event_tracker_.get()),
+TrackEventModule::TrackEventModule(ProtoImporterModuleContext* module_context,
+                                   TraceProcessorContext* context)
+    : ProtoImporterModule(module_context),
+      track_event_tracker_(new TrackEventTracker(context)),
+      tokenizer_(module_context, context, track_event_tracker_.get()),
       parser_(context, track_event_tracker_.get()) {
-  RegisterForField(TracePacket::kTrackEventRangeOfInterestFieldNumber, context);
-  RegisterForField(TracePacket::kTrackEventFieldNumber, context);
-  RegisterForField(TracePacket::kTrackDescriptorFieldNumber, context);
-  RegisterForField(TracePacket::kThreadDescriptorFieldNumber, context);
-  RegisterForField(TracePacket::kProcessDescriptorFieldNumber, context);
+  RegisterForField(TracePacket::kTrackEventRangeOfInterestFieldNumber);
+  RegisterForField(TracePacket::kTrackEventFieldNumber);
+  RegisterForField(TracePacket::kTrackDescriptorFieldNumber);
+  RegisterForField(TracePacket::kThreadDescriptorFieldNumber);
+  RegisterForField(TracePacket::kProcessDescriptorFieldNumber);
 
   // Also register for the streaming profile packet, as it uses the tids
   // from TrackEventSequenceState. This ensures that

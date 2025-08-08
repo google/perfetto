@@ -19,6 +19,7 @@ import {Icons} from '../../../base/semantic_icons';
 import {Button} from '../../../widgets/button';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {QueryNode} from '../query_node';
+import {Icon} from '../../../widgets/icon';
 
 export const PADDING = 20;
 export const NODE_HEIGHT = 50;
@@ -38,7 +39,6 @@ export interface NodeBoxAttrs {
   readonly isDragging: boolean;
   readonly onNodeSelected: (node: QueryNode) => void;
   readonly onNodeDragStart: (node: QueryNode, event: DragEvent) => void;
-  readonly onVisualizeNode: (node: QueryNode) => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
   readonly onNodeRendered: (node: QueryNode, element: HTMLElement) => void;
@@ -49,13 +49,17 @@ function renderWarningIcon(node: QueryNode): m.Child {
     node.state.queryError || node.state.responseError || node.state.dataError;
   if (!error) return null;
 
-  const iconClasses = classNames('material-icons', 'pf-node-box__warning-icon');
+  const iconClasses = classNames('pf-node-box__warning-icon');
 
-  return m('i', {class: iconClasses, title: error.message}, 'warning');
+  return m(Icon, {
+    className: iconClasses,
+    icon: 'warning',
+    title: error.message,
+  });
 }
 
 function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
-  const {node, onVisualizeNode, onDuplicateNode, onDeleteNode} = attrs;
+  const {node, onDuplicateNode, onDeleteNode} = attrs;
   return m(
     PopupMenu,
     {
@@ -64,11 +68,6 @@ function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
         icon: Icons.ContextMenuAlt,
       }),
     },
-    m(MenuItem, {
-      label: 'Visualise Data',
-      icon: Icons.Chart,
-      onclick: () => onVisualizeNode(node),
-    }),
     m(MenuItem, {
       label: 'Duplicate',
       onclick: () => onDuplicateNode(node),

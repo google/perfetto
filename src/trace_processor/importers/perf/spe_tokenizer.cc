@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/perf/spe_tokenizer.h"
+#include "src/trace_processor/importers/perf/spe_record_parser.h"
 
 #include <cstdint>
 #include <cstring>
@@ -42,7 +43,10 @@ namespace {
 class SpeStream : public AuxDataStream {
  public:
   explicit SpeStream(TraceProcessorContext* context, AuxStream* stream)
-      : context_(context), stream_(*stream) {}
+      : context_(context),
+        stream_(*stream),
+        record_stream_(context->sorter->CreateStream(
+            std::make_unique<SpeRecordParserImpl>(context))) {}
 
   void OnDataLoss(uint64_t) override {
     // Clear any inflight parsing.
@@ -144,8 +148,8 @@ class SpeStream : public AuxDataStream {
     }
 
     if (!perf_time) {
-      context_->sorter->PushSpeRecord(context_->sorter->max_timestamp(),
-                                      std::move(record));
+      record_stream_->Push(context_->sorter->max_timestamp(),
+                           std::move(record));
       return;
     }
 
@@ -155,13 +159,14 @@ class SpeStream : public AuxDataStream {
       context_->storage->IncrementStats(stats::spe_record_dropped);
       return;
     }
-    context_->sorter->PushSpeRecord(*trace_time, std::move(record));
+    record_stream_->Push(*trace_time, std::move(record));
   }
 
   TraceProcessorContext* const context_;
   AuxStream& stream_;
   util::TraceBlobViewReader buffer_;
   std::optional<AuxRecord> last_aux_record_;
+  std::unique_ptr<TraceSorter::Stream<TraceBlobView>> record_stream_;
 };
 
 }  // namespace

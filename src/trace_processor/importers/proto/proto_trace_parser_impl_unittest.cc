@@ -53,6 +53,7 @@
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/importers/proto/trace.descriptor.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -99,7 +100,6 @@
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
-#include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -228,6 +228,7 @@ class MockBoundInserter : public ArgsTracker::BoundInserter {
 class ProtoTraceParserTest : public ::testing::Test {
  public:
   ProtoTraceParserTest() {
+    context_.register_additional_proto_modules = &RegisterAdditionalModules;
     storage_ = new TraceStorage();
     context_.storage.reset(storage_);
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
@@ -256,19 +257,13 @@ class ProtoTraceParserTest : public ::testing::Test {
     clock_ = new ClockTracker(&context_);
     context_.clock_tracker.reset(clock_);
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
-    context_.proto_trace_parser =
-        std::make_unique<ProtoTraceParserImpl>(&context_);
     context_.sorter = std::make_shared<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
     context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
-    context_.descriptor_pool_->AddFromFileDescriptorSet(
-        kTraceDescriptor.data(), kTraceDescriptor.size());
 
-    context_.perf_sample_tracker.reset(new PerfSampleTracker(&context_));
     context_.track_compressor.reset(new TrackCompressor(&context_));
 
-    RegisterDefaultModules(&context_);
-    RegisterAdditionalModules(&context_);
+    reader_ = std::make_unique<ProtoTraceReader>(&context_);
   }
 
   void ResetTraceBuffers() { trace_.Reset(); }
@@ -280,12 +275,11 @@ class ProtoTraceParserTest : public ::testing::Test {
     std::vector<uint8_t> trace_bytes = trace_.SerializeAsArray();
     std::unique_ptr<uint8_t[]> raw_trace(new uint8_t[trace_bytes.size()]);
     memcpy(raw_trace.get(), trace_bytes.data(), trace_bytes.size());
-    context_.chunk_readers.push_back(
-        std::make_unique<ProtoTraceReader>(&context_));
-    auto status = context_.chunk_readers.back()->Parse(TraceBlobView(
+
+    auto status = reader_->Parse(TraceBlobView(
         TraceBlob::TakeOwnership(std::move(raw_trace), trace_bytes.size())));
     if (status.ok()) {
-      status = context_.chunk_readers.back()->NotifyEndOfFile();
+      status = reader_->NotifyEndOfFile();
     }
 
     ResetTraceBuffers();
@@ -325,6 +319,7 @@ class ProtoTraceParserTest : public ::testing::Test {
   MockProcessTracker* process_;
   ClockTracker* clock_;
   TraceStorage* storage_;
+  std::unique_ptr<ProtoTraceReader> reader_;
 };
 
 // TODO(eseckler): Refactor these into a new file for ftrace tests.

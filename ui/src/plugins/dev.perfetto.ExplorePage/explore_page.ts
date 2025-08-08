@@ -16,22 +16,17 @@ import m from 'mithril';
 import SqlModulesPlugin from '../dev.perfetto.SqlModules';
 
 import {DataVisualiser} from './data_visualiser/data_visualiser';
-import {QueryBuilder} from './query_builder/builder';
-import {NodeType, QueryNode} from './query_node';
+import {Builder} from './query_builder/builder';
+import {QueryNode} from './query_node';
 import {
-  StdlibTableAttrs,
-  StdlibTableNode,
-  modalForStdlibTableSelection,
-} from './query_builder/sources/stdlib_table';
+  TableSourceNode,
+  modalForTableSelection,
+} from './query_builder/sources/table_source';
 import {
-  SlicesSourceAttrs,
   SlicesSourceNode,
   slicesSourceNodeColumns,
 } from './query_builder/sources/slices_source';
-import {
-  SqlSourceState,
-  SqlSourceNode,
-} from './query_builder/sources/sql_source';
+import {SqlSourceNode} from './query_builder/sources/sql_source';
 import {Trace} from '../../public/trace';
 import {VisViewSource} from './data_visualiser/view_source';
 
@@ -74,12 +69,12 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
       return;
     }
 
-    const selection = await modalForStdlibTableSelection(sqlModules);
+    const selection = await modalForTableSelection(sqlModules);
 
     if (selection) {
       this.addNode(
         state,
-        new StdlibTableNode({
+        new TableSourceNode({
           trace,
           sqlModules,
           sqlTable: selection.sqlTable,
@@ -122,28 +117,8 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     this.deselectNode(state);
   }
 
-  handleVisualizeNode(state: ExplorePageState, node: QueryNode) {
-    this.selectNode(state, node);
-    state.mode = ExplorePageModes.DATA_VISUALISER;
-  }
-
   handleDuplicateNode(state: ExplorePageState, node: QueryNode) {
-    const attrsCopy = node.getStateCopy();
-    switch (node.type) {
-      case NodeType.kStdlibTable:
-        state.rootNodes.push(
-          new StdlibTableNode(attrsCopy as StdlibTableAttrs),
-        );
-        break;
-      case NodeType.kSimpleSlices:
-        state.rootNodes.push(
-          new SlicesSourceNode(attrsCopy as SlicesSourceAttrs),
-        );
-        break;
-      case NodeType.kSqlSource:
-        state.rootNodes.push(new SqlSourceNode(attrsCopy as SqlSourceState));
-        break;
-    }
+    state.rootNodes.push(node.clone());
   }
 
   handleDeleteNode(state: ExplorePageState, node: QueryNode) {
@@ -197,7 +172,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
 
     return m(
-      '.page.pf-explore-page',
+      '.pf-page.pf-explore-page',
       {
         onkeydown: (e: KeyboardEvent) => this.handleKeyDown(e, attrs),
         oncreate: (vnode) => {
@@ -206,7 +181,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
         tabindex: 0,
       },
       state.mode === ExplorePageModes.QUERY_BUILDER &&
-        m(QueryBuilder, {
+        m(Builder, {
           trace,
           sqlModules,
           rootNodes: state.rootNodes,
@@ -218,7 +193,6 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           onAddSlicesSource: () => this.handleAddSlicesSource(state),
           onAddSqlSource: () => this.handleAddSqlSource(attrs),
           onClearAllNodes: () => this.handleClearAllNodes(state),
-          onVisualizeNode: (node) => this.handleVisualizeNode(state, node),
           onDuplicateNode: (node) => this.handleDuplicateNode(state, node),
           onDeleteNode: (node) => this.handleDeleteNode(state, node),
         }),

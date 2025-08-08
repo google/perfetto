@@ -32,7 +32,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/public/compiler.h"
@@ -52,10 +51,13 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
+#include "src/trace_processor/perfetto_sql/intrinsics/types/symbolization_input.h"
+#endif
 namespace perfetto::trace_processor {
 namespace {
 
-inline void HashSqlValue(base::Hasher& h, const SqlValue& v) {
+inline void HashSqlValue(base::FnvHasher& h, const SqlValue& v) {
   switch (v.type) {
     case SqlValue::Type::kString:
       h.Update(v.AsString());
@@ -368,7 +370,7 @@ struct IntervalTreeIntervalsAgg
     }
 
     // Create a partition key and save SqlValues of the partition.
-    base::Hasher h;
+    base::FnvHasher h;
     uint32_t j = 0;
     for (uint32_t i = kMinArgCount + 1; i < argc; i += 2) {
       SqlValue new_val = sqlite::utils::SqliteValueToSqlValue(argv[i]);
@@ -468,6 +470,50 @@ struct CounterPerTrackAgg
   }
 };
 
+#if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
+
+struct SymbolizeAgg
+    : public sqlite::AggregateFunction<perfetto_sql::SymbolizationInput> {
+  static constexpr char kName[] = "__intrinsic_symbolize_agg";
+  static constexpr int kArgCount = 4;
+  struct AggCtx : sqlite::AggregateContext<AggCtx> {
+    perfetto_sql::SymbolizationInput symbolization_input;
+  };
+
+  static void Step(sqlite3_context* ctx, int rargc, sqlite3_value** argv) {
+    auto argc = static_cast<uint32_t>(rargc);
+    PERFETTO_DCHECK(argc == kArgCount);
+    auto& agg_ctx = AggCtx::GetOrCreateContextForStep(ctx);
+    auto& input = agg_ctx.symbolization_input;
+
+    input.binary_paths.emplace_back(sqlite::value::Text(argv[0]));
+
+    ::SymbolizationRequest request;
+    request.binary_path = input.binary_paths.back().c_str();
+    request.binary_path_len =
+        static_cast<uint32_t>(input.binary_paths.back().size());
+    request.address = static_cast<uint64_t>(sqlite::value::Int64(argv[1]));
+    input.requests.emplace_back(request);
+
+    uint64_t mapping_id = static_cast<uint64_t>(sqlite::value::Int64(argv[2]));
+    uint64_t address = static_cast<uint64_t>(sqlite::value::Int64(argv[3]));
+    input.mapping_id_and_address.emplace_back(mapping_id, address);
+  }
+
+  static void Final(sqlite3_context* ctx) {
+    auto raw_agg_ctx = AggCtx::GetContextOrNullForFinal(ctx);
+    if (!raw_agg_ctx) {
+      return sqlite::result::Null(ctx);
+    }
+    return sqlite::result::UniquePointer(
+        ctx,
+        std::make_unique<perfetto_sql::SymbolizationInput>(
+            std::move(raw_agg_ctx.get()->symbolization_input)),
+        perfetto_sql::SymbolizationInput::kName);
+  }
+};
+#endif
+
 }  // namespace
 
 base::Status RegisterTypeBuilderFunctions(PerfettoSqlEngine& engine) {
@@ -480,6 +526,12 @@ base::Status RegisterTypeBuilderFunctions(PerfettoSqlEngine& engine) {
           nullptr));
   RETURN_IF_ERROR(
       engine.RegisterSqliteAggregateFunction<CounterPerTrackAgg>(nullptr));
+
+#if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
+  RETURN_IF_ERROR(
+      engine.RegisterSqliteAggregateFunction<SymbolizeAgg>(nullptr));
+#endif
+
   return engine.RegisterSqliteAggregateFunction<NodeAgg>(nullptr);
 }
 

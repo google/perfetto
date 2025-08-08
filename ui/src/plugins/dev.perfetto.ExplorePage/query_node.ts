@@ -20,15 +20,20 @@ import {
   newColumnInfoList,
 } from './query_builder/column_info';
 import {
-  GroupByAgg,
+  Aggregation,
   placeholderNewColumnName,
-} from './query_builder/operations/group_by';
-import {Filter} from './query_builder/operations/filter';
+} from './query_builder/operations/aggregations';
+import {FilterDefinition} from '../../components/widgets/data_grid/common';
 import {Engine} from '../../trace_processor/engine';
+
+let nodeCounter = 0;
+export function nextNodeId(): string {
+  return (nodeCounter++).toString();
+}
 
 export enum NodeType {
   // Sources
-  kStdlibTable,
+  kTable,
   kSimpleSlices,
   kSqlSource,
 }
@@ -40,17 +45,25 @@ export interface QueryNodeState {
   customTitle?: string;
 
   // Operations
-  filters: Filter[];
+  filters: FilterDefinition[];
   groupByColumns: ColumnInfo[];
-  aggregations: GroupByAgg[];
+  aggregations: Aggregation[];
 
   // Errors
   queryError?: Error;
   responseError?: Error;
   dataError?: Error;
+
+  onchange?: () => void;
+
+  // Caching
+  isExecuted?: boolean;
+  hasOperationChanged?: boolean;
 }
 
 export interface QueryNode {
+  readonly nodeId: string;
+  readonly graphTableName?: string;
   readonly type: NodeType;
   readonly prevNode?: QueryNode;
   readonly nextNode?: QueryNode;
@@ -68,7 +81,7 @@ export interface QueryNode {
   validate(): boolean;
   getTitle(): string;
   nodeSpecificModify(): m.Child;
-  getStateCopy(): QueryNodeState;
+  clone(): QueryNode;
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined;
 }
 
@@ -143,6 +156,20 @@ export async function analyzeNode(
   node: QueryNode,
   engine: Engine,
 ): Promise<Query | undefined | Error> {
+  if (
+    node.state.isExecuted &&
+    !node.state.hasOperationChanged &&
+    node.type !== NodeType.kSqlSource
+  ) {
+    const sql: Query = {
+      sql: `SELECT * FROM ${node.graphTableName ?? ''}`,
+      textproto: '',
+      modules: [],
+      preambles: [],
+    };
+    return sql;
+  }
+
   const structuredQueries = getStructuredQueries(node);
   if (structuredQueries === undefined) return;
 
@@ -151,7 +178,9 @@ export async function analyzeNode(
   if (res.results.length === 0) return Error('No structured query results');
   if (res.results.length !== structuredQueries.length) {
     return Error(
-      `Wrong structured query results. Asked for ${structuredQueries.length}, received ${res.results.length}`,
+      `Wrong structured query results. Asked for ${
+        structuredQueries.length
+      }, received ${res.results.length}`,
     );
   }
 
@@ -163,13 +192,34 @@ export async function analyzeNode(
     return Error('No textproto in structured query results');
   }
 
+  let finalSql = lastRes.sql;
+  if (node.type !== NodeType.kSqlSource) {
+    const createTableSql = `CREATE OR REPLACE PERFETTO TABLE ${
+      node.graphTableName ?? ''
+    } AS \n${lastRes.sql}`;
+    const selectSql = `SELECT * FROM ${node.graphTableName ?? ''}`;
+    finalSql = `${createTableSql};\n${selectSql}`;
+  }
+
   const sql: Query = {
-    sql: lastRes.sql,
+    sql: finalSql,
     textproto: lastRes.textproto ?? '',
     modules: lastRes.modules ?? [],
     preambles: lastRes.preambles ?? [],
   };
   return sql;
+}
+
+export function setOperationChanged(node: QueryNode) {
+  let curr: QueryNode | undefined = node;
+  while (curr) {
+    if (curr.state.hasOperationChanged) {
+      // Already marked as changed, and so are the children.
+      break;
+    }
+    curr.state.hasOperationChanged = true;
+    curr = curr.nextNode;
+  }
 }
 
 export function isAQuery(
