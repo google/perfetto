@@ -2256,6 +2256,33 @@ TEST_P(PerfettoApiTest, TrackEventCustomNamedTrack) {
   EXPECT_EQ(4, event_count);
 }
 
+TEST_P(PerfettoApiTest, TrackEventPtrNamedTrack) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"bar"});
+  tracing_session->get()->StartBlocking();
+
+  // SetTrackDescriptor before starting the tracing session.
+  auto track = perfetto::NamedTrack::FromPointer("MyCustomTrack", this);
+  TRACE_EVENT_INSTANT("bar", "Event", track);
+
+  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
+
+  bool found_descriptor = false;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_track_descriptor() &&
+        !packet.track_descriptor().has_process() &&
+        !packet.track_descriptor().has_thread()) {
+      auto td = packet.track_descriptor();
+      EXPECT_EQ("MyCustomTrack", td.static_name());
+      EXPECT_EQ(track.uuid, td.uuid());
+      EXPECT_EQ(perfetto::ProcessTrack::Current().uuid, td.parent_uuid());
+      found_descriptor = true;
+      continue;
+    }
+  }
+  EXPECT_TRUE(found_descriptor);
+}
+
 TEST_P(PerfettoApiTest, CustomTrackDescriptorForParent) {
   // Setup the trace config.
   perfetto::TraceConfig cfg;
