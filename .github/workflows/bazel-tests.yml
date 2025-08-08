@@ -51,6 +51,7 @@ jobs:
           mkdir -p $PERFETTO_ARTIFACTS_DIR
 
       - name: Restore cache
+        id: restore_cache
         uses: ./.github/actions/cache-on-google-cloud-storage/restore
         with:
           directory: ${{ env.PERFETTO_CACHE_DIR }}
@@ -61,6 +62,8 @@ jobs:
           install-flags: --bazel
 
       - name: Build Bazel
+        env:
+          BUILD_CACHE_HIT: ${{ steps.restore_cache.outputs.cache_hit }}
         shell: bash
         run: |
           BAZEL_DISK_CACHE_FOLDER="$PERFETTO_CACHE_DIR/bazel-disk-cache"
@@ -74,6 +77,9 @@ jobs:
           mkdir -p "$PERFETTO_BUILD_LOGS_DIR"
           EXEC_LOG_FILE="$PERFETTO_BUILD_LOGS_DIR/execution.log"
           EXPLAIN_FILE="$PERFETTO_BUILD_LOGS_DIR/explain.log"
+          ENV_VARS_FILE="$PERFETTO_BUILD_LOGS_DIR/env.txt"
+          
+          env >> "$ENV_VARS_FILE"
           
           EXPLAIN_BUILD_ARGS="--execution_log_json_file=$EXEC_LOG_FILE --explain=$EXPLAIN_FILE --verbose_explanations"
           
