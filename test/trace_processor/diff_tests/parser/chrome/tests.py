@@ -515,7 +515,7 @@ class ChromeParser(TestSuite):
         1,1234,"[NULL]",1,1234,1
         2,5299989655609,"thread1",1,1234,0
         """))
-  
+
   def _get_streaming_profile_textproto(self):
     return r"""
     packet {
