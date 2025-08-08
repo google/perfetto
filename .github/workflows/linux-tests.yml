@@ -141,6 +141,16 @@ jobs:
         if: ${{ always() }}
         run: |
           /opt/ci/artifacts_uploader.py --rm ${{ env.PERFETTO_ARTIFACTS_ROOT }}
+          
+      - name: Upload artifacts to GCS using CLI
+        if: ${{ always() }}
+        env:
+          GCS_PATH: gs://perfetto-ci-artifacts
+        run: |
+          # Upload artifacts to GCS using CLI
+          # '--no-user-output-enabled' prevents the `cp` from printing the names
+          # of all copied files to stdout.
+          gcloud storage cp --no-user-output-enabled --recursive "$PERFETTO_ARTIFACTS_DIR/*" "$GCS_PATH/$PERFETTO_CI_JOB_ID-from-cli"
 
       - name: Update cache (if on main)
         if: github.ref == 'refs/heads/main'

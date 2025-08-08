@@ -111,14 +111,10 @@ jobs:
         env:
           GCS_PATH: gs://perfetto-ci-artifacts
         run: |
-          # Setup Google Cloud config.
-          # Token is generated in 'infra/ci/worker/sandbox_runner.py'.
-          gcloud config set auth/access_token_file $SVC_TOKEN_PATH
-          # Suppress warning about "parallel composite upload".
-          gcloud config set storage/parallel_composite_upload_enabled True
-          
-          # the '/*' at the end of dst is important!          
-          gcloud storage cp --recursive "$PERFETTO_ARTIFACTS_DIR/*" "$GCS_PATH/$PERFETTO_CI_JOB_ID-from-cli" 
+          # Upload artifacts to GCS using CLI
+          # '--no-user-output-enabled' prevents the `cp` from printing the names
+          # of all copied files to stdout.
+          gcloud storage cp --no-user-output-enabled --recursive "$PERFETTO_ARTIFACTS_DIR/*" "$GCS_PATH/$PERFETTO_CI_JOB_ID-from-cli" 
 
 
       - name: Update cache (if on main)
