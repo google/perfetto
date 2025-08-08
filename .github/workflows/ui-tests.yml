@@ -111,8 +111,7 @@ jobs:
           
           # '--no-user-output-enabled' prevents the `cp` from printing the names
           # of all copied files to stdout.
-          gcloud storage cp --recursive "$PERFETTO_ARTIFACTS_DIR" "$GCS_PATH/$PERFETTO_CI_JOB_ID" 
-          
+          gcloud storage cp --recursive "$PERFETTO_ARTIFACTS_DIR" "$GCS_PATH/$PERFETTO_CI_JOB_ID"
           
           echo "UI integration test report with screnshots:"
           echo "https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui-test-artifacts/index.html"
