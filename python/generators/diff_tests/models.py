@@ -40,7 +40,6 @@ class Config:
   test_extensions: str
   winscope_extensions: str
   keep_input: bool
-  print_slowest_tests: bool
 
 
 class TestType(Enum):
