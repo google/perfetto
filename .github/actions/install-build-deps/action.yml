@@ -28,6 +28,7 @@ runs:
         INSTALL_FLAGS: ${{ inputs.install-flags }}
       shell: bash
       run: |
+        # Create buildtools cache key.
         flags="${INSTALL_FLAGS:-default}"
         echo "key=buildtools-$flags" >> "$GITHUB_OUTPUT"
 
@@ -51,8 +52,8 @@ runs:
       shell: bash
       run: echo "hash=$BUILDTOOLS_HASH" >> "$GITHUB_OUTPUT"
 
-    - name: Restore buildtools from cache 1
-      id: restore_buildtools_cache_1
+    - name: Restore buildtools from cache
+      id: restore_buildtools_cache
       uses: ./.github/actions/cache-on-google-cloud-storage/restore
       with:
         cache_key: ${{ steps.cache_key.outputs.key }}
