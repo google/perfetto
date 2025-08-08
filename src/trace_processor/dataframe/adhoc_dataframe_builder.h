@@ -613,7 +613,7 @@ class AdhocDataframeBuilder {
       offset_bv.bit_vector.set(i);
     }
     offset_bv.prefix_popcount = offset_bv.bit_vector.PrefixPopcount();
-    return offset_bv;
+    return std::move(offset_bv);
   }
 
   // Builds a specialized storage for a column which is not-sorted, has no
