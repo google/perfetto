@@ -362,7 +362,7 @@ class ChromeParser(TestSuite):
           chrome_events {
             metadata {
               name: "product-version"
-              string_value: "Chrome/140.0.7302.0"
+              string_value: "Chrome/140.0.7326.0"
             }
             metadata {
               name: "os-name"
@@ -514,4 +514,143 @@ class ChromeParser(TestSuite):
         0,0,"swapper",0,0,1
         1,1234,"[NULL]",1,1234,1
         2,5299989655609,"thread1",1,1234,0
+        """))
+  
+  def _get_streaming_profile_textproto(self):
+    return r"""
+    packet {
+      timestamp: 0
+      incremental_state_cleared: true
+      track_descriptor {
+        uuid: 42
+        parent_uuid: 5678
+        thread {
+          pid: 1234
+          tid: 42
+          thread_name: "thread2"
+          reference_timestamp_us: 1000
+        }
+      }
+      trusted_uid: 0
+      trusted_packet_sequence_id: 2
+    }
+    packet {
+      timestamp: 0
+      sequence_flags: 2
+      interned_data {
+        mappings {
+          iid: 1
+          build_id: 1
+        }
+        build_ids {
+          iid: 1
+          str: "3BBCFBD372448A727265C3E7C4D954F91"
+        }
+        frames {
+          iid: 1
+          rel_pc: 0x42
+          mapping_id: 1
+        }
+        frames {
+          iid: 2
+          rel_pc: 0x4242
+          mapping_id: 1
+        }
+        callstacks {
+          iid: 1
+          frame_ids: 1
+        }
+        callstacks {
+          iid: 42
+          frame_ids: 2
+        }
+      }
+      streaming_profile_packet {
+        callstack_iid: 42
+        timestamp_delta_us: 10
+        callstack_iid: 1
+        timestamp_delta_us: 15
+        process_priority: 20
+      }
+      trusted_uid: 0
+      trusted_packet_sequence_id: 2
+    }
+    packet {
+      timestamp: 0
+      sequence_flags: 2
+      streaming_profile_packet {
+        callstack_iid: 42
+        timestamp_delta_us: 42
+        process_priority: 30
+      }
+      trusted_uid: 0
+      trusted_packet_sequence_id: 2
+    }
+    """
+
+  def test_synthetic_tids_workaround_for_profiling_new_linux(self):
+    return DiffTestBlueprint(
+        trace=self._get_chrome_thread_event_trace_textproto(r"""
+        packet {
+          timestamp: 0
+          sequence_flags: 2
+          chrome_events {
+            metadata {
+              name: "product-version"
+              string_value: "Chrome/140.0.7326.0"
+            }
+            metadata {
+              name: "os-name"
+              string_value: "Linux"  
+            }
+          }
+          trusted_uid: 0
+          trusted_packet_sequence_id: 1
+        }
+        """ + self._get_streaming_profile_textproto()),
+        query="""
+        SELECT utid, tid, thread.name, upid, pid, is_main_thread
+        FROM thread LEFT JOIN process USING (upid);
+        """,
+        # New Chrome sets the is_sandboxed_tid field, so we respect tids for
+        # threads that don't set it.
+        out=Csv("""
+        "utid","tid","name","upid","pid","is_main_thread"
+        0,0,"swapper",0,0,1
+        1,1234,"[NULL]",1,1234,1
+        2,12345,"thread1",1,1234,0
+        3,42,"thread2",1,1234,0
+        """))
+
+  def test_synthetic_tids_workaround_for_profiling_old_linux(self):
+    return DiffTestBlueprint(
+        trace=self._get_chrome_thread_event_trace_textproto(r"""
+        packet {
+          timestamp: 0
+          sequence_flags: 2
+          chrome_events {
+            metadata {
+              name: "product-version"
+              string_value: "Chrome/139.0.7000.0"
+            }
+            metadata {
+              name: "os-name"
+              string_value: "Linux"  
+            }
+          }
+          trusted_uid: 0
+          trusted_packet_sequence_id: 1
+        }
+        """ + self._get_streaming_profile_textproto()),
+        query="""
+        SELECT utid, tid, thread.name, upid, pid, is_main_thread
+        FROM thread LEFT JOIN process USING (upid);
+        """,
+        # All non-pid tids from older Linux Chrome versions are synthetic.
+        out=Csv("""
+        "utid","tid","name","upid","pid","is_main_thread"
+        0,0,"swapper",0,0,1
+        1,1234,"[NULL]",1,1234,1
+        2,5299989655609,"thread1",1,1234,0
+        3,5299989643306,"thread2",1,1234,0
         """))

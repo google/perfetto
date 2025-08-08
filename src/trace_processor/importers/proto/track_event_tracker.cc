@@ -696,7 +696,8 @@ void TrackEventTracker::OnParsingStarted() {
   }
 
   // Check if any Chrome version present in the trace is too old to set
-  // is_sandboxed_tid. Chrome sets this field since version 140.0.7302.0.
+  // is_sandboxed_tid. Chrome sets this field since version 140.0.7326.0:
+  // http://crrev.com/c/6785375 and http://crrev.com/c/6732852.
   bool has_old_chrome = false;
   for (int i = 0; i < 10; i++) {
     std::string version_key;
@@ -723,8 +724,8 @@ void TrackEventTracker::OnParsingStarted() {
 
     const char* product_version_value = product_version->AsString();
 
-    // Product version is either of the format "Chrome/140.0.7302.0" or
-    // "140.0.7302.0-64".
+    // Product version is either of the format "Chrome/140.0.7326.0" or
+    // "140.0.7326.0-64".
     size_t slash_pos = base::Find("/", product_version_value);
     if (slash_pos != std::string::npos) {
       product_version_value = product_version_value + slash_pos + 1;
@@ -740,7 +741,7 @@ void TrackEventTracker::OnParsingStarted() {
       continue;
     }
     if (milestone < 140 || (milestone == 140 && strcmp(product_version_value,
-                                                       "140.0.7302.0") < 0)) {
+                                                       "140.0.7326.0") < 0)) {
       has_old_chrome = true;
       break;
     }
@@ -752,7 +753,7 @@ void TrackEventTracker::OnParsingStarted() {
 
   PERFETTO_DLOG(
       "Enabling synthetic TIDs for all TrackEvent tracks (Linux Chrome "
-      "version older than 140.0.7302.0 detected)");
+      "version older than 140.0.7326.0 detected)");
   context_->force_synthetic_tids = true;
 }
 
