@@ -50,6 +50,7 @@ export const defaultPlugins = [
   'dev.perfetto.LargeScreensPerf',
   'dev.perfetto.LinuxPerf',
   'dev.perfetto.MetricsPage',
+  'dev.perfetto.MultiTraceOpen',
   'dev.perfetto.PinAndroidPerfMetrics',
   'dev.perfetto.PinSysUITracks',
   'dev.perfetto.PowerRails',
