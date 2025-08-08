@@ -217,6 +217,22 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
       : Track(id ^ internal::Fnv1a(name.value) ^ kNamedTrackMagic, parent),
         static_name_(name) {}
 
+  // Construct a track using `name` and `ptr` as identifier.
+  template <class TrackEventName>
+  static NamedTrack FromPointer(TrackEventName&& name,
+                                const void* ptr,
+                                Track parent = MakeProcessTrack()) {
+    // Using pointers as global TrackIds isn't supported as pointers are
+    // per-proccess and the same pointer value can be used in different
+    // processes. If you hit this check but are providing no |parent| track,
+    // verify that Tracing::Initialize() was called for the current process.
+    PERFETTO_DCHECK(parent.uuid != Track().uuid);
+
+    return NamedTrack(std::forward<TrackEventName>(name),
+                      static_cast<uint64_t>(reinterpret_cast<uintptr_t>(ptr)),
+                      parent);
+  }
+
   // Construct a track using `name` and `id` as identifier within thread-scope.
   // Shorthand for `Track::NamedTrack("name", id, ThreadTrack::Current())`
   // Usage: TRACE_EVENT_BEGIN("...", "...",
@@ -229,6 +245,18 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
       return NamedTrack(std::forward<TrackEventName>(name), id,
                         ThreadTrack::Current());
     return NamedTrack(std::forward<TrackEventName>(name), id, parent);
+  }
+
+  // Same as above using `name` and `ptr` as identifier within thread-scope.
+  template <class TrackEventName>
+  static NamedTrack ThreadScoped(TrackEventName&& name,
+                                 const void* ptr,
+                                 Track parent = Track()) {
+    if (parent.uuid == 0) {
+      return NamedTrack::FromPointer(std::forward<TrackEventName>(name), ptr,
+                                     ThreadTrack::Current());
+    }
+    return Track::FromPointer(std::forward<TrackEventName>(name), ptr, parent);
   }
 
   template <class TrackEventName>
