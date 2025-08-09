@@ -50,6 +50,7 @@ perfetto_component("base") {
     "paged_memory.cc",
     "periodic_task.cc",
     "pipe.cc",
+    "rt_mutex.cc",
     "scoped_mmap.cc",
     "scoped_sched_boost.cc",
     "status.cc",
@@ -221,6 +222,7 @@ perfetto_unittest_source_set("unittests") {
     "no_destructor_unittest.cc",
     "paged_memory_unittest.cc",
     "periodic_task_unittest.cc",
+    "rt_mutex_unittest.cc",
     "scoped_file_unittest.cc",
     "scoped_mmap_unittest.cc",
     "scoped_sched_boost_unittest.cc",
@@ -294,6 +296,7 @@ if (enable_perfetto_benchmarks) {
     sources = [
       "flat_hash_map_benchmark.cc",
       "flat_set_benchmark.cc",
+      "rt_mutex_benchmark.cc",
     ]
   }
 }
