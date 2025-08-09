@@ -18,8 +18,6 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_INSTRUMENTS_ROW_DATA_TRACKER_H_
 
 #include "src/trace_processor/importers/instruments/row.h"
-#include "src/trace_processor/types/destructible.h"
-#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::instruments_importer {
 
@@ -30,15 +28,10 @@ struct IdPtr {
 };
 
 // Keeps track of row data.
-class RowDataTracker : public Destructible {
+class RowDataTracker {
  public:
-  static RowDataTracker& GetOrCreate(TraceProcessorContext* context) {
-    if (!context->instruments_row_data_tracker) {
-      context->instruments_row_data_tracker.reset(new RowDataTracker());
-    }
-    return static_cast<RowDataTracker&>(*context->instruments_row_data_tracker);
-  }
-  ~RowDataTracker() override;
+  explicit RowDataTracker();
+  ~RowDataTracker();
 
   IdPtr<Thread> NewThread();
   Thread* GetThread(ThreadId id);
@@ -56,8 +49,6 @@ class RowDataTracker : public Destructible {
   Binary* GetBinary(BinaryId id);
 
  private:
-  explicit RowDataTracker();
-
   std::vector<Thread> threads_;
   std::vector<Process> processes_;
   std::vector<Frame> frames_;

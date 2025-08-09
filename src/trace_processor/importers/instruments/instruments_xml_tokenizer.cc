@@ -148,9 +148,9 @@ class InstrumentsXmlTokenizer::Impl {
  public:
   explicit Impl(TraceProcessorContext* context)
       : context_(context),
-        data_(RowDataTracker::GetOrCreate(context)),
+        data_(),
         stream_(context->sorter->CreateStream(
-            std::make_unique<RowParser>(context))) {
+            std::make_unique<RowParser>(context, data_))) {
     parser_ = XML_ParserCreate(nullptr);
     XML_SetElementHandler(parser_, ElementStart, ElementEnd);
     XML_SetCharacterDataHandler(parser_, CharacterData);
@@ -499,7 +499,7 @@ class InstrumentsXmlTokenizer::Impl {
   }
 
   TraceProcessorContext* context_;
-  RowDataTracker& data_;
+  RowDataTracker data_;
 
   XML_Parser parser_;
   std::vector<std::string> tag_stack_;

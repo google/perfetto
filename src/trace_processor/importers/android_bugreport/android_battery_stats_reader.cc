@@ -52,8 +52,10 @@ base::StatusOr<int64_t> StringToStatusOrInt64(base::StringView str) {
 AndroidBatteryStatsReader::AndroidBatteryStatsReader(
     TraceProcessorContext* context)
     : context_(context),
+      tracker_(std::make_unique<AndroidBatteryStatsHistoryStringTracker>()),
       stream_(context->sorter->CreateStream(
-          std::make_unique<AndroidDumpstateEventParser>(context))) {}
+          std::make_unique<AndroidDumpstateEventParser>(context,
+                                                        tracker_.get()))) {}
 
 AndroidBatteryStatsReader::~AndroidBatteryStatsReader() = default;
 
@@ -89,9 +91,8 @@ base::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
     size_t substr_end = remainder.rfind('"');
     base::StringView hsp_string =
         remainder.substr(substr_start, substr_end - substr_start);
-    AndroidBatteryStatsHistoryStringTracker::GetOrCreate(context_)
-        ->SetStringPoolItem(index, possible_uid.value(),
-                            hsp_string.ToStdString());
+    tracker_->SetStringPoolItem(index, possible_uid.value(),
+                                hsp_string.ToStdString());
   } else if (possible_event_type == "h") {
     const base::StringView time_adjustment_marker = ":TIME:";
     const base::StringView possible_timestamp = splitter.NextToken();
@@ -126,9 +127,8 @@ base::Status AndroidBatteryStatsReader::ParseLine(base::StringView line) {
       if (info_type == "vers") {
         ASSIGN_OR_RETURN(int64_t battery_stats_version,
                          StringToStatusOrInt64(splitter.NextToken()));
-        AndroidBatteryStatsHistoryStringTracker::GetOrCreate(context_)
-            ->battery_stats_version(
-                static_cast<uint32_t>(battery_stats_version));
+        tracker_->battery_stats_version(
+            static_cast<uint32_t>(battery_stats_version));
       }
     }
   } else {
