@@ -119,7 +119,8 @@ inline TimeNanos GetBootTimeNs() {
 }
 
 // Before MacOS 10.12 clock_gettime() was not implemented.
-#if __MAC_OS_X_VERSION_MIN_REQUIRED < 101200
+#if (defined(__MAC_OS_X_VERSION_MIN_REQUIRED) && \
+     __MAC_OS_X_VERSION_MIN_REQUIRED < 101200)
 inline TimeNanos GetThreadCPUTimeNs() {
   mach_port_t this_thread = mach_thread_self();
   mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
