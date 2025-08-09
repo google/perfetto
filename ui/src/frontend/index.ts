@@ -42,6 +42,7 @@ import {showModal} from '../widgets/modal';
 import {IdleDetector} from './idle_detector';
 import {IdleDetectorWindow} from './idle_detector_interface';
 import {AppImpl} from '../core/app_impl';
+import {parseAndSplitParams} from '../core/plugin_manager';
 import {addLegacyTableTab} from '../components/details/sql_table_tab';
 import {configureExtensions} from '../components/extensions';
 import {
@@ -311,7 +312,8 @@ function onCssLoaded() {
   NON_CORE_PLUGINS.forEach((p) => pluginManager.registerPlugin(p));
   const route = Router.parseUrl(window.location.href);
   const overrides = (route.args.enablePlugins ?? '').split(',');
-  pluginManager.activatePlugins(overrides);
+  const pluginParams = parseAndSplitParams(route.args.pluginParams ?? '');
+  pluginManager.activatePlugins(overrides, pluginParams);
 }
 
 // If the URL is /#!?rpc_port=1234, change the default RPC port.
