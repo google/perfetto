@@ -152,9 +152,11 @@ jobs:
 
       - name: Upload artifacts to GCS
         if: ${{ always() }}
+        env:
+          GCS_PATH: gs://perfetto-ci-artifacts
         shell: bash
         run: |
-          /opt/ci/artifacts_uploader.py --rm ${{ env.PERFETTO_ARTIFACTS_ROOT }}
+          gcloud storage cp --recursive "$PERFETTO_ARTIFACTS_DIR" "$GCS_PATH/$PERFETTO_CI_JOB_ID"
 
       - name: Update cache (if on main)
         if: github.ref == 'refs/heads/main'
