@@ -3911,7 +3911,7 @@ class CornerRadiiProto(_message.Message):
     def __init__(self, tl: _Optional[float] = ..., tr: _Optional[float] = ..., bl: _Optional[float] = ..., br: _Optional[float] = ...) -> None: ...
 
 class CounterDescriptor(_message.Message):
-    __slots__ = ["categories", "is_incremental", "type", "unit", "unit_multiplier", "unit_name"]
+    __slots__ = ["categories", "is_incremental", "type", "unit", "unit_multiplier", "unit_name", "y_axis_share_key"]
     class BuiltinCounterType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     class Unit(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -3929,13 +3929,15 @@ class CounterDescriptor(_message.Message):
     UNIT_SIZE_BYTES: CounterDescriptor.Unit
     UNIT_TIME_NS: CounterDescriptor.Unit
     UNIT_UNSPECIFIED: CounterDescriptor.Unit
+    Y_AXIS_SHARE_KEY_FIELD_NUMBER: _ClassVar[int]
     categories: _containers.RepeatedScalarFieldContainer[str]
     is_incremental: bool
     type: CounterDescriptor.BuiltinCounterType
     unit: CounterDescriptor.Unit
     unit_multiplier: int
     unit_name: str
-    def __init__(self, type: _Optional[_Union[CounterDescriptor.BuiltinCounterType, str]] = ..., categories: _Optional[_Iterable[str]] = ..., unit: _Optional[_Union[CounterDescriptor.Unit, str]] = ..., unit_name: _Optional[str] = ..., unit_multiplier: _Optional[int] = ..., is_incremental: bool = ...) -> None: ...
+    y_axis_share_key: str
+    def __init__(self, type: _Optional[_Union[CounterDescriptor.BuiltinCounterType, str]] = ..., categories: _Optional[_Iterable[str]] = ..., unit: _Optional[_Union[CounterDescriptor.Unit, str]] = ..., unit_name: _Optional[str] = ..., unit_multiplier: _Optional[int] = ..., is_incremental: bool = ..., y_axis_share_key: _Optional[str] = ...) -> None: ...
 
 class CpuFrequencyFtraceEvent(_message.Message):
     __slots__ = ["cpu_id", "state"]

@@ -119,6 +119,7 @@ SELECT
   min(extract_arg(track.source_arg_set_id, 'description')) AS description,
   min(counter_track.unit) AS unit,
   min(extract_arg(track.source_arg_set_id, 'builtin_counter_type')) AS builtin_counter_type,
+  min(extract_arg(track.source_arg_set_id, 'y_axis_share_key')) AS y_axis_share_key,
   max(m.id IS NOT NULL) AS has_data,
   max(c.id IS NOT NULL) AS has_children,
   GROUP_CONCAT(unioned.id) AS track_ids,

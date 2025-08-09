@@ -301,6 +301,11 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     counter_details.is_incremental = counter.is_incremental();
     counter_details.unit_multiplier = counter.unit_multiplier();
 
+    if (counter.has_y_axis_share_key()) {
+      counter_details.y_axis_share_key =
+          context_->storage->InternString(counter.y_axis_share_key());
+    }
+
     auto unit = static_cast<uint32_t>(counter.unit());
     if (counter.type() == CounterDescriptor::COUNTER_THREAD_TIME_NS) {
       counter_details.unit = counter_unit_ids_[CounterDescriptor::UNIT_TIME_NS];

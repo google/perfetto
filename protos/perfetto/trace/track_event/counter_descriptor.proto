@@ -92,4 +92,13 @@ message CounterDescriptor {
 
   // TODO(eseckler): Support arguments describing the counter (?).
   // repeated DebugAnnotation debug_annotations;
+
+  // When visualizing multiple counter tracks, it is often useful to have them
+  // share the same Y-axis range. This allows for easy comparison of their
+  // values.
+  //
+  // All counter tracks with the same |y_axis_share_key| and the same parent
+  // track (e.g. grouped under the same process track) will share their y-axis
+  // range in the UI.
+  optional string y_axis_share_key = 7;
 }
