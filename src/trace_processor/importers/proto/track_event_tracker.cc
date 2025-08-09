@@ -30,6 +30,7 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/synthetic_tid.h"
@@ -38,6 +39,7 @@
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
 #include "src/trace_processor/importers/common/tracks_internal.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -130,7 +132,8 @@ std::pair<uint32_t, StringId> GetMergeKey(
 
 }  // namespace
 
-TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
+TrackEventTracker::TrackEventTracker(ProtoImporterModuleContext* module_context,
+                                     TraceProcessorContext* context)
     : source_key_(context->storage->InternString("source")),
       source_id_key_(context->storage->InternString("trace_id")),
       is_root_in_scope_key_(context->storage->InternString("is_root_in_scope")),
@@ -149,6 +152,8 @@ TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
       default_descriptor_track_name_(
           context->storage->InternString("Default Track")),
       description_key_(context->storage->InternString("description")),
+      cr_os_name_key_(context->storage->InternString("cr-os-name")),
+      module_context_(module_context),
       context_(context) {}
 
 void TrackEventTracker::ReserveDescriptorTrack(
@@ -260,8 +265,9 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
   }
   if (resolved_tid) {
     reservation.tid = resolved_tid;
-  } else if (reservation.use_synthetic_tid && reservation.tid &&
-             reservation.pid) {
+  } else if ((reservation.use_synthetic_tid ||
+              module_context_->force_synthetic_tids) &&
+             reservation.tid && reservation.pid) {
     reservation.tid = CreateSyntheticTid(*reservation.tid, *reservation.pid);
   }
 
@@ -673,6 +679,85 @@ bool TrackEventTracker::IsTrackHierarchyValid(uint64_t uuid) {
   }
   PERFETTO_ELOG("Too many ancestors in hierarchy for track %" PRIu64, uuid);
   return false;
+}
+
+void TrackEventTracker::OnParsingStarted() {
+  // Older Linux Chrome versions do not set the is_sandboxed_tid field for
+  // pid-namespaced renderer processes, but report namespaced tids in their
+  // ThreadDescriptors. As Trace Processor requires simultaneously active tids
+  // to be unique, and we can't identify the sandboxed threads, we
+  // conservatively use synthetic tids for all ThreadDescriptors / TrackEvents
+  // in such traces.
+
+  // This metadata key should be present in all traces with Chrome data
+  // (assuming their metadata was not lost).
+  auto os_name =
+      context_->metadata_tracker->GetDynamicMetadata(cr_os_name_key_);
+  if (!os_name.has_value() || os_name->type != SqlValue::kString ||
+      strcmp(os_name->AsString(), "Linux") != 0) {
+    return;
+  }
+
+  // Check if any Chrome version present in the trace is too old to set
+  // is_sandboxed_tid. Chrome sets this field since version 140.0.7326.0:
+  // http://crrev.com/c/6785375 and http://crrev.com/c/6732852.
+  bool has_old_chrome = false;
+  for (int i = 0; i < 10; i++) {
+    std::string version_key;
+    if (i > 0) {
+      base::StackString<6> prefix("cr-%c-", static_cast<char>('0' + i));
+      version_key = prefix.ToStdString() + "product-version";
+    } else {
+      version_key = "cr-product-version";
+    }
+
+    StringId version_key_id =
+        context_->storage->InternString(base::StringView(version_key));
+
+    auto product_version =
+        context_->metadata_tracker->GetDynamicMetadata(version_key_id);
+    if (!product_version.has_value()) {
+      // No further Chrome versions in the trace.
+      break;
+    }
+
+    if (product_version->type != SqlValue::kString) {
+      continue;
+    }
+
+    const char* product_version_value = product_version->AsString();
+
+    // Product version is either of the format "Chrome/140.0.7326.0" or
+    // "140.0.7326.0-64".
+    size_t slash_pos = base::Find("/", product_version_value);
+    if (slash_pos != std::string::npos) {
+      product_version_value = product_version_value + slash_pos + 1;
+    }
+
+    size_t dot_pos = base::Find(".", product_version_value);
+    if (dot_pos == std::string::npos) {
+      continue;
+    }
+    auto milestone_str = base::StringView(product_version_value, dot_pos);
+    auto milestone = base::StringViewToUInt32(milestone_str);
+    if (!milestone.has_value()) {
+      continue;
+    }
+    if (milestone < 140 || (milestone == 140 && strcmp(product_version_value,
+                                                       "140.0.7326.0") < 0)) {
+      has_old_chrome = true;
+      break;
+    }
+  }
+
+  if (!has_old_chrome) {
+    return;
+  }
+
+  PERFETTO_DLOG(
+      "Enabling synthetic TIDs for all TrackEvent tracks (Linux Chrome "
+      "version older than 140.0.7326.0 detected)");
+  module_context_->force_synthetic_tids = true;
 }
 
 TrackEventTracker::ResolvedDescriptorTrack

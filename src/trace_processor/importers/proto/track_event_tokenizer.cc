@@ -636,7 +636,9 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
                                        deltas[i].asInt64() * 1000));
       v8_stream_->Push(
           ts, {legacy.unscoped_id(), static_cast<uint32_t>(state.pid()),
-               static_cast<uint32_t>(state.tid()), samples[i].asUInt()});
+               static_cast<uint32_t>(
+                   state.tid(module_context_->force_synthetic_tids)),
+               samples[i].asUInt()});
     }
   }
 #else

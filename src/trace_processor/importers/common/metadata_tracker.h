@@ -53,6 +53,10 @@ class MetadataTracker {
   // Only kSingle types are supported right now.
   std::optional<SqlValue> GetMetadata(metadata::KeyId key);
 
+  // Reads back a set metadata value with interned string as key.
+  // Only kSingle types are supported right now.
+  std::optional<SqlValue> GetDynamicMetadata(StringId key);
+
   // Tracks how many ChromeMetadata bundles have been parsed.
   uint32_t IncrementChromeMetadataBundleCount() {
     return ++chrome_metadata_bundle_count_;

@@ -161,7 +161,7 @@ void ProfileModule::ParseStreamingProfilePacket(
       *sequence_state->GetCustomState<StackProfileSequenceState>();
 
   uint32_t pid = static_cast<uint32_t>(sequence_state->pid());
-  uint32_t tid = static_cast<uint32_t>(sequence_state->tid());
+  int64_t tid = sequence_state->tid(module_context_->force_synthetic_tids);
   const UniqueTid utid = procs->UpdateThread(tid, pid);
   const UniquePid upid = procs->GetOrCreateProcess(pid);
 

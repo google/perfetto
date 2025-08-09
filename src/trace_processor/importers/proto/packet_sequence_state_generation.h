@@ -94,7 +94,9 @@ class PacketSequenceStateGeneration : public RefCounted {
 
     bool pid_and_tid_valid() const { return generation_->pid_and_tid_valid(); }
     int32_t pid() const { return generation_->pid(); }
-    int64_t tid() const { return generation_->tid(); }
+    int64_t tid(bool force_synthetic_tid) const {
+      return generation_->tid(force_synthetic_tid);
+    }
 
    private:
     friend PacketSequenceStateGeneration;
@@ -131,7 +133,9 @@ class PacketSequenceStateGeneration : public RefCounted {
     return track_event_sequence_state_.pid_and_tid_valid();
   }
   int32_t pid() const { return track_event_sequence_state_.pid(); }
-  int64_t tid() const { return track_event_sequence_state_.tid(); }
+  int64_t tid(bool force_synthetic_tid) const {
+    return track_event_sequence_state_.tid(force_synthetic_tid);
+  }
 
   // Returns |nullptr| if the message with the given |iid| was not found (also
   // records a stat in this case).

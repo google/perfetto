@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
-#include <string>
 #include <utility>
 #include <vector>
 
@@ -27,13 +26,11 @@
 #include "perfetto/ext/base/metatrace_events.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/string_writer.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
-#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
@@ -46,12 +43,10 @@
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
 #include "protos/perfetto/config/trace_config.pbzero.h"
-#include "protos/perfetto/trace/chrome/chrome_trace_event.pbzero.h"
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -63,13 +58,6 @@ ProtoTraceParserImpl::ProtoTraceParserImpl(
     : context_(context),
       module_context_(module_context),
       metatrace_id_(context->storage->InternString("metatrace")),
-      data_name_id_(context->storage->InternString("data")),
-      raw_chrome_metadata_event_id_(
-          context->storage->InternString("chrome_event.metadata")),
-      raw_chrome_legacy_system_trace_event_id_(
-          context->storage->InternString("chrome_event.legacy_system_trace")),
-      raw_chrome_legacy_user_trace_event_id_(
-          context->storage->InternString("chrome_event.legacy_user_trace")),
       missing_metatrace_interned_string_id_(
           context->storage->InternString("MISSING STRING")) {}
 
@@ -86,10 +74,6 @@ void ProtoTraceParserImpl::ParseTracePacket(int64_t ts, TracePacketData data) {
         module->ParseTracePacketData(packet, ts, data, field_id);
       return;
     }
-  }
-
-  if (packet.has_chrome_events()) {
-    ParseChromeEvents(ts, packet.chrome_events());
   }
 
   if (packet.has_perfetto_metatrace()) {
@@ -158,91 +142,6 @@ void ProtoTraceParserImpl::ParseInlineSchedWaking(uint32_t cpu,
   // once we have it. This may reduce performance in the ArgsTracker though so
   // needs to be handled carefully.
   context_->args_tracker->Flush();
-}
-
-void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
-  TraceStorage* storage = context_->storage.get();
-  protos::pbzero::ChromeEventBundle::Decoder bundle(blob);
-  ArgsTracker args(context_);
-  if (bundle.has_metadata()) {
-    tables::ChromeRawTable::Id id =
-        storage->mutable_chrome_raw_table()
-            ->Insert({ts, raw_chrome_metadata_event_id_, 0, 0})
-            .id;
-    auto inserter = args.AddArgsTo(id);
-
-    uint32_t bundle_index =
-        context_->metadata_tracker->IncrementChromeMetadataBundleCount();
-
-    // The legacy untyped metadata is proxied via a special event in the raw
-    // table to JSON export.
-    for (auto it = bundle.metadata(); it; ++it) {
-      protos::pbzero::ChromeMetadata::Decoder metadata(*it);
-      Variadic value = Variadic::Null();
-      if (metadata.has_string_value()) {
-        value =
-            Variadic::String(storage->InternString(metadata.string_value()));
-      } else if (metadata.has_int_value()) {
-        value = Variadic::Integer(metadata.int_value());
-      } else if (metadata.has_bool_value()) {
-        value = Variadic::Integer(metadata.bool_value());
-      } else if (metadata.has_json_value()) {
-        value = Variadic::Json(storage->InternString(metadata.json_value()));
-      } else {
-        context_->storage->IncrementStats(stats::empty_chrome_metadata);
-        continue;
-      }
-
-      StringId name_id = storage->InternString(metadata.name());
-      args.AddArgsTo(id).AddArg(name_id, value);
-
-      char buffer[2048];
-      base::StringWriter writer(buffer, sizeof(buffer));
-      writer.AppendString("cr-");
-      // If we have data from multiple Chrome instances, append a suffix
-      // to differentiate them.
-      if (bundle_index > 1) {
-        writer.AppendUnsignedInt(bundle_index);
-        writer.AppendChar('-');
-      }
-      writer.AppendString(metadata.name());
-
-      auto metadata_id = storage->InternString(writer.GetStringView());
-      context_->metadata_tracker->SetDynamicMetadata(metadata_id, value);
-    }
-  }
-
-  if (bundle.has_legacy_ftrace_output()) {
-    tables::ChromeRawTable::Id id =
-        storage->mutable_chrome_raw_table()
-            ->Insert({ts, raw_chrome_legacy_system_trace_event_id_, 0, 0})
-            .id;
-
-    std::string data;
-    for (auto it = bundle.legacy_ftrace_output(); it; ++it) {
-      data += (*it).ToStdString();
-    }
-    Variadic value =
-        Variadic::String(storage->InternString(base::StringView(data)));
-    args.AddArgsTo(id).AddArg(data_name_id_, value);
-  }
-
-  if (bundle.has_legacy_json_trace()) {
-    for (auto it = bundle.legacy_json_trace(); it; ++it) {
-      protos::pbzero::ChromeLegacyJsonTrace::Decoder legacy_trace(*it);
-      if (legacy_trace.type() !=
-          protos::pbzero::ChromeLegacyJsonTrace::USER_TRACE) {
-        continue;
-      }
-      tables::ChromeRawTable::Id id =
-          storage->mutable_chrome_raw_table()
-              ->Insert({ts, raw_chrome_legacy_user_trace_event_id_, 0, 0})
-              .id;
-      Variadic value =
-          Variadic::String(storage->InternString(legacy_trace.data()));
-      args.AddArgsTo(id).AddArg(data_name_id_, value);
-    }
-  }
 }
 
 void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {

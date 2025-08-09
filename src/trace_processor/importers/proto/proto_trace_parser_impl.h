@@ -56,17 +56,12 @@ class ProtoTraceParserImpl {
  private:
   StringId GetMetatraceInternedString(uint64_t iid);
 
-  void ParseChromeEvents(int64_t ts, ConstBytes);
   void ParseMetatraceEvent(int64_t ts, ConstBytes);
 
   TraceProcessorContext* context_;
   ProtoImporterModuleContext* module_context_ = nullptr;
 
   const StringId metatrace_id_;
-  const StringId data_name_id_;
-  const StringId raw_chrome_metadata_event_id_;
-  const StringId raw_chrome_legacy_system_trace_event_id_;
-  const StringId raw_chrome_legacy_user_trace_event_id_;
   const StringId missing_metatrace_interned_string_id_;
 
   base::FlatHashMap<uint64_t, StringId> metatrace_interned_strings_;

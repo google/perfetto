@@ -48,7 +48,9 @@ class TrackEventEventImporter;
 
 class TrackEventParser {
  public:
-  TrackEventParser(TraceProcessorContext*, TrackEventTracker*);
+  TrackEventParser(ProtoImporterModuleContext*,
+                   TraceProcessorContext*,
+                   TrackEventTracker*);
 
   void ParseTrackDescriptor(int64_t packet_timestamp,
                             protozero::ConstBytes,
@@ -75,6 +77,7 @@ class TrackEventParser {
   // Reflection-based proto TrackEvent field parser.
   util::ProtoToArgsParser args_parser_;
 
+  ProtoImporterModuleContext* module_context_;
   TraceProcessorContext* context_;
   TrackEventTracker* track_event_tracker_;
 

@@ -52,6 +52,7 @@
 #include "src/trace_processor/importers/common/tracks_internal.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
 #include "src/trace_processor/importers/proto/track_event_parser.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
@@ -149,6 +150,7 @@ class TrackEventEventImporter {
                           protozero::ConstBytes blob,
                           uint32_t packet_sequence_id)
       : context_(parser->context_),
+        module_context_(parser->module_context_),
         track_event_tracker_(parser->track_event_tracker_),
         storage_(context_->storage.get()),
         parser_(parser),
@@ -352,7 +354,8 @@ class TrackEventEventImporter {
           // here?
           if (sequence_state_->pid_and_tid_valid()) {
             auto pid = static_cast<uint32_t>(sequence_state_->pid());
-            auto tid = static_cast<uint32_t>(sequence_state_->tid());
+            auto tid = static_cast<uint32_t>(
+                sequence_state_->tid(module_context_->force_synthetic_tids));
             UniqueTid utid_candidate = procs->UpdateThread(tid, pid);
             if (storage_->thread_table()[utid_candidate].upid() == upid_) {
               legacy_passthrough_utid_ = utid_candidate;
@@ -364,7 +367,8 @@ class TrackEventEventImporter {
           // here?
           if (sequence_state_->pid_and_tid_valid()) {
             auto pid = static_cast<uint32_t>(sequence_state_->pid());
-            auto tid = static_cast<uint32_t>(sequence_state_->tid());
+            auto tid = static_cast<uint32_t>(
+                sequence_state_->tid(module_context_->force_synthetic_tids));
             legacy_passthrough_utid_ = procs->UpdateThread(tid, pid);
           }
           break;
@@ -392,7 +396,7 @@ class TrackEventEventImporter {
         // TODO: b/175152326 - Should pid namespace translation also be done
         // here?
         auto pid = static_cast<uint32_t>(sequence_state_->pid());
-        auto tid = sequence_state_->tid();
+        auto tid = sequence_state_->tid(module_context_->force_synthetic_tids);
         if (legacy_event_.has_pid_override()) {
           pid = static_cast<uint32_t>(legacy_event_.pid_override());
           // Create a synthetic tid while avoiding using the exact same tid in
@@ -401,7 +405,8 @@ class TrackEventEventImporter {
         }
         if (legacy_event_.has_tid_override()) {
           tid = static_cast<uint32_t>(legacy_event_.tid_override());
-          if (IsSyntheticTid(sequence_state_->tid())) {
+          if (IsSyntheticTid(sequence_state_->tid(
+                  module_context_->force_synthetic_tids))) {
             tid = CreateSyntheticTid(tid, pid);
           }
         }
@@ -1435,6 +1440,7 @@ class TrackEventEventImporter {
   }
 
   TraceProcessorContext* context_;
+  ProtoImporterModuleContext* module_context_;
   TrackEventTracker* track_event_tracker_;
   TraceStorage* storage_;
   TrackEventParser* parser_;

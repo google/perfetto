@@ -36,6 +36,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
 #include "src/trace_processor/importers/proto/track_event_event_importer.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
@@ -115,9 +116,11 @@ std::optional<base::Status> MaybeParseSourceLocation(
 
 }  // namespace
 
-TrackEventParser::TrackEventParser(TraceProcessorContext* context,
+TrackEventParser::TrackEventParser(ProtoImporterModuleContext* module_context,
+                                   TraceProcessorContext* context,
                                    TrackEventTracker* track_event_tracker)
     : args_parser_(*context->descriptor_pool_),
+      module_context_(module_context),
       context_(context),
       track_event_tracker_(track_event_tracker),
       counter_name_thread_time_id_(
@@ -380,7 +383,7 @@ UniqueTid TrackEventParser::ParseThreadDescriptor(
   auto tid = static_cast<int64_t>(decoder.tid());
   // If tid is sandboxed then use a unique synthetic tid, to avoid
   // having concurrent threads with the same tid.
-  if (is_sandboxed) {
+  if (is_sandboxed || module_context_->force_synthetic_tids) {
     tid = CreateSyntheticTid(tid, pid);
   }
   UniqueTid utid = context_->process_tracker->UpdateThread(tid, pid);
