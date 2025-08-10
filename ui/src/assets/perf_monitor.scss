@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.perf-stats {
+.pf-perf-stats {
   --stroke-color: hsl(217, 39%, 94%);
   position: fixed;
   bottom: 0;
@@ -23,6 +23,7 @@
   padding: 10px 24px;
   z-index: 100;
   background-color: rgba(27, 28, 29, 0.9);
+
   button {
     text-decoration: underline;
     color: hsl(45, 100%, 48%);
@@ -30,7 +31,8 @@
       color: hsl(6, 70%, 53%);
     }
   }
-  .close-button {
+
+  &__close {
     position: absolute;
     right: 20px;
     top: 10px;
@@ -38,6 +40,7 @@
     height: 20px;
     color: var(--stroke-color);
   }
+
   & > section {
     padding: 5px;
     border-bottom: 1px solid var(--stroke-color);

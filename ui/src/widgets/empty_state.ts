@@ -14,6 +14,8 @@
 
 import m from 'mithril';
 import {classNames} from '../base/classnames';
+import {Icon} from './icon';
+import {Icons} from '../base/semantic_icons';
 
 export interface EmptyStateAttrs {
   // Which material icon to show.
@@ -37,7 +39,7 @@ export interface EmptyStateAttrs {
 export class EmptyState implements m.ClassComponent<EmptyStateAttrs> {
   view({attrs, children}: m.Vnode<EmptyStateAttrs, this>): void | m.Children {
     const {
-      icon = 'search', // Icon defaults to the search symbol
+      icon = Icons.Search, // Icon defaults to the search symbol
       title,
       className,
       fillHeight,
@@ -50,7 +52,7 @@ export class EmptyState implements m.ClassComponent<EmptyStateAttrs> {
           fillHeight && 'pf-empty-state--fill-height',
         ),
       },
-      m('i.material-icons', icon),
+      m(Icon, {className: 'pf-empty-state__main-icon', icon}),
       title && m('.pf-empty-state__title', title),
       m('.pf-empty-state__content', children),
     );

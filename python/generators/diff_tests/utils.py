@@ -115,11 +115,12 @@ def serialize_textproto_trace(trace_descriptor_path: str,
 
 
 def serialize_python_trace(root_dir: str, trace_descriptor_path: str,
+                           extension_descriptor_paths: List[str],
                            python_trace_path: str, out_stream: IO[bytes]):
   from python.generators.diff_tests.trace_generator import TraceGenerator
   TraceGenerator(trace_descriptor_path,
-                 []).serialize_python_trace(root_dir, python_trace_path,
-                                            out_stream)
+                 extension_descriptor_paths).serialize_python_trace(
+                     root_dir, python_trace_path, out_stream)
 
 
 def get_trace_descriptor_path(out_path: str, trace_descriptor: str):

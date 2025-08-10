@@ -250,7 +250,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
           this.selectedView === SelectedView.kSql &&
             (isAQuery(this.currentQuery)
               ? m(
-                  '.code-snippet',
+                  '.pf-code-snippet',
                   m(Button, {
                     title: 'Copy to clipboard',
                     onclick: () => copyToClipboard(sql),
@@ -262,7 +262,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
           this.selectedView === SelectedView.kProto &&
             (isAQuery(this.currentQuery)
               ? m(
-                  '.code-snippet',
+                  '.pf-code-snippet',
                   m(Button, {
                     title: 'Copy to clipboard',
                     onclick: () => copyToClipboard(textproto),
