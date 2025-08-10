@@ -38,6 +38,7 @@ function makePlugin(
 }
 
 // Parse the passed-in plugin parameters, which are split by commas
+// Example: pluginParams=(plugin-1:parameters-1, plugin-2:paramters-2)
 export function parseAndSplitParams(pluginParams: string): Array<string> {
   const result = [];
   let current = '';
@@ -61,6 +62,22 @@ export function parseAndSplitParams(pluginParams: string): Array<string> {
     result.push(current.trim());
   }
   return result;
+}
+
+// Parse the plugin parameters values, which are split by -- and wrapped by ()
+// Examples: paramer-1=(value1--value2)
+export function getParamValues(
+  pluginParams: ReadonlyArray<string>,
+  paramName: string,
+): string[] {
+  const regex = new RegExp(`^${paramName}=\\(([^)]*)\\)$`);
+  for (const item of pluginParams) {
+    const match = item.match(regex);
+    if (match) {
+      return match[1].split('--').map((v) => v.trim());
+    }
+  }
+  return [];
 }
 
 // This interface injects AppImpl's methods into PluginManager to avoid
