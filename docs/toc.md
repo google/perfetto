@@ -128,6 +128,7 @@
 
     - [Linux](#)
 
+      - [Kernel track events](reference/kernel-track-event.md)
       - [Tracing across reboots](data-sources/previous-boot-trace.md)
 
     - [Command Line Reference](#)
