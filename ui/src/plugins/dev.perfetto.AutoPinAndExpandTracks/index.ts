@@ -19,6 +19,7 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Track} from '../../public/track';
 import {z} from 'zod';
 import {assertIsInstance} from '../../base/logging';
+import {getParamValues} from '../../core/plugin_manager';
 
 const PLUGIN_ID = 'dev.perfetto.AutoPinAndExpandTracks';
 const SAVED_TRACKS_KEY = `${PLUGIN_ID}#savedPerfettoTracks`;
@@ -27,20 +28,6 @@ const RESTORE_COMMAND_ID = `${PLUGIN_ID}#restore`;
 
 const URL_PARAM_EXPAND_TRACKS = 'expand_tracks_with_name_on_startup';
 const URL_PARAM_PINNED_TRACKS = 'pin_tracks_with_name_on_startup';
-
-function getParamValues(
-  pluginParams: ReadonlyArray<string>,
-  paramName: string,
-): string[] {
-  const regex = new RegExp(`^${paramName}=\\(([^)]*)\\)$`);
-  for (const item of pluginParams) {
-    const match = item.match(regex);
-    if (match) {
-      return match[1].split('--').map((v) => v.trim());
-    }
-  }
-  return [];
-}
 
 /**
  * Fuzzy save and restore of pinned tracks.
