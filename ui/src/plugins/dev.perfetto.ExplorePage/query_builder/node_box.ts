@@ -19,6 +19,7 @@ import {Icons} from '../../../base/semantic_icons';
 import {Button} from '../../../widgets/button';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {QueryNode} from '../query_node';
+import {Icon} from '../../../widgets/icon';
 
 export const PADDING = 20;
 export const NODE_HEIGHT = 50;
@@ -48,9 +49,13 @@ function renderWarningIcon(node: QueryNode): m.Child {
     node.state.queryError || node.state.responseError || node.state.dataError;
   if (!error) return null;
 
-  const iconClasses = classNames('material-icons', 'pf-node-box__warning-icon');
+  const iconClasses = classNames('pf-node-box__warning-icon');
 
-  return m('i', {class: iconClasses, title: error.message}, 'warning');
+  return m(Icon, {
+    className: iconClasses,
+    icon: 'warning',
+    title: error.message,
+  });
 }
 
 function renderContextMenu(attrs: NodeBoxAttrs): m.Child {

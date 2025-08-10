@@ -18,6 +18,7 @@ from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
 
+# TODO(fouly): add ETM to include_index when conditional difftests are added
 class Etm(TestSuite):
 
   def test_sessions(self):

@@ -22,6 +22,7 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -74,6 +75,7 @@ class ProfileModule : public ProtoImporterModule {
   void ParseSmapsPacket(int64_t ts, protozero::ConstBytes);
 
   TraceProcessorContext* context_;
+  PerfSampleTracker perf_sample_tracker_;
 };
 
 }  // namespace perfetto::trace_processor

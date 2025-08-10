@@ -9144,7 +9144,7 @@ class GpuMemTotalFtraceEvent(_message.Message):
     def __init__(self, gpu_id: _Optional[int] = ..., pid: _Optional[int] = ..., size: _Optional[int] = ...) -> None: ...
 
 class GpuRenderStageEvent(_message.Message):
-    __slots__ = ["command_buffer_handle", "context", "duration", "event_id", "extra_data", "gpu_id", "hw_queue_id", "hw_queue_iid", "render_pass_handle", "render_subpass_index_mask", "render_target_handle", "specifications", "stage_id", "stage_iid", "submission_id"]
+    __slots__ = ["command_buffer_handle", "context", "duration", "event_id", "extra_data", "gpu_id", "hw_queue_id", "hw_queue_iid", "render_pass_handle", "render_pass_instance_id", "render_subpass_index_mask", "render_target_handle", "specifications", "stage_id", "stage_iid", "submission_id"]
     class ExtraData(_message.Message):
         __slots__ = ["name", "value"]
         NAME_FIELD_NUMBER: _ClassVar[int]
@@ -9185,6 +9185,7 @@ class GpuRenderStageEvent(_message.Message):
     HW_QUEUE_ID_FIELD_NUMBER: _ClassVar[int]
     HW_QUEUE_IID_FIELD_NUMBER: _ClassVar[int]
     RENDER_PASS_HANDLE_FIELD_NUMBER: _ClassVar[int]
+    RENDER_PASS_INSTANCE_ID_FIELD_NUMBER: _ClassVar[int]
     RENDER_SUBPASS_INDEX_MASK_FIELD_NUMBER: _ClassVar[int]
     RENDER_TARGET_HANDLE_FIELD_NUMBER: _ClassVar[int]
     SPECIFICATIONS_FIELD_NUMBER: _ClassVar[int]
@@ -9200,13 +9201,14 @@ class GpuRenderStageEvent(_message.Message):
     hw_queue_id: int
     hw_queue_iid: int
     render_pass_handle: int
+    render_pass_instance_id: int
     render_subpass_index_mask: _containers.RepeatedScalarFieldContainer[int]
     render_target_handle: int
     specifications: GpuRenderStageEvent.Specifications
     stage_id: int
     stage_iid: int
     submission_id: int
-    def __init__(self, event_id: _Optional[int] = ..., duration: _Optional[int] = ..., hw_queue_iid: _Optional[int] = ..., stage_iid: _Optional[int] = ..., gpu_id: _Optional[int] = ..., context: _Optional[int] = ..., render_target_handle: _Optional[int] = ..., submission_id: _Optional[int] = ..., extra_data: _Optional[_Iterable[_Union[GpuRenderStageEvent.ExtraData, _Mapping]]] = ..., render_pass_handle: _Optional[int] = ..., render_subpass_index_mask: _Optional[_Iterable[int]] = ..., command_buffer_handle: _Optional[int] = ..., specifications: _Optional[_Union[GpuRenderStageEvent.Specifications, _Mapping]] = ..., hw_queue_id: _Optional[int] = ..., stage_id: _Optional[int] = ...) -> None: ...
+    def __init__(self, event_id: _Optional[int] = ..., duration: _Optional[int] = ..., hw_queue_iid: _Optional[int] = ..., stage_iid: _Optional[int] = ..., gpu_id: _Optional[int] = ..., context: _Optional[int] = ..., render_target_handle: _Optional[int] = ..., submission_id: _Optional[int] = ..., extra_data: _Optional[_Iterable[_Union[GpuRenderStageEvent.ExtraData, _Mapping]]] = ..., render_pass_handle: _Optional[int] = ..., render_pass_instance_id: _Optional[int] = ..., render_subpass_index_mask: _Optional[_Iterable[int]] = ..., command_buffer_handle: _Optional[int] = ..., specifications: _Optional[_Union[GpuRenderStageEvent.Specifications, _Mapping]] = ..., hw_queue_id: _Optional[int] = ..., stage_id: _Optional[int] = ...) -> None: ...
 
 class GpuRenderStagesConfig(_message.Message):
     __slots__ = ["full_loadstore", "low_overhead", "trace_metrics"]
@@ -14961,7 +14963,7 @@ class Trace(_message.Message):
     def __init__(self, packet: _Optional[_Iterable[_Union[TracePacket, _Mapping]]] = ...) -> None: ...
 
 class TraceConfig(_message.Message):
-    __slots__ = ["activate_triggers", "allow_user_build_tracing", "android_report_config", "buffers", "bugreport_filename", "bugreport_score", "builtin_data_sources", "cmd_trace_start_delay", "compression_type", "data_source_stop_timeout_ms", "data_sources", "deferred_start", "duration_ms", "enable_extra_guardrails", "file_write_period_ms", "flush_period_ms", "flush_timeout_ms", "guardrail_overrides", "incident_report_config", "incremental_state_config", "lockdown_mode", "max_file_size_bytes", "notify_traceur", "output_path", "prefer_suspend_clock_for_duration", "priority_boost", "producers", "session_semaphores", "statsd_logging", "statsd_metadata", "trace_filter", "trace_uuid_lsb", "trace_uuid_msb", "trigger_config", "unique_session_name", "write_into_file"]
+    __slots__ = ["activate_triggers", "allow_user_build_tracing", "android_report_config", "buffers", "bugreport_filename", "bugreport_score", "builtin_data_sources", "cmd_trace_start_delay", "compression_type", "data_source_stop_timeout_ms", "data_sources", "deferred_start", "duration_ms", "enable_extra_guardrails", "exclusive_prio", "file_write_period_ms", "flush_period_ms", "flush_timeout_ms", "guardrail_overrides", "incident_report_config", "incremental_state_config", "lockdown_mode", "max_file_size_bytes", "notify_traceur", "output_path", "prefer_suspend_clock_for_duration", "priority_boost", "producers", "session_semaphores", "statsd_logging", "statsd_metadata", "trace_filter", "trace_uuid_lsb", "trace_uuid_msb", "trigger_config", "unique_session_name", "write_into_file"]
     class CompressionType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     class LockdownModeOperation(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -15161,6 +15163,7 @@ class TraceConfig(_message.Message):
     DEFERRED_START_FIELD_NUMBER: _ClassVar[int]
     DURATION_MS_FIELD_NUMBER: _ClassVar[int]
     ENABLE_EXTRA_GUARDRAILS_FIELD_NUMBER: _ClassVar[int]
+    EXCLUSIVE_PRIO_FIELD_NUMBER: _ClassVar[int]
     FILE_WRITE_PERIOD_MS_FIELD_NUMBER: _ClassVar[int]
     FLUSH_PERIOD_MS_FIELD_NUMBER: _ClassVar[int]
     FLUSH_TIMEOUT_MS_FIELD_NUMBER: _ClassVar[int]
@@ -15203,6 +15206,7 @@ class TraceConfig(_message.Message):
     deferred_start: bool
     duration_ms: int
     enable_extra_guardrails: bool
+    exclusive_prio: int
     file_write_period_ms: int
     flush_period_ms: int
     flush_timeout_ms: int
@@ -15225,7 +15229,7 @@ class TraceConfig(_message.Message):
     trigger_config: TraceConfig.TriggerConfig
     unique_session_name: str
     write_into_file: bool
-    def __init__(self, buffers: _Optional[_Iterable[_Union[TraceConfig.BufferConfig, _Mapping]]] = ..., data_sources: _Optional[_Iterable[_Union[TraceConfig.DataSource, _Mapping]]] = ..., builtin_data_sources: _Optional[_Union[TraceConfig.BuiltinDataSource, _Mapping]] = ..., duration_ms: _Optional[int] = ..., prefer_suspend_clock_for_duration: bool = ..., enable_extra_guardrails: bool = ..., lockdown_mode: _Optional[_Union[TraceConfig.LockdownModeOperation, str]] = ..., producers: _Optional[_Iterable[_Union[TraceConfig.ProducerConfig, _Mapping]]] = ..., statsd_metadata: _Optional[_Union[TraceConfig.StatsdMetadata, _Mapping]] = ..., write_into_file: bool = ..., output_path: _Optional[str] = ..., file_write_period_ms: _Optional[int] = ..., max_file_size_bytes: _Optional[int] = ..., guardrail_overrides: _Optional[_Union[TraceConfig.GuardrailOverrides, _Mapping]] = ..., deferred_start: bool = ..., flush_period_ms: _Optional[int] = ..., flush_timeout_ms: _Optional[int] = ..., data_source_stop_timeout_ms: _Optional[int] = ..., notify_traceur: bool = ..., bugreport_score: _Optional[int] = ..., bugreport_filename: _Optional[str] = ..., trigger_config: _Optional[_Union[TraceConfig.TriggerConfig, _Mapping]] = ..., activate_triggers: _Optional[_Iterable[str]] = ..., incremental_state_config: _Optional[_Union[TraceConfig.IncrementalStateConfig, _Mapping]] = ..., allow_user_build_tracing: bool = ..., unique_session_name: _Optional[str] = ..., compression_type: _Optional[_Union[TraceConfig.CompressionType, str]] = ..., incident_report_config: _Optional[_Union[TraceConfig.IncidentReportConfig, _Mapping]] = ..., statsd_logging: _Optional[_Union[TraceConfig.StatsdLogging, str]] = ..., trace_uuid_msb: _Optional[int] = ..., trace_uuid_lsb: _Optional[int] = ..., trace_filter: _Optional[_Union[TraceConfig.TraceFilter, _Mapping]] = ..., android_report_config: _Optional[_Union[TraceConfig.AndroidReportConfig, _Mapping]] = ..., cmd_trace_start_delay: _Optional[_Union[TraceConfig.CmdTraceStartDelay, _Mapping]] = ..., session_semaphores: _Optional[_Iterable[_Union[TraceConfig.SessionSemaphore, _Mapping]]] = ..., priority_boost: _Optional[_Union[PriorityBoostConfig, _Mapping]] = ...) -> None: ...
+    def __init__(self, buffers: _Optional[_Iterable[_Union[TraceConfig.BufferConfig, _Mapping]]] = ..., data_sources: _Optional[_Iterable[_Union[TraceConfig.DataSource, _Mapping]]] = ..., builtin_data_sources: _Optional[_Union[TraceConfig.BuiltinDataSource, _Mapping]] = ..., duration_ms: _Optional[int] = ..., prefer_suspend_clock_for_duration: bool = ..., enable_extra_guardrails: bool = ..., lockdown_mode: _Optional[_Union[TraceConfig.LockdownModeOperation, str]] = ..., producers: _Optional[_Iterable[_Union[TraceConfig.ProducerConfig, _Mapping]]] = ..., statsd_metadata: _Optional[_Union[TraceConfig.StatsdMetadata, _Mapping]] = ..., write_into_file: bool = ..., output_path: _Optional[str] = ..., file_write_period_ms: _Optional[int] = ..., max_file_size_bytes: _Optional[int] = ..., guardrail_overrides: _Optional[_Union[TraceConfig.GuardrailOverrides, _Mapping]] = ..., deferred_start: bool = ..., flush_period_ms: _Optional[int] = ..., flush_timeout_ms: _Optional[int] = ..., data_source_stop_timeout_ms: _Optional[int] = ..., notify_traceur: bool = ..., bugreport_score: _Optional[int] = ..., bugreport_filename: _Optional[str] = ..., trigger_config: _Optional[_Union[TraceConfig.TriggerConfig, _Mapping]] = ..., activate_triggers: _Optional[_Iterable[str]] = ..., incremental_state_config: _Optional[_Union[TraceConfig.IncrementalStateConfig, _Mapping]] = ..., allow_user_build_tracing: bool = ..., unique_session_name: _Optional[str] = ..., compression_type: _Optional[_Union[TraceConfig.CompressionType, str]] = ..., incident_report_config: _Optional[_Union[TraceConfig.IncidentReportConfig, _Mapping]] = ..., statsd_logging: _Optional[_Union[TraceConfig.StatsdLogging, str]] = ..., trace_uuid_msb: _Optional[int] = ..., trace_uuid_lsb: _Optional[int] = ..., trace_filter: _Optional[_Union[TraceConfig.TraceFilter, _Mapping]] = ..., android_report_config: _Optional[_Union[TraceConfig.AndroidReportConfig, _Mapping]] = ..., cmd_trace_start_delay: _Optional[_Union[TraceConfig.CmdTraceStartDelay, _Mapping]] = ..., session_semaphores: _Optional[_Iterable[_Union[TraceConfig.SessionSemaphore, _Mapping]]] = ..., priority_boost: _Optional[_Union[PriorityBoostConfig, _Mapping]] = ..., exclusive_prio: _Optional[int] = ...) -> None: ...
 
 class TracePacket(_message.Message):
     __slots__ = ["android_camera_frame_event", "android_camera_session_stats", "android_energy_estimation_breakdown", "android_game_intervention_list", "android_log", "android_system_property", "app_wakelock_bundle", "battery", "bluetooth_trace_event", "chrome_benchmark_metadata", "chrome_events", "chrome_metadata", "chrome_trigger", "clock_snapshot", "clone_snapshot_trigger", "compressed_packets", "cpu_info", "cpu_per_uid_data", "deobfuscation_mapping", "entity_state_residency", "etw_events", "evdev_event", "extension_descriptor", "first_packet_on_sequence", "for_testing", "frame_timeline_event", "ftrace_events", "ftrace_stats", "generic_kernel_cpu_freq_event", "generic_kernel_task_rename_event", "generic_kernel_task_state_event", "gpu_counter_event", "gpu_log", "gpu_mem_total_event", "gpu_render_stage_event", "graphics_frame_event", "heap_graph", "incremental_state_cleared", "initial_display_state", "inode_file_map", "interned_data", "kernel_wakelock_data", "machine_id", "memory_tracker_snapshot", "module_symbols", "network_packet", "network_packet_bundle", "packages_list", "perf_sample", "perfetto_metatrace", "pixel_modem_events", "pixel_modem_token_database", "power_rails", "previous_packet_dropped", "process_descriptor", "process_stats", "process_tree", "profile_packet", "protolog_message", "protolog_viewer_config", "remote_clock_sync", "sequence_flags", "service_event", "shell_handler_mappings", "shell_transition", "smaps_packet", "statsd_atom", "streaming_allocation", "streaming_free", "streaming_profile_packet", "surfaceflinger_layers_snapshot", "surfaceflinger_transactions", "synchronization_marker", "sys_stats", "system_info", "thread_descriptor", "timestamp", "timestamp_clock_id", "trace_config", "trace_packet_defaults", "trace_stats", "trace_uuid", "track_descriptor", "track_event", "track_event_range_of_interest", "translation_table", "trigger", "trusted_packet_sequence_id", "trusted_pid", "trusted_uid", "ui_state", "v8_code_move", "v8_internal_code", "v8_js_code", "v8_reg_exp_code", "v8_wasm_code", "vulkan_api_event", "vulkan_memory_event", "winscope_extensions"]
