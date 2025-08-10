@@ -11,8 +11,8 @@ tied to static tracepoints, a dynamic probe (e.g. kprobe) that creates a
 `tracefs` entry with the relevant fields will also work.
 
 This page is structured as a reference, an introduction with **examples and
-screenshots** of resulting UI is at [Intrumenting the Linux kernel with
-ftrace][ftrace-intro-link].
+screenshots** of resulting UI is at ["Intrumenting the Linux kernel with
+ftrace"][ftrace-intro-link].
 
 [ftrace-intro-link]: /docs/getting-started/ftrace#part-c-simple-slice-counter-visualisations-without-modifying-perfetto-code-kernel-track-events-
 

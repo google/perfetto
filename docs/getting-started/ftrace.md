@@ -476,6 +476,10 @@ cases, and their expected visualisation:
   at the process level.
 * cpu-scoped counter tracks for events that represent per-cpu counters.
 
+NOTE: The full reference with details on scoping and track naming options is at
+["Kernel track events: format and conventions"][trackevent-reference-link].
+
+[trackevent-reference-link]: /docs/reference/kernel-track-event
 
 ### Thread-scoped slice tracks
 
