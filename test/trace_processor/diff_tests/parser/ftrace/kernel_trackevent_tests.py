@@ -15,6 +15,131 @@ from python.generators.diff_tests.testing import Csv, DataPath
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
+# Tracepoints used for test trace:
+#
+# TRACE_EVENT(tid_track_example,
+#
+#     TP_PROTO(
+#         char track_event_type,
+#         const char *slice_name
+#     ),
+#
+#     TP_ARGS(track_event_type, slice_name),
+#     TP_STRUCT__entry(
+#         __field(char, track_event_type)
+#         __string(slice_name, slice_name)
+#     ),
+#     TP_fast_assign(
+#         __entry->track_event_type = track_event_type;
+#         __assign_str(slice_name);
+#     ),
+#     TP_printk(
+#         "type=%c slice_name=%s",
+#         __entry->track_event_type,
+#         __get_str(slice_name)
+#     )
+# );
+#
+# TRACE_EVENT(tgid_track_example,
+#
+#     TP_PROTO(
+#         char track_event_type,
+#         const char *slice_name,
+#         int scope_tgid
+#     ),
+#
+#     TP_ARGS(track_event_type, slice_name, scope_tgid),
+#     TP_STRUCT__entry(
+#         __field(char, track_event_type)
+#         __string(slice_name, slice_name)
+#         __field(int, scope_tgid)
+#     ),
+#     TP_fast_assign(
+#         __entry->track_event_type = track_event_type;
+#         __assign_str(slice_name);
+#         __entry->scope_tgid = scope_tgid;
+#     ),
+#     TP_printk(
+#         "type=%c slice_name=%s tgid=%d",
+#         __entry->track_event_type,
+#         __get_str(slice_name),
+#         __entry->scope_tgid
+#     )
+# );
+#
+#
+# TRACE_EVENT(tgid_counter_example,
+#
+#     TP_PROTO(
+#         u64 counter_value,
+#         int scope_tgid
+#     ),
+#
+#     TP_ARGS(counter_value, scope_tgid),
+#     TP_STRUCT__entry(
+#         __field(u64, counter_value)
+#         __field(int, scope_tgid)
+#     ),
+#     TP_fast_assign(
+#         __entry->counter_value = counter_value;
+#         __entry->scope_tgid = scope_tgid;
+#     ),
+#     TP_printk(
+#         "counter_value=%llu tgid=%d",
+#         (unsigned long long)__entry->counter_value,
+#         __entry->scope_tgid
+#     )
+# );
+#
+# TRACE_EVENT(cpu_counter_example,
+#
+#     TP_PROTO(
+#         u64 counter_value,
+#         int scope_cpu
+#     ),
+#
+#     TP_ARGS(counter_value, scope_cpu),
+#     TP_STRUCT__entry(
+#         __field(u64, counter_value)
+#         __field(int, scope_cpu)
+#     ),
+#     TP_fast_assign(
+#         __entry->counter_value = counter_value;
+#         __entry->scope_cpu = scope_cpu;
+#     ),
+#     TP_printk(
+#         "counter_value=%llu cpu=%d",
+#         (unsigned long long)__entry->counter_value,
+#         __entry->scope_cpu
+#     )
+# );
+#
+# TRACE_EVENT(global_counter_example,
+#
+#     TP_PROTO(
+#         u64 counter_value,
+#         int scope_custom,
+#         const char *track_name
+#     ),
+#
+#     TP_ARGS(counter_value, scope_custom, track_name),
+#     TP_STRUCT__entry(
+#         __field(u64, counter_value)
+#         __field(int, scope_custom)
+#         __string(track_name, track_name)
+#     ),
+#     TP_fast_assign(
+#         __entry->counter_value = counter_value;
+#         __entry->scope_custom = scope_custom;
+#         __assign_str(track_name);
+#     ),
+#     TP_printk(
+#         "track_name=%s counter_value=%llu scope=%d",
+#         __get_str(track_name),
+#         (unsigned long long)__entry->counter_value,
+#         __entry->scope_custom
+#     )
+# );
 
 class KernelTrackevent(TestSuite):
 
