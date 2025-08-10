@@ -17,8 +17,9 @@ import {assetSrc} from '../../../base/assets';
 import {ConfigManager} from '../config/config_manager';
 import {RecordProbe} from '../config/config_interfaces';
 import {exists} from '../../../base/utils';
-import {DocsChip} from './widgets/docs_chip';
 import {classNames} from '../../../base/classnames';
+import {Anchor} from '../../../widgets/anchor';
+import {Icons} from '../../../base/semantic_icons';
 
 export interface ProbeAttrs {
   cfgMgr: ConfigManager;
@@ -72,7 +73,12 @@ export class Probe implements m.ClassComponent<ProbeAttrs> {
             m(
               'div',
               formatDescription(probe.description),
-              probe.docsLink && m(DocsChip, {href: probe.docsLink}),
+              probe.docsLink &&
+                m(
+                  Anchor,
+                  {icon: Icons.ExternalLink, href: probe.docsLink},
+                  'Docs',
+                ),
             ),
             m(
               '.probe-config',

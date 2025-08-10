@@ -126,7 +126,8 @@ AndroidProbesModule::AndroidProbesModule(
     ProtoImporterModuleContext* module_context,
     TraceProcessorContext* context)
     : ProtoImporterModule(module_context),
-      parser_(context),
+      tracker_(std::make_unique<AndroidProbesTracker>(context->storage.get())),
+      parser_(context, tracker_.get()),
       context_(context),
       power_rail_raw_name_id_(context->storage->InternString("raw_name")),
       power_rail_subsys_name_arg_id_(
@@ -221,8 +222,7 @@ ModuleResult AndroidProbesModule::TokenizePacket(
           kPowerBlueprint, tracks::Dimensions(desc.rail_name()),
           tracks::DynamicName(id), args_fn);
     }
-    AndroidProbesTracker::GetOrCreate(context_)->SetPowerRailTrack(desc.index(),
-                                                                   track);
+    tracker_->SetPowerRailTrack(desc.index(), track);
   }
 
   // For each energy data message, turn it into its own trace packet
@@ -315,7 +315,7 @@ ModuleResult AndroidProbesModule::ParseEnergyDescriptor(
       continue;
     }
 
-    AndroidProbesTracker::GetOrCreate(context_)->SetEnergyBreakdownDescriptor(
+    tracker_->SetEnergyBreakdownDescriptor(
         consumer.energy_consumer_id(),
         context_->storage->InternString(consumer.name()),
         context_->storage->InternString(consumer.type()), consumer.ordinal());
@@ -331,18 +331,17 @@ ModuleResult AndroidProbesModule::ParseAndroidPackagesList(
   context_->storage->SetStats(stats::packages_list_has_parse_errors,
                               pkg_list.parse_error());
 
-  AndroidProbesTracker* tracker = AndroidProbesTracker::GetOrCreate(context_);
   for (auto it = pkg_list.packages(); it; ++it) {
     protos::pbzero::PackagesList_PackageInfo::Decoder pkg(*it);
     std::string pkg_name = pkg.name().ToStdString();
-    if (!tracker->ShouldInsertPackage(pkg_name)) {
+    if (!tracker_->ShouldInsertPackage(pkg_name)) {
       continue;
     }
     context_->storage->mutable_package_list_table()->Insert(
         {context_->storage->InternString(pkg.name()),
          static_cast<int64_t>(pkg.uid()), pkg.debuggable(),
          pkg.profileable_from_shell(), pkg.version_code()});
-    tracker->InsertedPackage(std::move(pkg_name));
+    tracker_->InsertedPackage(std::move(pkg_name));
   }
   return ModuleResult::Handled();
 }
@@ -361,7 +360,7 @@ void AndroidProbesModule::ParseEntityStateDescriptor(
       context_->storage->IncrementStats(stats::energy_descriptor_invalid);
       continue;
     }
-    AndroidProbesTracker::GetOrCreate(context_)->SetEntityStateDescriptor(
+    tracker_->SetEntityStateDescriptor(
         entity_state.entity_index(), entity_state.state_index(),
         context_->storage->InternString(entity_state.entity_name()),
         context_->storage->InternString(entity_state.state_name()));

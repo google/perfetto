@@ -12,17 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-note-editor {
-  input[type="text"] {
-    flex-grow: 1;
-    border-radius: 4px;
-    border: 1px solid #dcdcdc;
-    padding: 3px;
-    margin: 0 10px;
-
-    &:focus {
-      outline: none;
-      box-shadow: 1px 1px 1px rgba(23, 32, 44, 0.3);
+.pf-help-modal {
+  table {
+    margin-bottom: 15px;
+    td {
+      min-width: 250px;
     }
+    td:first-child {
+      font-family: var(--monospace-font);
+    }
+  }
+  h2 {
+    font: inherit;
+    font-weight: bold;
   }
 }

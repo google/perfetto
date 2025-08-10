@@ -44,7 +44,9 @@ SELECT
   l3_hit_count,
   l3_miss_count,
   no_static,
-  all_cpu_deep_idle
+  all_cpu_deep_idle,
+  freq_1d_static,
+  freq_2d_static
 FROM _w_independent_cpus_calc AS base, _use_devfreq_for_calc;
 
 -- Get nominal devfreq_dsu counter, OR use a dummy one for Pixel 9 VM traces
@@ -104,6 +106,8 @@ SELECT
   c.l3_miss_count,
   c.no_static,
   c.all_cpu_deep_idle,
+  c.freq_1d_static,
+  c.freq_2d_static,
   d.dsu_freq AS dependency
 FROM _interval_intersect!(
   (

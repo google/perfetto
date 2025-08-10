@@ -1727,12 +1727,12 @@ perfetto_filegroup(
         "src/trace_processor/importers/android_bugreport/android_battery_stats_reader.h",
         "src/trace_processor/importers/android_bugreport/android_bugreport_reader.cc",
         "src/trace_processor/importers/android_bugreport/android_bugreport_reader.h",
-        "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser_impl.cc",
-        "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser_impl.h",
+        "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser.cc",
+        "src/trace_processor/importers/android_bugreport/android_dumpstate_event_parser.h",
         "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.cc",
         "src/trace_processor/importers/android_bugreport/android_dumpstate_reader.h",
-        "src/trace_processor/importers/android_bugreport/android_log_event_parser_impl.cc",
-        "src/trace_processor/importers/android_bugreport/android_log_event_parser_impl.h",
+        "src/trace_processor/importers/android_bugreport/android_log_event_parser.cc",
+        "src/trace_processor/importers/android_bugreport/android_log_event_parser.h",
         "src/trace_processor/importers/android_bugreport/android_log_reader.cc",
         "src/trace_processor/importers/android_bugreport/android_log_reader.h",
         "src/trace_processor/importers/android_bugreport/chunked_line_reader.cc",
@@ -1791,8 +1791,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_importers_art_method_art_method",
     srcs = [
-        "src/trace_processor/importers/art_method/art_method_parser_impl.cc",
-        "src/trace_processor/importers/art_method/art_method_parser_impl.h",
+        "src/trace_processor/importers/art_method/art_method_parser.cc",
+        "src/trace_processor/importers/art_method/art_method_parser.h",
         "src/trace_processor/importers/art_method/art_method_tokenizer.cc",
         "src/trace_processor/importers/art_method/art_method_tokenizer.h",
     ],
@@ -2002,8 +2002,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_importers_gecko_gecko",
     srcs = [
-        "src/trace_processor/importers/gecko/gecko_trace_parser_impl.cc",
-        "src/trace_processor/importers/gecko/gecko_trace_parser_impl.h",
+        "src/trace_processor/importers/gecko/gecko_trace_parser.cc",
+        "src/trace_processor/importers/gecko/gecko_trace_parser.h",
         "src/trace_processor/importers/gecko/gecko_trace_tokenizer.cc",
         "src/trace_processor/importers/gecko/gecko_trace_tokenizer.h",
     ],
@@ -2142,8 +2142,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_importers_perf_text_perf_text",
     srcs = [
-        "src/trace_processor/importers/perf_text/perf_text_trace_parser_impl.cc",
-        "src/trace_processor/importers/perf_text/perf_text_trace_parser_impl.h",
+        "src/trace_processor/importers/perf_text/perf_text_trace_parser.cc",
+        "src/trace_processor/importers/perf_text/perf_text_trace_parser.h",
         "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.cc",
         "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.h",
     ],
@@ -3013,6 +3013,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_memory_heap_graph_heap_graph",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/class_relationship.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/class_summary_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/class_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/dominator_class_tree.sql",
@@ -3217,7 +3218,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_linux_perf_perf",
     srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/linux/perf/etm.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/perf/samples.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/perf/spe.sql",
     ],

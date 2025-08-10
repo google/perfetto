@@ -287,6 +287,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   perfetto_protos_PriorityBoostConfig,
                   priority_boost,
                   40);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
+                  VARINT,
+                  uint32_t,
+                  exclusive_prio,
+                  41);
 
 PERFETTO_PB_MSG(perfetto_protos_TraceConfig_SessionSemaphore);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig_SessionSemaphore,

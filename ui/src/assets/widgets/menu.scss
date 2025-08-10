@@ -48,11 +48,6 @@
       grid-area: label;
     }
 
-    & > .material-icons {
-      font-size: inherit;
-      line-height: inherit;
-    }
-
     &__left-icon {
       grid-area: left-icon;
       margin-right: 6px; // Make some room between the icon and label

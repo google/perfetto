@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/perf_text/perf_text_trace_parser_impl.h"
+#include "src/trace_processor/importers/perf_text/perf_text_trace_parser.h"
 
 #include <cstdint>
 
@@ -27,12 +27,12 @@
 
 namespace perfetto::trace_processor::perf_text_importer {
 
-PerfTextTraceParserImpl::PerfTextTraceParserImpl(TraceProcessorContext* context)
+PerfTextTraceParser::PerfTextTraceParser(TraceProcessorContext* context)
     : context_(context) {}
 
-PerfTextTraceParserImpl::~PerfTextTraceParserImpl() = default;
+PerfTextTraceParser::~PerfTextTraceParser() = default;
 
-void PerfTextTraceParserImpl::Parse(int64_t ts, PerfTextEvent evt) {
+void PerfTextTraceParser::Parse(int64_t ts, PerfTextEvent evt) {
   auto* ss = context_->storage->mutable_cpu_profile_stack_sample_table();
   tables::CpuProfileStackSampleTable::Row row;
   row.ts = ts;

@@ -227,7 +227,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
               }),
             m(TextInput, {
               placeholder: node.getTitle(),
-              oninput: (e: KeyboardEvent) => {
+              oninput: (e: InputEvent) => {
                 if (!e.target) return;
                 node.state.customTitle = (
                   e.target as HTMLInputElement
@@ -250,7 +250,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
           this.selectedView === SelectedView.kSql &&
             (isAQuery(this.currentQuery)
               ? m(
-                  '.code-snippet',
+                  '.pf-code-snippet',
                   m(Button, {
                     title: 'Copy to clipboard',
                     onclick: () => copyToClipboard(sql),
@@ -262,7 +262,7 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
           this.selectedView === SelectedView.kProto &&
             (isAQuery(this.currentQuery)
               ? m(
-                  '.code-snippet',
+                  '.pf-code-snippet',
                   m(Button, {
                     title: 'Copy to clipboard',
                     onclick: () => copyToClipboard(textproto),
