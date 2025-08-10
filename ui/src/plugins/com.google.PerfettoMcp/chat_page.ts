@@ -17,7 +17,8 @@ import {Chat, GenerateContentResponse} from '@google/genai';
 import {Trace} from '../../public/trace';
 import {TextInput} from '../../widgets/text_input';
 import markdownit from 'markdown-it';
-import {Button} from '../../widgets/button';
+import {Button, ButtonVariant} from '../../widgets/button';
+import {Intent} from '../../widgets/common';
 
 // Interface for a single message in the chat display
 interface ChatMessage {
@@ -33,7 +34,6 @@ export interface ChatPageAttrs {
 }
 
 export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
-  // State variables for the component
   private messages: ChatMessage[];
   private userInput: string;
   private isLoading: boolean;
@@ -46,7 +46,6 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
     this.chat = attrs.chat;
     this.showThoughts = attrs.showThoughts;
     this.md = markdownit();
-    // Initialize state
     this.userInput = '';
     this.isLoading = false;
     this.messages = [
@@ -81,7 +80,7 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
       this.updateAiResponse(response.text);
     }
 
-    m.redraw(); // Manually trigger a redraw to show the next part
+    m.redraw();
   }
 
   updateAiResponse(text: string) {
@@ -94,18 +93,16 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
     }
   }
 
-  // Use async/await for cleaner asynchronous logic
   sendMessage = async () => {
     const trimmedInput = this.userInput.trim();
 
     // Prevent sending empty messages or sending while a request is in flight
     if (trimmedInput === '' || this.isLoading) return;
 
-    // --- State Update 1: Show user's message immediately ---
     this.messages.push({role: 'user', text: trimmedInput});
     this.isLoading = true;
-    this.userInput = ''; // Clear the input field
-    m.redraw(); // Manually trigger a redraw to show the user's message and loading state
+    this.userInput = '';
+    m.redraw();
 
     try {
       if (this.useStream) {
@@ -125,26 +122,24 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
       }
 
       this.messages.push({role: 'spacer', text: ''});
-      m.redraw(); // Manually trigger a redraw to show the next part
+      m.redraw();
     } catch (error) {
       console.error('AI API call failed:', error);
-      // --- State Update 3: Show error message in the UI ---
       this.messages.push({
         role: 'error',
         text: 'Sorry, something went wrong. ' + error,
       });
     } finally {
-      // --- Final State Update: Always stop loading ---
-      // This is crucial to ensure the user can send another message even if an error occurred.
+      // Stop loading whether the request succeeded or failed
       this.isLoading = false;
-      m.redraw(); // Redraw to update the UI with the final state
+      m.redraw();
     }
   };
 
   view() {
     // We return a fragment (an array) containing the style and the chat container.
     return m(
-      '.pf-ai-chat-panel',
+      '.pf-ai-chat-panel.page',
       m(
         '.pf-ai-chat-panel__conversation',
         {
@@ -180,13 +175,12 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
               break;
           }
           return m(
-            `.pf-ai-chat-message.${msg.role}`,
-            m('b.pf-ai-chat-role-label', role),
-            // TODO: Need to sanitize input
+            `.pf-ai-chat-message.pf-ai-chat-message--${msg.role}`,
+            m('b.pf-ai-chat-message--role-label', role),
             m(
-              'span.pf-ai-chat-message-text',
+              'span.pf-ai-chat-message--role-text',
               m.trust(this.md.render(msg.text)),
-            ), // Use m.trust to render markdown html
+            ),
           );
         }),
       ),
@@ -214,6 +208,8 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
           title: 'Send',
           onclick: () => this.sendMessage(),
           loading: this.isLoading,
+          variant: ButtonVariant.Filled,
+          intent: Intent.Primary,
         }),
       ),
     );

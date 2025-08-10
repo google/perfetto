@@ -44,6 +44,7 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
       description: 'Gemini API Token.',
       schema: z.string(),
       defaultValue: '',
+      requiresReload: true,
     });
 
     PerfettoMcpPlugin.thoughtsSetting = app.settings.register({
@@ -60,6 +61,7 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
       description: 'The Gemini model to use, such as gemini-2.5-pro.',
       schema: z.string(),
       defaultValue: 'gemini-2.5-pro',
+      requiresReload: true,
     });
 
     PerfettoMcpPlugin.promptSetting = app.settings.register({
@@ -69,6 +71,7 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
         'Upload a .txt or .md file containing the initial Gemini prompt.',
       schema: z.string(),
       defaultValue: '',
+      requiresReload: true,
       render: (setting) => {
         const handleFileSelect = (event: {target: HTMLInputElement}) => {
           const file = event.target.files?.[0];
@@ -93,28 +96,11 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
           reader.readAsText(file);
         };
 
-        return m(
-          'div',
-          {
-            style: 'padding: 10px; border: 1px solid #ccc; border-radius: 8px;',
-          },
-          [
-            m('input', {
-              type: 'file',
-              accept: ['.txt', '.md'],
-              style: 'margin-top: 10px; display: block;',
-              onchange: handleFileSelect,
-            }),
-            m(
-              'p',
-              {
-                style:
-                  'margin-top: 8px; font-style: italic; font-size: 0.9em; color: #555;',
-              },
-              'Select a file',
-            ),
-          ],
-        );
+        return m('input', {
+          type: 'file',
+          accept: ['.txt', '.md'],
+          onchange: handleFileSelect,
+        });
       },
     });
   }

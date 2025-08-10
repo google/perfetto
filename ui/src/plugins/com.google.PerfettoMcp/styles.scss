@@ -12,26 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/* Make the main container a flex column that fills the available height */
 .pf-ai-chat-panel {
   display: flex;
   flex-direction: column;
-  height: 95vh;
-  width: 100%;
-  top: 0;
-  background-color: #f7f7f7;
-  font-family: sans-serif;
+  overflow: hidden;
 
-  /* This is the key part for scrolling:
-    - flex-grow: 1 allows this element to expand and fill available space.
-    - overflow-y: auto adds a scrollbar only when content overflows.
-  */
   &__conversation {
     flex-grow: 1;
     overflow-y: scroll;
     padding: 1rem;
 
-    /* Basic styling for messages to make them readable */
     .pf-ai-chat-message {
       margin-bottom: 1rem;
       max-width: 80%;
@@ -39,83 +29,55 @@
       border-radius: 12px;
       line-height: 1.5;
 
-      &__role-label {
+      &--role-label {
         font-weight: bold;
         margin-right: 8px;
         display: block;
         margin-bottom: 4px;
       }
-    }
 
-    .ai {
-      background-color: #e1e1e1;
-      align-self: flex-start;
-    }
+      &--ai {
+        background-color: #e1e1e1;
+        align-self: flex-start;
+      }
 
-    .user {
-      background-color: #007bff;
-      color: white;
-      align-self: flex-end;
-      margin-left: auto;
-      /* Pushes the message to the right */
-    }
+      &--user {
+        background-color: #007bff;
+        color: white;
+        align-self: flex-end;
+        margin-left: auto;
+      }
 
-    .error {
-      background-color: #f8d7da;
-      color: #721c24;
-      border: 1px solid #f5c6cb;
-    }
+      &--error {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
 
-    .thought {
-      background-color: #fff3cd;
-      color: #856404;
-      font-style: italic;
-      font-size: 0.9em;
+      &--thought {
+        background-color: #fff3cd;
+        color: #856404;
+        font-style: italic;
+        font-size: 0.9em;
+      }
     }
   }
 
-  /* Style for the footer input area */
   &__input-area {
     flex-shrink: 0;
-    /* Prevents the footer from shrinking */
-    height: 75px;
-    /* Fixed height for the footer */
     display: flex;
     align-items: center;
     padding: 0 1rem;
     border-top: 1px solid #ddd;
     background-color: #ffffff;
     box-sizing: border-box;
-    /* Include padding in the height calculation */
+    gap: 4px;
 
-    /* Making the text input component take up most of the space */
     .pf-text-input {
       flex: 1;
 
       &__input {
         flex-grow: 1;
-      }
-    }
-
-    .pf-button {
-      flex: 0 0 75px;
-
-      border: none;
-      background-color: #007bff;
-      color: white;
-      // padding: 0 1.5rem;
-      border-radius: 18px;
-      cursor: pointer;
-      font-weight: bold;
-      transition: background-color 0.2s;
-
-      &:disabled {
-        background-color: #a0c7e4;
-        cursor: not-allowed;
-      }
-
-      &:hover:not(:disabled) {
-        background-color: #0056b3;
       }
     }
   }
