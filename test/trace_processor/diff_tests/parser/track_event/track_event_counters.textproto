@@ -30,7 +30,7 @@ packet {
       pid: 5
       process_name: "Browser"
     }
-    [perfetto.protos.ChromeTrackDescriptor.chrome_process] {}
+    chrome_process {}
   }
 }
 
