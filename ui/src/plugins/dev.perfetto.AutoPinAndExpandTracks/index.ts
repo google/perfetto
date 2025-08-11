@@ -183,27 +183,25 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
   }
 
   private processUrlParameters(): void {
+    const localTracks = this.ctx.workspace.flatTracks;
     if (AutoPinAndExpandTracks.expandTracks.length > 0) {
-      this.ctx.workspace.flatTracks
-        .filter((t) =>
-          AutoPinAndExpandTracks.expandTracks.some((prefix) =>
-            t.name.match(new RegExp('^' + prefix)),
-          ),
-        )
+      const expandRegexes = AutoPinAndExpandTracks.expandTracks.map(
+        (prefix) => new RegExp('^' + prefix),
+      );
+      localTracks
+        .filter((t) => expandRegexes.some((regex) => regex.test(t.name)))
         .forEach((t) => t.expand());
     }
-
     if (AutoPinAndExpandTracks.pinTracks.length > 0) {
-      this.ctx.workspace.flatTracks
-        .filter((t) =>
-          AutoPinAndExpandTracks.pinTracks.some((prefix) =>
-            t.name.match(new RegExp('^' + prefix)),
-          ),
-        )
+      const pinRegexes = AutoPinAndExpandTracks.pinTracks.map(
+        (prefix) => new RegExp('^' + prefix),
+      );
+      localTracks
+        .filter((t) => pinRegexes.some((regex) => regex.test(t.name)))
         .forEach((t) => t.pin());
     }
 
-    // Once the traces have been processed, we don’t want to expand or pin the tracks again.
+    // Once the expand or pin traces have been processed, we don’t want to do it again.
     AutoPinAndExpandTracks.expandTracks = [];
     AutoPinAndExpandTracks.pinTracks = [];
   }
