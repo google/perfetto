@@ -124,15 +124,16 @@ RETURNS TableOrSubquery AS
 --             B|----------|
 --             20         45
 --
--- would generate the output
---
---   ts,dur,group_id,id,interval_ends_at_ts
---   10,10,1,A,0
---   20,10,2,A,0
---   20,10,2,B,0
---   30,15,3,A,1
---   30,15,3,B,0
---   45,0,4,B,1
+-- would generate the output:
+-- ```
+-- ts,dur,group_id,id,interval_ends_at_ts
+-- 10,10,1,A,0
+-- 20,10,2,A,0
+-- 20,10,2,B,0
+-- 30,15,3,A,1
+-- 30,15,3,B,0
+-- 45,0,4,B,1
+-- ```
 --
 -- Runtime is O(n log n + m), where n is the number of intervals and m
 -- is the size of the output.
