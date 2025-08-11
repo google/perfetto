@@ -826,7 +826,6 @@ MODULES_TABLE = Table(
     sql_name='__intrinsic_modules',
     columns=[
         C('name', CppString()),
-        C('enabled', CppUint32()),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -834,8 +833,7 @@ MODULES_TABLE = Table(
         ''',
         group='Misc',
         columns={
-            'name': '''Name of the module.''',
-            'enabled': '''Whether the module is enabled (1) or disabled (0).''',
+            'name': '''Name of the enabled module.''',
         }))
 
 # Keep this list sorted.

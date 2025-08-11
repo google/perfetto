@@ -378,8 +378,8 @@ void InsertIntoTraceMetricsTable(sqlite3* db, const std::string& metric_name) {
 
 void InsertIntoBuildFlagsTable(tables::BuildFlagsTable* table,
                                StringPool* string_pool) {
-  for (int i = 0; i < PERFETTO_BUILDFLAG_COUNT; ++i) {
-    const auto& build_flag = PERFETTO_BUILDFLAGS[i];
+  for (int i = 0; i < kPerfettoBuildFlagsCount; ++i) {
+    const auto& build_flag = kPerfettoBuildFlags[i];
     tables::BuildFlagsTable::Row row;
     row.name = string_pool->InternString(build_flag.name);
     row.enabled = static_cast<uint32_t>(build_flag.value);
@@ -389,20 +389,17 @@ void InsertIntoBuildFlagsTable(tables::BuildFlagsTable* table,
 
 void InsertIntoModulesTable(tables::ModulesTable* table,
                             StringPool* string_pool) {
-  tables::ModulesTable::Row etm_row;
-  etm_row.name = string_pool->InternString("etm");
-  etm_row.enabled = PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER);
-  table->Insert(etm_row);
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
+  table->Insert({string_pool->InternString("etm")});
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
 
-  tables::ModulesTable::Row winscope_row;
-  winscope_row.name = string_pool->InternString("winscope");
-  winscope_row.enabled = PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE);
-  table->Insert(winscope_row);
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
+  table->Insert({string_pool->InternString("winscope")});
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
 
-  tables::ModulesTable::Row llvm_symbolizer_row;
-  llvm_symbolizer_row.name = string_pool->InternString("llvm_symbolizer");
-  llvm_symbolizer_row.enabled = PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER);
-  table->Insert(llvm_symbolizer_row);
+#if PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
+  table->Insert({string_pool->InternString("llvm_symbolizer")});
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER)
 }
 
 sql_modules::NameToPackage GetStdlibPackages() {

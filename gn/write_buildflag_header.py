@@ -99,7 +99,6 @@ class HeaderGenerator:
 #define {self._guard}
 
 // clang-format off
-#define PERFETTO_BUILDFLAG_COUNT {num_boolean_flags}
 
 {self._generate_defines()}
 
@@ -108,9 +107,12 @@ struct PerfettoBuildFlag {{
   int value;
 }};
 
-static const struct PerfettoBuildFlag PERFETTO_BUILDFLAGS[] = {{
+static const struct PerfettoBuildFlag kPerfettoBuildFlags[] = {{
 {all_build_flags_str}
 }};
+
+static const int kPerfettoBuildFlagsCount = sizeof(kPerfettoBuildFlags) / sizeof(struct PerfettoBuildFlag);
+
 // clang-format on
 
 #endif  // {self._guard}
