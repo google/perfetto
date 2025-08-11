@@ -83,8 +83,6 @@
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_packet_defaults.gen.h"
-#include "protos/perfetto/trace/track_event/chrome_process_descriptor.gen.h"
-#include "protos/perfetto/trace/track_event/chrome_process_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/counter_descriptor.gen.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.gen.h"
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
@@ -99,6 +97,8 @@
 #include "protos/perfetto/trace/track_event/track_descriptor.gen.h"
 #include "protos/perfetto/trace/track_event/track_event.gen.h"
 #include "protos/perfetto/trace/trigger.gen.h"
+#include "protos/third_party/chromium/chrome_enums.pbzero.h"
+#include "protos/third_party/chromium/chrome_track_descriptor.pbzero.h"
 
 // Events in categories starting with "dynamic" will use dynamic category
 // lookup.
@@ -1973,10 +1973,17 @@ TEST_P(PerfettoApiTest, TrackEventProcessAndThreadDescriptors) {
   // Thread and process descriptors can be set before tracing is enabled.
   {
     auto track = perfetto::ProcessTrack::Current();
-    auto desc = track.Serialize();
-    desc.set_name("hello.exe");
-    desc.mutable_chrome_process()->set_process_priority(1);
-    perfetto::TrackEvent::SetTrackDescriptor(track, std::move(desc));
+
+    // Only pbzero supports extensions.
+    protozero::HeapBuffered<perfetto::protos::pbzero::ChromeTrackDescriptor>
+        desc;
+    track.Serialize(desc.get());
+    desc->set_name("hello.exe");
+    desc->set_chrome_process()->set_process_priority(1);
+
+    perfetto::protos::gen::TrackDescriptor gen_desc;
+    ASSERT_TRUE(gen_desc.ParseFromString(desc.SerializeAsString()));
+    perfetto::TrackEvent::SetTrackDescriptor(track, std::move(gen_desc));
   }
 
   // Erased tracks shouldn't show up anywhere.
@@ -2078,6 +2085,9 @@ TEST_P(PerfettoApiTest, TrackEventProcessAndThreadDescriptors) {
 }
 
 TEST_P(PerfettoApiTest, CustomTrackDescriptor) {
+  constexpr auto kCustomProcessType =
+      perfetto::protos::chrome_enums::pbzero::PROCESS_BROWSER;
+
   // Setup the trace config.
   perfetto::TraceConfig cfg;
   cfg.set_duration_ms(500);
@@ -2090,12 +2100,22 @@ TEST_P(PerfettoApiTest, CustomTrackDescriptor) {
   tracing_session->get()->StartBlocking();
 
   auto track = perfetto::ProcessTrack::Current();
-  auto desc = track.Serialize();
-  desc.mutable_process()->set_process_name("testing.exe");
-  desc.mutable_thread()->set_tid(
+
+  // Only pbzero supports extensions.
+  protozero::HeapBuffered<perfetto::protos::pbzero::ChromeTrackDescriptor> desc;
+  track.Serialize(desc.get());
+  desc->set_process()->set_process_name("testing.exe");
+  desc->set_thread()->set_tid(
       static_cast<int32_t>(perfetto::base::GetThreadId()));
-  desc.mutable_chrome_process()->set_process_priority(123);
-  perfetto::TrackEvent::SetTrackDescriptor(track, std::move(desc));
+  {
+    auto* chrome_process = desc->set_chrome_process();
+    chrome_process->set_process_priority(123);
+    chrome_process->set_process_type(kCustomProcessType);
+  }
+
+  perfetto::protos::gen::TrackDescriptor gen_desc;
+  ASSERT_TRUE(gen_desc.ParseFromString(desc.SerializeAsString()));
+  perfetto::TrackEvent::SetTrackDescriptor(track, std::move(gen_desc));
 
   auto trace = StopSessionAndReturnParsedTrace(tracing_session);
 
@@ -2109,9 +2129,24 @@ TEST_P(PerfettoApiTest, CustomTrackDescriptor) {
       if (!td.has_process())
         continue;
       EXPECT_NE(0, td.process().pid());
-      EXPECT_TRUE(td.has_chrome_process());
       EXPECT_EQ("testing.exe", td.process().process_name());
-      EXPECT_EQ(123, td.chrome_process().process_priority());
+
+      // Only pbzero supports extensions, so convert to a pbzero decoder for
+      // `chrome_process`. Note FindField() returns pointers into `td_bytes` so
+      // it must outlive the returned field.
+      std::vector<uint8_t> td_bytes = td.SerializeAsArray();
+      protozero::ProtoDecoder td_decoder(td_bytes.data(), td_bytes.size());
+      protozero::Field chrome_process_field =
+          td_decoder.FindField(perfetto::protos::pbzero::ChromeTrackDescriptor::
+                                   kChromeProcessFieldNumber);
+      ASSERT_TRUE(chrome_process_field.valid());
+      perfetto::protos::pbzero::ChromeProcessDescriptor::Decoder chrome_process(
+          chrome_process_field.as_bytes());
+      EXPECT_TRUE(chrome_process.has_process_priority());
+      EXPECT_EQ(123, chrome_process.process_priority());
+      EXPECT_TRUE(chrome_process.has_process_type());
+      EXPECT_EQ(kCustomProcessType, chrome_process.process_type());
+
       found_desc = true;
     }
   }
