@@ -3421,6 +3421,64 @@ class ChromePerformanceMarkTranslationTable(_message.Message):
     site_hash_to_name: _containers.ScalarMap[int, str]
     def __init__(self, site_hash_to_name: _Optional[_Mapping[int, str]] = ..., mark_hash_to_name: _Optional[_Mapping[int, str]] = ...) -> None: ...
 
+class ChromeProcessDescriptor(_message.Message):
+    __slots__ = ["crash_trace_id", "host_app_package_name", "legacy_sort_index", "process_priority", "process_type"]
+    class ProcessType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = []
+    CRASH_TRACE_ID_FIELD_NUMBER: _ClassVar[int]
+    HOST_APP_PACKAGE_NAME_FIELD_NUMBER: _ClassVar[int]
+    LEGACY_SORT_INDEX_FIELD_NUMBER: _ClassVar[int]
+    PROCESS_BROWSER: ChromeProcessDescriptor.ProcessType
+    PROCESS_GPU: ChromeProcessDescriptor.ProcessType
+    PROCESS_PPAPI_BROKER: ChromeProcessDescriptor.ProcessType
+    PROCESS_PPAPI_PLUGIN: ChromeProcessDescriptor.ProcessType
+    PROCESS_PRIORITY_FIELD_NUMBER: _ClassVar[int]
+    PROCESS_RENDERER: ChromeProcessDescriptor.ProcessType
+    PROCESS_RENDERER_EXTENSION: ChromeProcessDescriptor.ProcessType
+    PROCESS_SANDBOX_HELPER: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_AUDIO: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_CDM: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_CROS_ASSISTANT_AUDIO_DECODER: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_CROS_LOCALSEARCH: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_DATA_DECODER: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_FILEPATCHER: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_FILEUTIL: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_IME: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_LANGUAGEDETECTION: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_MEDIAPARSER: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_MEDIA_FOUNDATION: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_MIRRORING: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_NETWORK: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_PAINTPREVIEW: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_PRINTCOMPOSITOR: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_PRINTING: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_PROFILEIMPORT: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_PROXY_RESOLVER: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_QRCODEGENERATOR: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_QUARANTINE: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_READICON: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_RECORDING: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_SHAPEDETECTION: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_SHARING: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_SPEECHRECOGNITION: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_STORAGE: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_TRACING: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_TTS: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_UNZIPPER: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_UTIL_WIN: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_VIDEO_CAPTURE: ChromeProcessDescriptor.ProcessType
+    PROCESS_SERVICE_XRDEVICE: ChromeProcessDescriptor.ProcessType
+    PROCESS_TYPE_FIELD_NUMBER: _ClassVar[int]
+    PROCESS_UNSPECIFIED: ChromeProcessDescriptor.ProcessType
+    PROCESS_UTILITY: ChromeProcessDescriptor.ProcessType
+    PROCESS_ZYGOTE: ChromeProcessDescriptor.ProcessType
+    crash_trace_id: int
+    host_app_package_name: str
+    legacy_sort_index: int
+    process_priority: int
+    process_type: ChromeProcessDescriptor.ProcessType
+    def __init__(self, process_type: _Optional[_Union[ChromeProcessDescriptor.ProcessType, str]] = ..., process_priority: _Optional[int] = ..., legacy_sort_index: _Optional[int] = ..., host_app_package_name: _Optional[str] = ..., crash_trace_id: _Optional[int] = ...) -> None: ...
+
 class ChromeRendererSchedulerState(_message.Message):
     __slots__ = ["is_backgrounded", "is_hidden", "rail_mode"]
     IS_BACKGROUNDED_FIELD_NUMBER: _ClassVar[int]
@@ -15630,20 +15688,20 @@ class TracingServiceState(_message.Message):
     def __init__(self, producers: _Optional[_Iterable[_Union[TracingServiceState.Producer, _Mapping]]] = ..., data_sources: _Optional[_Iterable[_Union[TracingServiceState.DataSource, _Mapping]]] = ..., tracing_sessions: _Optional[_Iterable[_Union[TracingServiceState.TracingSession, _Mapping]]] = ..., supports_tracing_sessions: bool = ..., num_sessions: _Optional[int] = ..., num_sessions_started: _Optional[int] = ..., tracing_service_version: _Optional[str] = ...) -> None: ...
 
 class TrackDescriptor(_message.Message):
-    __slots__ = ["atrace_name", "child_ordering", "chrome_thread", "counter", "description", "disallow_merging_with_system_tracks", "name", "parent_uuid", "process", "sibling_merge_behavior", "sibling_merge_key", "sibling_order_rank", "static_name", "thread", "uuid"]
+    __slots__ = ["atrace_name", "child_ordering", "chrome_process", "chrome_thread", "counter", "description", "disallow_merging_with_system_tracks", "name", "parent_uuid", "process", "sibling_merge_behavior", "sibling_merge_key", "sibling_order_rank", "static_name", "thread", "uuid"]
     class ChildTracksOrdering(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     class SiblingMergeBehavior(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     ATRACE_NAME_FIELD_NUMBER: _ClassVar[int]
     CHILD_ORDERING_FIELD_NUMBER: _ClassVar[int]
+    CHROME_PROCESS_FIELD_NUMBER: _ClassVar[int]
     CHROME_THREAD_FIELD_NUMBER: _ClassVar[int]
     CHRONOLOGICAL: TrackDescriptor.ChildTracksOrdering
     COUNTER_FIELD_NUMBER: _ClassVar[int]
     DESCRIPTION_FIELD_NUMBER: _ClassVar[int]
     DISALLOW_MERGING_WITH_SYSTEM_TRACKS_FIELD_NUMBER: _ClassVar[int]
     EXPLICIT: TrackDescriptor.ChildTracksOrdering
-    Extensions: _python_message._ExtensionDict
     LEXICOGRAPHIC: TrackDescriptor.ChildTracksOrdering
     NAME_FIELD_NUMBER: _ClassVar[int]
     PARENT_UUID_FIELD_NUMBER: _ClassVar[int]
@@ -15661,6 +15719,7 @@ class TrackDescriptor(_message.Message):
     UUID_FIELD_NUMBER: _ClassVar[int]
     atrace_name: str
     child_ordering: TrackDescriptor.ChildTracksOrdering
+    chrome_process: ChromeProcessDescriptor
     chrome_thread: ChromeThreadDescriptor
     counter: CounterDescriptor
     description: str
@@ -15674,7 +15733,7 @@ class TrackDescriptor(_message.Message):
     static_name: str
     thread: ThreadDescriptor
     uuid: int
-    def __init__(self, uuid: _Optional[int] = ..., parent_uuid: _Optional[int] = ..., name: _Optional[str] = ..., static_name: _Optional[str] = ..., atrace_name: _Optional[str] = ..., description: _Optional[str] = ..., process: _Optional[_Union[ProcessDescriptor, _Mapping]] = ..., thread: _Optional[_Union[ThreadDescriptor, _Mapping]] = ..., chrome_thread: _Optional[_Union[ChromeThreadDescriptor, _Mapping]] = ..., counter: _Optional[_Union[CounterDescriptor, _Mapping]] = ..., disallow_merging_with_system_tracks: bool = ..., child_ordering: _Optional[_Union[TrackDescriptor.ChildTracksOrdering, str]] = ..., sibling_order_rank: _Optional[int] = ..., sibling_merge_behavior: _Optional[_Union[TrackDescriptor.SiblingMergeBehavior, str]] = ..., sibling_merge_key: _Optional[str] = ...) -> None: ...
+    def __init__(self, uuid: _Optional[int] = ..., parent_uuid: _Optional[int] = ..., name: _Optional[str] = ..., static_name: _Optional[str] = ..., atrace_name: _Optional[str] = ..., description: _Optional[str] = ..., process: _Optional[_Union[ProcessDescriptor, _Mapping]] = ..., chrome_process: _Optional[_Union[ChromeProcessDescriptor, _Mapping]] = ..., thread: _Optional[_Union[ThreadDescriptor, _Mapping]] = ..., chrome_thread: _Optional[_Union[ChromeThreadDescriptor, _Mapping]] = ..., counter: _Optional[_Union[CounterDescriptor, _Mapping]] = ..., disallow_merging_with_system_tracks: bool = ..., child_ordering: _Optional[_Union[TrackDescriptor.ChildTracksOrdering, str]] = ..., sibling_order_rank: _Optional[int] = ..., sibling_merge_behavior: _Optional[_Union[TrackDescriptor.SiblingMergeBehavior, str]] = ..., sibling_merge_key: _Optional[str] = ...) -> None: ...
 
 class TrackEvent(_message.Message):
     __slots__ = ["categories", "category_iids", "cc_scheduler_state", "chrome_active_processes", "chrome_application_state_info", "chrome_content_settings_event_info", "chrome_frame_reporter", "chrome_histogram_sample", "chrome_keyed_service", "chrome_latency_info", "chrome_legacy_ipc", "chrome_message_pump", "chrome_mojo_event_info", "chrome_renderer_scheduler_state", "chrome_user_event", "chrome_window_handle_event_info", "correlation_id", "correlation_id_str", "correlation_id_str_iid", "counter_value", "debug_annotations", "double_counter_value", "extra_counter_track_uuids", "extra_counter_values", "extra_double_counter_track_uuids", "extra_double_counter_values", "flow_ids", "flow_ids_old", "legacy_event", "log_message", "name", "name_iid", "screenshot", "source_location", "source_location_iid", "task_execution", "terminating_flow_ids", "terminating_flow_ids_old", "thread_instruction_count_absolute", "thread_instruction_count_delta", "thread_time_absolute_us", "thread_time_delta_us", "timestamp_absolute_us", "timestamp_delta_us", "track_uuid", "type"]
