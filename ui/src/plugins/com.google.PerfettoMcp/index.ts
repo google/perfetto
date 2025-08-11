@@ -31,6 +31,12 @@ import {ChatPage} from './chat_page';
 import m from 'mithril';
 export default class PerfettoMcpPlugin implements PerfettoPlugin {
   static readonly id = 'com.google.PerfettoMcp';
+  static readonly description = `
+    This plugin adds support for a AI Chat window. 
+    This is backed by Gemini and implement MCP (Model Context Protocol).
+    While Gemini can understand and generate SQL queries, the tools allow Gemini to interact with the trace data directly
+    to answer your queries.
+    `;
 
   static tokenSetting: Setting<string>;
   static promptSetting: Setting<string>;

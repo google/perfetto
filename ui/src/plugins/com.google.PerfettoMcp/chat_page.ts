@@ -139,7 +139,7 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
   view() {
     // We return a fragment (an array) containing the style and the chat container.
     return m(
-      '.pf-ai-chat-panel.page',
+      '.pf-ai-chat-panel',
       m(
         '.pf-ai-chat-panel__conversation',
         {
