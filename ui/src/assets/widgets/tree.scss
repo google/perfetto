@@ -17,7 +17,6 @@
 $chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='8' width='8'%3E%3Cline x1='2' y1='0' x2='6' y2='4' stroke='black'/%3E%3Cline x1='6' y1='4' x2='2' y2='8' stroke='black'/%3E%3C/svg%3E");
 
 .pf-tree {
-  font-family: $pf-font;
   display: grid;
   grid-template-columns: [left]auto [right]1fr;
   row-gap: 5px;
@@ -26,7 +25,7 @@ $chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
     display: contents;
 
     &:hover {
-      background: $table-hover-color;
+      background: color_hover(transparent);
     }
 
     .pf-tree-left {

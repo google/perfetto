@@ -35,9 +35,7 @@
   display: inline-flex;
   align-items: center;
   position: relative;
-  font-family: $pf-font;
   font-size: inherit;
-  color: $pf-minimal-foreground;
   user-select: none;
   cursor: pointer;
   gap: 6px;
@@ -60,7 +58,7 @@
     width: 32px;
     border-radius: 8px;
     transition: background $pf-anim-timing;
-    background: grey;
+    background: var(--pf-color-neutral);
     vertical-align: middle;
 
     // The :after element forms the "thumb" of the switch
@@ -75,7 +73,7 @@
       margin-bottom: auto;
       width: 12px;
       height: 12px;
-      background: $pf-primary-foreground;
+      background: white;
       box-sizing: border-box;
       border-radius: 50%;
       transition: left $pf-anim-timing;
@@ -87,7 +85,7 @@
   }
 
   input:checked ~ .pf-switch-visual {
-    background: $pf-primary-background;
+    background: var(--pf-color-accent);
   }
 
   input:checked ~ .pf-switch-visual:after {
@@ -99,20 +97,8 @@
   }
 
   &.pf-disabled {
+    opacity: 0.5;
+    pointer-events: none;
     cursor: not-allowed;
-    color: $pf-minimal-foreground-disabled;
-
-    .pf-switch-visual {
-      border-color: $pf-minimal-foreground-disabled;
-      background: $pf-minimal-foreground-disabled;
-      &:after {
-        border-color: $pf-minimal-foreground-disabled;
-      }
-    }
-
-    input:checked ~ .pf-switch-visual {
-      border-color: $pf-primary-background-disabled;
-      background: $pf-primary-background-disabled;
-    }
   }
 }

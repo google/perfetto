@@ -9,6 +9,7 @@
 # first in order to be useful.
 # TODO(b/181318121): Implement the support in Perfetto and remove the warning.
 chrome_track_event_sources = [
+  "chrome_enums.proto",  
   "chrome_track_descriptor.proto",
   "chrome_track_event.proto",
 ]

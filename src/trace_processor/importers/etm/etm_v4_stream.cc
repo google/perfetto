@@ -51,7 +51,7 @@ base::Status EtmV4Stream::Parse(perf_importer::AuxRecord aux,
   if (!is_raw_format(aux)) {
     return ParseFramedData(aux.offset, std::move(data));
   }
-  AddTrace(std::move(data));
+  AddChunk(std::move(data));
   return base::OkStatus();
 }
 
@@ -108,7 +108,7 @@ ocsd_datapath_resp_t EtmV4Stream::TraceDataIn(const ocsd_datapath_op_t op,
 
 void EtmV4Stream::OnDataLoss(uint64_t num_bytes) {
   index_ += num_bytes;
-  // No need to do anything else as we treat every AuxData as a new trace, or
+  // No need to do anything else as we treat every AuxData as a new chunk, or
   // in the case of non raw data, the decoder is reset for each AuxData
 }
 
@@ -144,25 +144,25 @@ void EtmV4Stream::StartSession(std::optional<int64_t> start_ts) {
                        .id);
 }
 
-void EtmV4Stream::AddTrace(TraceBlobView trace) {
+void EtmV4Stream::AddChunk(TraceBlobView chunk) {
   PERFETTO_CHECK(session_.has_value());
-  session_->traces_.push_back(std::move(trace));
+  session_->chunks_.push_back(std::move(chunk));
 }
 
 void EtmV4Stream::EndSession() {
   PERFETTO_CHECK(session_.has_value());
   // There should be no inflight framed data.
   PERFETTO_CHECK(buffer_.empty());
-  uint32_t trace_set_id = context_->storage->etm_v4_trace_table().row_count();
-  for (auto& trace : session_->traces_) {
-    if (trace.size() == 0) {
+  uint32_t chunk_set_id = context_->storage->etm_v4_chunk_table().row_count();
+  for (auto& chunk : session_->chunks_) {
+    if (chunk.size() == 0) {
       continue;
     }
-    auto id = context_->storage->mutable_etm_v4_trace_table()
-                  ->Insert({session_->session_id, trace_set_id,
-                            static_cast<int64_t>(trace.size())})
+    auto id = context_->storage->mutable_etm_v4_chunk_table()
+                  ->Insert({session_->session_id, chunk_set_id,
+                            static_cast<int64_t>(chunk.size())})
                   .id;
-    StorageHandle(context_).StoreTrace(id, std::move(trace));
+    StorageHandle(context_).StoreChunk(id, std::move(chunk));
   }
   session_.reset();
 }
@@ -179,7 +179,7 @@ void EtmV4Stream::EndChunkedTrace() {
   if (buffer_.empty()) {
     return;
   }
-  AddTrace(TraceBlobView(TraceBlob::CopyFrom(buffer_.data(), buffer_.size())));
+  AddChunk(TraceBlobView(TraceBlob::CopyFrom(buffer_.data(), buffer_.size())));
   buffer_.clear();
 }
 
