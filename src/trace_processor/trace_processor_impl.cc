@@ -620,16 +620,17 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   // Last opportunity to flush all pending data.
   FlushInternal(false);
 
+  RETURN_IF_ERROR(TraceProcessorStorageImpl::NotifyEndOfFile());
+  if (context_.perf_tracker) {
+    perf_importer::PerfTracker::GetOrCreate(&context_)->NotifyEndOfFile();
+  }
+
+  // TODO(lalitm): move EtmTracker finalize out after multi-trace handling
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
   if (context_.etm_tracker) {
     RETURN_IF_ERROR(etm::EtmTracker::GetOrCreate(&context_)->Finalize());
   }
 #endif
-
-  RETURN_IF_ERROR(TraceProcessorStorageImpl::NotifyEndOfFile());
-  if (context_.perf_tracker) {
-    perf_importer::PerfTracker::GetOrCreate(&context_)->NotifyEndOfFile();
-  }
 
   // Rebuild the bounds table once everything has been completed: we do this
   // so that if any data was added to tables in
