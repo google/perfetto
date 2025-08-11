@@ -30,7 +30,8 @@ namespace perfetto::trace_processor {
 
 class AndroidCpuPerUidModule : public ProtoImporterModule {
  public:
-  explicit AndroidCpuPerUidModule(TraceProcessorContext* context);
+  explicit AndroidCpuPerUidModule(ProtoImporterModuleContext* module_context,
+                                  TraceProcessorContext* context);
 
   ~AndroidCpuPerUidModule() override;
 

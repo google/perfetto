@@ -56,7 +56,8 @@ void RegisterAdditionalModules(ProtoImporterModuleContext* module_context,
   context->descriptor_pool_->AddFromFileDescriptorSet(kTraceDescriptor.data(),
                                                       kTraceDescriptor.size());
 
-  module_context->modules.emplace_back(new AndroidCpuPerUidModule(context));
+  module_context->modules.emplace_back(
+      new AndroidCpuPerUidModule(module_context, context));
   module_context->modules.emplace_back(
       new AndroidKernelWakelocksModule(module_context, context));
   module_context->modules.emplace_back(

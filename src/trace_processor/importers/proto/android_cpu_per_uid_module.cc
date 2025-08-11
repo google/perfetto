@@ -41,9 +41,11 @@ namespace perfetto::trace_processor {
 
 using perfetto::protos::pbzero::TracePacket;
 
-AndroidCpuPerUidModule::AndroidCpuPerUidModule(TraceProcessorContext* context)
-    : context_(context) {
-  RegisterForField(TracePacket::kCpuPerUidDataFieldNumber, context);
+AndroidCpuPerUidModule::AndroidCpuPerUidModule(
+    ProtoImporterModuleContext* module_context,
+    TraceProcessorContext* context)
+    : ProtoImporterModule(module_context), context_(context) {
+  RegisterForField(TracePacket::kCpuPerUidDataFieldNumber);
 }
 
 AndroidCpuPerUidModule::~AndroidCpuPerUidModule() = default;
