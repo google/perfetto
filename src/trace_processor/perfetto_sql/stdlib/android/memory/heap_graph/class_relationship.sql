@@ -36,7 +36,7 @@ RETURNS TableOrSubquery AS
         id AS dest_node_id
       FROM heap_graph_class
       WHERE
-        NOT superclass_id IS NULL AND id IS NOT NULL
+        superclass_id IS NOT NULL
     ),
     ancestors(id, ancestor_class_id, ancestor_class_name) AS (
       SELECT
@@ -46,8 +46,6 @@ RETURNS TableOrSubquery AS
       FROM $ancestor_class_ids
       JOIN heap_graph_class
         USING (id)
-      WHERE
-        id IS NOT NULL
     )
   SELECT
     id,
