@@ -79,6 +79,7 @@ import {Card, CardStack} from '../../widgets/card';
 import {Stack} from '../../widgets/stack';
 import {Tooltip} from '../../widgets/tooltip';
 import {TabStrip} from '../../widgets/tabs';
+import {CodeSnippet} from '../../widgets/code_snippet';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -1881,6 +1882,20 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           });
         },
         initialOpts: {},
+      }),
+
+      m(WidgetShowcase, {
+        label: 'CodeSnippet',
+        renderWidget: ({wide}) =>
+          m(CodeSnippet, {
+            language: 'SQL',
+            text: Boolean(wide)
+              ? 'SELECT a_very_long_column_name, another_super_long_column_name, yet_another_ridiculously_long_column_name FROM a_table_with_an_unnecessarily_long_name WHERE some_condition_is_true AND another_condition_is_also_true;'
+              : 'SELECT * FROM slice LIMIT 10;',
+          }),
+        initialOpts: {
+          wide: false,
+        },
       }),
     );
   }
