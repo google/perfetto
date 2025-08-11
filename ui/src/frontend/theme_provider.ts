@@ -12,28 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-ui-main {
-  display: grid;
-  grid-template-areas:
-    "sidebar topbar"
-    "sidebar loading"
-    "sidebar alerts"
-    "sidebar page"
-    "statusbar statusbar";
-  grid-template-rows: auto auto auto 1fr auto;
-  grid-template-columns: auto 1fr;
-  overflow: hidden;
-  width: 100%;
-  height: 100%;
-  background: var(--pf-color-background);
-  color: var(--pf-color-text);
+import m from 'mithril';
 
-  &__loading {
-    grid-area: loading;
-  }
+interface ThemeProviderAttrs {
+  readonly theme: 'dark' | 'light';
+}
 
-  &__page-container {
-    grid-area: page;
-    overflow: auto;
+export class ThemeProvider implements m.Component<ThemeProviderAttrs> {
+  view(vnode: m.Vnode<ThemeProviderAttrs>) {
+    // This component is used to provide the theme context to the children.
+    // It does not render anything itself.
+    return m(
+      '.pf-theme-provider',
+      {className: `pf-theme-provider--${vnode.attrs.theme}`},
+      vnode.children,
+    );
   }
 }
