@@ -23,6 +23,9 @@ source_set("types") {
     "task_state.h",
     "tcp_state.h",
     "trace_processor_context.h",
+    "per_global_context.h",
+    "per_trace_context.h",
+    "per_machine_context.h",
     "variadic.h",
     "version_number.h",
   ]
