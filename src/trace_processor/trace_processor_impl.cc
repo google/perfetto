@@ -376,6 +376,35 @@ void InsertIntoTraceMetricsTable(sqlite3* db, const std::string& metric_name) {
   }
 }
 
+void InsertIntoBuildFlagsTable(tables::BuildFlagsTable* table,
+                               StringPool* string_pool) {
+  for (int i = 0; i < PERFETTO_BUILDFLAG_COUNT; ++i) {
+    const auto& build_flag = PERFETTO_BUILDFLAGS[i];
+    tables::BuildFlagsTable::Row row;
+    row.name = string_pool->InternString(build_flag.name);
+    row.enabled = static_cast<uint32_t>(build_flag.value);
+    table->Insert(row);
+  }
+}
+
+void InsertIntoModulesTable(tables::ModulesTable* table,
+                            StringPool* string_pool) {
+  tables::ModulesTable::Row etm_row;
+  etm_row.name = string_pool->InternString("etm");
+  etm_row.enabled = PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER);
+  table->Insert(etm_row);
+
+  tables::ModulesTable::Row winscope_row;
+  winscope_row.name = string_pool->InternString("winscope");
+  winscope_row.enabled = PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE);
+  table->Insert(winscope_row);
+
+  tables::ModulesTable::Row llvm_symbolizer_row;
+  llvm_symbolizer_row.name = string_pool->InternString("llvm_symbolizer");
+  llvm_symbolizer_row.enabled = PERFETTO_BUILDFLAG(PERFETTO_LLVM_SYMBOLIZER);
+  table->Insert(llvm_symbolizer_row);
+}
+
 sql_modules::NameToPackage GetStdlibPackages() {
   sql_modules::NameToPackage packages;
   for (const auto& file_to_sql : stdlib::kFileToSql) {
@@ -972,6 +1001,8 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
   AddUnfinalizedStaticTable(
       tables, storage->mutable_android_game_intervenion_list_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_android_log_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_build_flags_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_modules_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_clock_snapshot_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_cpu_freq_table());
   AddUnfinalizedStaticTable(tables,
@@ -1156,6 +1187,7 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
   auto engine = std::make_unique<PerfettoSqlEngine>(
       storage->mutable_string_pool(), dataframe_shared_storage,
       config.enable_extra_checks);
+
   auto functions =
       CreateStaticTableFunctions(context, storage, config, engine.get());
 
@@ -1390,6 +1422,13 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
 
   // Fill trace bounds table.
   BuildBoundsTable(db, GetTraceTimestampBoundsNs(*storage));
+
+  InsertIntoBuildFlagsTable(storage->mutable_build_flags_table(),
+                            storage->mutable_string_pool());
+
+  InsertIntoModulesTable(storage->mutable_modules_table(),
+                         storage->mutable_string_pool());
+
   return engine;
 }
 
