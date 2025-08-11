@@ -72,20 +72,21 @@ class ElementTypeMask {
 
 // Helper class to feed data to an `EtmV4Decoder` that offers a Sqlite friendly
 // API.
-// Given a trace this class will allow you to iterate the ETM elements contained
+// Given a chunk this class will allow you to iterate the ETM elements contained
 // in it. It also give you the ability to filter out some elements.
+// Be aware the in the OSCD namespace an ETM chunk is an ETM trace.
 class ElementCursor : public EtmV4Decoder::Delegate {
  public:
   explicit ElementCursor(TraceStorage* storage);
   ~ElementCursor() override;
 
-  base::Status Filter(std::optional<tables::EtmV4TraceTable::Id> trace_id,
+  base::Status Filter(std::optional<tables::EtmV4ChunkTable::Id> chunk_id,
                       ElementTypeMask type_mask);
 
   base::Status Next();
   bool Eof() { return !needs_flush_ && data_ == data_end_; }
 
-  tables::EtmV4TraceTable::Id trace_id() const { return *trace_id_; }
+  tables::EtmV4ChunkTable::Id chunk_id() const { return *chunk_id_; }
   ocsd_trc_index_t index() const {
     return static_cast<uintptr_t>(data_ - data_start_);
   }
@@ -117,7 +118,7 @@ class ElementCursor : public EtmV4Decoder::Delegate {
   std::unique_ptr<EtmV4Decoder> decoder_;
   // Configuration used to create the above decoder
   std::optional<tables::EtmV4ConfigurationTable::Id> config_id_;
-  std::optional<tables::EtmV4TraceTable::Id> trace_id_;
+  std::optional<tables::EtmV4ChunkTable::Id> chunk_id_;
 
   const uint8_t* data_start_;
   const uint8_t* data_;

@@ -37,16 +37,16 @@ const Configuration& StorageHandle::GetEtmV4Config(
       storage_->etm_v4_configuration_data()[id.value].get());
 }
 
-void StorageHandle::StoreTrace(tables::EtmV4TraceTable::Id id,
-                               TraceBlobView trace) {
-  PERFETTO_CHECK(id.value == storage_->etm_v4_trace_data().size());
-  storage_->mutable_etm_v4_trace_data()->push_back(std::move(trace));
+void StorageHandle::StoreChunk(tables::EtmV4ChunkTable::Id id,
+                               TraceBlobView chunk) {
+  PERFETTO_CHECK(id.value == storage_->etm_v4_chunk_data().size());
+  storage_->mutable_etm_v4_chunk_data()->push_back(std::move(chunk));
 }
 
-const TraceBlobView& StorageHandle::GetTrace(
-    tables::EtmV4TraceTable::Id id) const {
-  PERFETTO_CHECK(id.value < storage_->etm_v4_trace_data().size());
-  return storage_->etm_v4_trace_data()[id.value];
+const TraceBlobView& StorageHandle::GetChunk(
+    tables::EtmV4ChunkTable::Id id) const {
+  PERFETTO_CHECK(id.value < storage_->etm_v4_chunk_data().size());
+  return storage_->etm_v4_chunk_data()[id.value];
 }
 
 }  // namespace perfetto::trace_processor::etm

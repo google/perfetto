@@ -27,6 +27,7 @@
 #include "src/trace_processor/importers/etm/opencsd.h"
 #include "src/trace_processor/importers/etm/target_memory_reader.h"
 
+// Be aware the in the OSCD namespace an ETM chunk is an ETM trace.
 namespace perfetto::trace_processor::etm {
 namespace {
 uint32_t ClampToUint32(size_t size) {

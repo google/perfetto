@@ -35,7 +35,7 @@ ETM_V4_CONFIGURATION = Table(
     columns=[
         C('set_id', CppUint32(), flags=ColumnFlag.SORTED | ColumnFlag.SET_ID),
         C('cpu', CppUint32(), cpp_access=CppAccess.READ),
-        C('cs_trace_id', CppUint32(), cpp_access=CppAccess.READ),
+        C('cs_trace_stream_id', CppUint32(), cpp_access=CppAccess.READ),
         C('core_profile', CppString()),
         C('arch_version', CppString()),
         C('major_version', CppUint32()),
@@ -52,12 +52,12 @@ ETM_V4_CONFIGURATION = Table(
         columns={
             'set_id':
                 '''
-                  Groups all configuration ros that belong to the same trace.
+                  Groups all configuration ros that belong to the same ETM trace.
                   There is one row per each CPU where ETM was configured.
                 ''',
             'cpu':
                 'CPU this configuration applies to.',
-            'cs_trace_id':
+            'cs_trace_stream_id':
                 'Trace Stream ID register',
             'core_profile':
                 'Core Profile (e.g. Cortex-A or Cortex-M)',
@@ -104,27 +104,27 @@ ETM_V4_SESSION = Table(
                     'ETM configuration',
                     joinable='__intrinsic_etm_v4_configuration.id'),
             'start_ts':
-                'time the trace ETM trace collection started.',
+                'COCK_MONOTONIC timestamp for when the ETM session collection started.',
         },
     ))
 
-ETM_V4_TRACE = Table(
+ETM_V4_CHUNK = Table(
     python_module=__file__,
-    class_name='EtmV4TraceTable',
-    sql_name='__intrinsic_etm_v4_trace',
+    class_name='EtmV4ChunkTable',
+    sql_name='__intrinsic_etm_v4_chunk',
     columns=[
         C('session_id',
           CppTableId(ETM_V4_SESSION),
           cpp_access=CppAccess.READ,
           cpp_access_duration=CppAccessDuration.POST_FINALIZATION),
-        C('trace_set_id',
+        C('chunk_set_id',
           CppUint32(),
           flags=ColumnFlag.SORTED | ColumnFlag.SET_ID),
         C('size', CppInt64()),
     ],
     tabledoc=TableDoc(
         doc='''
-          Represents a contiguous chunk of ETM trace data for a core. The data
+          Represents a contiguous chunk of ETM chunk data for a core. The data
           collected during a session might be split into different chunks in the
           case of data loss.
         ''',
@@ -133,9 +133,9 @@ ETM_V4_TRACE = Table(
             'session_id':
                 ColumnDoc(
                     'Session this data belongs to',
-                    joinable='__intrinsic_etm_v4_trace.id'),
-            'trace_set_id':
-                'Groups all the traces belonging to the same session.',
+                    joinable='__intrinsic_etm_v4_chunk.id'),
+            'chunk_set_id':
+                'Groups all the chunks belonging to the same session.',
             'size':
                 'Size in bytes',
         },
@@ -214,6 +214,6 @@ ELF_FILE_TABLE = Table(
         }))
 
 ALL_TABLES = [
-    ETM_V4_CONFIGURATION, ETM_V4_TRACE, ETM_V4_SESSION, FILE_TABLE,
+    ETM_V4_CONFIGURATION, ETM_V4_CHUNK, ETM_V4_SESSION, FILE_TABLE,
     ELF_FILE_TABLE
 ]

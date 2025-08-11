@@ -46,7 +46,7 @@ class EtmTracker : public Destructible {
   base::Status Finalize();
 
   void AddSessionData(tables::EtmV4SessionTable::Id session_id,
-                      std::vector<TraceBlobView> traces);
+                      std::vector<TraceBlobView> chunks);
 
   base::FlatSet<tables::EtmV4ConfigurationTable::Id> InsertEtmV4Config(
       PerCpuConfiguration per_cpu_configs);
