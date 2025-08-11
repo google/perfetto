@@ -1,4 +1,4 @@
-// Copyright (C) 2024 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,9 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../theme";
-
-.pf-tab-handle {
+.pf-tabs {
   display: flex;
   align-items: baseline;
 
@@ -25,29 +23,25 @@
   }
 
   &__tab {
-    font-family: var(--pf-font-compact);
+    color: var(--pf-color-text-muted);
     padding: 4px;
     margin-top: 3px;
     align-items: center;
     cursor: pointer;
-    font-size: 13px;
-    border-radius: 3px 3px 0 0;
-    border-right: solid 1px var(--pf-color-border);
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    z-index: 5;
-    box-shadow: var(--pf-color-box-shadow) 0px 0px 3px 1px;
     display: flex;
     align-items: baseline;
     gap: 2px;
 
     &:hover {
-      background: color_hover(transparent);
+      background-color: color_hover(transparent);
     }
 
     &[active] {
-      background-color: var(--pf-color-background);
+      color: var(--pf-color-accent);
+      border-bottom: solid 2px var(--pf-color-accent);
       cursor: default;
     }
 
