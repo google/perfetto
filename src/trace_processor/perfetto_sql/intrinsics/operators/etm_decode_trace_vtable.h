@@ -25,9 +25,9 @@ namespace perfetto::trace_processor {
 class TraceStorage;
 namespace etm {
 
-struct EtmDecodeTraceVtable : sqlite::Module<EtmDecodeTraceVtable> {
+struct EtmDecodeChunkVtable : sqlite::Module<EtmDecodeChunkVtable> {
   using Context = TraceStorage;
-  struct Vtab : sqlite::Module<EtmDecodeTraceVtable>::Vtab {
+  struct Vtab : sqlite::Module<EtmDecodeChunkVtable>::Vtab {
     explicit Vtab(TraceStorage* in_storage) : storage(in_storage) {}
     TraceStorage* storage;
   };

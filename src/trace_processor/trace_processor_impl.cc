@@ -980,7 +980,7 @@ TraceProcessorImpl::GetUnfinalizedStaticTables(TraceStorage* storage) {
   AddUnfinalizedStaticTable(tables,
                             storage->mutable_etm_v4_configuration_table());
   AddUnfinalizedStaticTable(tables, storage->mutable_etm_v4_session_table());
-  AddUnfinalizedStaticTable(tables, storage->mutable_etm_v4_trace_table());
+  AddUnfinalizedStaticTable(tables, storage->mutable_etm_v4_chunk_table());
   AddUnfinalizedStaticTable(
       tables, storage->mutable_experimental_missing_chrome_processes_table());
   AddUnfinalizedStaticTable(
@@ -1315,8 +1315,8 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
       "__intrinsic_slice_mipmap",
       std::make_unique<SliceMipmapOperator::Context>(engine.get()));
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-  engine->RegisterVirtualTableModule<etm::EtmDecodeTraceVtable>(
-      "__intrinsic_etm_decode_trace", storage);
+  engine->RegisterVirtualTableModule<etm::EtmDecodeChunkVtable>(
+      "__intrinsic_etm_decode_chunk", storage);
   engine->RegisterVirtualTableModule<etm::EtmIterateRangeVtable>(
       "__intrinsic_etm_iterate_instruction_range", storage);
 #endif

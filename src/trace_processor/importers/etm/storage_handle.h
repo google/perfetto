@@ -45,8 +45,8 @@ class StorageHandle {
   const Configuration& GetEtmV4Config(
       tables::EtmV4ConfigurationTable::Id) const;
 
-  void StoreTrace(tables::EtmV4TraceTable::Id id, TraceBlobView trace);
-  const TraceBlobView& GetTrace(tables::EtmV4TraceTable::Id id) const;
+  void StoreChunk(tables::EtmV4ChunkTable::Id id, TraceBlobView chunk);
+  const TraceBlobView& GetChunk(tables::EtmV4ChunkTable::Id id) const;
 
  private:
   TraceStorage* storage_;
