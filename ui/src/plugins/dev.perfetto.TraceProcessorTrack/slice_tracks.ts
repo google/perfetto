@@ -256,24 +256,4 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
     topLevelGroup: 'THREAD',
     group: undefined,
   },
-  {
-    type: 'kernel_trackevent_thread_slice',
-    topLevelGroup: 'THREAD',
-    group: undefined,
-  },
-  {
-    type: 'kernel_trackevent_process_slice',
-    topLevelGroup: 'PROCESS',
-    group: undefined,
-  },
-  {
-    type: 'kernel_trackevent_cpu_slice',
-    topLevelGroup: 'CPU',
-    group: undefined,
-  },
-  {
-    type: 'kernel_trackevent_custom_slice',
-    topLevelGroup: 'KERNEL',
-    group: 'Kernel track events',
-  },
 ];

@@ -399,24 +399,4 @@ export const COUNTER_TRACK_SCHEMAS: ReadonlyArray<CounterTrackTypeSchema> = [
     topLevelGroup: 'THREAD',
     group: undefined,
   },
-  {
-    type: 'kernel_trackevent_thread_counter',
-    topLevelGroup: 'THREAD',
-    group: undefined,
-  },
-  {
-    type: 'kernel_trackevent_process_counter',
-    topLevelGroup: 'PROCESS',
-    group: undefined,
-  },
-  {
-    type: 'kernel_trackevent_cpu_counter',
-    topLevelGroup: 'CPU',
-    group: undefined,
-  },
-  {
-    type: 'kernel_trackevent_custom_counter',
-    topLevelGroup: 'KERNEL',
-    group: 'Kernel track events',
-  },
 ];
