@@ -2107,9 +2107,11 @@ TEST_P(PerfettoApiTest, CustomTrackDescriptor) {
   desc->set_process()->set_process_name("testing.exe");
   desc->set_thread()->set_tid(
       static_cast<int32_t>(perfetto::base::GetThreadId()));
-  auto* chrome_process = desc->set_chrome_process();
-  chrome_process->set_process_priority(123);
-  chrome_process->set_process_type(kCustomProcessType);
+  {
+    auto* chrome_process = desc->set_chrome_process();
+    chrome_process->set_process_priority(123);
+    chrome_process->set_process_type(kCustomProcessType);
+  }
 
   perfetto::protos::gen::TrackDescriptor gen_desc;
   ASSERT_TRUE(gen_desc.ParseFromString(desc.SerializeAsString()));
