@@ -31,10 +31,10 @@ RETURNS _ProjectionFragment AS result.$x as $y;
 -- details of what a scan means.
 CREATE PERFETTO MACRO _graph_scan(
   -- The table containing the edges of the graph. Needs to have the columns
-  -- `source_node_id` and `dest_node_id`.
+  -- `source_node_id` and `dest_node_id`. Should not contain nulls.
   graph_table TableOrSubquery,
   -- The table of nodes to start the scan from. Needs to have the column `id`
-  -- and all columns specified by `scan_columns`.
+  -- and all columns specified by `scan_columns`. Should not contain nulls.
   init_table TableOrSubquery,
   -- A parenthesised and comma separated list of columns which will be returned
   -- by the scan. Should match exactly both the names and order of the columns
