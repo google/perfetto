@@ -18,11 +18,10 @@
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  font-family: $pf-font;
   font-size: inherit;
   outline: none; // Disable the default outline
   border: none; // Disable the default border
-  border-bottom: solid 1px $pf-minimal-foreground; // Thin underline
+  border-bottom: solid 1px var(--pf-color-border); // Thin underline
   background: none;
   transition:
     border $pf-anim-timing,
@@ -38,6 +37,7 @@
     background: none;
     font-family: inherit;
     font-size: inherit;
+    color: inherit;
     flex-grow: 1;
   }
 
@@ -49,9 +49,9 @@
 
   &__tag {
     border-radius: $pf-border-radius;
-    background: $pf-primary-background;
+    background: var(--pf-color-accent);
+    color: var(--pf-color-text-inverse);
     margin-right: 2px;
-    color: $pf-primary-foreground;
     padding-inline: 4px;
     white-space: nowrap;
   }
@@ -59,7 +59,6 @@
   &__popup {
     max-height: 300px;
     overflow-y: auto;
-    font-family: $pf-font;
   }
 
   &__scroller {
@@ -74,22 +73,22 @@
     border-radius: 2px;
 
     &--selected {
-      background: lightgray;
+      background: color_active(transparent);
     }
   }
 
   // The gentle hover effect indicates this component is interactive
   &:hover {
-    background: $pf-minimal-background-hover;
+    background: color_hover(transparent);
   }
 
   &:focus-within {
-    background: $pf-minimal-background-hover;
-    border-bottom: solid 1px $pf-primary-background;
+    background: color_hover(transparent);
+    border-bottom: solid 1px var(--pf-color-accent);
 
     // The box-shadow thickens the bottom border, without adding to the height.
     // This is the same technique used by materializecss:
     // See https://materializecss.com/text-inputs.html
-    box-shadow: 0 1px 0 $pf-primary-background;
+    box-shadow: 0 1px 0 var(--pf-color-accent);
   }
 }

@@ -59,7 +59,7 @@ import {
 import {TagInput} from '../../widgets/tag_input';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {MiddleEllipsis} from '../../widgets/middle_ellipsis';
-import {Chip, ChipBar} from '../../widgets/chip';
+import {Chip} from '../../widgets/chip';
 import {TrackShell} from '../../widgets/track_shell';
 import {CopyableLink} from '../../widgets/copyable_link';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
@@ -763,7 +763,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                   icon: arg(icon, 'send'),
                   rightIcon: arg(rightIcon, 'arrow_forward'),
                   label: arg(label, 'Button', ''),
-                  onclick: () => alert('button pressed'),
+                  onclick: () => console.log('button pressed'),
                   ...rest,
                 }),
                 Boolean(showInlineWithText) && 'text',
@@ -783,6 +783,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           ),
           showAsGrid: false,
           showInlineWithText: false,
+          rounded: false,
         },
       }),
       m(WidgetShowcase, {
@@ -1550,14 +1551,23 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         renderWidget: (opts) => {
           const {icon, ...rest} = opts;
           return m(
-            ChipBar,
+            Stack,
+            {orientation: 'horizontal'},
             m(Chip, {
               label: 'Foo',
               icon: icon === true ? 'info' : undefined,
               ...rest,
             }),
-            m(Chip, {label: 'Bar', ...rest}),
-            m(Chip, {label: 'Baz', ...rest}),
+            m(Chip, {
+              label: 'Bar',
+              icon: icon === true ? 'warning' : undefined,
+              ...rest,
+            }),
+            m(Chip, {
+              label: 'Baz',
+              icon: icon === true ? 'error' : undefined,
+              ...rest,
+            }),
           );
         },
         initialOpts: {
@@ -1565,6 +1575,8 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           icon: true,
           compact: false,
           rounded: false,
+          disabled: false,
+          removable: true,
         },
       }),
       m(WidgetShowcase, {
@@ -1723,7 +1735,6 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           showCloseButtons: true,
         },
       }),
-
       renderWidgetShowcase({
         label: 'DataGrid (memory backed)',
         description: `An interactive data explorer and viewer.`,
