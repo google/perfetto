@@ -574,6 +574,11 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       RegisterMetric(file_to_sql.path, file_to_sql.sql);
     }
   }
+
+  InsertIntoBuildFlagsTable(context_.storage->mutable_build_flags_table(),
+                            context_.storage->mutable_string_pool());
+  InsertIntoModulesTable(context_.storage->mutable_modules_table(),
+                         context_.storage->mutable_string_pool());
 }
 
 TraceProcessorImpl::~TraceProcessorImpl() = default;
@@ -1419,12 +1424,6 @@ std::unique_ptr<PerfettoSqlEngine> TraceProcessorImpl::InitPerfettoSqlEngine(
 
   // Fill trace bounds table.
   BuildBoundsTable(db, GetTraceTimestampBoundsNs(*storage));
-
-  InsertIntoBuildFlagsTable(storage->mutable_build_flags_table(),
-                            storage->mutable_string_pool());
-
-  InsertIntoModulesTable(storage->mutable_modules_table(),
-                         storage->mutable_string_pool());
 
   return engine;
 }
