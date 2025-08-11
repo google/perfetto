@@ -14,8 +14,8 @@
 
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp';
 import {z} from 'zod';
-import {addQueryResultsTab} from 'src/components/query_table/query_result_tab';
-import {Trace} from 'src/public/trace';
+import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
+import {Trace} from '../../public/trace';
 
 export function registerUiTools(server: McpServer, ctxt: Trace) {
   server.tool(
