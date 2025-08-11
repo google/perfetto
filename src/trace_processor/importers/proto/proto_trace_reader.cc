@@ -621,7 +621,7 @@ base::Status ProtoTraceReader::ParseRemoteClockSync(ConstBytes blob) {
   // Calculate clock offsets and report to the ClockTracker.
   auto clock_offsets = CalculateClockOffsets(sync_clock_snapshots);
   for (auto it = clock_offsets.GetIterator(); it; ++it) {
-    context_->clock_tracker->SetClockOffset(it.key(), it.value());
+    context_->clock_tracker->SetRemoteClockOffset(it.key(), it.value());
   }
 
   return base::OkStatus();
