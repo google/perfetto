@@ -232,6 +232,8 @@ protobuf_full_deps_allowlist = [
   "../src/protozero/filtering:filter_util",
   "../tools/*",
   "../src/tools/*",
+  "../contrib/rust-sdk/src/protozero/protoc_plugin:*",
+  "../contrib/rust-sdk/tools/*",
 ]
 
 group("protoc") {
