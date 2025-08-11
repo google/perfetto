@@ -69,10 +69,15 @@ export default class implements PerfettoPlugin {
   static readonly dependencies = [ProcessThreadGroupsPlugin, ThreadPlugin];
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    const hasSched = await this.hasSched(ctx.engine);
+    if (!hasSched) {
+      return;
+    }
+
     await this.addCpuSliceTracks(ctx);
     await this.addThreadStateTracks(ctx);
     await this.addMinimapProvider(ctx);
-    await this.addSchedulingSummaryTracks(ctx);
+    this.addSchedulingSummaryTracks(ctx);
 
     ctx.commands.registerCommand({
       id: 'dev.perfetto.Sched#SelectAllThreadStateTracks',
@@ -299,11 +304,6 @@ export default class implements PerfettoPlugin {
   }
 
   private async addMinimapProvider(trace: Trace) {
-    const hasSched = await this.hasSched(trace.engine);
-    if (!hasSched) {
-      return;
-    }
-
     trace.minimap.registerContentProvider({
       priority: 2, // Higher priority than the default slices minimap
       getData: async (_, resolution) => {

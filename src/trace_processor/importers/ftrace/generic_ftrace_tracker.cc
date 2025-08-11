@@ -41,15 +41,7 @@ static constexpr uint32_t kMaxAllowedFields = 32;
 static constexpr char kScopeFieldNamePrefix[] = "scope_";
 
 // Track blueprints for kernel track events.
-//
-// TODO(rsavitski): improve track naming in the UI for cpu & custom scoped
-// tracks, as getTrackName() in dev.perfetto.TraceProcessorTrack won't
-// automatically add those dimensions as a suffix, leading to hard to
-// distinguish tracks in the UI. Alternatively, move these tracks to the ftrace
-// plugin in the UI.
-//
-// clang-format off
-constexpr auto kThreadSliceTrackBp = tracks::SliceBlueprint(
+constexpr auto kThreadSliceTrackBp = tracks::SliceBlueprint(  //
     "kernel_trackevent_thread_slice",
     tracks::DimensionBlueprints(
         tracks::kThreadDimensionBlueprint,
@@ -65,7 +57,7 @@ constexpr auto kThreadCounterTrackBp = tracks::CounterBlueprint(
         tracks::StringIdDimensionBlueprint("name")),
     tracks::DynamicNameBlueprint());
 
-constexpr auto kProcessSliceTrackBp = tracks::SliceBlueprint(
+constexpr auto kProcessSliceTrackBp = tracks::SliceBlueprint(  //
     "kernel_trackevent_process_slice",
     tracks::DimensionBlueprints(
         tracks::kProcessDimensionBlueprint,
@@ -81,7 +73,7 @@ constexpr auto kProcessCounterTrackBp = tracks::CounterBlueprint(
         tracks::StringIdDimensionBlueprint("name")),
     tracks::DynamicNameBlueprint());
 
-constexpr auto kCpuSliceTrackBp = tracks::SliceBlueprint(
+constexpr auto kCpuSliceTrackBp = tracks::SliceBlueprint(  //
     "kernel_trackevent_cpu_slice",
     tracks::DimensionBlueprints(
         tracks::kCpuDimensionBlueprint,
@@ -97,7 +89,7 @@ constexpr auto kCpuCounterTrackBp = tracks::CounterBlueprint(
         tracks::StringIdDimensionBlueprint("name")),
     tracks::DynamicNameBlueprint());
 
-constexpr auto kCustomSliceTrackBp = tracks::SliceBlueprint(
+constexpr auto kCustomSliceTrackBp = tracks::SliceBlueprint(  //
     "kernel_trackevent_custom_slice",
     tracks::DimensionBlueprints(
         tracks::LongDimensionBlueprint("scope"),
@@ -112,7 +104,6 @@ constexpr auto kCustomCounterTrackBp = tracks::CounterBlueprint(
         tracks::StringIdDimensionBlueprint("tracepoint"),
         tracks::StringIdDimensionBlueprint("name")),
     tracks::DynamicNameBlueprint());
-// clang-format on
 
 bool IsSimpleVarint(ProtoSchemaType t) {
   // not expecting fixed or zigzag encodings from our ftrace serialiser
