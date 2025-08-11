@@ -1,0 +1,15 @@
+[package]
+name = "perfetto-sys"
+version = "0.1.0"
+build = "build.rs"
+edition = "2024"
+
+[features]
+default = []
+vendored = []
+
+[dependencies]
+
+[build-dependencies]
+bindgen = "0.71"
+cc = "1.1"
