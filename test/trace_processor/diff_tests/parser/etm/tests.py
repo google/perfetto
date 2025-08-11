@@ -30,7 +30,7 @@ class Etm(TestSuite):
             __intrinsic_etm_v4_configuration AS C,
              __intrinsic_etm_v4_session AS s
              ON c.id = s.configuration_id,
-             __intrinsic_etm_v4_trace AS t
+             __intrinsic_etm_v4_chunk AS t
              ON s.id = t.session_id
           WHERE start_ts < 21077000721310
           ORDER BY start_ts ASC
@@ -59,26 +59,26 @@ class Etm(TestSuite):
         query='''
           SELECT count(*)
           FROM
-            __intrinsic_etm_v4_trace t,
-            __intrinsic_etm_decode_trace d
-            ON t.id = d.trace_id
+            __intrinsic_etm_v4_chunk t,
+            __intrinsic_etm_decode_chunk d
+            ON t.id = d.chunk_id
         ''',
         out=Csv('''
           "count(*)"
           5871
         '''))
 
-  def test_decode_trace(self):
+  def test_decode_chunk(self):
     return DiffTestBlueprint(
         register_files_dir=DataPath('simpleperf/bin'),
         trace=DataPath('simpleperf/cs_etm_u.perf'),
         query='''
           SELECT *
           FROM
-            __intrinsic_etm_decode_trace
-          WHERE trace_id = 0
+            __intrinsic_etm_decode_chunk
+          WHERE chunk_id = 0
         ''',
-        out=Path('decode_trace.out'))
+        out=Path('decode_chunk.out'))
 
   def test_iterate_instructions(self):
     return DiffTestBlueprint(
@@ -87,10 +87,10 @@ class Etm(TestSuite):
         query='''
           SELECT d.element_index, i.*
           FROM
-            __intrinsic_etm_decode_trace d,
+            __intrinsic_etm_decode_chunk d,
             __intrinsic_etm_iterate_instruction_range i
             USING(instruction_range)
-          WHERE trace_id = 0 AND mapping_id = 1
+          WHERE chunk_id = 0 AND mapping_id = 1
         ''',
         out=Path('iterate_instructions.out'))
 

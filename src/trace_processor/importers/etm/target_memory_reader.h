@@ -35,11 +35,11 @@ class TargetMemoryReader : public ITargetMemAccess {
   explicit TargetMemoryReader(const TargetMemory* memory) : memory_(memory) {}
 
   ocsd_err_t ReadTargetMemory(const ocsd_vaddr_t address,
-                              const uint8_t cs_trace_id,
+                              const uint8_t cs_trace_stream_id,
                               const ocsd_mem_space_acc_t mem_space,
                               uint32_t* num_bytes,
                               uint8_t* p_buffer) override;
-  void InvalidateMemAccCache(const uint8_t cs_trace_id) override;
+  void InvalidateMemAccCache(const uint8_t cs_trace_stream_id) override;
 
   void SetTs(int64_t ts);
   void SetPeContext(const ocsd_pe_context&);

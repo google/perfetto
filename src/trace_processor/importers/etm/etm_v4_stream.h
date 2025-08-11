@@ -59,7 +59,7 @@ class EtmV4Stream : public perf_importer::AuxDataStream, public ITrcDataIn {
     explicit SessionState(tables::EtmV4SessionTable::Id in_session_id)
         : session_id(in_session_id) {}
     tables::EtmV4SessionTable::Id session_id;
-    std::vector<TraceBlobView> traces_;
+    std::vector<TraceBlobView> chunks_;
   };
 
   base::Status ParseFramedData(uint64_t offset, TraceBlobView data);
@@ -69,7 +69,7 @@ class EtmV4Stream : public perf_importer::AuxDataStream, public ITrcDataIn {
   void EndChunkedTrace();
 
   void StartSession(std::optional<int64_t> start_ts);
-  void AddTrace(TraceBlobView trace);
+  void AddChunk(TraceBlobView trace);
   void EndSession();
 
   TraceProcessorContext* const context_;

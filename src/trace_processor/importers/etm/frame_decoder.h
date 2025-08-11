@@ -36,7 +36,7 @@ class FrameDecoder {
                                    const uint8_t* data_block,
                                    uint32_t* num_bytes_processed);
 
-  base::Status Attach(uint8_t cs_trace_id, ITrcDataIn* data_in);
+  base::Status Attach(uint8_t cs_trace_stream_id, ITrcDataIn* data_in);
 
  private:
   ocsd_demux_stats_t demux_stats_;
