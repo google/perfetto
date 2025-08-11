@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/json/json_trace_parser_impl.h"
+#include "src/trace_processor/importers/json/json_trace_parser.h"
 
 #include <cstdint>
 #include <cstring>
@@ -93,16 +93,16 @@ TrackCompressor::AsyncSliceType AsyncSliceTypeForPhase(char phase) {
 
 }  // namespace
 
-JsonTraceParserImpl::JsonTraceParserImpl(TraceProcessorContext* context)
+JsonTraceParser::JsonTraceParser(TraceProcessorContext* context)
     : context_(context), systrace_line_parser_(context) {}
 
-JsonTraceParserImpl::~JsonTraceParserImpl() = default;
+JsonTraceParser::~JsonTraceParser() = default;
 
-void JsonTraceParserImpl::ParseSystraceLine(int64_t, SystraceLine line) {
+void JsonTraceParser::ParseSystraceLine(int64_t, SystraceLine line) {
   systrace_line_parser_.ParseLine(line);
 }
 
-void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
+void JsonTraceParser::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
   ProcessTracker* procs = context_->process_tracker.get();
   TraceStorage* storage = context_->storage.get();
   SliceTracker* slice_tracker = context_->slice_tracker.get();
@@ -434,9 +434,9 @@ void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp, JsonEvent event) {
   }
 }
 
-void JsonTraceParserImpl::MaybeAddFlow(StringPool* pool,
-                                       TrackId track_id,
-                                       const JsonEvent& event) {
+void JsonTraceParser::MaybeAddFlow(StringPool* pool,
+                                   TrackId track_id,
+                                   const JsonEvent& event) {
   auto opt_bind_id =
       MaybeExtractFlowIdentifier(pool, event, /* version2 = */ true);
   if (opt_bind_id) {
