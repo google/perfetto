@@ -78,6 +78,7 @@ import {Engine} from '../../trace_processor/engine';
 import {Card, CardStack} from '../../widgets/card';
 import {Stack} from '../../widgets/stack';
 import {Tooltip} from '../../widgets/tooltip';
+import {TabStrip} from '../../widgets/tabs';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -316,6 +317,8 @@ const options: {[key: string]: boolean} = {
   xyzzy: false,
   thud: false,
 };
+
+let currentTab: string = 'foo';
 
 function PortalButton() {
   let portalOpen = false;
@@ -1859,6 +1862,25 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           readonlySorting: false,
           aggregation: false,
         },
+      }),
+
+      m(WidgetShowcase, {
+        label: 'TabStrip',
+        description: `A simple tab strip`,
+        renderWidget: () => {
+          return m(TabStrip, {
+            tabs: [
+              {key: 'foo', title: 'Foo'},
+              {key: 'bar', title: 'Bar'},
+              {key: 'baz', title: 'Baz'},
+            ],
+            currentTabKey: currentTab,
+            onTabChange: (key) => {
+              currentTab = key;
+            },
+          });
+        },
+        initialOpts: {},
       }),
     );
   }
