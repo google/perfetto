@@ -16,6 +16,7 @@ import {McpServer} from '@modelcontextprotocol/sdk/server/mcp';
 import {z} from 'zod';
 import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
 import {Trace} from '../../public/trace';
+import {Time} from '../../base/time';
 
 export function registerUiTools(server: McpServer, ctxt: Trace) {
   server.tool(
@@ -30,6 +31,47 @@ export function registerUiTools(server: McpServer, ctxt: Trace) {
         query: query,
         title: viewName,
       });
+
+      return {
+        content: [{type: 'text', text: 'OK'}],
+      };
+    },
+  );
+
+  server.tool(
+    'show-timeline',
+    `
+      Shows some context in the Timeline view.
+      'timeSpan' controls the range of time to be shown.
+      'focus' controls the row to be shown. For example { table: 'slice', id: 1234 }
+    `,
+    {
+      timeSpan: z
+        .object({
+          startMicros: z.number(),
+          endMicros: z.number(),
+        })
+        .optional(),
+      focus: z
+        .object({
+          table: z.string(),
+          id: z.number(),
+        })
+        .optional(),
+    },
+    async ({timeSpan, focus}) => {
+      if (timeSpan) {
+        ctxt.timeline.setViewportTime(
+          Time.fromMicros(timeSpan.startMicros),
+          Time.fromMicros(timeSpan.endMicros),
+        );
+      }
+      if (focus) {
+        ctxt.selection.selectSqlEvent(focus.table, focus.id, {
+          scrollToSelection: true,
+          switchToCurrentSelectionTab: true,
+        });
+      }
 
       return {
         content: [{type: 'text', text: 'OK'}],
