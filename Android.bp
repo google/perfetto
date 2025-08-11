@@ -11968,6 +11968,7 @@ genrule {
         "protos/perfetto/trace/track_event/thread_descriptor.proto",
         "protos/perfetto/trace/track_event/track_descriptor.proto",
         "protos/perfetto/trace/track_event/track_event.proto",
+        "protos/third_party/chromium/chrome_enums.proto",
         "protos/third_party/chromium/chrome_track_descriptor.proto",
         "protos/third_party/chromium/chrome_track_event.proto",
         "protos/third_party/chromium/chrome_track_event_import_wrapper.proto",
@@ -11985,6 +11986,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_third_party_chromium_zero",
     srcs: [
+        "protos/third_party/chromium/chrome_enums.proto",
         "protos/third_party/chromium/chrome_track_descriptor.proto",
         "protos/third_party/chromium/chrome_track_event.proto",
     ],
@@ -12003,6 +12005,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_third_party_chromium_zero)",
     out: [
+        "external/perfetto/protos/third_party/chromium/chrome_enums.pbzero.cc",
         "external/perfetto/protos/third_party/chromium/chrome_track_descriptor.pbzero.cc",
         "external/perfetto/protos/third_party/chromium/chrome_track_event.pbzero.cc",
     ],
@@ -12021,6 +12024,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_third_party_chromium_zero)",
     out: [
+        "external/perfetto/protos/third_party/chromium/chrome_enums.pbzero.h",
         "external/perfetto/protos/third_party/chromium/chrome_track_descriptor.pbzero.h",
         "external/perfetto/protos/third_party/chromium/chrome_track_event.pbzero.h",
     ],
@@ -15113,7 +15117,6 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/android/job_scheduler_states.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/kernel_wakelocks.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/dmabuf.sql",
-        "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/class_relationship.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/class_summary_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/class_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/dominator_class_tree.sql",
@@ -15185,7 +15188,6 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/linux/memory/general.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/memory/high_watermark.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/memory/process.sql",
-        "src/trace_processor/perfetto_sql/stdlib/linux/perf/etm.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/perf/samples.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/perf/spe.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/threads.sql",

@@ -2042,8 +2042,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_importers_json_json",
     srcs = [
-        "src/trace_processor/importers/json/json_trace_parser_impl.cc",
-        "src/trace_processor/importers/json/json_trace_parser_impl.h",
+        "src/trace_processor/importers/json/json_trace_parser.cc",
+        "src/trace_processor/importers/json/json_trace_parser.h",
         "src/trace_processor/importers/json/json_trace_tokenizer.cc",
         "src/trace_processor/importers/json/json_trace_tokenizer.h",
     ],
@@ -3014,7 +3014,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_memory_heap_graph_heap_graph",
     srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/class_relationship.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/class_summary_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/class_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/dominator_class_tree.sql",
@@ -3219,7 +3218,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_linux_perf_perf",
     srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/linux/perf/etm.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/perf/samples.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/perf/spe.sql",
     ],
@@ -7002,6 +7000,7 @@ perfetto_proto_descriptor(
 perfetto_proto_library(
     name = "protos_third_party_chromium_protos",
     srcs = [
+        "protos/third_party/chromium/chrome_enums.proto",
         "protos/third_party/chromium/chrome_track_descriptor.proto",
         "protos/third_party/chromium/chrome_track_event.proto",
     ],
