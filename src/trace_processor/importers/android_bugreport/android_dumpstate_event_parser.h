@@ -26,20 +26,24 @@
 
 namespace perfetto ::trace_processor {
 
+class AndroidBatteryStatsHistoryStringTracker;
 class TraceProcessorContext;
 
 class AndroidDumpstateEventParser
     : public TraceSorter::Sink<AndroidDumpstateEvent,
                                AndroidDumpstateEventParser> {
  public:
-  explicit AndroidDumpstateEventParser(TraceProcessorContext* context)
-      : context_(context) {}
+  explicit AndroidDumpstateEventParser(
+      TraceProcessorContext* context,
+      AndroidBatteryStatsHistoryStringTracker* history_string_tracker)
+      : context_(context), history_string_tracker_(history_string_tracker) {}
   ~AndroidDumpstateEventParser() override;
 
   void Parse(int64_t, AndroidDumpstateEvent);
 
  private:
   TraceProcessorContext* const context_;
+  AndroidBatteryStatsHistoryStringTracker* const history_string_tracker_;
 
   struct TokenizedBatteryStatsHistoryItem {
     // absolute timestamp of the event.

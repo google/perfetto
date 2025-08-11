@@ -33,7 +33,7 @@ class RowDataTracker;
 class RowParser
     : public TraceSorter::Sink<instruments_importer::Row, RowParser> {
  public:
-  explicit RowParser(TraceProcessorContext*);
+  explicit RowParser(TraceProcessorContext*, RowDataTracker&);
   ~RowParser() override;
 
   void Parse(int64_t, instruments_importer::Row);
