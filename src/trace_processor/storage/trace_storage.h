@@ -446,6 +446,18 @@ class TraceStorage {
   }
   tables::MetadataTable* mutable_metadata_table() { return &metadata_table_; }
 
+  const tables::BuildFlagsTable& build_flags_table() const {
+    return build_flags_table_;
+  }
+
+  tables::BuildFlagsTable* mutable_build_flags_table() {
+    return &build_flags_table_;
+  }
+
+  const tables::ModulesTable& modules_table() const { return modules_table_; }
+
+  tables::ModulesTable* mutable_modules_table() { return &modules_table_; }
+
   const tables::ClockSnapshotTable& clock_snapshot_table() const {
     return clock_snapshot_table_;
   }
@@ -1054,6 +1066,12 @@ class TraceStorage {
   // * metadata from chrome and benchmarking infrastructure
   // * descriptions of android packages
   tables::MetadataTable metadata_table_{&string_pool_};
+
+  // Contains the build flags of the trace. The values are resolved - i.e. if
+  // they depend on other flags, the final value is stored here.
+  tables::BuildFlagsTable build_flags_table_{&string_pool_};
+
+  tables::ModulesTable modules_table_{&string_pool_};
 
   // Contains data from all the clock snapshots in the trace.
   tables::ClockSnapshotTable clock_snapshot_table_{&string_pool_};
