@@ -19,7 +19,7 @@ import {HTMLCheckboxAttrs} from './common';
 export interface SwitchAttrs extends HTMLCheckboxAttrs {
   // Optional text to show to the right of the switch.
   // If omitted, no text will be shown.
-  label?: string;
+  label?: m.Children;
   // Optional text to show to the left of the switch.
   // If omitted, no text will be shown.
   labelLeft?: string;
@@ -43,7 +43,7 @@ export class Switch implements m.ClassComponent<SwitchAttrs> {
       labelLeft && m('span.pf-switch-label-left', labelLeft),
       m('input[type=checkbox]', {disabled, checked}),
       m('span.pf-switch-visual'),
-      label && m('span.pf-switch-label', label),
+      label !== undefined && m('span.pf-switch-label', label),
     );
   }
 }

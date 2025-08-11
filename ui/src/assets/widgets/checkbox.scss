@@ -46,7 +46,6 @@
   position: relative; // Turns this container into a positioned element
   font-family: inherit;
   font-size: inherit;
-  color: $pf-minimal-foreground;
   user-select: none;
   cursor: pointer;
   padding-left: $box-size + $box-label-padding;
@@ -69,7 +68,7 @@
     height: $box-size;
     width: $box-size;
     border-radius: $pf-border-radius;
-    border: solid 2px $pf-minimal-foreground;
+    border: solid 2px currentColor;
     transition: background $pf-anim-timing;
     background: none;
 
@@ -82,7 +81,7 @@
       left: 1px;
       width: 0px;
       height: 0px;
-      border-color: $pf-primary-foreground;
+      border-color: white;
       border-style: solid;
       border-width: 0;
       transform-origin: 0% 100%; // Put the origin at the short edge of the tick
@@ -96,13 +95,13 @@
 
   &:hover {
     span {
-      background: $pf-minimal-background-hover;
+      background: color_hover(transparent);
     }
   }
 
   input:checked + span {
-    border-color: $pf-primary-background;
-    background: $pf-primary-background;
+    border-color: var(--pf-color-accent);
+    background: var(--pf-color-accent);
   }
 
   input:focus-visible + span {
@@ -120,20 +119,8 @@
   }
 
   &.pf-disabled {
+    opacity: 0.5;
+    pointer-events: none;
     cursor: not-allowed;
-    color: $pf-minimal-foreground-disabled;
-
-    span {
-      border-color: $pf-minimal-foreground-disabled;
-      background: none;
-      &:after {
-        border-color: $pf-primary-foreground;
-      }
-    }
-
-    input:checked ~ span {
-      border-color: $pf-primary-background-disabled;
-      background: $pf-primary-background-disabled;
-    }
   }
 }

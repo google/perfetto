@@ -31,13 +31,14 @@ class AndroidDumpstateReader : public ChunkedLineReader {
  public:
   // Create a reader that will only forward events that are not present in the
   // given list.
-  AndroidDumpstateReader(TraceProcessorContext* context, int32_t year = 0);
+  AndroidDumpstateReader(TraceProcessorContext* context);
   ~AndroidDumpstateReader() override;
 
   base::Status ParseLine(base::StringView line) override;
   void EndOfStream(base::StringView leftovers) override;
 
-  BufferingAndroidLogReader& log_reader() { return log_reader_; }
+  base::Status ParseLine(BufferingAndroidLogReader* const log_reader,
+                         base::StringView line);
 
  protected:
   void MaybeSetTzOffsetFromAlarmService(base::StringView line);
@@ -46,9 +47,9 @@ class AndroidDumpstateReader : public ChunkedLineReader {
   enum class Section { kOther = 0, kDumpsys, kLog, kBatteryStats };
   TraceProcessorContext* const context_;
   AndroidBatteryStatsReader battery_stats_reader_;
-  BufferingAndroidLogReader log_reader_;
+  std::unique_ptr<BufferingAndroidLogReader> default_log_reader_;
   Section current_section_ = Section::kOther;
-  base::StringView current_serivce_ = "";
+  base::StringView current_service_ = "";
   StringId current_section_id_ = StringId::Null();
   StringId current_service_id_ = StringId::Null();
 };

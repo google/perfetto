@@ -388,6 +388,60 @@ your `trace_converter_template.py` script.
 
 ![Controlling Track Sorting Order](/docs/images/synthetic-track-event-sorting.png)
 
+### Sharing Y-Axis Between Counters
+
+When visualizing multiple counter tracks, it is often useful to have them share the same Y-axis range. This allows for easy comparison of their values. Perfetto supports this feature through the `y_axis_share_key` field in the `CounterDescriptor`.
+
+All counter tracks that have the same `y_axis_share_key` and the same parent track will share their Y-axis range in the UI.
+
+**Python Example: Sharing Y-Axis**
+
+In this example, we create two counter tracks with the same `y_axis_share_key`. This will cause them to be rendered with the same Y-axis range in the Perfetto UI.
+
+<details>
+<summary><a style="cursor: pointer;"><b>Click to expand/collapse Python code</b></a></summary>
+
+```python
+    TRUSTED_PACKET_SEQUENCE_ID = 9005
+
+    # --- Define Track UUIDs ---
+    counter1_uuid = 1
+    counter2_uuid = 2
+
+    # Helper to define a Counter TrackDescriptor
+    def define_counter_track(track_uuid, name, share_key=None):
+        packet = builder.add_packet()
+        desc = packet.track_descriptor
+        desc.uuid = track_uuid
+        desc.name = name
+        if share_key:
+            desc.counter.y_axis_share_key = share_key
+
+    # 1. Define the counter tracks with the same share key
+    define_counter_track(counter1_uuid, "Counter 1", "group1")
+    define_counter_track(counter2_uuid, "Counter 2", "group1")
+
+    # Helper to add a counter event
+    def add_counter_event(ts, value, counter_track_uuid):
+        packet = builder.add_packet()
+        packet.timestamp = ts
+        packet.track_event.type = TrackEvent.TYPE_COUNTER
+        packet.track_event.track_uuid = counter_track_uuid
+        packet.track_event.counter_value = value
+        packet.trusted_packet_sequence_id = TRUSTED_PACKET_SEQUENCE_ID
+
+    # 2. Add events to the tracks
+    add_counter_event(ts=1000, value=100, counter_track_uuid=counter1_uuid)
+    add_counter_event(ts=2000, value=200, counter_track_uuid=counter1_uuid)
+
+    add_counter_event(ts=1000, value=300, counter_track_uuid=counter2_uuid)
+    add_counter_event(ts=2000, value=400, counter_track_uuid=counter2_uuid)
+```
+
+</details>
+
+![Sharing Y-Axis](/docs/images/synthetic-track-event-share-y-axis.png)
+
 ### Interning Data for Trace Size Optimization
 
 Interning is a technique used to reduce the size of trace files by emitting

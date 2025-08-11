@@ -192,6 +192,7 @@
   transition: opacity 0.25s ease;
   opacity: 0;
   display: none;
+  overflow: hidden;
 
   &:not(.active) {
     max-height: 0;
@@ -965,53 +966,6 @@
     }
   }
 } // pf-record-page__section
-
-.pf-code-snippet {
-  display: grid;
-  position: relative;
-  padding: 0;
-  margin: 0 var(--record-section-padding);
-  background-color: #111;
-  border-radius: 4px;
-  box-shadow: 0 0 12px #999;
-
-  &::before {
-    height: 20px;
-    content: "";
-    display: block;
-    background-color: #598eca;
-  }
-
-  &.no-top-bar {
-    white-space: pre;
-    &::before {
-      height: 0;
-    }
-  }
-
-  > code {
-    display: block;
-    margin: 10px 5px 20px 20px;
-    color: #ccc;
-    font-family: var(--monospace-font);
-    font-size: 12px;
-    line-height: 20px;
-    overflow-y: auto;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-
-    // 510px and not 500px, so the overflowing line gets truncated, giving
-    // a clear indication that the code box scrolls.
-    max-height: 510px;
-  }
-
-  > button {
-    position: absolute;
-    top: 30px;
-    right: 20px;
-    color: white;
-  }
-} // pf-code-snippet
 
 // For RecordingV2
 

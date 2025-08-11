@@ -15,19 +15,20 @@
 @import "../theme.scss";
 
 $border-radius: 4px;
-$box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.15);
+$box-shadow: 0px 2px 6px var(--pf-color-box-shadow);
+$box-shadow-elevated: 0px 4px 12px var(--pf-color-box-shadow);
 
 @layer pf-widgets {
   .pf-card {
     padding: 12px 16px;
     box-shadow: $box-shadow;
     border-radius: $border-radius;
-    border: solid 1px $pf-colour-thin-border;
+    border: solid 1px var(--pf-color-border);
 
     &.pf-interactive {
       transition: all 200ms ease-in-out;
       &:hover {
-        box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.2);
+        box-shadow: $box-shadow-elevated;
       }
     }
   }
@@ -35,13 +36,13 @@ $box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.15);
   .pf-card-stack {
     display: flex;
     flex-direction: column;
-    border: solid 1px $pf-colour-thin-border;
+    border: solid 1px var(--pf-color-border);
     border-radius: $border-radius;
     box-shadow: $box-shadow;
     overflow: hidden;
 
     > .pf-card:not(:last-child) {
-      border-bottom: 1px solid lightgray;
+      border-bottom: 1px solid var(--pf-color-border);
     }
 
     > .pf-card {
@@ -59,7 +60,7 @@ $box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.15);
       flex-direction: row;
 
       > .pf-card:not(:last-child) {
-        border-right: 1px solid lightgray;
+        border-right: 1px solid var(--pf-color-border);
         border-bottom: unset;
       }
     }
