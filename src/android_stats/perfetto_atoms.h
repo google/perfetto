@@ -74,7 +74,6 @@ enum class PerfettoStatsdAtom {
   kTracedEnableTracingInvalidTriggerMode = 52,
   kTracedEnableTracingInvalidBrFilename = 54,
   kTracedEnableTracingFailedSessionSemaphoreCheck = 57,
-  kTracedEnablePriorityBoostNoCapability = 60,
   kTracedEnablePriorityBoostInvalidConfig = 61,
   kTracedEnablePriorityBoostOtherError = 62,
   kTracedEnableTracingExclusiveSessionRejected = 63,
