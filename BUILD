@@ -2041,8 +2041,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_importers_json_json",
     srcs = [
-        "src/trace_processor/importers/json/json_trace_parser_impl.cc",
-        "src/trace_processor/importers/json/json_trace_parser_impl.h",
+        "src/trace_processor/importers/json/json_trace_parser.cc",
+        "src/trace_processor/importers/json/json_trace_parser.h",
         "src/trace_processor/importers/json/json_trace_tokenizer.cc",
         "src/trace_processor/importers/json/json_trace_tokenizer.h",
     ],
@@ -7001,6 +7001,7 @@ perfetto_proto_descriptor(
 perfetto_proto_library(
     name = "protos_third_party_chromium_protos",
     srcs = [
+        "protos/third_party/chromium/chrome_enums.proto",
         "protos/third_party/chromium/chrome_track_event.proto",
     ],
     visibility = [

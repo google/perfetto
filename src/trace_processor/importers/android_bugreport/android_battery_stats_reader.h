@@ -29,6 +29,7 @@
 
 namespace perfetto ::trace_processor {
 
+class AndroidBatteryStatsHistoryStringTracker;
 class TraceProcessorContext;
 
 // Parses the battery stats checkin produded by (dumpsys batterystats -c),
@@ -57,6 +58,8 @@ class AndroidBatteryStatsReader : public ChunkedLineReader {
   base::Status ProcessItemStr(base::StringView item);
 
   TraceProcessorContext* const context_;
+  std::unique_ptr<AndroidBatteryStatsHistoryStringTracker>
+      history_string_tracker_;
   std::unique_ptr<TraceSorter::Stream<AndroidDumpstateEvent>> stream_;
 
   int64_t current_timestamp_ms_;

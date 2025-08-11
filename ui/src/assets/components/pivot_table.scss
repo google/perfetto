@@ -61,7 +61,7 @@
     cursor: pointer;
   }
   td.first {
-    border-left: 1px solid $table-border-color;
+    border-left: 1px solid var(--pf-color-border-secondary);
     padding-left: 6px;
   }
   .disabled {

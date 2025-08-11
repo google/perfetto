@@ -773,6 +773,9 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   // higher priority.
   if (current_exclusive_prio > 0 &&
       current_exclusive_prio >= cfg.exclusive_prio()) {
+    MaybeLogUploadEvent(
+        cfg, uuid,
+        PerfettoStatsdAtom::kTracedEnableTracingExclusiveSessionRejected);
     return PERFETTO_SVC_ERR(
         "An exclusive session with priority %u >= requested priority %u is "
         "already active.",
@@ -782,6 +785,9 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   if (cfg.exclusive_prio() > 0) {  // Exclusive mode.
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
     if (consumer->uid_ != AID_ROOT && consumer->uid_ != AID_SHELL) {
+      MaybeLogUploadEvent(
+          cfg, uuid,
+          PerfettoStatsdAtom::kTracedEnableTracingExclusiveSessionNotAllowed);
       return PERFETTO_SVC_ERR(
           "On android, exclusive mode can only be requested by root or shell.");
     }

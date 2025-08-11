@@ -18,6 +18,14 @@ $pf-font: "Roboto Condensed", sans-serif;
 $pf-border-radius: 2px;
 $pf-anim-timing: 150ms cubic-bezier(0.4, 0, 0.2, 1);
 
+@function color_hover($base) {
+  @return color-mix(in srgb, $base, var(--pf-color-interactive-base) 8%);
+}
+
+@function color_active($base) {
+  @return color-mix(in srgb, $base, var(--pf-color-interactive-base) 16%);
+}
+
 // Here we describe two colour schemes: primary and minimal
 // It is assumed widgets exist on a light background
 // Primary is to be used for things like buttons and checkboxes
@@ -28,7 +36,7 @@ $pf-anim-timing: 150ms cubic-bezier(0.4, 0, 0.2, 1);
 
 $pf-primary-foreground: #fff;
 $pf-primary-foreground-disabled: #aaa;
-$pf-primary-border: #31466f;
+$pf-primary-border: #121313;
 $pf-primary-background: #3d5688;
 $pf-primary-background-hover: #4966a2;
 $pf-primary-background-active: #243e71;

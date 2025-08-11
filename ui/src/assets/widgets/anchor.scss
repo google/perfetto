@@ -16,7 +16,7 @@
 
 .pf-anchor {
   display: inline-block;
-  color: $pf-primary-background;
+  color: var(--pf-color-accent);
   border-radius: $pf-border-radius;
   cursor: pointer;
   text-decoration: underline;
@@ -28,7 +28,7 @@
 
   &:hover {
     // Gently darken the background and thicken the underline.
-    background: $pf-minimal-background-hover;
+    background: color_hover(transparent);
     text-decoration-color: unset;
     text-decoration-thickness: 2px;
   }
