@@ -116,7 +116,7 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
       tc.addDataSource(
         'org.chromium.trace_metadata2',
         'metadata',
-      ).chromeConfig = { privacyFilteringEnabled };
+      ).chromeConfig = {privacyFilteringEnabled};
 
       if (memoryInfra) {
         tc.addDataSource('org.chromium.memory_instrumentation').chromeConfig =
@@ -129,8 +129,9 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
         cats.has('disabled-by-default-cpu_profiler') ||
         cats.has('disabled-by-default-cpu_profiler.debug')
       ) {
-        tc.addDataSource('org.chromium.sampler_profiler').chromeConfig =
-          { privacyFilteringEnabled };
+        tc.addDataSource('org.chromium.sampler_profiler').chromeConfig = {
+          privacyFilteringEnabled,
+        };
       }
       if (cats.has('disabled-by-default-system_metrics')) {
         tc.addDataSource('org.chromium.system_metrics');
