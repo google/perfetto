@@ -5031,14 +5031,18 @@ class EnumValueDescriptorProto(_message.Message):
     def __init__(self, name: _Optional[str] = ..., number: _Optional[int] = ...) -> None: ...
 
 class EtwConfig(_message.Message):
-    __slots__ = ["kernel_flags"]
+    __slots__ = ["kernel_flags", "memory_provider_events", "scheduler_provider_events"]
     class KernelFlag(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     CSWITCH: EtwConfig.KernelFlag
     DISPATCHER: EtwConfig.KernelFlag
     KERNEL_FLAGS_FIELD_NUMBER: _ClassVar[int]
+    MEMORY_PROVIDER_EVENTS_FIELD_NUMBER: _ClassVar[int]
+    SCHEDULER_PROVIDER_EVENTS_FIELD_NUMBER: _ClassVar[int]
     kernel_flags: _containers.RepeatedScalarFieldContainer[EtwConfig.KernelFlag]
-    def __init__(self, kernel_flags: _Optional[_Iterable[_Union[EtwConfig.KernelFlag, str]]] = ...) -> None: ...
+    memory_provider_events: _containers.RepeatedScalarFieldContainer[str]
+    scheduler_provider_events: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, kernel_flags: _Optional[_Iterable[_Union[EtwConfig.KernelFlag, str]]] = ..., scheduler_provider_events: _Optional[_Iterable[str]] = ..., memory_provider_events: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class EtwTraceEvent(_message.Message):
     __slots__ = ["c_switch", "cpu", "ready_thread", "thread_id", "timestamp"]
