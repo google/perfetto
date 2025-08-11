@@ -25,7 +25,6 @@
 
 #include "perfetto/public/pb_macros.h"
 
-PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeProcessDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeThreadDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_CounterDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessDescriptor);
@@ -85,11 +84,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
                   perfetto_protos_ProcessDescriptor,
                   process,
                   3);
-PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
-                  MSG,
-                  perfetto_protos_ChromeProcessDescriptor,
-                  chrome_process,
-                  6);
 PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
                   MSG,
                   perfetto_protos_ThreadDescriptor,
