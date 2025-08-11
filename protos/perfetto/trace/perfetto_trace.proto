@@ -1010,8 +1010,7 @@ message EtwConfig {
   // captured from the kernel mode only.
   repeated KernelFlag kernel_flags = 1;
 
-  // The following list event keywords for individual providers.
-  // See the list of keywords
+  // See the list of keywords for for individual providers.
   // https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
 
   // Provides events relating to the scheduler.
