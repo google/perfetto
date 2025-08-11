@@ -31,15 +31,11 @@ from python.generators.diff_tests.test_executor import (QueryTestExecutor,
                                                         MetricV2TestExecutor)
 from python.generators.diff_tests.test_loader import TestLoader
 
-ROOT_DIR = os.path.dirname(
-    os.path.dirname(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
 
 @dataclass
 class TestResults:
   """Results of running the test suite.
-  
+
   Mostly used for printing aggregated results.
   """
   test_failures: List[str]
@@ -66,12 +62,10 @@ class DiffTestsRunner:
 
   def __init__(self, config: Config):
     self.config = config
-    self.test_loader = TestLoader(
-        os.path.abspath(os.path.join(__file__, '../../../../test/data')))
+    self.test_loader = TestLoader(os.path.abspath(config.test_dir))
 
   def run(self) -> TestResults:
-    tests = self.test_loader.discover_and_load_tests(ROOT_DIR,
-                                                     self.config.name_filter)
+    tests = self.test_loader.discover_and_load_tests(self.config.name_filter)
 
     trace_descriptor_path = get_trace_descriptor_path(
         os.path.dirname(self.config.trace_processor_path),
@@ -184,12 +178,13 @@ class DiffTestsRunner:
         res += 'tools/serialize_test_trace.py '
         assert result.test.trace_path
         res += '--descriptor {} {} {} > {}\n'.format(
-            os.path.relpath(trace_descriptor_path, ROOT_DIR), " ".join([
+            os.path.relpath(trace_descriptor_path, config.test_dir), " ".join([
                 "--extension-descriptor {}".format(
-                    os.path.relpath(p, ROOT_DIR))
+                    os.path.relpath(p, config.test_dir))
                 for p in extension_descriptor_paths
-            ]), os.path.relpath(result.test.trace_path, ROOT_DIR),
-            os.path.relpath(trace_path, ROOT_DIR), extension_descriptor_paths)
+            ]), os.path.relpath(result.test.trace_path, config.test_dir),
+            os.path.relpath(trace_path, config.test_dir),
+            extension_descriptor_paths)
       res += f"Command line:\n{' '.join(result.cmd)}\n"
       return res
 
