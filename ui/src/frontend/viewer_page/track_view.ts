@@ -40,7 +40,7 @@ import {Button} from '../../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {TrackShell} from '../../widgets/track_shell';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {SELECTION_FILL_COLOR} from '../css_constants';
+import {COLOR_ACCENT} from '../css_constants';
 import {calculateResolution} from './resolution';
 import {Trace} from '../../public/trace';
 import {Anchor} from '../../widgets/anchor';
@@ -509,13 +509,15 @@ export class TrackView {
 
     if (selected) {
       const selectedAreaDuration = selection.end - selection.start;
-      ctx.fillStyle = SELECTION_FILL_COLOR;
+      ctx.globalAlpha = 0.3;
+      ctx.fillStyle = COLOR_ACCENT;
       ctx.fillRect(
         timescale.timeToPx(selection.start),
         0,
         timescale.durationToPx(selectedAreaDuration),
         size.height,
       );
+      ctx.globalAlpha = 1.0;
     }
   }
 
