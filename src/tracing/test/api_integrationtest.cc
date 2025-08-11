@@ -97,6 +97,7 @@
 #include "protos/perfetto/trace/track_event/track_descriptor.gen.h"
 #include "protos/perfetto/trace/track_event/track_event.gen.h"
 #include "protos/perfetto/trace/trigger.gen.h"
+#include "protos/third_party/chromium/chrome_enums.pbzero.h"
 #include "protos/third_party/chromium/chrome_track_descriptor.pbzero.h"
 
 // Events in categories starting with "dynamic" will use dynamic category
@@ -2084,6 +2085,9 @@ TEST_P(PerfettoApiTest, TrackEventProcessAndThreadDescriptors) {
 }
 
 TEST_P(PerfettoApiTest, CustomTrackDescriptor) {
+  constexpr auto kCustomProcessType =
+      perfetto::protos::chrome_enums::pbzero::PROCESS_BROWSER;
+
   // Setup the trace config.
   perfetto::TraceConfig cfg;
   cfg.set_duration_ms(500);
@@ -2103,7 +2107,9 @@ TEST_P(PerfettoApiTest, CustomTrackDescriptor) {
   desc->set_process()->set_process_name("testing.exe");
   desc->set_thread()->set_tid(
       static_cast<int32_t>(perfetto::base::GetThreadId()));
-  desc->set_chrome_process()->set_process_priority(123);
+  auto* chrome_process = desc->set_chrome_process();
+  chrome_process->set_process_priority(123);
+  chrome_process->set_process_type(kCustomProcessType);
 
   perfetto::protos::gen::TrackDescriptor gen_desc;
   ASSERT_TRUE(gen_desc.ParseFromString(desc.SerializeAsString()));
@@ -2136,6 +2142,8 @@ TEST_P(PerfettoApiTest, CustomTrackDescriptor) {
           chrome_process_field.as_bytes());
       EXPECT_TRUE(chrome_process.has_process_priority());
       EXPECT_EQ(123, chrome_process.process_priority());
+      EXPECT_TRUE(chrome_process.has_process_type());
+      EXPECT_EQ(kCustomProcessType, chrome_process.process_type());
 
       found_desc = true;
     }
