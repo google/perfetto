@@ -16,20 +16,16 @@
 
 #include "src/trace_processor/importers/archive/zip_trace_reader.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <map>
 #include <memory>
-#include <string>
-#include <tuple>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_macros.h"
-#include "perfetto/ext/base/status_or.h"
-#include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
@@ -43,7 +39,9 @@
 namespace perfetto::trace_processor {
 
 ZipTraceReader::ZipTraceReader(TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context),
+      android_bugreport_reader_(
+          std::make_unique<AndroidBugreportReader>(context)) {}
 ZipTraceReader::~ZipTraceReader() = default;
 
 base::Status ZipTraceReader::Parse(TraceBlobView blob) {
@@ -55,8 +53,8 @@ base::Status ZipTraceReader::NotifyEndOfFile() {
 
   // Android bug reports are ZIP files and its files do not get handled
   // separately.
-  if (AndroidBugreportReader::IsAndroidBugReport(files)) {
-    return AndroidBugreportReader::Parse(context_, std::move(files));
+  if (android_bugreport_reader_->IsAndroidBugReport(files)) {
+    return android_bugreport_reader_->Parse(std::move(files));
   }
 
   // TODO(carlscab): There is a lot of unnecessary copying going on here.
@@ -80,7 +78,7 @@ base::Status ZipTraceReader::NotifyEndOfFile() {
     auto chunk_reader =
         std::make_unique<ForwardingTraceParser>(context_, file.second.id);
     auto& parser = *chunk_reader;
-    context_->chunk_readers.push_back(std::move(chunk_reader));
+    parsers_.push_back(std::move(chunk_reader));
 
     RETURN_IF_ERROR(parser.Parse(std::move(file.second.data)));
     RETURN_IF_ERROR(parser.NotifyEndOfFile());

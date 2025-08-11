@@ -16,13 +16,21 @@
 
 #include "src/trace_processor/importers/instruments/row_parser.h"
 
+#include <cstdint>
+#include <optional>
+
+#include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/instruments/row.h"
 #include "src/trace_processor/importers/instruments/row_data_tracker.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/util/build_id.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_TP_INSTRUMENTS)
 #error \
@@ -31,10 +39,12 @@
 
 namespace perfetto::trace_processor::instruments_importer {
 
-RowParser::RowParser(TraceProcessorContext* context)
-    : context_(context), data_(RowDataTracker::GetOrCreate(context)) {}
+RowParser::RowParser(TraceProcessorContext* context, RowDataTracker& data)
+    : context_(context), data_(data) {}
 
-void RowParser::ParseInstrumentsRow(int64_t ts, instruments_importer::Row row) {
+RowParser::~RowParser() = default;
+
+void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
   if (!row.backtrace) {
     return;
   }

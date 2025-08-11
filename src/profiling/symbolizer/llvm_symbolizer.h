@@ -24,8 +24,8 @@
 #include "perfetto/ext/base/string_view.h"
 #include "src/profiling/symbolizer/llvm_symbolizer_c_api.h"
 
-namespace perfetto {
-namespace profiling {
+namespace perfetto::profiling {
+
 class LlvmSymbolizer;
 
 // RAII wrapper for the results of a batch symbolization.
@@ -105,7 +105,6 @@ class LlvmSymbolizer {
       nullptr;
 };
 
-}  // namespace profiling
-}  // namespace perfetto
+}  // namespace perfetto::profiling
 
 #endif  // SRC_PROFILING_SYMBOLIZER_LLVM_SYMBOLIZER_H_

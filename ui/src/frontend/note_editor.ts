@@ -20,6 +20,11 @@ import {TraceImpl} from '../core/trace_impl';
 import {Note, SpanNote} from '../public/note';
 import {NoteSelection} from '../public/selection';
 import {Button} from '../widgets/button';
+import {TextInput, TextInputAttrs} from '../widgets/text_input';
+import {Tree, TreeNode} from '../widgets/tree';
+import {DetailsShell} from '../widgets/details_shell';
+import {Section} from '../widgets/section';
+import {GridLayout} from '../widgets/grid_layout';
 
 function getStartTimestamp(note: Note | SpanNote) {
   const noteType = note.noteType;
@@ -48,47 +53,56 @@ export class NoteEditor implements m.ClassComponent<NodeDetailsPanelAttrs> {
     }
     const startTime = getStartTimestamp(note);
     return m(
-      '.notes-editor-panel',
+      DetailsShell,
       {
-        key: id, // Every note shoul get its own brand new DOM.
+        title: 'Note',
+        key: id, // Every note should get its own brand new DOM.
       },
       m(
-        '.notes-editor-panel-heading-bar',
+        GridLayout,
         m(
-          '.notes-editor-panel-heading',
-          `Annotation at `,
-          m(Timestamp, {ts: startTime}),
+          Section,
+          {title: 'Details'},
+          m(
+            Tree,
+            m(TreeNode, {
+              left: 'Annotation',
+              right: m(Timestamp, {ts: startTime}),
+            }),
+            m(TreeNode, {
+              left: 'Name',
+              right: m(TextInput, {
+                oncreate: (v: m.VnodeDOM<TextInputAttrs>) => {
+                  // NOTE: due to bad design decisions elsewhere this component is
+                  // rendered every time the mouse moves on the canvas. We cannot set
+                  // `value: note.text` as an input as that will clobber the input
+                  // value as we move the mouse.
+                  const inputElement = v.dom as HTMLInputElement;
+                  inputElement.value = note.text;
+                },
+                onchange: (e: InputEvent) => {
+                  const newText = (e.target as HTMLInputElement).value;
+                  trace.notes.changeNote(id, {text: newText});
+                },
+              }),
+            }),
+            m(TreeNode, {
+              left: 'Color',
+              right: m('input[type=color]', {
+                value: note.color,
+                onchange: (e: Event) => {
+                  const newColor = (e.target as HTMLInputElement).value;
+                  trace.notes.changeNote(id, {color: newColor});
+                },
+              }),
+            }),
+            m(Button, {
+              label: 'Remove',
+              icon: Icons.Delete,
+              onclick: () => trace.notes.removeNote(id),
+            }),
+          ),
         ),
-        m('input[type=text]', {
-          oncreate: (v: m.VnodeDOM) => {
-            // NOTE: due to bad design decisions elsewhere this component is
-            // rendered every time the mouse moves on the canvas. We cannot set
-            // `value: note.text` as an input as that will clobber the input
-            // value as we move the mouse.
-            const inputElement = v.dom as HTMLInputElement;
-            inputElement.value = note.text;
-          },
-          onchange: (e: InputEvent) => {
-            const newText = (e.target as HTMLInputElement).value;
-            trace.notes.changeNote(id, {text: newText});
-          },
-        }),
-        m(
-          'span.color-change',
-          `Change color: `,
-          m('input[type=color]', {
-            value: note.color,
-            onchange: (e: Event) => {
-              const newColor = (e.target as HTMLInputElement).value;
-              trace.notes.changeNote(id, {color: newColor});
-            },
-          }),
-        ),
-        m(Button, {
-          label: 'Remove',
-          icon: Icons.Delete,
-          onclick: () => trace.notes.removeNote(id),
-        }),
       ),
     );
   }

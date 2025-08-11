@@ -46,8 +46,8 @@ export interface HTMLFocusableAttrs extends HTMLAttrs {
 export interface HTMLInputAttrs extends HTMLFocusableAttrs {
   readonly disabled?: boolean;
   readonly type?: string;
-  readonly onchange?: (e: Event) => void;
-  readonly oninput?: (e: KeyboardEvent) => void;
+  readonly onchange?: (e: InputEvent) => void;
+  readonly oninput?: (e: InputEvent) => void;
   readonly onkeydown?: (e: KeyboardEvent) => void;
   readonly onkeyup?: (e: KeyboardEvent) => void;
   readonly value?: string | number;

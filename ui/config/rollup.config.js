@@ -18,6 +18,7 @@ const nodeResolve = require('@rollup/plugin-node-resolve');
 const path = require('path');
 const replace = require('rollup-plugin-re');
 const sourcemaps = require('rollup-plugin-sourcemaps');
+const json = require('@rollup/plugin-json');
 
 const ROOT_DIR = path.dirname(path.dirname(__dirname)); // The repo root.
 const OUT_SYMLINK = path.join(ROOT_DIR, 'ui/out');
@@ -54,6 +55,9 @@ function defBundle(tsRoot, bundle, distDir) {
       commonjs({
         strictRequires: true,
       }),
+
+
+      json(),
 
       replace({
         patterns: [

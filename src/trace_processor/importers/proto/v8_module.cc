@@ -19,12 +19,15 @@
 #include <cstdint>
 #include <optional>
 
-#include "perfetto/base/logging.h"
+#include "perfetto/protozero/field.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/chrome/v8.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/v8_sequence_state.h"
 #include "src/trace_processor/importers/proto/v8_tracker.h"
 #include "src/trace_processor/storage/stats.h"
@@ -46,13 +49,16 @@ using ::perfetto::protos::pbzero::V8WasmCode;
 
 }  // namespace
 
-V8Module::V8Module(TraceProcessorContext* context)
-    : context_(context), v8_tracker_(V8Tracker::GetOrCreate(context_)) {
-  RegisterForField(TracePacket::kV8JsCodeFieldNumber, context_);
-  RegisterForField(TracePacket::kV8InternalCodeFieldNumber, context_);
-  RegisterForField(TracePacket::kV8WasmCodeFieldNumber, context_);
-  RegisterForField(TracePacket::kV8RegExpCodeFieldNumber, context_);
-  RegisterForField(TracePacket::kV8CodeMoveFieldNumber, context_);
+V8Module::V8Module(ProtoImporterModuleContext* module_context,
+                   TraceProcessorContext* context)
+    : ProtoImporterModule(module_context),
+      context_(context),
+      v8_tracker_(std::make_unique<V8Tracker>(context)) {
+  RegisterForField(TracePacket::kV8JsCodeFieldNumber);
+  RegisterForField(TracePacket::kV8InternalCodeFieldNumber);
+  RegisterForField(TracePacket::kV8WasmCodeFieldNumber);
+  RegisterForField(TracePacket::kV8RegExpCodeFieldNumber);
+  RegisterForField(TracePacket::kV8CodeMoveFieldNumber);
 }
 
 V8Module::~V8Module() = default;
@@ -145,7 +151,7 @@ void V8Module::ParseV8JsCode(protozero::ConstBytes bytes,
                              int64_t ts,
                              const TracePacketData& data) {
   V8SequenceState& state =
-      *data.sequence_state->GetCustomState<V8SequenceState>();
+      *data.sequence_state->GetCustomState<V8SequenceState>(v8_tracker_.get());
 
   V8JsCode::Decoder code(bytes);
 
@@ -173,7 +179,7 @@ void V8Module::ParseV8InternalCode(protozero::ConstBytes bytes,
                                    int64_t ts,
                                    const TracePacketData& data) {
   V8SequenceState& state =
-      *data.sequence_state->GetCustomState<V8SequenceState>();
+      *data.sequence_state->GetCustomState<V8SequenceState>(v8_tracker_.get());
 
   V8InternalCode::Decoder code(bytes);
 
@@ -195,7 +201,7 @@ void V8Module::ParseV8WasmCode(protozero::ConstBytes bytes,
                                int64_t ts,
                                const TracePacketData& data) {
   V8SequenceState& state =
-      *data.sequence_state->GetCustomState<V8SequenceState>();
+      *data.sequence_state->GetCustomState<V8SequenceState>(v8_tracker_.get());
 
   V8WasmCode::Decoder code(bytes);
 
@@ -223,7 +229,7 @@ void V8Module::ParseV8RegExpCode(protozero::ConstBytes bytes,
                                  int64_t ts,
                                  const TracePacketData& data) {
   V8SequenceState& state =
-      *data.sequence_state->GetCustomState<V8SequenceState>();
+      *data.sequence_state->GetCustomState<V8SequenceState>(v8_tracker_.get());
 
   V8RegExpCode::Decoder code(bytes);
 
@@ -245,7 +251,7 @@ void V8Module::ParseV8CodeMove(protozero::ConstBytes bytes,
                                int64_t ts,
                                const TracePacketData& data) {
   V8SequenceState& state =
-      *data.sequence_state->GetCustomState<V8SequenceState>();
+      *data.sequence_state->GetCustomState<V8SequenceState>(v8_tracker_.get());
   protos::pbzero::V8CodeMove::Decoder v8_code_move(bytes);
 
   std::optional<IsolateId> isolate_id =

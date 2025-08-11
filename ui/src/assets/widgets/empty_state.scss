@@ -12,20 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
+@import "../theme";
 
 .pf-empty-state {
-  font-family: $pf-font;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 10px;
   user-select: none;
-  color: $pf-minimal-foreground;
   margin: auto;
   justify-content: center;
 
-  & > i {
+  &__main-icon {
     font-size: 5em; // Size of the icon is relative to the font size.
     margin-bottom: 12px;
   }
@@ -37,13 +35,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 
-  .pf-empty-state-title {
+  &--fill-height {
+    height: 100%;
+  }
+
+  &__title {
     text-align: center;
     font-weight: bolder;
     margin-bottom: 8px;
   }
 
-  .pf-empty-state-content {
+  &__content {
     text-align: center;
   }
 }

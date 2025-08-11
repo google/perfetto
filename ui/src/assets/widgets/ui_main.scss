@@ -22,10 +22,14 @@
     "statusbar statusbar";
   grid-template-rows: auto auto auto 1fr auto;
   grid-template-columns: auto 1fr;
-  color: #121212;
   overflow: hidden;
 
   &__loading {
     grid-area: loading;
+  }
+
+  &__page-container {
+    grid-area: page;
+    overflow: auto;
   }
 }

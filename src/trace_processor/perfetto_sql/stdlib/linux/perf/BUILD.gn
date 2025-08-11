@@ -19,4 +19,8 @@ perfetto_sql_source_set("perf") {
     "samples.sql",
     "spe.sql",
   ]
+
+  if (enable_perfetto_etm_importer) {
+    sources += [ "etm.sql" ]
+  }
 }

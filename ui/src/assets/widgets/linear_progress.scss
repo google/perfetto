@@ -26,7 +26,7 @@
   &:before {
     content: "";
     position: absolute;
-    background-color: hsl(219, 50%, 50%);
+    background-color: var(--pf-color-accent);
     top: 0;
     left: 0;
     bottom: 0;
@@ -38,7 +38,7 @@
   &:after {
     content: "";
     position: absolute;
-    background-color: hsl(219, 50%, 50%);
+    background-color: var(--pf-color-accent);
     top: 0;
     left: 0;
     bottom: 0;

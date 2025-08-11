@@ -23,14 +23,12 @@
 #include <optional>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/chrome/v8.pbzero.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/proto/jit_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/v8_tables_py.h"
-#include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -42,16 +40,10 @@ class UserMemoryMapping;
 using IsolateId = tables::V8IsolateTable::Id;
 
 // Keeps track of V8 related objects.
-class V8Tracker : public Destructible {
+class V8Tracker {
  public:
-  static V8Tracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->v8_tracker) {
-      context->v8_tracker.reset(new V8Tracker(context));
-    }
-    return static_cast<V8Tracker*>(context->v8_tracker.get());
-  }
-
-  ~V8Tracker() override;
+  explicit V8Tracker(TraceProcessorContext* context);
+  ~V8Tracker();
 
   // Might return `std::nullopt` if we can not create an isolate because it has
   // no code range (we do not support this yet).
@@ -95,7 +87,7 @@ class V8Tracker : public Destructible {
  private:
   struct JsFunctionHash {
     size_t operator()(const tables::V8JsFunctionTable::Row& v) const {
-      return static_cast<size_t>(base::Hasher::Combine(
+      return static_cast<size_t>(base::FnvHasher::Combine(
           v.name.raw_id(), v.v8_js_script_id.value, v.is_toplevel,
           v.kind.raw_id(), v.line.value_or(0), v.col.value_or(0)));
     }
@@ -119,7 +111,7 @@ class V8Tracker : public Destructible {
   struct IsolateKey {
     struct Hasher {
       size_t operator()(const IsolateKey& v) const {
-        return base::Hasher::Combine(v.upid, v.isolate_id);
+        return base::FnvHasher::Combine(v.upid, v.isolate_id);
       }
     };
 
@@ -135,11 +127,9 @@ class V8Tracker : public Destructible {
   struct ScriptIndexHash {
     size_t operator()(const std::pair<IsolateId, int32_t>& v) const {
       return static_cast<size_t>(
-          base::Hasher::Combine(v.first.value, v.second));
+          base::FnvHasher::Combine(v.first.value, v.second));
     }
   };
-
-  explicit V8Tracker(TraceProcessorContext* context);
 
   StringId InternV8String(const protos::pbzero::V8String::Decoder& v8_string);
 
@@ -172,7 +162,7 @@ class V8Tracker : public Destructible {
       const IsolateCodeRanges& code_ranges);
 
   TraceProcessorContext* const context_;
-
+  JitTracker jit_tracker_;
   base::FlatHashMap<IsolateId, AddressRangeMap<JitCache*>> isolates_;
 
   // Multiple isolates in the same process might share the code. Keep track of

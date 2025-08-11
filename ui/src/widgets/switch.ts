@@ -19,12 +19,16 @@ import {HTMLCheckboxAttrs} from './common';
 export interface SwitchAttrs extends HTMLCheckboxAttrs {
   // Optional text to show to the right of the switch.
   // If omitted, no text will be shown.
-  label?: string;
+  label?: m.Children;
+  // Optional text to show to the left of the switch.
+  // If omitted, no text will be shown.
+  labelLeft?: string;
 }
 
 export class Switch implements m.ClassComponent<SwitchAttrs> {
   view({attrs}: m.CVnode<SwitchAttrs>) {
-    const {label, checked, disabled, className, ...htmlAttrs} = attrs;
+    const {label, labelLeft, checked, disabled, className, ...htmlAttrs} =
+      attrs;
 
     const classes = classNames(disabled && 'pf-disabled', className);
 
@@ -36,9 +40,10 @@ export class Switch implements m.ClassComponent<SwitchAttrs> {
         ...htmlAttrs,
         className: classes,
       },
+      labelLeft && m('span.pf-switch-label-left', labelLeft),
       m('input[type=checkbox]', {disabled, checked}),
-      m('span'),
-      label,
+      m('span.pf-switch-visual'),
+      label !== undefined && m('span.pf-switch-label', label),
     );
   }
 }

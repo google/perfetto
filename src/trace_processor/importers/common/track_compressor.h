@@ -389,7 +389,6 @@ class TrackCompressor {
   TraceProcessorContext* const context_;
 
   const StringId source_key_;
-  const StringId trace_id_key_;
   const StringId trace_id_is_process_scoped_key_;
   const StringId upid_;
   const StringId source_scope_key_;
