@@ -43,7 +43,7 @@
   border: 1px solid $pf-minimal-border;
   cursor: pointer;
   background-color: transparent;
-  font-family: "Roboto Mono", monospace;
+  font-family: var(--pf-font-monospace);
 
   &:hover {
     background-color: rgba(0, 0, 0, 0.05);

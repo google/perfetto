@@ -44,7 +44,7 @@
 
 /* latin */
 @font-face {
-  font-family: "Roboto Condensed";
+  font-family: var(--pf-font-compact);
   font-style: normal;
   font-weight: 300;
   src: url(assets/RobotoCondensed-Light.woff2) format("woff2");
@@ -55,7 +55,7 @@
 
 /* latin */
 @font-face {
-  font-family: "Roboto Condensed";
+  font-family: var(--pf-font-compact);
   font-style: normal;
   font-weight: 400;
   src: url(assets/RobotoCondensed-Regular.woff2) format("woff2");
@@ -66,7 +66,7 @@
 
 /* latin */
 @font-face {
-  font-family: "Roboto Mono";
+  font-family: var(--pf-font-monospace);
   font-style: normal;
   font-weight: 400;
   src: url(assets/RobotoMono-Regular.woff2) format("woff2");
