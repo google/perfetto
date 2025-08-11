@@ -26,7 +26,6 @@ import {
   queryToRun,
   setOperationChanged,
 } from '../query_node';
-import {copyToClipboard} from '../../../base/clipboard';
 import {Button} from '../../../widgets/button';
 import {Icon} from '../../../widgets/icon';
 import {Icons} from '../../../base/semantic_icons';
@@ -36,6 +35,7 @@ import {Trace} from '../../../public/trace';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
 import {TextInput} from '../../../widgets/text_input';
 import {SqlSourceNode} from './sources/sql_source';
+import {CodeSnippet} from '../../../widgets/code_snippet';
 
 export interface NodeExplorerAttrs {
   readonly node?: QueryNode;
@@ -249,27 +249,11 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
           ],
           this.selectedView === SelectedView.kSql &&
             (isAQuery(this.currentQuery)
-              ? m(
-                  '.pf-code-snippet',
-                  m(Button, {
-                    title: 'Copy to clipboard',
-                    onclick: () => copyToClipboard(sql),
-                    icon: Icons.Copy,
-                  }),
-                  m('code', sql),
-                )
+              ? m(CodeSnippet, {language: 'SQL', text: sql})
               : m('div', sql)),
           this.selectedView === SelectedView.kProto &&
             (isAQuery(this.currentQuery)
-              ? m(
-                  '.pf-code-snippet',
-                  m(Button, {
-                    title: 'Copy to clipboard',
-                    onclick: () => copyToClipboard(textproto),
-                    icon: Icons.Copy,
-                  }),
-                  m('code', textproto),
-                )
+              ? m(CodeSnippet, {text: textproto, language: 'textproto'})
               : m('div', textproto)),
         ),
       ),
