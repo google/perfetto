@@ -36,10 +36,13 @@
     padding: 0;
     margin: 0;
     color: inherit;
+    flex: 1; // Allow input to grow and shrink to fill available space
 
-    outline: none; // Disable the default outline
-    border: none; // Disable the default border
+    // Disable default styles
+    outline: none;
+    border: none;
     background: none;
+    min-width: 0; // input elements have a default min-width, set to 0 to allow flexbox to work properly
   }
 
   &__left-icon {
