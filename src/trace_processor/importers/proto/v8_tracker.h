@@ -29,7 +29,6 @@
 #include "src/trace_processor/importers/proto/jit_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/v8_tables_py.h"
-#include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -41,16 +40,10 @@ class UserMemoryMapping;
 using IsolateId = tables::V8IsolateTable::Id;
 
 // Keeps track of V8 related objects.
-class V8Tracker : public Destructible {
+class V8Tracker {
  public:
-  static V8Tracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->v8_tracker) {
-      context->v8_tracker.reset(new V8Tracker(context));
-    }
-    return static_cast<V8Tracker*>(context->v8_tracker.get());
-  }
-
-  ~V8Tracker() override;
+  explicit V8Tracker(TraceProcessorContext* context);
+  ~V8Tracker();
 
   // Might return `std::nullopt` if we can not create an isolate because it has
   // no code range (we do not support this yet).
@@ -138,8 +131,6 @@ class V8Tracker : public Destructible {
     }
   };
 
-  explicit V8Tracker(TraceProcessorContext* context);
-
   StringId InternV8String(const protos::pbzero::V8String::Decoder& v8_string);
 
   tables::V8IsolateTable::ConstRowReference InsertIsolate(
@@ -171,7 +162,7 @@ class V8Tracker : public Destructible {
       const IsolateCodeRanges& code_ranges);
 
   TraceProcessorContext* const context_;
-
+  JitTracker jit_tracker_;
   base::FlatHashMap<IsolateId, AddressRangeMap<JitCache*>> isolates_;
 
   // Multiple isolates in the same process might share the code. Keep track of

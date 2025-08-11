@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
+@import "../theme";
 
 .pf-details-shell {
-  font-family: $pf-font;
   display: flex;
   flex-direction: column;
+  font-family: var(--pf-font-compact);
 
   .pf-header-bar {
     z-index: 1;
@@ -26,10 +26,8 @@
     flex-direction: row;
     align-items: baseline;
     gap: 6px;
-    background-color: white;
-    color: black;
     padding: 8px 8px 5px 8px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid var(--pf-color-border);
 
     .pf-header-title {
       font-size: 18px;

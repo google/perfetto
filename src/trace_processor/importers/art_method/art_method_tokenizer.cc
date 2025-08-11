@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -36,8 +37,9 @@
 #include "perfetto/ext/base/variant.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/art_method/art_method_event.h"
+#include "src/trace_processor/importers/art_method/art_method_parser.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
-#include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/trace_blob_view_reader.h"
@@ -89,7 +91,9 @@ uint16_t ToShort(const TraceBlobView& tbv) {
 }  // namespace
 
 ArtMethodTokenizer::ArtMethodTokenizer(TraceProcessorContext* ctx)
-    : context_(ctx) {}
+    : context_(ctx),
+      stream_(
+          ctx->sorter->CreateStream(std::make_unique<ArtMethodParser>(ctx))) {}
 ArtMethodTokenizer::~ArtMethodTokenizer() = default;
 
 base::Status ArtMethodTokenizer::Parse(TraceBlobView blob) {
@@ -214,7 +218,7 @@ base::Status ArtMethodTokenizer::ParseRecord(uint32_t tid,
   ASSIGN_OR_RETURN(int64_t ts, context_->clock_tracker->ToTraceTime(
                                    protos::pbzero::BUILTIN_CLOCK_MONOTONIC,
                                    (ts_ + ts_delta) * 1000));
-  context_->sorter->PushArtMethodEvent(ts, evt);
+  stream_->Push(ts, evt);
   return base::OkStatus();
 }
 
@@ -279,7 +283,7 @@ base::StatusOr<bool> ArtMethodTokenizer::Streaming::ParseHeaderStart(
       tokenizer_->record_size_ = ToShort(header->slice_off(16, 2));
       break;
     default:
-      PERFETTO_FATAL("Illegal version %u", tokenizer_->version_);
+      return base::ErrStatus("Illegal version %u", tokenizer_->version_);
   }
   mode_ = kData;
   return true;

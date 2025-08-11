@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@import "../theme";
+
 .pf-tab-handle {
   display: flex;
   align-items: baseline;
@@ -23,31 +25,29 @@
   }
 
   &__tab {
-    font-family: "Roboto Condensed", sans-serif;
-    color: #3c4b5d;
+    font-family: var(--pf-font-compact);
     padding: 4px;
     margin-top: 3px;
     align-items: center;
     cursor: pointer;
     font-size: 13px;
     border-radius: 3px 3px 0 0;
-    background-color: #0000000f;
-    border-right: solid 1px hsla(0, 0%, 75%, 1);
+    border-right: solid 1px var(--pf-color-border);
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
     z-index: 5;
-    box-shadow: #0000003b 0px 0px 3px 1px;
+    box-shadow: var(--pf-color-box-shadow) 0px 0px 3px 1px;
     display: flex;
     align-items: baseline;
     gap: 2px;
 
     &:hover {
-      background-color: hsla(0, 0%, 85%, 1);
+      background: color_hover(transparent);
     }
 
     &[active] {
-      background-color: white;
+      background-color: var(--pf-color-background);
       cursor: default;
     }
 

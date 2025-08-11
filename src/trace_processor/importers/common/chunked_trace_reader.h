@@ -25,8 +25,7 @@ namespace perfetto::trace_processor {
 
 class TraceBlobView;
 
-// Base interface for first stage of parsing pipeline
-// (JsonTraceParser, ProtoTraceReader).
+// Base interface for first stage of parsing pipeline (ProtoTraceReader).
 class ChunkedTraceReader {
  public:
   virtual ~ChunkedTraceReader();

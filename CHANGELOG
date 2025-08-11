@@ -16,6 +16,8 @@ Unreleased:
       arguments as multiple track_event tracks could have contributed to a
       single trace processor track. If you want the previous behaviour, specify
       `sibling_merge_behaviour: SIBLING_MERGE_BEHAVIOR_NONE`.
+    * Internal changes to packet sorting that might change the parsing order of
+      data with identical timestamps, relative to previous releases.
   UI:
     * Added support for controlling TrackEvent track merging through the
       `TrackDescriptor` proto. This is especially useful for users converting
@@ -26,6 +28,7 @@ Unreleased:
       names to be merged into a single UI track.
     * Improved the performance of merging large number of track_event tracks
       both during loading and during panning/zooming operations.
+    * Added support for persisting state from traces loaded through postMessage.
   SDK:
     * "slow" tag is no longer implicitly added to trace categories with
       "disabled-by-default-" prefix. Instead, clients should explicitly specify

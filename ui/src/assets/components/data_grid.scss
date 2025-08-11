@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-$border: 1px solid rgb(225, 225, 225);
+$border: 1px solid var(--pf-color-border-secondary);
 
 .pf-data-grid {
   display: flex;
   flex-direction: column;
   white-space: nowrap;
   overflow: hidden;
+  font-family: var(--pf-font-compact);
 
   // If fill height is set, the grid should fill the height of its parent, and
   // the table content should scroll, otherwise it takes the height of the table
@@ -41,14 +42,14 @@ $border: 1px solid rgb(225, 225, 225);
   // Highlight rows on hover.
   tr {
     &:hover {
-      background-color: rgb(239, 241, 244);
+      background-color: color_hover(transparent);
     }
   }
 
   thead {
     position: sticky;
     top: 0;
-    background-color: white;
+    background-color: var(--pf-color-background);
 
     tr {
       &:hover {
@@ -121,7 +122,7 @@ $border: 1px solid rgb(225, 225, 225);
   }
 
   &__button-hint {
-    color: gray;
+    color: var(--pf-color-text-hint);
   }
 
   &__cell--number {
@@ -130,7 +131,7 @@ $border: 1px solid rgb(225, 225, 225);
 
   &__cell--null {
     text-align: center;
-    color: gray;
+    color: var(--pf-color-text-hint);
     font-style: italic;
   }
 
@@ -141,9 +142,5 @@ $border: 1px solid rgb(225, 225, 225);
   // Don't want the progress bar to squish!
   &__loading {
     flex: none;
-  }
-
-  &__filter-chip {
-    cursor: pointer;
   }
 }

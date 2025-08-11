@@ -17,6 +17,7 @@ import {Engine, EngineAttrs} from '../../trace_processor/engine';
 import {QueryResult, UNKNOWN} from '../../trace_processor/query_result';
 import {assertExists} from '../../base/logging';
 import {Trace, TraceAttrs} from '../../public/trace';
+import {Icon} from '../../widgets/icon';
 
 /**
  * Extracts and copies fields from a source object based on the keys present in
@@ -112,7 +113,12 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
     const tableRows = data.map((row) => {
       const help = [];
       if (Boolean(row.description)) {
-        help.push(m('i.material-icons.contextual-help', 'help_outline'));
+        help.push(
+          m(Icon, {
+            icon: 'help_outline',
+            className: 'pf-trace-info-page__help-icon',
+          }),
+        );
       }
       const idx = row.idx !== '' ? `[${row.idx}]` : '';
       return m(
@@ -513,13 +519,13 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
   view({attrs}: m.CVnode<TraceInfoPageAttrs>) {
     const engine = assertExists(this.engine);
     return m(
-      '.trace-info-page',
+      '.pf-trace-info-page',
       m(LoadingErrors, {trace: attrs.trace}),
       m(StatsSection, {
         engine,
         queryId: 'info_errors',
         title: 'Import errors',
-        cssClass: '.errors',
+        cssClass: '.pf-trace-info-page__errors',
         subTitle: `The following errors have been encountered while importing
                the trace. These errors are usually non-fatal but indicate that
                one or more tracks might be missing or showing erroneous data.`,
@@ -529,7 +535,7 @@ export class TraceInfoPage implements m.ClassComponent<TraceInfoPageAttrs> {
         engine,
         queryId: 'info_data_losses',
         title: 'Data losses',
-        cssClass: '.errors',
+        cssClass: '.pf-trace-info-page__errors',
         subTitle: `These counters are collected at trace recording time. The
                trace data for one or more data sources was dropped and hence
                some track contents will be incomplete.`,

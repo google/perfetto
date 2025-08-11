@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
+@import "../theme";
 
 .pf-text-input {
   display: inline-flex; // Align items inline
   align-items: center; // Center items vertically
   line-height: 1;
-  font-family: $pf-font;
+  font-family: var(--pf-font-compact);
   font-size: inherit;
-  border-bottom: solid 1px $pf-minimal-foreground; // Thin underline
+  border-bottom: solid 1px var(--pf-color-border); // Thin underline
   background: none;
   padding: 1px 2px;
   transition:
@@ -30,16 +30,19 @@
   gap: 4px;
 
   &__input {
-    font-family: $pf-font;
     font-size: inherit;
     line-height: inherit;
+    font-family: inherit;
     padding: 0;
     margin: 0;
     color: inherit;
+    flex: 1; // Allow input to grow and shrink to fill available space
 
-    outline: none; // Disable the default outline
-    border: none; // Disable the default border
+    // Disable default styles
+    outline: none;
+    border: none;
     background: none;
+    min-width: 0; // input elements have a default min-width, set to 0 to allow flexbox to work properly
   }
 
   &__left-icon {
@@ -52,23 +55,22 @@
 
   // The gentle hover effect indicates this component is interactive
   &:hover {
-    background: $pf-minimal-background-hover;
+    background: color_hover(transparent);
   }
 
   &:has(.pf-text-input__input:focus) {
-    background: $pf-minimal-background-hover;
-    border-bottom: solid 1px $pf-primary-background;
+    background: color_hover(transparent);
+    border-bottom: solid 1px var(--pf-color-accent);
 
     // The box-shadow thickens the bottom border, without adding to the height.
     // This is the same technique used by materializecss:
     // See https://materializecss.com/text-inputs.html
-    box-shadow: 0 1px 0 $pf-primary-background;
+    box-shadow: 0 1px 0 var(--pf-color-accent);
   }
 
   &:has(.pf-text-input__input[disabled]) {
-    border-bottom-color: $pf-minimal-foreground-disabled;
-    color: $pf-minimal-foreground-disabled;
-    background: $pf-minimal-background-disabled;
+    opacity: 0.5;
+    pointer-events: none;
     cursor: not-allowed;
   }
 }

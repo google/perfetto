@@ -50,6 +50,7 @@
 #include "gmock/gmock-function-mocker.h"      // IWYU pragma: export
 #include "gmock/gmock-matchers.h"             // IWYU pragma: export
 #include "gmock/gmock-more-matchers.h"        // IWYU pragma: export
+#include "gmock/gmock-nice-strict.h"          // IWYU pragma: export
 #include "gmock/gmock-spec-builders.h"        // IWYU pragma: export
 #include "gmock/gmock.h"                      // IWYU pragma: export
 #include "gtest/gtest-matchers.h"             // IWYU pragma: export

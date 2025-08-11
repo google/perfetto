@@ -13,15 +13,16 @@
 // limitations under the License.
 
 @use "sass:math";
-@import "theme";
+@import "../theme";
 
 // Adding these to a new layer makes other rules take precedence
-@layer widgets {
+@layer pf-widgets {
   .pf-vtable {
     overflow: auto;
-    font-family: $pf-font;
     position: relative;
-    background: white; // Performance tweak - see b/335451611
+    background: var(
+      --pf-color-background
+    ); // Performance tweak - see b/335451611
 
     .pf-vtable-content {
       display: inline-flex;
@@ -33,12 +34,12 @@
         position: sticky;
         top: 0;
         z-index: 1;
-        background: white;
+        background: var(--pf-color-background);
         white-space: nowrap;
         padding-inline: 4px;
 
         // A shadow improves distinction between header and content
-        box-shadow: #0001 0px 0px 8px;
+        box-shadow: var(--pf-color-box-shadow) 0px 0px 8px;
       }
 
       .pf-vtable-data {
@@ -54,15 +55,15 @@
 
         // Necessary trig because we have a 45deg stripes
         $pattern-density: 1px * math.sqrt(2);
-        $pattern-col: #ddd;
+        $pattern-col: var(--pf-color-background-secondary);
         overflow: hidden;
 
         background: repeating-linear-gradient(
           -45deg,
           $pattern-col,
           $pattern-col $pattern-density,
-          white $pattern-density,
-          white $pattern-density * 2
+          var(--pf-color-background) $pattern-density,
+          var(--pf-color-background) $pattern-density * 2
         );
 
         .pf-vtable-puck {
@@ -73,15 +74,15 @@
             padding-inline: 4px;
 
             &:nth-child(odd) {
-              background-color: hsl(214, 22%, 95%);
+              background-color: var(--pf-color-background-secondary);
             }
 
             &:nth-child(even) {
-              background-color: white;
+              background-color: var(--pf-color-background);
             }
 
             &:hover {
-              background-color: $table-hover-color;
+              background-color: color_hover(transparent);
             }
           }
         }

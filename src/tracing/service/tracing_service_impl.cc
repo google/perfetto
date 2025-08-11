@@ -114,7 +114,9 @@ constexpr int kMinWriteIntoFilePeriodMs = 100;
 constexpr uint32_t kAllDataSourceStartedTimeout = 20000;
 constexpr int kMaxConcurrentTracingSessions = 15;
 constexpr int kMaxConcurrentTracingSessionsPerUid = 5;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 constexpr int kMaxConcurrentTracingSessionsForStatsdUid = 10;
+#endif
 constexpr int64_t kMinSecondsBetweenTracesGuardrail = 5 * 60;
 
 constexpr uint32_t kMillisPerHour = 3600000;
@@ -761,6 +763,54 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     }
   }
 
+  uint32_t current_exclusive_prio = 0;
+  for (const auto& [_, session] : tracing_sessions_) {
+    current_exclusive_prio =
+        std::max(current_exclusive_prio, session.config.exclusive_prio());
+  }
+
+  // If an exclusive session is active, any new session must have a strictly
+  // higher priority.
+  if (current_exclusive_prio > 0 &&
+      current_exclusive_prio >= cfg.exclusive_prio()) {
+    MaybeLogUploadEvent(
+        cfg, uuid,
+        PerfettoStatsdAtom::kTracedEnableTracingExclusiveSessionRejected);
+    return PERFETTO_SVC_ERR(
+        "An exclusive session with priority %u >= requested priority %u is "
+        "already active.",
+        current_exclusive_prio, cfg.exclusive_prio());
+  }
+
+  if (cfg.exclusive_prio() > 0) {  // Exclusive mode.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+    if (consumer->uid_ != AID_ROOT && consumer->uid_ != AID_SHELL) {
+      MaybeLogUploadEvent(
+          cfg, uuid,
+          PerfettoStatsdAtom::kTracedEnableTracingExclusiveSessionNotAllowed);
+      return PERFETTO_SVC_ERR(
+          "On android, exclusive mode can only be requested by root or shell.");
+    }
+#endif
+    // Abort all existing sessions.
+    const std::string abort_reason =
+        "Aborted due to user requested higher-priority (" +
+        std::to_string(cfg.exclusive_prio()) + ") exclusive session.";
+    for (auto it = tracing_sessions_.begin(); it != tracing_sessions_.end();) {
+      auto next_it = it;
+      ++next_it;
+      const auto session_consumer = it->second.consumer_maybe_null;
+      // FreeBuffers() will complete the teardown of the TracingSession and also
+      // remove it from tracing_sessions_.
+      FreeBuffers(it->first, abort_reason);
+      // Disassociate the consumer from the obsolete tracing session.
+      if (session_consumer) {
+        session_consumer->tracing_session_id_ = 0;
+      }
+      it = next_it;
+    }
+  }
+
   if (!cfg.unique_session_name().empty()) {
     const std::string& name = cfg.unique_session_name();
     for (auto& kv : tracing_sessions_) {
@@ -867,9 +917,11 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
       }));
 
   int per_uid_limit = kMaxConcurrentTracingSessionsPerUid;
-  if (consumer->uid_ == 1066 /* AID_STATSD*/) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  if (consumer->uid_ == AID_STATSD) {
     per_uid_limit = kMaxConcurrentTracingSessionsForStatsdUid;
   }
+#endif
   if (sessions_for_uid >= per_uid_limit) {
     MaybeLogUploadEvent(
         cfg, uuid,
@@ -1448,7 +1500,8 @@ void TracingServiceImpl::StartDataSourceInstance(
 // and then drain the buffers. The actual teardown of the TracingSession happens
 // in FreeBuffers().
 void TracingServiceImpl::DisableTracing(TracingSessionID tsid,
-                                        bool disable_immediately) {
+                                        bool disable_immediately,
+                                        const std::string& error) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   TracingSession* tracing_session = GetTracingSession(tsid);
   if (!tracing_session) {
@@ -1480,7 +1533,7 @@ void TracingServiceImpl::DisableTracing(TracingSessionID tsid,
     case TracingSession::DISABLING_WAITING_STOP_ACKS:
       PERFETTO_DCHECK(!tracing_session->AllDataSourceInstancesStopped());
       if (disable_immediately)
-        DisableTracingNotifyConsumerAndFlushFile(tracing_session);
+        DisableTracingNotifyConsumerAndFlushFile(tracing_session, error);
       return;
 
     // Continues below.
@@ -1517,7 +1570,7 @@ void TracingServiceImpl::DisableTracing(TracingSessionID tsid,
   // the session as disabled immediately, notify the consumer and flush the
   // trace file (if used).
   if (tracing_session->AllDataSourceInstancesStopped())
-    return DisableTracingNotifyConsumerAndFlushFile(tracing_session);
+    return DisableTracingNotifyConsumerAndFlushFile(tracing_session, error);
 
   tracing_session->state = TracingSession::DISABLING_WAITING_STOP_ACKS;
   weak_runner_.PostDelayedTask([this, tsid] { OnDisableTracingTimeout(tsid); },
@@ -1867,7 +1920,8 @@ void TracingServiceImpl::OnDisableTracingTimeout(TracingSessionID tsid) {
 }
 
 void TracingServiceImpl::DisableTracingNotifyConsumerAndFlushFile(
-    TracingSession* tracing_session) {
+    TracingSession* tracing_session,
+    const std::string& error) {
   PERFETTO_DCHECK(tracing_session->state != TracingSession::DISABLED);
   for (auto& inst_kv : tracing_session->data_source_instances) {
     if (inst_kv.second.state == DataSourceInstance::STOPPED)
@@ -1900,7 +1954,7 @@ void TracingServiceImpl::DisableTracingNotifyConsumerAndFlushFile(
                       PerfettoStatsdAtom::kTracedNotifyTracingDisabled);
 
   if (tracing_session->consumer_maybe_null)
-    tracing_session->consumer_maybe_null->NotifyOnTracingDisabled("");
+    tracing_session->consumer_maybe_null->NotifyOnTracingDisabled(error);
 }
 
 void TracingServiceImpl::Flush(TracingSessionID tsid,
@@ -2782,7 +2836,8 @@ bool TracingServiceImpl::WriteIntoFile(TracingSession* tracing_session,
   return stop_writing_into_file;
 }
 
-void TracingServiceImpl::FreeBuffers(TracingSessionID tsid) {
+void TracingServiceImpl::FreeBuffers(TracingSessionID tsid,
+                                     const std::string& error) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Freeing buffers for session %" PRIu64, tsid);
   TracingSession* tracing_session = GetTracingSession(tsid);
@@ -2790,7 +2845,7 @@ void TracingServiceImpl::FreeBuffers(TracingSessionID tsid) {
     PERFETTO_DLOG("FreeBuffers() failed, invalid session ID %" PRIu64, tsid);
     return;  // TODO(primiano): signal failure?
   }
-  DisableTracing(tsid, /*disable_immediately=*/true);
+  DisableTracing(tsid, /*disable_immediately=*/true, error);
 
   PERFETTO_DCHECK(tracing_session->AllDataSourceInstancesStopped());
   tracing_session->data_source_instances.clear();
@@ -3018,11 +3073,11 @@ void TracingServiceImpl::UnregisterDataSource(ProducerID producer_id,
 bool TracingServiceImpl::IsInitiatorPrivileged(
     const TracingSession& tracing_session) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  if (tracing_session.consumer_uid == 1066 /* AID_STATSD */ &&
+  if (tracing_session.consumer_uid == AID_STATSD &&
       tracing_session.config.statsd_metadata().triggering_config_uid() !=
-          2000 /* AID_SHELL */
-      && tracing_session.config.statsd_metadata().triggering_config_uid() !=
-             0 /* AID_ROOT */) {
+          AID_SHELL &&
+      tracing_session.config.statsd_metadata().triggering_config_uid() !=
+          AID_ROOT) {
     // StatsD can be triggered either by shell, root or an app that has DUMP and
     // USAGE_STATS permission. When triggered by shell or root, we do not want
     // to consider the trace a trusted system trace, as it was initiated by the

@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../assets/widgets/theme";
+@import "../../assets/theme";
 @import "./query_builder/builder.scss";
 
 .pf-explore-page {
+  height: 100%;
   position: relative;
   overflow: auto;
   padding: 0.25rem;

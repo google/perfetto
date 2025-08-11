@@ -22,7 +22,6 @@
 }
 
 .pf-multiselect-panel {
-  font-family: $pf-font;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -44,10 +43,10 @@
     position: sticky;
     top: 0;
     font-size: 1em;
-    background-color: white;
+    background-color: var(--pf-color-background);
     z-index: 1;
     font-size: 0.75em;
-    border-bottom: solid 1px $pf-minimal-foreground;
+    border-bottom: solid 1px var(--pf-color-border);
     padding-bottom: 2px;
     min-width: max-content;
     & > span {
