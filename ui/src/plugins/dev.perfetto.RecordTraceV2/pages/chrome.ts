@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import protos from '../../../protos';
 import {
   RecordSubpage,
   RecordProbe,
@@ -98,13 +97,11 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
       };
       const privacyFilteringEnabled = settings.privacy.enabled;
       const chromeConfig = {
-        clientPriority: protos.ChromeConfig.ClientPriority.USER_INITIATED,
         privacyFilteringEnabled,
         traceConfig: JSON.stringify(jsonStruct),
       };
 
       const trackEvent = tc.addDataSource('track_event');
-      trackEvent.chromeConfig = chromeConfig;
       const trackEvtCfg = (trackEvent.trackEventConfig ??= {});
       trackEvtCfg.disabledCategories ??= ['*'];
       trackEvtCfg.enabledCategories ??= [];
@@ -115,8 +112,11 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
       trackEvtCfg.filterDynamicEventNames = privacyFilteringEnabled;
       trackEvtCfg.filterDebugAnnotations = privacyFilteringEnabled;
 
-      tc.addDataSource('org.chromium.trace_metadata').chromeConfig =
-        chromeConfig;
+      tc.addBuffer('metadata', 256, 'DISCARD');
+      tc.addDataSource(
+        'org.chromium.trace_metadata2',
+        'metadata',
+      ).chromeConfig = chromeConfig;
 
       if (memoryInfra) {
         tc.addDataSource('org.chromium.memory_instrumentation').chromeConfig =
