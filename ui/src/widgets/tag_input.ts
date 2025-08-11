@@ -13,9 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {HTMLFocusableAttrs} from './common';
-import {Icon} from './icon';
+import {HTMLFocusableAttrs, Intent} from './common';
 import {findRef} from '../base/dom_utils';
+import {Chip} from './chip';
+import {Stack} from './stack';
 
 export interface TagInputAttrs extends HTMLFocusableAttrs {
   value?: string;
@@ -106,8 +107,12 @@ export class TagInput implements m.ClassComponent<TagInputAttrs> {
         },
         ...htmlAttrs,
       },
-      tags.map((tag, index) =>
-        renderTag(tag, onChange, () => onTagRemove(index)),
+      m(
+        Stack,
+        {orientation: 'horizontal', spacing: 'small'},
+        tags.map((tag, index) =>
+          renderTag(tag, onChange, () => onTagRemove(index)),
+        ),
       ),
       m('input', {
         ref: INPUT_REF,
@@ -147,22 +152,17 @@ function renderTag(
   onChange: ((value: string) => void) | undefined,
   onRemove: () => void,
 ): m.Children {
-  return m(
-    'span.pf-tag',
-    {
-      ondblclick: onChange
-        ? () => {
-            onChange(text);
-            onRemove();
-          }
-        : undefined,
-    },
-    text,
-    m(Icon, {
-      icon: 'close',
-      onclick: () => {
-        onRemove();
-      },
-    }),
-  );
+  return m(Chip, {
+    ondblclick: onChange
+      ? () => {
+          onChange(text);
+          onRemove();
+        }
+      : undefined,
+    label: text,
+    removable: true,
+    compact: true,
+    intent: Intent.Primary,
+    onRemove: () => onRemove(),
+  });
 }

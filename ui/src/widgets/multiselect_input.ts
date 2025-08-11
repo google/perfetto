@@ -19,12 +19,14 @@
  */
 
 import m from 'mithril';
-import {HTMLAttrs} from './common';
+import {HTMLAttrs, Intent} from './common';
 import {Icon} from './icon';
 import {bindEventListener, findRef} from '../base/dom_utils';
 import {Popup, PopupPosition} from './popup';
 import {EmptyState} from './empty_state';
 import {classNames} from '../base/classnames';
+import {Stack} from './stack';
+import {Chip} from './chip';
 
 export interface Option {
   readonly key: string;
@@ -78,17 +80,21 @@ export class MultiselectInput
             ...htmlAttrs,
           },
           // Render the selected options as tags in the text field
-          selectedOptions.map((key) => {
-            const option = options.find((o) => o.key === key);
-            if (option) {
-              return renderTag({
-                label: option.label,
-                onRemove: () => attrs.onOptionRemove(option.key),
-              });
-            } else {
-              return undefined;
-            }
-          }),
+          m(
+            Stack,
+            {orientation: 'horizontal', spacing: 'small'},
+            selectedOptions.map((key) => {
+              const option = options.find((o) => o.key === key);
+              if (option) {
+                return renderTag({
+                  label: option.label,
+                  onRemove: () => attrs.onOptionRemove(option.key),
+                });
+              } else {
+                return undefined;
+              }
+            }),
+          ),
           m('input', {
             ref: INPUT_REF,
             value: this.currentTextValue,
@@ -216,12 +222,11 @@ interface TagAttrs {
 }
 
 function renderTag({label, onRemove}: TagAttrs): m.Children {
-  return m(
-    'span.pf-multiselect-input__tag',
+  return m(Chip, {
     label,
-    m(Icon, {
-      icon: 'close',
-      onclick: () => onRemove?.(),
-    }),
-  );
+    compact: true,
+    intent: Intent.Primary,
+    removable: true,
+    onRemove: () => onRemove?.(),
+  });
 }
