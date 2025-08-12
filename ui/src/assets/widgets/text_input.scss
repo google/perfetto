@@ -15,14 +15,14 @@
 @import "../theme";
 
 .pf-text-input {
-  display: inline-flex; // Align items inline
-  align-items: center; // Center items vertically
+  display: inline-flex;
+  align-items: baseline;
   line-height: 1;
   font-family: var(--pf-font-compact);
   font-size: inherit;
   border-bottom: solid 1px var(--pf-color-border); // Thin underline
   background: none;
-  padding: 1px 2px;
+  padding: 2px 4px;
   transition:
     border $pf-anim-timing,
     box-shadow $pf-anim-timing,
@@ -46,6 +46,7 @@
   }
 
   &__left-icon {
+    align-self: center;
     line-height: inherit;
     margin-inline: 2px;
   }
