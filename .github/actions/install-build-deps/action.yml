@@ -42,7 +42,8 @@ runs:
       run: |
         # Generate list of files in 'buildtools/' stored in git.
         FILES_TO_IGNORE_PATH=$(mktemp /tmp/files-to-ignore-XXXXX.txt)
-        git ls-tree HEAD:buildtools --name-only > "$FILES_TO_IGNORE_PATH"
+        # We use "-r" to list files, not the directories where they are placed.
+        git ls-tree HEAD:buildtools --name-only -r > "$FILES_TO_IGNORE_PATH"
         echo "file_path=$FILES_TO_IGNORE_PATH" >> "$GITHUB_OUTPUT"
 
     - name: Save local buildtools hash
