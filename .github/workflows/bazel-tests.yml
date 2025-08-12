@@ -16,12 +16,6 @@
 name: Perfetto CI [bazel]
 on:
   workflow_call:
-  workflow_dispatch: # This allows manual triggering
-    inputs:
-      pr_number:
-        description: 'Pull Request Number'
-        required: true
-        type: number
 env:
   # /tmp/cache contains {ccache, bazelcache} and generally any other cache
   # that should be persisted across jobs, but only updated from the main
@@ -34,14 +28,10 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 45
     env:
-      PERFETTO_CI_BUILD_CACHE_KEY: build-cache-bazel-wip-tests
+      PERFETTO_CI_BUILD_CACHE_KEY: build-cache-bazel
       PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-bazel
-      PERFETTO_BUILD_LOGS_DIR: /tmp/bazel-build-logs
     steps:
-      - name: Do checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.pr_number && format('refs/pull/{0}/head', github.event.inputs.pr_number) || github.ref }}
+      - uses: actions/checkout@v4
 
       - name: Setup artifacts
         shell: bash
@@ -51,7 +41,6 @@ jobs:
           mkdir -p $PERFETTO_ARTIFACTS_DIR
 
       - name: Restore cache
-        id: restore_cache
         uses: ./.github/actions/cache-on-google-cloud-storage/restore
         with:
           directory: ${{ env.PERFETTO_CACHE_DIR }}
@@ -62,8 +51,6 @@ jobs:
           install-flags: --bazel
 
       - name: Build Bazel
-        env:
-          BUILD_CACHE_HIT: ${{ steps.restore_cache.outputs.cache_hit }}
         shell: bash
         run: |
           BAZEL_DISK_CACHE_FOLDER="$PERFETTO_CACHE_DIR/bazel-disk-cache"
@@ -73,25 +60,22 @@ jobs:
           # that's why we specify _idle_delay=0.
           BAZEL_DISK_CACHE_GC_OPTIONS+=" --experimental_disk_cache_gc_idle_delay=0"
           BAZEL_DISK_CACHE_FLAGS="--disk_cache=${BAZEL_DISK_CACHE_FOLDER} ${BAZEL_DISK_CACHE_GC_OPTIONS}"
-          
-          mkdir -p "$PERFETTO_BUILD_LOGS_DIR"
-          EXEC_LOG_FILE="$PERFETTO_BUILD_LOGS_DIR/execution.log"
-          EXPLAIN_FILE="$PERFETTO_BUILD_LOGS_DIR/explain.log"
-          ENV_VARS_FILE="$PERFETTO_BUILD_LOGS_DIR/env.txt"
-          
-          env >> "$ENV_VARS_FILE"
-          
-          EXPLAIN_BUILD_ARGS="--execution_log_json_file=$EXEC_LOG_FILE --explain=$EXPLAIN_FILE --verbose_explanations"
-          
-          tools/bazel build ${BAZEL_DISK_CACHE_FLAGS} ${EXPLAIN_BUILD_ARGS} --verbose_failures //:all
+          tools/bazel build //:all ${BAZEL_DISK_CACHE_FLAGS} --verbose_failures
+          tools/bazel build //python:all ${BAZEL_DISK_CACHE_FLAGS} --verbose_failures
 
-      - name: Upload Bazel build logs
-        uses: ./.github/actions/cache-on-google-cloud-storage/save
-        with:
-          cache_key: bazel-build-logs-${{ env.PERFETTO_CI_JOB_ID }}
-          directory: ${{ env.PERFETTO_BUILD_LOGS_DIR }}
+      - name: Smoke tests
+        shell: bash
+        run: |
+          ./bazel-bin/traced &
+          ./bazel-bin/traced_probes &
+          sleep 5
+          TRACE="$PERFETTO_ARTIFACTS_DIR/bazel.trace"
+          ./bazel-bin/perfetto -c :test -o $TRACE
+          kill $(jobs -p)
+          ./bazel-bin/trace_processor_shell -q <(echo 'select count(1) from sched') $TRACE
 
-      - name: Update build cache
+      - name: Update cache (if on main)
+        if: github.ref == 'refs/heads/main'
         uses: ./.github/actions/cache-on-google-cloud-storage/save
         with:
           directory: ${{ env.PERFETTO_CACHE_DIR }}
