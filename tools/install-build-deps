@@ -186,11 +186,6 @@ BUILD_DEPS_HOST = [
     # Keep in sync with Chromium's //third_party/protobuf.
     Dependency(
         'buildtools/protobuf',
-        # If you revert the below version back to an earlier version of
-        # protobuf, make sure to revert the changes to
-        # //gn/standalone/protoc.py as well.
-        #
-        # This comment can be removed with protobuf is next upreved.
         'https://chromium.googlesource.com/external/github.com/protocolbuffers/protobuf.git',
         'f0dc78d7e6e331b8c6bb2d5283e06aa26883ca7c',  # refs/tags/v21.12
         'all',
