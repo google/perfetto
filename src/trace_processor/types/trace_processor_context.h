@@ -29,6 +29,8 @@ struct TraceProcessorContext {
   std::unique_ptr<PerGlobalContext> global_context;
   std::unique_ptr<PerMachineContext> machine_context;
   std::unique_ptr<PerTraceContext> trace_context;
+
+  explicit TraceProcessorContext();
 };
 
 }  // namespace perfetto::trace_processor

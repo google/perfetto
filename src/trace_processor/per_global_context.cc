@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/per_global_context.h"
 
 #include <memory>
 #include "src/trace_processor/importers/common/clock_converter.h"
@@ -28,27 +28,24 @@
 
 namespace perfetto::trace_processor {
 
-TraceProcessorContext::TraceProcessorContext(const InitArgs& args)
+GlobalContext::GlobalContext(const InitArgs& args)
     : config(args.config), storage(args.storage) {
   metadata_tracker = std::make_unique<MetadataTracker>(storage.get());
   descriptor_pool_ = std::make_unique<DescriptorPool>();
 }
 
-TraceProcessorContext::Init(TPContext* context) {
+GlobalContext::Init(TPContext* context) {
   reader_registry = std::make_unique<TraceReaderRegistry>(context);
-  // TODO(sashwinbalaji): Rely on machine ids available to init
-  // multi_machine_trace_manager
   multi_machine_trace_manager =
       std::make_unique<MultiMachineTraceManager>(context);
   clock_tracker = std::make_unique<ClockTracker>(context);
   clock_converter = std::make_unique<ClockConverter>(context);
 }
 
-TraceProcessorContext::TraceProcessorContext() = default;
-TraceProcessorContext::~TraceProcessorContext() = default;
+GlobalContext::GlobalContext() = default;
+GlobalContext::~GlobalContext() = default;
 
-TraceProcessorContext::TraceProcessorContext(TraceProcessorContext&&) = default;
-TraceProcessorContext& TraceProcessorContext::operator=(
-    TraceProcessorContext&&) = default;
+GlobalContext::GlobalContext(GlobalContext&&) = default;
+GlobalContext& GlobalContext::operator=(GlobalContext&&) = default;
 
 }  // namespace perfetto::trace_processor

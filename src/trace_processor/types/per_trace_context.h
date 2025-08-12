@@ -24,7 +24,6 @@ namespace perfetto::trace_processor {
 
 class ArgsTracker;
 class ArgsTranslationTable;
-class TraceFileTracker;
 class EventTracker;
 class FlowTracker;
 class GlobalArgsTracker;
@@ -32,10 +31,12 @@ class StackProfileTracker;
 class ProcessTrackTranslationTable;
 class SliceTracker;
 class SliceTranslationTable;
+class TraceFileTracker;
 
 // This struct holds all the state for a single trace parsing session.
 // It is owned by the ForwardingTraceParser.
 class PerTraceContext {
+ public:
   explicit PerTraceContext();
   ~PerTraceContext();
 

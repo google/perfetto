@@ -115,6 +115,9 @@ source_set("storage_minimal") {
   sources = [
     "forwarding_trace_parser.cc",
     "forwarding_trace_parser.h",
+    "per_global_context.cc",
+    "per_machine_context.cc",
+    "per_trace_context.cc",
     "trace_blob.cc",
     "trace_processor_context.cc",
     "trace_processor_storage.cc",

@@ -32,10 +32,13 @@ class ProcessTracker;
 class SchedEventTracker;
 class TrackCompressor;
 class TrackTracker;
+struct TraceProcessorContext;
 
 using MachineId = tables::MachineTable::Id;
 
 class PerMachineContext {
+ public:
+  void Init(struct TraceProcessorContext);
   std::unique_ptr<TrackCompressor> track_compressor;
 
   std::unique_ptr<MachineTracker> machine_tracker;
