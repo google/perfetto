@@ -64,7 +64,6 @@ export function registerUiTools(server: McpServer, ctxt: Trace) {
         .optional(),
     },
     async ({timeSpan, focus}) => {
-      console.log(timeSpan);
       if (timeSpan) {
         const startTime = BigInt(timeSpan.startTime);
         const endTime = BigInt(timeSpan.endTime);
