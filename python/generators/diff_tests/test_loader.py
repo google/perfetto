@@ -30,13 +30,12 @@ if TYPE_CHECKING:
 class TestLoader:
   """Discovers and loads all tests."""
 
-  def __init__(self, test_data_dir: str):
-    self.test_data_dir = test_data_dir
+  def __init__(self, root_dir: os.PathLike):
+    self.root_dir = root_dir
 
-  def discover_and_load_tests(self, root_dir: str,
-                              name_filter: str) -> List[TestCase]:
+  def discover_and_load_tests(self, name_filter: str) -> List[TestCase]:
     # Import the index file to discover all the tests.
-    include_path = os.path.join(root_dir, 'test', 'trace_processor',
+    include_path = os.path.join(self.root_dir, 'test', 'trace_processor',
                                 'diff_tests')
     sys.path.append(include_path)
     from include_index import fetch_all_diff_tests
