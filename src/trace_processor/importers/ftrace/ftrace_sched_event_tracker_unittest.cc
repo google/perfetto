@@ -45,14 +45,14 @@ class SchedEventTrackerTest : public ::testing::Test {
     context.global_context->global_args_tracker =
         std::make_unique<GlobalArgsTracker>(
             context.global_context->storage.get());
+    context.machine_context->machine_tracker =
+        std::make_unique<MachineTracker>(&context, 0);
     context.trace_context->args_tracker =
         std::make_unique<ArgsTracker>(&context);
     context.trace_context->event_tracker =
         std::make_unique<EventTracker>(&context);
     context.machine_context->process_tracker =
         std::make_unique<ProcessTracker>(&context);
-    context.machine_context->machine_tracker =
-        std::make_unique<MachineTracker>(&context, 0);
     context.machine_context->cpu_tracker =
         std::make_unique<CpuTracker>(&context);
     context.machine_context->sched_event_tracker =

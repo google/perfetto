@@ -26,6 +26,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -72,6 +73,8 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
 
   TraceProcessorContext context;
   context.global_context->storage = std::make_shared<TraceStorage>();
+  context.machine_context->machine_tracker =
+      std::make_unique<MachineTracker>(&context, 0);
   context.machine_context->process_tracker =
       std::make_unique<ProcessTracker>(&context);
   context.machine_context->process_tracker->GetOrCreateProcess(kPid);
@@ -218,6 +221,8 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
 
   TraceProcessorContext context;
   context.global_context->storage.reset(new TraceStorage());
+  context.machine_context->machine_tracker.reset(
+      new MachineTracker(&context, 0));
   context.machine_context->process_tracker.reset(new ProcessTracker(&context));
   context.machine_context->process_tracker->GetOrCreateProcess(kPid);
 
@@ -347,6 +352,8 @@ TEST(HeapGraphTrackerTest, BuildFlamegraphWeakReferences) {
 
   TraceProcessorContext context;
   context.global_context->storage.reset(new TraceStorage());
+  context.machine_context->machine_tracker.reset(
+      new MachineTracker(&context, 0));
   context.machine_context->process_tracker.reset(new ProcessTracker(&context));
   context.machine_context->process_tracker->GetOrCreateProcess(kPid);
 

@@ -33,6 +33,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
@@ -64,6 +65,8 @@ class NetworkTraceModuleTest : public testing::Test {
     context_.global_context->storage = std::make_shared<TraceStorage>();
     storage_ = context_.global_context->storage.get();
     storage_ = context_.global_context->storage.get();
+    context_.machine_context->machine_tracker =
+        std::make_unique<MachineTracker>(&context_, 0);
     context_.machine_context->track_tracker =
         std::make_unique<TrackTracker>(&context_);
     context_.trace_context->slice_tracker =

@@ -24,6 +24,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
@@ -41,6 +42,8 @@ class BinderTrackerTest : public ::testing::Test {
     context.global_context->storage.reset(new TraceStorage());
     context.global_context->global_args_tracker.reset(
         new GlobalArgsTracker(context.global_context->storage.get()));
+    context.machine_context->machine_tracker =
+        std::make_unique<MachineTracker>(&context, 0);
     context.trace_context->args_tracker.reset(new ArgsTracker(&context));
     context.trace_context->args_translation_table.reset(
         new ArgsTranslationTable(context.global_context->storage.get()));
