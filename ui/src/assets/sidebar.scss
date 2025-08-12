@@ -279,7 +279,7 @@
       margin: 1px 0;
       background: #12161b;
       color: #4e71b3;
-      border-radius: $pf-border-radius;
+      border-radius: $border-radius;
       font-size: 12px;
       text-align: center;
       &--green {
@@ -324,7 +324,7 @@ body.testing .pf-sidebar__footer {
 .pf-hiring-banner {
   font-size: 12px;
   background: #db4634;
-  box-shadow: 0 0 3px rgba(0, 0, 0, 30%);
+  box-shadow: 0 0 3px var(--pf-color-box-shadow);
   left: -65px;
   letter-spacing: 1px;
   line-height: 25px;

@@ -24,9 +24,9 @@
   background: none;
   padding: 2px 4px;
   transition:
-    border $pf-anim-timing,
-    box-shadow $pf-anim-timing,
-    background $pf-anim-timing;
+    border $anim-timing,
+    box-shadow $anim-timing,
+    background $anim-timing;
   gap: 4px;
 
   &__input {
@@ -52,7 +52,7 @@
   }
 
   // Round only the top corners to avoid rounding the edges of the underline
-  border-radius: $pf-border-radius $pf-border-radius 0 0;
+  border-radius: $border-radius $border-radius 0 0;
 
   // The gentle hover effect indicates this component is interactive
   &:hover {
@@ -61,12 +61,12 @@
 
   &:has(.pf-text-input__input:focus) {
     background: color_hover(transparent);
-    border-bottom: solid 1px var(--pf-color-accent);
+    border-bottom: solid 1px var(--pf-color-primary);
 
     // The box-shadow thickens the bottom border, without adding to the height.
     // This is the same technique used by materializecss:
     // See https://materializecss.com/text-inputs.html
-    box-shadow: 0 1px 0 var(--pf-color-accent);
+    box-shadow: 0 1px 0 var(--pf-color-primary);
   }
 
   &:has(.pf-text-input__input[disabled]) {

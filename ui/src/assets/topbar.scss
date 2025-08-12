@@ -22,8 +22,8 @@
   position: relative;
   z-index: 3;
   overflow: visible;
-  background-color: hsl(215, 1%, 95%);
-  box-shadow: 0px 1px 2px 1px #00000026;
+  background-color: var(--pf-color-background-secondary);
+  box-shadow: $box-shadow-2;
   min-height: var(--topbar-height);
   display: flex;
   justify-content: center;
@@ -57,20 +57,20 @@
   display: grid;
   grid-template-areas: "icon input stepthrough";
   grid-template-columns: 34px auto max-content;
-  border-radius: $pf-border-radius;
-  background-color: white;
+  border-radius: $border-radius;
+  background-color: var(--pf-color-background);
   border: solid 1px transparent;
   line-height: 34px;
 
   &:focus-within {
-    border-color: $pf-colour-thin-border;
-    box-shadow: 1px 1px 8px rgba(0, 0, 0, 0.2);
+    border-color: var(--pf-color-primary);
+    box-shadow: $box-shadow-1;
   }
 
   &:before {
     @include material-icon("search");
     margin: 5px;
-    color: #aaa;
+    color: var(--pf-color-text-muted);
     grid-area: icon;
   }
 
@@ -79,9 +79,8 @@
     border: 0;
     padding: 0 10px;
     font-size: 18px;
-    font-family: var(--pf-font-compact);
-    font-weight: 300;
-    color: #666;
+    font-family: inherit;
+    color: inherit;
     background-color: transparent;
 
     &:focus {
@@ -89,7 +88,7 @@
     }
 
     &::placeholder {
-      color: #b4b7ba;
+      color: var(--pf-color-text-muted);
       font-family: var(--pf-font-compact);
       font-weight: 400;
     }
@@ -101,8 +100,8 @@
     width: 100%;
     max-width: 100%;
     margin-top: 0;
-    border-left: 1px solid #404854;
     height: var(--topbar-height);
+    border: none;
 
     input {
       color: #9ddc67;
@@ -122,7 +121,7 @@
     &:before {
       @include material-icon("chevron_right");
       margin: 5px;
-      color: #aaa;
+      color: var(--pf-color-text-muted);
       grid-area: icon;
     }
   }
@@ -131,18 +130,17 @@
     &:before {
       @include material-icon("question_mark");
       margin: 5px;
-      color: #aaa;
+      color: var(--pf-color-text-muted);
       grid-area: icon;
     }
   }
 
   &--message-mode {
-    background-color: hsl(0, 0%, 89%);
-    border-radius: $pf-border-radius;
+    border-radius: $border-radius;
     input::placeholder {
       font-weight: 400;
       font-family: var(--pf-font-monospace);
-      color: hsl(213, 40%, 50%);
+      color: var(--pf-color-text-muted);
     }
     &:before {
       content: "info";
@@ -152,11 +150,9 @@
   &__stepthrough {
     grid-area: stepthrough;
     display: flex;
-    font: inherit;
     font-size: 14px;
-    font-family: var(--pf-font-compact);
     font-weight: 300;
-    color: #aaa;
+    color: var(--pf-color-text-muted);
 
     &-current {
       padding-right: 10px;
@@ -183,7 +179,7 @@
     .pf-omnibox-section-header {
       font-size: smaller;
       margin: 4px 0;
-      border-bottom: solid 1px $pf-colour-thin-border;
+      border-bottom: solid 1px var(--pf-color-border);
     }
 
     li {
@@ -191,32 +187,27 @@
       display: flex;
       gap: 4px;
       user-select: none;
-      font-family: var(--pf-font-compact);
       cursor: pointer;
       padding: 4px 8px;
-      border-radius: $pf-border-radius;
+      border-radius: $border-radius;
       align-items: center;
-      font-weight: lighter;
       line-height: 1.2;
 
       .pf-title {
         flex-grow: 1;
       }
 
-      .pf-tag {
-        border-radius: 10px;
-        background: $pf-minimal-background-hover;
-        padding: 0 6px;
+      .pf-omnibox__tag {
         font-size: smaller;
       }
 
       &:hover {
-        background-color: $pf-minimal-background-hover;
+        background-color: color_hover(transparent);
       }
 
       &.pf-highlighted {
-        background-color: $pf-primary-background;
-        color: white;
+        background-color: var(--pf-color-primary);
+        color: var(--pf-color-text-on-primary);
       }
     }
   }
@@ -226,7 +217,7 @@
     justify-content: center;
     padding: 8px 0 6px 0;
     gap: 12px;
-    border-top: solid 1px $pf-colour-thin-border;
+    border-top: solid 1px var(--pf-color-border);
 
     section {
       display: flex;

@@ -23,7 +23,7 @@
   font-family: var(--pf-font-compact);
   line-height: 1;
   user-select: none;
-  border-radius: $pf-border-radius;
+  border-radius: $border-radius;
   padding: 2px 4px;
   white-space: nowrap;
   min-width: max-content;
@@ -47,7 +47,7 @@
 
   // Remove default background in minimal mode, showing only the text
   &.pf-intent-primary {
-    @include color-theme(var(--pf-color-accent));
+    @include color-theme(var(--pf-color-primary));
   }
 
   &.pf-intent-success {
