@@ -18,7 +18,9 @@
 #define INCLUDE_PERFETTO_EXT_BASE_FLAT_HASH_MAP_H_
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/flags.h"
+#include "perfetto/ext/base/fnv_hash.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/utils.h"
 
 #include <algorithm>
@@ -80,7 +82,10 @@ struct QuadraticHalfProbe {
 
 template <typename Key,
           typename Value,
-          typename Hasher = base::Hash<Key>,
+          typename Hasher =
+              std::conditional_t<base::flags::use_murmur_hash_for_flat_hash_map,
+                                 base::MurmurHash<Key>,
+                                 base::FnvHash<Key>>,
           typename Probe = QuadraticProbe,
           bool AppendOnly = false>
 class FlatHashMap {

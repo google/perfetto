@@ -25,7 +25,7 @@ import re
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
 
-from python.generators.sql_processing.docs_parse import ParsedModule
+from python.generators.sql_processing.docs_parse import DocParseOptions, ParsedModule
 from python.generators.sql_processing.docs_parse import parse_file
 from python.generators.sql_processing.utils import check_banned_create_table_as
 from python.generators.sql_processing.utils import check_banned_create_view_as
@@ -67,7 +67,11 @@ def main():
       with open(path, 'r') as f:
         sql = f.read()
 
-      parsed = parse_file(rel_path, sql)
+      parsed = parse_file(
+          rel_path,
+          sql,
+          options=DocParseOptions(enforce_every_column_set_is_documented=True),
+      )
 
       # Some modules (i.e. `deprecated`) should not be checked.
       if not parsed:

@@ -54,22 +54,16 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE android.memory.dmabuf`);
-    await e.query(`
-      CREATE PERFETTO TABLE _android_memory_cumulative_dmabuf AS
-      SELECT
-        upid, utid, ts,
-        SUM(buf_size) OVER(PARTITION BY COALESCE(upid, utid) ORDER BY ts) AS value
-      FROM android_dmabuf_allocs;`);
 
     const pids = await e.query(
-      `SELECT DISTINCT upid, IIF(upid IS NULL, utid, NULL) AS utid FROM _android_memory_cumulative_dmabuf`,
+      `SELECT DISTINCT upid, IIF(upid IS NULL, utid, NULL) AS utid FROM android_memory_cumulative_dmabuf`,
     );
     const it = pids.iter({upid: NUM_NULL, utid: NUM_NULL});
     for (; it.valid(); it.next()) {
       if (it.upid != null) {
         const uri = `/android_process_dmabuf_upid_${it.upid}`;
         const config: SqlDataSource = {
-          sqlSource: `SELECT ts, value FROM _android_memory_cumulative_dmabuf
+          sqlSource: `SELECT ts, value FROM android_memory_cumulative_dmabuf
                  WHERE upid = ${it.upid}`,
         };
         await registerAllocsTrack(ctx, uri, config);
@@ -80,7 +74,7 @@ export default class implements PerfettoPlugin {
       } else if (it.utid != null) {
         const uri = `/android_process_dmabuf_utid_${it.utid}`;
         const config: SqlDataSource = {
-          sqlSource: `SELECT ts, value FROM _android_memory_cumulative_dmabuf
+          sqlSource: `SELECT ts, value FROM android_memory_cumulative_dmabuf
                  WHERE utid = ${it.utid}`,
         };
         await registerAllocsTrack(ctx, uri, config);

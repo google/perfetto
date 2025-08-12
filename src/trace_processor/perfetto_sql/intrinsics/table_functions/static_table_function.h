@@ -80,9 +80,6 @@ class StaticTableFunction {
 
   // Returns the number of arguments that the table function takes.
   virtual uint32_t GetArgumentCount() const = 0;
-
-  // Returns the estimated number of rows the table would generate.
-  virtual uint32_t EstimateRowCount() = 0;
 };
 
 }  // namespace perfetto::trace_processor

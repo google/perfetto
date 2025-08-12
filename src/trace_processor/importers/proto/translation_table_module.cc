@@ -15,22 +15,29 @@
  */
 #include "src/trace_processor/importers/proto/translation_table_module.h"
 
+#include <cstdint>
+
+#include "perfetto/protozero/field.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/translation/translation_table.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 using perfetto::protos::pbzero::TracePacket;
 
-TranslationTableModule::TranslationTableModule(TraceProcessorContext* context)
-    : context_(context) {
-  RegisterForField(TracePacket::kTranslationTableFieldNumber, context);
+TranslationTableModule::TranslationTableModule(
+    ProtoImporterModuleContext* module_context,
+    TraceProcessorContext* context)
+    : ProtoImporterModule(module_context), context_(context) {
+  RegisterForField(TracePacket::kTranslationTableFieldNumber);
 }
 
 TranslationTableModule::~TranslationTableModule() = default;
@@ -142,5 +149,4 @@ void TranslationTableModule::ParseChromeStudyRules(
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

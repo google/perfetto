@@ -53,12 +53,13 @@ class TrackEventTracker {
       bool is_incremental = false;
       StringId unit = kNullStringId;
       StringId builtin_type_str;
+      StringId y_axis_share_key = kNullStringId;
 
       bool IsForSameTrack(const CounterDetails& o) const {
         return std::tie(category, unit_multiplier, is_incremental,
-                        builtin_type_str) ==
+                        builtin_type_str, y_axis_share_key) ==
                std::tie(o.category, o.unit_multiplier, o.is_incremental,
-                        o.builtin_type_str);
+                        o.builtin_type_str, o.y_axis_share_key);
       }
     };
     enum class SiblingMergeBehavior {
@@ -68,13 +69,14 @@ class TrackEventTracker {
     };
 
     uint64_t parent_uuid = 0;
-    std::optional<uint32_t> pid;
-    std::optional<uint32_t> tid;
+    std::optional<int64_t> pid;
+    std::optional<int64_t> tid;
     int64_t min_timestamp = 0;
     StringId name = kNullStringId;
     StringId description = kNullStringId;
     bool use_separate_track = false;
     bool is_counter = false;
+    bool use_synthetic_tid = false;
 
     // For counter tracks.
     std::optional<CounterDetails> counter_details;
@@ -393,6 +395,7 @@ class TrackEventTracker {
   const StringId descriptor_source_;
   const StringId default_descriptor_track_name_;
   const StringId description_key_;
+  const StringId y_axis_share_key_;
 
   std::optional<int64_t> range_of_interest_start_us_;
   TraceProcessorContext* const context_;

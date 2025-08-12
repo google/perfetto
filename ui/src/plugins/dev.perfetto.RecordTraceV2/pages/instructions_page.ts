@@ -14,11 +14,11 @@
 
 import m from 'mithril';
 import {RecordingManager} from '../recording_manager';
-import {copyToClipboard} from '../../../base/clipboard';
 import {traceConfigToTxt} from '../config/trace_config_utils_wasm';
 import protos from '../../../protos';
 import {RecordSubpage} from '../config/config_interfaces';
 import {Anchor} from '../../../widgets/anchor';
+import {CodeSnippet} from '../../../widgets/code_snippet';
 
 export function instructionsPage(recMgr: RecordingManager): RecordSubpage {
   return {
@@ -83,19 +83,21 @@ class InstructionsPage implements m.ClassComponent<RecMgrAttrs> {
             this.docsLink.replace('https://', ''),
           ),
         ),
-      this.cmdline && m('.code-snippet', m('code', this.cmdline)),
+      this.cmdline &&
+        m(
+          '',
+          m(CodeSnippet, {
+            language: 'Shell',
+            text: this.cmdline,
+          }),
+        ),
       m('p', 'Save the file below as: config.pbtx'),
       m(
-        '.code-snippet',
-        m(
-          'button',
-          {
-            title: 'Copy to clipboard',
-            onclick: () => copyToClipboard(this.configTxt),
-          },
-          m('i.material-icons', 'assignment'),
-        ),
-        m('code', this.configTxt),
+        '',
+        m(CodeSnippet, {
+          language: 'textproto',
+          text: this.configTxt,
+        }),
       ),
     ];
   }

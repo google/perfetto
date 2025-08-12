@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -462,16 +462,20 @@ class TrackEvent(TestSuite):
         """,
         out=Csv("""
         "track","process","thread","thread_process","ts","dur","category","name","key","string_value","int_value"
+        "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","legacy_trace_source_id","[NULL]",1234
         "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","debug.arg1","value1","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","legacy_event.passthrough_utid","[NULL]",1
         "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","legacy_event.phase","S","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",1000,7000,"cat","name1","debug.arg2","value2","[NULL]"
+        "name1","[NULL]","[NULL]","[NULL]",2000,1000,"cat","name1","legacy_trace_source_id","[NULL]",1234
         "name1","[NULL]","[NULL]","[NULL]",2000,1000,"cat","name1","legacy_event.passthrough_utid","[NULL]",2
         "name1","[NULL]","[NULL]","[NULL]",2000,1000,"cat","name1","legacy_event.phase","S","[NULL]"
+        "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","legacy_trace_source_id","[NULL]",1234
         "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","debug.arg3","value3","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","debug.step","Step1","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","legacy_event.passthrough_utid","[NULL]",1
         "name1","[NULL]","[NULL]","[NULL]",3000,0,"cat","name1","legacy_event.phase","T","[NULL]"
+        "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","legacy_trace_source_id","[NULL]",1234
         "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","debug.arg4","value4","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","debug.step","Step2","[NULL]"
         "name1","[NULL]","[NULL]","[NULL]",5000,0,"cat","name1","legacy_event.passthrough_utid","[NULL]",1
@@ -552,7 +556,6 @@ class TrackEvent(TestSuite):
         """,
         out=Csv('''
           "flat_key","key","int_value","string_value"
-          "cookie","cookie",1234,"[NULL]"
           "debug.debug1.key1","debug.debug1.key1",10,"[NULL]"
           "debug.debug1.key2","debug.debug1.key2[0]",20,"[NULL]"
           "debug.debug1.key2","debug.debug1.key2[1]",21,"[NULL]"
@@ -576,11 +579,13 @@ class TrackEvent(TestSuite):
           "event.name","event.name","[NULL]","[NULL]"
           "event.name","event.name","[NULL]","name1"
           "legacy_event.passthrough_utid","legacy_event.passthrough_utid",1,"[NULL]"
+          "legacy_trace_source_id","legacy_trace_source_id",1234,"[NULL]"
+          "name","name","[NULL]","name1"
           "scope","scope","[NULL]","cat"
           "source","source","[NULL]","chrome"
           "source_scope","source_scope","[NULL]","cat"
-          "trace_id","trace_id",1234,"[NULL]"
           "trace_id_is_process_scoped","trace_id_is_process_scoped",0,"[NULL]"
+          "track_compressor_idx","track_compressor_idx",0,"[NULL]"
           "upid","upid",1,"[NULL]"
         '''))
 

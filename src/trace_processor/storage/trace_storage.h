@@ -446,6 +446,18 @@ class TraceStorage {
   }
   tables::MetadataTable* mutable_metadata_table() { return &metadata_table_; }
 
+  const tables::BuildFlagsTable& build_flags_table() const {
+    return build_flags_table_;
+  }
+
+  tables::BuildFlagsTable* mutable_build_flags_table() {
+    return &build_flags_table_;
+  }
+
+  const tables::ModulesTable& modules_table() const { return modules_table_; }
+
+  tables::ModulesTable* mutable_modules_table() { return &modules_table_; }
+
   const tables::ClockSnapshotTable& clock_snapshot_table() const {
     return clock_snapshot_table_;
   }
@@ -711,17 +723,17 @@ class TraceStorage {
   tables::EtmV4SessionTable* mutable_etm_v4_session_table() {
     return &etm_v4_session_table_;
   }
-  const tables::EtmV4TraceTable& etm_v4_trace_table() const {
-    return etm_v4_trace_table_;
+  const tables::EtmV4ChunkTable& etm_v4_chunk_table() const {
+    return etm_v4_chunk_table_;
   }
-  tables::EtmV4TraceTable* mutable_etm_v4_trace_table() {
-    return &etm_v4_trace_table_;
+  tables::EtmV4ChunkTable* mutable_etm_v4_chunk_table() {
+    return &etm_v4_chunk_table_;
   }
-  const std::vector<TraceBlobView>& etm_v4_trace_data() const {
-    return etm_v4_trace_data_;
+  const std::vector<TraceBlobView>& etm_v4_chunk_data() const {
+    return etm_v4_chunk_data_;
   }
-  std::vector<TraceBlobView>* mutable_etm_v4_trace_data() {
-    return &etm_v4_trace_data_;
+  std::vector<TraceBlobView>* mutable_etm_v4_chunk_data() {
+    return &etm_v4_chunk_data_;
   }
   const tables::FileTable& file_table() const { return file_table_; }
   tables::FileTable* mutable_file_table() { return &file_table_; }
@@ -954,13 +966,19 @@ class TraceStorage {
   // Number of interned strings in the pool. Includes the empty string w/ ID=0.
   size_t string_count() const { return string_pool_.size(); }
 
-  base::Status ExtractArg(uint32_t arg_set_id,
-                          const char* key,
-                          std::optional<Variadic>* result) const {
+  uint32_t ExtractArgRowFast(uint32_t arg_set_id, const char* key) const {
     args_cursor_.SetFilterValueUnchecked(0, arg_set_id);
     args_cursor_.SetFilterValueUnchecked(1, key);
     args_cursor_.Execute();
-    if (args_cursor_.Eof()) {
+    return args_cursor_.Eof() ? std::numeric_limits<uint32_t>::max()
+                              : args_cursor_.ToRowNumber().row_number();
+  }
+
+  base::Status ExtractArg(uint32_t arg_set_id,
+                          const char* key,
+                          std::optional<Variadic>* result) const {
+    uint32_t arg = ExtractArgRowFast(arg_set_id, key);
+    if (arg == std::numeric_limits<uint32_t>::max()) {
       *result = std::nullopt;
       return base::OkStatus();
     }
@@ -1048,6 +1066,12 @@ class TraceStorage {
   // * metadata from chrome and benchmarking infrastructure
   // * descriptions of android packages
   tables::MetadataTable metadata_table_{&string_pool_};
+
+  // Contains the build flags of the trace. The values are resolved - i.e. if
+  // they depend on other flags, the final value is stored here.
+  tables::BuildFlagsTable build_flags_table_{&string_pool_};
+
+  tables::ModulesTable modules_table_{&string_pool_};
 
   // Contains data from all the clock snapshots in the trace.
   tables::ClockSnapshotTable clock_snapshot_table_{&string_pool_};
@@ -1163,9 +1187,9 @@ class TraceStorage {
   // Indexed by tables::EtmV4ConfigurationTable::Id
   std::vector<std::unique_ptr<Destructible>> etm_v4_configuration_data_;
   tables::EtmV4SessionTable etm_v4_session_table_{&string_pool_};
-  tables::EtmV4TraceTable etm_v4_trace_table_{&string_pool_};
+  tables::EtmV4ChunkTable etm_v4_chunk_table_{&string_pool_};
   // Indexed by tables::EtmV4TraceTable::Id
-  std::vector<TraceBlobView> etm_v4_trace_data_;
+  std::vector<TraceBlobView> etm_v4_chunk_data_;
   std::unique_ptr<Destructible> etm_target_memory_;
   tables::FileTable file_table_{&string_pool_};
   tables::ElfFileTable elf_file_table_{&string_pool_};

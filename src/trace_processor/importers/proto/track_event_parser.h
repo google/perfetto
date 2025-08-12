@@ -23,7 +23,6 @@
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/proto/active_chrome_processes_tracker.h"
 #include "src/trace_processor/importers/proto/chrome_string_lookup.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -56,7 +55,7 @@ class TrackEventParser {
                             uint32_t packet_sequence_id);
   UniquePid ParseProcessDescriptor(int64_t packet_timestamp,
                                    protozero::ConstBytes);
-  UniqueTid ParseThreadDescriptor(protozero::ConstBytes);
+  UniqueTid ParseThreadDescriptor(protozero::ConstBytes, bool);
 
   void ParseTrackEvent(int64_t ts,
                        const TrackEventData* event_data,
@@ -123,6 +122,7 @@ class TrackEventParser {
   const StringId event_category_key_id_;
   const StringId event_name_key_id_;
   const StringId correlation_id_key_id_;
+  const StringId legacy_trace_source_id_key_id_;
 
   ChromeStringLookup chrome_string_lookup_;
   std::vector<uint32_t> reflect_fields_;

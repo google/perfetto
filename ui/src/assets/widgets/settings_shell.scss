@@ -14,6 +14,7 @@
 
 .pf-settings-shell {
   overflow: auto;
+  height: 100%;
 
   &__header {
     position: sticky;
@@ -21,16 +22,22 @@
     padding-bottom: 10px;
     padding-top: 12px;
     z-index: 1;
-    background-color: white;
+    background-color: var(--pf-color-background);
 
     &--stuck {
-      box-shadow: 0px 2px 5px #00000026;
+      box-shadow: 0px 2px 5px var(--pf-color-box-shadow);
     }
   }
 
   &__centred {
-    width: 700px;
+    max-width: 700px;
+    min-width: 300px;
     margin-inline: auto;
+    padding-inline: 8px;
+  }
+
+  &__content {
+    margin-block: 16px;
   }
 
   &__title {

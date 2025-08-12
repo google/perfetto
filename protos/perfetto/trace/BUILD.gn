@@ -36,6 +36,7 @@ proto_sources_non_minimal = [
   "extension_descriptor.proto",
   "memory_graph.proto",
   "ui_state.proto",
+  "evdev.proto",
 ]
 
 proto_sources_minimal = [

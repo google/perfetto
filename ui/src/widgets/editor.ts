@@ -36,6 +36,9 @@ export interface EditorAttrs extends HTMLAttrs {
   // Which language use for syntax highlighting et al. Defaults to none.
   readonly language?: 'perfetto-sql';
 
+  // Whether the editor should be focused on creation.
+  readonly autofocus?: boolean;
+
   // Callback for the Ctrl/Cmd + Enter key binding.
   onExecute?: (text: string) => void;
 
@@ -46,6 +49,10 @@ export interface EditorAttrs extends HTMLAttrs {
 export class Editor implements m.ClassComponent<EditorAttrs> {
   private editorView?: EditorView;
   private latestText?: string;
+
+  focus() {
+    this.editorView?.focus();
+  }
 
   oncreate({dom, attrs}: m.CVnodeDOM<EditorAttrs>) {
     const keymaps = [indentWithTab];
@@ -112,6 +119,10 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
       parent: dom,
       dispatch,
     });
+
+    if (attrs.autofocus) {
+      this.focus();
+    }
   }
 
   onupdate({attrs}: m.CVnodeDOM<EditorAttrs>): void {

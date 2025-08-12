@@ -37,18 +37,16 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
-#include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
-#include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_reader_registry.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/descriptors.h"
+#include "src/trace_processor/util/descriptors.h"  // IWYU pragma: keep
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
@@ -59,9 +57,6 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg)
       kProtoTraceType);
   context_.reader_registry->RegisterTraceReader<ProtoTraceReader>(
       kSymbolsTraceType);
-  context_.proto_trace_parser =
-      std::make_unique<ProtoTraceParserImpl>(&context_);
-  RegisterDefaultModules(&context_);
 }
 
 TraceProcessorStorageImpl::~TraceProcessorStorageImpl() {}
@@ -77,10 +72,8 @@ base::Status TraceProcessorStorageImpl::Parse(TraceBlobView blob) {
   }
 
   if (!parser_) {
-    auto parser = std::make_unique<ForwardingTraceParser>(
+    parser_ = std::make_unique<ForwardingTraceParser>(
         &context_, context_.trace_file_tracker->AddFile());
-    parser_ = parser.get();
-    context_.chunk_readers.push_back(std::move(parser));
   }
 
   auto scoped_trace = context_.storage->TraceExecutionTimeIntoStats(
@@ -124,9 +117,6 @@ base::Status TraceProcessorStorageImpl::NotifyEndOfFile() {
   RETURN_IF_ERROR(parser_->NotifyEndOfFile());
   // NotifyEndOfFile might have pushed packets to the sorter.
   Flush();
-  for (std::unique_ptr<ProtoImporterModule>& module : context_.modules) {
-    module->NotifyEndOfFile();
-  }
   if (context_.content_analyzer) {
     PacketAnalyzer::Get(&context_)->NotifyEndOfFile();
   }

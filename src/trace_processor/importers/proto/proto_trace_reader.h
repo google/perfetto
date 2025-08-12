@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -28,6 +29,7 @@
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/proto/multi_machine_trace_manager.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_builder.h"
+#include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_tokenizer.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -45,6 +47,7 @@ class TraceConfig_Decoder;
 namespace trace_processor {
 
 class PacketSequenceState;
+class ProtoTraceParserImpl;
 class TraceProcessorContext;
 class TraceSorter;
 class TraceStorage;
@@ -114,8 +117,9 @@ class ProtoTraceReader : public ChunkedTraceReader {
   base::Status ParseExtensionDescriptor(ConstBytes descriptor);
 
   TraceProcessorContext* context_;
-
   ProtoTraceTokenizer tokenizer_;
+  ProtoImporterModuleContext module_context_;
+  std::unique_ptr<ProtoTraceParserImpl> parser_;
 
   // Temporary. Currently trace packets do not have a timestamp, so the
   // timestamp given is latest_timestamp_.

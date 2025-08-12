@@ -28,7 +28,6 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
-#include "src/trace_processor/importers/common/legacy_v8_cpu_profile_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -42,7 +41,6 @@
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/multi_machine_trace_manager.h"
-#include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_reader_registry.h"
@@ -75,7 +73,6 @@ TraceProcessorContext::TraceProcessorContext(const InitArgs& args)
   clock_tracker = std::make_unique<ClockTracker>(this);
   clock_converter = std::make_unique<ClockConverter>(this);
   mapping_tracker = std::make_unique<MappingTracker>(this);
-  perf_sample_tracker = std::make_unique<PerfSampleTracker>(this);
   stack_profile_tracker = std::make_unique<StackProfileTracker>(this);
   metadata_tracker = std::make_unique<MetadataTracker>(storage.get());
   cpu_tracker = std::make_unique<CpuTracker>(this);
@@ -88,8 +85,6 @@ TraceProcessorContext::TraceProcessorContext(const InitArgs& args)
       });
 
   trace_file_tracker = std::make_unique<TraceFileTracker>(this);
-  legacy_v8_cpu_profile_tracker =
-      std::make_unique<LegacyV8CpuProfileTracker>(this);
 }
 
 TraceProcessorContext::TraceProcessorContext() = default;

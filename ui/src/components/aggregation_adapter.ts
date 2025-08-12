@@ -169,7 +169,7 @@ export async function createIITable<
       engine,
       as: `
         SELECT * 
-        FROM ${dataset.query()}
+        FROM (${dataset.query()})
         LIMIT 0
       `,
     });

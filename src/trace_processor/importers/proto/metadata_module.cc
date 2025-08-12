@@ -56,8 +56,10 @@ constexpr auto kTriggerTrackBlueprint =
 
 }  // namespace
 
-MetadataModule::MetadataModule(TraceProcessorContext* context)
-    : context_(context),
+MetadataModule::MetadataModule(ProtoImporterModuleContext* module_context,
+                               TraceProcessorContext* context)
+    : ProtoImporterModule(module_context),
+      context_(context),
       producer_name_key_id_(context_->storage->InternString("producer_name")),
       trusted_producer_uid_key_id_(
           context_->storage->InternString("trusted_producer_uid")),
@@ -65,11 +67,11 @@ MetadataModule::MetadataModule(TraceProcessorContext* context)
           context_->storage->InternString("chrome_trigger.name")),
       chrome_trigger_hash_id_(
           context_->storage->InternString("chrome_trigger.name_hash")) {
-  RegisterForField(TracePacket::kUiStateFieldNumber, context);
-  RegisterForField(TracePacket::kTriggerFieldNumber, context);
-  RegisterForField(TracePacket::kChromeTriggerFieldNumber, context);
-  RegisterForField(TracePacket::kCloneSnapshotTriggerFieldNumber, context);
-  RegisterForField(TracePacket::kTraceUuidFieldNumber, context);
+  RegisterForField(TracePacket::kUiStateFieldNumber);
+  RegisterForField(TracePacket::kTriggerFieldNumber);
+  RegisterForField(TracePacket::kChromeTriggerFieldNumber);
+  RegisterForField(TracePacket::kCloneSnapshotTriggerFieldNumber);
+  RegisterForField(TracePacket::kTraceUuidFieldNumber);
 }
 
 ModuleResult MetadataModule::TokenizePacket(

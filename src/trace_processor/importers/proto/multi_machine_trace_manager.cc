@@ -21,10 +21,9 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
-#include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/sorter/trace_sorter.h"  // IWYU pragma: keep
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
@@ -41,12 +40,8 @@ std::unique_ptr<TraceProcessorContext> MultiMachineTraceManager::CreateContext(
   TraceProcessorContext::InitArgs args{
       default_context_->config, default_context_->storage, raw_machine_id};
   auto new_context = std::make_unique<TraceProcessorContext>(args);
-
-  // Register default and additional modules (if enabled).
-  RegisterDefaultModules(new_context.get());
-  // Register additional modules through the registered function pointer.
-  if (additional_modules_factory_)
-    additional_modules_factory_(new_context.get());
+  new_context->register_additional_proto_modules =
+      default_context_->register_additional_proto_modules;
 
   // Set up shared member fields:
   // arg_set_id is a monotonically increasing ID.
@@ -54,17 +49,9 @@ std::unique_ptr<TraceProcessorContext> MultiMachineTraceManager::CreateContext(
   new_context->global_args_tracker = default_context_->global_args_tracker;
   // Share the sorter, but enable for the parser.
   new_context->sorter = default_context_->sorter;
-  new_context->sorter->AddMachineContext(new_context.get());
   new_context->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
-  new_context->proto_trace_parser.reset(
-      new ProtoTraceParserImpl(new_context.get()));
 
   return new_context;
-}
-
-void MultiMachineTraceManager::EnableAdditionalModules(
-    ProtoImporterModuleFactory factory) {
-  additional_modules_factory_ = factory;
 }
 
 ProtoTraceReader* MultiMachineTraceManager::GetOrCreateReader(

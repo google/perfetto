@@ -719,6 +719,12 @@ message PackagesListConfig {
   // If not empty, emit info about only the following list of package names
   // (exact match, no regex). Otherwise, emit info about all packages.
   repeated string package_name_filter = 1;
+
+  // If present and non-zero, the data source will periodically poll for CPU
+  // use by packages and only emit results for those that it sees. If absent,
+  // the data source will emit results for all packages at startup. The package
+  // name filter applies either way.
+  optional uint32 only_write_on_cpu_use_every_ms = 2;
 }
 
 // End of protos/perfetto/config/android/packages_list_config.proto
@@ -1003,6 +1009,14 @@ message EtwConfig {
   // session. These kernel flags have been built to expose the useful events
   // captured from the kernel mode only.
   repeated KernelFlag kernel_flags = 1;
+
+  // See the list of keywords for for individual providers.
+  // https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
+
+  // Provides events relating to the scheduler.
+  repeated string scheduler_provider_events = 2;
+  // Provides events relating to the memory manager.
+  repeated string memory_provider_events = 3;
 }
 // End of protos/perfetto/config/etw/etw_config.proto
 
@@ -1257,7 +1271,7 @@ message FtraceConfig {
   // for event recording. Normally, this means
   // `/sys/kernel/tracing/instances/$instance_name`.
   //
-  // The name "hyp" is reserved.
+  // Names "hyp" and "hypervisor" are reserved.
   //
   // The instance must already exist, the tracing daemon *will not* create it
   // for you as it typically doesn't have such permissions.
@@ -4054,7 +4068,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 41.
+// Next id: 42.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -4115,6 +4129,16 @@ message TraceConfig {
     // "bar"] will enable data sources on both "foo" and "bar" (if they exist).
     repeated string producer_name_filter = 2;
     repeated string producer_name_regex_filter = 3;
+
+    // Filter by machine names. The name of a machine is determined by the
+    // PERFETTO_MACHINE_NAME env variable. In Android systems, if the env
+    // variable is not set then the
+    // persist.traced_relay.machine_name system property is used. If the
+    // sysprop isn't set or not in an Android system, then the machine name by
+    // default is set to the utsname sysname (e.g. Linux), which can be obtained
+    // via the 'uname -s' command. As a convenience, one can use "host" to refer
+    // to the host machine, which is the machine running traced.
+    repeated string machine_name_filter = 4;
   }
   repeated DataSource data_sources = 2;
 
@@ -4766,6 +4790,20 @@ message TraceConfig {
   // Priority boost to be applied to the traced process, when the session is
   // running.
   optional PriorityBoostConfig priority_boost = 40;
+
+  // When set to a value > 0, this tracing session will be started in
+  // "exclusive mode". This has the following semantics:
+  // - It can only be set by shell or root users.
+  // - A new exclusive session will only be started if its priority is strictly
+  //   higher than any other active tracing session.
+  // - If a new exclusive session is started, all other existing tracing
+  //   sessions (exclusive or not) are aborted.
+  // - While an exclusive session is active, any new non-exclusive session (or
+  //   any exclusive session with a lower or equal priority) will be rejected.
+  //
+  // Introduced in: perfetto v52.
+  // Supported on: Android 25Q3+.
+  optional uint32 exclusive_prio = 41;
 }
 
 // End of protos/perfetto/config/trace_config.proto
@@ -5708,8 +5746,8 @@ message NetworkPacketEvent {
   // The direction traffic is flowing for this event.
   optional TrafficDirection direction = 1;
 
-  // The name of the interface if available (e.g. 'rmnet0').
-  optional string interface = 2;
+  // The name of the network interface if available (e.g. 'rmnet0').
+  optional string network_interface = 2;
 
   // The length of the packet in bytes (wire_size - L2_header_size). Ignored
   // when using NetworkPacketEvent as the ctx in either NetworkPacketBundle or
@@ -6393,6 +6431,11 @@ message Transform {
   optional float ty = 6;
 }
 
+message TransactionBarrier {
+  optional string barrier_token = 1;
+  optional uint32 kind = 2;
+}
+
 message TransactionState {
   optional int32 pid = 1;
   optional int32 uid = 2;
@@ -6404,6 +6447,7 @@ message TransactionState {
   repeated DisplayState display_changes = 8;
   repeated uint64 merged_transaction_ids = 9;
   optional uint64 apply_token = 10;
+  repeated TransactionBarrier transaction_barriers = 11;
 }
 
 // Keep insync with layer_state_t
@@ -7397,6 +7441,45 @@ message EtwTraceEventBundle {
 }
 // End of protos/perfetto/trace/etw/etw_event_bundle.proto
 
+// Begin of protos/perfetto/trace/evdev.proto
+
+// Records an event in the evdev protocol, as used by Linux and some other *nix
+// kernels to report events from human interface devices.
+//
+// Next ID: 3
+message EvdevEvent {
+  // The device's unique ID number. This need not be the number of its
+  // /dev/input/event node.
+  optional uint32 device_id = 1;
+
+  oneof event {
+    InputEvent input_event = 2;
+  }
+
+  // Proto version of Linux's struct input_event. The meaning of types and codes
+  // are described in the Linux kernel documentation at
+  // https://www.kernel.org/doc/html/latest/input/event-codes.html.
+  //
+  // Next ID: 5
+  message InputEvent {
+    // The monotonic timestamp at which the event occurred, as reported by the
+    // kernel, in integer nanoseconds. If omitted, assume that it hasn't changed
+    // since the previous event.
+    optional uint64 kernel_timestamp = 1;
+
+    // The code grouping for this event, used to distinguish signals, absolute
+    // and relative axis changes, and other types of event.
+    optional uint32 type = 2;
+    // The precise type of the event, such as the axis code for absolute and
+    // relative events.
+    optional uint32 code = 3;
+    // The new value of the axis described by type and code.
+    optional sint32 value = 4;
+  }
+}
+
+// End of protos/perfetto/trace/evdev.proto
+
 // Begin of protos/perfetto/common/descriptor.proto
 
 // The protocol compiler can output a FileDescriptorSet containing the .proto
@@ -8027,6 +8110,14 @@ message CmaAllocInfoFtraceEvent {
   optional uint64 nr_migrated = 8;
   optional uint64 nr_reclaimed = 9;
   optional uint64 pfn = 10;
+}
+message CmaAllocFinishFtraceEvent {
+  optional string name = 1;
+  optional uint64 pfn = 2;
+  optional uint64 page = 3;
+  optional uint64 count = 4;
+  optional uint32 align = 5;
+  optional int32 errorno = 6;
 }
 
 // End of protos/perfetto/trace/ftrace/cma.proto
@@ -9685,8 +9776,60 @@ message HostMemAbortFtraceEvent {
   optional uint64 esr = 1;
   optional uint64 addr = 2;
 }
+message HostFfaCallFtraceEvent {
+  optional uint64 func_id = 1;
+  optional uint64 res_a1 = 2;
+  optional uint64 res_a2 = 3;
+  optional uint64 res_a3 = 4;
+  optional uint64 res_a4 = 5;
+  optional int32 handled = 6;
+  optional int32 err = 7;
+}
+message IommuIdmapFtraceEvent {
+  optional uint64 from = 1;
+  optional uint64 to = 2;
+  optional int32 prot = 3;
+}
+message PsciMemProtectFtraceEvent {
+  optional uint64 count = 1;
+  optional uint64 was = 2;
+}
 
 // End of protos/perfetto/trace/ftrace/hyp.proto
+
+// Begin of protos/perfetto/trace/ftrace/hypervisor.proto
+
+message HypervisorHostHcallFtraceEvent {
+  optional uint32 id = 1;
+  optional uint32 invalid = 2;
+}
+message HypervisorHostSmcFtraceEvent {
+  optional uint64 id = 1;
+  optional uint32 forwarded = 2;
+}
+message HypervisorHypExitFtraceEvent {}
+message HypervisorIommuIdmapFtraceEvent {
+  optional uint64 from = 1;
+  optional uint64 to = 2;
+  optional int32 prot = 3;
+}
+message HypervisorPsciMemProtectFtraceEvent {
+  optional uint64 count = 1;
+  optional uint64 was = 2;
+}
+message HypervisorHostMemAbortFtraceEvent {
+  optional uint64 esr = 1;
+  optional uint64 addr = 2;
+}
+message HypervisorHypEnterFtraceEvent {}
+message HypervisorIommuIdmapCompleteFtraceEvent {
+  optional uint32 map = 1;
+}
+message HypervisorVcpuIllegalTrapFtraceEvent {
+  optional uint64 esr = 1;
+}
+
+// End of protos/perfetto/trace/ftrace/hypervisor.proto
 
 // Begin of protos/perfetto/trace/ftrace/i2c.proto
 
@@ -10103,6 +10246,19 @@ message IonBufferCreateFtraceEvent {
 message IonBufferDestroyFtraceEvent {
   optional uint64 addr = 1;
   optional uint64 len = 2;
+}
+message MmAllocContigMigrateRangeInfoFtraceEvent {
+  optional uint64 start = 1;
+  optional uint64 end = 2;
+  optional uint64 nr_migrated = 3;
+  optional uint64 nr_reclaimed = 4;
+  optional uint64 nr_mapped = 5;
+  optional int32 migratetype = 6;
+}
+message DmabufRssStatFtraceEvent {
+  optional uint64 rss = 1;
+  optional int64 rss_delta = 2;
+  optional uint64 i_ino = 3;
 }
 
 // End of protos/perfetto/trace/ftrace/kmem.proto
@@ -12269,6 +12425,23 @@ message FtraceEvent {
     Dwc3PrepareTrbFtraceEvent dwc3_prepare_trb = 573;
     Dwc3ReadlFtraceEvent dwc3_readl = 574;
     Dwc3WritelFtraceEvent dwc3_writel = 575;
+    CmaAllocFinishFtraceEvent cma_alloc_finish = 576;
+    MmAllocContigMigrateRangeInfoFtraceEvent
+        mm_alloc_contig_migrate_range_info = 577;
+    HostFfaCallFtraceEvent host_ffa_call = 578;
+    DmabufRssStatFtraceEvent dmabuf_rss_stat = 579;
+    IommuIdmapFtraceEvent iommu_idmap = 580;
+    PsciMemProtectFtraceEvent psci_mem_protect = 581;
+    HypervisorHostHcallFtraceEvent hypervisor_host_hcall = 582;
+    HypervisorHostSmcFtraceEvent hypervisor_host_smc = 583;
+    HypervisorHypExitFtraceEvent hypervisor_hyp_exit = 584;
+    HypervisorIommuIdmapFtraceEvent hypervisor_iommu_idmap = 585;
+    HypervisorPsciMemProtectFtraceEvent hypervisor_psci_mem_protect = 586;
+    HypervisorHostMemAbortFtraceEvent hypervisor_host_mem_abort = 587;
+    HypervisorHypEnterFtraceEvent hypervisor_hyp_enter = 588;
+    HypervisorIommuIdmapCompleteFtraceEvent hypervisor_iommu_idmap_complete =
+        589;
+    HypervisorVcpuIllegalTrapFtraceEvent hypervisor_vcpu_illegal_trap = 590;
   }
 }
 
@@ -12724,6 +12897,11 @@ message GpuRenderStageEvent {
 
   // optional. The Vulkan render pass handle.
   optional uint64 render_pass_handle = 9;
+
+  // optional. An ID for the render pass instance. This is used to correlate
+  // different events on different queues produced by the same Vulkan render
+  // pass instance.
+  optional uint64 render_pass_instance_id = 16;
 
   // optional. A bit mask representing which render subpasses contributed to
   // this render stage event.  Subpass index 0 is represented by setting the
@@ -16344,6 +16522,15 @@ message CounterDescriptor {
 
   // TODO(eseckler): Support arguments describing the counter (?).
   // repeated DebugAnnotation debug_annotations;
+
+  // When visualizing multiple counter tracks, it is often useful to have them
+  // share the same Y-axis range. This allows for easy comparison of their
+  // values.
+  //
+  // All counter tracks with the same |y_axis_share_key| and the same parent
+  // track (e.g. grouped under the same process track) will share their y-axis
+  // range in the UI.
+  optional string y_axis_share_key = 7;
 }
 
 // End of protos/perfetto/trace/track_event/counter_descriptor.proto
@@ -16794,7 +16981,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 121.
+// Next id: 122.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -16947,6 +17134,8 @@ message TracePacket {
     GenericKernelTaskRenameEvent generic_kernel_task_rename_event = 120;
 
     CpuPerUidData cpu_per_uid_data = 119;
+
+    EvdevEvent evdev_event = 121;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

@@ -54,7 +54,8 @@ std::string EventNameToProtoFieldName(const std::string& group,
   // These groups have events where the name alone conflicts with an existing
   // proto:
   if (group == "sde" || group == "g2d" || group == "dpu" || group == "mali" ||
-      group == "lwis" || group == "samsung" || group == "kgsl") {
+      group == "lwis" || group == "samsung" || group == "kgsl" ||
+      group == "hypervisor") {
     event_name = group + "_" + event_name;
   }
   return event_name;

@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE prelude.after_eof.indexes;
+
 INCLUDE PERFETTO MODULE prelude.after_eof.views;
 
 -- Lists all metrics built-into trace processor.
@@ -979,7 +981,9 @@ FROM slice AS s
 JOIN process_track AS t
   ON s.track_id = t.id
 WHERE
-  t.type = 'android_expected_frame_timeline';
+  t.type = 'android_expected_frame_timeline'
+ORDER BY
+  s.id;
 
 -- This table contains information on the actual timeline and additional
 -- analysis related to the performance of either a display frame or a surface
@@ -1052,7 +1056,9 @@ FROM slice AS s
 JOIN process_track AS t
   ON s.track_id = t.id
 WHERE
-  t.type = 'android_actual_frame_timeline';
+  t.type = 'android_actual_frame_timeline'
+ORDER BY
+  s.id;
 
 -- Stores class information within ART heap graphs. It represents Java/Kotlin
 -- classes that exist in the heap, including their names, inheritance

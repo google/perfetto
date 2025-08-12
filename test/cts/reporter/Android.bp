@@ -24,6 +24,7 @@ cc_test {
     "libprotobuf-cpp-lite",
     "libperfetto_client_experimental",
     "perfetto_cts_deps",
+    "perfetto_flags_c_lib",
     "perfetto_trace_protos",
   ],
   whole_static_libs: [

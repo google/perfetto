@@ -391,9 +391,5 @@ std::string ExperimentalFlamegraph::TableName() {
 uint32_t ExperimentalFlamegraph::GetArgumentCount() const {
   return 6;
 }
-uint32_t ExperimentalFlamegraph::EstimateRowCount() {
-  // TODO(lalitm): return a better estimate here when possible.
-  return 1024;
-}
 
 }  // namespace perfetto::trace_processor

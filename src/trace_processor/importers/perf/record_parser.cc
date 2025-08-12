@@ -44,7 +44,6 @@
 #include "src/trace_processor/importers/perf/reader.h"
 #include "src/trace_processor/importers/perf/record.h"
 #include "src/trace_processor/importers/perf/sample.h"
-#include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -97,7 +96,7 @@ RecordParser::RecordParser(TraceProcessorContext* context)
 
 RecordParser::~RecordParser() = default;
 
-void RecordParser::ParsePerfRecord(int64_t ts, Record record) {
+void RecordParser::Parse(int64_t ts, Record record) {
   if (base::Status status = ParseRecord(ts, std::move(record)); !status.ok()) {
     context_->storage->IncrementIndexedStats(
         stats::perf_record_skipped, static_cast<int>(record.header.type));

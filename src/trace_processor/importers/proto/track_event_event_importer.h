@@ -45,6 +45,7 @@
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/importers/common/tracks_common.h"
@@ -99,6 +100,22 @@ inline std::string NormalizePathSeparators(const protozero::ConstChars& path) {
       c = '/';
   }
   return result;
+}
+
+inline TrackCompressor::AsyncSliceType AsyncSliceTypeForPhase(int32_t phase) {
+  switch (phase) {
+    case 'b':
+    case 'S':
+      return TrackCompressor::AsyncSliceType::kBegin;
+    case 'e':
+    case 'T':
+      return TrackCompressor::AsyncSliceType::kEnd;
+    case 'n':
+    case 'p':
+    case 'F':
+      return TrackCompressor::AsyncSliceType::kInstant;
+  }
+  PERFETTO_FATAL("For GCC");
 }
 
 inline protos::pbzero::AndroidLogPriority ToAndroidLogPriority(
@@ -331,6 +348,8 @@ class TrackEventEventImporter {
           break;
         case TrackEventTracker::ResolvedDescriptorTrack::Scope::kProcess:
           upid_ = resolved->upid();
+          // TODO: b/175152326 - Should pid namespace translation also be done
+          // here?
           if (sequence_state_->pid_and_tid_valid()) {
             auto pid = static_cast<uint32_t>(sequence_state_->pid());
             auto tid = static_cast<uint32_t>(sequence_state_->tid());
@@ -341,6 +360,8 @@ class TrackEventEventImporter {
           }
           break;
         case TrackEventTracker::ResolvedDescriptorTrack::Scope::kGlobal:
+          // TODO: b/175152326 - Should pid namespace translation also be done
+          // here?
           if (sequence_state_->pid_and_tid_valid()) {
             auto pid = static_cast<uint32_t>(sequence_state_->pid());
             auto tid = static_cast<uint32_t>(sequence_state_->tid());
@@ -368,14 +389,22 @@ class TrackEventEventImporter {
           legacy_event_.has_tid_override() && pid_tid_state_valid;
 
       if (fallback_to_legacy_pid_tid_tracks_) {
+        // TODO: b/175152326 - Should pid namespace translation also be done
+        // here?
         auto pid = static_cast<uint32_t>(sequence_state_->pid());
-        auto tid = static_cast<uint32_t>(sequence_state_->tid());
+        auto tid = sequence_state_->tid();
         if (legacy_event_.has_pid_override()) {
           pid = static_cast<uint32_t>(legacy_event_.pid_override());
-          tid = static_cast<uint32_t>(-1);
+          // Create a synthetic tid while avoiding using the exact same tid in
+          // different processes.
+          tid = CreateSyntheticTid(-1, pid);
         }
-        if (legacy_event_.has_tid_override())
+        if (legacy_event_.has_tid_override()) {
           tid = static_cast<uint32_t>(legacy_event_.tid_override());
+          if (IsSyntheticTid(sequence_state_->tid())) {
+            tid = CreateSyntheticTid(tid, pid);
+          }
+        }
 
         if (!pid || !tid) {
           return base::ErrStatus(
@@ -518,12 +547,12 @@ class TrackEventEventImporter {
             return base::ErrStatus(
                 "TrackEvent with local_id without process association");
           }
-
           source_id = static_cast<int64_t>(legacy_event_.local_id());
           source_id_is_process_scoped = true;
         } else {
           return base::ErrStatus("Async LegacyEvent without ID");
         }
+        legacy_trace_source_id_ = source_id;
 
         // Catapult treats nestable async events of different categories with
         // the same ID as separate tracks. We replicate the same behavior
@@ -538,9 +567,9 @@ class TrackEventEventImporter {
                                ":" + legacy_event_.id_scope().ToStdString();
           id_scope = storage_->InternString(base::StringView(concat));
         }
-        return context_->track_tracker->InternLegacyAsyncTrack(
+        return context_->track_compressor->InternLegacyAsyncTrack(
             name_id_, upid_.value_or(0), source_id, source_id_is_process_scoped,
-            id_scope);
+            id_scope, AsyncSliceTypeForPhase(legacy_event_.phase()));
       }
       case 'i':
       case 'I': {
@@ -579,19 +608,6 @@ class TrackEventEventImporter {
     }
 
     if (!track_uuid_ && fallback_to_legacy_pid_tid_tracks_) {
-      auto pid = static_cast<uint32_t>(sequence_state_->pid());
-      auto tid = static_cast<uint32_t>(sequence_state_->tid());
-      if (legacy_event_.has_pid_override()) {
-        pid = static_cast<uint32_t>(legacy_event_.pid_override());
-        tid = static_cast<uint32_t>(-1);
-      }
-      if (legacy_event_.has_tid_override())
-        tid = static_cast<uint32_t>(legacy_event_.tid_override());
-
-      if (!pid || !tid) {
-        return base::ErrStatus(
-            "track_event_parser: pid/tid 0 is reserved for swapper thread");
-      }
       return track_tracker->InternThreadTrack(*utid_);
     }
     if (!opt_id) {
@@ -1245,6 +1261,10 @@ class TrackEventEventImporter {
                            reinterpret_cast<const char*>(decoder->str().data),
                            decoder->str().size))));
     }
+    if (legacy_trace_source_id_) {
+      inserter->AddArg(parser_->legacy_trace_source_id_key_id_,
+                       Variadic::Integer(*legacy_trace_source_id_));
+    }
 
     ArgsParser args_writer(ts_, *inserter, *storage_, sequence_state_,
                            /*support_json=*/true);
@@ -1436,6 +1456,7 @@ class TrackEventEventImporter {
   std::optional<int64_t> thread_timestamp_;
   std::optional<int64_t> thread_instruction_count_;
   bool fallback_to_legacy_pid_tid_tracks_ = false;
+  std::optional<int64_t> legacy_trace_source_id_;
 
   // All events in legacy JSON require a thread ID, but for some types of
   // events (e.g. async events or process/global-scoped instants), we don't

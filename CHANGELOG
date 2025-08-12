@@ -16,6 +16,8 @@ Unreleased:
       arguments as multiple track_event tracks could have contributed to a
       single trace processor track. If you want the previous behaviour, specify
       `sibling_merge_behaviour: SIBLING_MERGE_BEHAVIOR_NONE`.
+    * Internal changes to packet sorting that might change the parsing order of
+      data with identical timestamps, relative to previous releases.
   UI:
     * Added support for controlling TrackEvent track merging through the
       `TrackDescriptor` proto. This is especially useful for users converting
@@ -26,8 +28,15 @@ Unreleased:
       names to be merged into a single UI track.
     * Improved the performance of merging large number of track_event tracks
       both during loading and during panning/zooming operations.
+    * Added support for persisting state from traces loaded through postMessage.
+    * Added a convention for automatic track visualisations for Linux ftrace
+      tracepoints that match a convention. See "Diving deep -> Linux -> Kernel
+      track events" in the public docs for more details.
   SDK:
-    *
+    * "slow" tag is no longer implicitly added to trace categories with
+      "disabled-by-default-" prefix. Instead, clients should explicitly specify
+      the tag. enabled_categories="disabled-by-default-*" also no longer has
+      a special priority, and the same can be achieved with enable_tags="slow".
 
 v51.2 - 2025-07-03:
   Trace Processor:

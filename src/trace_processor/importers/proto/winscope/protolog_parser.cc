@@ -188,7 +188,7 @@ void ProtoLogParser::PopulateReservedRowWithMessage(
   auto* protolog_table = storage->mutable_protolog_table();
   auto row = protolog_table->FindById(table_row_id).value();
 
-  StringPool::Id level;
+  StringPool::Id level = log_level_unknown_string_id_;
   switch (log_level) {
     case ProtoLogLevel::DEBUG:
       level = log_level_debug_string_id_;

@@ -1044,6 +1044,7 @@ config("sqlite_config") {
     "-DSQLITE_OMIT_RANDOMNESS",
     "-DSQLITE_OMIT_AUTOINIT",
     "-DSQLITE_ENABLE_JSON1",
+    "-DSQLITE_ENABLE_MATH_FUNCTIONS",
   ]
   if (is_clang && is_win) {
     # SQLite uses __int64 which clang complains about unless

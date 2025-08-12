@@ -55,10 +55,10 @@ struct State {
 // Note: this function is not intended to be used directly from SQL: instead
 // macros exist in the standard library, wrapping it and making it
 // user-friendly.
-struct Dfs : public SqliteAggregateFunction<Dfs> {
+struct Dfs : public sqlite::AggregateFunction<Dfs> {
   static constexpr char kName[] = "__intrinsic_dfs";
   static constexpr int kArgCount = 2;
-  using UserDataContext = StringPool;
+  using UserData = StringPool;
 
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     PERFETTO_DCHECK(argc == kArgCount);
@@ -120,10 +120,10 @@ struct Dfs : public SqliteAggregateFunction<Dfs> {
 // Note: this function is not intended to be used directly from SQL: instead
 // macros exist in the standard library, wrapping it and making it
 // user-friendly.
-struct Bfs : public SqliteAggregateFunction<Bfs> {
+struct Bfs : public sqlite::AggregateFunction<Bfs> {
   static constexpr char kName[] = "__intrinsic_bfs";
   static constexpr int kArgCount = 2;
-  using UserDataContext = StringPool;
+  using UserData = StringPool;
 
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     PERFETTO_DCHECK(argc == kArgCount);

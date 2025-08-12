@@ -36,7 +36,7 @@
 #include "test/integrationtest_initializer.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <Windows.h>  // For CreateFile().
+#include <windows.h>  // For CreateFile().
 #else
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -1704,7 +1704,6 @@ TEST_P(PerfettoApiTest, TrackEventDescriptor) {
   EXPECT_EQ("slow_category", desc.available_categories()[7].name());
   EXPECT_EQ("slow", desc.available_categories()[7].tags()[0]);
   EXPECT_EQ("disabled-by-default-cat", desc.available_categories()[8].name());
-  EXPECT_EQ("slow", desc.available_categories()[8].tags()[0]);
 }
 
 TEST_P(PerfettoApiTest, TrackEventSharedIncrementalState) {
@@ -2221,12 +2220,97 @@ TEST_P(PerfettoApiTest, TrackEventCustomNamedTrack) {
   });
   thread.join();
 
+  const auto global_track = perfetto::NamedTrack::Global("GlobalTrack");
+  const auto named_track_with_id = perfetto::NamedTrack("MyCustomTrack", 1);
+  // These two global tracks should have different non-trivial uuids.
+  ASSERT_NE(global_track.uuid, named_track_with_id.uuid);
+  ASSERT_NE(global_track.uuid, 0u);
+  ASSERT_NE(named_track_with_id.uuid, 0u);
+
+  TRACE_EVENT_INSTANT("bar", "InstantEvent", global_track);
+  TRACE_EVENT_INSTANT("bar", "InstantEvent2", named_track_with_id);
+
   auto trace = StopSessionAndReturnParsedTrace(tracing_session);
 
   // Check that the track uuids match on the begin and end events.
   const auto track = perfetto::NamedTrack("MyCustomTrack", async_id);
   uint32_t main_thread_sequence = GetMainThreadPacketSequenceId(trace);
-  int event_count = 0;
+  std::vector<std::string> collected_events;
+
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_track_descriptor() &&
+        !packet.track_descriptor().has_process() &&
+        !packet.track_descriptor().has_thread()) {
+      auto td = packet.track_descriptor();
+      collected_events.push_back(
+          "TrackDescriptor name=" + td.static_name() +
+          " uuid=" + std::to_string(td.uuid()) +
+          " parent_uuid=" + std::to_string(td.parent_uuid()));
+      continue;
+    }
+
+    if (!packet.has_track_event())
+      continue;
+    auto track_event = packet.track_event();
+    if (track_event.type() ==
+        perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN) {
+      collected_events.push_back(
+          "SliceBegin track_uuid=" + std::to_string(track_event.track_uuid()) +
+          " main_thread=" +
+          std::to_string(packet.trusted_packet_sequence_id() ==
+                         main_thread_sequence));
+    } else if (track_event.type() ==
+               perfetto::protos::gen::TrackEvent::TYPE_SLICE_END) {
+      collected_events.push_back(
+          "SliceEnd track_uuid=" + std::to_string(track_event.track_uuid()) +
+          " main_thread=" +
+          std::to_string(packet.trusted_packet_sequence_id() ==
+                         main_thread_sequence));
+    } else if (track_event.type() ==
+               perfetto::protos::gen::TrackEvent::TYPE_INSTANT) {
+      collected_events.push_back("Instant track_uuid=" +
+                                 std::to_string(track_event.track_uuid()));
+    }
+  }
+
+  std::string process_uuid_str =
+      std::to_string(perfetto::ProcessTrack::Current().uuid);
+
+  EXPECT_THAT(
+      collected_events,
+      ::testing::ContainerEq(std::vector<std::string>{
+          "TrackDescriptor name=MyCustomTrack uuid=" +
+              std::to_string(track.uuid) + " parent_uuid=" + process_uuid_str,
+          "SliceBegin track_uuid=" + std::to_string(track.uuid) +
+              " main_thread=1",
+          "SliceBegin track_uuid=" + std::to_string(track.uuid) +
+              " main_thread=1",
+          "TrackDescriptor name=GlobalTrack uuid=" +
+              std::to_string(global_track.uuid) + " parent_uuid=0",
+          "Instant track_uuid=" + std::to_string(global_track.uuid),
+          "TrackDescriptor name=MyCustomTrack uuid=" +
+              std::to_string(named_track_with_id.uuid) +
+              " parent_uuid=" + process_uuid_str,
+          "Instant track_uuid=" + std::to_string(named_track_with_id.uuid),
+          "TrackDescriptor name=MyCustomTrack uuid=" +
+              std::to_string(track.uuid) + " parent_uuid=" + process_uuid_str,
+          "SliceEnd track_uuid=" + std::to_string(track.uuid) +
+              " main_thread=0",
+          "SliceEnd track_uuid=" + std::to_string(track.uuid) +
+              " main_thread=0"}));
+}
+
+TEST_P(PerfettoApiTest, TrackEventPtrNamedTrack) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"bar"});
+  tracing_session->get()->StartBlocking();
+
+  // SetTrackDescriptor before starting the tracing session.
+  auto track = perfetto::NamedTrack::FromPointer("MyCustomTrack", this);
+  TRACE_EVENT_INSTANT("bar", "Event", track);
+
+  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
+
   bool found_descriptor = false;
   for (const auto& packet : trace.packet()) {
     if (packet.has_track_descriptor() &&
@@ -2239,22 +2323,41 @@ TEST_P(PerfettoApiTest, TrackEventCustomNamedTrack) {
       found_descriptor = true;
       continue;
     }
-
-    if (!packet.has_track_event())
-      continue;
-    auto track_event = packet.track_event();
-    if (track_event.type() ==
-        perfetto::protos::gen::TrackEvent::TYPE_SLICE_BEGIN) {
-      EXPECT_EQ(main_thread_sequence, packet.trusted_packet_sequence_id());
-      EXPECT_EQ(track.uuid, track_event.track_uuid());
-    } else {
-      EXPECT_NE(main_thread_sequence, packet.trusted_packet_sequence_id());
-      EXPECT_EQ(track.uuid, track_event.track_uuid());
-    }
-    event_count++;
   }
   EXPECT_TRUE(found_descriptor);
-  EXPECT_EQ(4, event_count);
+}
+
+TEST_P(PerfettoApiTest, SiblingMergeBehavior) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"bar"});
+  tracing_session->get()->StartBlocking();
+
+  // Declare a custom track and give it a name.
+  uint64_t async_id = 123;
+
+  // SetTrackDescriptor before starting the tracing session.
+  auto track_with_key = perfetto::NamedTrack("TrackWithSiblingKey", async_id)
+                            .set_sibling_merge_key("key");
+  TRACE_EVENT_INSTANT("bar", "Event", track_with_key);
+
+  auto trace = StopSessionAndReturnParsedTrace(tracing_session);
+
+  bool found_descriptor = false;
+  for (const auto& packet : trace.packet()) {
+    if (packet.has_track_descriptor() &&
+        !packet.track_descriptor().has_process() &&
+        !packet.track_descriptor().has_thread()) {
+      auto td = packet.track_descriptor();
+      EXPECT_EQ("TrackWithSiblingKey", td.static_name());
+      EXPECT_EQ(perfetto::protos::gen::TrackDescriptor::
+                    SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY,
+                td.sibling_merge_behavior());
+      EXPECT_EQ("key", td.sibling_merge_key());
+      found_descriptor = true;
+      continue;
+    }
+  }
+  EXPECT_TRUE(found_descriptor);
 }
 
 TEST_P(PerfettoApiTest, CustomTrackDescriptorForParent) {
@@ -3911,7 +4014,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     TRACE_EVENT_BEGIN("cat.verbose", "DebugEvent");
     TRACE_EVENT_BEGIN("test", "TagEvent");
     TRACE_EVENT_BEGIN("test.verbose", "VerboseTagEvent");
-    TRACE_EVENT_BEGIN(TRACE_DISABLED_BY_DEFAULT("cat"), "SlowDisabledEvent");
+    TRACE_EVENT_BEGIN(TRACE_DISABLED_BY_DEFAULT("cat"), "NotDisabledEvent");
     perfetto::DynamicCategory dyn_foo{"dynamic,foo"};
     TRACE_EVENT_BEGIN(dyn_foo, "DynamicGroupFooEvent");
     perfetto::DynamicCategory dyn_bar{"dynamic,bar"};
@@ -3931,7 +4034,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
       EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo,bar"));
       perfetto::DynamicCategory dyn{"dynamic"};
       EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED(dyn));
-      EXPECT_FALSE(
+      EXPECT_TRUE(
           TRACE_EVENT_CATEGORY_ENABLED(TRACE_DISABLED_BY_DEFAULT("cat")));
       EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("cat.verbose"));
     });
@@ -3940,6 +4043,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
         ElementsAre("B:foo.FooEvent", "B:bar.BarEvent", "B:foo,bar.MultiFooBar",
                     "B:baz,bar,quux.MultiBar", "B:red,green,blue,foo.MultiFoo",
                     "B:red,green,blue,yellow.MultiNone", "B:test.TagEvent",
+                    "B:disabled-by-default-cat.NotDisabledEvent",
                     "B:$dynamic,$foo.DynamicGroupFooEvent",
                     "B:$dynamic,$bar.DynamicGroupBarEvent"));
   }
@@ -4010,7 +4114,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
     te_cfg.add_enabled_categories("*");
     auto slices = run_config(te_cfg, []() {
       EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
-      EXPECT_FALSE(
+      EXPECT_TRUE(
           TRACE_EVENT_CATEGORY_ENABLED(TRACE_DISABLED_BY_DEFAULT("cat")));
       EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("cat.verbose"));
     });
@@ -4019,6 +4123,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
         ElementsAre("B:foo.FooEvent", "B:bar.BarEvent", "B:foo,bar.MultiFooBar",
                     "B:baz,bar,quux.MultiBar", "B:red,green,blue,foo.MultiFoo",
                     "B:red,green,blue,yellow.MultiNone", "B:test.TagEvent",
+                    "B:disabled-by-default-cat.NotDisabledEvent",
                     "B:$dynamic,$foo.DynamicGroupFooEvent",
                     "B:$dynamic,$bar.DynamicGroupBarEvent"));
   }
@@ -4060,9 +4165,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
       EXPECT_FALSE(TRACE_EVENT_CATEGORY_ENABLED("foo"));
       EXPECT_TRUE(TRACE_EVENT_CATEGORY_ENABLED("cat"));
     });
-    EXPECT_THAT(slices,
-                ElementsAre("B:cat.SlowEvent",
-                            "B:disabled-by-default-cat.SlowDisabledEvent"));
+    EXPECT_THAT(slices, ElementsAre("B:cat.SlowEvent"));
   }
 
   // Enable all legacy disabled-by-default categories by a pattern
@@ -4076,7 +4179,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
           TRACE_EVENT_CATEGORY_ENABLED(TRACE_DISABLED_BY_DEFAULT("cat")));
     });
     EXPECT_THAT(slices,
-                ElementsAre("B:disabled-by-default-cat.SlowDisabledEvent"));
+                ElementsAre("B:disabled-by-default-cat.NotDisabledEvent"));
   }
 
   // Enable everything including slow/debug categories.
@@ -4099,7 +4202,7 @@ TEST_P(PerfettoApiTest, TrackEventConfig) {
                     "B:red,green,blue,yellow.MultiNone", "B:cat.SlowEvent",
                     "B:cat.verbose.DebugEvent", "B:test.TagEvent",
                     "B:test.verbose.VerboseTagEvent",
-                    "B:disabled-by-default-cat.SlowDisabledEvent",
+                    "B:disabled-by-default-cat.NotDisabledEvent",
                     "B:$dynamic,$foo.DynamicGroupFooEvent",
                     "B:$dynamic,$bar.DynamicGroupBarEvent"));
   }

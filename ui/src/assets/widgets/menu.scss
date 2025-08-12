@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
+@import "../theme";
 
 // If we're in a popup menu, remove the padding
 .pf-popup-menu.pf-popup {
@@ -28,7 +28,7 @@
   margin: 4px 0;
 
   .pf-menu-item {
-    font-family: $pf-font;
+    font-family: var(--pf-font-compact);
     user-select: none;
     text-align: left;
     padding: 6px 10px;
@@ -37,20 +37,12 @@
     line-height: 1;
     cursor: pointer;
 
-    background: $pf-minimal-background;
-    color: $pf-minimal-foreground;
-
     display: grid;
     grid-template-columns: auto 1fr auto;
     grid-template-areas: "left-icon label right-icon";
 
     .pf-menu-item__label {
       grid-area: label;
-    }
-
-    & > .material-icons {
-      font-size: inherit;
-      line-height: inherit;
     }
 
     &__left-icon {
@@ -64,12 +56,12 @@
     }
 
     &:hover {
-      background: $pf-minimal-background-hover;
+      background: color_hover(transparent);
     }
 
     &:active,
     &.pf-active {
-      background: $pf-minimal-background-active;
+      background: color_active(transparent);
     }
 
     &[disabled] {
@@ -85,7 +77,7 @@
   }
 
   .pf-menu-divider {
-    border-bottom: solid 1px $pf-colour-thin-border;
+    border-bottom: solid 1px var(--pf-color-border);
     margin: 5px 0 5px 0;
   }
 }

@@ -121,8 +121,5 @@ std::string TableInfo::TableName() {
 uint32_t TableInfo::GetArgumentCount() const {
   return 1;
 }
-uint32_t TableInfo::EstimateRowCount() {
-  return 1;
-}
 
 }  // namespace perfetto::trace_processor

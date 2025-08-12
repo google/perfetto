@@ -36,15 +36,17 @@ namespace perfetto::trace_processor {
 
 using perfetto::protos::pbzero::TracePacket;
 
-TrackEventModule::TrackEventModule(TraceProcessorContext* context)
-    : track_event_tracker_(new TrackEventTracker(context)),
-      tokenizer_(context, track_event_tracker_.get()),
+TrackEventModule::TrackEventModule(ProtoImporterModuleContext* module_context,
+                                   TraceProcessorContext* context)
+    : ProtoImporterModule(module_context),
+      track_event_tracker_(new TrackEventTracker(context)),
+      tokenizer_(module_context, context, track_event_tracker_.get()),
       parser_(context, track_event_tracker_.get()) {
-  RegisterForField(TracePacket::kTrackEventRangeOfInterestFieldNumber, context);
-  RegisterForField(TracePacket::kTrackEventFieldNumber, context);
-  RegisterForField(TracePacket::kTrackDescriptorFieldNumber, context);
-  RegisterForField(TracePacket::kThreadDescriptorFieldNumber, context);
-  RegisterForField(TracePacket::kProcessDescriptorFieldNumber, context);
+  RegisterForField(TracePacket::kTrackEventRangeOfInterestFieldNumber);
+  RegisterForField(TracePacket::kTrackEventFieldNumber);
+  RegisterForField(TracePacket::kTrackDescriptorFieldNumber);
+  RegisterForField(TracePacket::kThreadDescriptorFieldNumber);
+  RegisterForField(TracePacket::kProcessDescriptorFieldNumber);
 
   context->descriptor_pool_->AddFromFileDescriptorSet(
       kTrackEventDescriptor.data(), kTrackEventDescriptor.size());
@@ -95,7 +97,8 @@ void TrackEventModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
       break;
     case TracePacket::kThreadDescriptorFieldNumber:
       // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
-      parser_.ParseThreadDescriptor(decoder.thread_descriptor());
+      parser_.ParseThreadDescriptor(decoder.thread_descriptor(),
+                                    /*is_sandboxed=*/false);
       break;
     case TracePacket::kTrackEventFieldNumber:
       PERFETTO_DFATAL("Wrong TracePacket number");

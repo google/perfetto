@@ -57,9 +57,6 @@
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
 #include "src/trace_processor/importers/ftrace/generic_ftrace_tracker.h"
 #include "src/trace_processor/importers/ftrace/pkvm_hyp_cpu_tracker.h"
-#include "src/trace_processor/importers/ftrace/v4l2_tracker.h"
-#include "src/trace_processor/importers/ftrace/virtio_video_tracker.h"
-#include "src/trace_processor/importers/i2c/i2c_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
@@ -418,15 +415,18 @@ FtraceParser::FtraceParser(TraceProcessorContext* context,
                            GenericFtraceTracker* generic_tracker)
     : context_(context),
       generic_tracker_(generic_tracker),
-      rss_stat_tracker_(context),
       drm_tracker_(context),
-      iostat_tracker_(context),
-      virtio_gpu_tracker_(context),
-      mali_gpu_event_tracker_(context),
-      pkvm_hyp_cpu_tracker_(context),
       gpu_work_period_tracker_(context),
-      thermal_tracker_(context),
+      i2c_tracker_(context),
+      iostat_tracker_(context),
+      mali_gpu_event_tracker_(context),
       pixel_mm_kswapd_event_tracker_(context),
+      pkvm_hyp_cpu_tracker_(context),
+      rss_stat_tracker_(context),
+      thermal_tracker_(context),
+      v4l2_tracker_(context),
+      virtio_gpu_tracker_(context),
+      virtio_video_tracker_(context),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
@@ -1013,6 +1013,14 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseCmaAllocStart(ts, pid);
         break;
       }
+      case FtraceEvent::kMmAllocContigMigrateRangeInfoFieldNumber: {
+        ParseMmAllocContigMigrateRangeInfo(pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kCmaAllocFinishFieldNumber: {
+        ParseCmaAllocFinish(ts, pid, fld_bytes);
+        break;
+      }
       case FtraceEvent::kCmaAllocInfoFieldNumber: {
         ParseCmaAllocInfo(ts, pid, fld_bytes);
         break;
@@ -1241,16 +1249,14 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       case FtraceEvent::kVb2V4l2BufDoneFieldNumber:
       case FtraceEvent::kVb2V4l2QbufFieldNumber:
       case FtraceEvent::kVb2V4l2DqbufFieldNumber: {
-        V4l2Tracker::GetOrCreate(context_)->ParseV4l2Event(fld.id(), ts, pid,
-                                                           fld_bytes);
+        v4l2_tracker_.ParseV4l2Event(fld.id(), ts, pid, fld_bytes);
         break;
       }
       case FtraceEvent::kVirtioVideoCmdFieldNumber:
       case FtraceEvent::kVirtioVideoCmdDoneFieldNumber:
       case FtraceEvent::kVirtioVideoResourceQueueFieldNumber:
       case FtraceEvent::kVirtioVideoResourceQueueDoneFieldNumber: {
-        VirtioVideoTracker::GetOrCreate(context_)->ParseVirtioVideoEvent(
-            fld.id(), ts, fld_bytes);
+        virtio_video_tracker_.ParseVirtioVideoEvent(fld.id(), ts, fld_bytes);
         break;
       }
       case FtraceEvent::kTrustySmcFieldNumber: {
@@ -1542,7 +1548,21 @@ void FtraceParser::MaybeOnFirstFtraceEvent() {
 
   // Calculate the timestamp used to skip early events, while still populating
   // the |ftrace_events| table.
-  switch (context_->config.soft_drop_ftrace_data_before) {
+  SoftDropFtraceDataBefore soft_drop_before =
+      context_->config.soft_drop_ftrace_data_before;
+
+  // TODO(b/344969928): Workaround, can be removed when perfetto v47+ traces are
+  // the norm in Android.
+  base::StringView unique_session_name =
+      context_->metadata_tracker->GetMetadata(metadata::unique_session_name)
+          .value_or(SqlValue::String(""))
+          .AsString();
+  if (unique_session_name ==
+      base::StringView("session_with_lightweight_battery_tracing")) {
+    soft_drop_before = SoftDropFtraceDataBefore::kNoDrop;
+  }
+
+  switch (soft_drop_before) {
     case SoftDropFtraceDataBefore::kNoDrop: {
       soft_drop_ftrace_data_before_ts_ = 0;
       break;
@@ -1597,10 +1617,18 @@ void FtraceParser::ParseGenericFtrace(uint32_t event_proto_id,
                                       uint32_t cpu,
                                       uint32_t tid,
                                       ConstBytes blob) {
-  if (PERFETTO_UNLIKELY(!context_->config.ingest_ftrace_in_raw_table))
-    return;
-
   protozero::ProtoDecoder decoder(blob);
+
+  // Special handling for events matching a convention - derive track/counter
+  // tracks for them automatically (no perfetto code changes needed).
+  if (PERFETTO_LIKELY(ts >= soft_drop_ftrace_data_before_ts_)) {
+    generic_tracker_->MaybeParseAsTrackEvent(event_proto_id, ts, tid, decoder);
+  }
+
+  if (PERFETTO_UNLIKELY(!context_->config.ingest_ftrace_in_raw_table)) {
+    return;
+  }
+
   GenericFtraceTracker::GenericEvent* descriptor =
       generic_tracker_->GetEvent(event_proto_id);
   if (!descriptor) {
@@ -2391,8 +2419,7 @@ void FtraceParser::ParseI2cReadEvent(int64_t timestamp,
   uint32_t msg_nr = static_cast<uint32_t>(evt.msg_nr());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
-  I2cTracker* i2c_tracker = I2cTracker::GetOrCreate(context_);
-  i2c_tracker->Enter(timestamp, utid, adapter_nr, msg_nr);
+  i2c_tracker_.Enter(timestamp, utid, adapter_nr, msg_nr);
 }
 
 void FtraceParser::ParseI2cWriteEvent(int64_t timestamp,
@@ -2403,8 +2430,7 @@ void FtraceParser::ParseI2cWriteEvent(int64_t timestamp,
   uint32_t msg_nr = static_cast<uint32_t>(evt.msg_nr());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
-  I2cTracker* i2c_tracker = I2cTracker::GetOrCreate(context_);
-  i2c_tracker->Enter(timestamp, utid, adapter_nr, msg_nr);
+  i2c_tracker_.Enter(timestamp, utid, adapter_nr, msg_nr);
 }
 
 void FtraceParser::ParseI2cResultEvent(int64_t timestamp,
@@ -2415,8 +2441,7 @@ void FtraceParser::ParseI2cResultEvent(int64_t timestamp,
   uint32_t nr_msgs = static_cast<uint32_t>(evt.nr_msgs());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
 
-  I2cTracker* i2c_tracker = I2cTracker::GetOrCreate(context_);
-  i2c_tracker->Exit(timestamp, utid, adapter_nr, nr_msgs);
+  i2c_tracker_.Exit(timestamp, utid, adapter_nr, nr_msgs);
 }
 
 void FtraceParser::ParseTaskNewTask(int64_t timestamp,
@@ -2601,6 +2626,14 @@ void FtraceParser::ParseScmCallEnd(int64_t timestamp,
   context_->slice_tracker->End(timestamp, track_id);
 }
 
+// The ftrace event sequence for a Contiguous Memory Allocator (CMA)
+// allocation changes depending on the kernel version.
+//
+// - Versions 5.10 to 6.0 (i.e., 5.10 <= v < 6.1):
+// CmaAllocStart -> CmaAllocInfo
+//
+// - Versions 6.1 and newer (i.e., v >= 6.1):
+// CmaAllocStart -> MmAllocContigMigrateRangeInfo -> CmaAllocFinish
 void FtraceParser::ParseCmaAllocStart(int64_t timestamp, uint32_t pid) {
   std::optional<VersionNumber> kernel_version =
       SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
@@ -2611,8 +2644,66 @@ void FtraceParser::ParseCmaAllocStart(int64_t timestamp, uint32_t pid) {
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
 
+  // Erase any stale entry for this thread and initialize a fresh, zeroed
+  // struct for the new allocation sequence. This handles cases where a
+  // MmAllocContigMigrateRangeInfo event is skipped.
+  if (kernel_version >= VersionNumber{6, 1}) {
+    utid_to_cma_migration_info_[utid] = CmaMigrationInfo{};
+  }
+
   context_->slice_tracker->Begin(timestamp, track_id, kNullStringId,
                                  cma_alloc_id_);
+}
+
+void FtraceParser::ParseMmAllocContigMigrateRangeInfo(uint32_t pid,
+                                                      ConstBytes blob) {
+  std::optional<VersionNumber> kernel_version =
+      SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
+  // CmaAllocInfo event deprecated >=6.1; using MmAllocContigMigrateRangeInfo.
+  if (kernel_version < VersionNumber{6, 1})
+    return;
+
+  protos::pbzero::MmAllocContigMigrateRangeInfoFtraceEvent::Decoder info(blob);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+
+  utid_to_cma_migration_info_[utid] = CmaMigrationInfo{
+      info.nr_migrated(), info.nr_reclaimed(), info.nr_mapped()};
+}
+
+void FtraceParser::ParseCmaAllocFinish(int64_t timestamp,
+                                       uint32_t pid,
+                                       ConstBytes blob) {
+  std::optional<VersionNumber> kernel_version =
+      SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
+  // CmaAllocInfo deprecated >=6.1; Pair with ParseCmaAllocStart()
+  if (kernel_version < VersionNumber{6, 1})
+    return;
+
+  protos::pbzero::CmaAllocFinishFtraceEvent::Decoder cma_alloc_finish(blob);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+
+  CmaMigrationInfo* info_ptr = utid_to_cma_migration_info_.Find(utid);
+  const CmaMigrationInfo& info = info_ptr ? *info_ptr : CmaMigrationInfo{};
+
+  auto args_inserter = [this, &cma_alloc_finish,
+                        &info](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(cma_name_id_,
+                     Variadic::String(context_->storage->InternString(
+                         cma_alloc_finish.name())));
+    inserter->AddArg(cma_pfn_id_,
+                     Variadic::UnsignedInteger(cma_alloc_finish.pfn()));
+    inserter->AddArg(cma_req_pages_id_,
+                     Variadic::UnsignedInteger(cma_alloc_finish.count()));
+    inserter->AddArg(cma_nr_migrated_id_,
+                     Variadic::UnsignedInteger(info.nr_migrated));
+    inserter->AddArg(cma_nr_reclaimed_id_,
+                     Variadic::UnsignedInteger(info.nr_reclaimed));
+    inserter->AddArg(cma_nr_mapped_id_,
+                     Variadic::UnsignedInteger(info.nr_mapped));
+  };
+  context_->slice_tracker->End(timestamp, track_id, kNullStringId,
+                               kNullStringId, args_inserter);
 }
 
 void FtraceParser::ParseCmaAllocInfo(int64_t timestamp,
@@ -2620,9 +2711,11 @@ void FtraceParser::ParseCmaAllocInfo(int64_t timestamp,
                                      ConstBytes blob) {
   std::optional<VersionNumber> kernel_version =
       SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
-  // CmaAllocInfo event only exists after 5.10
-  if (kernel_version < VersionNumber{5, 10})
+  // CmaAllocInfo event: Kernel 5.10 <= version < 6.1
+  if (kernel_version < VersionNumber{5, 10} ||
+      kernel_version >= VersionNumber{6, 1}) {
     return;
+  }
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);

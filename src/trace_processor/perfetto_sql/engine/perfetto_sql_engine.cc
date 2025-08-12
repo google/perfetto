@@ -491,6 +491,11 @@ base::Status PerfettoSqlEngine::InitializeStaticTablesAndFunctions(
 }
 
 void PerfettoSqlEngine::FinalizeAndShareAllStaticTables() {
+  // TODO(lalitm): the below code only works because DataframeModule does *not*
+  // cache the dataframe inside the vtab. If it did, we would actually need to
+  // drop/recreate the dataframe here to ensure that we didn't have a vtab
+  // lying around pointing to a dataframe we will destroy. We should do that
+  // anyway to be more resilient to future changes.
   for (const auto& [name, state] : dataframe_context_->GetAllStates()) {
     if (state->handle) {
       continue;
@@ -921,6 +926,10 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
       });
   DataframeModule::State* state =
       dataframe_context_->GetStateByName(create_index.table_name);
+  if (!state) {
+    return base::ErrStatus("CREATE PERFETTO INDEX: table '%s' does not exist",
+                           create_index.table_name.c_str());
+  }
   if (!state->handle) {
     return base::ErrStatus(
         "CREATE PERFETTO INDEX: unable to add index on table '%s' before "
@@ -929,6 +938,11 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
   }
   RETURN_IF_ERROR(DropIndexBeforeCreate(create_index));
 
+  // TODO(lalitm): the below code only works because DataframeModule does *not*
+  // cache the dataframe inside the vtab. If it did, we would actually need to
+  // drop/recreate the dataframe here to ensure that we didn't have a vtab
+  // lying around pointing to a dataframe we will destroy. We should do that
+  // anyway to be more resilient to future changes.
   const auto& df = *state->dataframe;
   std::vector<uint32_t> col_idxs;
   for (const std::string& col_name : create_index.col_names) {
@@ -952,7 +966,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
     handle =
         dataframe_shared_storage_->InsertIndex(index_key, std::move(index));
   }
-  state->dataframe->AddIndex(std::move(handle->value()));
+  state->dataframe->AddIndex(handle->value().Copy());
   state->named_indexes.push_back(DataframeModule::State::NamedIndex{
       create_index.name,
       *std::move(handle),

@@ -78,6 +78,7 @@
 
     - [Getting started](contributing/getting-started.md)
     - [Common tasks](contributing/common-tasks.md)
+    - [Become a committer](contributing/become-a-committer.md)
     - [UI](#)
 
       - [Getting started](contributing/ui-getting-started.md)
@@ -127,6 +128,7 @@
 
     - [Linux](#)
 
+      - [Kernel track events](reference/kernel-track-event.md)
       - [Tracing across reboots](data-sources/previous-boot-trace.md)
 
     - [Command Line Reference](#)

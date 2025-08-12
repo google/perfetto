@@ -31,7 +31,7 @@ class PerfettoSqlEngine;
 // Implementation of CREATE_VIEW_FUNCTION SQL function.
 // See https://perfetto.dev/docs/analysis/metrics#metric-helper-functions for
 // usage of this function.
-struct CreateViewFunction : public SqlFunction {
+struct CreateViewFunction : public LegacySqlFunction {
   using Context = PerfettoSqlEngine;
 
   static constexpr bool kVoidReturn = true;

@@ -202,7 +202,7 @@ export default class implements PerfettoPlugin {
           count() as trackCount
         from _slice_track_summary s
         join track t using (id)
-        group by type, upid, utid, t.track_group_id
+        group by type, upid, utid, t.track_group_id, ifnull(t.track_group_id, t.id)
       )
       select
         s.type,

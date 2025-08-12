@@ -212,8 +212,12 @@ def add_blocking_calls_per_frame_multiple_cuj_instance(trace, cuj_name):
       pid=SYSUI_PID)
 
   trace.add_atrace_begin(
-      ts=28_000_000, buf="binder transaction", tid=SYSUI_UI_TID, pid=SYSUI_PID)
-  trace.add_atrace_end(ts=28_500_000, tid=SYSUI_UI_TID, pid=SYSUI_PID)
+      ts=27_000_000, buf="binder transaction", tid=SYSUI_UI_TID, pid=SYSUI_PID)
+  trace.add_atrace_end(ts=27_500_000, tid=SYSUI_UI_TID, pid=SYSUI_PID)
+
+  trace.add_atrace_begin(
+      ts=27_500_000, buf="binder transaction", tid=SYSUI_UI_TID, pid=SYSUI_PID)
+  trace.add_atrace_end(ts=30_000_000, tid=SYSUI_UI_TID, pid=SYSUI_PID)
 
   trace.add_atrace_begin(
       ts=30_000_000, buf="animation", tid=SYSUI_UI_TID, pid=SYSUI_PID)

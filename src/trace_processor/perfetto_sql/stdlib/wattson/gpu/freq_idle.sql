@@ -51,9 +51,7 @@ WITH
   )
 SELECT
   *
-FROM nominal_freqs
-WHERE
-  dur > 0;
+FROM nominal_freqs;
 
 -- Gapless time slices of GPU idle from trace_start() to trace_end()
 CREATE PERFETTO TABLE _gapless_gpu_power_state AS
@@ -74,9 +72,7 @@ WITH
   )
 SELECT
   *
-FROM nominal_power_states
-WHERE
-  dur > 0;
+FROM nominal_power_states;
 
 CREATE PERFETTO TABLE _gpu_freq_idle AS
 WITH

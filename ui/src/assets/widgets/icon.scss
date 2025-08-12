@@ -13,13 +13,35 @@
 // limitations under the License.
 
 @import "../typefaces";
+@import "../theme";
 
-.pf-icon {
-  @include icon;
-  &.pf-filled {
-    @include icon-filled;
+@layer pf-widgets {
+  .pf-icon {
+    @include icon;
+
+    &.pf-filled {
+      @include icon-filled;
+    }
+
+    line-height: inherit;
+    font-size: inherit;
+    vertical-align: bottom;
+    user-select: none; // We usually don't expect icons to be selectable.
+
+    &.pf-intent-primary {
+      color: $color-primary;
+    }
+
+    &.pf-intent-danger {
+      color: $color-danger;
+    }
+
+    &.pf-intent-success {
+      color: $color-success;
+    }
+
+    &.pf-intent-warning {
+      color: $color-warning;
+    }
   }
-  line-height: inherit;
-  font-size: inherit;
-  vertical-align: bottom;
 }

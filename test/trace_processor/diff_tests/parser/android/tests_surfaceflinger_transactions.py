@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -144,6 +144,7 @@ class SurfaceFlingerTransactions(TestSuite):
         """,
         out=Csv("""
         "key","display_value"
+        "apply_token","987654321"
         "auto_refresh","false"
         "buffer_crop.bottom","0"
         "buffer_crop.left","0"
@@ -162,6 +163,10 @@ class SurfaceFlingerTransactions(TestSuite):
         "destination_frame.right","1080"
         "destination_frame.top","0"
         "layer_id","100"
+        "transaction_barriers[0].barrier_token","12345"
+        "transaction_barriers[0].kind","432"
+        "transaction_barriers[1].barrier_token","67890"
+        "transaction_barriers[1].kind","987"
         "transform","0"
         "transform_to_display_inverse","false"
         "what","17631439233024"
@@ -174,7 +179,7 @@ class SurfaceFlingerTransactions(TestSuite):
         INCLUDE PERFETTO MODULE android.winscope.surfaceflinger;
         SELECT
           snapshot_id,
-          arg_set_id,
+          arg_set_id IS NOT NULL AS has_arg_set_id,
           transaction_id,
           pid,
           uid,
@@ -186,8 +191,8 @@ class SurfaceFlingerTransactions(TestSuite):
         WHERE transaction_type = 'DISPLAY_CHANGED';
         """,
         out=Csv("""
-        "snapshot_id","arg_set_id","transaction_id","pid","uid","layer_id","display_id","flags_id"
-        2,42,10518374908660,3,415,"[NULL]",1234,1
+        "snapshot_id","has_arg_set_id","transaction_id","pid","uid","layer_id","display_id","flags_id"
+        2,1,10518374908660,3,415,"[NULL]",1234,1
         """))
 
   def test_surfaceflinger_transaction_display_change_args(self):
@@ -204,8 +209,13 @@ class SurfaceFlingerTransactions(TestSuite):
         """,
         out=Csv("""
         "key","display_value"
+        "apply_token","123456789"
         "flags","8"
         "id","1234"
+        "transaction_barriers[0].barrier_token","54321"
+        "transaction_barriers[0].kind","234"
+        "transaction_barriers[1].barrier_token","9876"
+        "transaction_barriers[1].kind","789"
         "what","22"
         """))
 
@@ -239,7 +249,7 @@ class SurfaceFlingerTransactions(TestSuite):
         INCLUDE PERFETTO MODULE android.winscope.surfaceflinger;
         SELECT
           snapshot_id,
-          arg_set_id,
+          arg_set_id IS NOT NULL AS has_arg_set_id,
           transaction_id,
           pid,
           uid,
@@ -251,8 +261,8 @@ class SurfaceFlingerTransactions(TestSuite):
         WHERE transaction_type = 'LAYER_ADDED';
         """,
         out=Csv("""
-        "snapshot_id","arg_set_id","transaction_id","pid","uid","layer_id","display_id","flags_id"
-        2,45,"[NULL]","[NULL]","[NULL]",4,"[NULL]","[NULL]"
+        "snapshot_id","has_arg_set_id","transaction_id","pid","uid","layer_id","display_id","flags_id"
+        2,1,"[NULL]","[NULL]","[NULL]",4,"[NULL]","[NULL]"
         """))
 
   def test_surfaceflinger_transaction_added_layer_args(self):
@@ -303,7 +313,7 @@ class SurfaceFlingerTransactions(TestSuite):
         INCLUDE PERFETTO MODULE android.winscope.surfaceflinger;
         SELECT
           snapshot_id,
-          arg_set_id,
+          arg_set_id IS NOT NULL AS has_arg_set_id,
           transaction_id,
           pid,
           uid,
@@ -315,8 +325,8 @@ class SurfaceFlingerTransactions(TestSuite):
         WHERE transaction_type = 'DISPLAY_ADDED';
         """,
         out=Csv("""
-        "snapshot_id","arg_set_id","transaction_id","pid","uid","layer_id","display_id","flags_id"
-        2,46,"[NULL]","[NULL]","[NULL]","[NULL]",5678,2
+        "snapshot_id","has_arg_set_id","transaction_id","pid","uid","layer_id","display_id","flags_id"
+        2,1,"[NULL]","[NULL]","[NULL]","[NULL]",5678,2
         """))
 
   def test_surfaceflinger_transaction_added_layer_args(self):

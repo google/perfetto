@@ -21,10 +21,12 @@
 namespace perfetto::trace_processor {
 
 void TrackEventSequenceState::SetThreadDescriptor(
-    const protos::pbzero::ThreadDescriptor::Decoder& decoder) {
+    const protos::pbzero::ThreadDescriptor::Decoder& decoder,
+    bool use_synthetic_tid) {
   persistent_state_.pid_and_tid_valid = true;
   persistent_state_.pid = decoder.pid();
   persistent_state_.tid = decoder.tid();
+  persistent_state_.use_synthetic_tid = use_synthetic_tid;
 
   timestamps_valid_ = true;
   timestamp_ns_ = decoder.reference_timestamp_us() * 1000;

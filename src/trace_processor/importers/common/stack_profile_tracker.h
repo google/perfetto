@@ -25,7 +25,6 @@
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/hash.h"
 
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -44,7 +43,7 @@ struct NameInPackage {
   struct Hasher {
     size_t operator()(const NameInPackage& o) const {
       return static_cast<size_t>(
-          base::Hasher::Combine(o.name.raw_id(), o.package.raw_id()));
+          base::FnvHasher::Combine(o.name.raw_id(), o.package.raw_id()));
     }
   };
 };

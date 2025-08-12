@@ -59,7 +59,7 @@ import {
 import {TagInput} from '../../widgets/tag_input';
 import {SegmentedButtons} from '../../widgets/segmented_buttons';
 import {MiddleEllipsis} from '../../widgets/middle_ellipsis';
-import {Chip, ChipBar} from '../../widgets/chip';
+import {Chip} from '../../widgets/chip';
 import {TrackShell} from '../../widgets/track_shell';
 import {CopyableLink} from '../../widgets/copyable_link';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
@@ -77,6 +77,9 @@ import {App} from '../../public/app';
 import {Engine} from '../../trace_processor/engine';
 import {Card, CardStack} from '../../widgets/card';
 import {Stack} from '../../widgets/stack';
+import {Tooltip} from '../../widgets/tooltip';
+import {TabStrip} from '../../widgets/tabs';
+import {CodeSnippet} from '../../widgets/code_snippet';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -316,6 +319,8 @@ const options: {[key: string]: boolean} = {
   thud: false,
 };
 
+let currentTab: string = 'foo';
+
 function PortalButton() {
   let portalOpen = false;
 
@@ -440,7 +445,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
     if (listItems.length === 0) {
       return null;
     }
-    return m('.widget-controls', m('h3', 'Options'), m('ul', listItems));
+    return m('.pf-widget-controls', m('h3', 'Options'), m('ul', listItems));
   }
 
   oninit({attrs: {initialOpts: opts}}: m.Vnode<WidgetShowcaseAttrs, this>) {
@@ -476,13 +481,13 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
       m(WidgetTitle, {label}),
       description && m('p', description),
       m(
-        '.widget-block',
+        '.pf-widget-block',
         m(
           'div',
           {
             class: classNames(
-              'widget-container',
-              wide && 'widget-container-wide',
+              'pf-widget-container',
+              wide && 'pf-widget-container--wide',
             ),
           },
           renderWidget(this.optValues),
@@ -720,7 +725,7 @@ function RadioButtonGroupDemo() {
 export class WidgetsPage implements m.ClassComponent<{app: App}> {
   view({attrs}: m.Vnode<{app: App}>) {
     return m(
-      '.widgets-page',
+      '.pf-widgets-page',
       m('h1', 'Widgets'),
       m(WidgetShowcase, {
         label: 'Button',
@@ -762,7 +767,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
                   icon: arg(icon, 'send'),
                   rightIcon: arg(rightIcon, 'arrow_forward'),
                   label: arg(label, 'Button', ''),
-                  onclick: () => alert('button pressed'),
+                  onclick: () => console.log('button pressed'),
                   ...rest,
                 }),
                 Boolean(showInlineWithText) && 'text',
@@ -782,6 +787,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           ),
           showAsGrid: false,
           showInlineWithText: false,
+          rounded: false,
         },
       }),
       m(WidgetShowcase, {
@@ -830,10 +836,15 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
       m(WidgetShowcase, {
         label: 'Switch',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        renderWidget: ({label, ...rest}: any) =>
-          m(Switch, {label: arg(label, 'Switch'), ...rest}),
+        renderWidget: ({label, labelLeft, ...rest}: any) =>
+          m(Switch, {
+            label: arg(label, 'Switch'),
+            labelLeft: arg(labelLeft, 'Left Label'),
+            ...rest,
+          }),
         initialOpts: {
           label: true,
+          labelLeft: false,
           disabled: false,
         },
       }),
@@ -1010,7 +1021,32 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
       m(WidgetShowcase, {
         label: 'Icon',
         renderWidget: (opts) => m(Icon, {icon: 'star', ...opts}),
-        initialOpts: {filled: false},
+        initialOpts: {
+          filled: false,
+          intent: new EnumOption(Intent.None, Object.values(Intent)),
+        },
+      }),
+      m(WidgetShowcase, {
+        label: 'Tooltip',
+        description: `A tooltip is a hover-only, useful as an alternative to the browser's inbuilt 'title' tooltip.`,
+        renderWidget: (opts) =>
+          m(
+            Tooltip,
+            {
+              trigger: m(Icon, {icon: 'Warning'}),
+              ...opts,
+            },
+            lorem(),
+          ),
+        initialOpts: {
+          position: new EnumOption(
+            PopupPosition.Auto,
+            Object.values(PopupPosition),
+          ),
+          showArrow: true,
+          offset: 0,
+          edgeOffset: 0,
+        },
       }),
       m(WidgetShowcase, {
         label: 'MultiSelect panel',
@@ -1422,6 +1458,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
             onclick: () => {
               showModal({
                 title: 'Attention',
+                icon: Icons.Help,
                 content: () => 'This is a modal dialog',
                 buttons: [
                   {
@@ -1518,14 +1555,23 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
         renderWidget: (opts) => {
           const {icon, ...rest} = opts;
           return m(
-            ChipBar,
+            Stack,
+            {orientation: 'horizontal'},
             m(Chip, {
               label: 'Foo',
               icon: icon === true ? 'info' : undefined,
               ...rest,
             }),
-            m(Chip, {label: 'Bar', ...rest}),
-            m(Chip, {label: 'Baz', ...rest}),
+            m(Chip, {
+              label: 'Bar',
+              icon: icon === true ? 'warning' : undefined,
+              ...rest,
+            }),
+            m(Chip, {
+              label: 'Baz',
+              icon: icon === true ? 'error' : undefined,
+              ...rest,
+            }),
           );
         },
         initialOpts: {
@@ -1533,6 +1579,8 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           icon: true,
           compact: false,
           rounded: false,
+          disabled: false,
+          removable: true,
         },
       }),
       m(WidgetShowcase, {
@@ -1599,7 +1647,7 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           return m(
             VirtualOverlayCanvas,
             {
-              className: 'virtual-canvas',
+              className: 'pf-virtual-canvas',
               overflowY: 'auto',
               onCanvasRedraw({ctx, canvasRect}) {
                 ctx.strokeStyle = 'red';
@@ -1691,7 +1739,6 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           showCloseButtons: true,
         },
       }),
-
       renderWidgetShowcase({
         label: 'DataGrid (memory backed)',
         description: `An interactive data explorer and viewer.`,
@@ -1817,6 +1864,39 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
           aggregation: false,
         },
       }),
+
+      m(WidgetShowcase, {
+        label: 'TabStrip',
+        description: `A simple tab strip`,
+        renderWidget: () => {
+          return m(TabStrip, {
+            tabs: [
+              {key: 'foo', title: 'Foo'},
+              {key: 'bar', title: 'Bar'},
+              {key: 'baz', title: 'Baz'},
+            ],
+            currentTabKey: currentTab,
+            onTabChange: (key) => {
+              currentTab = key;
+            },
+          });
+        },
+        initialOpts: {},
+      }),
+
+      m(WidgetShowcase, {
+        label: 'CodeSnippet',
+        renderWidget: ({wide}) =>
+          m(CodeSnippet, {
+            language: 'SQL',
+            text: Boolean(wide)
+              ? 'SELECT a_very_long_column_name, another_super_long_column_name, yet_another_ridiculously_long_column_name FROM a_table_with_an_unnecessarily_long_name WHERE some_condition_is_true AND another_condition_is_also_true;'
+              : 'SELECT * FROM slice LIMIT 10;',
+          }),
+        initialOpts: {
+          wide: false,
+        },
+      }),
     );
   }
 }
@@ -1918,7 +1998,10 @@ class ModalShowcase implements m.ClassComponent {
 
     let content;
     if (staticContent) {
-      content = m('.modal-pre', 'Content of the modal dialog.\nEnd of content');
+      content = m(
+        '.pf-modal-pre',
+        'Content of the modal dialog.\nEnd of content',
+      );
     } else {
       // The humble counter is basically the VDOM 'Hello world'!
       function CounterComponent() {

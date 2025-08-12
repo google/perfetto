@@ -37,7 +37,7 @@ include_sqlite = [
 sqlite_copts = [
     "-Wno-misleading-indentation",
     "-DSQLITE_THREADSAFE=0",
-    "-DQLITE_DEFAULT_MEMSTATUS=0",
+    "-DSQLITE_DEFAULT_MEMSTATUS=0",
     "-DSQLITE_LIKE_DOESNT_MATCH_BLOBS",
     "-DSQLITE_OMIT_DEPRECATED",
     "-DSQLITE_OMIT_SHARED_CACHE",
@@ -50,6 +50,9 @@ sqlite_copts = [
     "-DSQLITE_TEMP_STORE=3",
     "-DSQLITE_OMIT_LOAD_EXTENSION",
     "-DSQLITE_OMIT_RANDOMNESS",
+    "-DSQLITE_OMIT_AUTOINIT",
+    "-DSQLITE_ENABLE_JSON1",
+    "-DSQLITE_ENABLE_MATH_FUNCTIONS",
 ] + PERFETTO_CONFIG.deps_copts.sqlite
 
 cc_library(

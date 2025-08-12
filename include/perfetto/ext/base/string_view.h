@@ -25,7 +25,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/fnv_hash.h"
 
 namespace perfetto {
 namespace base {
@@ -34,7 +34,7 @@ namespace base {
 // Strings are internally NOT null terminated.
 class StringView {
  public:
-  // Allow hashing with base::Hash.
+  // Allow hashing with base::FnvHash.
   static constexpr bool kHashable = true;
   static constexpr size_t npos = static_cast<size_t>(-1);
 
@@ -158,7 +158,7 @@ class StringView {
   }
 
   uint64_t Hash() const {
-    base::Hasher hasher;
+    base::FnvHasher hasher;
     hasher.Update(data_, size_);
     return hasher.digest();
   }

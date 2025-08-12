@@ -301,8 +301,5 @@ std::string ExperimentalAnnotatedStack::TableName() {
 uint32_t ExperimentalAnnotatedStack::GetArgumentCount() const {
   return 1;
 }
-uint32_t ExperimentalAnnotatedStack::EstimateRowCount() {
-  return 1;
-}
 
 }  // namespace perfetto::trace_processor

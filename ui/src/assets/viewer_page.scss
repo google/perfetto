@@ -15,6 +15,7 @@
 .pf-viewer-page {
   isolation: isolate;
   overflow: hidden;
+  height: 100%;
 
   &__overview {
     z-index: 3;

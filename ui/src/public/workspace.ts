@@ -92,7 +92,7 @@ export class TrackNode {
   public uri?: string;
 
   // Optional sort order, which workspaces may or may not take advantage of for
-  // sorting when displaying the workspace. Higher numbers appear first.
+  // sorting when displaying the workspace. Lower numbers appear first.
   public sortOrder?: number;
 
   // Don't show the header at all for this track, just show its un-nested

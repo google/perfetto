@@ -48,16 +48,13 @@ inline void RawString(sqlite3_context* ctx,
                       sqlite3_destructor_type destructor) {
   sqlite3_result_text(ctx, str, size, destructor);
 }
-inline void RawString(sqlite3_context* ctx,
-                      const char* str,
-                      sqlite3_destructor_type destructor) {
-  RawString(ctx, str, -1, destructor);
+inline void StaticString(sqlite3_context* ctx, const char* str, int size = -1) {
+  RawString(ctx, str, size, kSqliteStatic);
 }
-inline void StaticString(sqlite3_context* ctx, const char* str) {
-  RawString(ctx, str, kSqliteStatic);
-}
-inline void TransientString(sqlite3_context* ctx, const char* str) {
-  RawString(ctx, str, kSqliteTransient);
+inline void TransientString(sqlite3_context* ctx,
+                            const char* str,
+                            int size = -1) {
+  RawString(ctx, str, size, kSqliteTransient);
 }
 
 inline void RawBytes(sqlite3_context* ctx,

@@ -17,9 +17,9 @@ import {SettingsManagerImpl} from '../../core/settings_manager';
 import m from 'mithril';
 import {AppImpl} from '../../core/app_impl';
 import {z} from 'zod';
-import {Button, ButtonBar, ButtonVariant} from '../../widgets/button';
+import {Button, ButtonVariant} from '../../widgets/button';
 import {Card, CardStack} from '../../widgets/card';
-import {SettingsShell as SettingsPageWidget} from '../../widgets/settings_shell';
+import {SettingsShell} from '../../widgets/settings_shell';
 import {Switch} from '../../widgets/switch';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
@@ -27,6 +27,7 @@ import {Icon} from '../../widgets/icon';
 import {Intent} from '../../widgets/common';
 import {EmptyState} from '../../widgets/empty_state';
 import {classNames} from '../../base/classnames';
+import {Stack, StackAuto} from '../../widgets/stack';
 
 export class SettingsPage implements m.ClassComponent {
   private filterText = '';
@@ -52,27 +53,27 @@ export class SettingsPage implements m.ClassComponent {
         )
       : allSettings;
     return m(
-      SettingsPageWidget,
+      SettingsShell,
       {
         title: 'Settings',
+        className: 'page',
         stickyHeaderContent: m(
-          '.pf-settings-page__topbar',
-          m(
-            ButtonBar,
+          Stack,
+          {orientation: 'horizontal'},
+          m(Button, {
+            icon: 'restore',
+            label: 'Restore Defaults',
+            onclick: () => settingsManager.resetAll(),
+          }),
+          reloadRequired &&
             m(Button, {
-              icon: 'restore',
-              label: 'Restore Defaults',
-              onclick: () => settingsManager.resetAll(),
+              icon: 'refresh',
+              label: 'Reload required',
+              variant: ButtonVariant.Filled,
+              intent: Intent.Primary,
+              onclick: () => window.location.reload(),
             }),
-            reloadRequired &&
-              m(Button, {
-                icon: 'refresh',
-                label: 'Reload required',
-                variant: ButtonVariant.Filled,
-                intent: Intent.Primary,
-                onclick: () => window.location.reload(),
-              }),
-          ),
+          m(StackAuto),
           m(TextInput, {
             placeholder: 'Filter settings...',
             value: this.filterText,

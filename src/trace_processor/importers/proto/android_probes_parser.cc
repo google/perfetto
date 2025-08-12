@@ -60,8 +60,10 @@
 
 namespace perfetto::trace_processor {
 
-AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context)
+AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context,
+                                         AndroidProbesTracker* tracker)
     : context_(context),
+      tracker_(tracker),
       power_rails_args_tracker_(std::make_unique<ArgsTracker>(context)),
       battery_status_id_(context->storage->InternString("BatteryStatus")),
       plug_type_id_(context->storage->InternString("PlugType")),
@@ -156,8 +158,7 @@ void AndroidProbesParser::ParsePowerRails(int64_t ts,
   auto it = evt.energy_data();
   protos::pbzero::PowerRails::EnergyData::Decoder desc(*it);
 
-  auto* tracker = AndroidProbesTracker::GetOrCreate(context_);
-  auto opt_track = tracker->GetPowerRailTrack(desc.index());
+  auto opt_track = tracker_->GetPowerRailTrack(desc.index());
   if (opt_track.has_value()) {
     // The tokenization makes sure that this field is always present and
     // is equal to the packet's timestamp that was passed to us via the sorter.
@@ -187,8 +188,7 @@ void AndroidProbesParser::ParseEnergyBreakdown(int64_t ts, ConstBytes blob) {
   }
 
   auto consumer_id = event.energy_consumer_id();
-  auto* tracker = AndroidProbesTracker::GetOrCreate(context_);
-  auto descriptor = tracker->GetEnergyBreakdownDescriptor(consumer_id);
+  auto descriptor = tracker_->GetEnergyBreakdownDescriptor(consumer_id);
   if (!descriptor) {
     context_->storage->IncrementStats(stats::energy_breakdown_missing_values);
     return;
@@ -249,11 +249,10 @@ void AndroidProbesParser::ParseEntityStateResidency(int64_t ts,
           tracks::StringDimensionBlueprint("entity_name"),
           tracks::StringDimensionBlueprint("state_name")),
       tracks::DynamicNameBlueprint());
-  auto* tracker = AndroidProbesTracker::GetOrCreate(context_);
   for (auto it = event.residency(); it; ++it) {
     protos::pbzero::EntityStateResidency::StateResidency::Decoder residency(
         *it);
-    auto entity_state = tracker->GetEntityStateDescriptor(
+    auto entity_state = tracker_->GetEntityStateDescriptor(
         residency.entity_index(), residency.state_index());
     if (!entity_state) {
       context_->storage->IncrementStats(
@@ -492,8 +491,17 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
             tracks::StringDimensionBlueprint("sysprop_name")),
         tracks::DynamicNameBlueprint());
 
-    if (name.StartsWith("debug.tracing.battery_stats.") ||
-        name == "debug.tracing.mcc" || name == "debug.tracing.mnc" ||
+    if (name.StartsWith("debug.tracing.battery_stats.")) {
+      // Track name and definition should be kept in sync with
+      // systrace_parser.cc
+      TrackId track = context_->track_tracker->InternTrack(
+          tracks::kAndroidBatteryStatsBlueprint,
+          tracks::Dimensions(name.substr(strlen("debug.tracing."))));
+      context_->event_tracker->PushCounter(ts, *state, track);
+      continue;
+    }
+
+    if (name == "debug.tracing.mcc" || name == "debug.tracing.mnc" ||
         name == "debug.tracing.desktop_mode_visible_tasks") {
       StringId name_id = context_->storage->InternString(
           name.substr(strlen("debug.tracing.")));

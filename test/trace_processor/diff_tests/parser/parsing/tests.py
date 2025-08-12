@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -1753,7 +1753,7 @@ class Parsing(TestSuite):
         """))
 
   # Slice nesting with same timestamps and zero duration.
-  def test_same_ts_zero_duration_slice_nesting(self):
+  def test_same_ts_two_zero_duration_slice_nesting(self):
     return DiffTestBlueprint(
         trace=Json('''[
           {
@@ -1781,7 +1781,7 @@ class Parsing(TestSuite):
         '''))
 
   # Slice unnesting with same timestamps and non-zero duration.
-  def test_same_ts_non_zero_duration_slice_unnesting(self):
+  def test_same_ts_two_duration_slice_unnesting(self):
     return DiffTestBlueprint(
         trace=Json('''[
           {
@@ -1797,6 +1797,102 @@ class Parsing(TestSuite):
             "ph": "X",
             "ts": 1100,
             "dur": 100,
+            "pid": 1,
+            "tid": 1
+          }
+        ]'''),
+        query="SELECT name, depth FROM slice ORDER BY name",
+        out=Csv('''
+        "name","depth"
+        "Slice 1",0
+        "Slice 2",0
+        '''))
+
+  # Slice unnesting with same timestamps and first zero then non-zero duration.
+  #
+  # X events are special here: they are ordered by duration desc and so
+  # "Slice 1" will be stacked under "Slice 2".
+  def test_same_ts_zero_duration_slice_then_duration_slice_unnesting(self):
+    return DiffTestBlueprint(
+        trace=Json('''[
+          {
+            "name": "Slice 1",
+            "ph": "X",
+            "ts": 1000,
+            "dur": 0,
+            "pid": 1,
+            "tid": 1
+          },
+          {
+            "name": "Slice 2",
+            "ph": "X",
+            "ts": 1000,
+            "dur": 100,
+            "pid": 1,
+            "tid": 1
+          }
+        ]'''),
+        query="SELECT name, depth FROM slice ORDER BY name",
+        out=Csv('''
+        "name","depth"
+        "Slice 1",1
+        "Slice 2",0
+        '''))
+
+  # Slice unnesting with same timestamps and first zero then begin/end pair
+  #
+  # like `test_same_ts_zero_duration_slice_then_duration_slice_unnesting` but
+  # works around the janky 'X' duration sorting.
+  def test_same_ts_zero_duration_slice_then_begin_end_slice_unnesting(self):
+    return DiffTestBlueprint(
+        trace=Json('''[
+          {
+            "name": "Slice 1",
+            "ph": "X",
+            "ts": 1000,
+            "dur": 0,
+            "pid": 1,
+            "tid": 1
+          },
+          {
+            "name": "Slice 2",
+            "ph": "B",
+            "ts": 1000,
+            "pid": 1,
+            "tid": 1
+          },
+          {
+            "name": "Slice 2",
+            "ph": "E",
+            "ts": 1100,
+            "pid": 1,
+            "tid": 1
+          }
+        ]'''),
+        query="SELECT name, depth FROM slice ORDER BY name",
+        out=Csv('''
+        "name","depth"
+        "Slice 1",0
+        "Slice 2",0
+        '''))
+
+  # Slice unnesting with same timestamps and first non-zero then zero duration.
+  def test_same_ts_duration_slice_then_zero_duration_slice_unnesting(self):
+    return DiffTestBlueprint(
+        trace=Json('''[
+          {
+            "name": "Slice 1",
+            "ph": "X",
+            "ts": 1000,
+            "dur": 100,
+            "pid": 1,
+            "tid": 1
+          },
+          {
+            "name": "Slice 2",
+            "ph": "X",
+            "ts": 1100,
+            "dur": 0,
             "pid": 1,
             "tid": 1
           }

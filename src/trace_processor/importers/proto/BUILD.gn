@@ -92,6 +92,7 @@ source_set("minimal") {
     "../../../../protos/perfetto/trace/system_info:zero",
     "../../../../protos/perfetto/trace/track_event:zero",
     "../../../../protos/perfetto/trace/translation:zero",
+    "../../../../protos/third_party/chromium:zero",
     "../../../base",
     "../../../protozero",
     "../../containers",
@@ -214,7 +215,9 @@ source_set("full") {
     "../common",
     "../common:parser_types",
     "../etw:full",
+    "../etw:minimal",
     "../ftrace:full",
+    "../ftrace:minimal",
     "../generic_kernel:full",
     "../syscalls:full",
   ]
@@ -235,8 +238,9 @@ source_set("proto_importer_module") {
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor:trace_processor",
     "../../../base",
+    "../../sorter",
     "../../types",
-    "../common:trace_parser_hdr",
+    "../common:parser_types",
   ]
 }
 
@@ -252,6 +256,7 @@ source_set("packet_sequence_state_generation_hdr") {
     "../../../../protos/perfetto/trace/track_event:zero",
     "../../types:types",
     "../../util:interned_message_view",
+    "../common:synthetic_tid_hdr",
   ]
 }
 

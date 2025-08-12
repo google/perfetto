@@ -87,14 +87,14 @@ class PacketSequenceStateGeneration : public RefCounted {
       return generation_->GetInternedMessageView(field_id, iid);
     }
 
-    template <typename T>
-    std::remove_cv_t<T>* GetCustomState() {
-      return generation_->GetCustomState<T>();
+    template <typename T, typename... Args>
+    std::remove_cv_t<T>* GetCustomState(Args... args) {
+      return generation_->GetCustomState<T>(std::forward<Args>(args)...);
     }
 
     bool pid_and_tid_valid() const { return generation_->pid_and_tid_valid(); }
     int32_t pid() const { return generation_->pid(); }
-    int32_t tid() const { return generation_->tid(); }
+    int64_t tid() const { return generation_->tid(); }
 
    private:
     friend PacketSequenceStateGeneration;
@@ -117,6 +117,18 @@ class PacketSequenceStateGeneration : public RefCounted {
     PacketSequenceStateGeneration* generation_ = nullptr;
   };
 
+  // Defines an optional dependency for a `CustomState` class, which will be
+  // passed as an argument to its constructor.
+  template <typename T>
+  struct CustomStateTraits {
+    // The type of an optional second argument to the CustomState constructor.
+    // If `void`, the CustomState is constructed with only
+    // `TraceProcessorContext*`.
+    // Otherwise, it is constructed with `TraceProcessorContext*` and a pointer
+    // to the specified `Tracker` type.
+    using Tracker = void;
+  };
+
   static RefPtr<PacketSequenceStateGeneration> CreateFirst(
       TraceProcessorContext* context);
 
@@ -131,7 +143,7 @@ class PacketSequenceStateGeneration : public RefCounted {
     return track_event_sequence_state_.pid_and_tid_valid();
   }
   int32_t pid() const { return track_event_sequence_state_.pid(); }
-  int32_t tid() const { return track_event_sequence_state_.tid(); }
+  int64_t tid() const { return track_event_sequence_state_.tid(); }
 
   // Returns |nullptr| if the message with the given |iid| was not found (also
   // records a stat in this case).
@@ -195,8 +207,8 @@ class PacketSequenceStateGeneration : public RefCounted {
   // `IncrementalState` instance, and a new one is created when the state is
   // cleared, so iid values after the clear will be processed by a new (empty)
   // custom state instance.
-  template <typename T>
-  std::remove_cv_t<T>* GetCustomState();
+  template <typename T, typename... Args>
+  std::remove_cv_t<T>* GetCustomState(Args... args);
 
   int64_t IncrementAndGetTrackEventTimeNs(int64_t delta_ns) {
     return track_event_sequence_state_.IncrementAndGetTrackEventTimeNs(
@@ -224,8 +236,10 @@ class PacketSequenceStateGeneration : public RefCounted {
   }
 
   void SetThreadDescriptor(
-      const protos::pbzero::ThreadDescriptor::Decoder& descriptor) {
-    track_event_sequence_state_.SetThreadDescriptor(descriptor);
+      const protos::pbzero::ThreadDescriptor::Decoder& descriptor,
+      bool use_synthetic_tid) {
+    track_event_sequence_state_.SetThreadDescriptor(descriptor,
+                                                    use_synthetic_tid);
   }
 
   // TODO(carlscab): Nobody other than `ProtoTraceReader` should care about
@@ -291,13 +305,29 @@ class PacketSequenceStateGeneration : public RefCounted {
   bool is_incremental_state_valid_ = true;
 };
 
-template <typename T>
-std::remove_cv_t<T>* PacketSequenceStateGeneration::GetCustomState() {
+template <typename T, typename... Args>
+std::remove_cv_t<T>* PacketSequenceStateGeneration::GetCustomState(
+    Args... args) {
   constexpr size_t index = FindUniqueType<CustomStateClasses, T>();
   static_assert(index < std::tuple_size_v<CustomStateClasses>, "Not found");
   auto& ptr = custom_state_[index];
   if (PERFETTO_UNLIKELY(ptr.get() == nullptr)) {
-    ptr.reset(new T(context_));
+    if constexpr (std::is_void_v<typename CustomStateTraits<T>::Tracker>) {
+      static_assert(sizeof...(args) == 0,
+                    "This custom state does not take any arguments.");
+      ptr.reset(new T(context_));
+    } else {
+      static_assert(sizeof...(args) == 1,
+                    "This custom state takes exactly one argument.");
+      // The argument type is now derived from the external trait.
+      using ArgType =
+          std::decay_t<std::tuple_element_t<0, std::tuple<Args...>>>;
+      using ExpectedType = typename CustomStateTraits<T>::Tracker*;
+      static_assert(std::is_same_v<ArgType, ExpectedType>,
+                    "Argument must be a pointer to the Tracker defined in "
+                    "CustomStateTraits.");
+      ptr.reset(new T(context_, std::forward<Args>(args)...));
+    }
     ptr->set_generation(this);
   }
 

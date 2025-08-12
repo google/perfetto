@@ -195,7 +195,6 @@ export class SplitPanel implements m.ClassComponent<SplitPanelAttrs> {
         title: 'Open fullscreen',
         disabled: visibility === SplitPanelDrawerVisibility.FULLSCREEN,
         icon: 'vertical_align_top',
-        compact: true,
         onclick: () => {
           this.updatePanelVisibility(
             SplitPanelDrawerVisibility.FULLSCREEN,
@@ -212,7 +211,6 @@ export class SplitPanel implements m.ClassComponent<SplitPanelAttrs> {
         },
         title: isClosed ? 'Show panel' : 'Hide panel',
         icon: isClosed ? 'keyboard_arrow_up' : 'keyboard_arrow_down',
-        compact: true,
       }),
     );
   }

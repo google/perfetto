@@ -32,6 +32,7 @@
 #include "perfetto/base/thread_annotations.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/murmur_hash.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
@@ -201,7 +202,7 @@ class StringPool {
     if (str.data() == nullptr) {
       return Id::Null();
     }
-    auto hash = str.Hash();
+    auto hash = base::MurmurHashValue(std::string_view(str.data(), str.size()));
 
     // Perform a hashtable insertion with a null ID just to check if the string
     // is already inserted. If it's not, overwrite 0 with the actual Id.
@@ -221,7 +222,7 @@ class StringPool {
     if (str.data() == nullptr) {
       return Id::Null();
     }
-    auto hash = str.Hash();
+    auto hash = base::MurmurHashValue(std::string_view(str.data(), str.size()));
 
     MaybeLockGuard guard{mutex_, should_acquire_mutex_};
     Id* id = string_index_.Find(hash);

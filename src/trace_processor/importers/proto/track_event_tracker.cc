@@ -32,6 +32,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/synthetic_tid.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/tracks.h"
@@ -148,6 +149,7 @@ TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
       default_descriptor_track_name_(
           context->storage->InternString("Default Track")),
       description_key_(context->storage->InternString("description")),
+      y_axis_share_key_(context->storage->InternString("y_axis_share_key")),
       context_(context) {}
 
 void TrackEventTracker::ReserveDescriptorTrack(
@@ -244,14 +246,6 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
   DescriptorTrackReservation& reservation = state_ptr->reservation;
 
   // Try to resolve to root-level pid and tid if the process is pid-namespaced.
-  if (trusted_pid && reservation.tid) {
-    std::optional<uint32_t> resolved_tid =
-        context_->process_tracker->ResolveNamespacedTid(*trusted_pid,
-                                                        *reservation.tid);
-    if (resolved_tid) {
-      reservation.tid = resolved_tid;
-    }
-  }
   if (trusted_pid && reservation.pid) {
     std::optional<uint32_t> resolved_pid =
         context_->process_tracker->ResolveNamespacedTid(*trusted_pid,
@@ -259,6 +253,17 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
     if (resolved_pid) {
       reservation.pid = resolved_pid;
     }
+  }
+  std::optional<uint32_t> resolved_tid;
+  if (trusted_pid && reservation.tid) {
+    resolved_tid = context_->process_tracker->ResolveNamespacedTid(
+        *trusted_pid, *reservation.tid);
+  }
+  if (resolved_tid) {
+    reservation.tid = resolved_tid;
+  } else if (reservation.use_synthetic_tid && reservation.tid &&
+             reservation.pid) {
+    reservation.tid = CreateSyntheticTid(*reservation.tid, *reservation.pid);
   }
 
   // Try to resolve any parent tracks recursively, too.
@@ -279,7 +284,7 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
       PERFETTO_DCHECK(old_uuid != uuid);  // Every track is only resolved once.
       *it = uuid;
 
-      PERFETTO_DLOG("Detected tid reuse (pid: %" PRIu32 " tid: %" PRIu32
+      PERFETTO_DLOG("Detected tid reuse (pid: %" PRId64 " tid: %" PRId64
                     ") from track descriptors (old uuid: %" PRIu64
                     " new uuid: %" PRIu64 " timestamp: %" PRId64 ")",
                     *reservation.pid, *reservation.tid, old_uuid, uuid,
@@ -307,7 +312,7 @@ TrackEventTracker::ResolveDescriptorTrackImpl(uint64_t uuid) {
       PERFETTO_DCHECK(old_uuid != uuid);  // Every track is only resolved once.
       *it = uuid;
 
-      PERFETTO_DLOG("Detected pid reuse (pid: %" PRIu32
+      PERFETTO_DLOG("Detected pid reuse (pid: %" PRId64
                     ") from track descriptors (old uuid: %" PRIu64
                     " new uuid: %" PRIu64 " timestamp: %" PRId64 ")",
                     *reservation.pid, old_uuid, uuid,
@@ -611,6 +616,11 @@ void TrackEventTracker::AddTrackArgs(
       args.AddArg(
           builtin_counter_type_key_,
           Variadic::String(reservation.counter_details->builtin_type_str));
+    }
+    if (!reservation.counter_details->y_axis_share_key.is_null()) {
+      args.AddArg(
+          y_axis_share_key_,
+          Variadic::String(reservation.counter_details->y_axis_share_key));
     }
   }
   if (packet_sequence_id &&

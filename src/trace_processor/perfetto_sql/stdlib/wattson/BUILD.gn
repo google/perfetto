@@ -22,7 +22,7 @@ perfetto_sql_source_set("wattson") {
     "cpu/freq_idle.sql",
     "cpu/hotplug.sql",
     "cpu/idle.sql",
-    "cpu/split.sql",
+    "cpu/pivot.sql",
     "cpu/w_cpu_dependence.sql",
     "cpu/w_dsu_dependence.sql",
     "curves/device_cpu.sql",

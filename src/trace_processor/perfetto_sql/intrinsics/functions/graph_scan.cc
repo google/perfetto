@@ -542,10 +542,10 @@ base::StatusOr<dataframe::Dataframe> GraphAggregatingScanner::Run() {
   return std::move(res).Build();
 }
 
-struct GraphAggregatingScan : public SqliteFunction<GraphAggregatingScan> {
+struct GraphAggregatingScan : public sqlite::Function<GraphAggregatingScan> {
   static constexpr char kName[] = "__intrinsic_graph_aggregating_scan";
   static constexpr int kArgCount = 4;
-  struct UserDataContext {
+  struct UserData {
     PerfettoSqlEngine* engine;
     StringPool* pool;
   };
@@ -613,10 +613,10 @@ struct GraphAggregatingScan : public SqliteFunction<GraphAggregatingScan> {
   }
 };
 
-struct GraphScan : public SqliteFunction<GraphScan> {
+struct GraphScan : public sqlite::Function<GraphScan> {
   static constexpr char kName[] = "__intrinsic_graph_scan";
   static constexpr int kArgCount = 4;
-  struct UserDataContext {
+  struct UserData {
     PerfettoSqlEngine* engine;
     StringPool* pool;
   };
@@ -707,11 +707,11 @@ struct GraphScan : public SqliteFunction<GraphScan> {
 base::Status RegisterGraphScanFunctions(PerfettoSqlEngine& engine,
                                         StringPool* pool) {
   RETURN_IF_ERROR(engine.RegisterSqliteFunction<GraphScan>(
-      std::make_unique<GraphScan::UserDataContext>(
-          GraphScan::UserDataContext{&engine, pool})));
+      std::make_unique<GraphScan::UserData>(
+          GraphScan::UserData{&engine, pool})));
   return engine.RegisterSqliteFunction<GraphAggregatingScan>(
-      std::make_unique<GraphAggregatingScan::UserDataContext>(
-          GraphAggregatingScan::UserDataContext{&engine, pool}));
+      std::make_unique<GraphAggregatingScan::UserData>(
+          GraphAggregatingScan::UserData{&engine, pool}));
 }
 
 }  // namespace perfetto::trace_processor

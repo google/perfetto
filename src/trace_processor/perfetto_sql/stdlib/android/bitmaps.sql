@@ -42,7 +42,25 @@ JOIN process_counter_track AS pct ON pct.id = c.track_id
   )) AS intervals
 );
 
-CREATE PERFETTO TABLE _android_bitmap_memory AS
+-- Provides a timeseries of "Bitmap Memory" counter for each process, which
+-- is useful for retrieving the total memory used by bitmaps by an application over time.
+--
+-- To populate this table, tracing must be enabled with the "view" atrace
+-- category.
+CREATE PERFETTO TABLE android_bitmap_memory (
+  -- ID of the row in the underlying counter table.
+  id ID(counter.id),
+  -- Upid of the process.
+  upid JOINID(process.upid),
+  -- Timestamp of the start of the interval.
+  ts TIMESTAMP,
+  -- Duration of the interval.
+  dur DURATION,
+  -- Duration of the interval.
+  track_id JOINID(counter.track_id),
+  -- Memory consumed by bitmaps in bytes.
+  value LONG
+) AS
 SELECT
   c.id,
   upid,
@@ -56,7 +74,25 @@ JOIN process_counter_track AS pct
 ORDER BY
   c.id;
 
-CREATE PERFETTO TABLE _android_bitmap_count AS
+-- Provides a timeseries of "Bitmap Count" counter for each process, which
+-- is useful for retrieving the number of bitmaps used by an application over time.
+--
+-- To populate this table, tracing must be enabled with the "view" atrace
+-- category.
+CREATE PERFETTO TABLE android_bitmap_count (
+  -- ID of the row in the underlying counter table.
+  id ID(counter.id),
+  -- Upid of the process.
+  upid JOINID(process.upid),
+  -- Timestamp of the start of the interval.
+  ts TIMESTAMP,
+  -- Duration of the interval.
+  dur DURATION,
+  -- Duration of the interval.
+  track_id JOINID(counter.track_id),
+  -- Number of allocated bitmaps.
+  value LONG
+) AS
 SELECT
   c.id,
   upid,
@@ -81,16 +117,16 @@ CREATE PERFETTO TABLE android_bitmap_counters_per_process (
   -- Name of the process.
   process_name STRING,
   -- Timestamp of the start of the interval.
-  ts LONG,
+  ts TIMESTAMP,
   -- Duration of the interval.
-  dur LONG,
+  dur DURATION,
   -- Memory consumed by bitmaps in bytes.
   bitmap_memory LONG,
   -- Number of allocated bitmaps.
   bitmap_count LONG,
   -- ID of the row in the underlying counter table.
   bitmap_memory_id JOINID(counter.id),
-  -- ID of the row in the underlyingcounter table.
+  -- ID of the row in the underlying counter table.
   bitmap_count_id JOINID(counter.id)
 ) AS
 SELECT
@@ -112,14 +148,14 @@ SELECT
 -- SDK for that though.
 FROM _interval_intersect!(
   (
-    _android_bitmap_memory,
-    _android_bitmap_count
+    android_bitmap_memory,
+    android_bitmap_count
   ),
   (upid)
 ) AS c
-JOIN _android_bitmap_memory AS abm
+JOIN android_bitmap_memory AS abm
   ON c.id_0 = abm.id
-JOIN _android_bitmap_count AS abc
+JOIN android_bitmap_count AS abc
   ON c.id_1 = abc.id
 JOIN process AS p
   USING (upid);

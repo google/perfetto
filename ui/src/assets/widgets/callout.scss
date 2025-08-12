@@ -12,24 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
-
-@mixin intent_color($color) {
-  color: $color;
-  border-color: lighten($color, 30%);
-  background: lighten($color, 50%);
-}
+@import "../theme";
 
 .pf-callout {
+  @mixin color-theme($base-color) {
+    color: $base-color;
+    background: color-mix(in srgb, $base-color 15%, transparent);
+  }
+
   display: flex;
-  font-family: inherit;
-  font-size: inherit;
   line-height: 1;
-  color: $pf-minimal-foreground;
-  background: rgb(239, 239, 239);
+  background: var(--pf-color-background-secondary);
   border-radius: $pf-border-radius;
   padding: 4px;
-  border: solid lightgray 1px;
+  border: solid 1px color-mix(in srgb, currentColor, transparent 50%);
 
   & > .pf-left-icon {
     font-size: inherit;
@@ -38,18 +34,18 @@
   }
 
   &.pf-intent-primary {
-    @include intent_color($color-primary);
+    @include color-theme(var(--pf-color-accent));
   }
 
   &.pf-intent-danger {
-    @include intent_color($color-danger);
+    @include color-theme(var(--pf-color-danger));
   }
 
   &.pf-intent-success {
-    @include intent_color($color-success);
+    @include color-theme(var(--pf-color-success));
   }
 
   &.pf-intent-warning {
-    @include intent_color($color-warning);
+    @include color-theme(var(--pf-color-warning));
   }
 }

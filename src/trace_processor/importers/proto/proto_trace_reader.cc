@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <numeric>
 #include <optional>
 #include <string>
@@ -31,6 +32,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
@@ -39,8 +41,11 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
@@ -60,12 +65,116 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::trace_processor {
+namespace {
+
+class TracePacketSink
+    : public TraceSorter::Sink<TracePacketData, TracePacketSink> {
+ public:
+  explicit TracePacketSink(ProtoTraceParserImpl* parser) : parser_(parser) {}
+  void Parse(int64_t ts, TracePacketData data) {
+    parser_->ParseTracePacket(ts, std::move(data));
+  }
+
+ private:
+  ProtoTraceParserImpl* parser_;
+};
+class TrackEventSink
+    : public TraceSorter::Sink<TrackEventData, TrackEventSink> {
+ public:
+  explicit TrackEventSink(ProtoTraceParserImpl* parser) : parser_(parser) {}
+  void Parse(int64_t ts, TrackEventData data) {
+    parser_->ParseTrackEvent(ts, std::move(data));
+  }
+
+ private:
+  ProtoTraceParserImpl* parser_;
+};
+class FtraceEventSink
+    : public TraceSorter::Sink<TracePacketData, FtraceEventSink> {
+ public:
+  FtraceEventSink(ProtoTraceParserImpl* parser, uint32_t cpu)
+      : parser_(parser), cpu_(cpu) {}
+  void Parse(int64_t ts, TracePacketData data) {
+    parser_->ParseFtraceEvent(cpu_, ts, std::move(data));
+  }
+
+ private:
+  ProtoTraceParserImpl* parser_;
+  uint32_t cpu_;
+};
+class EtwEventSink : public TraceSorter::Sink<TracePacketData, EtwEventSink> {
+ public:
+  EtwEventSink(ProtoTraceParserImpl* parser, uint32_t cpu)
+      : parser_(parser), cpu_(cpu) {}
+  void Parse(int64_t ts, TracePacketData data) {
+    parser_->ParseEtwEvent(cpu_, ts, std::move(data));
+  }
+
+ private:
+  ProtoTraceParserImpl* parser_;
+  uint32_t cpu_;
+};
+class InlineSchedSwitchSink
+    : public TraceSorter::Sink<InlineSchedSwitch, InlineSchedSwitchSink> {
+ public:
+  explicit InlineSchedSwitchSink(ProtoTraceParserImpl* impl, uint32_t cpu)
+      : impl_(impl), cpu_(cpu) {}
+  void Parse(int64_t ts, InlineSchedSwitch data) {
+    impl_->ParseInlineSchedSwitch(cpu_, ts, data);
+  }
+
+ private:
+  ProtoTraceParserImpl* impl_;
+  uint32_t cpu_;
+};
+class InlineSchedWakingSink
+    : public TraceSorter::Sink<InlineSchedWaking, InlineSchedWakingSink> {
+ public:
+  explicit InlineSchedWakingSink(ProtoTraceParserImpl* impl, uint32_t cpu)
+      : impl_(impl), cpu_(cpu) {}
+  void Parse(int64_t ts, InlineSchedWaking data) {
+    impl_->ParseInlineSchedWaking(cpu_, ts, data);
+  }
+
+ private:
+  ProtoTraceParserImpl* impl_;
+  uint32_t cpu_;
+};
+
+}  // namespace
 
 ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx)
     : context_(ctx),
+      parser_(std::make_unique<ProtoTraceParserImpl>(ctx, &module_context_)),
       skipped_packet_key_id_(ctx->storage->InternString("skipped_packet")),
       invalid_incremental_state_key_id_(
-          ctx->storage->InternString("invalid_incremental_state")) {}
+          ctx->storage->InternString("invalid_incremental_state")) {
+  module_context_.trace_packet_stream = context_->sorter->CreateStream(
+      std::make_unique<TracePacketSink>(parser_.get()));
+  module_context_.track_event_stream = context_->sorter->CreateStream(
+      std::make_unique<TrackEventSink>(parser_.get()));
+  module_context_.ftrace_stream_factory = [this](uint32_t cpu) {
+    return context_->sorter->CreateStream(
+        std::make_unique<FtraceEventSink>(parser_.get(), cpu));
+  };
+  module_context_.etw_stream_factory = [this](uint32_t cpu) {
+    return context_->sorter->CreateStream(
+        std::make_unique<EtwEventSink>(parser_.get(), cpu));
+  };
+  module_context_.inline_sched_switch_stream_factory = [this](uint32_t cpu) {
+    return context_->sorter->CreateStream(
+        std::make_unique<InlineSchedSwitchSink>(parser_.get(), cpu));
+  };
+  module_context_.inline_sched_waking_stream_factory = [this](uint32_t cpu) {
+    return context_->sorter->CreateStream(
+        std::make_unique<InlineSchedWakingSink>(parser_.get(), cpu));
+  };
+  RegisterDefaultModules(&module_context_, context_);
+  if (context_->register_additional_proto_modules) {
+    context_->register_additional_proto_modules(&module_context_, context_);
+  }
+}
+
 ProtoTraceReader::~ProtoTraceReader() = default;
 
 base::Status ProtoTraceReader::Parse(TraceBlobView blob) {
@@ -274,16 +383,9 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
   }
   latest_timestamp_ = std::max(timestamp, latest_timestamp_);
 
-  auto& modules = context_->modules_by_field;
+  auto& modules = module_context_.modules_by_field;
   for (uint32_t field_id = 1; field_id < modules.size(); ++field_id) {
     if (!modules[field_id].empty() && decoder.Get(field_id).valid()) {
-      for (ProtoImporterModule* global_module :
-           context_->modules_for_all_fields) {
-        ModuleResult res = global_module->TokenizePacket(
-            decoder, &packet, timestamp, state->current_generation(), field_id);
-        if (!res.ignored())
-          return res.ToStatus();
-      }
       for (ProtoImporterModule* module : modules[field_id]) {
         ModuleResult res = module->TokenizePacket(
             decoder, &packet, timestamp, state->current_generation(), field_id);
@@ -295,8 +397,9 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
 
   // Use parent data and length because we want to parse this again
   // later to get the exact type of the packet.
-  context_->sorter->PushTracePacket(timestamp, state->current_generation(),
-                                    std::move(packet), context_->machine_id());
+  module_context_.trace_packet_stream->Push(
+      timestamp,
+      TracePacketData{std::move(packet), state->current_generation()});
 
   return base::OkStatus();
 }
@@ -330,7 +433,7 @@ void ProtoTraceReader::HandleIncrementalStateCleared(
   GetIncrementalStateForPacketSequence(
       packet_decoder.trusted_packet_sequence_id())
       ->OnIncrementalStateCleared();
-  for (auto& module : context_->modules) {
+  for (auto& module : module_context_.modules) {
     module->OnIncrementalStateCleared(
         packet_decoder.trusted_packet_sequence_id());
   }
@@ -338,7 +441,7 @@ void ProtoTraceReader::HandleIncrementalStateCleared(
 
 void ProtoTraceReader::HandleFirstPacketOnSequence(
     uint32_t packet_sequence_id) {
-  for (auto& module : context_->modules) {
+  for (auto& module : module_context_.modules) {
     module->OnFirstPacketOnSequence(packet_sequence_id);
   }
 }
@@ -571,9 +674,9 @@ ProtoTraceReader::CalculateClockOffsets(
         continue;
 
       int64_t offset1 =
-          static_cast<int64_t>(t1c + t2c) / 2 - static_cast<int64_t>(t1h);
+          (static_cast<int64_t>(t1c + t2c) / 2) - static_cast<int64_t>(t1h);
       int64_t offset2 =
-          static_cast<int64_t>(t2c) - static_cast<int64_t>(t1h + t2h) / 2;
+          static_cast<int64_t>(t2c) - (static_cast<int64_t>(t1h + t2h) / 2);
 
       // Clock values are taken in the order of t1c, t1h, t2c, t2h. Offset
       // calculation requires at least 3 timestamps as a round trip. We have 4,
@@ -797,6 +900,9 @@ base::Status ProtoTraceReader::NotifyEndOfFile() {
   received_eof_ = true;
   for (auto& packet : eof_deferred_packets_) {
     RETURN_IF_ERROR(TimestampTokenizeAndPushToSorter(std::move(packet)));
+  }
+  for (auto& module : module_context_.modules) {
+    module->NotifyEndOfFile();
   }
   return base::OkStatus();
 }

@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -196,7 +196,7 @@ class ChromeMetrics(TestSuite):
         query=Path('chrome_reliable_range_test.sql'),
         out=Csv("""
         "start","reason","debug_limiting_upid","debug_limiting_utid"
-        1011,"Missing process data for upid=2",2,1
+        1011,"Missing process data for upid=1",1,1
         """))
 
   def test_chrome_reliable_range_missing_browser_main(self):

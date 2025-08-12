@@ -185,7 +185,7 @@ class MetricResultView implements m.ClassComponent<MetricResultAttrs> {
     const result = attrs.result;
 
     if (result === undefined) {
-      return m('pre.metric-error', 'No metric provided');
+      return m('pre.pf-trace-info-page__metric-error', 'No metric provided');
     }
 
     if (result === 'pending') {
@@ -193,7 +193,7 @@ class MetricResultView implements m.ClassComponent<MetricResultAttrs> {
     }
 
     if (!result.ok) {
-      return m('pre.metric-error', `${result.error}`);
+      return m('pre.pf-trace-info-page__metric-error', `${result.error}`);
     }
 
     return m('pre', result.value);
@@ -346,7 +346,7 @@ export class MetricsPage implements m.ClassComponent<MetricsPageAttrs> {
     const v1Controller = assertExists(this.v1Controller);
     const json = v1Controller.resultAsJson;
     return m(
-      '.metrics-page',
+      '.pf-metrics-page',
       m(
         '',
         m(SegmentedButtons, {

@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "theme";
+@import "../theme";
 
 .pf-vega-view {
   border-radius: $pf-border-radius;
-  border: solid 1px $pf-colour-thin-border;
-  color: $pf-minimal-foreground;
+  border: solid 1px var(--pf-color-border);
   position: relative;
 }
 
