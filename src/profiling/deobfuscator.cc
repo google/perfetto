@@ -257,7 +257,7 @@ bool ReadProguardMapsToDeobfuscationPackets(
     std::function<void(std::string)> fn) {
   for (const ProguardMap& map : maps) {
     const char* filename = map.filename.c_str();
-    base::ScopedFstream f(fopen(filename, FOPEN_READ_FLAG));
+    base::ScopedFstream f(fopen(filename, kFopenReadFlag));
     if (!f) {
       PERFETTO_ELOG("Failed to open %s", filename);
       return false;
