@@ -1,0 +1,81 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+.pf-ai-chat-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+
+  &__conversation {
+    flex-grow: 1;
+    overflow-y: scroll;
+    padding: 1rem;
+
+    .pf-ai-chat-message {
+      margin-bottom: 1rem;
+      max-width: 80%;
+      padding: 0.5rem 1rem;
+      border-radius: 12px;
+      line-height: 1.5;
+
+      &--role-label {
+        font-weight: bold;
+        margin-right: 8px;
+        display: block;
+        margin-bottom: 4px;
+      }
+
+      &--ai {
+        background-color: #e1e1e1;
+        align-self: flex-start;
+      }
+
+      &--user {
+        background-color: #007bff;
+        color: white;
+        align-self: flex-end;
+        margin-left: auto;
+      }
+
+      &--error {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      &--thought {
+        background-color: #fff3cd;
+        color: #856404;
+        font-style: italic;
+        font-size: 0.9em;
+      }
+    }
+  }
+
+  &__input-area {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    padding: 1rem 1rem;
+    border-top: 1px solid #ddd;
+    background-color: #ffffff;
+    box-sizing: border-box;
+    gap: 4px;
+
+    .pf-text-input {
+      flex: 1;
+    }
+  }
+}

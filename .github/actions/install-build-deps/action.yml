@@ -93,8 +93,9 @@ runs:
       run: tools/install-build-deps ${{ inputs.install-flags }}
 
     - name: Save buildtools cache (only on main)
-      if: steps.check_if_need_update.outputs.update_cache == 'true'
-#        github.ref == 'refs/heads/main' &&
+      if: |
+        github.ref == 'refs/heads/main' &&
+        steps.check_if_need_update.outputs.update_cache == 'true'
       uses: ./.github/actions/cache-on-google-cloud-storage/save
       with:
         cache_key: ${{ steps.cache_key.outputs.key }}

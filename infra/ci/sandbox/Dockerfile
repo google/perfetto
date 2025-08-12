@@ -148,7 +148,6 @@ RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
 WORKDIR /opt/ci
 
 COPY sandbox_entrypoint.sh ./
-COPY artifacts_uploader.py ./
 COPY tmp/config.py ./
 
 # Download GitHub Actions runner.

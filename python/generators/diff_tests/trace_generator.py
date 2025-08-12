@@ -55,6 +55,7 @@ class TraceGenerator:
         python_trace_path,
         self.trace_descriptor_path,
     ]
+    python_cmd.extend(self.extension_descriptor_paths)
 
     # Add the test dir to the PYTHONPATH to allow synth_common to be found.
     env = os.environ.copy()

@@ -59,6 +59,10 @@ def main():
   parser.add_argument(
       '--no-colors', action='store_true', help='Print without coloring')
   parser.add_argument(
+      '--print-slowest-tests',
+      action='store_true',
+      help='Print the slowest tests')
+  parser.add_argument(
       'trace_processor', type=str, help='location of trace processor binary')
   args = parser.parse_args()
 
@@ -92,13 +96,38 @@ def main():
       test_extensions=args.test_extensions,
       winscope_extensions=args.winscope_extensions,
       keep_input=args.keep_input,
-  )
+      print_slowest_tests=args.print_slowest_tests)
   test_runner = DiffTestsRunner(config)
-  tests = test_runner.test_loader.discover_and_load_tests(
-      ROOT_DIR, config.name_filter)
+  tests = test_runner.test_loader.discover_and_load_tests(config.name_filter)
   sys.stderr.write(f"[==========] Running {len(tests)} tests.\n")
   results = test_runner.run()
   sys.stderr.write(results.str(args.no_colors, len(tests)))
+
+  if args.print_slowest_tests:
+    sys.stderr.write('\n--- Slowest tests ---\n')
+    slowest_total = sorted(
+        results.perf_data,
+        key=lambda p: p.ingest_time_ns + p.real_time_ns,
+        reverse=True)[:5]
+    slowest_query = sorted(
+        results.perf_data, key=lambda p: p.real_time_ns, reverse=True)[:5]
+    slowest_ingest = sorted(
+        results.perf_data, key=lambda p: p.ingest_time_ns, reverse=True)[:5]
+
+    sys.stderr.write('Top 5 by total time:\n')
+    for p in slowest_total:
+      total_ms = (p.ingest_time_ns + p.real_time_ns) / 1000000
+      sys.stderr.write(f'  {p.test.name}: {total_ms:.2f}ms\n')
+
+    sys.stderr.write('Top 5 by query time:\n')
+    for p in slowest_query:
+      query_ms = p.real_time_ns / 1000000
+      sys.stderr.write(f'  {p.test.name}: {query_ms:.2f}ms\n')
+
+    sys.stderr.write('Top 5 by ingest time:\n')
+    for p in slowest_ingest:
+      ingest_ms = p.ingest_time_ns / 1000000
+      sys.stderr.write(f'  {p.test.name}: {ingest_ms:.2f}ms\n')
 
   if len(results.test_failures) > 0:
     return 1

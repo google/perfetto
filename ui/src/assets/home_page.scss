@@ -15,6 +15,7 @@
 @import "theme";
 
 .pf-home-page {
+  height: 100%;
   display: grid;
   align-items: stretch;
   justify-items: center;
@@ -43,12 +44,12 @@
       font-size: 60px;
       margin: 25px;
       text-align: center;
-      font-family: $pf-font;
+      font-family: var(--pf-font-compact);
       color: #333;
     }
 
     .pf-home-page__channel-select {
-      font-family: $pf-font;
+      font-family: var(--pf-font-compact);
       --chan-width: 100px;
       --chan-num: 2;
 
@@ -97,7 +98,7 @@
         z-index: 2;
         text-transform: uppercase;
         font-size: 16px;
-        font-family: $pf-font;
+        font-family: var(--pf-font-compact);
       }
 
       .pf-home-page__highlight {
@@ -133,7 +134,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      font-family: $pf-font;
+      font-family: var(--pf-font-compact);
 
       .pf-hotkey {
         display: inline-flex;
@@ -166,7 +167,7 @@
     grid-area: footer;
     align-self: center;
     text-decoration: none;
-    font-family: $pf-font;
+    font-family: var(--pf-font-compact);
     color: #333;
   }
 } // .pf-home-page

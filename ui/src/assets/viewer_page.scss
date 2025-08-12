@@ -15,6 +15,7 @@
 .pf-viewer-page {
   isolation: isolate;
   overflow: hidden;
+  height: 100%;
 
   &__overview {
     z-index: 3;
@@ -81,7 +82,7 @@
   }
 
   label {
-    font-family: $pf-font;
+    font-family: var(--pf-font-compact);
     text-transform: uppercase;
     font-size: 11px;
   }

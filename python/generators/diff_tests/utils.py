@@ -115,11 +115,12 @@ def serialize_textproto_trace(trace_descriptor_path: str,
 
 
 def serialize_python_trace(root_dir: str, trace_descriptor_path: str,
+                           extension_descriptor_paths: List[str],
                            python_trace_path: str, out_stream: IO[bytes]):
   from python.generators.diff_tests.trace_generator import TraceGenerator
   TraceGenerator(trace_descriptor_path,
-                 []).serialize_python_trace(root_dir, python_trace_path,
-                                            out_stream)
+                 extension_descriptor_paths).serialize_python_trace(
+                     root_dir, python_trace_path, out_stream)
 
 
 def get_trace_descriptor_path(out_path: str, trace_descriptor: str):
@@ -135,12 +136,11 @@ def get_trace_descriptor_path(out_path: str, trace_descriptor: str):
   return trace_descriptor_path
 
 
-def read_all_tests(name_filter: str, root_dir: str,
-                   test_data_dir: str) -> List[models.TestCase]:
+def read_all_tests(name_filter: str,
+                   root_dir: os.PathLike) -> List[models.TestCase]:
   """Reads all diff tests from the given directory."""
   from python.generators.diff_tests.test_loader import TestLoader
-  return TestLoader(test_data_dir).discover_and_load_tests(
-      root_dir, name_filter)
+  return TestLoader(root_dir).discover_and_load_tests(name_filter)
 
 
 def write_diff(expected: str, actual: str) -> str:

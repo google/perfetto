@@ -104,6 +104,7 @@ SELECT AndroidBinderMetric(
             WHERE b.binder_txn_id = android_binder_txns.binder_txn_id
         )
       )
+      ORDER BY client_dur DESC
     )
     FROM android_binder_txns
   )

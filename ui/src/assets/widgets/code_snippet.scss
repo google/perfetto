@@ -12,17 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-note-editor {
-  input[type="text"] {
-    flex-grow: 1;
-    border-radius: 4px;
-    border: 1px solid #dcdcdc;
-    padding: 3px;
-    margin: 0 10px;
+.pf-code-snippet {
+  background-color: var(--pf-color-background-secondary);
+  border: 1px solid var(--pf-color-border);
+  border-radius: 4px;
+  overflow: hidden;
 
-    &:focus {
-      outline: none;
-      box-shadow: 1px 1px 1px rgba(23, 32, 44, 0.3);
-    }
+  .pf-code-snippet-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px;
+    padding-left: 12px;
+    border-bottom: 1px solid var(--pf-color-border);
+  }
+
+  .pf-code-snippet-language {
+    font-size: 0.8em;
+    color: var(--pf-color-text-secondary);
+  }
+
+  pre {
+    margin: 0;
+    padding: 12px;
+    overflow-x: auto;
+    font-size: 0.8em;
   }
 }

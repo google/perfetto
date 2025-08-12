@@ -17,7 +17,7 @@
 .pf-slice-source-label {
   display: flex;
   align-items: center;
-  font-family: "Roboto Condensed", sans-serif;
+  font-family: var(--pf-font-compact);
 
   span {
     display: inline-block;

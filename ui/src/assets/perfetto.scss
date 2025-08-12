@@ -19,7 +19,6 @@
 @import "sidebar";
 @import "topbar";
 @import "details";
-@import "note_editor";
 @import "trace_info_page";
 @import "statusbar";
 @import "cookie_consent";
@@ -39,6 +38,7 @@
 @import "widgets/charts";
 @import "widgets/checkbox";
 @import "widgets/chip";
+@import "widgets/code_snippet";
 @import "widgets/details_shell";
 @import "widgets/editor";
 @import "widgets/empty_state";
@@ -66,6 +66,7 @@
 @import "widgets/stack";
 @import "widgets/switch";
 @import "widgets/tabbed_split_panel";
+@import "widgets/tabs";
 @import "widgets/table";
 @import "widgets/tag_input";
 @import "widgets/text_input";

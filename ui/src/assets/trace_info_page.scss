@@ -36,14 +36,13 @@
     }
 
     &__metric-error {
-      font-family: var(--monospace-font);
+      font-family: var(--pf-font-monospace);
       font-size: 12px;
       padding: 5px;
       word-break: break-all;
     }
 
     h2 {
-      font-family: "Roboto", sans-serif;
       font-weight: 400;
       letter-spacing: 0.25px;
       font-size: 2rem;
@@ -89,7 +88,7 @@
         }
 
         td {
-          font-family: var(--monospace-font);
+          font-family: var(--pf-font-monospace);
           font-size: 12px;
           padding: 5px;
           word-break: break-all;

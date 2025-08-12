@@ -769,7 +769,7 @@ export class UiMainPerTrace implements m.ClassComponent {
           className: 'pf-ui-main__loading',
           state: isSomethingLoading ? 'indeterminate' : 'none',
         }),
-        app.pages.renderPageForCurrentRoute(),
+        m('.pf-ui-main__page-container', app.pages.renderPageForCurrentRoute()),
         m(CookieConsent),
         maybeRenderFullscreenModalDialog(),
         showStatusBarFlag.get() && renderStatusBar(app.trace),

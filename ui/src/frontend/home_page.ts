@@ -68,7 +68,7 @@ export class Hints implements m.ClassComponent {
 export class HomePage implements m.ClassComponent {
   view() {
     return m(
-      '.pf-page.pf-home-page',
+      '.pf-home-page',
       m(
         '.pf-home-page__center',
         m(
