@@ -97,6 +97,7 @@ using StringIdToRankMap =
 using Value = std::variant<Empty,
                            Range,
                            Slab<uint32_t>,
+                           Span<const uint32_t>,
                            Span<uint32_t>,
                            CastFilterValueResult,
                            CastFilterValueListResult,
