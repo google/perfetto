@@ -29,6 +29,11 @@ import {
 } from '../../components/tracks/base_counter_track';
 import {uuidv4} from '../../base/uuid';
 import {ArmTelemetryCpuSpec} from '../../public/cpu_info';
+import {AreaSelection, areaSelectionsEqual} from '../../public/selection';
+import {
+  ArmTelemetryDetailsTab,
+  ArmTelemetryDetailsTabConfigTableDesc,
+} from './details_tab';
 
 type ApplicableMetricDesc = {
   name: string;
@@ -102,6 +107,7 @@ export default class implements PerfettoPlugin {
 
     // Update the metric tracks if possible
     await this.updateMetricTracks();
+    ctx.selection.registerAreaSelectionTab(createArmTelemetryDetailsTab(ctx));
 
     ctx.trash.defer(() => {
       this._ctx = undefined;
@@ -584,4 +590,71 @@ export default class implements PerfettoPlugin {
       }
     }
   }
+}
+
+function createArmTelemetryDetailsTab(trace: Trace) {
+  let previousSelection: undefined | AreaSelection;
+  let detailsTab: undefined | ArmTelemetryDetailsTab;
+
+  return {
+    id: 'arm_telemetry_details_tab',
+    name: 'Arm Telemetry Details Tab',
+    render(selection: AreaSelection) {
+      const changed =
+        previousSelection === undefined ||
+        !areaSelectionsEqual(previousSelection, selection);
+
+      if (changed) {
+        detailsTab = computeArmTelemetryDetailsTab(trace, selection);
+        previousSelection = selection;
+      }
+
+      if (detailsTab === undefined) {
+        return undefined;
+      }
+      return {isLoading: false, content: detailsTab.render()};
+    },
+  };
+}
+
+function computeArmTelemetryDetailsTab(trace: Trace, selection: AreaSelection) {
+  const selectedTables: ArmTelemetryDetailsTabConfigTableDesc[] = [];
+
+  selection.tracks.forEach((track) => {
+    const {cpu, metric} = extractTelemetryTrackDetails(track.uri);
+
+    if (cpu === undefined || metric === undefined) {
+      return;
+    }
+    selectedTables.push({
+      query: `(SELECT * FROM ${metric} WHERE cpu=${cpu})`,
+      name: `Cpu ${cpu} ${metric}`,
+      cpu,
+      metric,
+    });
+  });
+
+  if (selectedTables.length === 0) {
+    return;
+  }
+  const tab = new ArmTelemetryDetailsTab(
+    trace.engine.getProxy('ArmTelemetryDetailsTab'),
+    {
+      tables: selectedTables,
+      start: selection.start,
+      end: selection.end,
+    },
+  );
+  return tab;
+}
+
+function extractTelemetryTrackDetails(track: string): {
+  cpu?: number;
+  metric?: string;
+} {
+  const found = track.match(/arm_telemetry\/([\w_-]*)_([0-9]*)#(.*)/);
+  if (!found || found.length !== 4) {
+    return {};
+  }
+  return {cpu: Number(found[2]), metric: found[1]};
 }
