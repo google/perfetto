@@ -88,7 +88,6 @@ class TrackEventTracker {
     // For merging tracks.
     SiblingMergeBehavior sibling_merge_behavior = SiblingMergeBehavior::kByName;
     StringId sibling_merge_key = kNullStringId;
-    std::optional<int64_t> sibling_merge_key_int;
 
     // Whether |other| is a valid descriptor for this track reservation. A track
     // should always remain nested underneath its original parent.
@@ -101,10 +100,9 @@ class TrackEventTracker {
         return false;
       }
       return std::tie(parent_uuid, pid, tid, is_counter, sibling_merge_behavior,
-                      sibling_merge_key, sibling_merge_key_int) ==
+                      sibling_merge_key) ==
              std::tie(other.parent_uuid, other.pid, other.tid, other.is_counter,
-                      other.sibling_merge_behavior, other.sibling_merge_key,
-                      other.sibling_merge_key_int);
+                      other.sibling_merge_behavior, other.sibling_merge_key);
     }
   };
 

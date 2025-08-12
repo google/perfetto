@@ -90,8 +90,7 @@ constexpr auto kThreadTrackMergedBlueprint = TrackCompressor::SliceBlueprint(
         tracks::kThreadDimensionBlueprint,
         tracks::LongDimensionBlueprint("parent_track_uuid"),
         tracks::UintDimensionBlueprint("merge_key_type"),
-        tracks::StringIdDimensionBlueprint("merge_key_str_value"),
-        tracks::LongDimensionBlueprint("merge_key_int_value")),
+        tracks::StringIdDimensionBlueprint("merge_key_value")),
     tracks::DynamicNameBlueprint());
 
 constexpr auto kProcessTrackMergedBlueprint = TrackCompressor::SliceBlueprint(
@@ -100,8 +99,7 @@ constexpr auto kProcessTrackMergedBlueprint = TrackCompressor::SliceBlueprint(
         tracks::kProcessDimensionBlueprint,
         tracks::LongDimensionBlueprint("parent_track_uuid"),
         tracks::UintDimensionBlueprint("merge_key_type"),
-        tracks::StringIdDimensionBlueprint("merge_key_str_value"),
-        tracks::LongDimensionBlueprint("merge_key_int_value")),
+        tracks::StringIdDimensionBlueprint("merge_key_value")),
     tracks::DynamicNameBlueprint());
 
 constexpr auto kGlobalTrackMergedBlueprint = TrackCompressor::SliceBlueprint(
@@ -109,23 +107,21 @@ constexpr auto kGlobalTrackMergedBlueprint = TrackCompressor::SliceBlueprint(
     tracks::DimensionBlueprints(
         tracks::LongDimensionBlueprint("parent_track_uuid"),
         tracks::UintDimensionBlueprint("merge_key_type"),
-        tracks::StringIdDimensionBlueprint("merge_key_str_value"),
-        tracks::LongDimensionBlueprint("merge_key_int_value")),
+        tracks::StringIdDimensionBlueprint("merge_key_value")),
     tracks::DynamicNameBlueprint());
 
-std::tuple<uint32_t, StringId, uint64_t> GetMergeKey(
+std::pair<uint32_t, StringId> GetMergeKey(
     const TrackEventTracker::DescriptorTrackReservation& reservation,
     StringId name) {
   using S = TrackEventTracker::DescriptorTrackReservation::SiblingMergeBehavior;
   switch (reservation.sibling_merge_behavior) {
     case S::kByKey:
-      return std::make_tuple(
+      return std::make_pair(
           static_cast<uint32_t>(reservation.sibling_merge_behavior),
-          reservation.sibling_merge_key,
-          reservation.sibling_merge_key_int.value_or(0));
+          reservation.sibling_merge_key);
     case S::kByName:
-      return std::make_tuple(
-          static_cast<uint32_t>(reservation.sibling_merge_behavior), name, 0);
+      return std::make_pair(
+          static_cast<uint32_t>(reservation.sibling_merge_behavior), name);
     case S::kNone:
       PERFETTO_FATAL("Unreachable");
   }
@@ -472,12 +468,12 @@ TrackEventTracker::InternDescriptorTrackImpl(
           }
           return id;
         }
-        auto [type, str_key, int_key] = GetMergeKey(*reservation, name);
+        auto [type, key] = GetMergeKey(*reservation, name);
         return context_->track_compressor->CreateTrackFactory(
             kThreadTrackMergedBlueprint,
             tracks::Dimensions(parent_resolved_track->utid(),
                                static_cast<int64_t>(reservation->parent_uuid),
-                               type, str_key, int_key),
+                               type, key),
             tracks::DynamicName(name), args_fn_non_root,
             parent_resolved_track->is_root() ? std::function<void(TrackId)>()
                                              : set_parent_id);
@@ -520,13 +516,12 @@ TrackEventTracker::InternDescriptorTrackImpl(
             set_parent_id(id);
           }
         }
-        auto [type, str_key, int_key] =
-            GetMergeKey(*reservation, translated_name);
+        auto [type, key] = GetMergeKey(*reservation, translated_name);
         return context_->track_compressor->CreateTrackFactory(
             kProcessTrackMergedBlueprint,
             tracks::Dimensions(parent_resolved_track->upid(),
                                static_cast<int64_t>(reservation->parent_uuid),
-                               type, str_key, int_key),
+                               type, key),
             tracks::DynamicName(translated_name), args_fn_non_root,
             parent_resolved_track->is_root() ? std::function<void(TrackId)>()
                                              : set_parent_id);
@@ -557,11 +552,11 @@ TrackEventTracker::InternDescriptorTrackImpl(
     set_parent_id(id);
     return id;
   }
-  auto [type, str_key, int_key] = GetMergeKey(*reservation, name);
+  auto [type, key] = GetMergeKey(*reservation, name);
   return context_->track_compressor->CreateTrackFactory(
       kGlobalTrackMergedBlueprint,
       tracks::Dimensions(static_cast<int64_t>(reservation->parent_uuid), type,
-                         str_key, int_key),
+                         key),
       tracks::DynamicName(name),
       is_root_in_scope ? args_fn_root : args_fn_non_root, set_parent_id);
 }

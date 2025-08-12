@@ -129,8 +129,8 @@ protos::gen::TrackDescriptor NamedTrack::Serialize() const {
   }
   if (sibling_merge_key_) {
     desc.set_sibling_merge_key(sibling_merge_key_);
-  } else if (sibling_merge_key_int_ != 0) {
-    desc.set_sibling_merge_key_int(sibling_merge_key_int_);
+  } else if (sibling_merge_key_int_.has_value()) {
+    desc.set_sibling_merge_key_int(*sibling_merge_key_int_);
   }
   return desc;
 }

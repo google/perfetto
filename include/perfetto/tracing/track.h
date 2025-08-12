@@ -268,13 +268,13 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
     return NamedTrack(
         *this,
         perfetto::protos::gen::TrackDescriptor::SIBLING_MERGE_BEHAVIOR_NONE,
-        nullptr, 0);
+        nullptr, std::nullopt);
   }
   constexpr NamedTrack set_sibling_merge_key(const char* key) {
     return NamedTrack(*this,
                       perfetto::protos::gen::TrackDescriptor::
                           SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY,
-                      key, 0);
+                      key, std::nullopt);
   }
   constexpr NamedTrack set_sibling_merge_key(uint64_t key) {
     return NamedTrack(*this,
@@ -292,13 +292,13 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
       perfetto::protos::gen::TrackDescriptor::SiblingMergeBehavior
           sibling_merge_behavior,
       const char* sibling_merge_key,
-      uint64_t sibling_merge_key_int)
+      std::optional<uint64_t> sibling_merge_key_int)
       : Track(other),
         static_name_(other.static_name_),
         dynamic_name_(other.dynamic_name_),
         sibling_merge_behavior_(sibling_merge_behavior),
         sibling_merge_key_(sibling_merge_key),
-        sibling_merge_key_int_(sibling_merge_key_int) {}
+        sibling_merge_key_int_(std::move(sibling_merge_key_int)) {}
 
   StaticString static_name_;
   DynamicString dynamic_name_;
@@ -306,7 +306,7 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
       sibling_merge_behavior_{perfetto::protos::gen::TrackDescriptor::
                                   SIBLING_MERGE_BEHAVIOR_UNSPECIFIED};
   const char* sibling_merge_key_{nullptr};
-  uint64_t sibling_merge_key_int_ = 0;
+  std::optional<uint64_t> sibling_merge_key_int_ = 0;
 };
 
 // A track for recording counter values with the TRACE_COUNTER macro. Counter
