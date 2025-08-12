@@ -54,7 +54,9 @@ jobs:
 
       - name: Setup ccache
         shell: bash
-        run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
+        run: |
+          bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
+          ccache --zero-stats
 
       - name: Restore cache
         uses: ./.github/actions/cache-on-google-cloud-storage/restore
