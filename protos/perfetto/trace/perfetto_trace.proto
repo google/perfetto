@@ -16550,7 +16550,7 @@ message CounterDescriptor {
 // |TrackEvent::track_uuid|. It is possible but not necessary to emit a
 // TrackDescriptor for this implicit track.
 //
-// Next id: 17.
+// Next id: 18.
 message TrackDescriptor {
   // Unique ID that identifies this track. This ID is global to the whole trace.
   // Producers should ensure that it is unlikely to clash with IDs emitted by
@@ -16848,7 +16848,10 @@ message TrackDescriptor {
   //
   // Only meaningful when `sibling_merge_behavior` is set to
   // `SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY`.
-  optional string sibling_merge_key = 16;
+  oneof sibling_merge_key_field {
+    string sibling_merge_key = 16;
+    uint64 sibling_merge_key_int = 17;
+  }
 }
 
 // End of protos/perfetto/trace/track_event/track_descriptor.proto

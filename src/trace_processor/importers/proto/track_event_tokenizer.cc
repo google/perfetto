@@ -181,6 +181,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
         if (track.has_sibling_merge_key()) {
           reservation.sibling_merge_key =
               context_->storage->InternString(track.sibling_merge_key());
+        } else if (track.has_sibling_merge_key_int()) {
+          reservation.sibling_merge_key_int = track.sibling_merge_key_int();
         }
         break;
     }
