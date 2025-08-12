@@ -118,7 +118,7 @@ StackRange GetSigAltStackRange() {
 // This is why we find the stack base for the main-thread when constructing
 // the client and remember it.
 StackRange GetMainThreadStackRange() {
-  base::ScopedFstream maps(fopen("/proc/self/maps", kFopenReadFlag));
+  base::ScopedFstream maps(fopen("/proc/self/maps", base::kFopenReadFlag));
   if (!maps) {
     return {nullptr, nullptr};
   }
