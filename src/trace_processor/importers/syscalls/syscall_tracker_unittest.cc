@@ -65,7 +65,7 @@ class SyscallTrackerTest : public ::testing::Test {
  public:
   SyscallTrackerTest() {
     context.global_context->storage.reset(new TraceStorage());
-    context.trace_context->global_args_tracker.reset(
+    context.global_context->global_args_tracker.reset(
         new GlobalArgsTracker(context.global_context->storage.get()));
     track_tracker = new TrackTracker(&context);
     context.machine_context->track_tracker.reset(track_tracker);

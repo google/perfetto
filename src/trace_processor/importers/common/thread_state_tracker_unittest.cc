@@ -53,7 +53,7 @@ class ThreadStateTrackerUnittest : public testing::Test {
     context_.machine_context->cpu_tracker.reset(new CpuTracker(&context_));
     context_.machine_context->process_tracker.reset(
         new ProcessTracker(&context_));
-    context_.trace_context->global_args_tracker.reset(
+    context_.global_context->global_args_tracker.reset(
         new GlobalArgsTracker(context_.global_context->storage.get()));
     context_.trace_context->args_tracker.reset(new ArgsTracker(&context_));
     tracker_.reset(new ThreadStateTracker(&context_));

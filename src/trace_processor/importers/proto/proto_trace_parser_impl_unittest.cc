@@ -234,7 +234,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.global_context->storage.reset(storage_);
     context_.machine_context->track_tracker =
         std::make_unique<TrackTracker>(&context_);
-    context_.trace_context->global_args_tracker =
+    context_.global_context->global_args_tracker =
         std::make_unique<GlobalArgsTracker>(
             context_.global_context->storage.get());
     context_.machine_context->mapping_tracker.reset(

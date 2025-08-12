@@ -27,6 +27,7 @@ namespace perfetto::trace_processor {
 class ClockConverter;
 class ClockTracker;
 class DescriptorPool;
+class GlobalArgsTracker;
 class MetadataTracker;
 class MultiMachineTraceManager;
 class TraceReaderRegistry;
@@ -64,6 +65,8 @@ class PerGlobalContext {
   // The sorter is used to sort trace data by timestamp and is shared among
   // multiple machines.
   std::shared_ptr<TraceSorter> sorter;
+
+  std::shared_ptr<GlobalArgsTracker> global_args_tracker;
 
   std::unique_ptr<ClockTracker> clock_tracker;
   std::unique_ptr<ClockConverter> clock_converter;

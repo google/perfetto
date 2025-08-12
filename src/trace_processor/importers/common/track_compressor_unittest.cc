@@ -48,7 +48,7 @@ class TrackCompressorUnittest : public testing::Test {
     context_.global_context->storage = std::make_shared<TraceStorage>();
     context_.machine_context->machine_tracker =
         std::make_unique<MachineTracker>(&context_, 0);
-    context_.trace_context->global_args_tracker =
+    context_.global_context->global_args_tracker =
         std::make_shared<GlobalArgsTracker>(
             context_.global_context->storage.get());
     context_.trace_context->args_tracker =

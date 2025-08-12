@@ -141,7 +141,7 @@ void ArgsTracker::Flush() {
       next_rid_idx++;
     }
 
-    ArgSetId set_id = context_->trace_context->global_args_tracker->AddArgSet(
+    ArgSetId set_id = context_->global_context->global_args_tracker->AddArgSet(
         sorted_args.data(), i, next_rid_idx);
     auto* df = static_cast<dataframe::Dataframe*>(ptr);
     auto n = df->GetNullabilityLegacy(col);

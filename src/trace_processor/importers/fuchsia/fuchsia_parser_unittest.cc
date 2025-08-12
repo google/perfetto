@@ -181,7 +181,7 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     storage_ = context_.global_context->storage.get();
     context_.machine_context->track_tracker =
         std::make_unique<TrackTracker>(&context_);
-    context_.trace_context->global_args_tracker =
+    context_.global_context->global_args_tracker =
         std::make_shared<GlobalArgsTracker>(
             context_.global_context->storage.get());
     context_.trace_context->stack_profile_tracker.reset(

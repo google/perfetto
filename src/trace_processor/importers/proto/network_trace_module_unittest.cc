@@ -70,7 +70,7 @@ class NetworkTraceModuleTest : public testing::Test {
         std::make_unique<SliceTracker>(&context_);
     context_.trace_context->args_tracker =
         std::make_unique<ArgsTracker>(&context_);
-    context_.trace_context->global_args_tracker =
+    context_.global_context->global_args_tracker =
         std::make_unique<GlobalArgsTracker>(storage_);
     context_.trace_context->slice_translation_table =
         std::make_unique<SliceTranslationTable>(storage_);

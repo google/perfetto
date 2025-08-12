@@ -19,6 +19,7 @@
 #include <memory>
 #include "src/trace_processor/importers/common/clock_converter.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/multi_machine_trace_manager.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -36,6 +37,7 @@ PerGlobalContext::PerGlobalContext(const InitArgs& args)
 void PerGlobalContext::Init(TraceProcessorContext* context,
                             bool create_multi_machine_manager) {
   reader_registry = std::make_unique<TraceReaderRegistry>(context);
+  global_args_tracker = std::make_shared<GlobalArgsTracker>(storage.get());
   if (create_multi_machine_manager) {
     multi_machine_trace_manager =
         std::make_unique<MultiMachineTraceManager>(context);

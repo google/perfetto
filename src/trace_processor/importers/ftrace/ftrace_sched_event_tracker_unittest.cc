@@ -42,7 +42,7 @@ class SchedEventTrackerTest : public ::testing::Test {
  public:
   SchedEventTrackerTest() {
     context.global_context->storage = std::make_shared<TraceStorage>();
-    context.trace_context->global_args_tracker =
+    context.global_context->global_args_tracker =
         std::make_unique<GlobalArgsTracker>(
             context.global_context->storage.get());
     context.trace_context->args_tracker =

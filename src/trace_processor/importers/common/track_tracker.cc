@@ -62,8 +62,8 @@ TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
       base::StringView(blueprint.type.data(), blueprint.type.size()));
   if (d_size > 0) {
     row.dimension_arg_set_id =
-        context_->trace_context->global_args_tracker->AddArgSet(d_args, 0,
-                                                                d_size);
+        context_->global_context->global_args_tracker->AddArgSet(d_args, 0,
+                                                                 d_size);
   }
   row.event_type =
       context_->global_context->storage->InternString(blueprint.event_type);

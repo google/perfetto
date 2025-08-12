@@ -50,8 +50,8 @@ std::unique_ptr<TraceProcessorContext> MultiMachineTraceManager::CreateContext(
   // Set up shared member fields:
   // arg_set_id is a monotonically increasing ID.
   // Share |global_args_tracker| between contexts.
-  new_context->trace_context->global_args_tracker =
-      default_context_->trace_context->global_args_tracker;
+  new_context->global_context->global_args_tracker =
+      default_context_->global_context->global_args_tracker;
   new_context->global_context->sorter =
       default_context_->global_context->sorter;
 

@@ -19,7 +19,6 @@
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
-#include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
@@ -36,8 +35,6 @@ PerTraceContext::PerTraceContext(PerTraceContext&&) = default;
 PerTraceContext& PerTraceContext::operator=(PerTraceContext&&) = default;
 
 void PerTraceContext::Init(TraceProcessorContext* context) {
-  global_args_tracker = std::make_shared<GlobalArgsTracker>(
-      context->global_context->storage.get());
   args_tracker = std::make_unique<ArgsTracker>(context);
   args_translation_table = std::make_unique<ArgsTranslationTable>(
       context->global_context->storage.get());

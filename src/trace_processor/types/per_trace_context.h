@@ -26,7 +26,6 @@ class ArgsTracker;
 class ArgsTranslationTable;
 class EventTracker;
 class FlowTracker;
-class GlobalArgsTracker;
 class StackProfileTracker;
 class ProcessTrackTranslationTable;
 class SliceTracker;
@@ -49,7 +48,6 @@ class PerTraceContext {
   // Keep the global tracker before the args tracker as we access the global
   // tracker in the destructor of the args tracker. Also keep it before other
   // trackers, as they may own ArgsTrackers themselves.
-  std::shared_ptr<GlobalArgsTracker> global_args_tracker;
   std::unique_ptr<ArgsTracker> args_tracker;
   std::unique_ptr<ArgsTranslationTable> args_translation_table;
   std::unique_ptr<FlowTracker> flow_tracker;

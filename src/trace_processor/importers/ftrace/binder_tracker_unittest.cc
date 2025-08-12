@@ -39,7 +39,7 @@ class BinderTrackerTest : public ::testing::Test {
  public:
   BinderTrackerTest() {
     context.global_context->storage.reset(new TraceStorage());
-    context.trace_context->global_args_tracker.reset(
+    context.global_context->global_args_tracker.reset(
         new GlobalArgsTracker(context.global_context->storage.get()));
     context.trace_context->args_tracker.reset(new ArgsTracker(&context));
     context.trace_context->args_translation_table.reset(
