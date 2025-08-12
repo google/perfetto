@@ -125,6 +125,9 @@ namespace perfetto::trace_processor::stats {
        "Implausibly large increment to value received from "                   \
        "SuspendControlService. Indicates a transient error in "                \
        "SuspendControlService."),                                              \
+  F(kernel_trackevent_format_error,       kSingle,  kError,    kAnalysis,      \
+       "Ftrace event payloads did not match the format file while being "      \
+       "parsed as kernel track events."),                                      \
   F(app_wakelock_parse_error,             kSingle,  kError,    kAnalysis,      \
        "Parsing packed repeated field. Should never happen."),                 \
   F(app_wakelock_unknown_id,              kSingle,  kError,    kAnalysis,      \
