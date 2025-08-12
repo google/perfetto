@@ -247,6 +247,9 @@ message LayerProto {
 
   // Corner radius explicity set as drawn by client
   optional CornerRadiiProto client_drawn_corner_radii = 63;
+
+  // Priority value of the layer set by the system.
+  optional int32 system_content_priority = 64;
 }
 
 message PositionProto {
