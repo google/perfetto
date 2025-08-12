@@ -588,6 +588,8 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
                                                base::ScopedFile fd) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
+  // Trigger CI build.
+
   // If the producer is specifying a UUID, respect that (at least for the first
   // snapshot). Otherwise generate a new UUID.
   base::Uuid uuid(cfg.trace_uuid_lsb(), cfg.trace_uuid_msb());
