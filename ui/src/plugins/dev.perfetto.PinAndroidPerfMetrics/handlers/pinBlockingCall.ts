@@ -64,7 +64,7 @@ class BlockingCallMetricHandler implements MetricHandler {
     const config = this.blockingCallTrackConfig(metricData);
     addDebugSliceTrack({trace: ctx, ...config});
     // Only trigger adding track for frame when the aggregation is for max duration per frame.
-    if (metricData.aggregation === 'max_dur_per_frame_ns') {
+    if (metricData.aggregation === 'max_dur_per_frame_ns-mean') {
       const frameConfigArgs = await this.frameWithMaxDurBlockingCallTrackConfig(
         ctx,
         metricData,
