@@ -36,7 +36,9 @@ jobs:
 
       - name: Setup ccache
         shell: bash
-        run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
+        run: |
+          bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
+          ccache --zero-stats
 
       - name: Restore cache
         uses: ./.github/actions/cache-on-google-cloud-storage/restore
@@ -53,6 +55,10 @@ jobs:
       - name: Build
         shell: bash
         run: tools/ninja -C out/dist fuzzers
+
+      - name: Print ccache stats
+        shell: bash
+        run: ccache --show-stats --verbose
 
       - name: Run single fuzzer iteration
         shell: bash

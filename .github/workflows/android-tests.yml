@@ -35,7 +35,9 @@ jobs:
 
       - name: Setup ccache
         shell: bash
-        run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
+        run: |
+          bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
+          ccache --zero-stats
 
       - uses: ./.github/actions/install-build-deps
         with:
@@ -61,7 +63,7 @@ jobs:
 
       - name: Print ccache stats
         shell: bash
-        run: ccache --show-stats
+        run: ccache --show-stats --verbose
 
       - name: perfetto_unittests
         shell: bash
