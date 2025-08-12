@@ -67,8 +67,8 @@ export default class implements PerfettoPlugin {
               FROM android_binder_txns
               WHERE client_pid = ${pid}
               AND server_package_version_code IS NULL
-              AND server_process NOT = "system_server"
-              AND server_process NOT = "/system/bin/surfaceflinger"
+              AND server_process != "system_server"
+              AND server_process != "/system/bin/surfaceflinger"
             `,
             columns: ['ts', 'dur', 'name'],
           },
