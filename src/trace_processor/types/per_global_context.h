@@ -45,7 +45,7 @@ class PerGlobalContext {
 
   explicit PerGlobalContext(const InitArgs&);
 
-  void Init(TraceProcessorContext* context);
+  void Init(TraceProcessorContext* context, bool create_multi_machine_manager);
 
   // The default constructor is used in testing.
   PerGlobalContext();

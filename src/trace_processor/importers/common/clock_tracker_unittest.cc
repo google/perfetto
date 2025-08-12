@@ -42,6 +42,8 @@ class ClockTrackerTest : public ::testing::Test {
     context_.global_context->storage.reset(new TraceStorage());
     context_.global_context->metadata_tracker.reset(
         new MetadataTracker(context_.global_context->storage.get()));
+    context_.machine_context->machine_tracker =
+        std::make_unique<MachineTracker>(&context_, 0);
   }
 
   // using ClockId = uint64_t;

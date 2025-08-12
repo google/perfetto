@@ -23,6 +23,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "test/gtest_and_gmock.h"
 
@@ -37,6 +38,8 @@ class ProcessTrackerTest : public ::testing::Test {
  public:
   ProcessTrackerTest() {
     context.global_context->storage = std::make_shared<TraceStorage>();
+    context.machine_context->machine_tracker =
+        std::make_unique<MachineTracker>(&context, 0);
     context.trace_context->global_args_tracker =
         std::make_unique<GlobalArgsTracker>(
             context.global_context->storage.get());

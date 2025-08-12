@@ -46,8 +46,6 @@ class PerTraceContext {
 
   void Init(TraceProcessorContext* context);
 
-  std::unique_ptr<Destructible> content_analyzer;
-
   // Keep the global tracker before the args tracker as we access the global
   // tracker in the destructor of the args tracker. Also keep it before other
   // trackers, as they may own ArgsTrackers themselves.
@@ -73,6 +71,8 @@ class PerTraceContext {
   std::unique_ptr<Destructible> etm_tracker;        // EtmTracker
   std::unique_ptr<Destructible> systrace_parser;    // SystraceParser
   // clang-format on
+
+  std::unique_ptr<Destructible> content_analyzer;
 
   // Marks whether the uuid was read from the trace.
   // If the uuid was NOT read, the uuid will be made from the hash of the first

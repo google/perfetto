@@ -33,10 +33,13 @@ PerGlobalContext::PerGlobalContext(const InitArgs& args)
   descriptor_pool_ = std::make_unique<DescriptorPool>();
 }
 
-void PerGlobalContext::Init(TraceProcessorContext* context) {
+void PerGlobalContext::Init(TraceProcessorContext* context,
+                            bool create_multi_machine_manager) {
   reader_registry = std::make_unique<TraceReaderRegistry>(context);
-  multi_machine_trace_manager =
-      std::make_unique<MultiMachineTraceManager>(context);
+  if (create_multi_machine_manager) {
+    multi_machine_trace_manager =
+        std::make_unique<MultiMachineTraceManager>(context);
+  }
   clock_tracker = std::make_unique<ClockTracker>(context);
   clock_converter = std::make_unique<ClockConverter>(context);
 }
