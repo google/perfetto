@@ -23,7 +23,7 @@ export default class implements PerfettoPlugin {
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
       id: 'com.android.BinderFinder#ShowBindings',
-      name: 'Add track: show binder server slices for a client PID',
+      name: 'Add track: show binder server slices for a client PID (ex system_server, SurfaceFlinger)',
       callback: async (pid) => {
         if (pid === undefined) {
           pid = prompt('Enter a client process pid', '');
@@ -53,6 +53,8 @@ export default class implements PerfettoPlugin {
             columns: ['ts', 'dur', 'name'],
           },
         });
+        // Native binder track excludes System Server and SurfaceFlinger
+        // as they trigger very frequently and make the Native track too noisy
         const nativeTrack = await createQuerySliceTrack({
           trace: ctx,
           uri: trackNativeUri,
@@ -65,8 +67,8 @@ export default class implements PerfettoPlugin {
               FROM android_binder_txns
               WHERE client_pid = ${pid}
               AND server_package_version_code IS NULL
-              AND server_process NOT LIKE "system_server"
-              AND server_process NOT LIKE "/system/bin/surfaceflinger"
+              AND server_process NOT = "system_server"
+              AND server_process NOT = "/system/bin/surfaceflinger"
             `,
             columns: ['ts', 'dur', 'name'],
           },
