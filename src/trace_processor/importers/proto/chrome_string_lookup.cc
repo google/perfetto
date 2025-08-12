@@ -247,38 +247,42 @@ const char* GetThreadNameString(int32_t thread_type,
 ChromeStringLookup::ChromeStringLookup(
     TraceStorage* storage,
     bool ignore_predefined_names_for_testing) {
-  for (int32_t i = chrome_enums::ProcessType_MIN;
-       i <= chrome_enums::ProcessType_MAX; ++i) {
+  for (int32_t type = kProcessTypeMin; type <= kProcessTypeMax; ++type) {
     const char* name =
-        GetProcessNameString(i, ignore_predefined_names_for_testing);
-    chrome_process_name_ids_[i] =
+        GetProcessNameString(type, ignore_predefined_names_for_testing);
+    const auto idx = static_cast<size_t>(type - kProcessTypeMin);
+    chrome_process_name_ids_[idx] =
         name ? storage->InternString(name) : kNullStringId;
   }
 
-  for (int32_t i = chrome_enums::ThreadType_MIN;
-       i <= chrome_enums::ThreadType_MAX; ++i) {
+  for (int32_t type = kThreadTypeMin; type <= kThreadTypeMax; ++type) {
     const char* name =
-        GetThreadNameString(i, ignore_predefined_names_for_testing);
-    chrome_thread_name_ids_[i] =
+        GetThreadNameString(type, ignore_predefined_names_for_testing);
+    const auto idx = static_cast<size_t>(type - kThreadTypeMin);
+    chrome_thread_name_ids_[idx] =
         name ? storage->InternString(name) : kNullStringId;
   }
 }
 
 StringId ChromeStringLookup::GetProcessName(int32_t process_type) const {
-  auto process_name_it = chrome_process_name_ids_.find(process_type);
-  if (process_name_it != chrome_process_name_ids_.end())
-    return process_name_it->second;
-
+  if (process_type >= kProcessTypeMin) {
+    const auto idx = static_cast<size_t>(process_type - kProcessTypeMin);
+    if (idx < chrome_process_name_ids_.size()) {
+      return chrome_process_name_ids_[idx];
+    }
+  }
   PERFETTO_DLOG("GetProcessName error: Unknown Chrome process type %u",
                 process_type);
   return kNullStringId;
 }
 
 StringId ChromeStringLookup::GetThreadName(int32_t thread_type) const {
-  auto thread_name_it = chrome_thread_name_ids_.find(thread_type);
-  if (thread_name_it != chrome_thread_name_ids_.end())
-    return thread_name_it->second;
-
+  if (thread_type >= kThreadTypeMin) {
+    const auto idx = static_cast<size_t>(thread_type - kThreadTypeMin);
+    if (idx < chrome_thread_name_ids_.size()) {
+      return chrome_thread_name_ids_[idx];
+    }
+  }
   PERFETTO_DLOG("GetThreadName error: Unknown Chrome thread type %u",
                 thread_type);
   return kNullStringId;
