@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/fnv_hash.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/types/trace_processor_context.h"

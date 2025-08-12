@@ -35,7 +35,6 @@
 #include "src/trace_processor/sorter/trace_token_buffer.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/bump_allocator.h"
 
 namespace perfetto::trace_processor {
@@ -114,7 +113,7 @@ class TraceSorter {
     kDrop,
   };
 
-  TraceSorter(TraceProcessorContext*,
+  TraceSorter(TraceStorage* storage,
               SortingMode,
               EventHandling = EventHandling::kSortAndPush);
 

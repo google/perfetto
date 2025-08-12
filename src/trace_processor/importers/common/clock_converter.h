@@ -17,26 +17,19 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_CLOCK_CONVERTER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_CLOCK_CONVERTER_H_
 
-#include <stdint.h>
-
-#include <array>
-#include <cinttypes>
+#include <cstdint>
 #include <map>
-#include <random>
-#include <set>
-#include <vector>
+#include <string>
 
-#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Used for conversion to REAL and MONO clocks for provided timestamps. Can only
 // be used after trace parsing. Only works if there has been at least one
@@ -46,7 +39,7 @@ class ClockConverter {
   using ClockId = int64_t;
   using Timestamp = int64_t;
 
-  explicit ClockConverter(TraceProcessorContext*);
+  explicit ClockConverter(TraceStorage*);
 
   // Converts trace time to REAL clock as string.
   base::StatusOr<std::string> ToAbsTime(Timestamp ts) {
@@ -85,12 +78,11 @@ class ClockConverter {
   // Converts timestamp to string.
   std::string TimeToStr(Timestamp);
 
-  TraceProcessorContext* context_;
+  TraceStorage* storage_;
   bool is_initialized = false;
   base::FlatHashMap<ClockId, Timeline> timelines_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_CLOCK_CONVERTER_H_

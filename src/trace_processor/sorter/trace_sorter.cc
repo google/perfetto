@@ -27,16 +27,17 @@
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/sorter/trace_token_buffer.h"
 #include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/bump_allocator.h"
 
 namespace perfetto::trace_processor {
 
-TraceSorter::TraceSorter(TraceProcessorContext* context,
+TraceSorter::TraceSorter(TraceStorage* storage,
                          SortingMode sorting_mode,
                          EventHandling event_handling)
     : sorting_mode_(sorting_mode),
-      storage_(context->storage),
+      storage_(storage),
       event_handling_(event_handling) {}
 
 TraceSorter::~TraceSorter() {

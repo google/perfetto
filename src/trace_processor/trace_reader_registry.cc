@@ -29,6 +29,7 @@
 
 namespace perfetto::trace_processor {
 namespace {
+
 const char kNoZlibErr[] =
     "Cannot open compressed trace. zlib not enabled in the build config";
 
@@ -68,16 +69,15 @@ void TraceReaderRegistry::RegisterFactory(TraceType trace_type,
 }
 
 base::StatusOr<std::unique_ptr<ChunkedTraceReader>>
-TraceReaderRegistry::CreateTraceReader(TraceType type) {
+TraceReaderRegistry::CreateTraceReader(TraceType type,
+                                       TraceProcessorContext* context) {
   if (auto* it = factories_.Find(type); it) {
-    return (*it)(context_);
+    return (*it)(context);
   }
-
   if (RequiresZlibSupport(type) && !util::IsGzipSupported()) {
     return base::ErrStatus("%s support is disabled. %s",
                            TraceTypeToString(type), kNoZlibErr);
   }
-
   return base::ErrStatus("%s support is disabled", TraceTypeToString(type));
 }
 

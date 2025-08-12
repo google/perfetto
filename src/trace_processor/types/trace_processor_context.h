@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
@@ -76,38 +77,38 @@ class TraceProcessorContext {
   Config config;
 
   // |storage| is shared among multiple contexts in multi-machine tracing.
-  std::shared_ptr<TraceStorage> storage;
+  TraceStorage* storage;
 
-  std::unique_ptr<TraceReaderRegistry> reader_registry;
+  TraceReaderRegistry* reader_registry;
 
   // The sorter is used to sort trace data by timestamp and is shared among
   // multiple machines.
-  std::shared_ptr<TraceSorter> sorter;
+  TraceSorter* sorter;
 
   // Keep the global tracker before the args tracker as we access the global
   // tracker in the destructor of the args tracker. Also keep it before other
   // trackers, as they may own ArgsTrackers themselves.
-  std::shared_ptr<GlobalArgsTracker> global_args_tracker;
-  std::unique_ptr<ArgsTracker> args_tracker;
-  std::unique_ptr<ArgsTranslationTable> args_translation_table;
+  GlobalArgsTracker* global_args_tracker;
+  ArgsTracker* args_tracker;
+  ArgsTranslationTable* args_translation_table;
 
-  std::unique_ptr<TrackTracker> track_tracker;
-  std::unique_ptr<TrackCompressor> track_compressor;
-  std::unique_ptr<SliceTracker> slice_tracker;
-  std::unique_ptr<SliceTranslationTable> slice_translation_table;
-  std::unique_ptr<FlowTracker> flow_tracker;
-  std::unique_ptr<ProcessTracker> process_tracker;
-  std::unique_ptr<ProcessTrackTranslationTable> process_track_translation_table;
-  std::unique_ptr<EventTracker> event_tracker;
-  std::unique_ptr<SchedEventTracker> sched_event_tracker;
-  std::unique_ptr<ClockTracker> clock_tracker;
-  std::unique_ptr<ClockConverter> clock_converter;
-  std::unique_ptr<MappingTracker> mapping_tracker;
-  std::unique_ptr<MachineTracker> machine_tracker;
-  std::unique_ptr<StackProfileTracker> stack_profile_tracker;
-  std::unique_ptr<MetadataTracker> metadata_tracker;
-  std::unique_ptr<CpuTracker> cpu_tracker;
-  std::unique_ptr<TraceFileTracker> trace_file_tracker;
+  TrackTracker* track_tracker;
+  TrackCompressor* track_compressor;
+  SliceTracker* slice_tracker;
+  SliceTranslationTable* slice_translation_table;
+  FlowTracker* flow_tracker;
+  ProcessTracker* process_tracker;
+  ProcessTrackTranslationTable* process_track_translation_table;
+  EventTracker* event_tracker;
+  SchedEventTracker* sched_event_tracker;
+  ClockTracker* clock_tracker;
+  ClockConverter* clock_converter;
+  MappingTracker* mapping_tracker;
+  MachineTracker* machine_tracker;
+  StackProfileTracker* stack_profile_tracker;
+  MetadataTracker* metadata_tracker;
+  CpuTracker* cpu_tracker;
+  TraceFileTracker* trace_file_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass
@@ -115,24 +116,24 @@ class TraceProcessorContext {
   // the GetOrCreate() method on their subclass type, e.g.
   // SyscallTracker::GetOrCreate(context)
   // clang-format off
-  std::unique_ptr<Destructible> binder_tracker;                         // BinderTracker
-  std::unique_ptr<Destructible> heap_graph_tracker;                     // HeapGraphTracker
-  std::unique_ptr<Destructible> syscall_tracker;                        // SyscallTracker
-  std::unique_ptr<Destructible> system_info_tracker;                    // SystemInfoTracker
-  std::unique_ptr<Destructible> systrace_parser;                        // SystraceParser
-  std::unique_ptr<Destructible> thread_state_tracker;                   // ThreadStateTracker
-  std::unique_ptr<Destructible> ftrace_sched_tracker;                   // FtraceSchedEventTracker
-  std::unique_ptr<Destructible> perf_tracker;                           // PerfTracker
-  std::unique_ptr<Destructible> etm_tracker;                            // EtmTracker
-  std::unique_ptr<Destructible> elf_tracker;                            // ElfTracker
-  std::unique_ptr<Destructible> file_tracker;                           // FileTracker
+  Destructible* binder_tracker;                         // BinderTracker
+  Destructible* heap_graph_tracker;                     // HeapGraphTracker
+  Destructible* syscall_tracker;                        // SyscallTracker
+  Destructible* system_info_tracker;                    // SystemInfoTracker
+  Destructible* systrace_parser;                        // SystraceParser
+  Destructible* thread_state_tracker;                   // ThreadStateTracker
+  Destructible* ftrace_sched_tracker;                   // FtraceSchedEventTracker
+  Destructible* perf_tracker;                           // PerfTracker
+  Destructible* etm_tracker;                            // EtmTracker
+  Destructible* elf_tracker;                            // ElfTracker
+  Destructible* file_tracker;                           // FileTracker
   // clang-format on
 
-  std::unique_ptr<Destructible> content_analyzer;
+  Destructible* content_analyzer;
 
   // This field contains the list of proto descriptors that can be used by
   // reflection-based parsers.
-  std::unique_ptr<DescriptorPool> descriptor_pool_;
+  DescriptorPool* descriptor_pool_;
 
   // Marks whether the uuid was read from the trace.
   // If the uuid was NOT read, the uuid will be made from the hash of the first
@@ -142,7 +143,7 @@ class TraceProcessorContext {
   std::optional<MachineId> machine_id() const;
 
   // Manages the contexts for reading trace data emitted from remote machines.
-  std::unique_ptr<MultiMachineTraceManager> multi_machine_trace_manager;
+  MultiMachineTraceManager* multi_machine_trace_manager;
 
   // The registration function for additional proto modules.
   // This is populated by TraceProcessorImpl to allow for late registration of
@@ -150,6 +151,103 @@ class TraceProcessorContext {
   using RegisterAdditionalProtoModulesFn = void(ProtoImporterModuleContext*,
                                                 TraceProcessorContext*);
   RegisterAdditionalProtoModulesFn* register_additional_proto_modules = nullptr;
+};
+
+class GlobalContext;
+class PerMachineContext;
+class PerTraceContext;
+
+class PerTraceMachineContext {
+  GlobalContext* global;
+  PerMachineContext* per_machine;
+  PerTraceContext* per_trace;
+
+  std::unique_ptr<ArgsTracker> args_tracker;
+  std::unique_ptr<ArgsTranslationTable> args_translation_table;
+  std::unique_ptr<TrackTracker> track_tracker;
+  std::unique_ptr<TrackCompressor> track_compressor;
+  std::unique_ptr<SliceTracker> slice_tracker;
+
+  std::unique_ptr<SliceTranslationTable> slice_translation_table;
+  std::unique_ptr<ProcessTrackTranslationTable> process_track_translation_table;
+  std::unique_ptr<EventTracker> event_tracker;
+  std::unique_ptr<SchedEventTracker> sched_event_tracker;
+  std::unique_ptr<StackProfileTracker> stack_profile_tracker;
+
+  // TODO(lalitm): this is very close to being global but has a subtle
+  // dependency on ArgsTracker: once this is broken, we can move this.
+  std::unique_ptr<FlowTracker> flow_tracker;
+
+  std::unique_ptr<Destructible> etm_tracker;           // EtmTracker
+  std::unique_ptr<Destructible> elf_tracker;           // ElfTracker
+  std::unique_ptr<Destructible> binder_tracker;        // BinderTracker
+  std::unique_ptr<Destructible> heap_graph_tracker;    // HeapGraphTracker
+  std::unique_ptr<Destructible> syscall_tracker;       // SyscallTracker
+  std::unique_ptr<Destructible> systrace_parser;       // SystraceParser
+  std::unique_ptr<Destructible> thread_state_tracker;  // ThreadStateTracker
+  std::unique_ptr<Destructible>
+      ftrace_sched_tracker;                    // FtraceSchedEventTracker
+  std::unique_ptr<Destructible> perf_tracker;  // PerfTracker
+};
+
+class PerMachineContext {
+  GlobalContext* global;
+
+  // TODO(lalitm): this actually needs to be split into two classes (one which
+  // will be global and one which is per-machine for the purposes of machine
+  // offset conversion).
+  std::unique_ptr<ClockTracker> clock_tracker;
+
+  std::unique_ptr<CpuTracker> cpu_tracker;
+  std::unique_ptr<MappingTracker> mapping_tracker;
+  std::unique_ptr<MachineTracker> machine_tracker;
+  std::unique_ptr<ProcessTracker> process_tracker;
+
+  std::unique_ptr<Destructible> file_tracker;         // FileTracker
+  std::unique_ptr<Destructible> system_info_tracker;  // SystemInfoTracker
+};
+
+class PerTraceContext {
+  GlobalContext* global;
+
+  // TODO(lalitm): content analyser is *not* multi trace-aware even though it
+  // should be.
+  std::unique_ptr<Destructible> content_analyzer;  // ProtoContentAnalyzer
+};
+
+class GlobalContext {
+  // Zero-dependency code. Can be initialized without any other code in
+  // trace processor.
+  std::unique_ptr<TraceStorage> storage;
+  std::unique_ptr<DescriptorPool> descriptor_pool;
+
+  // TODO(lalitm): once modularization is a thing, make this more generic.
+  using RegisterAdditionalProtoModulesFn = void(ProtoImporterModuleContext*,
+                                                TraceProcessorContext*);
+  RegisterAdditionalProtoModulesFn* register_additional_proto_modules = nullptr;
+
+  // Just depend on the above zero-depenency classes and nothing else.
+  std::unique_ptr<TraceReaderRegistry> reader_registry;
+  std::unique_ptr<TraceSorter> sorter;
+  std::unique_ptr<GlobalArgsTracker> global_args_tracker;
+  std::unique_ptr<ClockConverter> clock_converter;
+
+  // TODO(lalitm): this is global for now but we need to split this into two:
+  // one which is per-trace and one which is global (and potentially others
+  // which are per-machine as well).
+  std::unique_ptr<MetadataTracker> metadata_tracker;
+
+  // Depends on zero depency classes and also MetadataTracker.
+  std::unique_ptr<TraceFileTracker> trace_file_tracker;
+
+  // TODO(lalitm): this is global for legacy reasons, needs to be moved to
+  // PerTraceContext.
+  bool uuid_found_in_trace = false;
+
+  // Owner of all "scoped" structs to avoid circular dependency problems.
+  std::vector<std::unique_ptr<PerTraceContext>> trace_contexts_;
+  std::vector<std::unique_ptr<PerMachineContext>> machine_contexts_;
+  std::vector<std::unique_ptr<PerTraceMachineContext>> trace_machine_contexts_;
 };
 
 }  // namespace perfetto::trace_processor

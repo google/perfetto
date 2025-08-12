@@ -19,22 +19,19 @@
 #include <time.h>
 
 #include <algorithm>
-#include <atomic>
 #include <cinttypes>
-#include <queue>
+#include <cstdint>
+#include <string>
 
-#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-#include "protos/perfetto/common/builtin_clock.pbzero.h"
-#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
+namespace perfetto::trace_processor {
 
-namespace perfetto {
-namespace trace_processor {
-
-ClockConverter::ClockConverter(TraceProcessorContext* context)
-    : context_(context) {}
+ClockConverter::ClockConverter(TraceStorage* storage) : storage_(storage) {}
 
 void ClockConverter::MaybeInitialize() {
   if (is_initialized)
@@ -43,8 +40,7 @@ void ClockConverter::MaybeInitialize() {
   is_initialized = true;
   timelines_.Insert(kRealClock, {});
   timelines_.Insert(kMonoClock, {});
-  for (auto it = context_->storage->clock_snapshot_table().IterateRows(); it;
-       ++it) {
+  for (auto it = storage_->clock_snapshot_table().IterateRows(); it; ++it) {
     if (it.clock_id() == kRealClock || it.clock_id() == kMonoClock)
       timelines_.Find(it.clock_id())->emplace(it.ts(), it.clock_value());
   }
@@ -111,5 +107,4 @@ std::string ClockConverter::TimeToStr(Timestamp ts) {
   return buf.ToStdString();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
