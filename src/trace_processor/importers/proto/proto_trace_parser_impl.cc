@@ -62,16 +62,20 @@ ProtoTraceParserImpl::ProtoTraceParserImpl(
     ProtoImporterModuleContext* module_context)
     : context_(context),
       module_context_(module_context),
-      metatrace_id_(context->storage->InternString("metatrace")),
-      data_name_id_(context->storage->InternString("data")),
+      metatrace_id_(
+          context->global_context->storage->InternString("metatrace")),
+      data_name_id_(context->global_context->storage->InternString("data")),
       raw_chrome_metadata_event_id_(
-          context->storage->InternString("chrome_event.metadata")),
+          context->global_context->storage->InternString(
+              "chrome_event.metadata")),
       raw_chrome_legacy_system_trace_event_id_(
-          context->storage->InternString("chrome_event.legacy_system_trace")),
+          context->global_context->storage->InternString(
+              "chrome_event.legacy_system_trace")),
       raw_chrome_legacy_user_trace_event_id_(
-          context->storage->InternString("chrome_event.legacy_user_trace")),
+          context->global_context->storage->InternString(
+              "chrome_event.legacy_user_trace")),
       missing_metatrace_interned_string_id_(
-          context->storage->InternString("MISSING STRING")) {}
+          context->global_context->storage->InternString("MISSING STRING")) {}
 
 ProtoTraceParserImpl::~ProtoTraceParserImpl() = default;
 
@@ -109,7 +113,7 @@ void ProtoTraceParserImpl::ParseTrackEvent(int64_t ts, TrackEventData data) {
   const TraceBlobView& blob = data.trace_packet_data.packet;
   protos::pbzero::TracePacket::Decoder packet(blob.data(), blob.length());
   module_context_->track_module->ParseTrackEventData(packet, ts, data);
-  context_->args_tracker->Flush();
+  context_->trace_context->args_tracker->Flush();
 }
 
 void ProtoTraceParserImpl::ParseEtwEvent(uint32_t cpu,
@@ -121,7 +125,7 @@ void ProtoTraceParserImpl::ParseEtwEvent(uint32_t cpu,
   // TODO(lalitm): maybe move this to the flush method in the trace processor
   // once we have it. This may reduce performance in the ArgsTracker though so
   // needs to be handled carefully.
-  context_->args_tracker->Flush();
+  context_->trace_context->args_tracker->Flush();
 }
 
 void ProtoTraceParserImpl::ParseFtraceEvent(uint32_t cpu,
@@ -133,7 +137,7 @@ void ProtoTraceParserImpl::ParseFtraceEvent(uint32_t cpu,
   // TODO(lalitm): maybe move this to the flush method in the trace processor
   // once we have it. This may reduce performance in the ArgsTracker though so
   // needs to be handled carefully.
-  context_->args_tracker->Flush();
+  context_->trace_context->args_tracker->Flush();
 }
 
 void ProtoTraceParserImpl::ParseInlineSchedSwitch(uint32_t cpu,
@@ -145,7 +149,7 @@ void ProtoTraceParserImpl::ParseInlineSchedSwitch(uint32_t cpu,
   // TODO(lalitm): maybe move this to the flush method in the trace processor
   // once we have it. This may reduce performance in the ArgsTracker though so
   // needs to be handled carefully.
-  context_->args_tracker->Flush();
+  context_->trace_context->args_tracker->Flush();
 }
 
 void ProtoTraceParserImpl::ParseInlineSchedWaking(uint32_t cpu,
@@ -157,11 +161,11 @@ void ProtoTraceParserImpl::ParseInlineSchedWaking(uint32_t cpu,
   // TODO(lalitm): maybe move this to the flush method in the trace processor
   // once we have it. This may reduce performance in the ArgsTracker though so
   // needs to be handled carefully.
-  context_->args_tracker->Flush();
+  context_->trace_context->args_tracker->Flush();
 }
 
 void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
-  TraceStorage* storage = context_->storage.get();
+  TraceStorage* storage = context_->global_context->storage.get();
   protos::pbzero::ChromeEventBundle::Decoder bundle(blob);
   ArgsTracker args(context_);
   if (bundle.has_metadata()) {
@@ -171,8 +175,8 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
             .id;
     auto inserter = args.AddArgsTo(id);
 
-    uint32_t bundle_index =
-        context_->metadata_tracker->IncrementChromeMetadataBundleCount();
+    uint32_t bundle_index = context_->global_context->metadata_tracker
+                                ->IncrementChromeMetadataBundleCount();
 
     // The legacy untyped metadata is proxied via a special event in the raw
     // table to JSON export.
@@ -189,7 +193,8 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
       } else if (metadata.has_json_value()) {
         value = Variadic::Json(storage->InternString(metadata.json_value()));
       } else {
-        context_->storage->IncrementStats(stats::empty_chrome_metadata);
+        context_->global_context->storage->IncrementStats(
+            stats::empty_chrome_metadata);
         continue;
       }
 
@@ -208,7 +213,8 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
       writer.AppendString(metadata.name());
 
       auto metadata_id = storage->InternString(writer.GetStringView());
-      context_->metadata_tracker->SetDynamicMetadata(metadata_id, value);
+      context_->global_context->metadata_tracker->SetDynamicMetadata(
+          metadata_id, value);
     }
   }
 
@@ -247,15 +253,16 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
 
 void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
   protos::pbzero::PerfettoMetatrace::Decoder event(blob);
-  auto utid = context_->process_tracker->GetOrCreateThread(event.thread_id());
+  auto utid = context_->machine_context->process_tracker->GetOrCreateThread(
+      event.thread_id());
 
   StringId cat_id = metatrace_id_;
   for (auto it = event.interned_strings(); it; ++it) {
     protos::pbzero::PerfettoMetatrace::InternedString::Decoder interned_string(
         it->data(), it->size());
     metatrace_interned_strings_.Insert(
-        interned_string.iid(),
-        context_->storage->InternString(interned_string.value()));
+        interned_string.iid(), context_->global_context->storage->InternString(
+                                   interned_string.value()));
   }
 
   // This function inserts the args from the proto into the args table.
@@ -272,13 +279,14 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
       if (arg_proto.has_key_iid()) {
         key = GetMetatraceInternedString(arg_proto.key_iid());
       } else {
-        key = context_->storage->InternString(arg_proto.key());
+        key = context_->global_context->storage->InternString(arg_proto.key());
       }
       StringId value;
       if (arg_proto.has_value_iid()) {
         value = GetMetatraceInternedString(arg_proto.value_iid());
       } else {
-        value = context_->storage->InternString(arg_proto.value());
+        value =
+            context_->global_context->storage->InternString(arg_proto.value());
       }
       interned.emplace_back(key, value);
     }
@@ -303,7 +311,8 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
         inserter->AddArg(key, Variadic::String(it->second));
       } else {
         constexpr size_t kMaxIndexSize = 20;
-        NullTermStringView key_str = context_->storage->GetString(key);
+        NullTermStringView key_str =
+            context_->global_context->storage->GetString(key);
         if (key_str.size() >= sizeof(buffer) - kMaxIndexSize) {
           PERFETTO_DLOG("Ignoring arg with unreasonbly large size");
           continue;
@@ -311,8 +320,8 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
 
         base::StackString<2048> array_key("%s[%u]", key_str.c_str(),
                                           current_idx);
-        StringId new_key =
-            context_->storage->InternString(array_key.string_view());
+        StringId new_key = context_->global_context->storage->InternString(
+            array_key.string_view());
         inserter->AddArg(key, new_key, Variadic::String(it->second));
 
         current_idx = key == next_key ? current_idx + 1 : 0;
@@ -326,18 +335,22 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
     if (event.has_event_id()) {
       auto eid = event.event_id();
       if (eid < metatrace::EVENTS_MAX) {
-        name_id = context_->storage->InternString(metatrace::kEventNames[eid]);
+        name_id = context_->global_context->storage->InternString(
+            metatrace::kEventNames[eid]);
       } else {
         base::StackString<64> fallback("Event %u", eid);
-        name_id = context_->storage->InternString(fallback.string_view());
+        name_id = context_->global_context->storage->InternString(
+            fallback.string_view());
       }
     } else if (event.has_event_name_iid()) {
       name_id = GetMetatraceInternedString(event.event_name_iid());
     } else {
-      name_id = context_->storage->InternString(event.event_name());
+      name_id =
+          context_->global_context->storage->InternString(event.event_name());
     }
-    TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-    context_->slice_tracker->Scoped(
+    TrackId track_id =
+        context_->machine_context->track_tracker->InternThreadTrack(utid);
+    context_->trace_context->slice_tracker->Scoped(
         ts, track_id, cat_id, name_id,
         static_cast<int64_t>(event.event_duration_ns()), args_fn);
   } else if (event.has_counter_id() || event.has_counter_name()) {
@@ -352,32 +365,35 @@ void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
       auto cid = event.counter_id();
       StringId name_id;
       if (cid < metatrace::COUNTERS_MAX) {
-        name_id =
-            context_->storage->InternString(metatrace::kCounterNames[cid]);
+        name_id = context_->global_context->storage->InternString(
+            metatrace::kCounterNames[cid]);
       } else {
         base::StackString<64> fallback("Counter %u", cid);
-        name_id = context_->storage->InternString(fallback.string_view());
+        name_id = context_->global_context->storage->InternString(
+            fallback.string_view());
       }
-      track = context_->track_tracker->InternTrack(
+      track = context_->machine_context->track_tracker->InternTrack(
           kBlueprint,
-          tracks::Dimensions(utid, context_->storage->GetString(name_id)),
+          tracks::Dimensions(
+              utid, context_->global_context->storage->GetString(name_id)),
           tracks::DynamicName(name_id));
     } else {
-      track = context_->track_tracker->InternTrack(
+      track = context_->machine_context->track_tracker->InternTrack(
           kBlueprint, tracks::Dimensions(utid, event.counter_name()),
-          tracks::DynamicName(
-              context_->storage->InternString(event.counter_name())));
+          tracks::DynamicName(context_->global_context->storage->InternString(
+              event.counter_name())));
     }
-    auto opt_id =
-        context_->event_tracker->PushCounter(ts, event.counter_value(), track);
+    auto opt_id = context_->trace_context->event_tracker->PushCounter(
+        ts, event.counter_value(), track);
     if (opt_id) {
-      auto inserter = context_->args_tracker->AddArgsTo(*opt_id);
+      auto inserter = context_->trace_context->args_tracker->AddArgsTo(*opt_id);
       args_fn(&inserter);
     }
   }
 
   if (event.has_overruns())
-    context_->storage->IncrementStats(stats::metatrace_overruns);
+    context_->global_context->storage->IncrementStats(
+        stats::metatrace_overruns);
 }
 
 StringId ProtoTraceParserImpl::GetMetatraceInternedString(uint64_t iid) {

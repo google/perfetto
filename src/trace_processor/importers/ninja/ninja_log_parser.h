@@ -26,7 +26,7 @@
 
 namespace perfetto::trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 // This class parses Ninja's (the build system, ninja-build.org) build logs and
 // turns them into traces. A ninja log typically contains the logs of >1 ninja

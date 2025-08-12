@@ -36,7 +36,9 @@ WinscopeTransformTracker::GetOrInsertRow(geometry::TransformMatrix& matrix) {
   row.tx = matrix.tx;
   row.ty = matrix.ty;
   auto id =
-      context_->storage->mutable_winscope_transform_table()->Insert(row).id;
+      context_->global_context->storage->mutable_winscope_transform_table()
+          ->Insert(row)
+          .id;
 
   return *rows_.Insert(matrix, id).first;
 }

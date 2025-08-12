@@ -34,12 +34,13 @@ namespace trace_processor {
 ShellTransitionsParser::ShellTransitionsParser(
     winscope::WinscopeContext* context)
     : context_(context),
-      args_parser_{*context->trace_processor_context_->descriptor_pool_} {}
+      args_parser_{*context->trace_processor_context_->global_context
+                        ->descriptor_pool_} {}
 
 void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   protos::pbzero::ShellTransition::Decoder transition(blob);
 
-  auto storage = context_->trace_processor_context_->storage;
+  auto storage = context_->trace_processor_context_->global_context->storage;
 
   // Store the raw proto and its ID in a separate table to handle
   // transitions received over multiple packets for Winscope trace search.
@@ -158,7 +159,7 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
 }
 
 void ShellTransitionsParser::ParseHandlerMappings(protozero::ConstBytes blob) {
-  auto storage = context_->trace_processor_context_->storage;
+  auto storage = context_->trace_processor_context_->global_context->storage;
 
   auto* shell_handlers_table =
       storage->mutable_window_manager_shell_transition_handlers_table();

@@ -71,15 +71,17 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
   constexpr int64_t kTimestamp = 1;
 
   TraceProcessorContext context;
-  context.storage = std::make_shared<TraceStorage>();
-  context.process_tracker = std::make_unique<ProcessTracker>(&context);
-  context.process_tracker->GetOrCreateProcess(kPid);
+  context.global_context->storage = std::make_shared<TraceStorage>();
+  context.machine_context->process_tracker =
+      std::make_unique<ProcessTracker>(&context);
+  context.machine_context->process_tracker->GetOrCreateProcess(kPid);
 
-  HeapGraphTracker tracker(context.storage.get());
+  HeapGraphTracker tracker(context.global_context->storage.get());
 
   constexpr uint64_t kLocation = 0;
-  tracker.AddInternedLocationName(kSeqId, kLocation,
-                                  context.storage->InternString("location"));
+  tracker.AddInternedLocationName(
+      kSeqId, kLocation,
+      context.global_context->storage->InternString("location"));
 
   enum Fields : uint8_t { kReferent = 1, kThunk, kThis0, kNext };
 
@@ -100,36 +102,38 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
 
   tracker.AddInternedType(
       kSeqId, kTypeBitmap,
-      context.storage->InternString("android.graphics.Bitmap"), kLocation,
+      context.global_context->storage->InternString("android.graphics.Bitmap"),
+      kLocation,
       /*object_size=*/0,
       /*field_name_ids=*/{}, /*superclass_id=*/0,
       /*classloader_id=*/0, /*no_fields=*/false,
       protos::pbzero::HeapGraphType::KIND_NORMAL);
 
-  tracker.AddInternedType(kSeqId, kTypeCleaner,
-                          context.storage->InternString("sun.misc.Cleaner"),
-                          kLocation, /*object_size=*/0,
-                          /*field_name_ids=*/{kReferent, kThunk, kNext},
-                          /*superclass_id=*/0,
-                          /*classloader_id=*/0, /*no_fields=*/false,
-                          protos::pbzero::HeapGraphType::KIND_NORMAL);
+  tracker.AddInternedType(
+      kSeqId, kTypeCleaner,
+      context.global_context->storage->InternString("sun.misc.Cleaner"),
+      kLocation, /*object_size=*/0,
+      /*field_name_ids=*/{kReferent, kThunk, kNext},
+      /*superclass_id=*/0,
+      /*classloader_id=*/0, /*no_fields=*/false,
+      protos::pbzero::HeapGraphType::KIND_NORMAL);
 
   tracker.AddInternedType(
       kSeqId, kTypeCleanerThunk,
-      context.storage->InternString(
+      context.global_context->storage->InternString(
           "libcore.util.NativeAllocationRegistry$CleanerThunk"),
       kLocation, /*object_size=*/0,
       /*field_name_ids=*/{kThis0}, /*superclass_id=*/0,
       /*classloader_id=*/0, /*no_fields=*/false,
       protos::pbzero::HeapGraphType::KIND_NORMAL);
 
-  tracker.AddInternedType(
-      kSeqId, kTypeNativeAllocationRegistry,
-      context.storage->InternString("libcore.util.NativeAllocationRegistry"),
-      kLocation, /*object_size=*/0,
-      /*field_name_ids=*/{}, /*superclass_id=*/0,
-      /*classloader_id=*/0, /*no_fields=*/false,
-      protos::pbzero::HeapGraphType::KIND_NORMAL);
+  tracker.AddInternedType(kSeqId, kTypeNativeAllocationRegistry,
+                          context.global_context->storage->InternString(
+                              "libcore.util.NativeAllocationRegistry"),
+                          kLocation, /*object_size=*/0,
+                          /*field_name_ids=*/{}, /*superclass_id=*/0,
+                          /*classloader_id=*/0, /*no_fields=*/false,
+                          protos::pbzero::HeapGraphType::KIND_NORMAL);
 
   enum Objects : uint8_t {
     kObjBitmap = 1,
@@ -178,19 +182,23 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
 
   tracker.FinalizeProfile(kSeqId);
 
-  const auto& objs_table = context.storage->heap_graph_object_table();
-  const auto& class_table = context.storage->heap_graph_class_table();
+  const auto& objs_table =
+      context.global_context->storage->heap_graph_object_table();
+  const auto& class_table =
+      context.global_context->storage->heap_graph_class_table();
   size_t count_bitmaps = 0;
   for (auto it = objs_table.IterateRows(); it; ++it) {
     auto class_row = class_table.FindById(it.type_id());
     ASSERT_TRUE(class_row.has_value());
-    if (context.storage->string_pool().Get(class_row->name()) ==
+    if (context.global_context->storage->string_pool().Get(class_row->name()) ==
         "android.graphics.Bitmap") {
       EXPECT_EQ(it.native_size(), 24242);
       count_bitmaps++;
     } else {
       EXPECT_EQ(it.native_size(), 0)
-          << context.storage->string_pool().Get(class_row->name()).c_str()
+          << context.global_context->storage->string_pool()
+                 .Get(class_row->name())
+                 .c_str()
           << " has non zero native_size";
     }
   }
@@ -209,11 +217,11 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   constexpr int64_t kTimestamp = 1;
 
   TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
-  context.process_tracker.reset(new ProcessTracker(&context));
-  context.process_tracker->GetOrCreateProcess(kPid);
+  context.global_context->storage.reset(new TraceStorage());
+  context.machine_context->process_tracker.reset(new ProcessTracker(&context));
+  context.machine_context->process_tracker->GetOrCreateProcess(kPid);
 
-  HeapGraphTracker tracker(context.storage.get());
+  HeapGraphTracker tracker(context.global_context->storage.get());
 
   constexpr uint64_t kField = 1;
   constexpr uint64_t kLocation = 0;
@@ -224,15 +232,16 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   constexpr uint64_t kB = 4;
 
   auto field = base::StringView("foo");
-  StringPool::Id x = context.storage->InternString("X");
-  StringPool::Id y = context.storage->InternString("Y");
-  StringPool::Id a = context.storage->InternString("A");
-  StringPool::Id b = context.storage->InternString("B");
+  StringPool::Id x = context.global_context->storage->InternString("X");
+  StringPool::Id y = context.global_context->storage->InternString("Y");
+  StringPool::Id a = context.global_context->storage->InternString("A");
+  StringPool::Id b = context.global_context->storage->InternString("B");
 
   tracker.AddInternedFieldName(kSeqId, kField, field);
 
-  tracker.AddInternedLocationName(kSeqId, kLocation,
-                                  context.storage->InternString("location"));
+  tracker.AddInternedLocationName(
+      kSeqId, kLocation,
+      context.global_context->storage->InternString("location"));
   tracker.AddInternedType(kSeqId, kX, x, kLocation, /*object_size=*/0,
                           /*field_name_ids=*/{}, /*superclass_id=*/0,
                           /*classloader_id=*/0, /*no_fields=*/false,
@@ -337,11 +346,11 @@ TEST(HeapGraphTrackerTest, BuildFlamegraphWeakReferences) {
   constexpr int64_t kTimestamp = 1;
 
   TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
-  context.process_tracker.reset(new ProcessTracker(&context));
-  context.process_tracker->GetOrCreateProcess(kPid);
+  context.global_context->storage.reset(new TraceStorage());
+  context.machine_context->process_tracker.reset(new ProcessTracker(&context));
+  context.machine_context->process_tracker->GetOrCreateProcess(kPid);
 
-  HeapGraphTracker tracker(context.storage.get());
+  HeapGraphTracker tracker(context.global_context->storage.get());
 
   constexpr uint64_t kLocation = 0;
 
@@ -352,19 +361,21 @@ TEST(HeapGraphTrackerTest, BuildFlamegraphWeakReferences) {
   constexpr uint64_t kOtherField = 2;
 
   constexpr uint64_t kX = 1;
-  StringPool::Id x = context.storage->InternString("X");
+  StringPool::Id x = context.global_context->storage->InternString("X");
   constexpr uint64_t kA = 2;
-  StringPool::Id a = context.storage->InternString("A");
+  StringPool::Id a = context.global_context->storage->InternString("A");
   constexpr uint64_t kB = 4;
-  StringPool::Id b = context.storage->InternString("B");
+  StringPool::Id b = context.global_context->storage->InternString("B");
   constexpr uint64_t kWeakRef = 5;
-  StringPool::Id weak_ref = context.storage->InternString("WeakReference");
+  StringPool::Id weak_ref =
+      context.global_context->storage->InternString("WeakReference");
 
   tracker.AddInternedFieldName(kSeqId, kReferentField, referent_field);
   tracker.AddInternedFieldName(kSeqId, kOtherField, other_field);
 
-  tracker.AddInternedLocationName(kSeqId, kLocation,
-                                  context.storage->InternString("location"));
+  tracker.AddInternedLocationName(
+      kSeqId, kLocation,
+      context.global_context->storage->InternString("location"));
 
   tracker.AddInternedType(kSeqId, kWeakRef, weak_ref, kLocation,
                           /*object_size=*/0,

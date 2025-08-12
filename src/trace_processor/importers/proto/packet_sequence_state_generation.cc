@@ -98,7 +98,8 @@ InternedMessageView* PacketSequenceStateGeneration::GetInternedMessageView(
     }
   }
 
-  context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+  context_->global_context->storage->IncrementStats(
+      stats::interned_data_tokenizer_errors);
   return nullptr;
 }
 
@@ -114,7 +115,8 @@ void PacketSequenceStateGeneration::InternMessage(uint32_t field_id,
   auto field = decoder.FindField(kIidFieldNumber);
   if (PERFETTO_UNLIKELY(!field)) {
     PERFETTO_DLOG("Interned message without interning_id");
-    context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::interned_data_tokenizer_errors);
     return;
   }
   iid = field.as_uint64();

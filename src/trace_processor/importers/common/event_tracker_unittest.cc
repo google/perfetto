@@ -40,15 +40,22 @@ using ::testing::Invoke;
 class EventTrackerTest : public ::testing::Test {
  public:
   EventTrackerTest() {
-    context.storage = std::make_shared<TraceStorage>();
-    context.global_args_tracker =
-        std::make_unique<GlobalArgsTracker>(context.storage.get());
-    context.args_tracker = std::make_unique<ArgsTracker>(&context);
-    context.process_tracker = std::make_unique<ProcessTracker>(&context);
-    context.event_tracker = std::make_unique<EventTracker>(&context);
-    context.track_tracker = std::make_unique<TrackTracker>(&context);
-    context.machine_tracker = std::make_unique<MachineTracker>(&context, 0);
-    context.cpu_tracker = std::make_unique<CpuTracker>(&context);
+    context.global_context->storage = std::make_shared<TraceStorage>();
+    context.trace_context->global_args_tracker =
+        std::make_unique<GlobalArgsTracker>(
+            context.global_context->storage.get());
+    context.trace_context->args_tracker =
+        std::make_unique<ArgsTracker>(&context);
+    context.machine_context->process_tracker =
+        std::make_unique<ProcessTracker>(&context);
+    context.trace_context->event_tracker =
+        std::make_unique<EventTracker>(&context);
+    context.machine_context->track_tracker =
+        std::make_unique<TrackTracker>(&context);
+    context.machine_context->machine_tracker =
+        std::make_unique<MachineTracker>(&context, 0);
+    context.machine_context->cpu_tracker =
+        std::make_unique<CpuTracker>(&context);
   }
 
  protected:
@@ -59,16 +66,16 @@ TEST_F(EventTrackerTest, CounterDuration) {
   uint32_t cpu = 3;
   int64_t timestamp = 100;
 
-  TrackId track = context.track_tracker->InternTrack(
+  TrackId track = context.machine_context->track_tracker->InternTrack(
       tracks::kCpuFrequencyBlueprint, tracks::Dimensions(cpu));
-  context.event_tracker->PushCounter(timestamp, 1000, track);
-  context.event_tracker->PushCounter(timestamp + 1, 4000, track);
-  context.event_tracker->PushCounter(timestamp + 3, 5000, track);
-  context.event_tracker->PushCounter(timestamp + 9, 1000, track);
+  context.trace_context->event_tracker->PushCounter(timestamp, 1000, track);
+  context.trace_context->event_tracker->PushCounter(timestamp + 1, 4000, track);
+  context.trace_context->event_tracker->PushCounter(timestamp + 3, 5000, track);
+  context.trace_context->event_tracker->PushCounter(timestamp + 9, 1000, track);
 
-  ASSERT_EQ(context.storage->track_table().row_count(), 1ul);
+  ASSERT_EQ(context.global_context->storage->track_table().row_count(), 1ul);
 
-  const auto& counter = context.storage->counter_table();
+  const auto& counter = context.global_context->storage->counter_table();
   ASSERT_EQ(counter.row_count(), 4ul);
 
   auto rr = counter[0];

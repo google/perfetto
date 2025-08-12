@@ -44,7 +44,7 @@ class VulkanMemoryTracker {
             iid);
     if (!decoder)
       return kNullStringId;
-    return context_->storage->InternString(
+    return context_->global_context->storage->InternString(
         base::StringView(reinterpret_cast<const char*>(decoder->str().data),
                          decoder->str().size));
   }

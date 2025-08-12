@@ -37,7 +37,7 @@ enum EtmV4ConfigurationTableFlag : uint64_t {
 class StorageHandle {
  public:
   explicit StorageHandle(TraceProcessorContext* context)
-      : storage_(context->storage.get()) {}
+      : storage_(context->global_context->storage.get()) {}
   explicit StorageHandle(TraceStorage* storage) : storage_(storage) {}
 
   void StoreEtmV4Config(tables::EtmV4ConfigurationTable::Id id,

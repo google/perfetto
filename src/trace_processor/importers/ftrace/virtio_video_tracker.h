@@ -31,7 +31,7 @@
 
 namespace perfetto::trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 class VirtioVideoTracker : public Destructible {
  public:

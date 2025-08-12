@@ -77,8 +77,8 @@ void TranslationTableModule::ParseChromeHistogramRules(
   for (auto it = chrome_histogram.hash_to_name(); it; ++it) {
     protos::pbzero::ChromeHistorgramTranslationTable::HashToNameEntry::Decoder
         entry(*it);
-    context_->args_translation_table->AddChromeHistogramTranslationRule(
-        entry.key(), entry.value());
+    context_->trace_context->args_translation_table
+        ->AddChromeHistogramTranslationRule(entry.key(), entry.value());
   }
 }
 
@@ -89,8 +89,8 @@ void TranslationTableModule::ParseChromeUserEventRules(
   for (auto it = chrome_user_event.action_hash_to_name(); it; ++it) {
     protos::pbzero::ChromeUserEventTranslationTable::ActionHashToNameEntry::
         Decoder entry(*it);
-    context_->args_translation_table->AddChromeUserEventTranslationRule(
-        entry.key(), entry.value());
+    context_->trace_context->args_translation_table
+        ->AddChromeUserEventTranslationRule(entry.key(), entry.value());
   }
 }
 
@@ -101,14 +101,14 @@ void TranslationTableModule::ParseChromePerformanceMarkRules(
   for (auto it = chrome_performance_mark.site_hash_to_name(); it; ++it) {
     protos::pbzero::ChromePerformanceMarkTranslationTable::SiteHashToNameEntry::
         Decoder entry(*it);
-    context_->args_translation_table
+    context_->trace_context->args_translation_table
         ->AddChromePerformanceMarkSiteTranslationRule(entry.key(),
                                                       entry.value());
   }
   for (auto it = chrome_performance_mark.mark_hash_to_name(); it; ++it) {
     protos::pbzero::ChromePerformanceMarkTranslationTable::MarkHashToNameEntry::
         Decoder entry(*it);
-    context_->args_translation_table
+    context_->trace_context->args_translation_table
         ->AddChromePerformanceMarkMarkTranslationRule(entry.key(),
                                                       entry.value());
   }
@@ -120,8 +120,8 @@ void TranslationTableModule::ParseSliceNameRules(protozero::ConstBytes bytes) {
   for (auto it = slice_name.raw_to_deobfuscated_name(); it; ++it) {
     protos::pbzero::SliceNameTranslationTable::RawToDeobfuscatedNameEntry::
         Decoder entry(*it);
-    context_->slice_translation_table->AddNameTranslationRule(entry.key(),
-                                                              entry.value());
+    context_->trace_context->slice_translation_table->AddNameTranslationRule(
+        entry.key(), entry.value());
   }
 }
 
@@ -132,8 +132,8 @@ void TranslationTableModule::ParseProcessTrackNameRules(
   for (auto it = process_track_name.raw_to_deobfuscated_name(); it; ++it) {
     protos::pbzero::ProcessTrackNameTranslationTable::
         RawToDeobfuscatedNameEntry::Decoder entry(*it);
-    context_->process_track_translation_table->AddNameTranslationRule(
-        entry.key(), entry.value());
+    context_->trace_context->process_track_translation_table
+        ->AddNameTranslationRule(entry.key(), entry.value());
   }
 }
 
@@ -144,8 +144,8 @@ void TranslationTableModule::ParseChromeStudyRules(
   for (auto it = chrome_study.hash_to_name(); it; ++it) {
     protos::pbzero::ChromeStudyTranslationTable::HashToNameEntry::Decoder entry(
         *it);
-    context_->args_translation_table->AddChromeStudyTranslationRule(
-        entry.key(), entry.value());
+    context_->trace_context->args_translation_table
+        ->AddChromeStudyTranslationRule(entry.key(), entry.value());
   }
 }
 

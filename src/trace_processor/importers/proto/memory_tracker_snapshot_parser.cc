@@ -49,11 +49,12 @@ namespace perfetto::trace_processor {
 MemoryTrackerSnapshotParser::MemoryTrackerSnapshotParser(
     TraceProcessorContext* context)
     : context_(context),
-      level_of_detail_ids_{{context_->storage->InternString("background"),
-                            context_->storage->InternString("light"),
-                            context_->storage->InternString("detailed")}},
-      unit_ids_{{context_->storage->InternString("objects"),
-                 context_->storage->InternString("bytes")}},
+      level_of_detail_ids_{
+          {context_->global_context->storage->InternString("background"),
+           context_->global_context->storage->InternString("light"),
+           context_->global_context->storage->InternString("detailed")}},
+      unit_ids_{{context_->global_context->storage->InternString("objects"),
+                 context_->global_context->storage->InternString("bytes")}},
       aggregate_raw_nodes_(),
       last_snapshot_timestamp_(-1),
       last_snapshot_level_of_detail_(LevelOfDetail::kFirst) {}
@@ -145,7 +146,7 @@ void MemoryTrackerSnapshotParser::ReadProtoSnapshot(
           entries.emplace_back(entry.name().ToStdString(), unit,
                                entry.value_string().ToStdString());
         } else {
-          context_->storage->IncrementStats(
+          context_->global_context->storage->IncrementStats(
               stats::memory_snapshot_parser_failure);
         }
       }
@@ -189,28 +190,31 @@ void MemoryTrackerSnapshotParser::EmitRows(int64_t ts,
 
   // For now, we use the existing global instant event track for chrome events,
   // since memory dumps are global.
-  TrackId track_id = context_->track_tracker->InternTrack(
+  TrackId track_id = context_->machine_context->track_tracker->InternTrack(
       tracks::kLegacyGlobalInstantsBlueprint, tracks::Dimensions(),
       tracks::BlueprintName(), [this](ArgsTracker::BoundInserter& inserter) {
         inserter.AddArg(
-            context_->storage->InternString("source"),
-            Variadic::String(context_->storage->InternString("chrome")));
+            context_->global_context->storage->InternString("source"),
+            Variadic::String(
+                context_->global_context->storage->InternString("chrome")));
       });
 
   tables::MemorySnapshotTable::Row snapshot_row(
       ts, track_id, level_of_detail_ids_[static_cast<size_t>(level_of_detail)]);
   tables::MemorySnapshotTable::Id snapshot_row_id =
-      context_->storage->mutable_memory_snapshot_table()
+      context_->global_context->storage->mutable_memory_snapshot_table()
           ->Insert(snapshot_row)
           .id;
 
   for (auto const& it_process : graph.process_node_graphs()) {
     tables::ProcessMemorySnapshotTable::Row process_row;
-    process_row.upid = context_->process_tracker->GetOrCreateProcess(
-        static_cast<uint32_t>(it_process.first));
+    process_row.upid =
+        context_->machine_context->process_tracker->GetOrCreateProcess(
+            static_cast<uint32_t>(it_process.first));
     process_row.snapshot_id = snapshot_row_id;
     tables::ProcessMemorySnapshotTable::Id proc_snapshot_row_id =
-        context_->storage->mutable_process_memory_snapshot_table()
+        context_->global_context->storage
+            ->mutable_process_memory_snapshot_table()
             ->Insert(process_row)
             .id;
     EmitMemorySnapshotNodeRows(*(it_process.second->root()),
@@ -222,10 +226,11 @@ void MemoryTrackerSnapshotParser::EmitRows(int64_t ts,
   // TODO(mobica-google-contributors@mobica.com): Track the shared memory graph
   // in a separate table.
   tables::ProcessMemorySnapshotTable::Row fake_process_row;
-  fake_process_row.upid = context_->process_tracker->GetOrCreateProcess(0u);
+  fake_process_row.upid =
+      context_->machine_context->process_tracker->GetOrCreateProcess(0u);
   fake_process_row.snapshot_id = snapshot_row_id;
   tables::ProcessMemorySnapshotTable::Id fake_proc_snapshot_row_id =
-      context_->storage->mutable_process_memory_snapshot_table()
+      context_->global_context->storage->mutable_process_memory_snapshot_table()
           ->Insert(fake_process_row)
           .id;
   EmitMemorySnapshotNodeRows(*(graph.shared_memory_graph()->root()),
@@ -244,7 +249,8 @@ void MemoryTrackerSnapshotParser::EmitRows(int64_t ts,
     edge_row.target_node_id =
         static_cast<tables::MemorySnapshotNodeTable::Id>(target_it->second);
     edge_row.importance = static_cast<uint32_t>(edge.priority());
-    context_->storage->mutable_memory_snapshot_edge_table()->Insert(edge_row);
+    context_->global_context->storage->mutable_memory_snapshot_edge_table()
+        ->Insert(edge_row);
   }
 }
 
@@ -292,17 +298,19 @@ MemoryTrackerSnapshotParser::EmitNode(
   tables::MemorySnapshotNodeTable::Row node_row;
   node_row.process_snapshot_id = proc_snapshot_row_id;
   node_row.parent_node_id = parent_node_row_id;
-  node_row.path = context_->storage->InternString(base::StringView(path));
+  node_row.path =
+      context_->global_context->storage->InternString(base::StringView(path));
 
   tables::MemorySnapshotNodeTable::Id node_row_id =
-      context_->storage->mutable_memory_snapshot_node_table()
+      context_->global_context->storage->mutable_memory_snapshot_node_table()
           ->Insert(node_row)
           .id;
 
-  auto* node_table = context_->storage->mutable_memory_snapshot_node_table();
+  auto* node_table =
+      context_->global_context->storage->mutable_memory_snapshot_node_table();
   auto rr = *node_table->FindById(node_row_id);
   ArgsTracker::BoundInserter args =
-      context_->args_tracker->AddArgsTo(node_row_id);
+      context_->trace_context->args_tracker->AddArgsTo(node_row_id);
 
   for (const auto& entry : node.const_entries()) {
     switch (entry.second.type) {
@@ -314,11 +322,11 @@ MemoryTrackerSnapshotParser::EmitNode(
         } else if (entry.first == "effective_size") {
           rr.set_effective_size(value_int);
         } else {
-          args.AddArg(context_->storage->InternString(
+          args.AddArg(context_->global_context->storage->InternString(
                           base::StringView(entry.first + ".value")),
                       Variadic::Integer(value_int));
           if (entry.second.units < unit_ids_.size()) {
-            args.AddArg(context_->storage->InternString(
+            args.AddArg(context_->global_context->storage->InternString(
                             base::StringView(entry.first + ".unit")),
                         Variadic::String(unit_ids_[entry.second.units]));
           }
@@ -326,10 +334,11 @@ MemoryTrackerSnapshotParser::EmitNode(
         break;
       }
       case GlobalNodeGraph::Node::Entry::Type::kString: {
-        args.AddArg(context_->storage->InternString(
-                        base::StringView(entry.first + ".value")),
-                    Variadic::String(context_->storage->InternString(
-                        base::StringView(entry.second.value_string))));
+        args.AddArg(
+            context_->global_context->storage->InternString(
+                base::StringView(entry.first + ".value")),
+            Variadic::String(context_->global_context->storage->InternString(
+                base::StringView(entry.second.value_string))));
         break;
       }
     }

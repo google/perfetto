@@ -30,7 +30,7 @@
 namespace perfetto ::trace_processor {
 
 class AndroidBatteryStatsHistoryStringTracker;
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 // Parses the battery stats checkin produded by (dumpsys batterystats -c),
 class AndroidBatteryStatsReader : public ChunkedLineReader {

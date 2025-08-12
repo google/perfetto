@@ -80,7 +80,7 @@ void AndroidCameraEventModule::ParseTracePacketData(
 void AndroidCameraEventModule::InsertCameraFrameSlice(
     protozero::ConstBytes bytes) {
   protos::pbzero::AndroidCameraFrameEvent::Decoder evt(bytes);
-  StringId slice_name = context_->storage->InternString(
+  StringId slice_name = context_->global_context->storage->InternString(
       base::StackString<32>("Frame %" PRId64, evt.frame_number())
           .string_view());
   int64_t ts = evt.request_processing_started_ns();
@@ -94,10 +94,10 @@ void AndroidCameraEventModule::InsertCameraFrameSlice(
         return base::StackString<32>("Camera %u Frames", camera_id);
       }));
 
-  TrackId track_id = context_->track_compressor->InternScoped(
+  TrackId track_id = context_->machine_context->track_compressor->InternScoped(
       kBlueprint, tracks::Dimensions(evt.camera_id()), ts, dur);
-  context_->slice_tracker->Scoped(ts, track_id, /*category=*/kNullStringId,
-                                  slice_name, dur);
+  context_->trace_context->slice_tracker->Scoped(
+      ts, track_id, /*category=*/kNullStringId, slice_name, dur);
 }
 
 }  // namespace perfetto::trace_processor

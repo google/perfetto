@@ -31,11 +31,13 @@ AndroidLogEventParser::~AndroidLogEventParser() = default;
 void AndroidLogEventParser::Parse(int64_t ts, AndroidLogEvent event) {
   tables::AndroidLogTable::Row row;
   row.ts = ts;
-  row.utid = context_->process_tracker->UpdateThread(event.tid, event.pid);
+  row.utid = context_->machine_context->process_tracker->UpdateThread(
+      event.tid, event.pid);
   row.prio = event.prio;
   row.tag = event.tag;
   row.msg = event.msg;
-  context_->storage->mutable_android_log_table()->Insert(std::move(row));
+  context_->global_context->storage->mutable_android_log_table()->Insert(
+      std::move(row));
 }
 
 }  // namespace perfetto::trace_processor

@@ -35,10 +35,10 @@ using PerCpuConfiguration =
 class EtmTracker : public Destructible {
  public:
   static EtmTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->etm_tracker) {
-      context->etm_tracker.reset(new EtmTracker(context));
+    if (!context->trace_context->etm_tracker) {
+      context->trace_context->etm_tracker.reset(new EtmTracker(context));
     }
-    return static_cast<EtmTracker*>(context->etm_tracker.get());
+    return static_cast<EtmTracker*>(context->trace_context->etm_tracker.get());
   }
 
   ~EtmTracker() override;

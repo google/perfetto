@@ -49,10 +49,10 @@ void LegacyV8CpuProfileTracker::Parse(int64_t ts,
   base::Status status =
       AddSample(ts, event.session_id, event.pid, event.tid, event.callsite_id);
   if (!status.ok()) {
-    context_->storage->IncrementStats(
+    context_->global_context->storage->IncrementStats(
         stats::legacy_v8_cpu_profile_invalid_sample);
   }
-  context_->args_tracker->Flush();
+  context_->trace_context->args_tracker->Flush();
 }
 
 void LegacyV8CpuProfileTracker::SetStartTsForSessionAndPid(uint64_t session_id,
@@ -64,7 +64,8 @@ void LegacyV8CpuProfileTracker::SetStartTsForSessionAndPid(uint64_t session_id,
             base::FlatHashMap<uint32_t, uint32_t>(), nullptr});
   it->ts = ts;
   if (inserted) {
-    it->mapping = &context_->mapping_tracker->CreateDummyMapping("");
+    it->mapping =
+        &context_->machine_context->mapping_tracker->CreateDummyMapping("");
   }
 }
 
@@ -114,14 +115,16 @@ base::Status LegacyV8CpuProfileTracker::AddCallsite(
       return base::ErrStatus(
           "v8 profile parent id does not exist: cannot insert callsite");
     }
-    auto row =
-        context_->storage->stack_profile_callsite_table().FindById(*parent_id);
-    callsite_id = context_->stack_profile_tracker->InternCallsite(
-        *parent_id, frame_id, row->depth() + 1);
+    auto row = context_->global_context->storage->stack_profile_callsite_table()
+                   .FindById(*parent_id);
+    callsite_id =
+        context_->trace_context->stack_profile_tracker->InternCallsite(
+            *parent_id, frame_id, row->depth() + 1);
     depth = row->depth() + 1;
   } else {
-    callsite_id = context_->stack_profile_tracker->InternCallsite(std::nullopt,
-                                                                  frame_id, 0);
+    callsite_id =
+        context_->trace_context->stack_profile_tracker->InternCallsite(
+            std::nullopt, frame_id, 0);
     depth = 0;
   }
 
@@ -149,9 +152,9 @@ base::Status LegacyV8CpuProfileTracker::AddCallsite(
     if (!child_callsite_id) {
       continue;
     }
-    auto row =
-        context_->storage->mutable_stack_profile_callsite_table()->FindById(
-            *child_callsite_id);
+    auto row = context_->global_context->storage
+                   ->mutable_stack_profile_callsite_table()
+                   ->FindById(*child_callsite_id);
     PERFETTO_CHECK(row);
     row->set_depth(depth + 1);
     row->set_parent_id(callsite_id);
@@ -185,8 +188,10 @@ base::Status LegacyV8CpuProfileTracker::AddSample(int64_t ts,
   if (!id) {
     return base::ErrStatus("v8 callsite id does not exist: cannot add sample");
   }
-  UniqueTid utid = context_->process_tracker->UpdateThread(tid, pid);
-  auto* samples = context_->storage->mutable_cpu_profile_stack_sample_table();
+  UniqueTid utid =
+      context_->machine_context->process_tracker->UpdateThread(tid, pid);
+  auto* samples = context_->global_context->storage
+                      ->mutable_cpu_profile_stack_sample_table();
   samples->Insert({ts, *id, utid, 0});
   return base::OkStatus();
 }

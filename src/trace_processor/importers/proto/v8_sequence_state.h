@@ -28,7 +28,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 class V8Tracker;
 
 // Helper class to deal with V8 related interned data.

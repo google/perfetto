@@ -48,22 +48,28 @@ using ProtoLogLevel = winscope::ProtoLogLevel;
 
 ProtoLogParser::ProtoLogParser(winscope::WinscopeContext* context)
     : context_(context),
-      args_parser_{*context->trace_processor_context_->descriptor_pool_},
+      args_parser_{
+          *context->trace_processor_context_->global_context->descriptor_pool_},
       log_level_debug_string_id_(
-          context->trace_processor_context_->storage->InternString("DEBUG")),
+          context->trace_processor_context_->global_context->storage
+              ->InternString("DEBUG")),
       log_level_verbose_string_id_(
-          context->trace_processor_context_->storage->InternString("VERBOSE")),
+          context->trace_processor_context_->global_context->storage
+              ->InternString("VERBOSE")),
       log_level_info_string_id_(
-          context->trace_processor_context_->storage->InternString("INFO")),
+          context->trace_processor_context_->global_context->storage
+              ->InternString("INFO")),
       log_level_warn_string_id_(
-          context->trace_processor_context_->storage->InternString("WARN")),
+          context->trace_processor_context_->global_context->storage
+              ->InternString("WARN")),
       log_level_error_string_id_(
-          context->trace_processor_context_->storage->InternString("ERROR")),
-      log_level_wtf_string_id_(
-          context->trace_processor_context_->storage->InternString("WTF")),
+          context->trace_processor_context_->global_context->storage
+              ->InternString("ERROR")),
+      log_level_wtf_string_id_(context->trace_processor_context_->global_context
+                                   ->storage->InternString("WTF")),
       log_level_unknown_string_id_(
-          context->trace_processor_context_->storage->InternString("UNKNOWN")) {
-}
+          context->trace_processor_context_->global_context->storage
+              ->InternString("UNKNOWN")) {}
 
 void ProtoLogParser::ParseProtoLogMessage(
     PacketSequenceStateGeneration* sequence_state,
@@ -86,7 +92,7 @@ void ProtoLogParser::ParseProtoLogMessage(
     boolean_params.emplace_back(*it);
   }
 
-  auto storage = context_->trace_processor_context_->storage;
+  auto storage = context_->trace_processor_context_->global_context->storage;
 
   std::vector<std::string> string_params;
   if (protolog_message.has_str_param_iids()) {
@@ -184,7 +190,7 @@ void ProtoLogParser::PopulateReservedRowWithMessage(
     std::string& message,
     std::optional<StringId> stacktrace,
     std::optional<std::string>& location) {
-  auto storage = context_->trace_processor_context_->storage;
+  auto storage = context_->trace_processor_context_->global_context->storage;
   auto* protolog_table = storage->mutable_protolog_table();
   auto row = protolog_table->FindById(table_row_id).value();
 

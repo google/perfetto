@@ -29,7 +29,7 @@
 
 namespace perfetto::trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 // Tracks sched events, instants, and counters.
 class EventTracker {

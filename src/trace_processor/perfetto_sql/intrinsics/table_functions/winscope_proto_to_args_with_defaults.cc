@@ -332,13 +332,14 @@ bool WinscopeProtoToArgsWithDefaults::Cursor::Run(
       util::winscope_proto_mapping::GetAllowedFields(table_name_str);
   auto group_id_col_name =
       util::winscope_proto_mapping::GetGroupIdColName(table_name_str);
-  auto proto_to_interned_data =
-      GetProtoToInternedData(table_name_str, context_->storage.get());
-  base::Status insert_status = InsertRows(
-      *static_table_from_engine, &table_, *proto_name,
-      allowed_fields ? &allowed_fields.value() : nullptr,
-      group_id_col_name ? &group_id_col_name.value() : nullptr,
-      *context_->descriptor_pool_, string_pool_, proto_to_interned_data);
+  auto proto_to_interned_data = GetProtoToInternedData(
+      table_name_str, context_->global_context->storage.get());
+  base::Status insert_status =
+      InsertRows(*static_table_from_engine, &table_, *proto_name,
+                 allowed_fields ? &allowed_fields.value() : nullptr,
+                 group_id_col_name ? &group_id_col_name.value() : nullptr,
+                 *context_->global_context->descriptor_pool_, string_pool_,
+                 proto_to_interned_data);
   if (!insert_status.ok()) {
     return OnFailure(insert_status);
   }

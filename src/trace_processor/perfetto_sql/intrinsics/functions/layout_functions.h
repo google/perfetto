@@ -22,7 +22,7 @@
 
 namespace perfetto::trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 // Implements INTERNAL_LAYOUT(ts, dur) window aggregate function.
 // This function takes a set of slices (ordered by ts) and computes depths

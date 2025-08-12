@@ -32,7 +32,8 @@ VulkanMemoryTracker::VulkanMemoryTracker(TraceProcessorContext* context)
       "GPU_DEVICE_MEMORY", "GPU_BUFFER", "GPU_IMAGE",
   };
   for (const auto& event_source : kEventSources) {
-    source_strs_id_.emplace_back(context_->storage->InternString(event_source));
+    source_strs_id_.emplace_back(
+        context_->global_context->storage->InternString(event_source));
   }
 
   static constexpr std::array kEventOperations = {
@@ -41,14 +42,15 @@ VulkanMemoryTracker::VulkanMemoryTracker(TraceProcessorContext* context)
   };
   for (const auto& event_operation : kEventOperations) {
     operation_strs_id_.emplace_back(
-        context_->storage->InternString(event_operation));
+        context_->global_context->storage->InternString(event_operation));
   }
 
   static constexpr std::array kEventScopes = {
       "UNSPECIFIED", "COMMAND", "OBJECT", "CACHE", "DEVICE", "INSTANCE",
   };
   for (const auto& event_scope : kEventScopes) {
-    scope_strs_id_.emplace_back(context_->storage->InternString(event_scope));
+    scope_strs_id_.emplace_back(
+        context_->global_context->storage->InternString(event_scope));
   }
 }
 

@@ -27,7 +27,8 @@ namespace perfetto {
 namespace trace_processor {
 
 ViewCaptureParser::ViewCaptureParser(TraceProcessorContext* context)
-    : context_{context}, args_parser_{*context->descriptor_pool_} {}
+    : context_{context},
+      args_parser_{*context->global_context->descriptor_pool_} {}
 
 void ViewCaptureParser::Parse(int64_t timestamp,
                               protozero::ConstBytes blob,
@@ -35,16 +36,18 @@ void ViewCaptureParser::Parse(int64_t timestamp,
   protos::pbzero::ViewCapture::Decoder snapshot_decoder(blob);
   tables::ViewCaptureTable::Row row;
   row.ts = timestamp;
-  row.base64_proto_id = context_->storage->mutable_string_pool()
+  row.base64_proto_id = context_->global_context->storage->mutable_string_pool()
                             ->InternString(base::StringView(
                                 base::Base64Encode(blob.data, blob.size)))
                             .raw_id();
   auto snapshot_id =
-      context_->storage->mutable_viewcapture_table()->Insert(row).id;
+      context_->global_context->storage->mutable_viewcapture_table()
+          ->Insert(row)
+          .id;
 
-  auto inserter = context_->args_tracker->AddArgsTo(snapshot_id);
-  ViewCaptureArgsParser writer(timestamp, inserter, *context_->storage,
-                               seq_state);
+  auto inserter = context_->trace_context->args_tracker->AddArgsTo(snapshot_id);
+  ViewCaptureArgsParser writer(timestamp, inserter,
+                               *context_->global_context->storage, seq_state);
   const auto table_name = tables::ViewCaptureTable::Name();
   auto allowed_fields =
       util::winscope_proto_mapping::GetAllowedFields(table_name);
@@ -54,7 +57,8 @@ void ViewCaptureParser::Parse(int64_t timestamp,
 
   AddDeinternedData(writer, row.base64_proto_id.value());
   if (!status.ok()) {
-    context_->storage->IncrementStats(stats::winscope_viewcapture_parse_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::winscope_viewcapture_parse_errors);
   }
   for (auto it = snapshot_decoder.views(); it; ++it) {
     ParseView(timestamp, *it, snapshot_id, seq_state);
@@ -67,17 +71,20 @@ void ViewCaptureParser::ParseView(int64_t timestamp,
                                   PacketSequenceStateGeneration* seq_state) {
   tables::ViewCaptureViewTable::Row view;
   view.snapshot_id = snapshot_id;
-  view.base64_proto_id = context_->storage->mutable_string_pool()
-                             ->InternString(base::StringView(
-                                 base::Base64Encode(blob.data, blob.size)))
-                             .raw_id();
+  view.base64_proto_id =
+      context_->global_context->storage->mutable_string_pool()
+          ->InternString(
+              base::StringView(base::Base64Encode(blob.data, blob.size)))
+          .raw_id();
   auto layer_id =
-      context_->storage->mutable_viewcapture_view_table()->Insert(view).id;
+      context_->global_context->storage->mutable_viewcapture_view_table()
+          ->Insert(view)
+          .id;
 
   ArgsTracker tracker(context_);
   auto inserter = tracker.AddArgsTo(layer_id);
-  ViewCaptureArgsParser writer(timestamp, inserter, *context_->storage,
-                               seq_state);
+  ViewCaptureArgsParser writer(timestamp, inserter,
+                               *context_->global_context->storage, seq_state);
   base::Status status =
       args_parser_.ParseMessage(blob,
                                 *util::winscope_proto_mapping::GetProtoName(
@@ -86,14 +93,15 @@ void ViewCaptureParser::ParseView(int64_t timestamp,
 
   AddDeinternedData(writer, view.base64_proto_id.value());
   if (!status.ok()) {
-    context_->storage->IncrementStats(stats::winscope_viewcapture_parse_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::winscope_viewcapture_parse_errors);
   }
 }
 
 void ViewCaptureParser::AddDeinternedData(const ViewCaptureArgsParser& writer,
                                           uint32_t base64_proto_id) {
-  auto* deinterned_data_table =
-      context_->storage->mutable_viewcapture_interned_data_table();
+  auto* deinterned_data_table = context_->global_context->storage
+                                    ->mutable_viewcapture_interned_data_table();
   for (auto i = writer.flat_key_to_iid_args.GetIterator(); i; ++i) {
     const auto& flat_key = i.key();
     ViewCaptureArgsParser::IidToStringMap& iids_to_add = i.value();

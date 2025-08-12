@@ -24,7 +24,8 @@ I2cTracker::I2cTracker(TraceProcessorContext* context) : context_(context) {
   for (size_t i = 0; i < kMaxI2cAdapters; i++) {
     StringId id = kNullStringId;
     base::StackString<255> adapter_name("i2c-%zu", i);
-    id = context_->storage->InternString(adapter_name.string_view());
+    id = context_->global_context->storage->InternString(
+        adapter_name.string_view());
     i2c_adapter_to_string_id_[i] = id;
   }
 }
@@ -38,10 +39,12 @@ void I2cTracker::Enter(int64_t ts,
   StringId name = i2c_adapter_to_string_id_[adapter_nr];
   if (name.is_null())
     return;
-  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  TrackId track_id =
+      context_->machine_context->track_tracker->InternThreadTrack(utid);
   std::vector<I2cAdapterMessageCount>& ops = inflight_i2c_ops_[utid];
   if (ops.empty()) {
-    context_->slice_tracker->Begin(ts, track_id, kNullStringId, name);
+    context_->trace_context->slice_tracker->Begin(ts, track_id, kNullStringId,
+                                                  name);
     I2cAdapterMessageCount req_count;
     req_count.adapter_nr = adapter_nr;
     req_count.nr_msgs = msg_nr + 1;
@@ -63,9 +66,11 @@ void I2cTracker::Exit(int64_t ts,
     return;
   if (ops.back().adapter_nr != adapter_nr || ops.back().nr_msgs != nr_msgs)
     return;
-  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  TrackId track_id =
+      context_->machine_context->track_tracker->InternThreadTrack(utid);
   ops.pop_back();
-  context_->slice_tracker->End(ts, track_id, kNullStringId, name);
+  context_->trace_context->slice_tracker->End(ts, track_id, kNullStringId,
+                                              name);
 }
 
 }  // namespace trace_processor

@@ -104,15 +104,15 @@ StringId InternCounterName(
 
   auto config_given_name = desc_decoder.name();
   if (config_given_name.size > 0) {
-    return context->storage->InternString(config_given_name);
+    return context->global_context->storage->InternString(config_given_name);
   }
   if (desc_decoder.has_counter()) {
-    return context->storage->InternString(
+    return context->global_context->storage->InternString(
         StringifyCounter(desc_decoder.counter()));
   }
   if (desc_decoder.has_tracepoint()) {
     PerfEvents::Tracepoint::Decoder tracepoint(desc_decoder.tracepoint());
-    return context->storage->InternString(tracepoint.name());
+    return context->global_context->storage->InternString(tracepoint.name());
   }
   if (desc_decoder.has_raw_event()) {
     PerfEvents::RawEvent::Decoder raw(desc_decoder.raw_event());
@@ -121,11 +121,11 @@ StringId InternCounterName(
     base::StackString<128> name(
         "raw.0x%" PRIx32 ".0x%" PRIx64 ".0x%" PRIx64 ".0x%" PRIx64, raw.type(),
         raw.config(), raw.config1(), raw.config2());
-    return context->storage->InternString(name.string_view());
+    return context->global_context->storage->InternString(name.string_view());
   }
 
   PERFETTO_DLOG("Could not name the perf counter");
-  return context->storage->InternString("unknown");
+  return context->global_context->storage->InternString("unknown");
 }
 
 StringId InternTimebaseCounterName(
@@ -153,7 +153,8 @@ std::vector<StringId> InternFollowersCounterName(
 }  // namespace
 
 PerfSampleTracker::PerfSampleTracker(TraceProcessorContext* context)
-    : is_timebase_id_(context->storage->InternString("is_timebase")),
+    : is_timebase_id_(
+          context->global_context->storage->InternString("is_timebase")),
       context_(context) {}
 
 PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
@@ -185,18 +186,19 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
   } else {
     // No defaults means legacy producer implementation, assume default timebase
     // of per-cpu timer. This means either an Android R or early S build.
-    name_id = context_->storage->InternString(
+    name_id = context_->global_context->storage->InternString(
         StringifyCounter(protos::pbzero::PerfEvents::SW_CPU_CLOCK));
   }
 
-  base::StringView name = context_->storage->GetString(name_id);
-  TrackId timebase_track_id = context_->track_tracker->InternTrack(
-      tracks::kPerfCounterBlueprint,
-      tracks::Dimensions(cpu, session_id.value, name),
-      tracks::DynamicName(name_id),
-      [this](ArgsTracker::BoundInserter& inserter) {
-        inserter.AddArg(is_timebase_id_, Variadic::Boolean(true));
-      });
+  base::StringView name = context_->global_context->storage->GetString(name_id);
+  TrackId timebase_track_id =
+      context_->machine_context->track_tracker->InternTrack(
+          tracks::kPerfCounterBlueprint,
+          tracks::Dimensions(cpu, session_id.value, name),
+          tracks::DynamicName(name_id),
+          [this](ArgsTracker::BoundInserter& inserter) {
+            inserter.AddArg(is_timebase_id_, Variadic::Boolean(true));
+          });
 
   std::vector<TrackId> follower_track_ids;
   if (perf_defaults.has_value()) {
@@ -204,14 +206,15 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
     follower_track_ids.reserve(name_ids.size());
     for (const auto& follower_name_id : name_ids) {
       base::StringView follower_name =
-          context_->storage->GetString(follower_name_id);
-      follower_track_ids.push_back(context_->track_tracker->InternTrack(
-          tracks::kPerfCounterBlueprint,
-          tracks::Dimensions(cpu, session_id.value, follower_name),
-          tracks::DynamicName(follower_name_id),
-          [this](ArgsTracker::BoundInserter& inserter) {
-            inserter.AddArg(is_timebase_id_, Variadic::Boolean(false));
-          }));
+          context_->global_context->storage->GetString(follower_name_id);
+      follower_track_ids.push_back(
+          context_->machine_context->track_tracker->InternTrack(
+              tracks::kPerfCounterBlueprint,
+              tracks::Dimensions(cpu, session_id.value, follower_name),
+              tracks::DynamicName(follower_name_id),
+              [this](ArgsTracker::BoundInserter& inserter) {
+                inserter.AddArg(is_timebase_id_, Variadic::Boolean(false));
+              }));
     }
   }
 
@@ -224,10 +227,10 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
   // entry per data source (i.e. |perf_session_id|, not to be confused with the
   // tracing session).
   if (perf_defaults.has_value() && perf_defaults->process_shard_count() > 0) {
-    context_->storage->SetIndexedStats(
+    context_->global_context->storage->SetIndexedStats(
         stats::perf_process_shard_count, static_cast<int>(session_id.value),
         static_cast<int64_t>(perf_defaults->process_shard_count()));
-    context_->storage->SetIndexedStats(
+    context_->global_context->storage->SetIndexedStats(
         stats::perf_chosen_process_shard, static_cast<int>(session_id.value),
         static_cast<int64_t>(perf_defaults->chosen_process_shard()));
   }
@@ -236,7 +239,9 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
 }
 
 tables::PerfSessionTable::Id PerfSampleTracker::CreatePerfSession() {
-  return context_->storage->mutable_perf_session_table()->Insert({}).id;
+  return context_->global_context->storage->mutable_perf_session_table()
+      ->Insert({})
+      .id;
 }
 
 }  // namespace perfetto::trace_processor

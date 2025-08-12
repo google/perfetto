@@ -24,14 +24,14 @@
 
 namespace perfetto::trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 // Trace importer for Android dumpstate files.
 class AndroidDumpstateReader : public ChunkedLineReader {
  public:
   // Create a reader that will only forward events that are not present in the
   // given list.
-  AndroidDumpstateReader(TraceProcessorContext* context);
+  explicit AndroidDumpstateReader(TraceProcessorContext* context);
   ~AndroidDumpstateReader() override;
 
   base::Status ParseLine(base::StringView line) override;

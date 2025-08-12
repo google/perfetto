@@ -32,21 +32,25 @@ namespace perfetto::trace_processor::art_method {
 
 ArtMethodParser::ArtMethodParser(TraceProcessorContext* context)
     : context_(context),
-      pathname_id_(context->storage->InternString("pathname")),
-      line_number_id_(context->storage->InternString("line_number")) {}
+      pathname_id_(context->global_context->storage->InternString("pathname")),
+      line_number_id_(
+          context->global_context->storage->InternString("line_number")) {}
 
 ArtMethodParser::~ArtMethodParser() = default;
 
 void ArtMethodParser::Parse(int64_t ts, ArtMethodEvent e) {
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(e.tid);
+  UniqueTid utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(e.tid);
   if (e.comm) {
-    context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
-        e.tid, *e.comm, ThreadNamePriority::kOther);
+    context_->machine_context->process_tracker
+        ->UpdateThreadNameAndMaybeProcessName(e.tid, *e.comm,
+                                              ThreadNamePriority::kOther);
   }
-  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  TrackId track_id =
+      context_->machine_context->track_tracker->InternThreadTrack(utid);
   switch (e.action) {
     case ArtMethodEvent::kEnter:
-      context_->slice_tracker->Begin(
+      context_->trace_context->slice_tracker->Begin(
           ts, track_id, kNullStringId, e.method,
           [this, &e](ArgsTracker::BoundInserter* i) {
             if (e.pathname) {
@@ -58,7 +62,7 @@ void ArtMethodParser::Parse(int64_t ts, ArtMethodEvent e) {
           });
       break;
     case ArtMethodEvent::kExit:
-      context_->slice_tracker->End(ts, track_id);
+      context_->trace_context->slice_tracker->End(ts, track_id);
       break;
   }
 }

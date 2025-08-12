@@ -92,8 +92,8 @@ uint16_t ToShort(const TraceBlobView& tbv) {
 
 ArtMethodTokenizer::ArtMethodTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
-      stream_(
-          ctx->sorter->CreateStream(std::make_unique<ArtMethodParser>(ctx))) {}
+      stream_(ctx->global_context->sorter->CreateStream(
+          std::make_unique<ArtMethodParser>(ctx))) {}
 ArtMethodTokenizer::~ArtMethodTokenizer() = default;
 
 base::Status ArtMethodTokenizer::Parse(TraceBlobView blob) {
@@ -106,7 +106,7 @@ base::Status ArtMethodTokenizer::Parse(TraceBlobView blob) {
     uint32_t magic = ToInt(*smagic);
     sub_parser_ = magic == kTraceMagic ? SubParser{Streaming{this}}
                                        : SubParser{NonStreaming{this}};
-    context_->clock_tracker->SetTraceTimeClock(
+    context_->global_context->clock_tracker->SetTraceTimeClock(
         protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
   }
   if (sub_parser_.index() == base::variant_index<SubParser, Streaming>()) {
@@ -137,7 +137,7 @@ base::Status ArtMethodTokenizer::ParseMethodLine(std::string_view l) {
   if (tokens.size() == 6) {
     method_name = tokens[2];
     signature = tokens[3];
-    pathname = context_->storage->InternString(
+    pathname = context_->global_context->storage->InternString(
         base::StringView(ConstructPathname(class_name, tokens[4])));
     line_number = base::StringToUInt32(tokens[5]);
   } else if (tokens.size() > 2) {
@@ -145,17 +145,19 @@ base::Status ArtMethodTokenizer::ParseMethodLine(std::string_view l) {
       method_name = tokens[2];
       signature = tokens[3];
       if (tokens.size() >= 5) {
-        pathname = context_->storage->InternString(base::StringView(tokens[4]));
+        pathname = context_->global_context->storage->InternString(
+            base::StringView(tokens[4]));
       }
     } else {
-      pathname = context_->storage->InternString(base::StringView(tokens[2]));
+      pathname = context_->global_context->storage->InternString(
+          base::StringView(tokens[2]));
       line_number = base::StringToUInt32(tokens[3]);
     }
   }
   base::StackString<2048> slice_name("%s.%s: %s", class_name.c_str(),
                                      method_name.c_str(), signature.c_str());
   method_map_[*id] = {
-      context_->storage->InternString(slice_name.string_view()),
+      context_->global_context->storage->InternString(slice_name.string_view()),
       pathname,
       line_number,
   };
@@ -215,9 +217,10 @@ base::Status ArtMethodTokenizer::ParseRecord(uint32_t tid,
       evt.action = ArtMethodEvent::kExit;
       break;
   }
-  ASSIGN_OR_RETURN(int64_t ts, context_->clock_tracker->ToTraceTime(
-                                   protos::pbzero::BUILTIN_CLOCK_MONOTONIC,
-                                   (ts_ + ts_delta) * 1000));
+  ASSIGN_OR_RETURN(
+      int64_t ts,
+      context_->global_context->clock_tracker->ToTraceTime(
+          protos::pbzero::BUILTIN_CLOCK_MONOTONIC, (ts_ + ts_delta) * 1000));
   stream_->Push(ts, evt);
   return base::OkStatus();
 }
@@ -225,7 +228,9 @@ base::Status ArtMethodTokenizer::ParseRecord(uint32_t tid,
 base::Status ArtMethodTokenizer::ParseThread(uint32_t tid,
                                              const std::string& comm) {
   thread_map_.Insert(
-      tid, {context_->storage->InternString(base::StringView(comm)), false});
+      tid,
+      {context_->global_context->storage->InternString(base::StringView(comm)),
+       false});
   return base::OkStatus();
 }
 

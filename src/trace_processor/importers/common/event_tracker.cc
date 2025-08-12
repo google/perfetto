@@ -38,7 +38,7 @@ void EventTracker::PushProcessCounterForThread(ProcessCounterForThread pcounter,
                                                int64_t timestamp,
                                                double value,
                                                UniqueTid utid) {
-  const auto& counter = context_->storage->counter_table();
+  const auto& counter = context_->global_context->storage->counter_table();
   auto opt_id = PushCounter(timestamp, value, kInvalidTrackId);
   if (opt_id) {
     PendingUpidResolutionCounter pending;
@@ -52,7 +52,7 @@ void EventTracker::PushProcessCounterForThread(ProcessCounterForThread pcounter,
 std::optional<CounterId> EventTracker::PushCounter(int64_t timestamp,
                                                    double value,
                                                    TrackId track_id) {
-  auto* counters = context_->storage->mutable_counter_table();
+  auto* counters = context_->global_context->storage->mutable_counter_table();
   return counters->Insert({timestamp, track_id, value, {}}).id;
 }
 
@@ -63,14 +63,15 @@ std::optional<CounterId> EventTracker::PushCounter(
     const SetArgsCallback& args_callback) {
   auto maybe_counter_id = PushCounter(timestamp, value, track_id);
   if (maybe_counter_id) {
-    auto inserter = context_->args_tracker->AddArgsTo(*maybe_counter_id);
+    auto inserter =
+        context_->trace_context->args_tracker->AddArgsTo(*maybe_counter_id);
     args_callback(&inserter);
   }
   return maybe_counter_id;
 }
 
 void EventTracker::FlushPendingEvents() {
-  const auto& thread_table = context_->storage->thread_table();
+  const auto& thread_table = context_->global_context->storage->thread_table();
   for (const auto& pending_counter : pending_upid_resolution_counter_) {
     UniqueTid utid = pending_counter.utid;
     std::optional<UniquePid> upid = thread_table[utid].upid();
@@ -82,10 +83,10 @@ void EventTracker::FlushPendingEvents() {
     switch (pending_counter.counter.index()) {
       case base::variant_index<ProcessCounterForThread, OomScoreAdj>():
         if (upid.has_value()) {
-          track_id = context_->track_tracker->InternTrack(
+          track_id = context_->machine_context->track_tracker->InternTrack(
               tracks::kOomScoreAdjBlueprint, tracks::Dimensions(*upid));
         } else {
-          track_id = context_->track_tracker->InternTrack(
+          track_id = context_->machine_context->track_tracker->InternTrack(
               tracks::kOomScoreAdjThreadFallbackBlueprint,
               tracks::Dimensions(utid));
         }
@@ -93,11 +94,11 @@ void EventTracker::FlushPendingEvents() {
       case base::variant_index<ProcessCounterForThread, MmEvent>(): {
         const auto& mm_event = std::get<MmEvent>(pending_counter.counter);
         if (upid.has_value()) {
-          track_id = context_->track_tracker->InternTrack(
+          track_id = context_->machine_context->track_tracker->InternTrack(
               tracks::kMmEventBlueprint,
               tracks::Dimensions(*upid, mm_event.type, mm_event.metric));
         } else {
-          track_id = context_->track_tracker->InternTrack(
+          track_id = context_->machine_context->track_tracker->InternTrack(
               tracks::kMmEventThreadFallbackBlueprint,
               tracks::Dimensions(utid, mm_event.type, mm_event.metric));
         }
@@ -106,11 +107,11 @@ void EventTracker::FlushPendingEvents() {
       case base::variant_index<ProcessCounterForThread, RssStat>(): {
         const auto& rss_stat = std::get<RssStat>(pending_counter.counter);
         if (upid.has_value()) {
-          track_id = context_->track_tracker->InternTrack(
+          track_id = context_->machine_context->track_tracker->InternTrack(
               tracks::kProcessMemoryBlueprint,
               tracks::Dimensions(*upid, rss_stat.process_memory_key));
         } else {
-          track_id = context_->track_tracker->InternTrack(
+          track_id = context_->machine_context->track_tracker->InternTrack(
               tracks::kProcessMemoryThreadFallbackBlueprint,
               tracks::Dimensions(utid, rss_stat.process_memory_key));
         }
@@ -119,22 +120,24 @@ void EventTracker::FlushPendingEvents() {
       case base::variant_index<ProcessCounterForThread, JsonCounter>(): {
         const auto& json = std::get<JsonCounter>(pending_counter.counter);
         if (upid.has_value()) {
-          track_id = context_->track_tracker->InternTrack(
+          track_id = context_->machine_context->track_tracker->InternTrack(
               tracks::kJsonCounterBlueprint,
-              tracks::Dimensions(
-                  *upid, context_->storage->GetString(json.counter_name_id)),
+              tracks::Dimensions(*upid,
+                                 context_->global_context->storage->GetString(
+                                     json.counter_name_id)),
               tracks::DynamicName(json.counter_name_id));
         } else {
-          track_id = context_->track_tracker->InternTrack(
+          track_id = context_->machine_context->track_tracker->InternTrack(
               tracks::kJsonCounterThreadFallbackBlueprint,
-              tracks::Dimensions(
-                  utid, context_->storage->GetString(json.counter_name_id)),
+              tracks::Dimensions(utid,
+                                 context_->global_context->storage->GetString(
+                                     json.counter_name_id)),
               tracks::DynamicName(json.counter_name_id));
         }
         break;
       }
     }
-    auto& counter = *context_->storage->mutable_counter_table();
+    auto& counter = *context_->global_context->storage->mutable_counter_table();
     counter[pending_counter.row].set_track_id(track_id);
   }
   pending_upid_resolution_counter_.clear();

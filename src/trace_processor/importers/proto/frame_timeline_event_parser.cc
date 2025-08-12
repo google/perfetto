@@ -55,9 +55,9 @@ bool IsBadTimestamp(int64_t ts) {
 StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
                                    int32_t jank_type) {
   if (jank_type == FrameTimelineEvent::JANK_UNSPECIFIED)
-    return context->storage->InternString("Unspecified");
+    return context->global_context->storage->InternString("Unspecified");
   if (jank_type == FrameTimelineEvent::JANK_NONE)
-    return context->storage->InternString("None");
+    return context->global_context->storage->InternString("None");
 
   std::vector<std::string> jank_reasons;
   if (jank_type & FrameTimelineEvent::JANK_SF_SCHEDULING)
@@ -86,7 +86,8 @@ StringId JankTypeBitmaskToStringId(TraceProcessorContext* context,
                       [](const std::string& l, const std::string& r) {
                         return l.empty() ? r : l + ", " + r;
                       }));
-  return context->storage->InternString(base::StringView(jank_str));
+  return context->global_context->storage->InternString(
+      base::StringView(jank_str));
 }
 
 bool DisplayFrameJanky(int32_t jank_type) {
@@ -119,7 +120,8 @@ bool ValidatePredictionType(TraceProcessorContext* context,
   if (prediction_type >= FrameTimelineEvent::PREDICTION_VALID /*1*/ &&
       prediction_type <= FrameTimelineEvent::PREDICTION_UNKNOWN /*3*/)
     return true;
-  context->storage->IncrementStats(stats::frame_timeline_event_parser_errors);
+  context->global_context->storage->IncrementStats(
+      stats::frame_timeline_event_parser_errors);
   return false;
 }
 
@@ -127,7 +129,8 @@ bool ValidatePresentType(TraceProcessorContext* context, int32_t present_type) {
   if (present_type >= FrameTimelineEvent::PRESENT_ON_TIME /*1*/ &&
       present_type <= FrameTimelineEvent::PRESENT_UNKNOWN /*5*/)
     return true;
-  context->storage->IncrementStats(stats::frame_timeline_event_parser_errors);
+  context->global_context->storage->IncrementStats(
+      stats::frame_timeline_event_parser_errors);
   return false;
 }
 
@@ -158,74 +161,88 @@ constexpr auto kActualBlueprint = TrackCompressor::SliceBlueprint(
 FrameTimelineEventParser::FrameTimelineEventParser(
     TraceProcessorContext* context)
     : context_(context),
-      present_type_ids_{
-          {context->storage->InternString(
-               "Unspecified Present") /* PRESENT_UNSPECIFIED */,
-           context->storage->InternString(
-               "On-time Present") /* PRESENT_ON_TIME */,
-           context->storage->InternString("Late Present") /* PRESENT_LATE */,
-           context->storage->InternString("Early Present") /* PRESENT_EARLY */,
-           context->storage->InternString(
-               "Dropped Frame") /* PRESENT_DROPPED */,
-           context->storage->InternString(
-               "Unknown Present") /* PRESENT_UNKNOWN */}},
+      present_type_ids_{{context->global_context->storage->InternString(
+                             "Unspecified Present") /* PRESENT_UNSPECIFIED */,
+                         context->global_context->storage->InternString(
+                             "On-time Present") /* PRESENT_ON_TIME */,
+                         context->global_context->storage->InternString(
+                             "Late Present") /* PRESENT_LATE */,
+                         context->global_context->storage->InternString(
+                             "Early Present") /* PRESENT_EARLY */,
+                         context->global_context->storage->InternString(
+                             "Dropped Frame") /* PRESENT_DROPPED */,
+                         context->global_context->storage->InternString(
+                             "Unknown Present") /* PRESENT_UNKNOWN */}},
       prediction_type_ids_{
-          {context->storage->InternString(
+          {context->global_context->storage->InternString(
                "Unspecified Prediction") /* PREDICTION_UNSPECIFIED */,
-           context->storage->InternString(
+           context->global_context->storage->InternString(
                "Valid Prediction") /* PREDICTION_VALID */,
-           context->storage->InternString(
+           context->global_context->storage->InternString(
                "Expired Prediction") /* PREDICTION_EXPIRED */,
-           context->storage->InternString(
+           context->global_context->storage->InternString(
                "Unknown Prediction") /* PREDICTION_UNKNOWN */}},
-      jank_severity_type_ids_{{context->storage->InternString("Unknown"),
-                               context->storage->InternString("None"),
-                               context->storage->InternString("Partial"),
-                               context->storage->InternString("Full")}},
-      surface_frame_token_id_(
-          context->storage->InternString("Surface frame token")),
-      display_frame_token_id_(
-          context->storage->InternString("Display frame token")),
-      present_type_id_(context->storage->InternString("Present type")),
-      on_time_finish_id_(context->storage->InternString("On time finish")),
-      gpu_composition_id_(context->storage->InternString("GPU composition")),
-      jank_type_id_(context->storage->InternString("Jank type")),
+      jank_severity_type_ids_{
+          {context->global_context->storage->InternString("Unknown"),
+           context->global_context->storage->InternString("None"),
+           context->global_context->storage->InternString("Partial"),
+           context->global_context->storage->InternString("Full")}},
+      surface_frame_token_id_(context->global_context->storage->InternString(
+          "Surface frame token")),
+      display_frame_token_id_(context->global_context->storage->InternString(
+          "Display frame token")),
+      present_type_id_(
+          context->global_context->storage->InternString("Present type")),
+      on_time_finish_id_(
+          context->global_context->storage->InternString("On time finish")),
+      gpu_composition_id_(
+          context->global_context->storage->InternString("GPU composition")),
+      jank_type_id_(
+          context->global_context->storage->InternString("Jank type")),
       jank_severity_type_id_(
-          context->storage->InternString("Jank severity type")),
-      layer_name_id_(context->storage->InternString("Layer name")),
-      prediction_type_id_(context->storage->InternString("Prediction type")),
-      jank_tag_id_(context->storage->InternString("Jank tag")),
-      is_buffer_id_(context->storage->InternString("Is Buffer?")),
-      jank_tag_none_id_(context->storage->InternString("No Jank")),
-      jank_tag_self_id_(context->storage->InternString("Self Jank")),
-      jank_tag_other_id_(context->storage->InternString("Other Jank")),
-      jank_tag_dropped_id_(context->storage->InternString("Dropped Frame")),
+          context->global_context->storage->InternString("Jank severity type")),
+      layer_name_id_(
+          context->global_context->storage->InternString("Layer name")),
+      prediction_type_id_(
+          context->global_context->storage->InternString("Prediction type")),
+      jank_tag_id_(context->global_context->storage->InternString("Jank tag")),
+      is_buffer_id_(
+          context->global_context->storage->InternString("Is Buffer?")),
+      jank_tag_none_id_(
+          context->global_context->storage->InternString("No Jank")),
+      jank_tag_self_id_(
+          context->global_context->storage->InternString("Self Jank")),
+      jank_tag_other_id_(
+          context->global_context->storage->InternString("Other Jank")),
+      jank_tag_dropped_id_(
+          context->global_context->storage->InternString("Dropped Frame")),
       jank_tag_buffer_stuffing_id_(
-          context->storage->InternString("Buffer Stuffing")),
-      jank_tag_sf_stuffing_id_(
-          context->storage->InternString("SurfaceFlinger Stuffing")) {}
+          context->global_context->storage->InternString("Buffer Stuffing")),
+      jank_tag_sf_stuffing_id_(context->global_context->storage->InternString(
+          "SurfaceFlinger Stuffing")) {}
 
 void FrameTimelineEventParser::ParseExpectedDisplayFrameStart(int64_t timestamp,
                                                               ConstBytes blob) {
   ExpectedDisplayFrameStartDecoder event(blob);
 
   if (!event.has_cookie() || !event.has_token() || !event.has_pid()) {
-    context_->storage->IncrementStats(
+    context_->global_context->storage->IncrementStats(
         stats::frame_timeline_event_parser_errors);
     return;
   }
 
   int64_t cookie = event.cookie();
   int64_t token = event.token();
-  StringId name_id =
-      context_->storage->InternString(base::StringView(std::to_string(token)));
-  UniquePid upid = context_->process_tracker->GetOrCreateProcess(
-      static_cast<uint32_t>(event.pid()));
+  StringId name_id = context_->global_context->storage->InternString(
+      base::StringView(std::to_string(token)));
+  UniquePid upid =
+      context_->machine_context->process_tracker->GetOrCreateProcess(
+          static_cast<uint32_t>(event.pid()));
   cookie_map_[cookie] = std::make_pair(upid, TrackType::kExpected);
 
-  TrackId track_id = context_->track_compressor->InternBegin(
+  TrackId track_id = context_->machine_context->track_compressor->InternBegin(
       kExpectedBlueprint, tracks::Dimensions(upid), cookie);
-  context_->slice_tracker->Begin(
+  context_->trace_context->slice_tracker->Begin(
       timestamp, track_id, kNullStringId, name_id,
       [this, token](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(display_frame_token_id_, Variadic::Integer(token));
@@ -237,20 +254,21 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
   ActualDisplayFrameStartDecoder event(blob);
 
   if (!event.has_cookie() || !event.has_token() || !event.has_pid()) {
-    context_->storage->IncrementStats(
+    context_->global_context->storage->IncrementStats(
         stats::frame_timeline_event_parser_errors);
     return;
   }
 
   int64_t cookie = event.cookie();
   int64_t token = event.token();
-  StringId name_id =
-      context_->storage->InternString(base::StringView(std::to_string(token)));
-  UniquePid upid = context_->process_tracker->GetOrCreateProcess(
-      static_cast<uint32_t>(event.pid()));
+  StringId name_id = context_->global_context->storage->InternString(
+      base::StringView(std::to_string(token)));
+  UniquePid upid =
+      context_->machine_context->process_tracker->GetOrCreateProcess(
+          static_cast<uint32_t>(event.pid()));
   cookie_map_[cookie] = std::make_pair(upid, TrackType::kActual);
 
-  TrackId track_id = context_->track_compressor->InternBegin(
+  TrackId track_id = context_->machine_context->track_compressor->InternBegin(
       kActualBlueprint, tracks::Dimensions(upid), cookie);
 
   // parse present type
@@ -295,22 +313,23 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
     jank_tag = jank_tag_none_id_;
   }
 
-  std::optional<SliceId> opt_slice_id = context_->slice_tracker->Begin(
-      timestamp, track_id, kNullStringId, name_id,
-      [&](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(display_frame_token_id_, Variadic::Integer(token));
-        inserter->AddArg(present_type_id_, Variadic::String(present_type));
-        inserter->AddArg(on_time_finish_id_,
-                         Variadic::Integer(event.on_time_finish()));
-        inserter->AddArg(gpu_composition_id_,
-                         Variadic::Integer(event.gpu_composition()));
-        inserter->AddArg(jank_type_id_, Variadic::String(jank_type));
-        inserter->AddArg(jank_severity_type_id_,
-                         Variadic::String(jank_severity_type));
-        inserter->AddArg(prediction_type_id_,
-                         Variadic::String(prediction_type));
-        inserter->AddArg(jank_tag_id_, Variadic::String(jank_tag));
-      });
+  std::optional<SliceId> opt_slice_id =
+      context_->trace_context->slice_tracker->Begin(
+          timestamp, track_id, kNullStringId, name_id,
+          [&](ArgsTracker::BoundInserter* inserter) {
+            inserter->AddArg(display_frame_token_id_, Variadic::Integer(token));
+            inserter->AddArg(present_type_id_, Variadic::String(present_type));
+            inserter->AddArg(on_time_finish_id_,
+                             Variadic::Integer(event.on_time_finish()));
+            inserter->AddArg(gpu_composition_id_,
+                             Variadic::Integer(event.gpu_composition()));
+            inserter->AddArg(jank_type_id_, Variadic::String(jank_type));
+            inserter->AddArg(jank_severity_type_id_,
+                             Variadic::String(jank_severity_type));
+            inserter->AddArg(prediction_type_id_,
+                             Variadic::String(prediction_type));
+            inserter->AddArg(jank_tag_id_, Variadic::String(jank_tag));
+          });
 
   // SurfaceFrames will always be parsed before the matching DisplayFrame
   // (since the app works on the frame before SurfaceFlinger does). Because
@@ -322,7 +341,8 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(int64_t timestamp,
     for (auto it = range.first; it != range.second; ++it) {
       SliceId surface_slice = it->second;     // App
       SliceId display_slice = *opt_slice_id;  // SurfaceFlinger
-      context_->flow_tracker->InsertFlow(surface_slice, display_slice);
+      context_->trace_context->flow_tracker->InsertFlow(surface_slice,
+                                                        display_slice);
     }
   }
   display_token_to_surface_slice_.erase(range.first, range.second);
@@ -334,7 +354,7 @@ void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(int64_t timestamp,
 
   if (!event.has_cookie() || !event.has_token() ||
       !event.has_display_frame_token() || !event.has_pid()) {
-    context_->storage->IncrementStats(
+    context_->global_context->storage->IncrementStats(
         stats::frame_timeline_event_parser_errors);
     return;
   }
@@ -342,8 +362,9 @@ void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(int64_t timestamp,
   int64_t cookie = event.cookie();
   int64_t token = event.token();
   int64_t display_frame_token = event.display_frame_token();
-  UniquePid upid = context_->process_tracker->GetOrCreateProcess(
-      static_cast<uint32_t>(event.pid()));
+  UniquePid upid =
+      context_->machine_context->process_tracker->GetOrCreateProcess(
+          static_cast<uint32_t>(event.pid()));
   cookie_map_[cookie] = std::make_pair(upid, TrackType::kExpected);
 
   auto token_set_it = expected_timeline_token_map_.find(upid);
@@ -360,16 +381,16 @@ void FrameTimelineEventParser::ParseExpectedSurfaceFrameStart(int64_t timestamp,
   // the map.
   expected_timeline_token_map_[upid].insert(token);
 
-  StringId layer_name_id = event.has_layer_name()
-                               ? context_->storage->InternString(
-                                     base::StringView(event.layer_name()))
-                               : kNullStringId;
-  StringId name_id =
-      context_->storage->InternString(base::StringView(std::to_string(token)));
+  StringId layer_name_id =
+      event.has_layer_name() ? context_->global_context->storage->InternString(
+                                   base::StringView(event.layer_name()))
+                             : kNullStringId;
+  StringId name_id = context_->global_context->storage->InternString(
+      base::StringView(std::to_string(token)));
 
-  TrackId track_id = context_->track_compressor->InternBegin(
+  TrackId track_id = context_->machine_context->track_compressor->InternBegin(
       kExpectedBlueprint, tracks::Dimensions(upid), cookie);
-  context_->slice_tracker->Begin(
+  context_->trace_context->slice_tracker->Begin(
       timestamp, track_id, kNullStringId, name_id,
       [&](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(surface_frame_token_id_, Variadic::Integer(token));
@@ -385,7 +406,7 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
 
   if (!event.has_cookie() || !event.has_token() ||
       !event.has_display_frame_token() || !event.has_pid()) {
-    context_->storage->IncrementStats(
+    context_->global_context->storage->IncrementStats(
         stats::frame_timeline_event_parser_errors);
     return;
   }
@@ -393,18 +414,19 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
   int64_t cookie = event.cookie();
   int64_t token = event.token();
   int64_t display_frame_token = event.display_frame_token();
-  UniquePid upid = context_->process_tracker->GetOrCreateProcess(
-      static_cast<uint32_t>(event.pid()));
+  UniquePid upid =
+      context_->machine_context->process_tracker->GetOrCreateProcess(
+          static_cast<uint32_t>(event.pid()));
   cookie_map_[cookie] = std::make_pair(upid, TrackType::kActual);
 
   StringId layer_name_id;
   if (event.has_layer_name())
-    layer_name_id =
-        context_->storage->InternString(base::StringView(event.layer_name()));
-  StringId name_id =
-      context_->storage->InternString(base::StringView(std::to_string(token)));
+    layer_name_id = context_->global_context->storage->InternString(
+        base::StringView(event.layer_name()));
+  StringId name_id = context_->global_context->storage->InternString(
+      base::StringView(std::to_string(token)));
 
-  TrackId track_id = context_->track_compressor->InternBegin(
+  TrackId track_id = context_->machine_context->track_compressor->InternBegin(
       kActualBlueprint, tracks::Dimensions(upid), cookie);
 
   // parse present type
@@ -453,35 +475,37 @@ void FrameTimelineEventParser::ParseActualSurfaceFrameStart(int64_t timestamp,
   } else {
     jank_tag = jank_tag_none_id_;
   }
-  StringId is_buffer = context_->storage->InternString("Unspecified");
+  StringId is_buffer =
+      context_->global_context->storage->InternString("Unspecified");
   if (event.has_is_buffer()) {
     if (event.is_buffer()) {
-      is_buffer = context_->storage->InternString("Yes");
+      is_buffer = context_->global_context->storage->InternString("Yes");
     } else {
-      is_buffer = context_->storage->InternString("No");
+      is_buffer = context_->global_context->storage->InternString("No");
     }
   }
 
-  std::optional<SliceId> opt_slice_id = context_->slice_tracker->Begin(
-      timestamp, track_id, kNullStringId, name_id,
-      [&](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(surface_frame_token_id_, Variadic::Integer(token));
-        inserter->AddArg(display_frame_token_id_,
-                         Variadic::Integer(display_frame_token));
-        inserter->AddArg(layer_name_id_, Variadic::String(layer_name_id));
-        inserter->AddArg(present_type_id_, Variadic::String(present_type));
-        inserter->AddArg(on_time_finish_id_,
-                         Variadic::Integer(event.on_time_finish()));
-        inserter->AddArg(gpu_composition_id_,
-                         Variadic::Integer(event.gpu_composition()));
-        inserter->AddArg(jank_type_id_, Variadic::String(jank_type));
-        inserter->AddArg(jank_severity_type_id_,
-                         Variadic::String(jank_severity_type));
-        inserter->AddArg(prediction_type_id_,
-                         Variadic::String(prediction_type));
-        inserter->AddArg(jank_tag_id_, Variadic::String(jank_tag));
-        inserter->AddArg(is_buffer_id_, Variadic::String(is_buffer));
-      });
+  std::optional<SliceId> opt_slice_id =
+      context_->trace_context->slice_tracker->Begin(
+          timestamp, track_id, kNullStringId, name_id,
+          [&](ArgsTracker::BoundInserter* inserter) {
+            inserter->AddArg(surface_frame_token_id_, Variadic::Integer(token));
+            inserter->AddArg(display_frame_token_id_,
+                             Variadic::Integer(display_frame_token));
+            inserter->AddArg(layer_name_id_, Variadic::String(layer_name_id));
+            inserter->AddArg(present_type_id_, Variadic::String(present_type));
+            inserter->AddArg(on_time_finish_id_,
+                             Variadic::Integer(event.on_time_finish()));
+            inserter->AddArg(gpu_composition_id_,
+                             Variadic::Integer(event.gpu_composition()));
+            inserter->AddArg(jank_type_id_, Variadic::String(jank_type));
+            inserter->AddArg(jank_severity_type_id_,
+                             Variadic::String(jank_severity_type));
+            inserter->AddArg(prediction_type_id_,
+                             Variadic::String(prediction_type));
+            inserter->AddArg(jank_tag_id_, Variadic::String(jank_tag));
+            inserter->AddArg(is_buffer_id_, Variadic::String(is_buffer));
+          });
 
   if (opt_slice_id) {
     display_token_to_surface_slice_.emplace(display_frame_token, *opt_slice_id);
@@ -492,7 +516,7 @@ void FrameTimelineEventParser::ParseFrameEnd(int64_t timestamp,
                                              ConstBytes blob) {
   FrameEndDecoder event(blob);
   if (!event.has_cookie()) {
-    context_->storage->IncrementStats(
+    context_->global_context->storage->IncrementStats(
         stats::frame_timeline_event_parser_errors);
     return;
   }
@@ -500,21 +524,22 @@ void FrameTimelineEventParser::ParseFrameEnd(int64_t timestamp,
   int64_t cookie = event.cookie();
   auto* it = cookie_map_.Find(cookie);
   if (!it) {
-    context_->storage->IncrementStats(stats::frame_timeline_unpaired_end_event);
+    context_->global_context->storage->IncrementStats(
+        stats::frame_timeline_unpaired_end_event);
     return;
   }
   TrackId track_id;
   switch (it->second) {
     case TrackType::kExpected:
-      track_id = context_->track_compressor->InternEnd(
+      track_id = context_->machine_context->track_compressor->InternEnd(
           kExpectedBlueprint, tracks::Dimensions(it->first), cookie);
       break;
     case TrackType::kActual:
-      track_id = context_->track_compressor->InternEnd(
+      track_id = context_->machine_context->track_compressor->InternEnd(
           kActualBlueprint, tracks::Dimensions(it->first), cookie);
       break;
   }
-  context_->slice_tracker->End(timestamp, track_id);
+  context_->trace_context->slice_tracker->End(timestamp, track_id);
   cookie_map_.Erase(cookie);
 }
 
@@ -527,7 +552,7 @@ void FrameTimelineEventParser::ParseFrameTimelineEvent(int64_t timestamp,
   // TODO(mayzner): remove the negative check once we have some logic handling
   // this at the sorter level.
   if (timestamp < 0 || IsBadTimestamp(timestamp)) {
-    context_->storage->IncrementStats(
+    context_->global_context->storage->IncrementStats(
         stats::frame_timeline_event_parser_errors);
     return;
   }
@@ -547,7 +572,7 @@ void FrameTimelineEventParser::ParseFrameTimelineEvent(int64_t timestamp,
   } else if (frame_event.has_frame_end()) {
     ParseFrameEnd(timestamp, frame_event.frame_end());
   } else {
-    context_->storage->IncrementStats(
+    context_->global_context->storage->IncrementStats(
         stats::frame_timeline_event_parser_errors);
   }
 }

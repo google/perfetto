@@ -126,7 +126,8 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
         if (status.ok()) {
           line_parser_.ParseLine(std::move(line));
         } else {
-          ctx_->storage->IncrementStats(stats::systrace_parse_failure);
+          ctx_->global_context->storage->IncrementStats(
+              stats::systrace_parse_failure);
         }
       }
     } else if (state_ == ParseState::kProcessDumpLong ||
@@ -158,8 +159,8 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
             PERFETTO_ELOG("Could not parse line '%s'", buffer.c_str());
             return base::ErrStatus("Could not parse PROCESS DUMP line");
           }
-          ctx_->process_tracker->SetProcessMetadata(pid.value(), ppid, name,
-                                                    base::StringView());
+          ctx_->machine_context->process_tracker->SetProcessMetadata(
+              pid.value(), ppid, name, base::StringView());
         } else if (state_ == ParseState::kProcessDumpShort &&
                    tokens.size() >= 4) {
           // Format is:
@@ -173,16 +174,16 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
           base::StringView cmd(
               cmd_start,
               static_cast<size_t>((buffer.data() + buffer.size()) - cmd_start));
-          StringId cmd_id =
-              ctx_->storage->mutable_string_pool()->InternString(cmd);
+          StringId cmd_id = ctx_->global_context->storage->mutable_string_pool()
+                                ->InternString(cmd);
           if (!tid || !tgid) {
             PERFETTO_ELOG("Could not parse line '%s'", buffer.c_str());
             return base::ErrStatus("Could not parse PROCESS DUMP line");
           }
-          UniqueTid utid =
-              ctx_->process_tracker->UpdateThread(tid.value(), tgid.value());
-          ctx_->process_tracker->UpdateThreadName(utid, cmd_id,
-                                                  ThreadNamePriority::kOther);
+          UniqueTid utid = ctx_->machine_context->process_tracker->UpdateThread(
+              tid.value(), tgid.value());
+          ctx_->machine_context->process_tracker->UpdateThreadName(
+              utid, cmd_id, ThreadNamePriority::kOther);
         }
       }
     } else if (state_ == ParseState::kCgroupDump) {

@@ -35,7 +35,7 @@ class TraceStorage;
 struct TraceProcessorContext;
 struct ProtoImporterModuleContext;
 
-class GlobalContext {
+class PerGlobalContext {
  public:
   struct InitArgs {
     Config config;
@@ -43,16 +43,16 @@ class GlobalContext {
     uint32_t raw_machine_id = 0;
   };
 
-  explicit GlobalContext(const InitArgs&);
+  explicit PerGlobalContext(const InitArgs&);
 
   void Init(TraceProcessorContext* context);
 
   // The default constructor is used in testing.
-  GlobalContext();
-  ~GlobalContext();
+  PerGlobalContext();
+  ~PerGlobalContext();
 
-  GlobalContext(GlobalContext&&);
-  GlobalContext& operator=(GlobalContext&&);
+  PerGlobalContext(PerGlobalContext&&);
+  PerGlobalContext& operator=(PerGlobalContext&&);
 
   Config config;
 

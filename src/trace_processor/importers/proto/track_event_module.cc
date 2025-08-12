@@ -48,11 +48,11 @@ TrackEventModule::TrackEventModule(ProtoImporterModuleContext* module_context,
   RegisterForField(TracePacket::kThreadDescriptorFieldNumber);
   RegisterForField(TracePacket::kProcessDescriptorFieldNumber);
 
-  context->descriptor_pool_->AddFromFileDescriptorSet(
+  context->global_context->descriptor_pool_->AddFromFileDescriptorSet(
       kTrackEventDescriptor.data(), kTrackEventDescriptor.size());
-  context->descriptor_pool_->AddFromFileDescriptorSet(
+  context->global_context->descriptor_pool_->AddFromFileDescriptorSet(
       kChromeTrackEventDescriptor.data(), kChromeTrackEventDescriptor.size());
-  context->descriptor_pool_->AddFromFileDescriptorSet(
+  context->global_context->descriptor_pool_->AddFromFileDescriptorSet(
       kAndroidTrackEventDescriptor.data(), kAndroidTrackEventDescriptor.size());
 }
 

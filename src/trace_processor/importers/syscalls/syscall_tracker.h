@@ -36,10 +36,12 @@ class SyscallTracker : public Destructible {
   SyscallTracker& operator=(const SyscallTracker&) = delete;
   ~SyscallTracker() override;
   static SyscallTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->syscall_tracker) {
-      context->syscall_tracker.reset(new SyscallTracker(context));
+    if (!context->machine_context->syscall_tracker) {
+      context->machine_context->syscall_tracker.reset(
+          new SyscallTracker(context));
     }
-    return static_cast<SyscallTracker*>(context->syscall_tracker.get());
+    return static_cast<SyscallTracker*>(
+        context->machine_context->syscall_tracker.get());
   }
 
   void SetArchitecture(Architecture architecture);
@@ -53,16 +55,17 @@ class SyscallTracker : public Destructible {
     if (name.is_null())
       return;
 
-    TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+    TrackId track_id =
+        context_->machine_context->track_tracker->InternThreadTrack(utid);
 
     // sys_rt_sigreturn does not return so should be inserted as an instant
     // event. See https://github.com/google/perfetto/issues/733 for details.
     if (name == sys_rt_sigreturn_string_id_) {
-      context_->slice_tracker->Scoped(ts, track_id, kNullStringId, name, 0,
-                                      args_callback);
+      context_->trace_context->slice_tracker->Scoped(
+          ts, track_id, kNullStringId, name, 0, args_callback);
     } else {
-      context_->slice_tracker->Begin(ts, track_id, kNullStringId /* cat */,
-                                     name, args_callback);
+      context_->trace_context->slice_tracker->Begin(
+          ts, track_id, kNullStringId /* cat */, name, args_callback);
     }
 
     if (name == sys_write_string_id_) {
@@ -93,9 +96,10 @@ class SyscallTracker : public Destructible {
       in_sys_write_[utid] = false;
     }
 
-    TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-    context_->slice_tracker->End(ts, track_id, kNullStringId /* cat */, name,
-                                 args_callback);
+    TrackId track_id =
+        context_->machine_context->track_tracker->InternThreadTrack(utid);
+    context_->trace_context->slice_tracker->End(
+        ts, track_id, kNullStringId /* cat */, name, args_callback);
   }
 
   // Resolves slice nesting issues when the sys_write is for an atrace slice on
@@ -107,11 +111,13 @@ class SyscallTracker : public Destructible {
     if (!in_sys_write_[utid])
       return;
     in_sys_write_[utid] = false;
-    context_->storage->IncrementStats(stats::truncated_sys_write_duration);
+    context_->global_context->storage->IncrementStats(
+        stats::truncated_sys_write_duration);
 
-    TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-    context_->slice_tracker->End(ts, track_id, kNullStringId /* cat */,
-                                 sys_write_string_id_);
+    TrackId track_id =
+        context_->machine_context->track_tracker->InternThreadTrack(utid);
+    context_->trace_context->slice_tracker->End(
+        ts, track_id, kNullStringId /* cat */, sys_write_string_id_);
   }
 
  private:

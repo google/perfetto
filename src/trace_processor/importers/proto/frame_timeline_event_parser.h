@@ -39,7 +39,7 @@ namespace trace_processor {
 using FrameTimelineEvent = protos::pbzero::FrameTimelineEvent;
 using FrameTimelineEventDecoder = protos::pbzero::FrameTimelineEvent_Decoder;
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 // Class for parsing graphics frame related events.
 class FrameTimelineEventParser {

@@ -159,15 +159,18 @@ PerfCounter& PerfEventAttr::GetOrCreateCounter(uint32_t cpu) {
 
 PerfCounter PerfEventAttr::CreateCounter(uint32_t cpu) const {
   base::StringView name(event_name_);
-  TrackId track_id = context_->track_tracker->InternTrack(
+  TrackId track_id = context_->machine_context->track_tracker->InternTrack(
       tracks::kPerfCounterBlueprint,
       tracks::Dimensions(cpu, perf_session_id_.value, name),
-      tracks::DynamicName(context_->storage->InternString(name)),
+      tracks::DynamicName(
+          context_->global_context->storage->InternString(name)),
       [this](ArgsTracker::BoundInserter& inserter) {
-        inserter.AddArg(context_->storage->InternString("is_timebase"),
-                        Variadic::Boolean(is_timebase()));
+        inserter.AddArg(
+            context_->global_context->storage->InternString("is_timebase"),
+            Variadic::Boolean(is_timebase()));
       });
-  return {context_->storage->mutable_counter_table(), track_id, is_timebase()};
+  return {context_->global_context->storage->mutable_counter_table(), track_id,
+          is_timebase()};
 }
 
 }  // namespace perfetto::trace_processor::perf_importer

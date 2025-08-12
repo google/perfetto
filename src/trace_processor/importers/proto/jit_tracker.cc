@@ -45,7 +45,8 @@ JitCache* JitTracker::CreateJitCache(std::string name,
   // isolate and recreate it.), so just make sure our assumption (this never
   // happens) is correct with a check.
   PERFETTO_CHECK(caches_[upid].Emplace(range, std::move(cache)));
-  context_->mapping_tracker->AddJitRange(upid, range, cache_ptr);
+  context_->machine_context->mapping_tracker->AddJitRange(upid, range,
+                                                          cache_ptr);
   return cache_ptr;
 }
 

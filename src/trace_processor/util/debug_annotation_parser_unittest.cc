@@ -61,7 +61,9 @@ base::Status ParseDebugAnnotation(
 class DebugAnnotationParserTest : public ::testing::Test,
                                   public ProtoToArgsParser::Delegate {
  protected:
-  DebugAnnotationParserTest() { context_.storage.reset(new TraceStorage()); }
+  DebugAnnotationParserTest() {
+    context_.global_context->storage.reset(new TraceStorage());
+  }
 
   const std::vector<std::string>& args() const { return args_; }
 

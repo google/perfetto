@@ -182,21 +182,21 @@ void VirtioGpuTracker::VirtioGpuQueue::HandleNumFree(int64_t timestamp,
                                       name.data());
       }));
 
-  TrackId track = context_->track_tracker->InternTrack(
+  TrackId track = context_->machine_context->track_tracker->InternTrack(
       kBlueprint, tracks::Dimensions(name_));
-  context_->event_tracker->PushCounter(timestamp, static_cast<double>(num_free),
-                                       track);
+  context_->trace_context->event_tracker->PushCounter(
+      timestamp, static_cast<double>(num_free), track);
 }
 
 void VirtioGpuTracker::VirtioGpuQueue::HandleCmdQueue(int64_t timestamp,
                                                       uint32_t seqno,
                                                       uint32_t type,
                                                       uint64_t fence_id) {
-  TrackId start_id = context_->track_compressor->InternBegin(
+  TrackId start_id = context_->machine_context->track_compressor->InternBegin(
       kQueueBlueprint, tracks::Dimensions(name_), seqno);
-  context_->slice_tracker->Begin(
+  context_->trace_context->slice_tracker->Begin(
       timestamp, start_id, kNullStringId,
-      context_->storage->InternString(
+      context_->global_context->storage->InternString(
           base::StringView(virtio_gpu_ctrl_name(type))));
 
   /* cmds with a fence do not necessarily get an immediate response from
@@ -209,9 +209,9 @@ void VirtioGpuTracker::VirtioGpuQueue::HandleCmdQueue(int64_t timestamp,
 
 void VirtioGpuTracker::VirtioGpuQueue::HandleCmdResponse(int64_t timestamp,
                                                          uint32_t seqno) {
-  TrackId end_id = context_->track_compressor->InternEnd(
+  TrackId end_id = context_->machine_context->track_compressor->InternEnd(
       kQueueBlueprint, tracks::Dimensions(name_), seqno);
-  context_->slice_tracker->End(timestamp, end_id);
+  context_->trace_context->slice_tracker->End(timestamp, end_id);
 
   int64_t* start_timestamp = start_timestamps_.Find(seqno);
   if (!start_timestamp) {
@@ -228,10 +228,10 @@ void VirtioGpuTracker::VirtioGpuQueue::HandleCmdResponse(int64_t timestamp,
                                       name.data());
       }));
 
-  TrackId track = context_->track_tracker->InternTrack(
+  TrackId track = context_->machine_context->track_tracker->InternTrack(
       kBlueprint, tracks::Dimensions(name_));
-  context_->event_tracker->PushCounter(timestamp, static_cast<double>(duration),
-                                       track);
+  context_->trace_context->event_tracker->PushCounter(
+      timestamp, static_cast<double>(duration), track);
   start_timestamps_.Erase(seqno);
 }
 

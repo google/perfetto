@@ -53,10 +53,11 @@ FtraceSchedEventTracker::FtraceSchedEventTracker(TraceProcessorContext* context)
   PERFETTO_CHECK(switch_descriptor->max_field_id == kSchedSwitchMaxFieldId);
 
   for (size_t i = 1; i <= kSchedSwitchMaxFieldId; i++) {
-    sched_switch_field_ids_[i] =
-        context->storage->InternString(switch_descriptor->fields[i].name);
+    sched_switch_field_ids_[i] = context->global_context->storage->InternString(
+        switch_descriptor->fields[i].name);
   }
-  sched_switch_id_ = context->storage->InternString(switch_descriptor->name);
+  sched_switch_id_ =
+      context->global_context->storage->InternString(switch_descriptor->name);
 
   // pre-parse sched_waking
   auto* waking_descriptor = GetMessageDescriptorForId(
@@ -64,10 +65,11 @@ FtraceSchedEventTracker::FtraceSchedEventTracker(TraceProcessorContext* context)
   PERFETTO_CHECK(waking_descriptor->max_field_id == kSchedWakingMaxFieldId);
 
   for (size_t i = 1; i <= kSchedWakingMaxFieldId; i++) {
-    sched_waking_field_ids_[i] =
-        context->storage->InternString(waking_descriptor->fields[i].name);
+    sched_waking_field_ids_[i] = context->global_context->storage->InternString(
+        waking_descriptor->fields[i].name);
   }
-  sched_waking_id_ = context->storage->InternString(waking_descriptor->name);
+  sched_waking_id_ =
+      context->global_context->storage->InternString(waking_descriptor->name);
 }
 
 FtraceSchedEventTracker::~FtraceSchedEventTracker() = default;
@@ -81,10 +83,12 @@ void FtraceSchedEventTracker::PushSchedSwitch(uint32_t cpu,
                                               int64_t next_pid,
                                               base::StringView next_comm,
                                               int32_t next_prio) {
-  StringId next_comm_id = context_->storage->InternString(next_comm);
-  UniqueTid next_utid = context_->process_tracker->GetOrCreateThread(next_pid);
-  context_->process_tracker->UpdateThreadName(next_utid, next_comm_id,
-                                              ThreadNamePriority::kFtrace);
+  StringId next_comm_id =
+      context_->global_context->storage->InternString(next_comm);
+  UniqueTid next_utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(next_pid);
+  context_->machine_context->process_tracker->UpdateThreadName(
+      next_utid, next_comm_id, ThreadNamePriority::kFtrace);
 
   // First use this data to close the previous slice.
   bool prev_pid_match_prev_next_pid = false;
@@ -92,32 +96,37 @@ void FtraceSchedEventTracker::PushSchedSwitch(uint32_t cpu,
   uint32_t pending_slice_idx = pending_sched->pending_slice_storage_idx;
   StringId prev_state_string_id = TaskStateToStringId(prev_state);
   if (prev_state_string_id == kNullStringId) {
-    context_->storage->IncrementStats(stats::task_state_invalid);
+    context_->global_context->storage->IncrementStats(
+        stats::task_state_invalid);
   }
   if (pending_slice_idx < std::numeric_limits<uint32_t>::max()) {
     prev_pid_match_prev_next_pid = prev_pid == pending_sched->last_pid;
     if (PERFETTO_LIKELY(prev_pid_match_prev_next_pid)) {
-      context_->sched_event_tracker->ClosePendingSlice(pending_slice_idx, ts,
-                                                       prev_state_string_id);
+      context_->machine_context->sched_event_tracker->ClosePendingSlice(
+          pending_slice_idx, ts, prev_state_string_id);
     } else {
       // If the pids are not consistent, make a note of this.
-      context_->storage->IncrementStats(stats::mismatched_sched_switch_tids);
+      context_->global_context->storage->IncrementStats(
+          stats::mismatched_sched_switch_tids);
     }
   }
 
   // We have to intern prev_comm again because our assumption that
   // this event's |prev_comm| == previous event's |next_comm| does not hold
   // if the thread changed its name while scheduled.
-  StringId prev_comm_id = context_->storage->InternString(prev_comm);
-  UniqueTid prev_utid = context_->process_tracker->GetOrCreateThread(prev_pid);
-  context_->process_tracker->UpdateThreadName(prev_utid, prev_comm_id,
-                                              ThreadNamePriority::kFtrace);
+  StringId prev_comm_id =
+      context_->global_context->storage->InternString(prev_comm);
+  UniqueTid prev_utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(prev_pid);
+  context_->machine_context->process_tracker->UpdateThreadName(
+      prev_utid, prev_comm_id, ThreadNamePriority::kFtrace);
 
   AddRawSchedSwitchEvent(cpu, ts, prev_utid, prev_pid, prev_comm_id, prev_prio,
                          prev_state, next_pid, next_comm_id, next_prio);
 
-  auto new_slice_idx = context_->sched_event_tracker->AddStartSlice(
-      cpu, ts, next_utid, next_prio);
+  auto new_slice_idx =
+      context_->machine_context->sched_event_tracker->AddStartSlice(
+          cpu, ts, next_utid, next_prio);
 
   // Finally, update the info for the next sched switch on this CPU.
   pending_sched->pending_slice_storage_idx = new_slice_idx;
@@ -137,9 +146,10 @@ void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
                                                      int32_t next_prio,
                                                      StringId next_comm_id,
                                                      bool parse_only_into_raw) {
-  UniqueTid next_utid = context_->process_tracker->GetOrCreateThread(next_pid);
-  context_->process_tracker->UpdateThreadName(next_utid, next_comm_id,
-                                              ThreadNamePriority::kFtrace);
+  UniqueTid next_utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(next_pid);
+  context_->machine_context->process_tracker->UpdateThreadName(
+      next_utid, next_comm_id, ThreadNamePriority::kFtrace);
 
   // If we're processing the first compact event for this cpu, don't start a
   // slice since we're missing the "prev_*" fields. The successive events will
@@ -147,7 +157,8 @@ void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
   // discarded.
   auto* pending_sched = sched_event_state_.GetPendingSchedInfoForCpu(cpu);
   if (pending_sched->last_utid == std::numeric_limits<UniqueTid>::max()) {
-    context_->storage->IncrementStats(stats::compact_sched_switch_skipped);
+    context_->global_context->storage->IncrementStats(
+        stats::compact_sched_switch_skipped);
 
     pending_sched->last_pid = next_pid;
     pending_sched->last_utid = next_utid;
@@ -162,11 +173,12 @@ void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
   uint32_t pending_slice_idx = pending_sched->pending_slice_storage_idx;
   StringId prev_state_str_id = TaskStateToStringId(prev_state);
   if (prev_state_str_id == kNullStringId) {
-    context_->storage->IncrementStats(stats::task_state_invalid);
+    context_->global_context->storage->IncrementStats(
+        stats::task_state_invalid);
   }
   if (pending_slice_idx != std::numeric_limits<uint32_t>::max()) {
-    context_->sched_event_tracker->ClosePendingSlice(pending_slice_idx, ts,
-                                                     prev_state_str_id);
+    context_->machine_context->sched_event_tracker->ClosePendingSlice(
+        pending_slice_idx, ts, prev_state_str_id);
   }
 
   // Use the previous event's values to infer this event's "prev_*" fields.
@@ -179,8 +191,9 @@ void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
   // Do a fresh task name lookup in case it was updated by a task_rename while
   // scheduled.
   StringId prev_comm_id =
-      context_->storage->thread_table()[prev_utid].name().value_or(
-          kNullStringId);
+      context_->global_context->storage->thread_table()[prev_utid]
+          .name()
+          .value_or(kNullStringId);
 
   AddRawSchedSwitchEvent(cpu, ts, prev_utid, prev_pid, prev_comm_id, prev_prio,
                          prev_state, next_pid, next_comm_id, next_prio);
@@ -198,8 +211,9 @@ void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
     return;
 
   // Update per-cpu Sched table.
-  auto new_slice_idx = context_->sched_event_tracker->AddStartSlice(
-      cpu, ts, next_utid, next_prio);
+  auto new_slice_idx =
+      context_->machine_context->sched_event_tracker->AddStartSlice(
+          cpu, ts, next_utid, next_prio);
   pending_sched->pending_slice_storage_idx = new_slice_idx;
 
   // Update the per-thread ThreadState table.
@@ -224,25 +238,29 @@ void FtraceSchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
   // compact waking events.
   auto* pending_sched = sched_event_state_.GetPendingSchedInfoForCpu(cpu);
   if (pending_sched->last_utid == std::numeric_limits<UniqueTid>::max()) {
-    context_->storage->IncrementStats(stats::compact_sched_waking_skipped);
+    context_->global_context->storage->IncrementStats(
+        stats::compact_sched_waking_skipped);
     return;
   }
   auto curr_utid = pending_sched->last_utid;
 
-  if (PERFETTO_LIKELY(context_->config.ingest_ftrace_in_raw_table)) {
+  if (PERFETTO_LIKELY(
+          context_->global_context->config.ingest_ftrace_in_raw_table)) {
     tables::FtraceEventTable::Row row;
     row.ts = ts;
     row.name = sched_waking_id_;
     row.utid = curr_utid;
     row.common_flags = common_flags;
-    row.ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
+    row.ucpu = context_->machine_context->cpu_tracker->GetOrCreateCpu(cpu);
 
     // Add an entry to the raw table.
     tables::FtraceEventTable::Id id =
-        context_->storage->mutable_ftrace_event_table()->Insert(row).id;
+        context_->global_context->storage->mutable_ftrace_event_table()
+            ->Insert(row)
+            .id;
 
     using SW = protos::pbzero::SchedWakingFtraceEvent;
-    auto inserter = context_->args_tracker->AddArgsTo(id);
+    auto inserter = context_->trace_context->args_tracker->AddArgsTo(id);
     auto add_raw_arg = [this, &inserter](int field_num, Variadic var) {
       StringId key = sched_waking_field_ids_[static_cast<size_t>(field_num)];
       inserter.AddArg(key, var);
@@ -257,7 +275,8 @@ void FtraceSchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
     return;
 
   // Add a waking entry to the ThreadState table.
-  auto wakee_utid = context_->process_tracker->GetOrCreateThread(wakee_pid);
+  auto wakee_utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(wakee_pid);
   ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(
       ts, wakee_utid, curr_utid, common_flags);
 }
@@ -272,12 +291,13 @@ void FtraceSchedEventTracker::AddRawSchedSwitchEvent(uint32_t cpu,
                                                      int64_t next_pid,
                                                      StringId next_comm_id,
                                                      int32_t next_prio) {
-  if (PERFETTO_LIKELY(context_->config.ingest_ftrace_in_raw_table)) {
+  if (PERFETTO_LIKELY(
+          context_->global_context->config.ingest_ftrace_in_raw_table)) {
     // Push the raw event - this is done as the raw ftrace event codepath does
     // not insert sched_switch.
-    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
+    auto ucpu = context_->machine_context->cpu_tracker->GetOrCreateCpu(cpu);
     tables::FtraceEventTable::Id id =
-        context_->storage->mutable_ftrace_event_table()
+        context_->global_context->storage->mutable_ftrace_event_table()
             ->Insert({ts, sched_switch_id_, prev_utid, {}, {}, ucpu})
             .id;
 
@@ -286,7 +306,7 @@ void FtraceSchedEventTracker::AddRawSchedSwitchEvent(uint32_t cpu,
     // to index these events using the field ids.
     using SS = protos::pbzero::SchedSwitchFtraceEvent;
 
-    auto inserter = context_->args_tracker->AddArgsTo(id);
+    auto inserter = context_->trace_context->args_tracker->AddArgsTo(id);
     auto add_raw_arg = [this, &inserter](int field_num, Variadic var) {
       StringId key = sched_switch_field_ids_[static_cast<size_t>(field_num)];
       inserter.AddArg(key, var);
@@ -309,7 +329,8 @@ StringId FtraceSchedEventTracker::TaskStateToStringId(int64_t task_state_int) {
   TaskState task_state = TaskState::FromRawPrevState(
       static_cast<uint16_t>(task_state_int), kernel_version);
   return task_state.is_valid()
-             ? context_->storage->InternString(task_state.ToString().data())
+             ? context_->global_context->storage->InternString(
+                   task_state.ToString().data())
              : kNullStringId;
 }
 

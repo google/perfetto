@@ -92,13 +92,14 @@ using FramesTable = tables::StackProfileFrameTable;
 using CallsitesTable = tables::StackProfileCallsiteTable;
 
 RecordParser::RecordParser(TraceProcessorContext* context)
-    : context_(context), mapping_tracker_(context->mapping_tracker.get()) {}
+    : context_(context),
+      mapping_tracker_(context->machine_context->mapping_tracker.get()) {}
 
 RecordParser::~RecordParser() = default;
 
 void RecordParser::Parse(int64_t ts, Record record) {
   if (base::Status status = ParseRecord(ts, std::move(record)); !status.ok()) {
-    context_->storage->IncrementIndexedStats(
+    context_->global_context->storage->IncrementIndexedStats(
         stats::perf_record_skipped, static_cast<int>(record.header.type));
   }
 }
@@ -128,7 +129,7 @@ base::Status RecordParser::ParseRecord(int64_t ts, Record record) {
                      record.header.type);
 
     default:
-      context_->storage->IncrementIndexedStats(
+      context_->global_context->storage->IncrementIndexedStats(
           stats::perf_unknown_record_type,
           static_cast<int>(record.header.type));
       return base::ErrStatus("Unknown PERF_RECORD with type %" PRIu32,
@@ -165,12 +166,13 @@ base::Status RecordParser::InternSample(Sample sample) {
 
   if (sample.cpu_mode ==
       protos::pbzero::perfetto_pbzero_enum_Profiling::MODE_UNKNOWN) {
-    context_->storage->IncrementStats(stats::perf_samples_cpu_mode_unknown);
+    context_->global_context->storage->IncrementStats(
+        stats::perf_samples_cpu_mode_unknown);
   }
 
-  UniqueTid utid = context_->process_tracker->UpdateThread(sample.pid_tid->tid,
-                                                           sample.pid_tid->pid);
-  const auto upid = *context_->storage->thread_table()
+  UniqueTid utid = context_->machine_context->process_tracker->UpdateThread(
+      sample.pid_tid->tid, sample.pid_tid->pid);
+  const auto upid = *context_->global_context->storage->thread_table()
                          .FindById(tables::ThreadTable::Id(utid))
                          ->upid();
 
@@ -180,9 +182,9 @@ base::Status RecordParser::InternSample(Sample sample) {
   std::optional<CallsiteId> callsite_id = InternCallchain(
       upid, sample.callchain, sample.perf_session->needs_pc_adjustment());
 
-  context_->storage->mutable_perf_sample_table()->Insert(
+  context_->global_context->storage->mutable_perf_sample_table()->Insert(
       {sample.trace_ts, utid, sample.cpu,
-       context_->storage->InternString(
+       context_->global_context->storage->InternString(
            ProfilePacketUtils::StringifyCpuMode(sample.cpu_mode)),
        callsite_id, std::nullopt, sample.perf_session->perf_session_id()});
 
@@ -197,7 +199,7 @@ std::optional<CallsiteId> RecordParser::InternCallchain(
     return std::nullopt;
   }
 
-  auto& stack_profile_tracker = *context_->stack_profile_tracker;
+  auto& stack_profile_tracker = *context_->trace_context->stack_profile_tracker;
 
   std::optional<CallsiteId> parent;
   uint32_t depth = 0;
@@ -225,7 +227,8 @@ std::optional<CallsiteId> RecordParser::InternCallchain(
     }
 
     if (!mapping) {
-      context_->storage->IncrementStats(stats::perf_dummy_mapping_used);
+      context_->global_context->storage->IncrementStats(
+          stats::perf_dummy_mapping_used);
       // Simpleperf will not create mappings for anonymous executable mappings
       // which are used by JITted code (e.g. V8 JavaScript).
       mapping = GetDummyMapping(upid);
@@ -249,10 +252,12 @@ base::Status RecordParser::ParseComm(Record record) {
     return base::ErrStatus("Failed to parse PERF_RECORD_COMM");
   }
 
-  context_->process_tracker->UpdateThread(tid, pid);
-  auto utid = context_->process_tracker->GetOrCreateThread(tid);
-  context_->process_tracker->UpdateThreadName(
-      utid, context_->storage->InternString(base::StringView(comm)),
+  context_->machine_context->process_tracker->UpdateThread(tid, pid);
+  auto utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(tid);
+  context_->machine_context->process_tracker->UpdateThreadName(
+      utid,
+      context_->global_context->storage->InternString(base::StringView(comm)),
       ThreadNamePriority::kFtrace);
 
   return base::OkStatus();
@@ -302,14 +307,15 @@ base::Status RecordParser::ParseMmap2(int64_t trace_ts, Record record) {
 base::Status RecordParser::ParseItraceStart(Record record) {
   ItraceStartRecord start;
   RETURN_IF_ERROR(start.Parse(record));
-  context_->process_tracker->UpdateThread(start.tid, start.pid);
+  context_->machine_context->process_tracker->UpdateThread(start.tid,
+                                                           start.pid);
   return base::OkStatus();
 }
 
 UniquePid RecordParser::GetUpid(const CommonMmapRecordFields& fields) const {
-  UniqueTid utid =
-      context_->process_tracker->UpdateThread(fields.tid, fields.pid);
-  auto upid = context_->storage->thread_table()
+  UniqueTid utid = context_->machine_context->process_tracker->UpdateThread(
+      fields.tid, fields.pid);
+  auto upid = context_->global_context->storage->thread_table()
                   .FindById(tables::ThreadTable::Id(utid))
                   ->upid();
   PERFETTO_CHECK(upid.has_value());
@@ -322,7 +328,7 @@ base::Status RecordParser::UpdateCounters(const Sample& sample) {
   }
 
   if (!sample.cpu.has_value()) {
-    context_->storage->IncrementStats(
+    context_->global_context->storage->IncrementStats(
         stats::perf_counter_skipped_because_no_cpu);
     return base::OkStatus();
   }
@@ -340,7 +346,7 @@ base::Status RecordParser::UpdateCounters(const Sample& sample) {
 
 base::Status RecordParser::UpdateCountersInReadGroups(const Sample& sample) {
   if (!sample.cpu.has_value()) {
-    context_->storage->IncrementStats(
+    context_->global_context->storage->IncrementStats(
         stats::perf_counter_skipped_because_no_cpu);
     return base::OkStatus();
   }

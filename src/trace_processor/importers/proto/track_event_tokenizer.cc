@@ -89,15 +89,17 @@ TrackEventTokenizer::TrackEventTokenizer(
       track_event_tracker_(track_event_tracker),
       module_context_(module_context),
       v8_tracker_(std::make_unique<LegacyV8CpuProfileTracker>(context)),
-      v8_stream_(context->sorter->CreateStream(
+      v8_stream_(context->global_context->sorter->CreateStream(
           std::make_unique<V8Sink>(v8_tracker_.get()))),
       counter_name_thread_time_id_(
-          context_->storage->InternString("thread_time")),
+          context_->global_context->storage->InternString("thread_time")),
       counter_name_thread_instruction_count_id_(
-          context_->storage->InternString("thread_instruction_count")),
-      counter_unit_ids_{{kNullStringId, context_->storage->InternString("ns"),
-                         context_->storage->InternString("count"),
-                         context_->storage->InternString("bytes")}} {
+          context_->global_context->storage->InternString(
+              "thread_instruction_count")),
+      counter_unit_ids_{
+          {kNullStringId, context_->global_context->storage->InternString("ns"),
+           context_->global_context->storage->InternString("count"),
+           context_->global_context->storage->InternString("bytes")}} {
   base::ignore_result(module_context_);
 }
 
@@ -108,11 +110,12 @@ ModuleResult TrackEventTokenizer::TokenizeRangeOfInterestPacket(
   protos::pbzero::TrackEventRangeOfInterest::Decoder range_of_interest(
       packet.track_event_range_of_interest());
   if (!range_of_interest.has_start_us()) {
-    context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::track_event_tokenizer_errors);
     return ModuleResult::Handled();
   }
   track_event_tracker_->set_range_of_interest_us(range_of_interest.start_us());
-  context_->metadata_tracker->SetMetadata(
+  context_->global_context->metadata_tracker->SetMetadata(
       metadata::range_of_interest_start_us,
       Variadic::Integer(range_of_interest.start_us()));
   return ModuleResult::Handled();
@@ -132,7 +135,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
 
   if (!track.has_uuid()) {
     PERFETTO_ELOG("TrackDescriptor packet without uuid");
-    context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::track_event_tokenizer_errors);
     return ModuleResult::Handled();
   }
 
@@ -180,27 +184,31 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
             Reservation::SiblingMergeBehavior::kByKey;
         if (track.has_sibling_merge_key()) {
           reservation.sibling_merge_key =
-              context_->storage->InternString(track.sibling_merge_key());
+              context_->global_context->storage->InternString(
+                  track.sibling_merge_key());
         }
         break;
     }
   }
 
   if (track.has_name()) {
-    reservation.name = context_->storage->InternString(track.name());
+    reservation.name =
+        context_->global_context->storage->InternString(track.name());
   } else if (track.has_static_name()) {
-    reservation.name = context_->storage->InternString(track.static_name());
+    reservation.name =
+        context_->global_context->storage->InternString(track.static_name());
   } else if (track.has_atrace_name()) {
-    reservation.name = context_->storage->InternString(track.atrace_name());
+    reservation.name =
+        context_->global_context->storage->InternString(track.atrace_name());
   }
 
   if (track.has_description()) {
     reservation.description =
-        context_->storage->InternString(track.description());
+        context_->global_context->storage->InternString(track.description());
   }
 
   if (packet.has_trusted_pid()) {
-    context_->process_tracker->UpdateTrustedPid(
+    context_->machine_context->process_tracker->UpdateTrustedPid(
         static_cast<uint32_t>(packet.trusted_pid()), track.uuid());
   }
 
@@ -211,7 +219,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
       PERFETTO_ELOG(
           "No pid or tid in ThreadDescriptor for track with uuid %" PRIu64,
           track.uuid());
-      context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+      context_->global_context->storage->IncrementStats(
+          stats::track_event_tokenizer_errors);
       return ModuleResult::Handled();
     }
 
@@ -245,7 +254,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     if (!process.has_pid()) {
       PERFETTO_ELOG("No pid in ProcessDescriptor for track with uuid %" PRIu64,
                     track.uuid());
-      context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+      context_->global_context->storage->IncrementStats(
+          stats::track_event_tokenizer_errors);
       return ModuleResult::Handled();
     }
 
@@ -268,8 +278,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
         categories.append((*it).data, (*it).size);
       }
       if (!categories.empty()) {
-        category_id =
-            context_->storage->InternString(base::StringView(categories));
+        category_id = context_->global_context->storage->InternString(
+            base::StringView(categories));
       }
     }
 
@@ -315,7 +325,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
       counter_details.unit = counter_unit_ids_[unit];
     } else {
       counter_details.unit =
-          context_->storage->InternString(counter.unit_name());
+          context_->global_context->storage->InternString(counter.unit_name());
     }
 
     // Incrementally encoded counters are only valid on a single sequence.
@@ -335,7 +345,8 @@ ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
     const protos::pbzero::TracePacket::Decoder& packet) {
   if (PERFETTO_UNLIKELY(!packet.has_trusted_packet_sequence_id())) {
     PERFETTO_ELOG("ThreadDescriptor packet without trusted_packet_sequence_id");
-    context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::track_event_tokenizer_errors);
     return ModuleResult::Handled();
   }
 
@@ -345,7 +356,8 @@ ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
   // incorrectly once we move out of the packet loss state. Instead, wait until
   // the first subsequent descriptor after incremental state is cleared.
   if (!state->IsIncrementalStateValid()) {
-    context_->storage->IncrementStats(stats::tokenizer_skipped_packets);
+    context_->global_context->storage->IncrementStats(
+        stats::tokenizer_skipped_packets);
     return ModuleResult::Handled();
   }
 
@@ -372,7 +384,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     int64_t packet_timestamp) {
   if (PERFETTO_UNLIKELY(!packet.has_trusted_packet_sequence_id())) {
     PERFETTO_ELOG("TrackEvent packet without trusted_packet_sequence_id");
-    context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::track_event_tokenizer_errors);
     return ModuleResult::Handled();
   }
 
@@ -391,7 +404,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     // Delta timestamps require a valid ThreadDescriptor packet since the last
     // packet loss.
     if (!state->track_event_timestamps_valid()) {
-      context_->storage->IncrementStats(stats::tokenizer_skipped_packets);
+      context_->global_context->storage->IncrementStats(
+          stats::tokenizer_skipped_packets);
       return ModuleResult::Handled();
     }
     timestamp = state->IncrementAndGetTrackEventTimeNs(
@@ -399,8 +413,9 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
 
     // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
     // trace time if we have a clock snapshot.
-    base::StatusOr<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
-        protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
+    base::StatusOr<int64_t> trace_ts =
+        context_->global_context->clock_tracker->ToTraceTime(
+            protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
     if (trace_ts.ok())
       timestamp = trace_ts.value();
   } else if (int64_t ts_absolute_us = event.timestamp_absolute_us()) {
@@ -409,15 +424,17 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
 
     // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
     // trace time if we have a clock snapshot.
-    base::StatusOr<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
-        protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
+    base::StatusOr<int64_t> trace_ts =
+        context_->global_context->clock_tracker->ToTraceTime(
+            protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
     if (trace_ts.ok())
       timestamp = trace_ts.value();
   } else if (packet.has_timestamp()) {
     timestamp = packet_timestamp;
   } else {
     PERFETTO_ELOG("TrackEvent without valid timestamp");
-    context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::track_event_tokenizer_errors);
     return ModuleResult::Handled();
   }
 
@@ -428,7 +445,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
       base::Status status = TokenizeLegacySampleEvent(
           event, leg, *data.trace_packet_data.sequence_state);
       if (!status.ok()) {
-        context_->storage->IncrementStats(
+        context_->global_context->storage->IncrementStats(
             stats::legacy_v8_cpu_profile_invalid_sample);
       }
     }
@@ -438,7 +455,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     // Delta timestamps require a valid ThreadDescriptor packet since the last
     // packet loss.
     if (!state->track_event_timestamps_valid()) {
-      context_->storage->IncrementStats(stats::tokenizer_skipped_packets);
+      context_->global_context->storage->IncrementStats(
+          stats::tokenizer_skipped_packets);
       return ModuleResult::Handled();
     }
     data.thread_timestamp = state->IncrementAndGetTrackEventThreadTimeNs(
@@ -452,7 +470,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     // Delta timestamps require a valid ThreadDescriptor packet since the last
     // packet loss.
     if (!state->track_event_timestamps_valid()) {
-      context_->storage->IncrementStats(stats::tokenizer_skipped_packets);
+      context_->global_context->storage->IncrementStats(
+          stats::tokenizer_skipped_packets);
       return ModuleResult::Handled();
     }
     data.thread_instruction_count =
@@ -473,7 +492,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     } else {
       PERFETTO_DLOG(
           "Ignoring TrackEvent with counter_value but without track_uuid");
-      context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+      context_->global_context->storage->IncrementStats(
+          stats::track_event_tokenizer_errors);
       return ModuleResult::Handled();
     }
 
@@ -483,7 +503,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
           "double_counter_value for "
           "track_uuid %" PRIu64,
           track_uuid);
-      context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+      context_->global_context->storage->IncrementStats(
+          stats::track_event_tokenizer_errors);
       return ModuleResult::Handled();
     }
 
@@ -499,7 +520,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
     if (!value) {
       PERFETTO_DLOG("Ignoring TrackEvent with invalid track_uuid %" PRIu64,
                     track_uuid);
-      context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+      context_->global_context->storage->IncrementStats(
+          stats::track_event_tokenizer_errors);
       return ModuleResult::Handled();
     }
 
@@ -514,7 +536,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
       defaults ? defaults->extra_counter_track_uuids() : kEmptyIterator);
   if (!result.ok()) {
     PERFETTO_DLOG("%s", result.c_message());
-    context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::track_event_tokenizer_errors);
     return ModuleResult::Handled();
   }
   result = AddExtraCounterValues(
@@ -523,7 +546,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackEventPacket(
       defaults ? defaults->extra_double_counter_track_uuids() : kEmptyIterator);
   if (!result.ok()) {
     PERFETTO_DLOG("%s", result.c_message());
-    context_->storage->IncrementStats(stats::track_event_tokenizer_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::track_event_tokenizer_errors);
     return ModuleResult::Handled();
   }
   module_context_->track_event_stream->Push(timestamp, std::move(data));
@@ -597,9 +621,10 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
     }
     const auto& val = *opt_val;
     if (val.isMember("startTime")) {
-      ASSIGN_OR_RETURN(int64_t ts, context_->clock_tracker->ToTraceTime(
-                                       protos::pbzero::BUILTIN_CLOCK_MONOTONIC,
-                                       val["startTime"].asInt64() * 1000));
+      ASSIGN_OR_RETURN(int64_t ts,
+                       context_->global_context->clock_tracker->ToTraceTime(
+                           protos::pbzero::BUILTIN_CLOCK_MONOTONIC,
+                           val["startTime"].asInt64() * 1000));
       v8_tracker_->SetStartTsForSessionAndPid(
           legacy.unscoped_id(), static_cast<uint32_t>(state.pid()), ts);
       continue;
@@ -618,7 +643,7 @@ base::Status TrackEventTokenizer::TokenizeLegacySampleEvent(
           legacy.unscoped_id(), static_cast<uint32_t>(state.pid()), node_id,
           parent_node_id, url, function_name, {});
       if (!status.ok()) {
-        context_->storage->IncrementStats(
+        context_->global_context->storage->IncrementStats(
             stats::legacy_v8_cpu_profile_invalid_callsite);
         continue;
       }

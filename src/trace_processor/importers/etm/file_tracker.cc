@@ -34,12 +34,12 @@ namespace perfetto::trace_processor::etm {
 FileTracker::~FileTracker() = default;
 
 base::Status FileTracker::AddFile(const std::string& name, TraceBlobView data) {
-  StringId name_id = context_->storage->InternString(name);
+  StringId name_id = context_->global_context->storage->InternString(name);
   auto it = files_by_path_.Find(name_id);
   if (it) {
     return base::ErrStatus("Duplicate file: %s", name.c_str());
   }
-  auto file_id = context_->storage->mutable_file_table()
+  auto file_id = context_->global_context->storage->mutable_file_table()
                      ->Insert({name_id, static_cast<int64_t>(data.size())})
                      .id;
   files_by_path_.Insert(name_id, file_id);

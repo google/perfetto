@@ -46,9 +46,10 @@ class SchedEventTracker : public Destructible {
     // Open a new scheduling slice, corresponding to the task that was
     // just switched to. Set the duration to -1, to indicate that the event is
     // not finished. Duration will be updated later after event finish.
-    auto* sched = context_->storage->mutable_sched_slice_table();
+    auto* sched =
+        context_->global_context->storage->mutable_sched_slice_table();
     // Get the unique CPU Id over all machines from the CPU table.
-    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
+    auto ucpu = context_->machine_context->cpu_tracker->GetOrCreateCpu(cpu);
     auto row_and_id = sched->Insert(
         {ts, /* duration */ -1, next_utid, kNullStringId, next_prio, ucpu});
     SchedId sched_id = row_and_id.id;
@@ -59,7 +60,8 @@ class SchedEventTracker : public Destructible {
   void ClosePendingSlice(uint32_t pending_slice_idx,
                          int64_t ts,
                          StringId prev_state) {
-    auto* slices = context_->storage->mutable_sched_slice_table();
+    auto* slices =
+        context_->global_context->storage->mutable_sched_slice_table();
     auto r = (*slices)[pending_slice_idx];
     r.set_dur(ts - r.ts());
     r.set_end_state(prev_state);
@@ -67,7 +69,8 @@ class SchedEventTracker : public Destructible {
 
   PERFETTO_ALWAYS_INLINE
   int64_t GetEndTimestampForPendingSlice(uint32_t pending_slice_idx) {
-    auto* slices = context_->storage->mutable_sched_slice_table();
+    auto* slices =
+        context_->global_context->storage->mutable_sched_slice_table();
     auto r = (*slices)[pending_slice_idx];
     if (r.dur() < 0)
       return -1;
@@ -77,7 +80,8 @@ class SchedEventTracker : public Destructible {
   PERFETTO_ALWAYS_INLINE
   void SetEndStateForPendingSlice(uint32_t pending_slice_idx,
                                   StringId prev_state) {
-    auto* slices = context_->storage->mutable_sched_slice_table();
+    auto* slices =
+        context_->global_context->storage->mutable_sched_slice_table();
     auto r = (*slices)[pending_slice_idx];
     r.set_end_state(prev_state);
   }

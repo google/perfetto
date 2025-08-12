@@ -78,17 +78,28 @@ constexpr auto kFenceBlueprint = tracks::SliceBlueprint(
 
 DrmTracker::DrmTracker(TraceProcessorContext* context)
     : context_(context),
-      vblank_slice_signal_id_(context->storage->InternString("signal")),
-      vblank_slice_deliver_id_(context->storage->InternString("deliver")),
-      vblank_arg_seqno_id_(context->storage->InternString("vblank seqno")),
-      sched_slice_schedule_id_(context->storage->InternString("drm_sched_job")),
-      sched_slice_job_id_(context->storage->InternString("job")),
-      sched_arg_ring_id_(context->storage->InternString("gpu sched ring")),
-      sched_arg_job_id_(context->storage->InternString("gpu sched job")),
-      fence_slice_fence_id_(context->storage->InternString("fence")),
-      fence_slice_wait_id_(context->storage->InternString("dma_fence_wait")),
-      fence_arg_context_id_(context->storage->InternString("fence context")),
-      fence_arg_seqno_id_(context->storage->InternString("fence seqno")) {}
+      vblank_slice_signal_id_(
+          context->global_context->storage->InternString("signal")),
+      vblank_slice_deliver_id_(
+          context->global_context->storage->InternString("deliver")),
+      vblank_arg_seqno_id_(
+          context->global_context->storage->InternString("vblank seqno")),
+      sched_slice_schedule_id_(
+          context->global_context->storage->InternString("drm_sched_job")),
+      sched_slice_job_id_(
+          context->global_context->storage->InternString("job")),
+      sched_arg_ring_id_(
+          context->global_context->storage->InternString("gpu sched ring")),
+      sched_arg_job_id_(
+          context->global_context->storage->InternString("gpu sched job")),
+      fence_slice_fence_id_(
+          context->global_context->storage->InternString("fence")),
+      fence_slice_wait_id_(
+          context->global_context->storage->InternString("dma_fence_wait")),
+      fence_arg_context_id_(
+          context->global_context->storage->InternString("fence context")),
+      fence_arg_seqno_id_(
+          context->global_context->storage->InternString("fence seqno")) {}
 
 void DrmTracker::ParseDrm(int64_t timestamp,
                           uint32_t field_id,
@@ -155,9 +166,9 @@ void DrmTracker::ParseDrm(int64_t timestamp,
 void DrmTracker::DrmVblankEvent(int64_t timestamp,
                                 int32_t crtc,
                                 uint32_t seqno) {
-  TrackId track_id = context_->track_tracker->InternTrack(
+  TrackId track_id = context_->machine_context->track_tracker->InternTrack(
       kVblankBlueprint, tracks::Dimensions(crtc));
-  context_->slice_tracker->Scoped(
+  context_->trace_context->slice_tracker->Scoped(
       timestamp, track_id, kNullStringId, vblank_slice_signal_id_, 0,
       [&, this](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(vblank_arg_seqno_id_,
@@ -168,9 +179,9 @@ void DrmTracker::DrmVblankEvent(int64_t timestamp,
 void DrmTracker::DrmVblankEventDelivered(int64_t timestamp,
                                          int32_t crtc,
                                          uint32_t seqno) {
-  TrackId track_id = context_->track_tracker->InternTrack(
+  TrackId track_id = context_->machine_context->track_tracker->InternTrack(
       kVblankBlueprint, tracks::Dimensions(crtc));
-  context_->slice_tracker->Scoped(
+  context_->trace_context->slice_tracker->Scoped(
       timestamp, track_id, kNullStringId, vblank_slice_deliver_id_, 0,
       [&, this](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(vblank_arg_seqno_id_,
@@ -184,7 +195,7 @@ DrmTracker::SchedRing& DrmTracker::GetSchedRingByName(base::StringView name) {
     return **iter;
 
   auto ring = std::make_unique<SchedRing>();
-  ring->track_id = context_->track_tracker->InternTrack(
+  ring->track_id = context_->machine_context->track_tracker->InternTrack(
       kSchedRingBlueprint, tracks::Dimensions(name));
 
   SchedRing& ret = *ring;
@@ -202,13 +213,15 @@ void DrmTracker::BeginSchedRingSlice(int64_t timestamp, SchedRing& ring) {
   };
 
   std::optional<SliceId> slice_id =
-      context_->slice_tracker->Begin(timestamp, ring.track_id, kNullStringId,
-                                     sched_slice_job_id_, args_inserter);
+      context_->trace_context->slice_tracker->Begin(
+          timestamp, ring.track_id, kNullStringId, sched_slice_job_id_,
+          args_inserter);
 
   if (slice_id) {
     SliceId* out_slice_id = ring.out_slice_ids.Find(job_id);
     if (out_slice_id) {
-      context_->flow_tracker->InsertFlow(*out_slice_id, *slice_id);
+      context_->trace_context->flow_tracker->InsertFlow(*out_slice_id,
+                                                        *slice_id);
       ring.out_slice_ids.Erase(job_id);
     }
   }
@@ -218,16 +231,20 @@ void DrmTracker::DrmSchedJob(int64_t timestamp,
                              uint32_t pid,
                              base::StringView name,
                              uint64_t job_id) {
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-  StringId ring_id = context_->storage->InternString(name);
+  UniqueTid utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id =
+      context_->machine_context->track_tracker->InternThreadTrack(utid);
+  StringId ring_id = context_->global_context->storage->InternString(name);
 
-  std::optional<SliceId> slice_id = context_->slice_tracker->Scoped(
-      timestamp, track_id, kNullStringId, sched_slice_schedule_id_, 0,
-      [&, this](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(sched_arg_ring_id_, Variadic::String(ring_id));
-        inserter->AddArg(sched_arg_job_id_, Variadic::UnsignedInteger(job_id));
-      });
+  std::optional<SliceId> slice_id =
+      context_->trace_context->slice_tracker->Scoped(
+          timestamp, track_id, kNullStringId, sched_slice_schedule_id_, 0,
+          [&, this](ArgsTracker::BoundInserter* inserter) {
+            inserter->AddArg(sched_arg_ring_id_, Variadic::String(ring_id));
+            inserter->AddArg(sched_arg_job_id_,
+                             Variadic::UnsignedInteger(job_id));
+          });
   if (slice_id) {
     SchedRing& ring = GetSchedRingByName(name);
     ring.out_slice_ids[job_id] = *slice_id;
@@ -256,7 +273,7 @@ void DrmTracker::DrmSchedProcessJob(int64_t timestamp, uint64_t fence_id) {
   sched_pending_fences_.Erase(fence_id);
 
   ring.running_jobs.pop_front();
-  context_->slice_tracker->End(timestamp, ring.track_id);
+  context_->trace_context->slice_tracker->End(timestamp, ring.track_id);
 
   if (!ring.running_jobs.empty())
     BeginSchedRingSlice(timestamp, ring);
@@ -270,7 +287,7 @@ DrmTracker::FenceTimeline& DrmTracker::GetFenceTimelineByContext(
     return **iter;
 
   auto timeline = std::make_unique<FenceTimeline>();
-  timeline->track_id = context_->track_tracker->InternTrack(
+  timeline->track_id = context_->machine_context->track_tracker->InternTrack(
       kFenceBlueprint, tracks::Dimensions(name, context));
 
   FenceTimeline& ret = *timeline;
@@ -288,8 +305,9 @@ void DrmTracker::BeginFenceTimelineSlice(int64_t timestamp,
     inserter->AddArg(fence_arg_seqno_id_, Variadic::UnsignedInteger(seqno));
   };
 
-  context_->slice_tracker->Begin(timestamp, timeline.track_id, kNullStringId,
-                                 fence_slice_fence_id_, args_inserter);
+  context_->trace_context->slice_tracker->Begin(
+      timestamp, timeline.track_id, kNullStringId, fence_slice_fence_id_,
+      args_inserter);
 }
 
 void DrmTracker::DmaFenceInit(int64_t timestamp,
@@ -326,7 +344,7 @@ void DrmTracker::DmaFenceEmit(int64_t timestamp,
     timeline.has_dma_fence_emit = true;
 
     if (!timeline.pending_fences.empty()) {
-      context_->slice_tracker->End(timestamp, timeline.track_id);
+      context_->trace_context->slice_tracker->End(timestamp, timeline.track_id);
       timeline.pending_fences.clear();
     }
   }
@@ -351,7 +369,7 @@ void DrmTracker::DmaFenceSignaled(int64_t timestamp,
   }
 
   timeline.pending_fences.pop_front();
-  context_->slice_tracker->End(timestamp, timeline.track_id);
+  context_->trace_context->slice_tracker->End(timestamp, timeline.track_id);
 
   if (!timeline.pending_fences.empty())
     BeginFenceTimelineSlice(timestamp, timeline);
@@ -361,23 +379,27 @@ void DrmTracker::DmaFenceWaitStart(int64_t timestamp,
                                    uint32_t pid,
                                    uint32_t context,
                                    uint32_t seqno) {
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  UniqueTid utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id =
+      context_->machine_context->track_tracker->InternThreadTrack(utid);
   auto args_inserter = [this, context,
                         seqno](ArgsTracker::BoundInserter* inserter) {
     inserter->AddArg(fence_arg_context_id_, Variadic::UnsignedInteger(context));
     inserter->AddArg(fence_arg_seqno_id_, Variadic::UnsignedInteger(seqno));
   };
 
-  context_->slice_tracker->Begin(timestamp, track_id, kNullStringId,
-                                 fence_slice_wait_id_, args_inserter);
+  context_->trace_context->slice_tracker->Begin(
+      timestamp, track_id, kNullStringId, fence_slice_wait_id_, args_inserter);
 }
 
 void DrmTracker::DmaFenceWaitEnd(int64_t timestamp, uint32_t pid) {
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  UniqueTid utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id =
+      context_->machine_context->track_tracker->InternThreadTrack(utid);
 
-  context_->slice_tracker->End(timestamp, track_id);
+  context_->trace_context->slice_tracker->End(timestamp, track_id);
 }
 
 }  // namespace perfetto::trace_processor

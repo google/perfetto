@@ -38,15 +38,16 @@ IteratorImpl::~IteratorImpl() {
   if (trace_processor_) {
     base::TimeNanos t_end = base::GetWallTimeNs();
     auto* sql_stats =
-        trace_processor_.get()->context_.storage->mutable_sql_stats();
+        trace_processor_.get()
+            ->context_.global_context->storage->mutable_sql_stats();
     sql_stats->RecordQueryEnd(sql_stats_row_, t_end.count());
   }
 }
 
 void IteratorImpl::RecordFirstNextInSqlStats() {
   base::TimeNanos t_first_next = base::GetWallTimeNs();
-  auto* sql_stats =
-      trace_processor_.get()->context_.storage->mutable_sql_stats();
+  auto* sql_stats = trace_processor_.get()
+                        ->context_.global_context->storage->mutable_sql_stats();
   sql_stats->RecordQueryFirstNext(sql_stats_row_, t_first_next.count());
 }
 

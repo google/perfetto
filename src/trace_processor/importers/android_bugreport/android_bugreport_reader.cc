@@ -111,15 +111,17 @@ base::Status AndroidBugreportReader::Parse(std::vector<util::ZipFile> files) {
 
   // Move the file to the end move it out of the list and pop the back.
   std::swap(files[res->file_index], files.back());
-  auto id = context_->trace_file_tracker->AddFile(files.back().name());
+  auto id =
+      context_->trace_context->trace_file_tracker->AddFile(files.back().name());
   BugReportFile bug_report{id, res->year, std::move(files.back())};
   files.pop_back();
 
   std::set<LogFile> ordered_log_files;
   for (size_t i = 0; i < files.size(); ++i) {
-    id = context_->trace_file_tracker->AddFile(files[i].name());
+    id = context_->trace_context->trace_file_tracker->AddFile(files[i].name());
     // Set size in case we end up not parsing this file.
-    context_->trace_file_tracker->SetSize(id, files[i].compressed_size());
+    context_->trace_context->trace_file_tracker->SetSize(
+        id, files[i].compressed_size());
     if (!IsLogFile(files[i])) {
       continue;
     }
@@ -131,7 +133,7 @@ base::Status AndroidBugreportReader::Parse(std::vector<util::ZipFile> files) {
   // All logs in Android bugreports use wall time (which creates problems
   // in case of early boot events before NTP kicks in, which get emitted as
   // 1970), but that is the state of affairs.
-  context_->clock_tracker->SetTraceTimeClock(
+  context_->global_context->clock_tracker->SetTraceTimeClock(
       protos::pbzero::BUILTIN_CLOCK_REALTIME);
 
   ASSIGN_OR_RETURN(std::vector<TimestampedAndroidLogEvent> logcat_events,
@@ -143,8 +145,8 @@ base::Status AndroidBugreportReader::Parse(std::vector<util::ZipFile> files) {
 base::StatusOr<std::vector<TimestampedAndroidLogEvent>>
 AndroidBugreportReader::ParseDumpstateTxt(const BugReportFile& bug_report) {
   BufferingAndroidLogReader log_reader(context_, bug_report.year, true);
-  context_->trace_file_tracker->StartParsing(bug_report.id,
-                                             kAndroidDumpstateTraceType);
+  context_->trace_context->trace_file_tracker->StartParsing(
+      bug_report.id, kAndroidDumpstateTraceType);
   base::Status status = bug_report.file.DecompressLines(
       [&](const std::vector<base::StringView>& lines) {
         for (const base::StringView& line : lines) {
@@ -154,7 +156,7 @@ AndroidBugreportReader::ParseDumpstateTxt(const BugReportFile& bug_report) {
 
   std::vector<TimestampedAndroidLogEvent> logcat_events =
       std::move(log_reader).ConsumeBufferedEvents();
-  context_->trace_file_tracker->DoneParsing(
+  context_->trace_context->trace_file_tracker->DoneParsing(
       bug_report.id, bug_report.file.uncompressed_size());
   RETURN_IF_ERROR(status);
   return logcat_events;
@@ -170,15 +172,15 @@ base::Status AndroidBugreportReader::ParsePersistentLogcat(
   // Push all events into the AndroidLogParser. It will take care of string
   // interning into the pool. Appends entries into `log_events`.
   for (const auto& log_file : ordered_log_files) {
-    context_->trace_file_tracker->StartParsing(log_file.id,
-                                               kAndroidLogcatTraceType);
+    context_->trace_context->trace_file_tracker->StartParsing(
+        log_file.id, kAndroidLogcatTraceType);
     RETURN_IF_ERROR(log_file.file.DecompressLines(
         [&](const std::vector<base::StringView>& lines) {
           for (const auto& line : lines) {
             log_reader.ParseLine(line);
           }
         }));
-    context_->trace_file_tracker->DoneParsing(
+    context_->trace_context->trace_file_tracker->DoneParsing(
         log_file.id, log_file.file.uncompressed_size());
   }
 

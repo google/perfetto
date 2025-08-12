@@ -48,7 +48,7 @@ namespace trace_processor {
 
 class PacketSequenceState;
 class ProtoTraceParserImpl;
-class TraceProcessorContext;
+struct TraceProcessorContext;
 class TraceSorter;
 class TraceStorage;
 

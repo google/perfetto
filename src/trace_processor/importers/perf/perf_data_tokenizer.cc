@@ -121,8 +121,8 @@ bool ReadTime(const Record& record, std::optional<uint64_t>& time) {
 
 PerfDataTokenizer::PerfDataTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
-      stream_(
-          ctx->sorter->CreateStream(std::make_unique<RecordParser>(context_))),
+      stream_(ctx->global_context->sorter->CreateStream(
+          std::make_unique<RecordParser>(context_))),
       aux_manager_(ctx) {}
 
 PerfDataTokenizer::~PerfDataTokenizer() = default;
@@ -205,7 +205,7 @@ PerfDataTokenizer::ParseHeader() {
   feature_ids_ = ExtractFeatureIds(header_.flags, header_.flags1);
   feature_headers_section_ = {header_.data.end(),
                               feature_ids_.size() * sizeof(PerfFile::Section)};
-  context_->clock_tracker->SetTraceTimeClock(
+  context_->global_context->clock_tracker->SetTraceTimeClock(
       protos::pbzero::ClockSnapshot::Clock::MONOTONIC);
 
   PERFETTO_CHECK(buffer_.PopFrontUntil(sizeof(PerfFile::Header)));
@@ -246,7 +246,7 @@ PerfDataTokenizer::ParseAttrs() {
 
   ASSIGN_OR_RETURN(perf_session_, builder.Build());
   if (perf_session_->HasPerfClock()) {
-    context_->clock_tracker->SetTraceTimeClock(
+    context_->global_context->clock_tracker->SetTraceTimeClock(
         protos::pbzero::BUILTIN_CLOCK_PERF);
   }
   parsing_state_ = ParsingState::kSeekRecords;
@@ -356,9 +356,10 @@ base::StatusOr<int64_t> PerfDataTokenizer::ExtractTraceTimestamp(
 
   base::StatusOr<int64_t> trace_ts =
       time.has_value()
-          ? context_->clock_tracker->ToTraceTime(record.attr->clock_id(),
-                                                 static_cast<int64_t>(*time))
-          : std::min(latest_timestamp_, context_->sorter->max_timestamp());
+          ? context_->global_context->clock_tracker->ToTraceTime(
+                record.attr->clock_id(), static_cast<int64_t>(*time))
+          : std::min(latest_timestamp_,
+                     context_->global_context->sorter->max_timestamp());
 
   if (PERFETTO_LIKELY(trace_ts.ok())) {
     latest_timestamp_ = std::max(latest_timestamp_, *trace_ts);
@@ -369,7 +370,7 @@ base::StatusOr<int64_t> PerfDataTokenizer::ExtractTraceTimestamp(
 void PerfDataTokenizer::MaybePushRecord(Record record) {
   base::StatusOr<int64_t> trace_ts = ExtractTraceTimestamp(record);
   if (!trace_ts.ok()) {
-    context_->storage->IncrementIndexedStats(
+    context_->global_context->storage->IncrementIndexedStats(
         stats::perf_record_skipped, static_cast<int>(record.header.type));
     return;
   }
@@ -487,8 +488,8 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
       break;
     }
     default:
-      context_->storage->IncrementIndexedStats(stats::perf_features_skipped,
-                                               feature_id);
+      context_->global_context->storage->IncrementIndexedStats(
+          stats::perf_features_skipped, feature_id);
   }
 
   return base::OkStatus();
@@ -540,7 +541,8 @@ PerfDataTokenizer::ParseAuxtraceData() {
 base::Status PerfDataTokenizer::ProcessItraceStartRecord(Record record) {
   ItraceStartRecord start;
   RETURN_IF_ERROR(start.Parse(record));
-  context_->process_tracker->UpdateThread(start.tid, start.pid);
+  context_->machine_context->process_tracker->UpdateThread(start.tid,
+                                                           start.pid);
   aux_manager_.OnItraceStartRecord(std::move(start));
   MaybePushRecord(std::move(record));
   return base::OkStatus();

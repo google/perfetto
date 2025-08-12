@@ -46,9 +46,10 @@ AndroidKernelWakelocksModule::AndroidKernelWakelocksModule(
     TraceProcessorContext* context)
     : ProtoImporterModule(module_context),
       context_(context),
-      kernel_name_id_(context->storage->InternString("kernel")),
-      native_name_id_(context->storage->InternString("native")),
-      unknown_name_id_(context->storage->InternString("unknown")) {
+      kernel_name_id_(context->global_context->storage->InternString("kernel")),
+      native_name_id_(context->global_context->storage->InternString("native")),
+      unknown_name_id_(
+          context->global_context->storage->InternString("unknown")) {
   RegisterForField(TracePacket::kKernelWakelockDataFieldNumber);
 }
 
@@ -75,7 +76,8 @@ void AndroidKernelWakelocksModule::ParseTracePacketData(
     auto [info, inserted] = state->wakelocks.Insert(
         wakelock.wakelock_id(), AndroidKernelWakelockState::Metadata{});
     if (!inserted) {
-      context_->storage->IncrementStats(stats::kernel_wakelock_reused_id);
+      context_->global_context->storage->IncrementStats(
+          stats::kernel_wakelock_reused_id);
       continue;
     }
     info->name = name;
@@ -90,7 +92,8 @@ void AndroidKernelWakelocksModule::ParseTracePacketData(
        ++it, ++time_it) {
     auto* data = state->wakelocks.Find(*it);
     if (!data) {
-      context_->storage->IncrementStats(stats::kernel_wakelock_unknown_id);
+      context_->global_context->storage->IncrementStats(
+          stats::kernel_wakelock_unknown_id);
       continue;
     }
 
@@ -107,15 +110,15 @@ void AndroidKernelWakelocksModule::ParseTracePacketData(
 
   uint64_t traced_errors = evt.error_flags();
   if (traced_errors & kKernelWakelockErrorZeroValue) {
-    context_->storage->IncrementStats(
+    context_->global_context->storage->IncrementStats(
         stats::kernel_wakelock_zero_value_reported);
   }
   if (traced_errors & kKernelWakelockErrorNonMonotonicValue) {
-    context_->storage->IncrementStats(
+    context_->global_context->storage->IncrementStats(
         stats::kernel_wakelock_non_monotonic_value_reported);
   }
   if (traced_errors & kKernelWakelockErrorImplausiblyLargeValue) {
-    context_->storage->IncrementStats(
+    context_->global_context->storage->IncrementStats(
         stats::kernel_wakelock_implausibly_large_value_reported);
   }
 
@@ -154,13 +157,14 @@ void AndroidKernelWakelocksModule::UpdateCounter(
       break;
   }
 
-  StringId name_id = context_->storage->InternString(name);
-  TrackId track = context_->track_tracker->InternTrack(
+  StringId name_id = context_->global_context->storage->InternString(name);
+  TrackId track = context_->machine_context->track_tracker->InternTrack(
       kBlueprint,
-      tracks::Dimensions(context_->storage->GetString(name_id),
-                         context_->storage->GetString(type_id)),
+      tracks::Dimensions(context_->global_context->storage->GetString(name_id),
+                         context_->global_context->storage->GetString(type_id)),
       tracks::DynamicName(name_id));
-  context_->event_tracker->PushCounter(ts, 1e6 * double(value), track);
+  context_->trace_context->event_tracker->PushCounter(ts, 1e6 * double(value),
+                                                      track);
 }
 
 }  // namespace perfetto::trace_processor

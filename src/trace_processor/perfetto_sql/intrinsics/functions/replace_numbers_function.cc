@@ -142,7 +142,8 @@ struct StripHexFunction : public LegacySqlFunction {
 base::Status RegisterStripHexFunction(PerfettoSqlEngine* engine,
                                       TraceProcessorContext* context) {
   return engine->RegisterStaticFunction<StripHexFunction>(
-      StripHexFunction::kFunctionName, 2, context->storage.get());
+      StripHexFunction::kFunctionName, 2,
+      context->global_context->storage.get());
 }
 
 std::string SqlStripHex(std::string input, int64_t min_repeated_digits) {

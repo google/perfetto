@@ -34,7 +34,8 @@ using perfetto::protos::pbzero::AndroidWindowInputDispatchEvent;
 using perfetto::protos::pbzero::TracePacket;
 
 AndroidInputEventParser::AndroidInputEventParser(TraceProcessorContext* context)
-    : context_(*context), args_parser_{*context->descriptor_pool_} {}
+    : context_(*context),
+      args_parser_{*context->global_context->descriptor_pool_} {}
 
 void AndroidInputEventParser::ParseAndroidInputEvent(
     int64_t packet_ts,
@@ -79,7 +80,7 @@ void AndroidInputEventParser::ParseMotionEvent(
   event_row.event_id = event_proto.event_id();
   event_row.ts = packet_ts;
   event_row.base64_proto_id =
-      context_.storage->mutable_string_pool()
+      context_.global_context->storage->mutable_string_pool()
           ->InternString(
               base::StringView(base::Base64Encode(bytes.data, bytes.size)))
           .raw_id();
@@ -88,11 +89,12 @@ void AndroidInputEventParser::ParseMotionEvent(
   event_row.device_id = event_proto.device_id();
   event_row.display_id = event_proto.display_id();
 
-  auto event_row_id = context_.storage->mutable_android_motion_events_table()
-                          ->Insert(event_row)
-                          .id;
-  auto inserter = context_.args_tracker->AddArgsTo(event_row_id);
-  ArgsParser writer{packet_ts, inserter, *context_.storage};
+  auto event_row_id =
+      context_.global_context->storage->mutable_android_motion_events_table()
+          ->Insert(event_row)
+          .id;
+  auto inserter = context_.trace_context->args_tracker->AddArgsTo(event_row_id);
+  ArgsParser writer{packet_ts, inserter, *context_.global_context->storage};
 
   base::Status status =
       args_parser_.ParseMessage(bytes,
@@ -100,7 +102,8 @@ void AndroidInputEventParser::ParseMotionEvent(
                                     tables::AndroidMotionEventsTable::Name()),
                                 nullptr /*parse all fields*/, writer);
   if (!status.ok())
-    context_.storage->IncrementStats(stats::android_input_event_parse_errors);
+    context_.global_context->storage->IncrementStats(
+        stats::android_input_event_parse_errors);
 }
 
 void AndroidInputEventParser::ParseKeyEvent(
@@ -111,7 +114,7 @@ void AndroidInputEventParser::ParseKeyEvent(
   event_row.event_id = event_proto.event_id();
   event_row.ts = packet_ts;
   event_row.base64_proto_id =
-      context_.storage->mutable_string_pool()
+      context_.global_context->storage->mutable_string_pool()
           ->InternString(
               base::StringView(base::Base64Encode(bytes.data, bytes.size)))
           .raw_id();
@@ -121,11 +124,12 @@ void AndroidInputEventParser::ParseKeyEvent(
   event_row.display_id = event_proto.display_id();
   event_row.key_code = event_proto.key_code();
 
-  auto event_row_id = context_.storage->mutable_android_key_events_table()
-                          ->Insert(event_row)
-                          .id;
-  auto inserter = context_.args_tracker->AddArgsTo(event_row_id);
-  ArgsParser writer{packet_ts, inserter, *context_.storage};
+  auto event_row_id =
+      context_.global_context->storage->mutable_android_key_events_table()
+          ->Insert(event_row)
+          .id;
+  auto inserter = context_.trace_context->args_tracker->AddArgsTo(event_row_id);
+  ArgsParser writer{packet_ts, inserter, *context_.global_context->storage};
 
   base::Status status =
       args_parser_.ParseMessage(bytes,
@@ -133,7 +137,8 @@ void AndroidInputEventParser::ParseKeyEvent(
                                     tables::AndroidKeyEventsTable::Name()),
                                 nullptr /*parse all fields*/, writer);
   if (!status.ok())
-    context_.storage->IncrementStats(stats::android_input_event_parse_errors);
+    context_.global_context->storage->IncrementStats(
+        stats::android_input_event_parse_errors);
 }
 
 void AndroidInputEventParser::ParseWindowDispatchEvent(
@@ -145,18 +150,18 @@ void AndroidInputEventParser::ParseWindowDispatchEvent(
   event_row.vsync_id = event_proto.vsync_id();
   event_row.window_id = event_proto.window_id();
   event_row.base64_proto_id =
-      context_.storage->mutable_string_pool()
+      context_.global_context->storage->mutable_string_pool()
           ->InternString(
               base::StringView(base::Base64Encode(bytes.data, bytes.size)))
           .raw_id();
 
-  auto event_row_id =
-      context_.storage->mutable_android_input_event_dispatch_table()
-          ->Insert(event_row)
-          .id;
+  auto event_row_id = context_.global_context->storage
+                          ->mutable_android_input_event_dispatch_table()
+                          ->Insert(event_row)
+                          .id;
 
-  auto inserter = context_.args_tracker->AddArgsTo(event_row_id);
-  ArgsParser writer{packet_ts, inserter, *context_.storage};
+  auto inserter = context_.trace_context->args_tracker->AddArgsTo(event_row_id);
+  ArgsParser writer{packet_ts, inserter, *context_.global_context->storage};
 
   base::Status status = args_parser_.ParseMessage(
       bytes,
@@ -164,7 +169,8 @@ void AndroidInputEventParser::ParseWindowDispatchEvent(
           tables::AndroidInputEventDispatchTable::Name()),
       nullptr /*parse all fields*/, writer);
   if (!status.ok())
-    context_.storage->IncrementStats(stats::android_input_event_parse_errors);
+    context_.global_context->storage->IncrementStats(
+        stats::android_input_event_parse_errors);
 }
 
 }  // namespace perfetto::trace_processor

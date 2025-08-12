@@ -112,7 +112,8 @@ MapType ClassifyMap(NullTermStringView map) {
 }  // namespace
 
 ExperimentalAnnotatedStack::Cursor::Cursor(TraceProcessorContext* context)
-    : context_(context), table_(context->storage->mutable_string_pool()) {}
+    : context_(context),
+      table_(context->global_context->storage->mutable_string_pool()) {}
 
 bool ExperimentalAnnotatedStack::Cursor::Run(
     const std::vector<SqlValue>& arguments) {
@@ -121,9 +122,12 @@ bool ExperimentalAnnotatedStack::Cursor::Run(
 
   using CallsiteTable = tables::StackProfileCallsiteTable;
 
-  const auto& cs_table = context_->storage->stack_profile_callsite_table();
-  const auto& f_table = context_->storage->stack_profile_frame_table();
-  const auto& m_table = context_->storage->stack_profile_mapping_table();
+  const auto& cs_table =
+      context_->global_context->storage->stack_profile_callsite_table();
+  const auto& f_table =
+      context_->global_context->storage->stack_profile_frame_table();
+  const auto& m_table =
+      context_->global_context->storage->stack_profile_mapping_table();
 
   if (arguments[0].is_null()) {
     return OnSuccess(&table_.dataframe());
@@ -162,14 +166,16 @@ bool ExperimentalAnnotatedStack::Cursor::Run(
   // callsite will always have the same annotation, as the parent path is always
   // the same, and children callsites do not affect their parents' annotations.
   StringId art_jni_trampoline =
-      context_->storage->InternString("art_jni_trampoline");
+      context_->global_context->storage->InternString("art_jni_trampoline");
 
-  StringId common_frame = context_->storage->InternString("common-frame");
+  StringId common_frame =
+      context_->global_context->storage->InternString("common-frame");
   StringId common_frame_interp =
-      context_->storage->InternString("common-frame-interp");
-  StringId art_interp = context_->storage->InternString("interp");
-  StringId art_jit = context_->storage->InternString("jit");
-  StringId art_aot = context_->storage->InternString("aot");
+      context_->global_context->storage->InternString("common-frame-interp");
+  StringId art_interp =
+      context_->global_context->storage->InternString("interp");
+  StringId art_jit = context_->global_context->storage->InternString("jit");
+  StringId art_aot = context_->global_context->storage->InternString("aot");
 
   // Annotation FSM states:
   // * kInitial: default, native-only callstacks never leave this state.
@@ -214,7 +220,8 @@ bool ExperimentalAnnotatedStack::Cursor::Run(
       continue;
     }
 
-    NullTermStringView map_view = context_->storage->GetString(map_ref.name());
+    NullTermStringView map_view =
+        context_->global_context->storage->GetString(map_ref.name());
     MapType map_type = ClassifyMap(map_view);
 
     // Annotate managed frames.
@@ -256,7 +263,8 @@ bool ExperimentalAnnotatedStack::Cursor::Run(
     // "art::interpreter::" according to itanium mangling.
     if (annotation_state == State::kEraseLibart &&
         map_type == MapType::kNativeLibart) {
-      NullTermStringView fname = context_->storage->GetString(fname_id);
+      NullTermStringView fname =
+          context_->global_context->storage->GetString(fname_id);
       if (fname.StartsWith("nterp_") || fname.StartsWith("Nterp") ||
           fname.StartsWith("ExecuteNterp") ||
           fname.StartsWith("ExecuteSwitchImpl") ||

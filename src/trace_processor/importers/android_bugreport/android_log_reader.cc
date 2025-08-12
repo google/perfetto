@@ -108,11 +108,11 @@ int32_t GetCurrentYear() {
 }
 
 int32_t GuessYear(TraceProcessorContext* context) {
-  if (context->sorter->max_timestamp() == 0) {
+  if (context->global_context->sorter->max_timestamp() == 0) {
     return GetCurrentYear();
   }
-  auto time =
-      context->clock_converter->ToRealtime(context->sorter->max_timestamp());
+  auto time = context->global_context->clock_converter->ToRealtime(
+      context->global_context->sorter->max_timestamp());
   if (!time.ok()) {
     return GetCurrentYear();
   }
@@ -125,7 +125,7 @@ int32_t GuessYear(TraceProcessorContext* context) {
 AndroidLogReader::AndroidLogReader(TraceProcessorContext* context)
     : AndroidLogReader(context,
                        GuessYear(context),
-                       context->sorter->CreateStream(
+                       context->global_context->sorter->CreateStream(
                            std::make_unique<AndroidLogEventParser>(context))) {}
 
 AndroidLogReader::AndroidLogReader(
@@ -154,7 +154,8 @@ base::Status AndroidLogReader::ParseLine(base::StringView line) {
     if (!format_.has_value()) {
       PERFETTO_DLOG("Could not detect logcat format for: |%s|",
                     line.ToStdString().c_str());
-      context_->storage->IncrementStats(stats::android_log_format_invalid);
+      context_->global_context->storage->IncrementStats(
+          stats::android_log_format_invalid);
       return base::OkStatus();
     }
   }
@@ -177,12 +178,14 @@ base::Status AndroidLogReader::ParseLine(base::StringView line) {
   std::optional<int> tid = ReadNumAndAdvance(&it, ' ');
 
   if (!month || !day || !hour || !minute || !sec || !ns || !pid || !tid) {
-    context_->storage->IncrementStats(stats::android_log_num_failed);
+    context_->global_context->storage->IncrementStats(
+        stats::android_log_num_failed);
     return base::OkStatus();
   }
 
   if (it.size() < 4 || it.at(1) != ' ') {
-    context_->storage->IncrementStats(stats::android_log_num_failed);
+    context_->global_context->storage->IncrementStats(
+        stats::android_log_num_failed);
     return base::OkStatus();
   }
 
@@ -227,8 +230,8 @@ base::Status AndroidLogReader::ParseLine(base::StringView line) {
   event.pid = static_cast<uint32_t>(*pid);
   event.tid = static_cast<uint32_t>(*tid);
   event.prio = static_cast<uint32_t>(prio);
-  event.tag = context_->storage->InternString(cat);
-  event.msg = context_->storage->InternString(msg);
+  event.tag = context_->global_context->storage->InternString(cat);
+  event.msg = context_->global_context->storage->InternString(msg);
 
   return ProcessEvent(event_ts, event);
 }
@@ -236,7 +239,8 @@ base::Status AndroidLogReader::ParseLine(base::StringView line) {
 base::Status AndroidLogReader::ProcessEvent(std::chrono::nanoseconds event_ts,
                                             AndroidLogEvent event) {
   if (wait_for_tz_) {
-    if (!context_->clock_tracker->timezone_offset().has_value()) {
+    if (!context_->global_context->clock_tracker->timezone_offset()
+             .has_value()) {
       non_tz_adjusted_events_.push_back(TimestampedAndroidLogEvent{
           std::chrono::duration_cast<std::chrono::milliseconds>(event_ts),
           event, false});
@@ -250,9 +254,10 @@ base::Status AndroidLogReader::ProcessEvent(std::chrono::nanoseconds event_ts,
 base::Status AndroidLogReader::SendToSorter(std::chrono::nanoseconds event_ts,
                                             AndroidLogEvent event) {
   int64_t ts =
-      event_ts.count() - context_->clock_tracker->timezone_offset().value_or(0);
+      event_ts.count() -
+      context_->global_context->clock_tracker->timezone_offset().value_or(0);
   ASSIGN_OR_RETURN(int64_t trace_ts,
-                   context_->clock_tracker->ToTraceTime(
+                   context_->global_context->clock_tracker->ToTraceTime(
                        protos::pbzero::ClockSnapshot::Clock::REALTIME, ts));
   stream_->Push(trace_ts, event);
   return base::OkStatus();
@@ -279,7 +284,7 @@ BufferingAndroidLogReader::BufferingAndroidLogReader(
     : BufferingAndroidLogReader(
           context,
           year,
-          context->sorter->CreateStream(
+          context->global_context->sorter->CreateStream(
               std::make_unique<AndroidLogEventParser>(context)),
           wait_for_tz) {}
 
@@ -310,7 +315,7 @@ DedupingAndroidLogReader::DedupingAndroidLogReader(
     : DedupingAndroidLogReader(
           context,
           year,
-          context->sorter->CreateStream(
+          context->global_context->sorter->CreateStream(
               std::make_unique<AndroidLogEventParser>(context)),
           wait_for_tz,
           std::move(events)) {}

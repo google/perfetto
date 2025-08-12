@@ -59,38 +59,48 @@ constexpr auto kGraphicFrameEventBlueprint = tracks::SliceBlueprint(
 GraphicsFrameEventParser::GraphicsFrameEventParser(
     TraceProcessorContext* context)
     : context_(context),
-      unknown_event_name_id_(context->storage->InternString("unknown_event")),
-      no_layer_name_name_id_(context->storage->InternString("no_layer_name")),
-      layer_name_key_id_(context->storage->InternString("layer_name")),
-      queue_lost_message_id_(context->storage->InternString(kQueueLostMessage)),
-      frame_number_id_(context->storage->InternString("frame_number")),
-      queue_to_acquire_time_id_(
-          context->storage->InternString("queue_to_acquire_time")),
-      acquire_to_latch_time_id_(
-          context->storage->InternString("acquire_to_latch_time")),
-      latch_to_present_time_id_(
-          context->storage->InternString("latch_to_present_time")),
+      unknown_event_name_id_(
+          context->global_context->storage->InternString("unknown_event")),
+      no_layer_name_name_id_(
+          context->global_context->storage->InternString("no_layer_name")),
+      layer_name_key_id_(
+          context->global_context->storage->InternString("layer_name")),
+      queue_lost_message_id_(
+          context->global_context->storage->InternString(kQueueLostMessage)),
+      frame_number_id_(
+          context->global_context->storage->InternString("frame_number")),
+      queue_to_acquire_time_id_(context->global_context->storage->InternString(
+          "queue_to_acquire_time")),
+      acquire_to_latch_time_id_(context->global_context->storage->InternString(
+          "acquire_to_latch_time")),
+      latch_to_present_time_id_(context->global_context->storage->InternString(
+          "latch_to_present_time")),
       event_type_name_ids_{
-          {context->storage->InternString(
+          {context->global_context->storage->InternString(
                "unspecified_event") /* UNSPECIFIED */,
-           context->storage->InternString("Dequeue") /* DEQUEUE */,
-           context->storage->InternString("Queue") /* QUEUE */,
-           context->storage->InternString("Post") /* POST */,
-           context->storage->InternString(
+           context->global_context->storage->InternString(
+               "Dequeue") /* DEQUEUE */,
+           context->global_context->storage->InternString("Queue") /* QUEUE */,
+           context->global_context->storage->InternString("Post") /* POST */,
+           context->global_context->storage->InternString(
                "AcquireFenceSignaled") /* ACQUIRE_FENCE */,
-           context->storage->InternString("Latch") /* LATCH */,
-           context->storage->InternString(
+           context->global_context->storage->InternString("Latch") /* LATCH */,
+           context->global_context->storage->InternString(
                "HWCCompositionQueued") /* HWC_COMPOSITION_QUEUED */,
-           context->storage->InternString(
+           context->global_context->storage->InternString(
                "FallbackComposition") /* FALLBACK_COMPOSITION */,
-           context->storage->InternString(
+           context->global_context->storage->InternString(
                "PresentFenceSignaled") /* PRESENT_FENCE */,
-           context->storage->InternString(
+           context->global_context->storage->InternString(
                "ReleaseFenceSignaled") /* RELEASE_FENCE */,
-           context->storage->InternString("Modify") /* MODIFY */,
-           context->storage->InternString("Detach") /* DETACH */,
-           context->storage->InternString("Attach") /* ATTACH */,
-           context->storage->InternString("Cancel") /* CANCEL */}} {}
+           context->global_context->storage->InternString(
+               "Modify") /* MODIFY */,
+           context->global_context->storage->InternString(
+               "Detach") /* DETACH */,
+           context->global_context->storage->InternString(
+               "Attach") /* ATTACH */,
+           context->global_context->storage->InternString(
+               "Cancel") /* CANCEL */}} {}
 
 void GraphicsFrameEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
                                                        ConstBytes blob) {
@@ -102,7 +112,7 @@ void GraphicsFrameEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
   protos::pbzero::GraphicsFrameEvent::BufferEvent::Decoder event(
       frame_event.buffer_event());
   if (!event.has_buffer_id()) {
-    context_->storage->IncrementStats(
+    context_->global_context->storage->IncrementStats(
         stats::graphics_frame_event_parser_errors);
     return;
   }
@@ -112,14 +122,16 @@ void GraphicsFrameEventParser::ParseGraphicsFrameEvent(int64_t timestamp,
   StringId layer_name_id;
   StringId event_key;
   if (event.has_layer_name()) {
-    layer_name_id = context_->storage->InternString(event.layer_name());
+    layer_name_id =
+        context_->global_context->storage->InternString(event.layer_name());
     base::StackString<1024> key_str("%u%.*s", event.buffer_id(),
                                     int(event.layer_name().size),
                                     event.layer_name().data);
-    event_key = context_->storage->InternString(key_str.string_view());
+    event_key =
+        context_->global_context->storage->InternString(key_str.string_view());
   } else {
     layer_name_id = no_layer_name_name_id_;
-    event_key = context_->storage->InternString(
+    event_key = context_->global_context->storage->InternString(
         base::StackString<1024>("%u", event.buffer_id()).string_view());
   }
 
@@ -146,7 +158,7 @@ void GraphicsFrameEventParser::CreateBufferEvent(
       it->latch_ts = timestamp;
       break;
     default:
-      context_->storage->IncrementStats(
+      context_->global_context->storage->IncrementStats(
           stats::graphics_frame_event_parser_errors);
       break;
   }
@@ -166,15 +178,15 @@ void GraphicsFrameEventParser::CreateBufferEvent(
   base::StackString<4096> track_name("Buffer: %u %.*s", event.buffer_id(),
                                      int(event.layer_name().size),
                                      event.layer_name().data);
-  TrackId track_id = context_->track_tracker->InternTrack(
+  TrackId track_id = context_->machine_context->track_tracker->InternTrack(
       kGraphicFrameEventBlueprint, tracks::Dimensions(track_name.string_view()),
-      tracks::DynamicName(
-          context_->storage->InternString(track_name.string_view())));
+      tracks::DynamicName(context_->global_context->storage->InternString(
+          track_name.string_view())));
 
   // Update the frame number for the previous dequeue event.
   uint32_t frame_number = event.has_frame_number() ? event.frame_number() : 0;
   if (event.type() == GraphicsFrameEvent::QUEUE && prev_is_dequeue) {
-    context_->slice_tracker->AddArgs(
+    context_->trace_context->slice_tracker->AddArgs(
         track_id, kNullStringId, kNullStringId,
         [&](ArgsTracker::BoundInserter* inserter) {
           inserter->AddArg(frame_number_id_, Variadic::Integer(frame_number));
@@ -183,7 +195,7 @@ void GraphicsFrameEventParser::CreateBufferEvent(
 
   const int64_t duration =
       event.has_duration_ns() ? static_cast<int64_t>(event.duration_ns()) : 0;
-  context_->slice_tracker->Scoped(
+  context_->trace_context->slice_tracker->Scoped(
       timestamp, track_id, kNullStringId, event_name_id, duration,
       [&](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(frame_number_id_, Variadic::Integer(frame_number));
@@ -209,15 +221,15 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
     const GraphicsFrameEventDecoder& event,
     StringId layer_name_id,
     StringId event_key) {
-  auto* slices = context_->storage->mutable_slice_table();
+  auto* slices = context_->global_context->storage->mutable_slice_table();
   auto [it, inserted] = phase_event_map_.Insert(event_key, {});
   switch (event.type()) {
     case GraphicsFrameEvent::DEQUEUE: {
       if (auto* d = std::get_if<DequeueInfo>(&it->most_recent_event)) {
         // Error handling
         auto rr = d->slice_row.ToRowReference(slices);
-        rr.set_name(context_->storage->InternString("0"));
-        context_->slice_tracker->AddArgs(
+        rr.set_name(context_->global_context->storage->InternString("0"));
+        context_->trace_context->slice_tracker->AddArgs(
             rr.track_id(), kNullStringId, kNullStringId,
             [&](ArgsTracker::BoundInserter* inserter) {
               inserter->AddArg(frame_number_id_, Variadic::Integer(0));
@@ -228,11 +240,11 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
       base::StackString<1024> track_name("APP_%u %.*s", event.buffer_id(),
                                          int(event.layer_name().size),
                                          event.layer_name().data);
-      TrackId track_id = context_->track_tracker->InternTrack(
+      TrackId track_id = context_->machine_context->track_tracker->InternTrack(
           kGraphicFrameEventBlueprint,
           tracks::Dimensions(track_name.string_view()),
-          tracks::DynamicName(
-              context_->storage->InternString(track_name.string_view())));
+          tracks::DynamicName(context_->global_context->storage->InternString(
+              track_name.string_view())));
       auto res = InsertPhaseSlice(timestamp, event, track_id, layer_name_id);
       if (res) {
         it->most_recent_event = DequeueInfo{*res, timestamp};
@@ -242,7 +254,7 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
     case GraphicsFrameEvent::QUEUE: {
       if (auto* d = std::get_if<DequeueInfo>(&it->most_recent_event)) {
         auto slice_rr = d->slice_row.ToRowReference(slices);
-        context_->slice_tracker->End(
+        context_->trace_context->slice_tracker->End(
             timestamp, slice_rr.track_id(), kNullStringId, kNullStringId,
             [&](ArgsTracker::BoundInserter* inserter) {
               inserter->AddArg(frame_number_id_,
@@ -251,7 +263,7 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
 
         // Set the name of the slice to be the frame number since dequeue did
         // not have a frame number at that time.
-        slice_rr.set_name(context_->storage->InternString(
+        slice_rr.set_name(context_->global_context->storage->InternString(
             std::to_string(event.frame_number())));
 
         // The AcquireFence might be signaled before receiving a QUEUE event
@@ -264,9 +276,9 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
       base::StackString<1024> track_name("GPU_%u %.*s", event.buffer_id(),
                                          int(event.layer_name().size),
                                          event.layer_name().data);
-      StringId track_name_id =
-          context_->storage->InternString(track_name.string_view());
-      TrackId track_id = context_->track_tracker->InternTrack(
+      StringId track_name_id = context_->global_context->storage->InternString(
+          track_name.string_view());
+      TrackId track_id = context_->machine_context->track_tracker->InternTrack(
           kGraphicFrameEventBlueprint,
           tracks::Dimensions(track_name.string_view()),
           tracks::DynamicName(track_name_id));
@@ -276,7 +288,7 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
     }
     case GraphicsFrameEvent::ACQUIRE_FENCE: {
       if (auto* q = std::get_if<QueueInfo>(&it->most_recent_event)) {
-        context_->slice_tracker->End(timestamp, q->track);
+        context_->trace_context->slice_tracker->End(timestamp, q->track);
         it->most_recent_event = std::monostate();
       }
       it->last_acquire_ts = timestamp;
@@ -287,8 +299,8 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
       // wrong slice info, we try to close any existing APP slice.
       if (auto* d = std::get_if<DequeueInfo>(&it->most_recent_event)) {
         auto rr = d->slice_row.ToRowReference(slices);
-        rr.set_name(context_->storage->InternString("0"));
-        context_->slice_tracker->AddArgs(
+        rr.set_name(context_->global_context->storage->InternString("0"));
+        context_->trace_context->slice_tracker->AddArgs(
             rr.track_id(), kNullStringId, kNullStringId,
             [&](ArgsTracker::BoundInserter* inserter) {
               inserter->AddArg(frame_number_id_, Variadic::Integer(0));
@@ -297,32 +309,32 @@ void GraphicsFrameEventParser::CreatePhaseEvent(
       base::StackString<1024> track_name("SF_%u %.*s", event.buffer_id(),
                                          int(event.layer_name().size),
                                          event.layer_name().data);
-      TrackId track_id = context_->track_tracker->InternTrack(
+      TrackId track_id = context_->machine_context->track_tracker->InternTrack(
           kGraphicFrameEventBlueprint,
           tracks::Dimensions(track_name.string_view()),
-          tracks::DynamicName(
-              context_->storage->InternString(track_name.string_view())));
+          tracks::DynamicName(context_->global_context->storage->InternString(
+              track_name.string_view())));
       InsertPhaseSlice(timestamp, event, track_id, layer_name_id);
       it->most_recent_event = LatchInfo{track_id};
       break;
     }
     case GraphicsFrameEvent::PRESENT_FENCE: {
       if (auto* l = std::get_if<LatchInfo>(&it->most_recent_event)) {
-        context_->slice_tracker->End(timestamp, l->track);
+        context_->trace_context->slice_tracker->End(timestamp, l->track);
         it->most_recent_event = std::monostate();
       }
       auto [d_it, d_inserted] = display_map_.Insert(layer_name_id, {});
       if (d_it) {
-        context_->slice_tracker->End(timestamp, *d_it);
+        context_->trace_context->slice_tracker->End(timestamp, *d_it);
       }
       base::StackString<1024> track_name("Display_%.*s",
                                          int(event.layer_name().size),
                                          event.layer_name().data);
-      TrackId track_id = context_->track_tracker->InternTrack(
+      TrackId track_id = context_->machine_context->track_tracker->InternTrack(
           kGraphicFrameEventBlueprint,
           tracks::Dimensions(track_name.string_view()),
-          tracks::DynamicName(
-              context_->storage->InternString(track_name.string_view())));
+          tracks::DynamicName(context_->global_context->storage->InternString(
+              track_name.string_view())));
       InsertPhaseSlice(timestamp, event, track_id, layer_name_id);
       *d_it = track_id;
       break;
@@ -345,12 +357,13 @@ GraphicsFrameEventParser::InsertPhaseSlice(
   // existing slices, we use timestamp as the temporary name.
   StringId slice_name;
   if (event.frame_number() != 0) {
-    slice_name =
-        context_->storage->InternString(std::to_string(event.frame_number()));
+    slice_name = context_->global_context->storage->InternString(
+        std::to_string(event.frame_number()));
   } else {
-    slice_name = context_->storage->InternString(std::to_string(timestamp));
+    slice_name = context_->global_context->storage->InternString(
+        std::to_string(timestamp));
   }
-  auto slice_id = context_->slice_tracker->Begin(
+  auto slice_id = context_->trace_context->slice_tracker->Begin(
       timestamp, track_id, kNullStringId, slice_name,
       [&](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(frame_number_id_,
@@ -358,7 +371,9 @@ GraphicsFrameEventParser::InsertPhaseSlice(
         inserter->AddArg(layer_name_key_id_, Variadic::String(layer_name_id));
       });
   if (slice_id) {
-    return context_->storage->slice_table().FindById(*slice_id)->ToRowNumber();
+    return context_->global_context->storage->slice_table()
+        .FindById(*slice_id)
+        ->ToRowNumber();
   }
   return std::nullopt;
 }

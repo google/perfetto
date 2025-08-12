@@ -57,7 +57,8 @@ base::Status ArtHprofParser::Parse(TraceBlobView blob) {
   parser_->PushBlob(std::move(blob));
 
   if (is_init && !parser_->ParseHeader()) {
-    context_->storage->IncrementStats(stats::hprof_header_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::hprof_header_errors);
   }
 
   parser_->Parse();
@@ -68,7 +69,8 @@ base::Status ArtHprofParser::Parse(TraceBlobView blob) {
 base::Status ArtHprofParser::NotifyEndOfFile() {
   const HeapGraph graph = parser_->BuildGraph();
 
-  UniquePid upid = context_->process_tracker->GetOrCreateProcess(0);
+  UniquePid upid =
+      context_->machine_context->process_tracker->GetOrCreateProcess(0);
 
   if (graph.GetClassCount() == 0 || graph.GetObjectCount() == 0) {
     return base::OkStatus();
@@ -103,7 +105,7 @@ tables::HeapGraphClassTable::Id* ArtHprofParser::FindClassObjectId(
 }
 
 StringId ArtHprofParser::InternClassName(const std::string& class_name) {
-  return context_->storage->InternString(class_name);
+  return context_->global_context->storage->InternString(class_name);
 }
 
 // TraceBlobViewIterator implementation
@@ -233,7 +235,8 @@ void ArtHprofParser::TraceBlobViewIterator::Shrink() {
 }
 
 void ArtHprofParser::PopulateClasses(const HeapGraph& graph) {
-  auto& class_table = *context_->storage->mutable_heap_graph_class_table();
+  auto& class_table =
+      *context_->global_context->storage->mutable_heap_graph_class_table();
 
   // Process each class from the heap graph
   for (auto it = graph.GetClasses().GetIterator(); it; ++it) {
@@ -242,7 +245,8 @@ void ArtHprofParser::PopulateClasses(const HeapGraph& graph) {
 
     // Intern strings for class metadata
     StringId name_id = InternClassName(class_def.GetName());
-    StringId kind_id = context_->storage->InternString(kUnknownClassKind);
+    StringId kind_id =
+        context_->global_context->storage->InternString(kUnknownClassKind);
 
     // Create and insert the class row
     tables::HeapGraphClassTable::Row class_row;
@@ -282,14 +286,16 @@ void ArtHprofParser::PopulateClasses(const HeapGraph& graph) {
     if (obj.GetObjectType() == ObjectType::kClass) {
       auto* class_name_it = class_name_map_.Find(obj.GetClassId());
       if (!class_name_it) {
-        context_->storage->IncrementStats(stats::hprof_class_errors);
+        context_->global_context->storage->IncrementStats(
+            stats::hprof_class_errors);
         continue;
       }
 
       // Intern strings for class metadata
       StringId name_id =
           InternClassName("java.lang.Class<" + *class_name_it + ">");
-      StringId kind_id = context_->storage->InternString(kUnknownClassKind);
+      StringId kind_id =
+          context_->global_context->storage->InternString(kUnknownClassKind);
 
       // Create and insert the class row
       tables::HeapGraphClassTable::Row class_row;
@@ -310,7 +316,8 @@ void ArtHprofParser::PopulateClasses(const HeapGraph& graph) {
 void ArtHprofParser::PopulateObjects(const HeapGraph& graph,
                                      int64_t ts,
                                      UniquePid upid) {
-  auto& object_table = *context_->storage->mutable_heap_graph_object_table();
+  auto& object_table =
+      *context_->global_context->storage->mutable_heap_graph_object_table();
 
   // Create fallback unknown class if needed
   tables::HeapGraphClassTable::Id unknown_class_id;
@@ -324,14 +331,16 @@ void ArtHprofParser::PopulateObjects(const HeapGraph& graph,
     if (obj.GetObjectType() == ObjectType::kClass) {
       type_id = FindClassObjectId(obj.GetId());
       if (!type_id) {
-        context_->storage->IncrementStats(stats::hprof_class_errors);
+        context_->global_context->storage->IncrementStats(
+            stats::hprof_class_errors);
         continue;
       }
     } else {
       // Resolve object's type
       type_id = FindClassId(obj.GetClassId());
       if (!type_id && obj.GetObjectType() != ObjectType::kPrimitiveArray) {
-        context_->storage->IncrementStats(stats::hprof_class_errors);
+        context_->global_context->storage->IncrementStats(
+            stats::hprof_class_errors);
         continue;
       }
     }
@@ -347,7 +356,8 @@ void ArtHprofParser::PopulateObjects(const HeapGraph& graph,
     object_row.type_id = type_id ? *type_id : unknown_class_id;
 
     // Handle heap type
-    StringId heap_type_id = context_->storage->InternString(obj.GetHeapType());
+    StringId heap_type_id =
+        context_->global_context->storage->InternString(obj.GetHeapType());
     object_row.heap_type = heap_type_id;
 
     // Handle root type
@@ -355,7 +365,7 @@ void ArtHprofParser::PopulateObjects(const HeapGraph& graph,
       // Convert root type enum to string
       std::string root_type_str =
           HeapGraph::GetRootTypeName(obj.GetRootType().value());
-      StringId root_type_id = context_->storage->InternString(
+      StringId root_type_id = context_->global_context->storage->InternString(
           base::StringView(root_type_str.data(), root_type_str.size()));
       object_row.root_type = root_type_id;
     }
@@ -370,10 +380,12 @@ void ArtHprofParser::PopulateObjects(const HeapGraph& graph,
 }
 
 void ArtHprofParser::PopulateReferences(const HeapGraph& graph) {
-  auto& object_table = *context_->storage->mutable_heap_graph_object_table();
+  auto& object_table =
+      *context_->global_context->storage->mutable_heap_graph_object_table();
   auto& reference_table =
-      *context_->storage->mutable_heap_graph_reference_table();
-  auto& class_table = *context_->storage->mutable_heap_graph_class_table();
+      *context_->global_context->storage->mutable_heap_graph_reference_table();
+  auto& class_table =
+      *context_->global_context->storage->mutable_heap_graph_class_table();
 
   // Group references by owner for efficient reference_set_id assignment
   base::FlatHashMap<uint64_t, std::vector<Reference>> refs_by_owner;
@@ -400,7 +412,8 @@ void ArtHprofParser::PopulateReferences(const HeapGraph& graph) {
   }
 
   if (missing_owners > 0) {
-    context_->storage->IncrementStats(stats::hprof_reference_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::hprof_reference_errors);
   }
 
   // Step 3: Build class map for type resolution
@@ -448,12 +461,14 @@ void ArtHprofParser::PopulateReferences(const HeapGraph& graph) {
       if (ref.target_id != 0) {
         owned_table_id = FindObjectId(ref.target_id);
         if (!owned_table_id) {
-          context_->storage->IncrementStats(stats::hprof_reference_errors);
+          context_->global_context->storage->IncrementStats(
+              stats::hprof_reference_errors);
         }
       }
 
       // Get the field name
-      StringId field_name_id = context_->storage->InternString(ref.field_name);
+      StringId field_name_id =
+          context_->global_context->storage->InternString(ref.field_name);
 
       // Resolve field type from class ID
       StringId field_type_id;
@@ -462,7 +477,8 @@ void ArtHprofParser::PopulateReferences(const HeapGraph& graph) {
         // Get class name from class table
         field_type_id = class_table[cls->value].name();
       } else {
-        context_->storage->IncrementStats(stats::hprof_class_errors);
+        context_->global_context->storage->IncrementStats(
+            stats::hprof_class_errors);
         continue;
       }
 

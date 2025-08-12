@@ -33,7 +33,7 @@
 
 namespace perfetto::trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 class ExperimentalFlamegraph : public StaticTableFunction {
  public:

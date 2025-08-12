@@ -36,7 +36,7 @@ TraceSorter::TraceSorter(TraceProcessorContext* context,
                          SortingMode sorting_mode,
                          EventHandling event_handling)
     : sorting_mode_(sorting_mode),
-      storage_(context->storage),
+      storage_(context->global_context->storage),
       event_handling_(event_handling) {}
 
 TraceSorter::~TraceSorter() {

@@ -32,7 +32,7 @@
 
 namespace perfetto::trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 // Helper struct to deduplicate events.
 // When reading bug reports log data will be present in a dumpstate file and in

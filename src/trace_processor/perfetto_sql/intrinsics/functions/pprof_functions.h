@@ -24,7 +24,7 @@
 
 namespace perfetto::trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 struct PprofFunctions {
   static base::Status Register(PerfettoSqlEngine&, TraceProcessorContext*);

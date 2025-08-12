@@ -228,40 +228,51 @@ class MockBoundInserter : public ArgsTracker::BoundInserter {
 class ProtoTraceParserTest : public ::testing::Test {
  public:
   ProtoTraceParserTest() {
-    context_.register_additional_proto_modules = &RegisterAdditionalModules;
+    context_.global_context->register_additional_proto_modules =
+        &RegisterAdditionalModules;
     storage_ = new TraceStorage();
-    context_.storage.reset(storage_);
-    context_.track_tracker = std::make_unique<TrackTracker>(&context_);
-    context_.global_args_tracker =
-        std::make_unique<GlobalArgsTracker>(context_.storage.get());
-    context_.mapping_tracker.reset(new MappingTracker(&context_));
-    context_.stack_profile_tracker =
+    context_.global_context->storage.reset(storage_);
+    context_.machine_context->track_tracker =
+        std::make_unique<TrackTracker>(&context_);
+    context_.trace_context->global_args_tracker =
+        std::make_unique<GlobalArgsTracker>(
+            context_.global_context->storage.get());
+    context_.machine_context->mapping_tracker.reset(
+        new MappingTracker(&context_));
+    context_.trace_context->stack_profile_tracker =
         std::make_unique<StackProfileTracker>(&context_);
-    context_.args_tracker = std::make_unique<ArgsTracker>(&context_);
-    context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
-    context_.metadata_tracker.reset(
-        new MetadataTracker(context_.storage.get()));
-    context_.machine_tracker.reset(new MachineTracker(&context_, 0));
-    context_.cpu_tracker.reset(new CpuTracker(&context_));
+    context_.trace_context->args_tracker =
+        std::make_unique<ArgsTracker>(&context_);
+    context_.trace_context->args_translation_table.reset(
+        new ArgsTranslationTable(storage_));
+    context_.global_context->metadata_tracker.reset(
+        new MetadataTracker(context_.global_context->storage.get()));
+    context_.machine_context->machine_tracker.reset(
+        new MachineTracker(&context_, 0));
+    context_.machine_context->cpu_tracker.reset(new CpuTracker(&context_));
     event_ = new MockEventTracker(&context_);
-    context_.event_tracker.reset(event_);
+    context_.trace_context->event_tracker.reset(event_);
     sched_ = new MockSchedEventTracker(&context_);
-    context_.ftrace_sched_tracker.reset(sched_);
+    context_.machine_context->ftrace_sched_tracker.reset(sched_);
     process_ = new NiceMock<MockProcessTracker>(&context_);
-    context_.process_tracker.reset(process_);
-    context_.process_track_translation_table.reset(
+    context_.machine_context->process_tracker.reset(process_);
+    context_.trace_context->process_track_translation_table.reset(
         new ProcessTrackTranslationTable(storage_));
-    context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
-    context_.slice_translation_table =
+    context_.trace_context->slice_tracker =
+        std::make_unique<SliceTracker>(&context_);
+    context_.trace_context->slice_translation_table =
         std::make_unique<SliceTranslationTable>(storage_);
     clock_ = new ClockTracker(&context_);
-    context_.clock_tracker.reset(clock_);
-    context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
-    context_.sorter = std::make_shared<TraceSorter>(
+    context_.global_context->clock_tracker.reset(clock_);
+    context_.trace_context->flow_tracker =
+        std::make_unique<FlowTracker>(&context_);
+    context_.global_context->sorter = std::make_shared<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
-    context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
+    context_.global_context->descriptor_pool_ =
+        std::make_unique<DescriptorPool>();
 
-    context_.track_compressor.reset(new TrackCompressor(&context_));
+    context_.machine_context->track_compressor.reset(
+        new TrackCompressor(&context_));
 
     reader_ = std::make_unique<ProtoTraceReader>(&context_);
   }
@@ -347,7 +358,7 @@ TEST_F(ProtoTraceParserTest, LoadSingleEvent) {
               PushSchedSwitch(10, 1000, 10, base::StringView(kProc2Name), 256,
                               32, 100, base::StringView(kProc1Name), 1024));
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, LoadEventsIntoFtraceEvent) {
@@ -379,27 +390,30 @@ TEST_F(ProtoTraceParserTest, LoadEventsIntoFtraceEvent) {
   EXPECT_CALL(*process_, GetOrCreateProcess(123));
 
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
-  const auto& raw = context_.storage->ftrace_event_table();
+  const auto& raw = context_.global_context->storage->ftrace_event_table();
   ASSERT_EQ(raw.row_count(), 2u);
-  const auto& args = context_.storage->arg_table();
+  const auto& args = context_.global_context->storage->arg_table();
   ASSERT_EQ(args.row_count(), 6u);
   // Order is by row and then in the same order as encountered in the trace.
   std::vector<std::string> expected_keys;
   for (uint32_t i = 0; i < args.row_count(); i++) {
     expected_keys.push_back(
-        context_.storage->GetString(args[i].key()).ToStdString());
+        context_.global_context->storage->GetString(args[i].key())
+            .ToStdString());
   }
   ASSERT_THAT(expected_keys,
               testing::ElementsAre("pid", "comm", "clone_flags",
                                    "oom_score_adj", "ip", "buf"));
   ASSERT_EQ(args[0].int_value(), 123);
-  ASSERT_EQ(context_.storage->GetString(args[1].string_value()), task_newtask);
+  ASSERT_EQ(context_.global_context->storage->GetString(args[1].string_value()),
+            task_newtask);
   ASSERT_EQ(args[2].int_value(), 12);
   ASSERT_EQ(args[3].int_value(), 15);
   ASSERT_EQ(args[4].int_value(), 20);
-  ASSERT_EQ(context_.storage->GetString(args[5].string_value()), buf_value);
+  ASSERT_EQ(context_.global_context->storage->GetString(args[5].string_value()),
+            buf_value);
 
   // TODO(hjd): Add test ftrace event with all field types
   // and test here.
@@ -432,7 +446,7 @@ TEST_F(ProtoTraceParserTest, LoadGenericFtrace) {
   field->set_uint_value(3);
 
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   const auto& raw = storage_->ftrace_event_table();
 
@@ -514,7 +528,7 @@ TEST_F(ProtoTraceParserTest, LoadMultipleEvents) {
                               32, 10, base::StringView(kProcName2), 512));
 
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, LoadMultiplePackets) {
@@ -560,7 +574,7 @@ TEST_F(ProtoTraceParserTest, LoadMultiplePackets) {
               PushSchedSwitch(10, 1001, 100, base::StringView(kProcName1), 256,
                               32, 10, base::StringView(kProcName2), 512));
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, RepeatedLoadSinglePacket) {
@@ -583,7 +597,7 @@ TEST_F(ProtoTraceParserTest, RepeatedLoadSinglePacket) {
               PushSchedSwitch(10, 1000, 10, base::StringView(kProcName2), 256,
                               32, 100, base::StringView(kProcName1), 1024));
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   bundle = trace_->add_packet()->set_ftrace_events();
   bundle->set_cpu(10);
@@ -603,7 +617,7 @@ TEST_F(ProtoTraceParserTest, RepeatedLoadSinglePacket) {
               PushSchedSwitch(10, 1001, 100, base::StringView(kProcName1), 256,
                               32, 10, base::StringView(kProcName2), 512));
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
@@ -618,12 +632,14 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreq) {
 
   EXPECT_CALL(*event_, PushCounter(1000, DoubleEq(2000), TrackId{0}));
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
-  auto dim_set_id = context_.storage->track_table()[0].dimension_arg_set_id();
+  auto dim_set_id =
+      context_.global_context->storage->track_table()[0].dimension_arg_set_id();
   ASSERT_TRUE(dim_set_id.has_value());
   std::optional<Variadic> cpu;
-  ASSERT_OK(context_.storage->ExtractArg(*dim_set_id, "cpu", &cpu));
+  ASSERT_OK(
+      context_.global_context->storage->ExtractArg(*dim_set_id, "cpu", &cpu));
   EXPECT_EQ(cpu->int_value, 10u);
 }
 
@@ -640,21 +656,23 @@ TEST_F(ProtoTraceParserTest, LoadCpuFreqKHz) {
   EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), DoubleEq(3698200u),
                                    TrackId{1u}));
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
-  EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
+  EXPECT_EQ(context_.global_context->storage->track_table().row_count(), 2u);
 
-  auto row = context_.storage->track_table().FindById(TrackId(0));
-  EXPECT_EQ(context_.storage->GetString(row->name()), "cpufreq");
+  auto row =
+      context_.global_context->storage->track_table().FindById(TrackId(0));
+  EXPECT_EQ(context_.global_context->storage->GetString(row->name()),
+            "cpufreq");
   std::optional<Variadic> cpu;
-  ASSERT_OK(context_.storage->ExtractArg(row->dimension_arg_set_id().value(),
-                                         "cpu", &cpu));
+  ASSERT_OK(context_.global_context->storage->ExtractArg(
+      row->dimension_arg_set_id().value(), "cpu", &cpu));
   ASSERT_EQ(cpu->type, Variadic::Type::kInt);
   EXPECT_EQ(cpu->uint_value, 0u);
 
-  row = context_.storage->track_table().FindById(TrackId(1));
-  ASSERT_OK(context_.storage->ExtractArg(row->dimension_arg_set_id().value(),
-                                         "cpu", &cpu));
+  row = context_.global_context->storage->track_table().FindById(TrackId(1));
+  ASSERT_OK(context_.global_context->storage->ExtractArg(
+      row->dimension_arg_set_id().value(), "cpu", &cpu));
   ASSERT_EQ(cpu->type, Variadic::Type::kInt);
   EXPECT_EQ(cpu->uint_value, 1u);
 }
@@ -672,9 +690,9 @@ TEST_F(ProtoTraceParserTest, LoadCpuIdleStats) {
   EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts),
                                    static_cast<double>(20000), TrackId{0u}));
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
-  EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
+  EXPECT_EQ(context_.global_context->storage->track_table().row_count(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadGpuFreqStats) {
@@ -686,9 +704,9 @@ TEST_F(ProtoTraceParserTest, LoadGpuFreqStats) {
   EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts),
                                    static_cast<double>(300), TrackId{0u}));
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
-  EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
+  EXPECT_EQ(context_.global_context->storage->track_table().row_count(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadMemInfo) {
@@ -704,9 +722,9 @@ TEST_F(ProtoTraceParserTest, LoadMemInfo) {
   EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts),
                                    DoubleEq(value * 1024.0), TrackId{0u}));
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
-  EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
+  EXPECT_EQ(context_.global_context->storage->track_table().row_count(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadVmStats) {
@@ -722,9 +740,9 @@ TEST_F(ProtoTraceParserTest, LoadVmStats) {
   EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), DoubleEq(value),
                                    TrackId{0u}));
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
-  EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
+  EXPECT_EQ(context_.global_context->storage->track_table().row_count(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadThermal) {
@@ -741,9 +759,9 @@ TEST_F(ProtoTraceParserTest, LoadThermal) {
               PushCounter(static_cast<int64_t>(ts),
                           DoubleEq(static_cast<double>(temp)), TrackId{0u}));
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
-  EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
+  EXPECT_EQ(context_.global_context->storage->track_table().row_count(), 1u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadProcessPacket) {
@@ -759,7 +777,7 @@ TEST_F(ProtoTraceParserTest, LoadProcessPacket) {
               SetProcessMetadata(1, Eq(3u), base::StringView(kProcName1),
                                  base::StringView(kProcName1)));
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, LoadProcessPacket_FirstCmdline) {
@@ -777,7 +795,7 @@ TEST_F(ProtoTraceParserTest, LoadProcessPacket_FirstCmdline) {
               SetProcessMetadata(1, Eq(3u), base::StringView(kProcName1),
                                  base::StringView("proc1 proc2")));
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, LoadThreadPacket) {
@@ -788,7 +806,7 @@ TEST_F(ProtoTraceParserTest, LoadThreadPacket) {
 
   EXPECT_CALL(*process_, UpdateThread(1, 2));
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, ProcessNameFromProcessDescriptor) {
@@ -831,7 +849,7 @@ TEST_F(ProtoTraceParserTest, ProcessNameFromProcessDescriptor) {
                   2u, storage_->InternString("DifferentProcessName")));
 
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, ThreadNameFromThreadDescriptor) {
@@ -885,7 +903,7 @@ TEST_F(ProtoTraceParserTest, ThreadNameFromThreadDescriptor) {
                              ThreadNamePriority::kTrackDescriptor));
 
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
@@ -956,7 +974,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedData) {
                                    thread_time_track));
   EXPECT_CALL(*event_, PushCounter(1020000, testing::DoubleEq(2010000),
                                    thread_time_track));
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 2u);
   auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
@@ -1034,7 +1052,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutInternedDataWithTypes) {
   EXPECT_CALL(*event_, PushCounter(1020000, testing::DoubleEq(2010000),
                                    thread_time_track));
 
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 2u);
   auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
@@ -1212,7 +1230,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithInternedData) {
   EXPECT_CALL(*event_, PushCounter(1040000, testing::DoubleEq(3100),
                                    thread_instruction_count_track));
 
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 4u);
   auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
@@ -1354,7 +1372,7 @@ TEST_F(ProtoTraceParserTest, TrackEventAsyncEvents) {
   EXPECT_CALL(*event_, PushCounter(1020000, testing::DoubleEq(3040),
                                    thread_instruction_count_track));
 
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   // First track is for the thread; second first async, third and fourth for
   // thread time and instruction count, others are the async event tracks.
@@ -1527,7 +1545,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTrackDescriptors) {
   EXPECT_CALL(*event_,
               PushCounter(1016000, testing::DoubleEq(2008000), TrackId{3}));
 
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   // First track is "Thread track 1"; second is "Async track 1", third is global
   // default track (parent of async track), fourth is "Thread track 2", fifth &
@@ -1648,7 +1666,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithResortedCounterDescriptor) {
               UpdateThreadName(1u, storage_->InternString("t1"),
                                ThreadNamePriority::kTrackDescriptor));
 
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   // First track is thread time track, second is "t1".
   EXPECT_EQ(storage_->track_table().row_count(), 2u);
@@ -1715,7 +1733,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutIncrementalStateReset) {
   StringId cat1 = storage_->InternString("cat1");
   StringId ev2 = storage_->InternString("ev2");
 
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 1u);
   auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
@@ -1758,7 +1776,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithoutThreadDescriptor) {
   StringId cat1 = storage_->InternString("cat1");
   StringId ev1 = storage_->InternString("ev1");
 
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 1u);
   auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
@@ -1856,7 +1874,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDataLoss) {
   constexpr TrackId track{0u};
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 1u);
   auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
@@ -1965,7 +1983,7 @@ TEST_F(ProtoTraceParserTest, TrackEventMultipleSequences) {
   constexpr TrackId thread_1_track{1u};
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 2u);
   auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
@@ -2118,7 +2136,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithDebugAnnotations) {
 
   constexpr TrackId track{0u};
 
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 1u);
   auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
@@ -2178,7 +2196,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithTaskExecution) {
 
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 1u);
   auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
@@ -2246,7 +2264,7 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
   constexpr TrackId track{0};
   InSequence in_sequence;  // Below slices should be sorted by timestamp.
 
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 1u);
   auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
@@ -2254,10 +2272,14 @@ TEST_F(ProtoTraceParserTest, TrackEventWithLogMessage) {
   EXPECT_EQ(rr_0->ts(), 1010000);
   EXPECT_EQ(rr_0->track_id(), track);
 
-  EXPECT_GT(context_.storage->android_log_table().row_count(), 0u);
-  EXPECT_EQ(context_.storage->android_log_table()[0].ts(), 1010000);
-  EXPECT_EQ(context_.storage->android_log_table()[0].msg(), body_1);
-  EXPECT_EQ(context_.storage->android_log_table()[0].tag(), source_location_id);
+  EXPECT_GT(context_.global_context->storage->android_log_table().row_count(),
+            0u);
+  EXPECT_EQ(context_.global_context->storage->android_log_table()[0].ts(),
+            1010000);
+  EXPECT_EQ(context_.global_context->storage->android_log_table()[0].msg(),
+            body_1);
+  EXPECT_EQ(context_.global_context->storage->android_log_table()[0].tag(),
+            source_location_id);
 }
 
 TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
@@ -2322,7 +2344,7 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   StringId question = storage_->InternString("?");
   StringId debug_an_1 = storage_->InternString("debug.an1");
 
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   ::testing::Mock::VerifyAndClearExpectations(storage_);
 
@@ -2398,7 +2420,7 @@ TEST_F(ProtoTraceParserTest, TrackEventLegacyTimestampsWithClockSnapshot) {
 
   constexpr TrackId track{0u};
 
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 1u);
   auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
@@ -2421,7 +2443,7 @@ TEST_F(ProtoTraceParserTest, ParseEventWithClockIdButWithoutClockSnapshot) {
 
   base::Status status = Tokenize();
   EXPECT_TRUE(status.ok());
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   // Metadata should have created a raw event.
   const auto& raw_table = storage_->chrome_raw_table();
@@ -2461,7 +2483,7 @@ TEST_F(ProtoTraceParserTest, ParseEventWithClockIdButDelayedClockSnapshot) {
 
   constexpr TrackId track{0u};
 
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 1u);
   auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
@@ -2491,7 +2513,7 @@ TEST_F(ProtoTraceParserTest, ParseChromeMetadataEventIntoRawTable) {
   }
 
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   // Verify raw_table and args contents.
   const auto& raw_table = storage_->chrome_raw_table();
@@ -2522,7 +2544,7 @@ TEST_F(ProtoTraceParserTest, ParseChromeLegacyFtraceIntoRawTable) {
 
   Tokenize();
 
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   // Verify raw_table and args contents.
   const auto& raw_table = storage_->chrome_raw_table();
@@ -2550,7 +2572,7 @@ TEST_F(ProtoTraceParserTest, ParseChromeLegacyJsonIntoRawTable) {
 
   Tokenize();
 
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   // Verify raw_table and args contents.
   const auto& raw_table = storage_->chrome_raw_table();
@@ -2580,7 +2602,7 @@ TEST_F(ProtoTraceParserTest, LoadChromeBenchmarkMetadata) {
   base::StringView benchmark = metadata::kNames[metadata::benchmark_name];
   base::StringView tags = metadata::kNames[metadata::benchmark_story_tags];
 
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
   EXPECT_EQ(storage_->metadata_table().row_count(), 3u);
 
   std::vector<std::pair<base::StringView, base::StringView>> meta_entries;
@@ -2621,7 +2643,7 @@ TEST_F(ProtoTraceParserTest, LoadChromeMetadata) {
   }
 
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   const auto& metadata = storage_->metadata_table();
 
@@ -2663,10 +2685,10 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   }
 
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   // Packet-level errors reflected in stats storage.
-  const auto& stats = context_.storage->stats();
+  const auto& stats = context_.global_context->storage->stats();
   EXPECT_FALSE(stats[stats::packages_list_has_read_errors].value);
   EXPECT_TRUE(stats[stats::packages_list_has_parse_errors].value);
 
@@ -2674,7 +2696,8 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesList) {
   // The relevant arg sets have the info about the packages. To simplify test
   // structure, make an assumption that metadata storage is filled in in the
   // FIFO order of seen packages.
-  const auto& package_list = context_.storage->package_list_table();
+  const auto& package_list =
+      context_.global_context->storage->package_list_table();
   ASSERT_EQ(package_list.row_count(), 2u);
 
   EXPECT_STREQ(storage_->GetString(package_list[0].package_name()).c_str(),
@@ -2716,10 +2739,10 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesListDuplicate) {
   }
 
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   // Packet-level errors reflected in stats storage.
-  const auto& stats = context_.storage->stats();
+  const auto& stats = context_.global_context->storage->stats();
   EXPECT_FALSE(stats[stats::packages_list_has_read_errors].value);
   EXPECT_TRUE(stats[stats::packages_list_has_parse_errors].value);
 
@@ -2727,7 +2750,8 @@ TEST_F(ProtoTraceParserTest, AndroidPackagesListDuplicate) {
   // The relevant arg sets have the info about the packages. To simplify test
   // structure, make an assumption that metadata storage is filled in in the
   // FIFO order of seen packages.
-  const auto& package_list = context_.storage->package_list_table();
+  const auto& package_list =
+      context_.global_context->storage->package_list_table();
   ASSERT_EQ(package_list.row_count(), 1u);
 
   EXPECT_STREQ(storage_->GetString(package_list[0].package_name()).c_str(),
@@ -2805,7 +2829,7 @@ TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
   EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1u));
 
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   // Verify cpu_profile_samples.
   const auto& samples = storage_->cpu_profile_stack_sample_table();
@@ -2828,7 +2852,7 @@ TEST_F(ProtoTraceParserTest, ParseCPUProfileSamplesIntoTable) {
 
   // Breakpad build_ids should not be modified/mangled.
   ASSERT_STREQ(
-      context_.storage
+      context_.global_context->storage
           ->GetString(storage_->stack_profile_mapping_table()[0].build_id())
           .c_str(),
       "3BBCFBD372448A727265C3E7C4D954F91");
@@ -2892,7 +2916,7 @@ TEST_F(ProtoTraceParserTest, CPUProfileSamplesTimestampsAreClockMonotonic) {
   EXPECT_CALL(*process_, UpdateThread(16, 15)).WillRepeatedly(Return(1u));
 
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   const auto& samples = storage_->cpu_profile_stack_sample_table();
   EXPECT_EQ(samples.row_count(), 1u);
@@ -2909,12 +2933,13 @@ TEST_F(ProtoTraceParserTest, ConfigUuid) {
   config->set_trace_uuid_msb(2);
 
   ASSERT_TRUE(Tokenize().ok());
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
-  SqlValue value =
-      context_.metadata_tracker->GetMetadata(metadata::trace_uuid).value();
+  SqlValue value = context_.global_context->metadata_tracker
+                       ->GetMetadata(metadata::trace_uuid)
+                       .value();
   EXPECT_STREQ(value.string_value, "00000000-0000-0002-0000-000000000001");
-  ASSERT_TRUE(context_.uuid_found_in_trace);
+  ASSERT_TRUE(context_.trace_context->uuid_found_in_trace);
 }
 
 TEST_F(ProtoTraceParserTest, PacketUuid) {
@@ -2923,12 +2948,13 @@ TEST_F(ProtoTraceParserTest, PacketUuid) {
   uuid->set_msb(2);
 
   ASSERT_TRUE(Tokenize().ok());
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
-  SqlValue value =
-      context_.metadata_tracker->GetMetadata(metadata::trace_uuid).value();
+  SqlValue value = context_.global_context->metadata_tracker
+                       ->GetMetadata(metadata::trace_uuid)
+                       .value();
   EXPECT_STREQ(value.string_value, "00000000-0000-0002-0000-000000000001");
-  ASSERT_TRUE(context_.uuid_found_in_trace);
+  ASSERT_TRUE(context_.trace_context->uuid_found_in_trace);
 }
 
 // If both the TraceConfig and TracePacket.trace_uuid are present, the latter
@@ -2943,12 +2969,13 @@ TEST_F(ProtoTraceParserTest, PacketAndConfigUuid) {
   config->set_trace_uuid_msb(42);
 
   ASSERT_TRUE(Tokenize().ok());
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
-  SqlValue value =
-      context_.metadata_tracker->GetMetadata(metadata::trace_uuid).value();
+  SqlValue value = context_.global_context->metadata_tracker
+                       ->GetMetadata(metadata::trace_uuid)
+                       .value();
   EXPECT_STREQ(value.string_value, "00000000-0000-0002-0000-000000000001");
-  ASSERT_TRUE(context_.uuid_found_in_trace);
+  ASSERT_TRUE(context_.trace_context->uuid_found_in_trace);
 }
 
 TEST_F(ProtoTraceParserTest, ConfigPbtxt) {
@@ -2956,11 +2983,11 @@ TEST_F(ProtoTraceParserTest, ConfigPbtxt) {
   config->add_buffers()->set_size_kb(42);
 
   ASSERT_TRUE(Tokenize().ok());
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
-  SqlValue value =
-      context_.metadata_tracker->GetMetadata(metadata::trace_config_pbtxt)
-          .value();
+  SqlValue value = context_.global_context->metadata_tracker
+                       ->GetMetadata(metadata::trace_config_pbtxt)
+                       .value();
   EXPECT_THAT(value.string_value, HasSubstr("size_kb: 42"));
 }
 
@@ -3009,7 +3036,7 @@ TEST_F(ProtoTraceParserTest, PerfEventWithMultipleCounter) {
   EXPECT_CALL(*event_, PushCounter(3000, testing::DoubleEq(2048), TrackId{2u}));
 
   Tokenize();
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   const auto& tracks = storage_->track_table();
   EXPECT_EQ(tracks.row_count(), 3u);
@@ -3022,7 +3049,8 @@ TEST_F(ProtoTraceParserTest, PerfEventWithMultipleCounter) {
   auto get_cpu = [&, this](uint32_t i) {
     auto dim_set_id = tracks[i].dimension_arg_set_id();
     ASSERT_TRUE(dim_set_id.has_value());
-    ASSERT_OK(context_.storage->ExtractArg(*dim_set_id, "cpu", &cpu));
+    ASSERT_OK(
+        context_.global_context->storage->ExtractArg(*dim_set_id, "cpu", &cpu));
     ASSERT_TRUE(cpu.has_value());
   };
   get_cpu(0);

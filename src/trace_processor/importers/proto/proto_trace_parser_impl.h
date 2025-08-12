@@ -34,7 +34,7 @@ namespace trace_processor {
 
 class PacketSequenceState;
 struct ProtoImporterModuleContext;
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 class ProtoTraceParserImpl {
  public:

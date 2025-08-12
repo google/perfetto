@@ -35,10 +35,12 @@ class SystemInfoTracker : public Destructible {
   SystemInfoTracker& operator=(const SystemInfoTracker&) = delete;
 
   static SystemInfoTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->system_info_tracker) {
-      context->system_info_tracker.reset(new SystemInfoTracker());
+    if (!context->machine_context->system_info_tracker) {
+      context->machine_context->system_info_tracker.reset(
+          new SystemInfoTracker());
     }
-    return static_cast<SystemInfoTracker*>(context->system_info_tracker.get());
+    return static_cast<SystemInfoTracker*>(
+        context->machine_context->system_info_tracker.get());
   }
 
   void SetKernelVersion(base::StringView name, base::StringView release);

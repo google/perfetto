@@ -38,25 +38,26 @@ constexpr int kOneWay = 0x01;
 class BinderTrackerTest : public ::testing::Test {
  public:
   BinderTrackerTest() {
-    context.storage.reset(new TraceStorage());
-    context.global_args_tracker.reset(
-        new GlobalArgsTracker(context.storage.get()));
-    context.args_tracker.reset(new ArgsTracker(&context));
-    context.args_translation_table.reset(
-        new ArgsTranslationTable(context.storage.get()));
-    context.slice_tracker.reset(new SliceTracker(&context));
-    context.slice_translation_table.reset(
-        new SliceTranslationTable(context.storage.get()));
-    context.process_tracker.reset(new ProcessTracker(&context));
-    context.track_tracker.reset(new TrackTracker(&context));
-    context.flow_tracker.reset(new FlowTracker(&context));
+    context.global_context->storage.reset(new TraceStorage());
+    context.trace_context->global_args_tracker.reset(
+        new GlobalArgsTracker(context.global_context->storage.get()));
+    context.trace_context->args_tracker.reset(new ArgsTracker(&context));
+    context.trace_context->args_translation_table.reset(
+        new ArgsTranslationTable(context.global_context->storage.get()));
+    context.trace_context->slice_tracker.reset(new SliceTracker(&context));
+    context.trace_context->slice_translation_table.reset(
+        new SliceTranslationTable(context.global_context->storage.get()));
+    context.machine_context->process_tracker.reset(
+        new ProcessTracker(&context));
+    context.machine_context->track_tracker.reset(new TrackTracker(&context));
+    context.trace_context->flow_tracker.reset(new FlowTracker(&context));
     binder_tracker = BinderTracker::GetOrCreate(&context);
   }
 
   uint32_t TidForSlice(uint32_t row) const {
-    const auto& thread = context.storage->thread_table();
-    const auto& track = context.storage->track_table();
-    const auto& slice = context.storage->slice_table();
+    const auto& thread = context.global_context->storage->thread_table();
+    const auto& track = context.global_context->storage->track_table();
+    const auto& slice = context.global_context->storage->slice_table();
     auto rr = track.FindById(slice[row].track_id());
     return static_cast<uint32_t>(thread[*rr->utid()].tid());
   }
@@ -86,8 +87,8 @@ TEST_F(BinderTrackerTest, RequestReply) {
                               req_tid, true, 0, kNullStringId);
   binder_tracker->TransactionReceived(rep_recv_ts, req_tid, rep_transaction_id);
 
-  const auto& slice = context.storage->slice_table();
-  const auto& flow = context.storage->flow_table();
+  const auto& slice = context.global_context->storage->slice_table();
+  const auto& flow = context.global_context->storage->flow_table();
   ASSERT_EQ(slice.row_count(), 2u);
 
   ASSERT_EQ(slice[0].ts(), req_ts);
@@ -118,8 +119,8 @@ TEST_F(BinderTrackerTest, Oneway) {
                               rec_tid, false, kOneWay, kNullStringId);
   binder_tracker->TransactionReceived(rec_ts, rec_tid, transaction_id);
 
-  const auto& slice = context.storage->slice_table();
-  const auto& flow = context.storage->flow_table();
+  const auto& slice = context.global_context->storage->slice_table();
+  const auto& flow = context.global_context->storage->flow_table();
   ASSERT_EQ(slice.row_count(), 2u);
 
   ASSERT_EQ(slice[0].ts(), sen_ts);
@@ -162,7 +163,7 @@ TEST_F(BinderTrackerTest, RequestReplyWithCommands) {
   binder_tracker->TransactionReceived(ts++, kSndTid, kReplyTransactionId);
   binder_tracker->ReturnFromKernel(ts++, kSndTid, BinderTracker::kBR_REPLY);
 
-  const auto& slice = context.storage->slice_table();
+  const auto& slice = context.global_context->storage->slice_table();
   ASSERT_EQ(slice.row_count(), 2u);
   EXPECT_NE(slice[0].dur(), -1);
   EXPECT_NE(slice[1].dur(), -1);
@@ -179,7 +180,7 @@ TEST_F(BinderTrackerTest, RequestReplyWithCommandsFailAfterBcTransaction) {
   binder_tracker->ReturnFromKernel(ts++, kSndTid,
                                    BinderTracker::kBR_DEAD_REPLY);
 
-  const auto& slice = context.storage->slice_table();
+  const auto& slice = context.global_context->storage->slice_table();
   EXPECT_EQ(slice.row_count(), 0u);
 
   EXPECT_TRUE(binder_tracker->utid_stacks_empty());
@@ -199,7 +200,7 @@ TEST_F(BinderTrackerTest, RequestReplyWithCommandsFailAfterSendTxn) {
   binder_tracker->ReturnFromKernel(ts++, kSndTid,
                                    BinderTracker::kBR_FAILED_REPLY);
 
-  const auto& slice = context.storage->slice_table();
+  const auto& slice = context.global_context->storage->slice_table();
   ASSERT_EQ(slice.row_count(), 1u);
   EXPECT_NE(slice[0].dur(), -1);
 
@@ -228,7 +229,7 @@ TEST_F(BinderTrackerTest, RequestReplyWithCommandsFailBeforeReplyTxn) {
   binder_tracker->ReturnFromKernel(ts++, kSndTid,
                                    BinderTracker::kBR_FAILED_REPLY);
 
-  const auto& slice = context.storage->slice_table();
+  const auto& slice = context.global_context->storage->slice_table();
   ASSERT_EQ(slice.row_count(), 2u);
   EXPECT_NE(slice[0].dur(), -1);
   EXPECT_NE(slice[1].dur(), -1);
@@ -261,7 +262,7 @@ TEST_F(BinderTrackerTest, RequestReplyWithCommandsFailAfterReplyTxn) {
   binder_tracker->ReturnFromKernel(ts++, kSndTid,
                                    BinderTracker::kBR_FAILED_REPLY);
 
-  const auto& slice = context.storage->slice_table();
+  const auto& slice = context.global_context->storage->slice_table();
   ASSERT_EQ(slice.row_count(), 2u);
   EXPECT_NE(slice[0].dur(), -1);
   EXPECT_NE(slice[1].dur(), -1);
@@ -286,7 +287,7 @@ TEST_F(BinderTrackerTest, OneWayWithCommands) {
   binder_tracker->ReturnFromKernel(ts++, kRcvTid,
                                    BinderTracker::kBR_TRANSACTION);
 
-  const auto& slice = context.storage->slice_table();
+  const auto& slice = context.global_context->storage->slice_table();
   ASSERT_EQ(slice.row_count(), 2u);
   EXPECT_EQ(slice[0].dur(), 0);
   EXPECT_EQ(slice[1].dur(), 0);
@@ -303,7 +304,7 @@ TEST_F(BinderTrackerTest, OneWayWithCommandsFailBeforeTxn) {
   binder_tracker->ReturnFromKernel(ts++, kSndTid,
                                    BinderTracker::kBR_FAILED_REPLY);
 
-  const auto& slice = context.storage->slice_table();
+  const auto& slice = context.global_context->storage->slice_table();
   EXPECT_EQ(slice.row_count(), 0u);
 
   EXPECT_TRUE(binder_tracker->utid_stacks_empty());
@@ -323,7 +324,7 @@ TEST_F(BinderTrackerTest, OneWayWithCommandsFailAfterTxn) {
   binder_tracker->ReturnFromKernel(ts++, kSndTid,
                                    BinderTracker::kBR_FAILED_REPLY);
 
-  const auto& slice = context.storage->slice_table();
+  const auto& slice = context.global_context->storage->slice_table();
   ASSERT_EQ(slice.row_count(), 1u);
   EXPECT_EQ(slice[0].dur(), 0);
 

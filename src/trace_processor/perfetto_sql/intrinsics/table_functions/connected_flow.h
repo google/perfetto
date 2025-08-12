@@ -33,7 +33,7 @@
 
 namespace perfetto::trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 // Implementation of tables:
 // - DIRECTLY_CONNECTED_FLOW

@@ -269,7 +269,8 @@ bool HeapGraphBuilder::ParseHeapDumpRecord() {
   }
 
   // This should be unreachable given the logic above, but keeping it for safety
-  context_->storage->IncrementStats(stats::hprof_heap_dump_counter);
+  context_->global_context->storage->IncrementStats(
+      stats::hprof_heap_dump_counter);
   return false;
 }
 
@@ -354,7 +355,8 @@ bool HeapGraphBuilder::ParseClassStructure() {
   // Get class definition
   auto cls = classes_.Find(class_id);
   if (!cls) {
-    context_->storage->IncrementStats(stats::hprof_class_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::hprof_class_errors);
     return false;
   }
 
@@ -621,13 +623,13 @@ bool HeapGraphBuilder::ParsePrimitiveArrayObject() {
   uint64_t class_id = 0;
   size_t element_type_index = static_cast<size_t>(element_type);
   if (element_type_index >= prim_array_class_ids_.size()) {
-    context_->storage->IncrementStats(
+    context_->global_context->storage->IncrementStats(
         stats::hprof_primitive_array_parsing_errors);
     return false;
   } else {
     class_id = prim_array_class_ids_[element_type_index];
     if (class_id == 0) {
-      context_->storage->IncrementStats(
+      context_->global_context->storage->IncrementStats(
           stats::hprof_primitive_array_parsing_errors);
       return false;
     }
@@ -664,11 +666,11 @@ std::string HeapGraphBuilder::LookupString(uint64_t id) const {
   if (!it) {
     return "[unknown string ID: " + std::to_string(id) + "]";
   }
-  return context_->storage->GetString(*it).c_str();
+  return context_->global_context->storage->GetString(*it).c_str();
 }
 
 void HeapGraphBuilder::StoreString(uint64_t id, const std::string& str) {
-  StringId interned_id = context_->storage->InternString(str);
+  StringId interned_id = context_->global_context->storage->InternString(str);
   strings_[id] = interned_id;
 }
 
@@ -695,7 +697,8 @@ std::string HeapGraphBuilder::NormalizeClassName(
     // If there was an array type signature to start, then interpret the
     // class name as a type signature.
     if (normalized_name.empty()) {
-      context_->storage->IncrementStats(stats::hprof_class_errors);
+      context_->global_context->storage->IncrementStats(
+          stats::hprof_class_errors);
       return name;
     }
 
@@ -728,14 +731,16 @@ std::string HeapGraphBuilder::NormalizeClassName(
       case 'L':
         // Remove the leading 'L' and trailing ';'
         if (normalized_name.back() != ';') {
-          context_->storage->IncrementStats(stats::hprof_class_errors);
+          context_->global_context->storage->IncrementStats(
+              stats::hprof_class_errors);
           return name;
         }
         normalized_name =
             normalized_name.substr(1, normalized_name.length() - 2);
         break;
       default:
-        context_->storage->IncrementStats(stats::hprof_class_errors);
+        context_->global_context->storage->IncrementStats(
+            stats::hprof_class_errors);
         return name;
     }
   }

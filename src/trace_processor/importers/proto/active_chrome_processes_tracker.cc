@@ -77,7 +77,8 @@ void ActiveChromeProcessesTracker::NotifyEndOfFile() {
     tables::ExpMissingChromeProcTable::Row row;
     row.upid = p.upid;
     row.reliable_from = p.reliable_from;
-    context_->storage->mutable_experimental_missing_chrome_processes_table()
+    context_->global_context->storage
+        ->mutable_experimental_missing_chrome_processes_table()
         ->Insert(row);
   }
 }

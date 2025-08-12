@@ -50,17 +50,18 @@ std::pair<FrameId, bool> JitCache::JittedFunction::InternFrame(
   }
 
   FrameId frame_id =
-      context->storage->mutable_stack_profile_frame_table()
-          ->Insert({context->storage->jit_code_table()
+      context->global_context->storage->mutable_stack_profile_frame_table()
+          ->Insert({context->global_context->storage->jit_code_table()
                         .FindById(jit_code_id_)
                         ->function_name(),
                     frame_key.mapping_id,
                     static_cast<int64_t>(frame_key.rel_pc), symbol_set_id_})
           .id;
   interned_frames_.Insert(frame_key, frame_id);
-  context->stack_profile_tracker->OnFrameCreated(frame_id);
+  context->trace_context->stack_profile_tracker->OnFrameCreated(frame_id);
 
-  context->storage->mutable_jit_frame_table()->Insert({jit_code_id_, frame_id});
+  context->global_context->storage->mutable_jit_frame_table()->Insert(
+      {jit_code_id_, frame_id});
 
   return {frame_id, true};
 }
@@ -73,7 +74,7 @@ tables::JitCodeTable::Id JitCache::LoadCode(
     std::optional<SourceLocation> source_location,
     TraceBlobView native_code) {
   PERFETTO_CHECK(range_.Contains(code_range));
-  PERFETTO_CHECK(context_->storage->thread_table()
+  PERFETTO_CHECK(context_->global_context->storage->thread_table()
                      .FindById(tables::ThreadTable::Id(utid))
                      ->upid() == upid_);
 
@@ -83,13 +84,15 @@ tables::JitCodeTable::Id JitCache::LoadCode(
   std::optional<uint32_t> symbol_set_id;
   if (source_location.has_value()) {
     // TODO(carlscab): Remove duplication via new SymbolTracker class
-    symbol_set_id = context_->storage->symbol_table().row_count();
-    context_->storage->mutable_symbol_table()->Insert(
+    symbol_set_id =
+        context_->global_context->storage->symbol_table().row_count();
+    context_->global_context->storage->mutable_symbol_table()->Insert(
         {*symbol_set_id, function_name, source_location->file_name,
          source_location->line_number});
   }
 
-  auto* jit_code_table = context_->storage->mutable_jit_code_table();
+  auto* jit_code_table =
+      context_->global_context->storage->mutable_jit_code_table();
   const auto jit_code_id =
       jit_code_table
           ->Insert({timestamp, std::nullopt, utid,
@@ -112,7 +115,8 @@ tables::JitCodeTable::Id JitCache::MoveCode(int64_t timestamp,
                                             UniqueTid,
                                             uint64_t from_code_start,
                                             uint64_t to_code_start) {
-  auto* jit_code_table = context_->storage->mutable_jit_code_table();
+  auto* jit_code_table =
+      context_->global_context->storage->mutable_jit_code_table();
 
   auto it = functions_.Find(from_code_start);
   AddressRange old_code_range = it->first;
@@ -146,11 +150,11 @@ std::pair<FrameId, bool> JitCache::InternFrame(VirtualMemoryMapping* mapping,
     return {*id, false};
   }
 
-  context_->storage->IncrementStats(stats::jit_unknown_frame);
+  context_->global_context->storage->IncrementStats(stats::jit_unknown_frame);
 
   FrameId id =
-      context_->storage->mutable_stack_profile_frame_table()
-          ->Insert({context_->storage->InternString(
+      context_->global_context->storage->mutable_stack_profile_frame_table()
+          ->Insert({context_->global_context->storage->InternString(
                         function_name.empty()
                             ? base::StringView(
                                   "[+" + base::Uint64ToHexString(rel_pc) + "]")
@@ -165,12 +169,12 @@ UserMemoryMapping& JitCache::CreateMapping() {
   CreateMappingParams params;
   params.memory_range = range_;
   params.name = "[jit: " + name_ + "]";
-  return context_->mapping_tracker->CreateUserMemoryMapping(upid_,
-                                                            std::move(params));
+  return context_->machine_context->mapping_tracker->CreateUserMemoryMapping(
+      upid_, std::move(params));
 }
 
 StringId JitCache::Base64Encode(const TraceBlobView& data) {
-  return context_->storage->InternString(
+  return context_->global_context->storage->InternString(
       base::StringView(base::Base64Encode(data.data(), data.size())));
 }
 

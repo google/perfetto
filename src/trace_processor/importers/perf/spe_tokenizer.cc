@@ -45,7 +45,7 @@ class SpeStream : public AuxDataStream {
   explicit SpeStream(TraceProcessorContext* context, AuxStream* stream)
       : context_(context),
         stream_(*stream),
-        record_stream_(context->sorter->CreateStream(
+        record_stream_(context->global_context->sorter->CreateStream(
             std::make_unique<SpeRecordParserImpl>(context))) {}
 
   void OnDataLoss(uint64_t) override {
@@ -140,7 +140,8 @@ class SpeStream : public AuxDataStream {
     if (cycles.has_value()) {
       perf_time = stream_.ConvertTscToPerfTime(*cycles);
     } else {
-      context_->storage->IncrementStats(stats::spe_no_timestamp);
+      context_->global_context->storage->IncrementStats(
+          stats::spe_no_timestamp);
     }
 
     if (!perf_time && last_aux_record_->sample_id.has_value()) {
@@ -148,15 +149,18 @@ class SpeStream : public AuxDataStream {
     }
 
     if (!perf_time) {
-      record_stream_->Push(context_->sorter->max_timestamp(),
+      record_stream_->Push(context_->global_context->sorter->max_timestamp(),
                            std::move(record));
       return;
     }
 
-    base::StatusOr<int64_t> trace_time = context_->clock_tracker->ToTraceTime(
-        last_aux_record_->attr->clock_id(), static_cast<int64_t>(*perf_time));
+    base::StatusOr<int64_t> trace_time =
+        context_->global_context->clock_tracker->ToTraceTime(
+            last_aux_record_->attr->clock_id(),
+            static_cast<int64_t>(*perf_time));
     if (!trace_time.ok()) {
-      context_->storage->IncrementStats(stats::spe_record_dropped);
+      context_->global_context->storage->IncrementStats(
+          stats::spe_record_dropped);
       return;
     }
     record_stream_->Push(*trace_time, std::move(record));

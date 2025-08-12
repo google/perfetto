@@ -32,7 +32,7 @@
 
 namespace perfetto::trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 class FuchsiaTraceParser
     : public TraceSorter::Sink<FuchsiaRecord, FuchsiaTraceParser> {

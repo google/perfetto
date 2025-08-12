@@ -150,7 +150,8 @@ ShellTransitionsTracker::GetOrInsertTransition(int32_t transition_id) {
   }
 
   auto* window_manager_shell_transitions_table =
-      context_->storage->mutable_window_manager_shell_transitions_table();
+      context_->global_context->storage
+          ->mutable_window_manager_shell_transitions_table();
 
   tables::WindowManagerShellTransitionsTable::Row row;
   row.transition_id = transition_id;
@@ -167,13 +168,14 @@ std::optional<tables::WindowManagerShellTransitionsTable::RowReference>
 ShellTransitionsTracker::GetRowReference(int32_t transition_id) {
   auto pos = transitions_infos_.find(transition_id);
   if (pos == transitions_infos_.end()) {
-    context_->storage->IncrementStats(
+    context_->global_context->storage->IncrementStats(
         stats::winscope_shell_transitions_parse_errors);
     return std::nullopt;
   }
 
   auto* window_manager_shell_transitions_table =
-      context_->storage->mutable_window_manager_shell_transitions_table();
+      context_->global_context->storage
+          ->mutable_window_manager_shell_transitions_table();
   return window_manager_shell_transitions_table->FindById(pos->second.row_id);
 }
 

@@ -44,17 +44,22 @@ constexpr auto kUnnestable = TrackCompressor::SliceBlueprint(
 class TrackCompressorUnittest : public testing::Test {
  public:
   TrackCompressorUnittest() {
-    context_.storage = std::make_shared<TraceStorage>();
-    context_.global_args_tracker =
-        std::make_shared<GlobalArgsTracker>(context_.storage.get());
-    context_.args_tracker = std::make_unique<ArgsTracker>(&context_);
-    context_.track_tracker = std::make_unique<TrackTracker>(&context_);
-    context_.track_compressor = std::make_unique<TrackCompressor>(&context_);
-    context_.process_track_translation_table =
-        std::make_unique<ProcessTrackTranslationTable>(context_.storage.get());
+    context_.global_context->storage = std::make_shared<TraceStorage>();
+    context_.trace_context->global_args_tracker =
+        std::make_shared<GlobalArgsTracker>(
+            context_.global_context->storage.get());
+    context_.trace_context->args_tracker =
+        std::make_unique<ArgsTracker>(&context_);
+    context_.machine_context->track_tracker =
+        std::make_unique<TrackTracker>(&context_);
+    context_.machine_context->track_compressor =
+        std::make_unique<TrackCompressor>(&context_);
+    context_.trace_context->process_track_translation_table =
+        std::make_unique<ProcessTrackTranslationTable>(
+            context_.global_context->storage.get());
 
-    storage_ = context_.storage.get();
-    tracker_ = context_.track_compressor.get();
+    storage_ = context_.global_context->storage.get();
+    tracker_ = context_.machine_context->track_compressor.get();
   }
 
  protected:

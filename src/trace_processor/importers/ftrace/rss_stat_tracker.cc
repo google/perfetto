@@ -101,11 +101,13 @@ void RssStatTracker::ParseRssStat(int64_t ts,
                                   std::optional<int64_t> mm_id) {
   const char* memory_key = GetProcessMemoryKey(member);
   if (!memory_key) {
-    context_->storage->IncrementStats(stats::rss_stat_unknown_keys);
+    context_->global_context->storage->IncrementStats(
+        stats::rss_stat_unknown_keys);
     return;
   }
   if (size < 0) {
-    context_->storage->IncrementStats(stats::rss_stat_negative_size);
+    context_->global_context->storage->IncrementStats(
+        stats::rss_stat_negative_size);
     return;
   }
 
@@ -113,15 +115,16 @@ void RssStatTracker::ParseRssStat(int64_t ts,
   if (mm_id.has_value() && curr.has_value()) {
     utid = FindUtidForMmId(*mm_id, *curr, pid);
   } else {
-    utid = context_->process_tracker->GetOrCreateThread(pid);
+    utid = context_->machine_context->process_tracker->GetOrCreateThread(pid);
   }
 
   if (utid) {
-    context_->event_tracker->PushProcessCounterForThread(
+    context_->trace_context->event_tracker->PushProcessCounterForThread(
         EventTracker::RssStat{memory_key}, ts, static_cast<double>(size),
         *utid);
   } else {
-    context_->storage->IncrementStats(stats::rss_stat_unknown_thread_for_mm_id);
+    context_->global_context->storage->IncrementStats(
+        stats::rss_stat_unknown_thread_for_mm_id);
   }
 }
 
@@ -131,7 +134,8 @@ std::optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
   // If curr is true, we can just overwrite the state in the map and return
   // the utid correspodning to |pid|.
   if (is_curr) {
-    UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+    UniqueTid utid =
+        context_->machine_context->process_tracker->GetOrCreateThread(pid);
     mm_id_to_utid_[mm_id] = utid;
     return utid;
   }
@@ -147,7 +151,8 @@ std::optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
   // the middle of a vfork + exec). Therefore, we should discard the association
   // of this vm struct with this thread.
   const UniqueTid mm_utid = *it;
-  const UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  const UniqueTid utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(pid);
   if (mm_utid == utid) {
     mm_id_to_utid_.Erase(mm_id);
     return std::nullopt;
@@ -156,7 +161,7 @@ std::optional<UniqueTid> RssStatTracker::FindUtidForMmId(int64_t mm_id,
   // Verify that the utid in the map is still alive. This can happen if an mm
   // struct we saw in the past is about to be reused after thread but we don't
   // know the new process that struct will be associated with.
-  if (!context_->process_tracker->IsThreadAlive(mm_utid)) {
+  if (!context_->machine_context->process_tracker->IsThreadAlive(mm_utid)) {
     mm_id_to_utid_.Erase(mm_id);
     return std::nullopt;
   }

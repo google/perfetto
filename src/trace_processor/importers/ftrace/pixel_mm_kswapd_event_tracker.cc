@@ -34,31 +34,37 @@ PixelMmKswapdEventTracker::PixelMmKswapdEventTracker(
     TraceProcessorContext* context)
     : context_(context),
       kswapd_efficiency_name_(
-          context->storage->InternString("kswapd_efficiency")),
-      efficiency_pct_name_(context->storage->InternString("efficiency %")),
-      pages_scanned_name_(context->storage->InternString("pages scanned")),
-      pages_reclaimed_name_(context->storage->InternString("pages reclaimed")) {
-}
+          context->global_context->storage->InternString("kswapd_efficiency")),
+      efficiency_pct_name_(
+          context->global_context->storage->InternString("efficiency %")),
+      pages_scanned_name_(
+          context->global_context->storage->InternString("pages scanned")),
+      pages_reclaimed_name_(
+          context->global_context->storage->InternString("pages reclaimed")) {}
 
 void PixelMmKswapdEventTracker::ParsePixelMmKswapdWake(int64_t timestamp,
                                                        uint32_t pid) {
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  TrackId details_track = context_->track_tracker->InternThreadTrack(utid);
+  UniqueTid utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(pid);
+  TrackId details_track =
+      context_->machine_context->track_tracker->InternThreadTrack(utid);
 
-  context_->slice_tracker->Begin(timestamp, details_track, kNullStringId,
-                                 kswapd_efficiency_name_);
+  context_->trace_context->slice_tracker->Begin(
+      timestamp, details_track, kNullStringId, kswapd_efficiency_name_);
 }
 
 void PixelMmKswapdEventTracker::ParsePixelMmKswapdDone(
     int64_t timestamp,
     uint32_t pid,
     protozero::ConstBytes blob) {
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  TrackId details_track = context_->track_tracker->InternThreadTrack(utid);
+  UniqueTid utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(pid);
+  TrackId details_track =
+      context_->machine_context->track_tracker->InternThreadTrack(utid);
 
   protos::pbzero::PixelMmKswapdDoneFtraceEvent::Decoder decoder(blob);
 
-  context_->slice_tracker->End(
+  context_->trace_context->slice_tracker->End(
       timestamp, details_track, kNullStringId, kswapd_efficiency_name_,
       [this, &decoder](ArgsTracker::BoundInserter* inserter) {
         if (decoder.has_delta_nr_scanned()) {

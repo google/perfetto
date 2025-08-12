@@ -127,17 +127,20 @@ base::Status AuxStream::OnAuxRecord(AuxRecord aux) {
                            aux.offset, aux_end_);
   }
   if (aux.offset > aux_end_) {
-    manager_.context()->storage->IncrementStats(
+    manager_.context()->global_context->storage->IncrementStats(
         stats::perf_aux_missing, static_cast<int64_t>(aux.offset - aux_end_));
   }
   if (aux.flags & PERF_AUX_FLAG_TRUNCATED) {
-    manager_.context()->storage->IncrementStats(stats::perf_aux_truncated);
+    manager_.context()->global_context->storage->IncrementStats(
+        stats::perf_aux_truncated);
   }
   if (aux.flags & PERF_AUX_FLAG_PARTIAL) {
-    manager_.context()->storage->IncrementStats(stats::perf_aux_partial);
+    manager_.context()->global_context->storage->IncrementStats(
+        stats::perf_aux_partial);
   }
   if (aux.flags & PERF_AUX_FLAG_COLLISION) {
-    manager_.context()->storage->IncrementStats(stats::perf_aux_collision);
+    manager_.context()->global_context->storage->IncrementStats(
+        stats::perf_aux_collision);
   }
   outstanding_records_.emplace_back(std::move(aux));
   aux_end_ = aux.end();
@@ -151,7 +154,7 @@ base::Status AuxStream::OnAuxtraceRecord(AuxtraceRecord auxtrace,
     return base::ErrStatus("Overlapping AuxtraceData");
   }
   if (auxtrace.offset > auxtrace_end_) {
-    manager_.context()->storage->IncrementStats(
+    manager_.context()->global_context->storage->IncrementStats(
         stats::perf_auxtrace_missing,
         static_cast<int64_t>(auxtrace.offset - auxtrace_end_));
   }
@@ -241,11 +244,11 @@ base::Status AuxStream::NotifyEndOfStream() {
   }
 
   if (aux_end_ < auxtrace_end_) {
-    manager_.context()->storage->IncrementStats(
+    manager_.context()->global_context->storage->IncrementStats(
         stats::perf_aux_missing,
         static_cast<int64_t>(auxtrace_end_ - aux_end_));
   } else if (auxtrace_end_ < aux_end_) {
-    manager_.context()->storage->IncrementStats(
+    manager_.context()->global_context->storage->IncrementStats(
         stats::perf_auxtrace_missing,
         static_cast<int64_t>(aux_end_ - auxtrace_end_));
   }

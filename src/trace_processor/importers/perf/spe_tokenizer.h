@@ -25,7 +25,7 @@
 #include "src/trace_processor/importers/perf/auxtrace_info_record.h"
 
 namespace perfetto ::trace_processor {
-class TraceProcessorContext;
+struct TraceProcessorContext;
 namespace perf_importer {
 
 class SpeTokenizer : public AuxDataTokenizer {

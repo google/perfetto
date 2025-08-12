@@ -28,8 +28,8 @@ namespace perfetto {
 namespace trace_processor {
 
 FlowTracker::FlowTracker(TraceProcessorContext* context) : context_(context) {
-  name_key_id_ = context_->storage->InternString("name");
-  cat_key_id_ = context_->storage->InternString("cat");
+  name_key_id_ = context_->global_context->storage->InternString("name");
+  cat_key_id_ = context_->global_context->storage->InternString("cat");
 }
 
 FlowTracker::~FlowTracker() = default;
@@ -42,9 +42,10 @@ FlowTracker::~FlowTracker() = default;
   We suspect that this case is too rare or impossible */
 void FlowTracker::Begin(TrackId track_id, FlowId flow_id) {
   std::optional<SliceId> open_slice_id =
-      context_->slice_tracker->GetTopmostSliceOnTrack(track_id);
+      context_->trace_context->slice_tracker->GetTopmostSliceOnTrack(track_id);
   if (!open_slice_id) {
-    context_->storage->IncrementStats(stats::flow_no_enclosing_slice);
+    context_->global_context->storage->IncrementStats(
+        stats::flow_no_enclosing_slice);
     return;
   }
   Begin(open_slice_id.value(), flow_id);
@@ -53,16 +54,17 @@ void FlowTracker::Begin(TrackId track_id, FlowId flow_id) {
 void FlowTracker::Begin(SliceId slice_id, FlowId flow_id) {
   auto it_and_ins = flow_to_slice_map_.Insert(flow_id, slice_id);
   if (!it_and_ins.second) {
-    context_->storage->IncrementStats(stats::flow_duplicate_id);
+    context_->global_context->storage->IncrementStats(stats::flow_duplicate_id);
     return;
   }
 }
 
 void FlowTracker::Step(TrackId track_id, FlowId flow_id) {
   std::optional<SliceId> open_slice_id =
-      context_->slice_tracker->GetTopmostSliceOnTrack(track_id);
+      context_->trace_context->slice_tracker->GetTopmostSliceOnTrack(track_id);
   if (!open_slice_id) {
-    context_->storage->IncrementStats(stats::flow_no_enclosing_slice);
+    context_->global_context->storage->IncrementStats(
+        stats::flow_no_enclosing_slice);
     return;
   }
   Step(open_slice_id.value(), flow_id);
@@ -71,7 +73,8 @@ void FlowTracker::Step(TrackId track_id, FlowId flow_id) {
 void FlowTracker::Step(SliceId slice_id, FlowId flow_id) {
   auto* it = flow_to_slice_map_.Find(flow_id);
   if (!it) {
-    context_->storage->IncrementStats(stats::flow_step_without_start);
+    context_->global_context->storage->IncrementStats(
+        stats::flow_step_without_start);
     return;
   }
   SliceId slice_out_id = *it;
@@ -88,9 +91,10 @@ void FlowTracker::End(TrackId track_id,
     return;
   }
   std::optional<SliceId> open_slice_id =
-      context_->slice_tracker->GetTopmostSliceOnTrack(track_id);
+      context_->trace_context->slice_tracker->GetTopmostSliceOnTrack(track_id);
   if (!open_slice_id) {
-    context_->storage->IncrementStats(stats::flow_no_enclosing_slice);
+    context_->global_context->storage->IncrementStats(
+        stats::flow_no_enclosing_slice);
     return;
   }
   End(open_slice_id.value(), flow_id, close_flow);
@@ -99,7 +103,8 @@ void FlowTracker::End(TrackId track_id,
 void FlowTracker::End(SliceId slice_id, FlowId flow_id, bool close_flow) {
   auto* it = flow_to_slice_map_.Find(flow_id);
   if (!it) {
-    context_->storage->IncrementStats(stats::flow_end_without_start);
+    context_->global_context->storage->IncrementStats(
+        stats::flow_end_without_start);
     return;
   }
   SliceId slice_out_id = *it;
@@ -143,22 +148,23 @@ void FlowTracker::InsertFlow(FlowId flow_id,
                              SliceId slice_out_id,
                              SliceId slice_in_id) {
   tables::FlowTable::Row row(slice_out_id, slice_in_id, flow_id, std::nullopt);
-  auto id = context_->storage->mutable_flow_table()->Insert(row).id;
+  auto id =
+      context_->global_context->storage->mutable_flow_table()->Insert(row).id;
 
   auto* it = flow_id_to_v1_flow_id_map_.Find(flow_id);
   if (it) {
     // TODO(b/168007725): Add any args from v1 flow events and also export them.
-    auto inserter = context_->args_tracker->AddArgsTo(id);
+    auto inserter = context_->trace_context->args_tracker->AddArgsTo(id);
     inserter.AddArg(name_key_id_, Variadic::String(it->name));
     inserter.AddArg(cat_key_id_, Variadic::String(it->cat));
-    context_->args_tracker->Flush();
+    context_->trace_context->args_tracker->Flush();
   }
 }
 
 void FlowTracker::InsertFlow(SliceId slice_out_id, SliceId slice_in_id) {
   tables::FlowTable::Row row(slice_out_id, slice_in_id, std::nullopt,
                              std::nullopt);
-  context_->storage->mutable_flow_table()->Insert(row);
+  context_->global_context->storage->mutable_flow_table()->Insert(row);
 }
 
 }  // namespace trace_processor

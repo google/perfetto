@@ -126,12 +126,14 @@ AndroidProbesModule::AndroidProbesModule(
     ProtoImporterModuleContext* module_context,
     TraceProcessorContext* context)
     : ProtoImporterModule(module_context),
-      tracker_(std::make_unique<AndroidProbesTracker>(context->storage.get())),
+      tracker_(std::make_unique<AndroidProbesTracker>(
+          context->global_context->storage.get())),
       parser_(context, tracker_.get()),
       context_(context),
-      power_rail_raw_name_id_(context->storage->InternString("raw_name")),
+      power_rail_raw_name_id_(
+          context->global_context->storage->InternString("raw_name")),
       power_rail_subsys_name_arg_id_(
-          context->storage->InternString("subsystem_name")) {
+          context->global_context->storage->InternString("subsystem_name")) {
   RegisterForField(TracePacket::kBatteryFieldNumber);
   RegisterForField(TracePacket::kPowerRailsFieldNumber);
   RegisterForField(TracePacket::kAndroidEnergyEstimationBreakdownFieldNumber);
@@ -198,27 +200,28 @@ ModuleResult AndroidProbesModule::TokenizePacket(
     const char* friendly_name = MapToFriendlyPowerRailName(desc.rail_name());
     TrackId track;
     auto args_fn = [this, &desc](ArgsTracker::BoundInserter& inserter) {
-      StringId raw_name = context_->storage->InternString(desc.rail_name());
+      StringId raw_name =
+          context_->global_context->storage->InternString(desc.rail_name());
       inserter.AddArg(power_rail_raw_name_id_, Variadic::String(raw_name));
 
       StringId subsys_name =
-          context_->storage->InternString(desc.subsys_name());
+          context_->global_context->storage->InternString(desc.subsys_name());
       inserter.AddArg(power_rail_subsys_name_arg_id_,
                       Variadic::String(subsys_name));
     };
     if (friendly_name) {
-      StringId id = context_->storage->InternString(
+      StringId id = context_->global_context->storage->InternString(
           base::StackString<255>("power.rails.%s", friendly_name)
               .string_view());
-      track = context_->track_tracker->InternTrack(
+      track = context_->machine_context->track_tracker->InternTrack(
           kPowerBlueprint, tracks::Dimensions(desc.rail_name()),
           tracks::DynamicName(id), args_fn);
     } else {
-      StringId id = context_->storage->InternString(
+      StringId id = context_->global_context->storage->InternString(
           base::StackString<255>("power.%.*s_uws", int(desc.rail_name().size),
                                  desc.rail_name().data)
               .string_view());
-      track = context_->track_tracker->InternTrack(
+      track = context_->machine_context->track_tracker->InternTrack(
           kPowerBlueprint, tracks::Dimensions(desc.rail_name()),
           tracks::DynamicName(id), args_fn);
     }
@@ -311,14 +314,16 @@ ModuleResult AndroidProbesModule::ParseEnergyDescriptor(
     protos::pbzero::AndroidEnergyConsumer::Decoder consumer(*it);
 
     if (!consumer.has_energy_consumer_id()) {
-      context_->storage->IncrementStats(stats::energy_descriptor_invalid);
+      context_->global_context->storage->IncrementStats(
+          stats::energy_descriptor_invalid);
       continue;
     }
 
     tracker_->SetEnergyBreakdownDescriptor(
         consumer.energy_consumer_id(),
-        context_->storage->InternString(consumer.name()),
-        context_->storage->InternString(consumer.type()), consumer.ordinal());
+        context_->global_context->storage->InternString(consumer.name()),
+        context_->global_context->storage->InternString(consumer.type()),
+        consumer.ordinal());
   }
   return ModuleResult::Handled();
 }
@@ -326,10 +331,10 @@ ModuleResult AndroidProbesModule::ParseEnergyDescriptor(
 ModuleResult AndroidProbesModule::ParseAndroidPackagesList(
     protozero::ConstBytes blob) {
   protos::pbzero::PackagesList::Decoder pkg_list(blob.data, blob.size);
-  context_->storage->SetStats(stats::packages_list_has_read_errors,
-                              pkg_list.read_error());
-  context_->storage->SetStats(stats::packages_list_has_parse_errors,
-                              pkg_list.parse_error());
+  context_->global_context->storage->SetStats(
+      stats::packages_list_has_read_errors, pkg_list.read_error());
+  context_->global_context->storage->SetStats(
+      stats::packages_list_has_parse_errors, pkg_list.parse_error());
 
   for (auto it = pkg_list.packages(); it; ++it) {
     protos::pbzero::PackagesList_PackageInfo::Decoder pkg(*it);
@@ -337,8 +342,8 @@ ModuleResult AndroidProbesModule::ParseAndroidPackagesList(
     if (!tracker_->ShouldInsertPackage(pkg_name)) {
       continue;
     }
-    context_->storage->mutable_package_list_table()->Insert(
-        {context_->storage->InternString(pkg.name()),
+    context_->global_context->storage->mutable_package_list_table()->Insert(
+        {context_->global_context->storage->InternString(pkg.name()),
          static_cast<int64_t>(pkg.uid()), pkg.debuggable(),
          pkg.profileable_from_shell(), pkg.version_code()});
     tracker_->InsertedPackage(std::move(pkg_name));
@@ -357,13 +362,16 @@ void AndroidProbesModule::ParseEntityStateDescriptor(
         entity_state(*it);
 
     if (!entity_state.has_entity_index() || !entity_state.has_state_index()) {
-      context_->storage->IncrementStats(stats::energy_descriptor_invalid);
+      context_->global_context->storage->IncrementStats(
+          stats::energy_descriptor_invalid);
       continue;
     }
     tracker_->SetEntityStateDescriptor(
         entity_state.entity_index(), entity_state.state_index(),
-        context_->storage->InternString(entity_state.entity_name()),
-        context_->storage->InternString(entity_state.state_name()));
+        context_->global_context->storage->InternString(
+            entity_state.entity_name()),
+        context_->global_context->storage->InternString(
+            entity_state.state_name()));
   }
 }
 

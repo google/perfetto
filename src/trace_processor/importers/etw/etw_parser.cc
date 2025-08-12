@@ -82,9 +82,10 @@ void EtwParser::ParseReadyThread(int64_t timestamp,
                                  ConstBytes blob) {
   protos::pbzero::ReadyThreadEtwEvent::Decoder rt(blob);
   UniqueTid wakee_utid =
-      context_->process_tracker->GetOrCreateThread(rt.t_thread_id());
+      context_->machine_context->process_tracker->GetOrCreateThread(
+          rt.t_thread_id());
   UniqueTid waker_utid =
-      context_->process_tracker->GetOrCreateThread(waker_tid);
+      context_->machine_context->process_tracker->GetOrCreateThread(waker_tid);
   ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(
       timestamp, wakee_utid, waker_utid);
 }
@@ -95,7 +96,8 @@ void EtwParser::PushSchedSwitch(uint32_t cpu,
                                 int32_t prev_state,
                                 uint32_t next_tid,
                                 int32_t next_prio) {
-  UniqueTid next_utid = context_->process_tracker->GetOrCreateThread(next_tid);
+  UniqueTid next_utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(next_tid);
 
   // First use this data to close the previous slice.
   bool prev_pid_match_prev_next_pid = false;
@@ -103,21 +105,24 @@ void EtwParser::PushSchedSwitch(uint32_t cpu,
   uint32_t pending_slice_idx = pending_sched->pending_slice_storage_idx;
   StringId prev_state_string_id = TaskStateToStringId(prev_state);
   if (prev_state_string_id == kNullStringId) {
-    context_->storage->IncrementStats(stats::task_state_invalid);
+    context_->global_context->storage->IncrementStats(
+        stats::task_state_invalid);
   }
   if (pending_slice_idx < std::numeric_limits<uint32_t>::max()) {
     prev_pid_match_prev_next_pid = prev_tid == pending_sched->last_pid;
     if (PERFETTO_LIKELY(prev_pid_match_prev_next_pid)) {
-      context_->sched_event_tracker->ClosePendingSlice(pending_slice_idx, ts,
-                                                       prev_state_string_id);
+      context_->machine_context->sched_event_tracker->ClosePendingSlice(
+          pending_slice_idx, ts, prev_state_string_id);
     } else {
       // If the pids are not consistent, make a note of this.
-      context_->storage->IncrementStats(stats::mismatched_sched_switch_tids);
+      context_->global_context->storage->IncrementStats(
+          stats::mismatched_sched_switch_tids);
     }
   }
 
-  auto new_slice_idx = context_->sched_event_tracker->AddStartSlice(
-      cpu, ts, next_utid, next_prio);
+  auto new_slice_idx =
+      context_->machine_context->sched_event_tracker->AddStartSlice(
+          cpu, ts, next_utid, next_prio);
 
   // Finally, update the info for the next sched switch on this CPU.
   pending_sched->pending_slice_storage_idx = new_slice_idx;
@@ -125,7 +130,8 @@ void EtwParser::PushSchedSwitch(uint32_t cpu,
   pending_sched->last_utid = next_utid;
   pending_sched->last_prio = next_prio;
 
-  UniqueTid prev_utid = context_->process_tracker->GetOrCreateThread(prev_tid);
+  UniqueTid prev_utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(prev_tid);
 
   // Update the ThreadState table.
   ThreadStateTracker::GetOrCreate(context_)->PushSchedSwitchEvent(
@@ -147,7 +153,8 @@ StringId EtwParser::TaskStateToStringId(int64_t task_state_int) {
   };
 
   return etw_states_map.find(state) != etw_states_map.end()
-             ? context_->storage->InternString(etw_states_map[state])
+             ? context_->global_context->storage->InternString(
+                   etw_states_map[state])
              : kNullStringId;
 }
 

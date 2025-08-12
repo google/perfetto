@@ -40,7 +40,7 @@
 
 namespace perfetto::trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 struct NormalizedType {
   base::StringView name;
@@ -98,11 +98,12 @@ class HeapGraphTracker : public Destructible {
   explicit HeapGraphTracker(TraceStorage* storage);
 
   static HeapGraphTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->heap_graph_tracker) {
-      context->heap_graph_tracker.reset(
-          new HeapGraphTracker(context->storage.get()));
+    if (!context->trace_context->heap_graph_tracker) {
+      context->trace_context->heap_graph_tracker.reset(
+          new HeapGraphTracker(context->global_context->storage.get()));
     }
-    return static_cast<HeapGraphTracker*>(context->heap_graph_tracker.get());
+    return static_cast<HeapGraphTracker*>(
+        context->trace_context->heap_graph_tracker.get());
   }
 
   void AddRoot(uint32_t seq_id, UniquePid upid, int64_t ts, SourceRoot root);

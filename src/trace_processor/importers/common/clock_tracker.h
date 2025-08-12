@@ -43,7 +43,7 @@ namespace perfetto {
 namespace trace_processor {
 
 class ClockTrackerTest;
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 // This class handles synchronization of timestamps across different clock
 // domains. This includes multi-hop conversions from two clocks A and D, e.g.
@@ -180,7 +180,7 @@ class ClockTracker {
 
   // Apply the clock offset to convert remote trace times to host trace time.
   PERFETTO_ALWAYS_INLINE int64_t ToHostTraceTime(int64_t timestamp) {
-    if (PERFETTO_LIKELY(!context_->machine_id())) {
+    if (PERFETTO_LIKELY(!context_->machine_context->machine_id())) {
       // No need to convert host timestamps.
       return timestamp;
     }
@@ -195,7 +195,7 @@ class ClockTracker {
       ClockId clock_id,
       int64_t timestamp) {
     if (PERFETTO_UNLIKELY(!trace_time_clock_id_used_for_conversion_)) {
-      context_->metadata_tracker->SetMetadata(
+      context_->global_context->metadata_tracker->SetMetadata(
           metadata::trace_time_clock_id,
           Variadic::Integer(trace_time_clock_id_));
       trace_time_clock_id_used_for_conversion_ = true;
@@ -227,7 +227,7 @@ class ClockTracker {
       return;
     }
     trace_time_clock_id_ = clock_id;
-    context_->metadata_tracker->SetMetadata(
+    context_->global_context->metadata_tracker->SetMetadata(
         metadata::trace_time_clock_id, Variadic::Integer(trace_time_clock_id_));
   }
 

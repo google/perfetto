@@ -32,7 +32,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 class V4l2Tracker : public Destructible {
  public:

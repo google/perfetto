@@ -239,12 +239,13 @@ class TrackCompressor {
                                                  uint32_t idx) {
           auto final_dims = std::tuple_cat(dims, std::make_tuple(idx));
           TrackId track_id =
-              context_->track_tracker->CreateTrack(bp, final_dims, name, args);
+              context_->machine_context->track_tracker->CreateTrack(
+                  bp, final_dims, name, args);
           if (on_new_track) {
             on_new_track(track_id);
           }
-          auto rr =
-              context_->storage->mutable_track_table()->FindById(track_id);
+          auto rr = context_->global_context->storage->mutable_track_table()
+                        ->FindById(track_id);
           rr->set_track_group_id(state.set_id);
           return track_id;
         },

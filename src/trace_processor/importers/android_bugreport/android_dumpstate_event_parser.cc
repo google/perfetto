@@ -288,10 +288,12 @@ AndroidDumpstateEventParser::ProcessBatteryStatsHistoryEvent(
   base::StackString<255> slice_name("%s%s=%d:\"%s\"",
                                     item.prefix.ToStdString().c_str(),
                                     item_name.c_str(), uid, event_str.c_str());
-  StringId name_id = context_->storage->InternString(slice_name.c_str());
-  TrackId track_id = context_->track_tracker->InternTrack(
+  StringId name_id =
+      context_->global_context->storage->InternString(slice_name.c_str());
+  TrackId track_id = context_->machine_context->track_tracker->InternTrack(
       kBlueprint, tracks::Dimensions(base::StringView(item_name)));
-  context_->slice_tracker->Scoped(item.ts, track_id, kNullStringId, name_id, 0);
+  context_->trace_context->slice_tracker->Scoped(item.ts, track_id,
+                                                 kNullStringId, name_id, 0);
   return true;
 }
 
@@ -308,20 +310,20 @@ AndroidDumpstateEventParser::ProcessBatteryStatsHistoryState(
 
     ASSIGN_OR_RETURN(std::string item_name,
                      GetStateAndValueFromShortName(item.key, "", nullptr));
-    TrackId track = context_->track_tracker->InternTrack(
+    TrackId track = context_->machine_context->track_tracker->InternTrack(
         tracks::kAndroidBatteryStatsBlueprint,
         tracks::Dimensions(
             base::StringView(std::string("battery_stats.").append(item_name))));
-    context_->event_tracker->PushCounter(
+    context_->trace_context->event_tracker->PushCounter(
         item.ts, (item.prefix == "+") ? 1.0 : 0.0, track);
     // Also add a screen events to the screen state track
     if (item_name == "screen") {
-      track = context_->track_tracker->InternTrack(
+      track = context_->machine_context->track_tracker->InternTrack(
           tracks::kAndroidScreenStateBlueprint);
       // battery_stats.screen event is 0 for off and 1 for on, but the
       // ScreenState track uses the convention 1 for off and 2 for on, so add
       // 1 to the current counter value.
-      context_->event_tracker->PushCounter(
+      context_->trace_context->event_tracker->PushCounter(
           item.ts, static_cast<double>((item.prefix == "+") ? 2.0 : 1.0),
           track);
     }
@@ -333,11 +335,12 @@ AndroidDumpstateEventParser::ProcessBatteryStatsHistoryState(
         GetStateAndValueFromShortName(item.key, item.value, &counter_value);
     if (possible_history_state_item.ok()) {
       std::string item_name = possible_history_state_item.value();
-      TrackId counter_track = context_->track_tracker->InternTrack(
-          tracks::kAndroidBatteryStatsBlueprint,
-          tracks::Dimensions(base::StringView(
-              std::string("battery_stats.").append(item_name))));
-      context_->event_tracker->PushCounter(
+      TrackId counter_track =
+          context_->machine_context->track_tracker->InternTrack(
+              tracks::kAndroidBatteryStatsBlueprint,
+              tracks::Dimensions(base::StringView(
+                  std::string("battery_stats.").append(item_name))));
+      context_->trace_context->event_tracker->PushCounter(
           item.ts, static_cast<double>(counter_value), counter_track);
       return true;
     } else {
@@ -365,12 +368,12 @@ AndroidDumpstateEventParser::ProcessBatteryStatsHistoryBatteryCounter(
   TrackId counter_track;
   int64_t counter_value;
   if (item.key == "Bl") {
-    counter_track = context_->track_tracker->InternTrack(
+    counter_track = context_->machine_context->track_tracker->InternTrack(
         tracks::kBatteryCounterBlueprint,
         tracks::Dimensions(kUnknownBatteryName, "capacity_pct"));
     ASSIGN_OR_RETURN(counter_value, StringToStatusOrInt64(item.value));
   } else if (item.key == "Bcc") {
-    counter_track = context_->track_tracker->InternTrack(
+    counter_track = context_->machine_context->track_tracker->InternTrack(
         tracks::kBatteryCounterBlueprint,
         tracks::Dimensions(kUnknownBatteryName, "charge_uah"));
     ASSIGN_OR_RETURN(counter_value, StringToStatusOrInt64(item.value));
@@ -378,7 +381,7 @@ AndroidDumpstateEventParser::ProcessBatteryStatsHistoryBatteryCounter(
     // expects the value to be in micro-amp-hours
     counter_value *= 1000;
   } else if (item.key == "Bv") {
-    counter_track = context_->track_tracker->InternTrack(
+    counter_track = context_->machine_context->track_tracker->InternTrack(
         tracks::kBatteryCounterBlueprint,
         tracks::Dimensions(kUnknownBatteryName, "voltage_uv"));
     ASSIGN_OR_RETURN(counter_value, StringToStatusOrInt64(item.value));
@@ -390,8 +393,8 @@ AndroidDumpstateEventParser::ProcessBatteryStatsHistoryBatteryCounter(
         "battery_status", tracks::UnknownUnitBlueprint(),
         tracks::DimensionBlueprints(),
         tracks::StaticNameBlueprint("BatteryStatus"));
-    counter_track =
-        context_->track_tracker->InternTrack(kBatteryStatusBlueprint);
+    counter_track = context_->machine_context->track_tracker->InternTrack(
+        kBatteryStatusBlueprint);
     switch (item.value.at(0)) {
       case '?':
         counter_value = 1;  // BatteryManager.BATTERY_STATUS_UNKNOWN
@@ -416,8 +419,8 @@ AndroidDumpstateEventParser::ProcessBatteryStatsHistoryBatteryCounter(
     static constexpr auto kPluggedStatusBluePrint = tracks::CounterBlueprint(
         "battery_plugged_status", tracks::UnknownUnitBlueprint(),
         tracks::DimensionBlueprints(), tracks::StaticNameBlueprint("PlugType"));
-    counter_track =
-        context_->track_tracker->InternTrack(kPluggedStatusBluePrint);
+    counter_track = context_->machine_context->track_tracker->InternTrack(
+        kPluggedStatusBluePrint);
     switch (item.value.at(0)) {
       case 'n':
         counter_value = 0;  // BatteryManager.BATTERY_PLUGGED_NONE
@@ -438,7 +441,7 @@ AndroidDumpstateEventParser::ProcessBatteryStatsHistoryBatteryCounter(
     return false;
   }
 
-  context_->event_tracker->PushCounter(
+  context_->trace_context->event_tracker->PushCounter(
       item.ts, static_cast<double>(counter_value), counter_track);
   return true;
 }
@@ -463,15 +466,16 @@ AndroidDumpstateEventParser::ProcessBatteryStatsHistoryWakeLocks(
 
   ASSIGN_OR_RETURN(int64_t hsp_index, StringToStatusOrInt64(item.value));
   if (item.prefix == "+") {
-    StringId name_id = context_->storage->InternString(
+    StringId name_id = context_->global_context->storage->InternString(
         history_string_tracker_->GetString(hsp_index));
-    TrackId id = context_->track_compressor->InternBegin(
+    TrackId id = context_->machine_context->track_compressor->InternBegin(
         kBlueprint, tracks::Dimensions(), static_cast<int64_t>(hsp_index));
-    context_->slice_tracker->Begin(item.ts, id, kNullStringId, name_id);
+    context_->trace_context->slice_tracker->Begin(item.ts, id, kNullStringId,
+                                                  name_id);
   } else {
-    TrackId id = context_->track_compressor->InternEnd(
+    TrackId id = context_->machine_context->track_compressor->InternEnd(
         kBlueprint, tracks::Dimensions(), static_cast<int64_t>(hsp_index));
-    context_->slice_tracker->End(item.ts, id);
+    context_->trace_context->slice_tracker->End(item.ts, id);
   }
   return true;
 }

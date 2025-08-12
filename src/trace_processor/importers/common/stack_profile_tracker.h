@@ -48,7 +48,7 @@ struct NameInPackage {
   };
 };
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 class StackProfileTracker {
  public:

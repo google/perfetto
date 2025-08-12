@@ -52,8 +52,8 @@ namespace perfetto::trace_processor {
 void RegisterAdditionalModules(ProtoImporterModuleContext* module_context,
                                TraceProcessorContext* context) {
   // Content analyzer and metadata module both depend on this.
-  context->descriptor_pool_->AddFromFileDescriptorSet(kTraceDescriptor.data(),
-                                                      kTraceDescriptor.size());
+  context->global_context->descriptor_pool_->AddFromFileDescriptorSet(
+      kTraceDescriptor.data(), kTraceDescriptor.size());
 
   module_context->modules.emplace_back(
       new AndroidKernelWakelocksModule(module_context, context));
@@ -103,8 +103,9 @@ void RegisterAdditionalModules(ProtoImporterModuleContext* module_context,
   module_context->etw_module =
       static_cast<EtwModule*>(module_context->modules.back().get());
 
-  if (context->config.analyze_trace_proto_content) {
-    context->content_analyzer = std::make_unique<ProtoContentAnalyzer>(context);
+  if (context->global_context->config.analyze_trace_proto_content) {
+    context->trace_context->content_analyzer =
+        std::make_unique<ProtoContentAnalyzer>(context);
   }
 }
 

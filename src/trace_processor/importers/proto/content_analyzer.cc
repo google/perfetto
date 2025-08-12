@@ -34,7 +34,7 @@ namespace perfetto::trace_processor {
 
 ProtoContentAnalyzer::ProtoContentAnalyzer(TraceProcessorContext* context)
     : context_(context),
-      computer_(context_->descriptor_pool_.get(),
+      computer_(context_->global_context->descriptor_pool_.get(),
                 ".perfetto.protos.TracePacket") {}
 
 ProtoContentAnalyzer::~ProtoContentAnalyzer() = default;
@@ -93,21 +93,22 @@ void ProtoContentAnalyzer::NotifyEndOfFile() {
         // Create a new row in experimental_proto_path.
         tables::ExperimentalProtoPathTable::Row path_row;
         if (field.has_field_name()) {
-          path_row.field_name = context_->storage->InternString(
+          path_row.field_name = context_->global_context->storage->InternString(
               base::StringView(field.field_name()));
         }
-        path_row.field_type = context_->storage->InternString(
+        path_row.field_type = context_->global_context->storage->InternString(
             base::StringView(field.type_name()));
         if (previous_path_id.has_value())
           path_row.parent_id = *previous_path_id;
 
-        auto path_id =
-            context_->storage->mutable_experimental_proto_path_table()
-                ->Insert(path_row)
-                .id;
+        auto path_id = context_->global_context->storage
+                           ->mutable_experimental_proto_path_table()
+                           ->Insert(path_row)
+                           .id;
         if (!previous_path_id.has_value()) {
           // Add annotations to the current row as an args set.
-          auto inserter = context_->args_tracker->AddArgsTo(path_id);
+          auto inserter =
+              context_->trace_context->args_tracker->AddArgsTo(path_id);
           for (auto& annotation : annotated_map.key()) {
             inserter.AddArg(annotation.first,
                             Variadic::String(annotation.second));
@@ -119,14 +120,15 @@ void ProtoContentAnalyzer::NotifyEndOfFile() {
 
       // Add a content row referring to |previous_path_id|.
       tables::ExperimentalProtoContentTable::Row content_row;
-      content_row.path =
-          context_->storage->InternString(base::StringView(path_string));
+      content_row.path = context_->global_context->storage->InternString(
+          base::StringView(path_string));
       content_row.path_id = *previous_path_id;
       content_row.total_size = static_cast<int64_t>(sample.value().size);
       content_row.size = static_cast<int64_t>(sample.value().size);
       content_row.count = static_cast<int64_t>(sample.value().count);
-      context_->storage->mutable_experimental_proto_content_table()->Insert(
-          content_row);
+      context_->global_context->storage
+          ->mutable_experimental_proto_content_table()
+          ->Insert(content_row);
     }
   }
   aggregated_samples_.Clear();

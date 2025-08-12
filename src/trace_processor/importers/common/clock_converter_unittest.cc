@@ -29,7 +29,9 @@ namespace trace_processor {
 
 class ClockConverterTest : public ::testing::Test {
  public:
-  ClockConverterTest() { context_.storage.reset(new TraceStorage()); }
+  ClockConverterTest() {
+    context_.global_context->storage.reset(new TraceStorage());
+  }
 
   TraceProcessorContext context_;
   ClockConverter cc_{&context_};
@@ -54,7 +56,7 @@ TEST_F(ClockConverterTest, TrivialMonotonic) {
   row.ts = 10;
   row.clock_id = kMonotonic;
   row.clock_value = 20;
-  context_.storage->mutable_clock_snapshot_table()->Insert(row);
+  context_.global_context->storage->mutable_clock_snapshot_table()->Insert(row);
 
   EXPECT_TRUE(cc_.ToMonotonic(10).ok());
   EXPECT_EQ(cc_.ToMonotonic(10).value(), 20);
@@ -65,7 +67,7 @@ TEST_F(ClockConverterTest, TrivialToRealtime) {
   row.ts = 10;
   row.clock_id = kReal;
   row.clock_value = 20;
-  context_.storage->mutable_clock_snapshot_table()->Insert(row);
+  context_.global_context->storage->mutable_clock_snapshot_table()->Insert(row);
 
   EXPECT_TRUE(cc_.ToRealtime(10).ok());
   EXPECT_EQ(cc_.ToRealtime(10).value(), 20);
@@ -76,7 +78,7 @@ TEST_F(ClockConverterTest, TrivialToAbsTime) {
   row.ts = 10;
   row.clock_id = kReal;
   row.clock_value = 20;
-  context_.storage->mutable_clock_snapshot_table()->Insert(row);
+  context_.global_context->storage->mutable_clock_snapshot_table()->Insert(row);
 
   EXPECT_TRUE(cc_.ToAbsTime(10).ok());
   EXPECT_EQ(cc_.ToAbsTime(10).value(), "1970-01-01T00:00:00.000000020");
@@ -88,28 +90,32 @@ TEST_F(ClockConverterTest, Monotonic) {
     rows.ts = 10;
     rows.clock_id = kMonotonic;
     rows.clock_value = 10;
-    context_.storage->mutable_clock_snapshot_table()->Insert(rows);
+    context_.global_context->storage->mutable_clock_snapshot_table()->Insert(
+        rows);
   }
   {
     tables::ClockSnapshotTable::Row rows;
     rows.ts = 20;
     rows.clock_id = kMonotonic;
     rows.clock_value = 10;
-    context_.storage->mutable_clock_snapshot_table()->Insert(rows);
+    context_.global_context->storage->mutable_clock_snapshot_table()->Insert(
+        rows);
   }
   {
     tables::ClockSnapshotTable::Row rows;
     rows.ts = 30;
     rows.clock_id = kMonotonic;
     rows.clock_value = 20;
-    context_.storage->mutable_clock_snapshot_table()->Insert(rows);
+    context_.global_context->storage->mutable_clock_snapshot_table()->Insert(
+        rows);
   }
   {
     tables::ClockSnapshotTable::Row rows;
     rows.ts = 40;
     rows.clock_id = kMonotonic;
     rows.clock_value = 20;
-    context_.storage->mutable_clock_snapshot_table()->Insert(rows);
+    context_.global_context->storage->mutable_clock_snapshot_table()->Insert(
+        rows);
   }
 
   EXPECT_EQ(cc_.ToMonotonic(15).value(), 10);
@@ -126,21 +132,24 @@ TEST_F(ClockConverterTest, Realtime) {
     rows.ts = 10;
     rows.clock_id = kReal;
     rows.clock_value = 0;
-    context_.storage->mutable_clock_snapshot_table()->Insert(rows);
+    context_.global_context->storage->mutable_clock_snapshot_table()->Insert(
+        rows);
   }
   {
     tables::ClockSnapshotTable::Row rows;
     rows.ts = 20;
     rows.clock_id = kReal;
     rows.clock_value = 10;
-    context_.storage->mutable_clock_snapshot_table()->Insert(rows);
+    context_.global_context->storage->mutable_clock_snapshot_table()->Insert(
+        rows);
   }
   {
     tables::ClockSnapshotTable::Row rows;
     rows.ts = 30;
     rows.clock_id = kReal;
     rows.clock_value = 5;
-    context_.storage->mutable_clock_snapshot_table()->Insert(rows);
+    context_.global_context->storage->mutable_clock_snapshot_table()->Insert(
+        rows);
   }
 
   EXPECT_EQ(cc_.ToRealtime(15).value(), 5);
@@ -156,21 +165,24 @@ TEST_F(ClockConverterTest, AbsTime) {
     rows.ts = 10;
     rows.clock_id = kReal;
     rows.clock_value = 0;
-    context_.storage->mutable_clock_snapshot_table()->Insert(rows);
+    context_.global_context->storage->mutable_clock_snapshot_table()->Insert(
+        rows);
   }
   {
     tables::ClockSnapshotTable::Row rows;
     rows.ts = 20;
     rows.clock_id = kReal;
     rows.clock_value = 1652904000000000000;
-    context_.storage->mutable_clock_snapshot_table()->Insert(rows);
+    context_.global_context->storage->mutable_clock_snapshot_table()->Insert(
+        rows);
   }
   {
     tables::ClockSnapshotTable::Row rows;
     rows.ts = 30;
     rows.clock_id = kReal;
     rows.clock_value = 1652904000000000000 - 5;
-    context_.storage->mutable_clock_snapshot_table()->Insert(rows);
+    context_.global_context->storage->mutable_clock_snapshot_table()->Insert(
+        rows);
   }
 
   EXPECT_EQ(cc_.ToAbsTime(15).value(), "1970-01-01T00:00:00.000000005");

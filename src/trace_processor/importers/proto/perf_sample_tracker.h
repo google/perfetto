@@ -32,7 +32,7 @@ class TracePacketDefaults_Decoder;
 }  // namespace protos::pbzero
 
 namespace trace_processor {
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 class PerfSampleTracker {
  public:

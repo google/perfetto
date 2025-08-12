@@ -72,7 +72,8 @@ bool IsBpfMapping(const CreateMappingParams& params) {
 
 PerfTracker::PerfTracker(TraceProcessorContext* context)
     : context_(context),
-      mapping_table_(context->storage->stack_profile_mapping_table()) {
+      mapping_table_(
+          context->global_context->storage->stack_profile_mapping_table()) {
   RegisterAuxTokenizer(PERF_AUXTRACE_ARM_SPE, &SpeTokenizer::Create);
 }
 
@@ -115,12 +116,15 @@ void PerfTracker::AddSimpleperfFile2(const FileFeature::Decoder& file) {
   }
 
   InsertSymbols(file, dso.symbols);
-  files_.Insert(context_->storage->InternString(file.path()), std::move(dso));
+  files_.Insert(context_->global_context->storage->InternString(file.path()),
+                std::move(dso));
 }
 
 void PerfTracker::SymbolizeFrames() {
-  const StringId kEmptyString = context_->storage->InternString("");
-  for (auto frame = context_->storage->mutable_stack_profile_frame_table()
+  const StringId kEmptyString =
+      context_->global_context->storage->InternString("");
+  for (auto frame = context_->global_context->storage
+                        ->mutable_stack_profile_frame_table()
                         ->IterateRows();
        frame; ++frame) {
     if (frame.name() != kNullStringId && frame.name() != kEmptyString) {
@@ -142,8 +146,8 @@ void PerfTracker::SymbolizeKernelFrame(
   if (symbol == kernel_symbols_.end()) {
     return;
   }
-  frame.set_name(
-      context_->storage->InternString(base::StringView(symbol->second)));
+  frame.set_name(context_->global_context->storage->InternString(
+      base::StringView(symbol->second)));
 }
 
 bool PerfTracker::TrySymbolizeFrame(
@@ -164,8 +168,8 @@ bool PerfTracker::TrySymbolizeFrame(
   if (symbol == file->symbols.end()) {
     return false;
   }
-  frame.set_name(
-      context_->storage->InternString(base::StringView(symbol->second)));
+  frame.set_name(context_->global_context->storage->InternString(
+      base::StringView(symbol->second)));
   return true;
 }
 
@@ -178,15 +182,17 @@ void PerfTracker::CreateKernelMemoryMapping(int64_t trace_ts,
   }
   AddMapping(
       trace_ts, std::nullopt,
-      context_->mapping_tracker->CreateKernelMemoryMapping(std::move(params)));
+      context_->machine_context->mapping_tracker->CreateKernelMemoryMapping(
+          std::move(params)));
 }
 
 void PerfTracker::CreateUserMemoryMapping(int64_t trace_ts,
                                           UniquePid upid,
                                           CreateMappingParams params) {
-  AddMapping(trace_ts, upid,
-             context_->mapping_tracker->CreateUserMemoryMapping(
-                 upid, std::move(params)));
+  AddMapping(
+      trace_ts, upid,
+      context_->machine_context->mapping_tracker->CreateUserMemoryMapping(
+          upid, std::move(params)));
 }
 
 void PerfTracker::AddMapping(int64_t trace_ts,
@@ -201,12 +207,13 @@ void PerfTracker::AddMapping(int64_t trace_ts,
     if (auto id = etm::ElfTracker::GetOrCreate(context_)->FindBuildId(
             *mapping.build_id());
         id) {
-      row.file_id =
-          context_->storage->elf_file_table().FindById(*id)->file_id();
+      row.file_id = context_->global_context->storage->elf_file_table()
+                        .FindById(*id)
+                        ->file_id();
     }
   }
 #endif
-  context_->storage->mutable_mmap_record_table()->Insert(row);
+  context_->global_context->storage->mutable_mmap_record_table()->Insert(row);
 }
 
 void PerfTracker::NotifyEndOfFile() {

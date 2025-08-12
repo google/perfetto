@@ -151,7 +151,8 @@ std::optional<IsolateId> V8Tracker::InternIsolate(protozero::ConstBytes bytes) {
   InternedV8Isolate::Decoder isolate(bytes);
 
   const IsolateKey isolate_key{
-      context_->process_tracker->GetOrCreateProcess(isolate.pid()),
+      context_->machine_context->process_tracker->GetOrCreateProcess(
+          isolate.pid()),
       isolate.isolate_id()};
 
   if (auto* id = isolate_index_.Find(isolate_key); id) {
@@ -160,7 +161,8 @@ std::optional<IsolateId> V8Tracker::InternIsolate(protozero::ConstBytes bytes) {
 
   // TODO(b/347250452): Implement support for no code range
   if (!isolate.has_code_range()) {
-    context_->storage->IncrementStats(stats::v8_isolate_has_no_code_range);
+    context_->global_context->storage->IncrementStats(
+        stats::v8_isolate_has_no_code_range);
     isolate_index_.Insert(isolate_key, std::nullopt);
     return std::nullopt;
   }
@@ -171,8 +173,9 @@ std::optional<IsolateId> V8Tracker::InternIsolate(protozero::ConstBytes bytes) {
 UserMemoryMapping* V8Tracker::FindEmbeddedBlobMapping(
     UniquePid upid,
     AddressRange embedded_blob_code) const {
-  UserMemoryMapping* m = context_->mapping_tracker->FindUserMappingForAddress(
-      upid, embedded_blob_code.start());
+  UserMemoryMapping* m =
+      context_->machine_context->mapping_tracker->FindUserMappingForAddress(
+          upid, embedded_blob_code.start());
   if (!m) {
     return nullptr;
   }
@@ -265,9 +268,10 @@ IsolateId V8Tracker::CreateIsolate(
 tables::V8IsolateTable::ConstRowReference V8Tracker::InsertIsolate(
     const InternedV8Isolate::Decoder& isolate) {
   InternedV8Isolate::CodeRange::Decoder code_range(isolate.code_range());
-  return context_->storage->mutable_v8_isolate_table()
+  return context_->global_context->storage->mutable_v8_isolate_table()
       ->Insert(
-          {context_->process_tracker->GetOrCreateProcess(isolate.pid()),
+          {context_->machine_context->process_tracker->GetOrCreateProcess(
+               isolate.pid()),
            isolate.isolate_id(),
            static_cast<int64_t>(isolate.embedded_blob_code_start_address()),
            static_cast<int64_t>(isolate.embedded_blob_code_size()),
@@ -295,13 +299,15 @@ tables::V8JsScriptTable::Id V8Tracker::InternJsScript(
   tables::V8JsScriptTable::Row row;
   row.v8_isolate_id = isolate_id;
   row.internal_script_id = script.script_id();
-  row.script_type =
-      context_->storage->InternString(JsScriptTypeToString(script.type()));
+  row.script_type = context_->global_context->storage->InternString(
+      JsScriptTypeToString(script.type()));
   row.name = InternV8String(V8String::Decoder(script.name()));
   row.source = InternV8String(V8String::Decoder(script.source()));
 
   tables::V8JsScriptTable::Id script_id =
-      context_->storage->mutable_v8_js_script_table()->Insert(row).id;
+      context_->global_context->storage->mutable_v8_js_script_table()
+          ->Insert(row)
+          .id;
   js_script_index_.Insert(std::make_pair(isolate_id, script.script_id()),
                           script_id);
   return script_id;
@@ -321,12 +327,15 @@ tables::V8WasmScriptTable::Id V8Tracker::InternWasmScript(
   tables::V8WasmScriptTable::Row row;
   row.v8_isolate_id = isolate_id;
   row.internal_script_id = script.script_id();
-  row.url = context_->storage->InternString(script.url());
-  row.wire_bytes_base64 = context_->storage->InternString(base::StringView(
-      base::Base64Encode(script.wire_bytes().data, script.wire_bytes().size)));
+  row.url = context_->global_context->storage->InternString(script.url());
+  row.wire_bytes_base64 = context_->global_context->storage->InternString(
+      base::StringView(base::Base64Encode(script.wire_bytes().data,
+                                          script.wire_bytes().size)));
 
   tables::V8WasmScriptTable::Id script_id =
-      context_->storage->mutable_v8_wasm_script_table()->Insert(row).id;
+      context_->global_context->storage->mutable_v8_wasm_script_table()
+          ->Insert(row)
+          .id;
   wasm_script_index_.Insert(std::make_pair(isolate_id, script.script_id()),
                             script_id);
   return script_id;
@@ -342,8 +351,8 @@ tables::V8JsFunctionTable::Id V8Tracker::InternJsFunction(
   row.name = name;
   row.v8_js_script_id = script_id;
   row.is_toplevel = function.is_toplevel();
-  row.kind =
-      context_->storage->InternString(JsFunctionKindToString(function.kind()));
+  row.kind = context_->global_context->storage->InternString(
+      JsFunctionKindToString(function.kind()));
   if (function.has_line() && function.has_column()) {
     row.line = function.line();
     row.col = function.column();
@@ -360,7 +369,9 @@ tables::V8JsFunctionTable::Id V8Tracker::InternJsFunction(
   }
 
   tables::V8JsFunctionTable::Id function_id =
-      context_->storage->mutable_v8_js_function_table()->Insert(row).id;
+      context_->global_context->storage->mutable_v8_js_function_table()
+          ->Insert(row)
+          .id;
   js_function_index_.Insert(row, function_id);
   return function_id;
 }
@@ -368,7 +379,8 @@ tables::V8JsFunctionTable::Id V8Tracker::InternJsFunction(
 JitCache* V8Tracker::MaybeFindJitCache(IsolateId isolate_id,
                                        AddressRange code_range) const {
   if (code_range.empty()) {
-    context_->storage->IncrementStats(stats::v8_code_load_missing_code_range);
+    context_->global_context->storage->IncrementStats(
+        stats::v8_code_load_missing_code_range);
     return nullptr;
   }
   auto* isolate = isolates_.Find(isolate_id);
@@ -384,12 +396,13 @@ JitCache* V8Tracker::MaybeFindJitCache(IsolateId isolate_id,
 JitCache* V8Tracker::FindJitCache(IsolateId isolate_id,
                                   AddressRange code_range) const {
   if (code_range.empty()) {
-    context_->storage->IncrementStats(stats::v8_code_load_missing_code_range);
+    context_->global_context->storage->IncrementStats(
+        stats::v8_code_load_missing_code_range);
     return nullptr;
   }
   JitCache* cache = MaybeFindJitCache(isolate_id, code_range);
   if (!cache) {
-    context_->storage->IncrementStats(stats::v8_no_code_range);
+    context_->global_context->storage->IncrementStats(stats::v8_no_code_range);
   }
   return cache;
 }
@@ -399,8 +412,8 @@ void V8Tracker::AddJsCode(int64_t timestamp,
                           IsolateId isolate_id,
                           tables::V8JsFunctionTable::Id function_id,
                           const V8JsCode::Decoder& code) {
-  const StringId tier =
-      context_->storage->InternString(JsCodeTierToString(code.tier()));
+  const StringId tier = context_->global_context->storage->InternString(
+      JsCodeTierToString(code.tier()));
 
   const AddressRange code_range = AddressRange::FromStartAndSize(
       code.instruction_start(), code.instruction_size_bytes());
@@ -416,16 +429,18 @@ void V8Tracker::AddJsCode(int64_t timestamp,
     // no hit.
     jit_cache = MaybeFindJitCache(isolate_id, code_range);
     if (!jit_cache) {
-      context_->storage->mutable_v8_js_code_table()->Insert(
+      context_->global_context->storage->mutable_v8_js_code_table()->Insert(
           {std::nullopt, function_id, tier,
-           context_->storage->InternString(base::StringView(base::Base64Encode(
-               code.bytecode().data, code.bytecode().size)))});
+           context_->global_context->storage->InternString(
+               base::StringView(base::Base64Encode(code.bytecode().data,
+                                                   code.bytecode().size)))});
       return;
     }
   } else if (IsNativeCode(code)) {
     jit_cache = FindJitCache(isolate_id, code_range);
   } else {
-    context_->storage->IncrementStats(stats::v8_unknown_code_type);
+    context_->global_context->storage->IncrementStats(
+        stats::v8_unknown_code_type);
     return;
   }
 
@@ -434,9 +449,11 @@ void V8Tracker::AddJsCode(int64_t timestamp,
   }
 
   auto function =
-      *context_->storage->v8_js_function_table().FindById(function_id);
-  auto script = *context_->storage->v8_js_script_table().FindById(
-      function.v8_js_script_id());
+      *context_->global_context->storage->v8_js_function_table().FindById(
+          function_id);
+  auto script =
+      *context_->global_context->storage->v8_js_script_table().FindById(
+          function.v8_js_script_id());
   const auto jit_code_id = jit_cache->LoadCode(
       timestamp, utid, code_range, function.name(),
       JitCache::SourceLocation{script.name(), function.line().value_or(0)},
@@ -445,7 +462,7 @@ void V8Tracker::AddJsCode(int64_t timestamp,
                                               code.machine_code().size))
           : TraceBlobView());
 
-  context_->storage->mutable_v8_js_code_table()->Insert(
+  context_->global_context->storage->mutable_v8_js_code_table()->Insert(
       {jit_code_id, function_id, tier});
 }
 
@@ -460,9 +477,10 @@ void V8Tracker::AddInternalCode(int64_t timestamp,
     return;
   }
 
-  const StringId function_name = context_->storage->InternString(code.name());
-  const StringId type =
-      context_->storage->InternString(InternalCodeTypeToString(code.type()));
+  const StringId function_name =
+      context_->global_context->storage->InternString(code.name());
+  const StringId type = context_->global_context->storage->InternString(
+      InternalCodeTypeToString(code.type()));
   const auto jit_code_id = jit_cache->LoadCode(
       timestamp, utid, code_range, function_name, std::nullopt,
       code.has_machine_code()
@@ -470,7 +488,7 @@ void V8Tracker::AddInternalCode(int64_t timestamp,
                                               code.machine_code().size))
           : TraceBlobView());
 
-  context_->storage->mutable_v8_internal_code_table()->Insert(
+  context_->global_context->storage->mutable_v8_internal_code_table()->Insert(
       {jit_code_id, isolate_id, function_name, type});
 }
 
@@ -487,9 +505,9 @@ void V8Tracker::AddWasmCode(int64_t timestamp,
   }
 
   const StringId function_name =
-      context_->storage->InternString(code.function_name());
-  const StringId tier =
-      context_->storage->InternString(WasmCodeTierToString(code.tier()));
+      context_->global_context->storage->InternString(code.function_name());
+  const StringId tier = context_->global_context->storage->InternString(
+      WasmCodeTierToString(code.tier()));
 
   const auto jit_code_id = jit_cache->LoadCode(
       timestamp, utid, code_range, function_name, std::nullopt,
@@ -498,7 +516,7 @@ void V8Tracker::AddWasmCode(int64_t timestamp,
                                               code.machine_code().size))
           : TraceBlobView());
 
-  context_->storage->mutable_v8_wasm_code_table()->Insert(
+  context_->global_context->storage->mutable_v8_wasm_code_table()->Insert(
       {jit_code_id, isolate_id, script_id, function_name, tier});
 }
 
@@ -513,7 +531,8 @@ void V8Tracker::AddRegExpCode(int64_t timestamp,
     return;
   }
 
-  const StringId function_name = context_->storage->InternString("[RegExp]");
+  const StringId function_name =
+      context_->global_context->storage->InternString("[RegExp]");
   const StringId pattern = InternV8String(V8String::Decoder(code.pattern()));
   const auto jit_code_id = jit_cache->LoadCode(
       timestamp, utid, code_range, function_name, std::nullopt,
@@ -522,7 +541,7 @@ void V8Tracker::AddRegExpCode(int64_t timestamp,
                                               code.machine_code().size))
           : TraceBlobView());
 
-  context_->storage->mutable_v8_regexp_code_table()->Insert(
+  context_->global_context->storage->mutable_v8_regexp_code_table()->Insert(
       {jit_code_id, isolate_id, pattern});
 }
 
@@ -545,7 +564,7 @@ void V8Tracker::MoveCode(int64_t timestamp,
 }
 
 StringId V8Tracker::InternV8String(const V8String::Decoder& v8_string) {
-  auto& storage = *context_->storage;
+  auto& storage = *context_->global_context->storage;
   if (v8_string.has_latin1()) {
     return storage.InternString(
         base::StringView(ConvertLatin1ToUtf8(v8_string.latin1())));

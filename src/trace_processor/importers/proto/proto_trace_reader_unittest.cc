@@ -48,14 +48,17 @@ constexpr auto BOOTTIME = protos::pbzero::BUILTIN_CLOCK_BOOTTIME;
 class ProtoTraceReaderTest : public ::testing::Test {
  public:
   ProtoTraceReaderTest() {
-    context_.storage = std::make_unique<TraceStorage>();
-    context_.machine_tracker =
+    context_.global_context->storage = std::make_unique<TraceStorage>();
+    context_.machine_context->machine_tracker =
         std::make_unique<MachineTracker>(&context_, 0x1001);
-    context_.clock_tracker = std::make_unique<ClockTracker>(&context_);
-    context_.sorter = std::make_shared<TraceSorter>(
+    context_.global_context->clock_tracker =
+        std::make_unique<ClockTracker>(&context_);
+    context_.global_context->sorter = std::make_shared<TraceSorter>(
         &context_, TraceSorter::SortingMode::kDefault);
-    context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
-    context_.register_additional_proto_modules = &RegisterAdditionalModules;
+    context_.global_context->descriptor_pool_ =
+        std::make_unique<DescriptorPool>();
+    context_.global_context->register_additional_proto_modules =
+        &RegisterAdditionalModules;
     proto_trace_reader_ = std::make_unique<ProtoTraceReader>(&context_);
   }
 
@@ -78,7 +81,7 @@ class ProtoTraceReaderTest : public ::testing::Test {
 };
 
 TEST_F(ProtoTraceReaderTest, RemoteClockSync_Valid) {
-  context_.machine_tracker =
+  context_.machine_context->machine_tracker =
       std::make_unique<MachineTracker>(&context_, 0x1001);
 
   auto* packet = trace_->add_packet();
@@ -111,11 +114,13 @@ TEST_F(ProtoTraceReaderTest, RemoteClockSync_Valid) {
   clock->set_timestamp(135000);
 
   ASSERT_TRUE(Tokenize().ok());
-  ASSERT_EQ(1u, context_.clock_tracker->clock_offsets_for_testing().size());
+  ASSERT_EQ(1u,
+            context_.global_context->clock_tracker->clock_offsets_for_testing()
+                .size());
 }
 
 TEST_F(ProtoTraceReaderTest, RemoteClockSync_Incomplete) {
-  context_.machine_tracker =
+  context_.machine_context->machine_tracker =
       std::make_unique<MachineTracker>(&context_, 0x1001);
 
   auto* packet = trace_->add_packet();
@@ -147,7 +152,9 @@ TEST_F(ProtoTraceReaderTest, RemoteClockSync_Incomplete) {
 
   ASSERT_TRUE(Tokenize().ok());
   // No valid clock offset.
-  ASSERT_EQ(0u, context_.clock_tracker->clock_offsets_for_testing().size());
+  ASSERT_EQ(0u,
+            context_.global_context->clock_tracker->clock_offsets_for_testing()
+                .size());
 }
 
 TEST_F(ProtoTraceReaderTest, CalculateClockOffset) {

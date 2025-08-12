@@ -68,8 +68,8 @@ ModuleResult MetadataMinimalModule::TokenizePacket(
 }
 
 void MetadataMinimalModule::ParseChromeBenchmarkMetadata(ConstBytes blob) {
-  TraceStorage* storage = context_->storage.get();
-  MetadataTracker* metadata = context_->metadata_tracker.get();
+  TraceStorage* storage = context_->global_context->storage.get();
+  MetadataTracker* metadata = context_->global_context->metadata_tracker.get();
 
   protos::pbzero::ChromeBenchmarkMetadata::Decoder packet(blob.data, blob.size);
   if (packet.has_benchmark_name()) {
@@ -117,8 +117,8 @@ void MetadataMinimalModule::ParseChromeBenchmarkMetadata(ConstBytes blob) {
 }
 
 void MetadataMinimalModule::ParseChromeMetadataPacket(ConstBytes blob) {
-  TraceStorage* storage = context_->storage.get();
-  MetadataTracker* metadata = context_->metadata_tracker.get();
+  TraceStorage* storage = context_->global_context->storage.get();
+  MetadataTracker* metadata = context_->global_context->metadata_tracker.get();
 
   // TODO(b/322298334): There is no easy way to associate ChromeMetadataPacket
   // with ChromeMetadata for the same instance, so we have opted for letters to
@@ -173,7 +173,8 @@ void MetadataMinimalModule::ParseChromeMetadataPacket(ConstBytes blob) {
     }
 
     StringId field_trials_string =
-        context_->storage->InternString(base::StringView(field_trials));
+        context_->global_context->storage->InternString(
+            base::StringView(field_trials));
     metadata->SetDynamicMetadata(
         storage->InternString(base::StringView(metadata_prefix.ToStdString() +
                                                "field_trial_hashes")),

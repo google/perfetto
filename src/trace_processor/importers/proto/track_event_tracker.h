@@ -206,8 +206,8 @@ class TrackEventTracker {
     }
     const auto& factory = base::unchecked_get<TrackCompressor::TrackFactory>(
         *s->track_id_or_factory);
-    return context_->track_compressor->Begin(factory,
-                                             static_cast<int64_t>(uuid));
+    return context_->machine_context->track_compressor->Begin(
+        factory, static_cast<int64_t>(uuid));
   }
 
   // Interns a descriptor track for an "end" slice event.
@@ -227,7 +227,8 @@ class TrackEventTracker {
     }
     const auto& factory = base::unchecked_get<TrackCompressor::TrackFactory>(
         *s->track_id_or_factory);
-    return context_->track_compressor->End(factory, static_cast<int64_t>(uuid));
+    return context_->machine_context->track_compressor->End(
+        factory, static_cast<int64_t>(uuid));
   }
 
   // Interns a descriptor track for an "instant" slice event.
@@ -247,10 +248,10 @@ class TrackEventTracker {
     }
     const auto& factory = base::unchecked_get<TrackCompressor::TrackFactory>(
         *s->track_id_or_factory);
-    TrackId start =
-        context_->track_compressor->Begin(factory, static_cast<int64_t>(uuid));
-    TrackId end =
-        context_->track_compressor->End(factory, static_cast<int64_t>(uuid));
+    TrackId start = context_->machine_context->track_compressor->Begin(
+        factory, static_cast<int64_t>(uuid));
+    TrackId end = context_->machine_context->track_compressor->End(
+        factory, static_cast<int64_t>(uuid));
     PERFETTO_DCHECK(start == end);
     return end;
   }
@@ -329,7 +330,7 @@ class TrackEventTracker {
     }
     const auto& factory = base::unchecked_get<TrackCompressor::TrackFactory>(
         *s->track_id_or_factory);
-    return context_->track_compressor->DefaultTrack(factory);
+    return context_->machine_context->track_compressor->DefaultTrack(factory);
   }
 
   std::optional<TrackEventTracker::ResolvedDescriptorTrack>

@@ -165,7 +165,7 @@ ArgsSerializer::ArgsSerializer(
     NullTermStringView event_name,
     std::vector<std::optional<uint32_t>>* field_id_to_arg_index,
     base::StringWriter* writer)
-    : storage_(context->storage.get()),
+    : storage_(context->global_context->storage.get()),
       context_(context),
       cursor_(cursor),
       event_name_(event_name),
@@ -203,7 +203,8 @@ ArgsSerializer::ArgsSerializer(
   // Go through each field id and find the entry in the args table for that
   for (uint32_t r = 0; !cursor_->Eof(); cursor_->Next(), ++r) {
     for (uint32_t i = 1; i <= max; ++i) {
-      base::StringView key = context->storage->GetString(cursor_->key());
+      base::StringView key =
+          context->global_context->storage->GetString(cursor_->key());
       if (key == descriptor->fields[i].name) {
         (*field_id_to_arg_index)[i] = r;
         break;
@@ -616,7 +617,7 @@ base::Status ToFtrace::Run(Context* context,
 }
 
 SystraceSerializer::SystraceSerializer(TraceProcessorContext* context)
-    : storage_(context->storage.get()),
+    : storage_(context->global_context->storage.get()),
       context_(context),
       cursor_(storage_->arg_table().CreateCursor({
           dataframe::FilterSpec{
@@ -679,7 +680,7 @@ void SystraceSerializer::SerializePrefix(uint32_t raw_row,
   if (opt_upid.has_value()) {
     tgid = storage_->process_table()[*opt_upid].pid();
   }
-  auto name = context_->storage->GetString(thread_row.name());
+  auto name = context_->global_context->storage->GetString(thread_row.name());
   FtraceTime ftrace_time(ts);
   if (tid == 0) {
     name = "<idle>";

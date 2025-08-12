@@ -53,8 +53,8 @@ struct Callsite {
 
 GeckoTraceTokenizer::GeckoTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
-      stream_(
-          ctx->sorter->CreateStream(std::make_unique<GeckoTraceParser>(ctx))) {}
+      stream_(ctx->global_context->sorter->CreateStream(
+          std::make_unique<GeckoTraceParser>(ctx))) {}
 GeckoTraceTokenizer::~GeckoTraceTokenizer() = default;
 
 base::Status GeckoTraceTokenizer::Parse(TraceBlobView blob) {
@@ -70,7 +70,7 @@ base::Status GeckoTraceTokenizer::NotifyEndOfFile() {
         "Syntactic error while Gecko trace; please use an external JSON tool "
         "(e.g. jq) to understand the source of the error.");
   }
-  context_->clock_tracker->SetTraceTimeClock(
+  context_->global_context->clock_tracker->SetTraceTimeClock(
       protos::pbzero::ClockSnapshot::Clock::MONOTONIC);
 
   DummyMemoryMapping* dummy_mapping = nullptr;
@@ -99,7 +99,8 @@ base::Status GeckoTraceTokenizer::NotifyEndOfFile() {
           name.data()[name.size() - 1] == ')') {
         if (!dummy_mapping) {
           dummy_mapping =
-              &context_->mapping_tracker->CreateDummyMapping("gecko");
+              &context_->machine_context->mapping_tracker->CreateDummyMapping(
+                  "gecko");
         }
         frame_ids.push_back(
             dummy_mapping->InternDummyFrame(name, base::StringView()));
@@ -114,7 +115,9 @@ base::Status GeckoTraceTokenizer::NotifyEndOfFile() {
       if (auto* mapping_ptr = mappings.Find(mapping_name); mapping_ptr) {
         mapping = *mapping_ptr;
       } else {
-        mapping = &context_->mapping_tracker->CreateDummyMapping(mapping_name);
+        mapping =
+            &context_->machine_context->mapping_tracker->CreateDummyMapping(
+                mapping_name);
         mappings.Insert(mapping_name, mapping);
       }
       frame_ids.push_back(mapping->InternDummyFrame(
@@ -134,8 +137,9 @@ base::Status GeckoTraceTokenizer::NotifyEndOfFile() {
         prefix_id = c.id;
         depth = c.depth + 1;
       }
-      CallsiteId cid = context_->stack_profile_tracker->InternCallsite(
-          prefix_id, frame_ids[frame[frame_index].asUInt()], depth);
+      CallsiteId cid =
+          context_->trace_context->stack_profile_tracker->InternCallsite(
+              prefix_id, frame_ids[frame[frame_index].asUInt()], depth);
       callsites.push_back({cid, depth});
     }
 
@@ -149,15 +153,15 @@ base::Status GeckoTraceTokenizer::NotifyEndOfFile() {
       auto ts =
           static_cast<int64_t>(sample[time_index].asDouble() * 1000 * 1000);
       if (!added_metadata) {
-        stream_->Push(
-            ts, GeckoEvent{GeckoEvent::ThreadMetadata{
-                    t["tid"].asUInt(), t["pid"].asUInt(),
-                    context_->storage->InternString(t["name"].asCString())}});
+        stream_->Push(ts, GeckoEvent{GeckoEvent::ThreadMetadata{
+                              t["tid"].asUInt(), t["pid"].asUInt(),
+                              context_->global_context->storage->InternString(
+                                  t["name"].asCString())}});
         added_metadata = true;
       }
       ASSIGN_OR_RETURN(
           int64_t converted,
-          context_->clock_tracker->ToTraceTime(
+          context_->global_context->clock_tracker->ToTraceTime(
               protos::pbzero::ClockSnapshot::Clock::MONOTONIC, ts));
       stream_->Push(converted,
                     GeckoEvent{GeckoEvent::StackSample{

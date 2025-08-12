@@ -70,10 +70,13 @@ base::FlatHashMap<std::string, std::string> SplitUpModemString(
 PixelModemParser::PixelModemParser(TraceProcessorContext* context)
     : context_(context),
       detokenizer_(pigweed::CreateNullDetokenizer()),
-      template_id_(context->storage->InternString("raw_template")),
-      token_id_(context->storage->InternString("token_id")),
-      token_id_hex_(context->storage->InternString("token_id_hex")),
-      packet_timestamp_id_(context->storage->InternString("packet_ts")) {}
+      template_id_(
+          context->global_context->storage->InternString("raw_template")),
+      token_id_(context->global_context->storage->InternString("token_id")),
+      token_id_hex_(
+          context->global_context->storage->InternString("token_id_hex")),
+      packet_timestamp_id_(
+          context->global_context->storage->InternString("packet_ts")) {}
 
 PixelModemParser::~PixelModemParser() = default;
 
@@ -110,27 +113,30 @@ base::Status PixelModemParser::ParseEvent(int64_t ts,
 
   const std::string& slice_name = format ? *format : event;
 
-  StringId slice_name_id = context_->storage->InternString(slice_name.c_str());
-  TrackId id = context_->track_tracker->InternTrack(
+  StringId slice_name_id =
+      context_->global_context->storage->InternString(slice_name.c_str());
+  TrackId id = context_->machine_context->track_tracker->InternTrack(
       kBlueprint, tracks::Dimensions(domain ? base::StringView(*domain)
                                             : base::StringView()));
-  context_->slice_tracker->Scoped(
+  context_->trace_context->slice_tracker->Scoped(
       ts, id, kNullStringId, slice_name_id, 0,
       [this, &detokenized_str,
        trace_packet_ts](ArgsTracker::BoundInserter* inserter) {
-        inserter->AddArg(template_id_,
-                         Variadic::String(context_->storage->InternString(
-                             detokenized_str.template_str().c_str())));
+        inserter->AddArg(
+            template_id_,
+            Variadic::String(context_->global_context->storage->InternString(
+                detokenized_str.template_str().c_str())));
         uint32_t token = detokenized_str.token();
         inserter->AddArg(token_id_, Variadic::Integer(token));
-        inserter->AddArg(token_id_hex_,
-                         Variadic::String(context_->storage->InternString(
-                             base::IntToHexString(token).c_str())));
+        inserter->AddArg(
+            token_id_hex_,
+            Variadic::String(context_->global_context->storage->InternString(
+                base::IntToHexString(token).c_str())));
         inserter->AddArg(packet_timestamp_id_,
                          Variadic::UnsignedInteger(trace_packet_ts));
         auto pw_args = detokenized_str.args();
         for (size_t i = 0; i < pw_args.size(); i++) {
-          StringId arg_name = context_->storage->InternString(
+          StringId arg_name = context_->global_context->storage->InternString(
               ("pw_token_" + std::to_string(token) + ".arg_" +
                std::to_string(i))
                   .c_str());

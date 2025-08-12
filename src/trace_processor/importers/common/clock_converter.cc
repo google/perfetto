@@ -43,8 +43,9 @@ void ClockConverter::MaybeInitialize() {
   is_initialized = true;
   timelines_.Insert(kRealClock, {});
   timelines_.Insert(kMonoClock, {});
-  for (auto it = context_->storage->clock_snapshot_table().IterateRows(); it;
-       ++it) {
+  for (auto it = context_->global_context->storage->clock_snapshot_table()
+                     .IterateRows();
+       it; ++it) {
     if (it.clock_id() == kRealClock || it.clock_id() == kMonoClock)
       timelines_.Find(it.clock_id())->emplace(it.ts(), it.clock_value());
   }

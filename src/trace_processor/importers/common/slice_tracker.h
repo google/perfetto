@@ -33,7 +33,7 @@
 namespace perfetto::trace_processor {
 
 class ArgsTracker;
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 class SliceTracker {
  public:
@@ -68,7 +68,9 @@ class SliceTracker {
     // Ensure that the duration is pending for this row.
     row.dur = kPendingDuration;
     if (row.name) {
-      row.name = context_->slice_translation_table->TranslateName(*row.name);
+      row.name =
+          context_->trace_context->slice_translation_table->TranslateName(
+              *row.name);
     }
     return StartSlice(row.ts, row.dur, row.track_id, args_callback,
                       [table, &row]() { return table->Insert(row).id; });
@@ -90,7 +92,9 @@ class SliceTracker {
       SetArgsCallback args_callback = SetArgsCallback()) {
     PERFETTO_DCHECK(row.dur >= 0);
     if (row.name) {
-      row.name = context_->slice_translation_table->TranslateName(*row.name);
+      row.name =
+          context_->trace_context->slice_translation_table->TranslateName(
+              *row.name);
     }
     return StartSlice(row.ts, row.dur, row.track_id, args_callback,
                       [table, &row]() { return table->Insert(row).id; });

@@ -112,11 +112,12 @@ StatsdModule::StatsdModule(ProtoImporterModuleContext* module_context,
                            TraceProcessorContext* context)
     : ProtoImporterModule(module_context),
       context_(context),
-      args_parser_(*context_->descriptor_pool_) {
+      args_parser_(*context_->global_context->descriptor_pool_) {
   RegisterForField(TracePacket::kStatsdAtomFieldNumber);
-  context_->descriptor_pool_->AddFromFileDescriptorSet(kAtomsDescriptor.data(),
-                                                       kAtomsDescriptor.size());
-  if (auto i = context_->descriptor_pool_->FindDescriptorIdx(kAtomProtoName)) {
+  context_->global_context->descriptor_pool_->AddFromFileDescriptorSet(
+      kAtomsDescriptor.data(), kAtomsDescriptor.size());
+  if (auto i = context_->global_context->descriptor_pool_->FindDescriptorIdx(
+          kAtomProtoName)) {
     descriptor_idx_ = *i;
   } else {
     PERFETTO_FATAL("Failed to find descriptor for %s", kAtomProtoName);
@@ -142,7 +143,8 @@ ModuleResult StatsdModule::TokenizePacket(
     if (it_timestamps) {
       atom_timestamp = *it_timestamps++;
     } else {
-      context_->storage->IncrementStats(stats::atom_timestamp_missing);
+      context_->global_context->storage->IncrementStats(
+          stats::atom_timestamp_missing);
       atom_timestamp = packet_timestamp;
     }
 
@@ -192,13 +194,13 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
     nested_field_id = field.id();
   }
   StringId atom_name = GetAtomName(nested_field_id);
-  context_->slice_tracker->Scoped(
+  context_->trace_context->slice_tracker->Scoped(
       ts, InternTrackId(), kNullStringId, atom_name, 0,
       [&](ArgsTracker::BoundInserter* inserter) {
-        ArgsParser delegate(ts, *inserter, *context_->storage);
+        ArgsParser delegate(ts, *inserter, *context_->global_context->storage);
 
-        const auto& descriptor =
-            context_->descriptor_pool_->descriptors()[descriptor_idx_];
+        const auto& descriptor = context_->global_context->descriptor_pool_
+                                     ->descriptors()[descriptor_idx_];
         const auto& field_it = descriptor.fields().find(nested_field_id);
         base::Status status;
 
@@ -207,7 +209,8 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
           // descriptor for them so don't report errors. See:
           // https://cs.android.com/android/platform/superproject/main/+/main:frameworks/proto_logging/stats/atoms.proto;l=1290;drc=a34b11bfebe897259a0340a59f1793ae2dffd762
           if (nested_field_id < 100000) {
-            context_->storage->IncrementStats(stats::atom_unknown);
+            context_->global_context->storage->IncrementStats(
+                stats::atom_unknown);
           }
 
           status = ParseGenericEvent(field.as_bytes(), delegate);
@@ -218,7 +221,8 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
         }
 
         if (!status.ok()) {
-          context_->storage->IncrementStats(stats::atom_unknown);
+          context_->global_context->storage->IncrementStats(
+              stats::atom_unknown);
         }
       });
 }
@@ -227,20 +231,23 @@ StringId StatsdModule::GetAtomName(uint32_t atom_field_id) {
   StringId* cached_name = atom_names_.Find(atom_field_id);
   if (cached_name == nullptr) {
     if (!descriptor_idx_) {
-      context_->storage->IncrementStats(stats::atom_unknown);
-      return context_->storage->InternString("Could not load atom descriptor");
+      context_->global_context->storage->IncrementStats(stats::atom_unknown);
+      return context_->global_context->storage->InternString(
+          "Could not load atom descriptor");
     }
 
-    const auto& descriptor =
-        context_->descriptor_pool_->descriptors()[descriptor_idx_];
+    const auto& descriptor = context_->global_context->descriptor_pool_
+                                 ->descriptors()[descriptor_idx_];
     StringId name_id;
     const auto& field_it = descriptor.fields().find(atom_field_id);
     if (field_it == descriptor.fields().end()) {
       base::StackString<255> name("atom_%u", atom_field_id);
-      name_id = context_->storage->InternString(name.string_view());
+      name_id =
+          context_->global_context->storage->InternString(name.string_view());
     } else {
       const FieldDescriptor& field = field_it->second;
-      name_id = context_->storage->InternString(base::StringView(field.name()));
+      name_id = context_->global_context->storage->InternString(
+          base::StringView(field.name()));
     }
     atom_names_[atom_field_id] = name_id;
     return name_id;
@@ -253,7 +260,8 @@ TrackId StatsdModule::InternTrackId() {
     static constexpr auto kBlueprint =
         tracks::SliceBlueprint("statsd_atoms", tracks::DimensionBlueprints(),
                                tracks::StaticNameBlueprint("Statsd Atoms"));
-    track_id_ = context_->track_tracker->InternTrack(kBlueprint);
+    track_id_ =
+        context_->machine_context->track_tracker->InternTrack(kBlueprint);
   }
   return *track_id_;
 }

@@ -35,10 +35,11 @@ namespace perfetto::trace_processor::etm {
 class FileTracker : public Destructible {
  public:
   static FileTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->file_tracker) {
-      context->file_tracker.reset(new FileTracker(context));
+    if (!context->trace_context->file_tracker) {
+      context->trace_context->file_tracker.reset(new FileTracker(context));
     }
-    return static_cast<FileTracker*>(context->file_tracker.get());
+    return static_cast<FileTracker*>(
+        context->trace_context->file_tracker.get());
   }
 
   ~FileTracker() override;

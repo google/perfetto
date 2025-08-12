@@ -177,36 +177,49 @@ class MockEventTracker : public EventTracker {
 class FuchsiaTraceParserTest : public ::testing::Test {
  public:
   FuchsiaTraceParserTest() {
-    context_.storage = std::make_shared<TraceStorage>();
-    storage_ = context_.storage.get();
-    context_.track_tracker = std::make_unique<TrackTracker>(&context_);
-    context_.global_args_tracker =
-        std::make_shared<GlobalArgsTracker>(context_.storage.get());
-    context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
-    context_.args_tracker = std::make_unique<ArgsTracker>(&context_);
-    context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
-    context_.metadata_tracker =
-        std::make_unique<MetadataTracker>(context_.storage.get());
-    context_.machine_tracker = std::make_unique<MachineTracker>(&context_, 0);
-    context_.cpu_tracker = std::make_unique<CpuTracker>(&context_);
+    context_.global_context->storage = std::make_shared<TraceStorage>();
+    storage_ = context_.global_context->storage.get();
+    context_.machine_context->track_tracker =
+        std::make_unique<TrackTracker>(&context_);
+    context_.trace_context->global_args_tracker =
+        std::make_shared<GlobalArgsTracker>(
+            context_.global_context->storage.get());
+    context_.trace_context->stack_profile_tracker.reset(
+        new StackProfileTracker(&context_));
+    context_.trace_context->args_tracker =
+        std::make_unique<ArgsTracker>(&context_);
+    context_.trace_context->args_translation_table.reset(
+        new ArgsTranslationTable(storage_));
+    context_.global_context->metadata_tracker =
+        std::make_unique<MetadataTracker>(
+            context_.global_context->storage.get());
+    context_.machine_context->machine_tracker =
+        std::make_unique<MachineTracker>(&context_, 0);
+    context_.machine_context->cpu_tracker =
+        std::make_unique<CpuTracker>(&context_);
     event_ = new MockEventTracker(&context_);
-    context_.event_tracker.reset(event_);
+    context_.trace_context->event_tracker.reset(event_);
     sched_ = new MockSchedEventTracker(&context_);
-    context_.ftrace_sched_tracker.reset(sched_);
+    context_.machine_context->ftrace_sched_tracker.reset(sched_);
     process_ = new NiceMock<MockProcessTracker>(&context_);
-    context_.process_tracker.reset(process_);
-    context_.process_track_translation_table.reset(
+    context_.machine_context->process_tracker.reset(process_);
+    context_.trace_context->process_track_translation_table.reset(
         new ProcessTrackTranslationTable(storage_));
-    context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
-    context_.slice_translation_table =
+    context_.trace_context->slice_tracker =
+        std::make_unique<SliceTracker>(&context_);
+    context_.trace_context->slice_translation_table =
         std::make_unique<SliceTranslationTable>(storage_);
-    context_.clock_tracker = std::make_unique<ClockTracker>(&context_);
-    clock_ = context_.clock_tracker.get();
-    context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
-    context_.sorter = std::make_shared<TraceSorter>(
+    context_.global_context->clock_tracker =
+        std::make_unique<ClockTracker>(&context_);
+    clock_ = context_.global_context->clock_tracker.get();
+    context_.trace_context->flow_tracker =
+        std::make_unique<FlowTracker>(&context_);
+    context_.global_context->sorter = std::make_shared<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
-    context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
-    context_.register_additional_proto_modules = &RegisterAdditionalModules;
+    context_.global_context->descriptor_pool_ =
+        std::make_unique<DescriptorPool>();
+    context_.global_context->register_additional_proto_modules =
+        &RegisterAdditionalModules;
     tokenizer_ = std::make_unique<FuchsiaTraceTokenizer>(&context_);
   }
 
@@ -276,20 +289,33 @@ TEST_F(FuchsiaTraceParserTest, InlineInstantEvent) {
   push_word(0xEEEEEEEEEEEEEEEE);
   EXPECT_TRUE(Tokenize().ok());
 
-  EXPECT_EQ(
-      context_.storage->stats()[stats::fuchsia_non_numeric_counters].value, 0);
-  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_timestamp_overflow].value,
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_non_numeric_counters]
+                .value,
             0);
-  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_record_read_error].value,
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_timestamp_overflow]
+                .value,
             0);
-  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_invalid_event].value, 0);
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_record_read_error]
+                .value,
+            0);
   EXPECT_EQ(
-      context_.storage->stats()[stats::fuchsia_invalid_event_arg_type].value,
+      context_.global_context->storage->stats()[stats::fuchsia_invalid_event]
+          .value,
       0);
-  EXPECT_EQ(
-      context_.storage->stats()[stats::fuchsia_invalid_event_arg_name].value,
-      0);
-  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_invalid_string_ref].value,
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_invalid_event_arg_type]
+                .value,
+            0);
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_invalid_event_arg_name]
+                .value,
+            0);
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_invalid_string_ref]
+                .value,
             0);
 }
 
@@ -329,20 +355,33 @@ TEST_F(FuchsiaTraceParserTest, BooleanArguments) {
   push_word(0x0000'0000'0000'0000);
   EXPECT_TRUE(Tokenize().ok());
 
-  EXPECT_EQ(
-      context_.storage->stats()[stats::fuchsia_non_numeric_counters].value, 0);
-  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_timestamp_overflow].value,
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_non_numeric_counters]
+                .value,
             0);
-  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_record_read_error].value,
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_timestamp_overflow]
+                .value,
             0);
-  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_invalid_event].value, 0);
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_record_read_error]
+                .value,
+            0);
   EXPECT_EQ(
-      context_.storage->stats()[stats::fuchsia_invalid_event_arg_type].value,
+      context_.global_context->storage->stats()[stats::fuchsia_invalid_event]
+          .value,
       0);
-  EXPECT_EQ(
-      context_.storage->stats()[stats::fuchsia_invalid_event_arg_name].value,
-      0);
-  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_invalid_string_ref].value,
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_invalid_event_arg_type]
+                .value,
+            0);
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_invalid_event_arg_name]
+                .value,
+            0);
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_invalid_string_ref]
+                .value,
             0);
 }
 
@@ -446,7 +485,7 @@ TEST_F(FuchsiaTraceParserTest, FxtWithProtos) {
 
   auto status = Tokenize();
   EXPECT_TRUE(status.ok());
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 
   EXPECT_EQ(storage_->slice_table().row_count(), 2u);
   auto rr_0 = storage_->slice_table().FindById(SliceId(0u));
@@ -513,23 +552,36 @@ TEST_F(FuchsiaTraceParserTest, SchedulerEvents) {
 
   EXPECT_TRUE(Tokenize().ok());
 
-  EXPECT_EQ(
-      context_.storage->stats()[stats::fuchsia_non_numeric_counters].value, 0);
-  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_timestamp_overflow].value,
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_non_numeric_counters]
+                .value,
             0);
-  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_record_read_error].value,
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_timestamp_overflow]
+                .value,
             0);
-  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_invalid_event].value, 0);
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_record_read_error]
+                .value,
+            0);
   EXPECT_EQ(
-      context_.storage->stats()[stats::fuchsia_invalid_event_arg_type].value,
+      context_.global_context->storage->stats()[stats::fuchsia_invalid_event]
+          .value,
       0);
-  EXPECT_EQ(
-      context_.storage->stats()[stats::fuchsia_invalid_event_arg_name].value,
-      0);
-  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_invalid_string_ref].value,
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_invalid_event_arg_type]
+                .value,
+            0);
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_invalid_event_arg_name]
+                .value,
+            0);
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_invalid_string_ref]
+                .value,
             0);
 
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 }
 
 TEST_F(FuchsiaTraceParserTest, LegacySchedulerEvents) {
@@ -599,23 +651,36 @@ TEST_F(FuchsiaTraceParserTest, LegacySchedulerEvents) {
 
   EXPECT_TRUE(Tokenize().ok());
 
-  EXPECT_EQ(
-      context_.storage->stats()[stats::fuchsia_non_numeric_counters].value, 0);
-  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_timestamp_overflow].value,
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_non_numeric_counters]
+                .value,
             0);
-  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_record_read_error].value,
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_timestamp_overflow]
+                .value,
             0);
-  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_invalid_event].value, 0);
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_record_read_error]
+                .value,
+            0);
   EXPECT_EQ(
-      context_.storage->stats()[stats::fuchsia_invalid_event_arg_type].value,
+      context_.global_context->storage->stats()[stats::fuchsia_invalid_event]
+          .value,
       0);
-  EXPECT_EQ(
-      context_.storage->stats()[stats::fuchsia_invalid_event_arg_name].value,
-      0);
-  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_invalid_string_ref].value,
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_invalid_event_arg_type]
+                .value,
+            0);
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_invalid_event_arg_name]
+                .value,
+            0);
+  EXPECT_EQ(context_.global_context->storage
+                ->stats()[stats::fuchsia_invalid_string_ref]
+                .value,
             0);
 
-  context_.sorter->ExtractEventsForced();
+  context_.global_context->sorter->ExtractEventsForced();
 }
 
 }  // namespace

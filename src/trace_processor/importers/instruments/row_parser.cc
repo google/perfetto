@@ -54,16 +54,19 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
   uint32_t tid = static_cast<uint32_t>(thread->tid);
   uint32_t pid = static_cast<uint32_t>(process->pid);
 
-  UniqueTid utid = context_->process_tracker->UpdateThread(tid, pid);
-  UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
+  UniqueTid utid =
+      context_->machine_context->process_tracker->UpdateThread(tid, pid);
+  UniquePid upid =
+      context_->machine_context->process_tracker->GetOrCreateProcess(pid);
 
   // TODO(leszeks): Avoid setting thread/process name if we've already seen this
   // Thread* / Process*.
-  context_->process_tracker->UpdateThreadName(utid, thread->fmt,
-                                              ThreadNamePriority::kOther);
-  context_->process_tracker->SetProcessNameIfUnset(upid, process->fmt);
+  context_->machine_context->process_tracker->UpdateThreadName(
+      utid, thread->fmt, ThreadNamePriority::kOther);
+  context_->machine_context->process_tracker->SetProcessNameIfUnset(
+      upid, process->fmt);
 
-  auto& stack_profile_tracker = *context_->stack_profile_tracker;
+  auto& stack_profile_tracker = *context_->trace_context->stack_profile_tracker;
 
   Backtrace* backtrace = data_.GetBacktrace(row.backtrace);
   std::optional<CallsiteId> parent;
@@ -86,7 +89,9 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
     }
 
     VirtualMemoryMapping* mapping = nullptr;
-    mapping = context_->mapping_tracker->FindUserMappingForAddress(upid, pc);
+    mapping =
+        context_->machine_context->mapping_tracker->FindUserMappingForAddress(
+            upid, pc);
     if (!mapping) {
       if (binary == nullptr) {
         mapping = GetDummyMapping(upid);
@@ -96,11 +101,13 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
         if (mapping_inserted.second) {
           BuildId build_id = binary->uuid;
           *mapping_inserted.first =
-              &context_->mapping_tracker->CreateUserMemoryMapping(
-                  upid, {AddressRange(static_cast<uint64_t>(binary->load_addr),
-                                      static_cast<uint64_t>(binary->max_addr)),
-                         static_cast<uint64_t>(binary->load_addr), 0, 0,
-                         binary->path, build_id});
+              &context_->machine_context->mapping_tracker
+                   ->CreateUserMemoryMapping(
+                       upid,
+                       {AddressRange(static_cast<uint64_t>(binary->load_addr),
+                                     static_cast<uint64_t>(binary->max_addr)),
+                        static_cast<uint64_t>(binary->load_addr), 0, 0,
+                        binary->path, build_id});
         }
         mapping = *mapping_inserted.first;
       }
@@ -113,7 +120,7 @@ void RowParser::Parse(int64_t ts, instruments_importer::Row row) {
     depth++;
   }
 
-  context_->storage->mutable_instruments_sample_table()->Insert(
+  context_->global_context->storage->mutable_instruments_sample_table()->Insert(
       {ts, utid, parent, row.core_id});
 }
 
@@ -123,7 +130,7 @@ DummyMemoryMapping* RowParser::GetDummyMapping(UniquePid upid) {
   }
 
   DummyMemoryMapping* mapping =
-      &context_->mapping_tracker->CreateDummyMapping("");
+      &context_->machine_context->mapping_tracker->CreateDummyMapping("");
   dummy_mappings_.Insert(upid, mapping);
   return mapping;
 }

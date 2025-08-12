@@ -50,10 +50,13 @@ AppWakelockModule::AppWakelockModule(ProtoImporterModuleContext* module_context,
                                      TraceProcessorContext* context)
     : ProtoImporterModule(module_context),
       context_(context),
-      arg_flags_(context->storage->InternString("flags")),
-      arg_owner_pid_(context->storage->InternString("owner_pid")),
-      arg_owner_uid_(context->storage->InternString("owner_uid")),
-      arg_work_uid_(context->storage->InternString("work_uid")) {
+      arg_flags_(context->global_context->storage->InternString("flags")),
+      arg_owner_pid_(
+          context->global_context->storage->InternString("owner_pid")),
+      arg_owner_uid_(
+          context->global_context->storage->InternString("owner_uid")),
+      arg_work_uid_(
+          context->global_context->storage->InternString("work_uid")) {
   RegisterForField(TracePacket::kAppWakelockBundleFieldNumber);
 }
 
@@ -73,7 +76,8 @@ ModuleResult AppWakelockModule::TokenizePacket(
   auto iid_iter = evt.intern_id(&parse_error);
   auto timestamp_iter = evt.encoded_ts(&parse_error);
   if (parse_error) {
-    context_->storage->IncrementStats(stats::app_wakelock_parse_error);
+    context_->global_context->storage->IncrementStats(
+        stats::app_wakelock_parse_error);
     return ModuleResult::Handled();
   }
 
@@ -88,7 +92,8 @@ ModuleResult AppWakelockModule::TokenizePacket(
         protos::pbzero::InternedData::kAppWakelockInfoFieldNumber,
         protos::pbzero::AppWakelockInfo>(intern_id);
     if (interned == nullptr) {
-      context_->storage->IncrementStats(stats::app_wakelock_unknown_id);
+      context_->global_context->storage->IncrementStats(
+          stats::app_wakelock_unknown_id);
       continue;
     }
 
@@ -131,16 +136,17 @@ void AppWakelockModule::ParseWakelockBundle(int64_t ts, ConstBytes blob) {
       info.owner_uid(), info.work_uid());
 
   if (!event.acquired()) {
-    TrackId track_id = context_->track_compressor->InternEnd(
+    TrackId track_id = context_->machine_context->track_compressor->InternEnd(
         kBlueprint, tracks::Dimensions(), static_cast<int64_t>(cookie));
-    context_->slice_tracker->End(ts, track_id);
+    context_->trace_context->slice_tracker->End(ts, track_id);
     return;
   }
 
-  TrackId track_id = context_->track_compressor->InternBegin(
+  TrackId track_id = context_->machine_context->track_compressor->InternBegin(
       kBlueprint, tracks::Dimensions(), static_cast<int64_t>(cookie));
-  StringId name_id = context_->storage->InternString(info.tag());
-  context_->slice_tracker->Begin(
+  StringId name_id =
+      context_->global_context->storage->InternString(info.tag());
+  context_->trace_context->slice_tracker->Begin(
       ts, track_id, kNullStringId, name_id,
       [this, &info](ArgsTracker::BoundInserter* args) {
         args->AddArg(arg_flags_, Variadic::Integer(info.flags()));

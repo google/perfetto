@@ -338,7 +338,8 @@ std::optional<TraceRectTableId> RectComputation::TryInsertInputRect(
       tables::WinscopeFillRegionTable::Row row;
       row.rect_id = rect_tracker_.GetOrInsertRow(rect);
       row.trace_rect_id = input_rect_id;
-      rect_tracker_.context_->storage->mutable_winscope_fill_region_table()
+      rect_tracker_.context_->global_context->storage
+          ->mutable_winscope_fill_region_table()
           ->Insert(row);
     }
   }
@@ -369,7 +370,8 @@ TraceRectTableId RectComputation::InsertLayerTraceRectRow(
 
   row.transform_id = transform_tracker_.GetOrInsertRow(matrix);
   row.is_spy = false;
-  return rect_tracker_.context_->storage->mutable_winscope_trace_rect_table()
+  return rect_tracker_.context_->global_context->storage
+      ->mutable_winscope_trace_rect_table()
       ->Insert(row)
       .id;
 }
@@ -388,7 +390,8 @@ TraceRectTableId RectComputation::InsertInputTraceRectRow(
   row.transform_id = transform_tracker_.GetOrInsertRow(matrix);
   row.is_spy = is_spy;
   row.is_visible = is_visible;
-  return rect_tracker_.context_->storage->mutable_winscope_trace_rect_table()
+  return rect_tracker_.context_->global_context->storage
+      ->mutable_winscope_trace_rect_table()
       ->Insert(row)
       .id;
 }

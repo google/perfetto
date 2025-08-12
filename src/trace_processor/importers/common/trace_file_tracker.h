@@ -28,7 +28,7 @@
 
 namespace perfetto::trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 // This class keeps track of the file currently being parsed and metadata about
 // it. Files can be nested into other files (zip or gzip files) and this class

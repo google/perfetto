@@ -247,14 +247,15 @@ struct StackFromStackProfileFrameFunction : public LegacySqlFunction {
 base::Status RegisterStackFunctions(PerfettoSqlEngine* engine,
                                     TraceProcessorContext* context) {
   RETURN_IF_ERROR(engine->RegisterStaticFunction<CatStacksFunction>(
-      CatStacksFunction::kFunctionName, -1, context->storage.get()));
+      CatStacksFunction::kFunctionName, -1,
+      context->global_context->storage.get()));
   RETURN_IF_ERROR(
       engine->RegisterStaticFunction<StackFromStackProfileFrameFunction>(
           StackFromStackProfileFrameFunction::kFunctionName, 1,
-          context->storage.get()));
+          context->global_context->storage.get()));
   return engine->RegisterStaticFunction<StackFromStackProfileCallsiteFunction>(
       StackFromStackProfileCallsiteFunction::kFunctionName, -1,
-      context->storage.get());
+      context->global_context->storage.get());
 }
 
 }  // namespace trace_processor

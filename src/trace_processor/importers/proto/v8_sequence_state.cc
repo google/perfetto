@@ -53,7 +53,7 @@ std::optional<IsolateId> V8SequenceState::GetOrInsertIsolate(uint64_t iid) {
 
   auto* view = GetInternedMessageView(InternedData::kV8IsolateFieldNumber, iid);
   if (!view) {
-    context_->storage->IncrementStats(stats::v8_intern_errors);
+    context_->global_context->storage->IncrementStats(stats::v8_intern_errors);
     return std::nullopt;
   }
 
@@ -71,7 +71,7 @@ V8SequenceState::GetOrInsertJsFunction(uint64_t iid, IsolateId isolate_id) {
   auto* view =
       GetInternedMessageView(InternedData::kV8JsFunctionFieldNumber, iid);
   if (!view) {
-    context_->storage->IncrementStats(stats::v8_intern_errors);
+    context_->global_context->storage->IncrementStats(stats::v8_intern_errors);
     return std::nullopt;
   }
 
@@ -103,7 +103,7 @@ V8SequenceState::GetOrInsertWasmScript(uint64_t iid, IsolateId isolate_id) {
   auto* view =
       GetInternedMessageView(InternedData::kV8WasmScriptFieldNumber, iid);
   if (!view) {
-    context_->storage->IncrementStats(stats::v8_intern_errors);
+    context_->global_context->storage->IncrementStats(stats::v8_intern_errors);
     return std::nullopt;
   }
 
@@ -122,7 +122,7 @@ std::optional<tables::V8JsScriptTable::Id> V8SequenceState::GetOrInsertJsScript(
   auto* view =
       GetInternedMessageView(InternedData::kV8JsScriptFieldNumber, iid);
   if (!view) {
-    context_->storage->IncrementStats(stats::v8_intern_errors);
+    context_->global_context->storage->IncrementStats(stats::v8_intern_errors);
     return std::nullopt;
   }
 
@@ -142,12 +142,12 @@ std::optional<StringId> V8SequenceState::GetOrInsertJsFunctionName(
       GetInternedMessageView(InternedData::kV8JsFunctionNameFieldNumber, iid);
 
   if (!view) {
-    context_->storage->IncrementStats(stats::v8_intern_errors);
+    context_->global_context->storage->IncrementStats(stats::v8_intern_errors);
     return std::nullopt;
   }
 
   InternedV8String::Decoder function_name(ToConstBytes(view->message()));
-  auto& storage = *context_->storage;
+  auto& storage = *context_->global_context->storage;
   StringId id;
   if (function_name.has_latin1()) {
     id = storage.InternString(

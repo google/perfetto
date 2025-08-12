@@ -43,7 +43,7 @@ using InternedMessageMap =
 using InternedFieldMap =
     std::unordered_map<uint32_t /*field_id*/, InternedMessageMap>;
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 class StackProfileSequenceState;
 class ProfilePacketSequenceState;

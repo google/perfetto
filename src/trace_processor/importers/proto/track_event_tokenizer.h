@@ -45,7 +45,7 @@ class TrackEvent_LegacyEvent_Decoder;
 
 namespace trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 class TraceBlobView;
 class TrackEventTracker;
 struct TrackEventData;

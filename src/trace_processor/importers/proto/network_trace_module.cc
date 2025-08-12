@@ -76,20 +76,34 @@ NetworkTraceModule::NetworkTraceModule(
     TraceProcessorContext* context)
     : ProtoImporterModule(module_context),
       context_(context),
-      net_arg_length_(context->storage->InternString("packet_length")),
-      net_arg_ip_proto_(context->storage->InternString("packet_transport")),
-      net_arg_tcp_flags_(context->storage->InternString("packet_tcp_flags")),
-      net_arg_tag_(context->storage->InternString("socket_tag")),
-      net_arg_uid_(context->storage->InternString("socket_uid")),
-      net_arg_local_port_(context->storage->InternString("local_port")),
-      net_arg_remote_port_(context->storage->InternString("remote_port")),
-      net_arg_icmp_type_(context->storage->InternString("packet_icmp_type")),
-      net_arg_icmp_code_(context->storage->InternString("packet_icmp_code")),
-      net_ipproto_tcp_(context->storage->InternString("IPPROTO_TCP")),
-      net_ipproto_udp_(context->storage->InternString("IPPROTO_UDP")),
-      net_ipproto_icmp_(context->storage->InternString("IPPROTO_ICMP")),
-      net_ipproto_icmpv6_(context->storage->InternString("IPPROTO_ICMPV6")),
-      packet_count_(context->storage->InternString("packet_count")) {
+      net_arg_length_(
+          context->global_context->storage->InternString("packet_length")),
+      net_arg_ip_proto_(
+          context->global_context->storage->InternString("packet_transport")),
+      net_arg_tcp_flags_(
+          context->global_context->storage->InternString("packet_tcp_flags")),
+      net_arg_tag_(
+          context->global_context->storage->InternString("socket_tag")),
+      net_arg_uid_(
+          context->global_context->storage->InternString("socket_uid")),
+      net_arg_local_port_(
+          context->global_context->storage->InternString("local_port")),
+      net_arg_remote_port_(
+          context->global_context->storage->InternString("remote_port")),
+      net_arg_icmp_type_(
+          context->global_context->storage->InternString("packet_icmp_type")),
+      net_arg_icmp_code_(
+          context->global_context->storage->InternString("packet_icmp_code")),
+      net_ipproto_tcp_(
+          context->global_context->storage->InternString("IPPROTO_TCP")),
+      net_ipproto_udp_(
+          context->global_context->storage->InternString("IPPROTO_UDP")),
+      net_ipproto_icmp_(
+          context->global_context->storage->InternString("IPPROTO_ICMP")),
+      net_ipproto_icmpv6_(
+          context->global_context->storage->InternString("IPPROTO_ICMPV6")),
+      packet_count_(
+          context->global_context->storage->InternString("packet_count")) {
   RegisterForField(TracePacket::kNetworkPacketFieldNumber);
   RegisterForField(TracePacket::kNetworkPacketBundleFieldNumber);
 }
@@ -112,7 +126,8 @@ ModuleResult NetworkTraceModule::TokenizePacket(
         protos::pbzero::InternedData::kPacketContextFieldNumber,
         protos::pbzero::NetworkPacketContext>(evt.iid());
     if (!interned) {
-      context_->storage->IncrementStats(stats::network_trace_intern_errors);
+      context_->global_context->storage->IncrementStats(
+          stats::network_trace_intern_errors);
     } else {
       context = interned->ctx();
     }
@@ -133,7 +148,8 @@ ModuleResult NetworkTraceModule::TokenizePacket(
     auto length_iter = evt.packet_lengths(&parse_error);
     auto timestamp_iter = evt.packet_timestamps(&parse_error);
     if (parse_error) {
-      context_->storage->IncrementStats(stats::network_trace_parse_errors);
+      context_->global_context->storage->IncrementStats(
+          stats::network_trace_parse_errors);
       return ModuleResult::Handled();
     }
 
@@ -186,12 +202,15 @@ void NetworkTraceModule::ParseGenericEvent(
       direction = "DIR_UNKNOWN";
       break;
   }
-  StringId direction_id = context_->storage->InternString(direction);
-  StringId iface = context_->storage->InternString(evt.network_interface());
+  StringId direction_id =
+      context_->global_context->storage->InternString(direction);
+  StringId iface =
+      context_->global_context->storage->InternString(evt.network_interface());
 
   if (!loaded_package_names_) {
     loaded_package_names_ = true;
-    const auto& package_list = context_->storage->package_list_table();
+    const auto& package_list =
+        context_->global_context->storage->package_list_table();
     for (auto row = package_list.IterateRows(); row; ++row) {
       package_names_.Insert(row.uid(), row.package_name());
     }
@@ -213,7 +232,8 @@ void NetworkTraceModule::ParseGenericEvent(
   // If the above fails, fall back to the uid.
   if (slice_name == kNullStringId) {
     base::StackString<32> title_str("uid=%" PRIu32, evt.uid());
-    slice_name = context_->storage->InternString(title_str.string_view());
+    slice_name = context_->global_context->storage->InternString(
+        title_str.string_view());
   }
 
   static constexpr auto kBlueprint = TrackCompressor::SliceBlueprint(
@@ -227,7 +247,7 @@ void NetworkTraceModule::ParseGenericEvent(
                                          direction.data());
           }));
 
-  TrackId track_id = context_->track_compressor->InternScoped(
+  TrackId track_id = context_->machine_context->track_compressor->InternScoped(
       kBlueprint, tracks::Dimensions(evt.network_interface(), direction), ts,
       dur);
 
@@ -239,7 +259,7 @@ void NetworkTraceModule::ParseGenericEvent(
   actual_row.packet_count = count;
   actual_row.socket_tag = evt.tag();
   actual_row.socket_uid = evt.uid();
-  actual_row.socket_tag_str = context_->storage->InternString(
+  actual_row.socket_tag_str = context_->global_context->storage->InternString(
       base::StackString<16>("0x%x", evt.tag()).string_view());
 
   if (evt.has_local_port()) {
@@ -256,10 +276,11 @@ void NetworkTraceModule::ParseGenericEvent(
   }
   if (evt.has_tcp_flags()) {
     actual_row.packet_tcp_flags = evt.tcp_flags();
-    actual_row.packet_tcp_flags_str = context_->storage->InternString(
-        GetTcpFlagMask(evt.tcp_flags()).string_view());
+    actual_row.packet_tcp_flags_str =
+        context_->global_context->storage->InternString(
+            GetTcpFlagMask(evt.tcp_flags()).string_view());
   }
-  std::optional<SliceId> id = context_->slice_tracker->Scoped(
+  std::optional<SliceId> id = context_->trace_context->slice_tracker->Scoped(
       ts, track_id, kNullStringId, slice_name, dur,
       [&](ArgsTracker::BoundInserter* i) {
         i->AddArg(net_arg_ip_proto_,
@@ -289,8 +310,8 @@ void NetworkTraceModule::ParseGenericEvent(
         i->AddArg(packet_count_, Variadic::Integer(count));
       });
   if (id) {
-    auto* network_packets =
-        context_->storage->mutable_android_network_packets_table();
+    auto* network_packets = context_->global_context->storage
+                                ->mutable_android_network_packets_table();
     actual_row.id = *id;
     network_packets->Insert(actual_row);
   }
@@ -307,7 +328,7 @@ StringId NetworkTraceModule::GetIpProto(NetworkPacketEvent::Decoder& evt) {
     case kIpprotoIcmpv6:
       return net_ipproto_icmpv6_;
     default:
-      return context_->storage->InternString(
+      return context_->global_context->storage->InternString(
           base::StackString<32>("IPPROTO (%u)", evt.ip_proto()).string_view());
   }
 }

@@ -35,7 +35,7 @@ namespace util {
 class ZipReader;
 }
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 class AndroidDumpstateReader;
 
 // Trace importer for Android bugreport.zip archives.

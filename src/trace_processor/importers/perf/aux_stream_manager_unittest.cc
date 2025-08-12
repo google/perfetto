@@ -33,7 +33,7 @@ namespace {
 
 std::unique_ptr<TraceProcessorContext> CreateTraceProcessorContext() {
   auto ctx = std::make_unique<TraceProcessorContext>();
-  ctx->storage = std::make_shared<TraceStorage>();
+  ctx->global_context->storage = std::make_shared<TraceStorage>();
   return ctx;
 }
 
@@ -104,23 +104,29 @@ TEST(AuxStreamManagerTest, ReconstructsStream) {
   ASSERT_TRUE(manager.OnAuxtraceInfoRecord(CreateAuxtraceInfoRecord()).ok());
 
   manager.OnAuxRecord(CreateAuxRecord(0, kSize, kCpu));
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_ignored].value, 0);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_ignored].value, 0);
 
   manager.OnAuxRecord(CreateAuxRecord(10, kSize, kCpu));
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_ignored].value, 0);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_ignored].value, 0);
 
   manager.OnAuxtraceRecord(CreateAuxtraceRecord(0, 2 * kSize, kCpu),
                            double_data.copy());
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_ignored].value, 20);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_ignored].value, 20);
 
   manager.OnAuxtraceRecord(CreateAuxtraceRecord(20, kSize, kCpu), data.copy());
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_ignored].value, 20);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_ignored].value, 20);
 
   manager.OnAuxtraceRecord(CreateAuxtraceRecord(30, kSize, kCpu), data.copy());
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_ignored].value, 20);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_ignored].value, 20);
 
   manager.OnAuxRecord(CreateAuxRecord(20, 2 * kSize, kCpu));
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_ignored].value, 40);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_ignored].value, 40);
 }
 
 TEST(AuxStreamManagerTest, AuxLoss) {
@@ -133,23 +139,38 @@ TEST(AuxStreamManagerTest, AuxLoss) {
   ASSERT_TRUE(manager.OnAuxtraceInfoRecord(CreateAuxtraceInfoRecord()).ok());
 
   manager.OnAuxRecord(CreateAuxRecord(10, kSize, kCpu));
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_missing].value, 10);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_auxtrace_missing].value, 0);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_ignored].value, 0);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_lost].value, 0);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_missing].value, 10);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_auxtrace_missing].value,
+      0);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_ignored].value, 0);
+  EXPECT_EQ(ctx->global_context->storage->stats()[stats::perf_aux_lost].value,
+            0);
 
   manager.OnAuxtraceRecord(CreateAuxtraceRecord(0, 3 * kSize, kCpu),
                            triple_data.copy());
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_missing].value, 10);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_auxtrace_missing].value, 0);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_ignored].value, 10);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_lost].value, 10);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_missing].value, 10);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_auxtrace_missing].value,
+      0);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_ignored].value, 10);
+  EXPECT_EQ(ctx->global_context->storage->stats()[stats::perf_aux_lost].value,
+            10);
 
   manager.FinalizeStreams();
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_missing].value, 20);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_auxtrace_missing].value, 0);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_ignored].value, 10);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_lost].value, 20);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_missing].value, 20);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_auxtrace_missing].value,
+      0);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_ignored].value, 10);
+  EXPECT_EQ(ctx->global_context->storage->stats()[stats::perf_aux_lost].value,
+            20);
 }
 
 TEST(AuxStreamManagerTest, AuxtraceLoss) {
@@ -161,22 +182,37 @@ TEST(AuxStreamManagerTest, AuxtraceLoss) {
   ASSERT_TRUE(manager.OnAuxtraceInfoRecord(CreateAuxtraceInfoRecord()).ok());
 
   manager.OnAuxtraceRecord(CreateAuxtraceRecord(10, kSize, kCpu), data.copy());
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_missing].value, 0);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_auxtrace_missing].value, 10);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_ignored].value, 0);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_lost].value, 0);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_missing].value, 0);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_auxtrace_missing].value,
+      10);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_ignored].value, 0);
+  EXPECT_EQ(ctx->global_context->storage->stats()[stats::perf_aux_lost].value,
+            0);
 
   manager.OnAuxRecord(CreateAuxRecord(0, 3 * kSize, kCpu));
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_missing].value, 0);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_auxtrace_missing].value, 10);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_ignored].value, 10);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_lost].value, 10);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_missing].value, 0);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_auxtrace_missing].value,
+      10);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_ignored].value, 10);
+  EXPECT_EQ(ctx->global_context->storage->stats()[stats::perf_aux_lost].value,
+            10);
 
   manager.FinalizeStreams();
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_missing].value, 0);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_auxtrace_missing].value, 20);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_ignored].value, 10);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_lost].value, 20);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_missing].value, 0);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_auxtrace_missing].value,
+      20);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_ignored].value, 10);
+  EXPECT_EQ(ctx->global_context->storage->stats()[stats::perf_aux_lost].value,
+            20);
 }
 
 TEST(AuxStreamManagerTest, ComplexStream) {
@@ -228,10 +264,15 @@ TEST(AuxStreamManagerTest, ComplexStream) {
 
   manager.FinalizeStreams();
 
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_missing].value, 15);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_auxtrace_missing].value, 25);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_ignored].value, 70);
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_lost].value, 35);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_missing].value, 15);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_auxtrace_missing].value,
+      25);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_ignored].value, 70);
+  EXPECT_EQ(ctx->global_context->storage->stats()[stats::perf_aux_lost].value,
+            35);
 }
 
 TEST(AuxStreamManagerTest, StreamOverlapFails) {
@@ -278,7 +319,8 @@ TEST(AuxStreamManagerTest, MultipleStreams) {
 
   manager.FinalizeStreams();
 
-  EXPECT_EQ(ctx->storage->stats()[stats::perf_aux_ignored].value, 20);
+  EXPECT_EQ(
+      ctx->global_context->storage->stats()[stats::perf_aux_ignored].value, 20);
 }
 
 }  // namespace

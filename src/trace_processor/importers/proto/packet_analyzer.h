@@ -37,9 +37,10 @@ class PacketAnalyzer : public Destructible {
   ~PacketAnalyzer() override;
 
   static PacketAnalyzer* Get(TraceProcessorContext* context) {
-    if (!context->content_analyzer)
+    if (!context->trace_context->content_analyzer)
       return nullptr;
-    return static_cast<PacketAnalyzer*>(context->content_analyzer.get());
+    return static_cast<PacketAnalyzer*>(
+        context->trace_context->content_analyzer.get());
   }
 
   virtual void ProcessPacket(const TraceBlobView& packet,

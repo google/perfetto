@@ -65,8 +65,10 @@ base::Status ZipTraceReader::NotifyEndOfFile() {
   std::map<ArchiveEntry, File> ordered_files;
   for (size_t i = 0; i < files.size(); ++i) {
     util::ZipFile& zip_file = files[i];
-    auto id = context_->trace_file_tracker->AddFile(zip_file.name());
-    context_->trace_file_tracker->SetSize(id, zip_file.compressed_size());
+    auto id =
+        context_->trace_context->trace_file_tracker->AddFile(zip_file.name());
+    context_->trace_context->trace_file_tracker->SetSize(
+        id, zip_file.compressed_size());
     RETURN_IF_ERROR(files[i].Decompress(&buffer));
     TraceBlobView data(TraceBlob::CopyFrom(buffer.data(), buffer.size()));
     ArchiveEntry entry{zip_file.name(), i,

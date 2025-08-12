@@ -33,16 +33,20 @@ PerfTextTraceParser::PerfTextTraceParser(TraceProcessorContext* context)
 PerfTextTraceParser::~PerfTextTraceParser() = default;
 
 void PerfTextTraceParser::Parse(int64_t ts, PerfTextEvent evt) {
-  auto* ss = context_->storage->mutable_cpu_profile_stack_sample_table();
+  auto* ss = context_->global_context->storage
+                 ->mutable_cpu_profile_stack_sample_table();
   tables::CpuProfileStackSampleTable::Row row;
   row.ts = ts;
   row.callsite_id = evt.callsite_id;
-  row.utid = evt.pid
-                 ? context_->process_tracker->UpdateThread(evt.tid, *evt.pid)
-                 : context_->process_tracker->GetOrCreateThread(evt.tid);
+  row.utid =
+      evt.pid ? context_->machine_context->process_tracker->UpdateThread(
+                    evt.tid, *evt.pid)
+              : context_->machine_context->process_tracker->GetOrCreateThread(
+                    evt.tid);
   if (evt.comm) {
-    context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
-        evt.tid, *evt.comm, ThreadNamePriority::kOther);
+    context_->machine_context->process_tracker
+        ->UpdateThreadNameAndMaybeProcessName(evt.tid, *evt.comm,
+                                              ThreadNamePriority::kOther);
   }
   ss->Insert(row);
 }

@@ -44,14 +44,14 @@ MATCHER_P(IsOkAndHolds, matcher, "") {
 
 TEST(PerfSessionTest, NoAttrBuildFails) {
   TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
+  context.global_context->storage.reset(new TraceStorage());
   PerfSession::Builder builder(&context);
   EXPECT_FALSE(builder.Build().ok());
 }
 
 TEST(PerfSessionTest, OneAttrAndNoIdBuildSucceeds) {
   TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
+  context.global_context->storage.reset(new TraceStorage());
   PerfSession::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = false;
@@ -68,7 +68,7 @@ TEST(PerfSessionTest, OneAttrAndNoIdBuildSucceeds) {
 
 TEST(PerfSessionTest, MultipleAttrsAndNoIdBuildFails) {
   TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
+  context.global_context->storage.reset(new TraceStorage());
   PerfSession::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
@@ -80,7 +80,7 @@ TEST(PerfSessionTest, MultipleAttrsAndNoIdBuildFails) {
 
 TEST(PerfSessionTest, MultipleIdsSameAttrAndNoIdCanExtractAttrFromRecord) {
   TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
+  context.global_context->storage.reset(new TraceStorage());
   PerfSession::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
@@ -106,7 +106,7 @@ TEST(PerfSessionTest, MultipleIdsSameAttrAndNoIdCanExtractAttrFromRecord) {
 
 TEST(PerfSessionTest, NoCommonSampleIdAllBuildFails) {
   TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
+  context.global_context->storage.reset(new TraceStorage());
   PerfSession::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
@@ -124,7 +124,7 @@ TEST(PerfSessionTest, NoCommonSampleIdAllBuildFails) {
 
 TEST(PerfSessionTest, NoCommonOffsetForSampleBuildFails) {
   TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
+  context.global_context->storage.reset(new TraceStorage());
   PerfSession::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
@@ -137,7 +137,7 @@ TEST(PerfSessionTest, NoCommonOffsetForSampleBuildFails) {
 
 TEST(PerfSessionTest, NoCommonOffsetForNonSampleBuildFails) {
   TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
+  context.global_context->storage.reset(new TraceStorage());
   PerfSession::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
@@ -155,7 +155,7 @@ TEST(PerfSessionTest, NoCommonOffsetForNonSampleBuildFails) {
 
 TEST(PerfSessionTest, NoCommonOffsetForNonSampleAndNoSampleIdAllBuildSucceeds) {
   TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
+  context.global_context->storage.reset(new TraceStorage());
   PerfSession::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = false;
@@ -168,7 +168,7 @@ TEST(PerfSessionTest, NoCommonOffsetForNonSampleAndNoSampleIdAllBuildSucceeds) {
 
 TEST(PerfSessionTest, MultiplesessionBuildSucceeds) {
   TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
+  context.global_context->storage.reset(new TraceStorage());
   PerfSession::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
@@ -180,7 +180,7 @@ TEST(PerfSessionTest, MultiplesessionBuildSucceeds) {
 
 TEST(PerfSessionTest, FindAttrInRecordWithId) {
   TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
+  context.global_context->storage.reset(new TraceStorage());
   PerfSession::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
@@ -217,7 +217,7 @@ TEST(PerfSessionTest, FindAttrInRecordWithId) {
 
 TEST(PerfSessionTest, FindAttrInRecordWithIdentifier) {
   TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
+  context.global_context->storage.reset(new TraceStorage());
   PerfSession::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;

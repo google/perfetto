@@ -26,7 +26,7 @@ namespace perfetto::trace_processor {
 
 class AndroidProbesTracker;
 class ArgsTracker;
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 class AndroidProbesParser {
  public:

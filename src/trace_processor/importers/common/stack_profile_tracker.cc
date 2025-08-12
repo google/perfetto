@@ -47,32 +47,39 @@ CallsiteId StackProfileTracker::InternCallsite(
   }
 
   CallsiteId callsite_id =
-      context_->storage->mutable_stack_profile_callsite_table()->Insert(row).id;
+      context_->global_context->storage->mutable_stack_profile_callsite_table()
+          ->Insert(row)
+          .id;
   callsite_unique_row_index_.Insert(row, callsite_id);
   return callsite_id;
 }
 
 void StackProfileTracker::OnFrameCreated(FrameId frame_id) {
   auto frame =
-      *context_->storage->stack_profile_frame_table().FindById(frame_id);
+      *context_->global_context->storage->stack_profile_frame_table().FindById(
+          frame_id);
   const MappingId mapping_id = frame.mapping();
   const StringId name_id = frame.name();
-  const auto function_name = context_->storage->GetString(name_id);
+  const auto function_name =
+      context_->global_context->storage->GetString(name_id);
 
   if (function_name.find('.') != base::StringView::npos) {
     // Java frames always contain a '.'
-    base::StringView mapping_name = context_->storage->GetString(
-        context_->storage->stack_profile_mapping_table()
-            .FindById(mapping_id)
-            ->name());
-    std::optional<std::string> package =
-        PackageFromLocation(context_->storage.get(), mapping_name);
+    base::StringView mapping_name =
+        context_->global_context->storage->GetString(
+            context_->global_context->storage->stack_profile_mapping_table()
+                .FindById(mapping_id)
+                ->name());
+    std::optional<std::string> package = PackageFromLocation(
+        context_->global_context->storage.get(), mapping_name);
     if (package) {
-      NameInPackage nip{
-          name_id, context_->storage->InternString(base::StringView(*package))};
+      NameInPackage nip{name_id,
+                        context_->global_context->storage->InternString(
+                            base::StringView(*package))};
       java_frames_for_name_[nip].insert(frame_id);
     } else if (mapping_name.find("/memfd:") == 0) {
-      NameInPackage nip{name_id, context_->storage->InternString("memfd")};
+      NameInPackage nip{
+          name_id, context_->global_context->storage->InternString("memfd")};
       java_frames_for_name_[nip].insert(frame_id);
     } else {
       java_frames_with_unknown_packages_.insert(frame_id);
@@ -83,7 +90,8 @@ void StackProfileTracker::OnFrameCreated(FrameId frame_id) {
 void StackProfileTracker::SetPackageForFrame(StringId package,
                                              FrameId frame_id) {
   auto frame =
-      context_->storage->stack_profile_frame_table().FindById(frame_id);
+      context_->global_context->storage->stack_profile_frame_table().FindById(
+          frame_id);
   PERFETTO_CHECK(frame.has_value());
   NameInPackage nip{frame->name(), package};
   java_frames_for_name_[nip].insert(frame_id);

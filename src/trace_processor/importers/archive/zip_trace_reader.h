@@ -30,7 +30,7 @@
 namespace perfetto::trace_processor {
 
 class ForwardingTraceParser;
-class TraceProcessorContext;
+struct TraceProcessorContext;
 class AndroidBugreportReader;
 
 // Forwards files contained in a ZIP to the appropriate ChunkedTraceReader. It

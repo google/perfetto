@@ -24,7 +24,7 @@
 
 namespace perfetto ::trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 class AndroidLogEventParser
     : public TraceSorter::Sink<AndroidLogEvent, AndroidLogEventParser> {

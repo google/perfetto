@@ -56,7 +56,9 @@ base::StatusOr<RefPtr<PerfSession>> PerfSession::Builder::Build() {
   }
 
   auto perf_session_id =
-      context_->storage->mutable_perf_session_table()->Insert({}).id;
+      context_->global_context->storage->mutable_perf_session_table()
+          ->Insert({})
+          .id;
 
   RefPtr<PerfEventAttr> first_attr;
   base::FlatHashMap<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id;
@@ -187,9 +189,9 @@ std::optional<BuildId> PerfSession::LookupBuildId(
 }
 
 void PerfSession::SetCmdline(const std::vector<std::string>& args) {
-  context_->storage->mutable_perf_session_table()
+  context_->global_context->storage->mutable_perf_session_table()
       ->FindById(perf_session_id_)
-      ->set_cmdline(context_->storage->InternString(
+      ->set_cmdline(context_->global_context->storage->InternString(
           base::StringView(base::Join(args, " "))));
 }
 

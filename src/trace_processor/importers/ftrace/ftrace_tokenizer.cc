@@ -119,7 +119,8 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
 
   if (PERFETTO_UNLIKELY(!decoder.has_cpu())) {
     PERFETTO_ELOG("CPU field not found in FtraceEventBundle");
-    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::ftrace_bundle_tokenizer_errors);
     return base::OkStatus();
   }
 
@@ -135,8 +136,8 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
   if (PERFETTO_UNLIKELY(decoder.lost_events())) {
     // If set, it means that the kernel overwrote an unspecified number of
     // events since our last read from the per-cpu buffer.
-    context_->storage->SetIndexedStats(stats::ftrace_cpu_has_data_loss,
-                                       static_cast<int>(cpu), 1);
+    context_->global_context->storage->SetIndexedStats(
+        stats::ftrace_cpu_has_data_loss, static_cast<int>(cpu), 1);
   }
 
   // Deal with ftrace recorded using a clock that isn't our preferred default
@@ -187,16 +188,17 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
                             ? decoder.previous_bundle_end_timestamp()
                             : decoder.last_read_event_timestamp();
       int64_t timestamp = 0;
-      ASSIGN_OR_RETURN(timestamp, context_->clock_tracker->ToTraceTime(
-                                      clock_id, static_cast<int64_t>(raw_ts)));
+      ASSIGN_OR_RETURN(timestamp,
+                       context_->global_context->clock_tracker->ToTraceTime(
+                           clock_id, static_cast<int64_t>(raw_ts)));
 
       std::optional<SqlValue> curr_latest_timestamp =
-          context_->metadata_tracker->GetMetadata(
+          context_->global_context->metadata_tracker->GetMetadata(
               metadata::ftrace_latest_data_start_ns);
 
       if (!curr_latest_timestamp.has_value() ||
           timestamp > curr_latest_timestamp->AsLong()) {
-        context_->metadata_tracker->SetMetadata(
+        context_->global_context->metadata_tracker->SetMetadata(
             metadata::ftrace_latest_data_start_ns,
             Variadic::Integer(timestamp));
       }
@@ -244,7 +246,8 @@ void FtraceTokenizer::TokenizeFtraceEvent(
       raw_timestamp = ts_field.as_uint64();
     }
     if (PERFETTO_UNLIKELY(!timestamp_found)) {
-      context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+      context_->global_context->storage->IncrementStats(
+          stats::ftrace_bundle_tokenizer_errors);
       return;
     }
   }
@@ -261,7 +264,8 @@ void FtraceTokenizer::TokenizeFtraceEvent(
       }
     }
     if (PERFETTO_UNLIKELY(event_id == 0)) {
-      context_->storage->IncrementStats(stats::ftrace_missing_event_id);
+      context_->global_context->storage->IncrementStats(
+          stats::ftrace_missing_event_id);
       return;
     }
   }
@@ -285,7 +289,7 @@ void FtraceTokenizer::TokenizeFtraceEvent(
     return;
   }
 
-  auto timestamp = context_->clock_tracker->ToTraceTime(
+  auto timestamp = context_->global_context->clock_tracker->ToTraceTime(
       clock_id, static_cast<int64_t>(raw_timestamp));
   // ClockTracker will increment some error stats if it failed to convert the
   // timestamp so just return.
@@ -307,7 +311,7 @@ void FtraceTokenizer::TokenizeFtraceCompactSched(uint32_t cpu,
   std::vector<StringId> string_table;
   string_table.reserve(512);
   for (auto it = compact_sched.intern_table(); it; it++) {
-    StringId value = context_->storage->InternString(*it);
+    StringId value = context_->global_context->storage->InternString(*it);
     string_table.push_back(value);
   }
 
@@ -351,8 +355,8 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedSwitch(
     event.next_pid = *npid_it;
     event.next_prio = *nprio_it;
 
-    auto timestamp =
-        context_->clock_tracker->ToTraceTime(clock_id, event_timestamp);
+    auto timestamp = context_->global_context->clock_tracker->ToTraceTime(
+        clock_id, event_timestamp);
     if (!timestamp.ok()) {
       DlogWithLimit(timestamp.status());
       return;
@@ -364,7 +368,8 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedSwitch(
   bool sizes_match =
       !timestamp_it && !pstate_it && !npid_it && !nprio_it && !comm_it;
   if (parse_error || !sizes_match)
-    context_->storage->IncrementStats(stats::compact_sched_has_parse_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::compact_sched_has_parse_errors);
 }
 
 void FtraceTokenizer::TokenizeFtraceCompactSchedWaking(
@@ -410,8 +415,8 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedWaking(
       common_flags_it++;
     }
 
-    auto timestamp =
-        context_->clock_tracker->ToTraceTime(clock_id, event_timestamp);
+    auto timestamp = context_->global_context->clock_tracker->ToTraceTime(
+        clock_id, event_timestamp);
     if (!timestamp.ok()) {
       DlogWithLimit(timestamp.status());
       return;
@@ -423,7 +428,8 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedWaking(
   bool sizes_match =
       !timestamp_it && !pid_it && !tcpu_it && !prio_it && !comm_it;
   if (parse_error || !sizes_match)
-    context_->storage->IncrementStats(stats::compact_sched_has_parse_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::compact_sched_has_parse_errors);
 }
 
 base::StatusOr<ClockTracker::ClockId>
@@ -465,7 +471,7 @@ FtraceTokenizer::HandleFtraceClockSnapshot(
       latest_ftrace_clock_snapshot_ts_ != decoder.ftrace_timestamp()) {
     PERFETTO_DCHECK(clock_id != BuiltinClock::BUILTIN_CLOCK_BOOTTIME);
     int64_t ftrace_timestamp = decoder.ftrace_timestamp();
-    context_->clock_tracker->AddSnapshot(
+    context_->global_context->clock_tracker->AddSnapshot(
         {ClockTracker::ClockTimestamp(clock_id, ftrace_timestamp),
          ClockTracker::ClockTimestamp(BuiltinClock::BUILTIN_CLOCK_BOOTTIME,
                                       decoder.boot_timestamp())});
@@ -488,14 +494,15 @@ void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(
   protos::pbzero::GpuWorkPeriodFtraceEvent::Decoder gpu_work_event(
       ts_field.value().data(), ts_field.value().size());
   if (!gpu_work_event.has_start_time_ns()) {
-    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::ftrace_bundle_tokenizer_errors);
     return;
   }
   uint64_t raw_timestamp = gpu_work_event.start_time_ns();
 
   // Enforce clock type for the event data to be CLOCK_MONOTONIC_RAW
   // as specified, to calculate the timestamp correctly.
-  auto timestamp = context_->clock_tracker->ToTraceTime(
+  auto timestamp = context_->global_context->clock_tracker->ToTraceTime(
       BuiltinClock::BUILTIN_CLOCK_MONOTONIC_RAW,
       static_cast<int64_t>(raw_timestamp));
 
@@ -524,7 +531,8 @@ void FtraceTokenizer::TokenizeFtraceThermalExynosAcpmBulk(
       thermal_exynos_acpm_bulk_event(ts_field.value().data(),
                                      ts_field.value().size());
   if (!thermal_exynos_acpm_bulk_event.has_timestamp()) {
-    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::ftrace_bundle_tokenizer_errors);
     return;
   }
   auto timestamp =
@@ -548,7 +556,8 @@ void FtraceTokenizer::TokenizeFtraceParamSetValueCpm(
       param_set_value_cpm_event(ts_field.value().data(),
                                 ts_field.value().size());
   if (!param_set_value_cpm_event.has_timestamp()) {
-    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::ftrace_bundle_tokenizer_errors);
     return;
   }
   int64_t timestamp = param_set_value_cpm_event.timestamp();
@@ -566,7 +575,8 @@ std::optional<protozero::Field> FtraceTokenizer::GetFtraceEventField(
   ProtoDecoder decoder(data, length);
   auto ts_field = decoder.FindField(event_id);
   if (!ts_field.valid()) {
-    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::ftrace_bundle_tokenizer_errors);
     return std::nullopt;
   }
   return ts_field;

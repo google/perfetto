@@ -29,7 +29,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 class VirtualMemoryMapping;
 
 class StackProfileSequenceState final

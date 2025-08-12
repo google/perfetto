@@ -31,7 +31,7 @@
 
 namespace perfetto::trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 // Dynamic table generator for "flat slice" table.
 //

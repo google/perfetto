@@ -149,7 +149,7 @@ class InstrumentsXmlTokenizer::Impl {
   explicit Impl(TraceProcessorContext* context)
       : context_(context),
         data_(),
-        stream_(context->sorter->CreateStream(
+        stream_(context->global_context->sorter->CreateStream(
             std::make_unique<RowParser>(context, data_))) {
     parser_ = XML_ParserCreate(nullptr);
     XML_SetElementHandler(parser_, ElementStart, ElementEnd);
@@ -163,7 +163,7 @@ class InstrumentsXmlTokenizer::Impl {
 
     // Use the above clock if we can, in case there is no other trace and
     // no clock sync events.
-    context_->clock_tracker->SetTraceTimeClock(clock_);
+    context_->global_context->clock_tracker->SetTraceTimeClock(clock_);
   }
   ~Impl() { XML_ParserFree(parser_); }
 
@@ -392,7 +392,7 @@ class InstrumentsXmlTokenizer::Impl {
                           current_row_.timestamp_);
           } else {
             latest_clock_sync_timestamp_ = clock_sync_timestamp;
-            auto status = context_->clock_tracker->AddSnapshot(
+            auto status = context_->global_context->clock_tracker->AddSnapshot(
                 {{clock_, current_row_.timestamp_},
                  {protos::pbzero::ClockSnapshot::Clock::BOOTTIME,
                   static_cast<int64_t>(latest_clock_sync_timestamp_)}});
@@ -454,7 +454,7 @@ class InstrumentsXmlTokenizer::Impl {
 
   base::StatusOr<int64_t> ToTraceTimestamp(int64_t time) {
     base::StatusOr<int64_t> trace_ts =
-        context_->clock_tracker->ToTraceTime(clock_, time);
+        context_->global_context->clock_tracker->ToTraceTime(clock_, time);
 
     if (PERFETTO_LIKELY(trace_ts.ok())) {
       latest_timestamp_ = std::max(latest_timestamp_, *trace_ts);
@@ -464,7 +464,7 @@ class InstrumentsXmlTokenizer::Impl {
   }
 
   StringId InternString(base::StringView string_view) {
-    return context_->storage->InternString(string_view);
+    return context_->global_context->storage->InternString(string_view);
   }
   StringId InternString(const char* string) {
     return InternString(base::StringView(string));

@@ -41,7 +41,7 @@
 
 namespace perfetto::trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 // Builds a |perftools.profiles.Profile| proto.
 class GProfileBuilder {

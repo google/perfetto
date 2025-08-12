@@ -56,7 +56,7 @@ tables::MmapRecordTable::ConstRowReference AddMapping(
 
 TEST(VirtualAddressSpaceTest, Empty) {
   TraceProcessorContext context;
-  context.storage = std::make_shared<TraceStorage>();
+  context.global_context->storage = std::make_shared<TraceStorage>();
   VirtualAddressSpace vs = VirtualAddressSpace::Builder(&context).Build();
 
   EXPECT_THAT(vs.FindMapping(0, 5), IsNull());
@@ -64,13 +64,13 @@ TEST(VirtualAddressSpaceTest, Empty) {
 
 TEST(VirtualAddressSpaceTest, DisjointRanges) {
   TraceProcessorContext context;
-  context.storage = std::make_shared<TraceStorage>();
+  context.global_context->storage = std::make_shared<TraceStorage>();
   auto builder = VirtualAddressSpace::Builder(&context);
   const UniquePid upid = 123;
 
-  auto m_1 = AddMapping(*context.storage, 10, upid, 10, 100);
+  auto m_1 = AddMapping(*context.global_context->storage, 10, upid, 10, 100);
   builder.AddMapping(m_1);
-  auto m_2 = AddMapping(*context.storage, 10, upid, 200, 300);
+  auto m_2 = AddMapping(*context.global_context->storage, 10, upid, 200, 300);
   builder.AddMapping(m_2);
   VirtualAddressSpace vs = std::move(builder).Build();
 
@@ -87,17 +87,17 @@ TEST(VirtualAddressSpaceTest, DisjointRanges) {
 
 TEST(VirtualAddressSpaceTest, ComplexLayout) {
   TraceProcessorContext context;
-  context.storage = std::make_shared<TraceStorage>();
+  context.global_context->storage = std::make_shared<TraceStorage>();
   auto builder = VirtualAddressSpace::Builder(&context);
   const UniquePid upid = 123;
 
-  auto m_1 = AddMapping(*context.storage, 10, upid, 10, 100);
+  auto m_1 = AddMapping(*context.global_context->storage, 10, upid, 10, 100);
   builder.AddMapping(m_1);
-  auto m_2 = AddMapping(*context.storage, 20, upid, 20, 80);
+  auto m_2 = AddMapping(*context.global_context->storage, 20, upid, 20, 80);
   builder.AddMapping(m_2);
-  auto m_3 = AddMapping(*context.storage, 30, upid, 5, 50);
+  auto m_3 = AddMapping(*context.global_context->storage, 30, upid, 5, 50);
   builder.AddMapping(m_3);
-  auto m_4 = AddMapping(*context.storage, 40, upid, 70, 200);
+  auto m_4 = AddMapping(*context.global_context->storage, 40, upid, 70, 200);
   builder.AddMapping(m_4);
   VirtualAddressSpace vs = std::move(builder).Build();
   //  T  ^

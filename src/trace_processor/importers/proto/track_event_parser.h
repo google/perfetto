@@ -42,7 +42,7 @@ static constexpr uint16_t kReflectFields[] = {
     24, 25, 26, 27, 28, 29, 32, 33, 34, 35, 38, 39, 40, 41, 43, 49, 50};
 
 class PacketSequenceStateGeneration;
-class TraceProcessorContext;
+struct TraceProcessorContext;
 class TrackEventTracker;
 class TrackEventEventImporter;
 

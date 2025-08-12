@@ -42,11 +42,12 @@ class FtraceSchedEventTracker : public Destructible {
   FtraceSchedEventTracker& operator=(const FtraceSchedEventTracker&) = delete;
 
   static FtraceSchedEventTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->ftrace_sched_tracker) {
-      context->ftrace_sched_tracker.reset(new FtraceSchedEventTracker(context));
+    if (!context->machine_context->ftrace_sched_tracker) {
+      context->machine_context->ftrace_sched_tracker.reset(
+          new FtraceSchedEventTracker(context));
     }
     return static_cast<FtraceSchedEventTracker*>(
-        context->ftrace_sched_tracker.get());
+        context->machine_context->ftrace_sched_tracker.get());
   }
 
   // This method is called when a sched_switch event is seen in the trace.

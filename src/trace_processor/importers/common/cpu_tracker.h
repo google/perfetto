@@ -30,7 +30,7 @@
 
 namespace perfetto::trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 class CpuTracker {
  public:
@@ -53,7 +53,7 @@ class CpuTracker {
     cpu_ids_.set(cpu);
 
     // Populate the optional |cpu| column.
-    auto& cpu_table = *context_->storage->mutable_cpu_table();
+    auto& cpu_table = *context_->global_context->storage->mutable_cpu_table();
     cpu_table[ucpu].set_cpu(cpu);
     return tables::CpuTable::Id(ucpu);
   }
@@ -64,7 +64,7 @@ class CpuTracker {
       return;
     }
     auto ucpu = ucpu_offset_ + cpu;
-    auto& cpu_table = *context_->storage->mutable_cpu_table();
+    auto& cpu_table = *context_->global_context->storage->mutable_cpu_table();
     cpu_table[ucpu].set_cpu(cpu);
   }
 

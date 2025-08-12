@@ -60,12 +60,12 @@ void IostatTracker::ParseF2fsIostat(int64_t timestamp,
           }));
 
   auto push_counter = [&, this](const char* counter_name, uint64_t value) {
-    TrackId track = context_->track_tracker->InternTrack(
+    TrackId track = context_->machine_context->track_tracker->InternTrack(
         kBlueprint,
         tracks::DimensionBlueprints(
             base::StringView(GetRawDeviceName(evt.dev())), counter_name));
-    context_->event_tracker->PushCounter(timestamp, static_cast<double>(value),
-                                         track);
+    context_->trace_context->event_tracker->PushCounter(
+        timestamp, static_cast<double>(value), track);
   };
   push_counter("write_app_total", evt.app_wio());
   push_counter("write_app_direct", evt.app_dio());
@@ -108,12 +108,12 @@ void IostatTracker::ParseF2fsIostatLatency(int64_t timestamp,
           }));
 
   auto push_counter = [&, this](const char* counter_name, uint64_t value) {
-    TrackId track = context_->track_tracker->InternTrack(
+    TrackId track = context_->machine_context->track_tracker->InternTrack(
         kBlueprint,
         tracks::DimensionBlueprints(
             base::StringView(GetRawDeviceName(evt.dev())), counter_name));
-    context_->event_tracker->PushCounter(timestamp, static_cast<double>(value),
-                                         track);
+    context_->trace_context->event_tracker->PushCounter(
+        timestamp, static_cast<double>(value), track);
   };
   push_counter("read_data_peak", evt.d_rd_peak());
   push_counter("read_data_avg", evt.d_rd_avg());

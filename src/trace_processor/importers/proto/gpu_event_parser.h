@@ -44,7 +44,7 @@ class GpuRenderStageEvent_Decoder;
 
 namespace trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 struct ProtoEnumHasher {
   template <typename T>

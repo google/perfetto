@@ -15,5 +15,30 @@
  */
 
 #include "src/trace_processor/types/per_machine_context.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/sched_event_tracker.h"
+#include "src/trace_processor/importers/common/track_compressor.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto::trace_processor {}  // namespace perfetto::trace_processor
+namespace perfetto::trace_processor {
+
+void PerMachineContext::Init(TraceProcessorContext* context,
+                             uint32_t raw_machine_id) {
+  machine_tracker = std::make_unique<MachineTracker>(context, raw_machine_id);
+  cpu_tracker = std::make_unique<CpuTracker>(context);
+  mapping_tracker = std::make_unique<MappingTracker>(context);
+  process_tracker = std::make_unique<ProcessTracker>(context);
+  track_tracker = std::make_unique<TrackTracker>(context);
+  sched_event_tracker = std::make_unique<SchedEventTracker>(context);
+  track_compressor = std::make_unique<TrackCompressor>(context);
+}
+
+std::optional<MachineId> PerMachineContext::machine_id() const {
+  return machine_tracker->machine_id();
+}
+
+}  // namespace perfetto::trace_processor

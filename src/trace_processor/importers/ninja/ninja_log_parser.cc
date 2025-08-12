@@ -95,7 +95,7 @@ base::Status NinjaLogParser::Parse(TraceBlobView blob) {
     auto cmdhash = base::CStringToUInt64(tok.Next() ? tok.cur_token() : "", 16);
 
     if (!t_start || !t_end || !name || !cmdhash) {
-      ctx_->storage->IncrementStats(stats::ninja_parse_errors);
+      ctx_->global_context->storage->IncrementStats(stats::ninja_parse_errors);
       continue;
     }
 
@@ -161,17 +161,20 @@ base::Status NinjaLogParser::NotifyEndOfFile() {
 
       // All workers are busy, allocate a new one.
       uint32_t worker_id = static_cast<uint32_t>(workers.size()) + 1;
-      ctx_->process_tracker->SetProcessNameIfUnset(
-          ctx_->process_tracker->GetOrCreateProcess(kSyntheticNinjaPid),
-          ctx_->storage->InternString("Build"));
-      auto utid =
-          ctx_->process_tracker->UpdateThread(worker_id, kSyntheticNinjaPid);
+      ctx_->machine_context->process_tracker->SetProcessNameIfUnset(
+          ctx_->machine_context->process_tracker->GetOrCreateProcess(
+              kSyntheticNinjaPid),
+          ctx_->global_context->storage->InternString("Build"));
+      auto utid = ctx_->machine_context->process_tracker->UpdateThread(
+          worker_id, kSyntheticNinjaPid);
 
       base::StackString<32> name("Worker");
-      StringId name_id = ctx_->storage->InternString(name.string_view());
-      ctx_->process_tracker->UpdateThreadName(utid, name_id,
-                                              ThreadNamePriority::kOther);
-      TrackId track_id = ctx_->track_tracker->InternThreadTrack(utid);
+      StringId name_id =
+          ctx_->global_context->storage->InternString(name.string_view());
+      ctx_->machine_context->process_tracker->UpdateThreadName(
+          utid, name_id, ThreadNamePriority::kOther);
+      TrackId track_id =
+          ctx_->machine_context->track_tracker->InternThreadTrack(utid);
       workers.emplace_back(Worker{/*busy_until=*/job.end_ms, track_id});
       worker = &workers.back();
     }
@@ -179,9 +182,10 @@ base::Status NinjaLogParser::NotifyEndOfFile() {
     static constexpr int64_t kMsToNs = 1000ul * 1000;
     const int64_t start_ns = job.start_ms * kMsToNs;
     const int64_t dur_ns = (job.end_ms - job.start_ms) * kMsToNs;
-    StringId name_id = ctx_->storage->InternString(base::StringView(job.names));
-    ctx_->slice_tracker->Scoped(start_ns, worker->track_id, StringId::Null(),
-                                name_id, dur_ns);
+    StringId name_id = ctx_->global_context->storage->InternString(
+        base::StringView(job.names));
+    ctx_->trace_context->slice_tracker->Scoped(
+        start_ns, worker->track_id, StringId::Null(), name_id, dur_ns);
   }
   return base::OkStatus();
 }

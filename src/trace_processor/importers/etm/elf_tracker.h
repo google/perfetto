@@ -31,10 +31,11 @@ namespace perfetto::trace_processor::etm {
 class ElfTracker : public Destructible {
  public:
   static ElfTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->elf_tracker) {
-      context->elf_tracker.reset(new ElfTracker(context));
+    if (!context->machine_context->elf_tracker) {
+      context->machine_context->elf_tracker.reset(new ElfTracker(context));
     }
-    return static_cast<ElfTracker*>(context->elf_tracker.get());
+    return static_cast<ElfTracker*>(
+        context->machine_context->elf_tracker.get());
   }
 
   ~ElfTracker() override;

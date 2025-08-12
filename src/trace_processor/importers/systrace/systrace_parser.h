@@ -285,10 +285,12 @@ inline bool operator==(const SystraceTracePoint& x,
 class SystraceParser : public Destructible {
  public:
   static SystraceParser* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->systrace_parser) {
-      context->systrace_parser.reset(new SystraceParser(context));
+    if (!context->trace_context->systrace_parser) {
+      context->trace_context->systrace_parser.reset(
+          new SystraceParser(context));
     }
-    return static_cast<SystraceParser*>(context->systrace_parser.get());
+    return static_cast<SystraceParser*>(
+        context->trace_context->systrace_parser.get());
   }
   ~SystraceParser() override;
 

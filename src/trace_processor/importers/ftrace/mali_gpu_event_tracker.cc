@@ -55,17 +55,17 @@ constexpr auto kMcuStateBlueprint = tracks::SliceBlueprint("mali_mcu_state");
 MaliGpuEventTracker::MaliGpuEventTracker(TraceProcessorContext* context)
     : context_(context),
       mali_KCPU_CQS_SET_id_(
-          context->storage->InternString("mali_KCPU_CQS_SET")),
+          context->global_context->storage->InternString("mali_KCPU_CQS_SET")),
       mali_KCPU_CQS_WAIT_id_(
-          context->storage->InternString("mali_KCPU_CQS_WAIT")),
-      mali_KCPU_FENCE_SIGNAL_id_(
-          context->storage->InternString("mali_KCPU_FENCE_SIGNAL")),
-      mali_KCPU_FENCE_WAIT_id_(
-          context->storage->InternString("mali_KCPU_FENCE_WAIT")),
+          context->global_context->storage->InternString("mali_KCPU_CQS_WAIT")),
+      mali_KCPU_FENCE_SIGNAL_id_(context->global_context->storage->InternString(
+          "mali_KCPU_FENCE_SIGNAL")),
+      mali_KCPU_FENCE_WAIT_id_(context->global_context->storage->InternString(
+          "mali_KCPU_FENCE_WAIT")),
       mali_CSF_INTERRUPT_id_(
-          context->storage->InternString("mali_CSF_INTERRUPT")),
+          context->global_context->storage->InternString("mali_CSF_INTERRUPT")),
       mali_CSF_INTERRUPT_info_val_id_(
-          context->storage->InternString("info_val")),
+          context->global_context->storage->InternString("info_val")),
       current_mcu_state_name_(kNullStringId) {
   using protos::pbzero::FtraceEvent;
 
@@ -119,7 +119,7 @@ template <uint32_t FieldId>
 void MaliGpuEventTracker::RegisterMcuState(const char* state_name) {
   static_assert(FieldId >= kFirstMcuStateId && FieldId <= kLastMcuStateId);
   mcu_state_names_[FieldId - kFirstMcuStateId] =
-      context_->storage->InternString(state_name);
+      context_->global_context->storage->InternString(state_name);
 }
 
 void MaliGpuEventTracker::ParseMaliGpuIrqEvent(int64_t ts,
@@ -129,7 +129,7 @@ void MaliGpuEventTracker::ParseMaliGpuIrqEvent(int64_t ts,
   // Since these events are called from an interrupt context they cannot be
   // associated to a single process or thread. Add to a custom Mali Irq track
   // instead.
-  TrackId track_id = context_->track_tracker->InternTrack(
+  TrackId track_id = context_->machine_context->track_tracker->InternTrack(
       kMaliIrqBlueprint, tracks::Dimensions(cpu));
 
   switch (field_id) {
@@ -155,18 +155,20 @@ void MaliGpuEventTracker::ParseMaliGpuMcuStateEvent(int64_t timestamp,
 
   StringId state_name = mcu_state_names_[field_id - kFirstMcuStateId];
   if (state_name == kNullStringId) {
-    context_->storage->IncrementStats(stats::mali_unknown_mcu_state_id);
+    context_->global_context->storage->IncrementStats(
+        stats::mali_unknown_mcu_state_id);
     return;
   }
 
-  TrackId track_id = context_->track_tracker->InternTrack(kMcuStateBlueprint);
+  TrackId track_id =
+      context_->machine_context->track_tracker->InternTrack(kMcuStateBlueprint);
   if (current_mcu_state_name_ != kNullStringId) {
-    context_->slice_tracker->End(timestamp, track_id, kNullStringId,
-                                 current_mcu_state_name_);
+    context_->trace_context->slice_tracker->End(
+        timestamp, track_id, kNullStringId, current_mcu_state_name_);
   }
 
-  context_->slice_tracker->Begin(timestamp, track_id, kNullStringId,
-                                 state_name);
+  context_->trace_context->slice_tracker->Begin(timestamp, track_id,
+                                                kNullStringId, state_name);
   current_mcu_state_name_ = state_name;
 }
 
@@ -175,7 +177,7 @@ void MaliGpuEventTracker::ParseMaliCSFInterruptStart(
     TrackId track_id,
     protozero::ConstBytes blob) {
   protos::pbzero::MaliMaliCSFINTERRUPTSTARTFtraceEvent::Decoder evt(blob);
-  context_->slice_tracker->Begin(
+  context_->trace_context->slice_tracker->Begin(
       timestamp, track_id, kNullStringId, mali_CSF_INTERRUPT_id_,
       [&, this](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(mali_CSF_INTERRUPT_info_val_id_,
@@ -188,7 +190,7 @@ void MaliGpuEventTracker::ParseMaliCSFInterruptEnd(int64_t timestamp,
                                                    protozero::ConstBytes blob) {
   protos::pbzero::MaliMaliCSFINTERRUPTSTARTFtraceEvent::Decoder evt(blob);
 
-  context_->slice_tracker->End(
+  context_->trace_context->slice_tracker->End(
       timestamp, track_id, kNullStringId, mali_CSF_INTERRUPT_id_,
       [&, this](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(mali_CSF_INTERRUPT_info_val_id_,

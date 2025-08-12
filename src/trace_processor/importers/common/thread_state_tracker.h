@@ -33,11 +33,12 @@ class ThreadStateTracker : public Destructible {
   ThreadStateTracker& operator=(const ThreadStateTracker&) = delete;
   ~ThreadStateTracker() override;
   static ThreadStateTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->thread_state_tracker) {
-      context->thread_state_tracker.reset(new ThreadStateTracker(context));
+    if (!context->machine_context->thread_state_tracker) {
+      context->machine_context->thread_state_tracker.reset(
+          new ThreadStateTracker(context));
     }
     return static_cast<ThreadStateTracker*>(
-        context->thread_state_tracker.get());
+        context->machine_context->thread_state_tracker.get());
   }
 
   // Depending on the kernel implementation thread state changes could be

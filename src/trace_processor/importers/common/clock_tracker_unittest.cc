@@ -39,9 +39,9 @@ namespace perfetto::trace_processor {
 class ClockTrackerTest : public ::testing::Test {
  public:
   ClockTrackerTest() {
-    context_.storage.reset(new TraceStorage());
-    context_.metadata_tracker.reset(
-        new MetadataTracker(context_.storage.get()));
+    context_.global_context->storage.reset(new TraceStorage());
+    context_.global_context->metadata_tracker.reset(
+        new MetadataTracker(context_.global_context->storage.get()));
   }
 
   // using ClockId = uint64_t;
@@ -343,7 +343,7 @@ TEST_F(ClockTrackerTest, CacheDoesntAffectResultsTwoStep) {
 TEST_F(ClockTrackerTest, ClockOffset) {
   EXPECT_FALSE(ct_.ToTraceTime(REALTIME, 0).ok());
 
-  context_.machine_tracker =
+  context_.machine_context->machine_tracker =
       std::make_unique<MachineTracker>(&context_, 0x1001);
 
   // Client-to-host BOOTTIME offset is -10000 ns.
@@ -388,7 +388,7 @@ TEST_F(ClockTrackerTest, ClockOffset) {
 // if timestamp conversion for remote machines is done by trace data
 // post-processing.
 TEST_F(ClockTrackerTest, RemoteNoClockOffset) {
-  context_.machine_tracker =
+  context_.machine_context->machine_tracker =
       std::make_unique<MachineTracker>(&context_, 0x1001);
 
   ct_.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
@@ -423,7 +423,7 @@ TEST_F(ClockTrackerTest, RemoteNoClockOffset) {
 
 // Test clock offset of non-defualt trace time clock domain.
 TEST_F(ClockTrackerTest, NonDefaultTraceTimeClock) {
-  context_.machine_tracker =
+  context_.machine_context->machine_tracker =
       std::make_unique<MachineTracker>(&context_, 0x1001);
 
   ct_.SetTraceTimeClock(MONOTONIC);

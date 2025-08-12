@@ -34,7 +34,7 @@
 
 namespace perfetto::trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 // Implements the following dynamic tables:
 // * ancestor_slice

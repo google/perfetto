@@ -139,9 +139,10 @@ class TrackTracker {
     if constexpr (std::is_same_v<NBT::Auto, name_blueprint_t>) {
       n = kNullStringId;
     } else if constexpr (std::is_same_v<NBT::Static, name_blueprint_t>) {
-      n = context_->storage->InternString(bp.name_blueprint.name);
+      n = context_->global_context->storage->InternString(
+          bp.name_blueprint.name);
     } else if constexpr (std::is_base_of_v<NBT::FnBase, name_blueprint_t>) {
-      n = context_->storage->InternString(
+      n = context_->global_context->storage->InternString(
           std::apply(bp.name_blueprint.fn, dims).string_view());
     } else {
       static_assert(std::is_same_v<NBT::Dynamic, name_blueprint_t>);
@@ -153,7 +154,8 @@ class TrackTracker {
     if constexpr (std::is_same_v<UBT::Unknown, unit_blueprint_t>) {
       u = kNullStringId;
     } else if constexpr (std::is_same_v<UBT::Static, unit_blueprint_t>) {
-      u = context_->storage->InternString(bp.unit_blueprint.name);
+      u = context_->global_context->storage->InternString(
+          bp.unit_blueprint.name);
     } else {
       static_assert(std::is_same_v<UBT::Dynamic, unit_blueprint_t>);
       u = unit;
@@ -208,8 +210,9 @@ class TrackTracker {
       } else {
         static_assert(std::is_same_v<elem_t, base::StringView>,
                       "Unknown type for dimension");
-        a[i].value = Variadic::String(
-            context_->storage->InternString(std::get<i>(dimensions)));
+        a[i].value =
+            Variadic::String(context_->global_context->storage->InternString(
+                std::get<i>(dimensions)));
       }
       DimensionsToArgs<i + 1>(dimensions, dimensions_schema, a);
     }

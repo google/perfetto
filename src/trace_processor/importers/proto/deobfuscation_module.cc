@@ -83,17 +83,19 @@ void DeobfuscationModule::DeobfuscateHeapGraphClass(
       heap_graph_tracker->RowsForType(package_name_id,
                                       obfuscated_class_name_id);
   if (cls_objects) {
-    auto* class_table = context_->storage->mutable_heap_graph_class_table();
+    auto* class_table =
+        context_->global_context->storage->mutable_heap_graph_class_table();
     for (ClassTable::RowNumber class_row_num : *cls_objects) {
       auto class_ref = class_row_num.ToRowReference(class_table);
       const StringId obfuscated_type_name_id = class_ref.name();
       const base::StringView obfuscated_type_name =
-          context_->storage->GetString(obfuscated_type_name_id);
+          context_->global_context->storage->GetString(obfuscated_type_name_id);
       NormalizedType normalized_type = GetNormalizedType(obfuscated_type_name);
       std::string deobfuscated_type_name =
           DenormalizeTypeName(normalized_type, cls.deobfuscated_name());
-      StringId deobfuscated_type_name_id = context_->storage->InternString(
-          base::StringView(deobfuscated_type_name));
+      StringId deobfuscated_type_name_id =
+          context_->global_context->storage->InternString(
+              base::StringView(deobfuscated_type_name));
       class_ref.set_deobfuscated_name(deobfuscated_type_name_id);
     }
   } else {
@@ -119,17 +121,18 @@ void DeobfuscationModule::ParseDeobfuscationMappingForHeapGraph(
 
   std::optional<StringId> package_name_id;
   if (deobfuscation_mapping.package_name().size > 0) {
-    package_name_id = context_->storage->string_pool().GetId(
+    package_name_id = context_->global_context->storage->string_pool().GetId(
         deobfuscation_mapping.package_name());
   }
 
   auto* reference_table =
-      context_->storage->mutable_heap_graph_reference_table();
+      context_->global_context->storage->mutable_heap_graph_reference_table();
   for (auto class_it = deobfuscation_mapping.obfuscated_classes(); class_it;
        ++class_it) {
     protos::pbzero::ObfuscatedClass::Decoder cls(*class_it);
     auto obfuscated_class_name_id =
-        context_->storage->string_pool().GetId(cls.obfuscated_name());
+        context_->global_context->storage->string_pool().GetId(
+            cls.obfuscated_name());
     if (!obfuscated_class_name_id) {
       PERFETTO_DLOG("Class string %s not found",
                     cls.obfuscated_name().ToStdString().c_str());
@@ -152,8 +155,9 @@ void DeobfuscationModule::ParseDeobfuscationMappingForHeapGraph(
       std::string merged_deobfuscated =
           FullyQualifiedDeobfuscatedName(cls, member);
 
-      auto obfuscated_field_name_id = context_->storage->string_pool().GetId(
-          base::StringView(merged_obfuscated));
+      auto obfuscated_field_name_id =
+          context_->global_context->storage->string_pool().GetId(
+              base::StringView(merged_obfuscated));
       if (!obfuscated_field_name_id) {
         PERFETTO_DLOG("Field string %s not found", merged_obfuscated.c_str());
         continue;
@@ -162,8 +166,9 @@ void DeobfuscationModule::ParseDeobfuscationMappingForHeapGraph(
       const std::vector<ReferenceTable::RowNumber>* field_references =
           heap_graph_tracker->RowsForField(*obfuscated_field_name_id);
       if (field_references) {
-        auto interned_deobfuscated_name = context_->storage->InternString(
-            base::StringView(merged_deobfuscated));
+        auto interned_deobfuscated_name =
+            context_->global_context->storage->InternString(
+                base::StringView(merged_deobfuscated));
         for (ReferenceTable::RowNumber row_number : *field_references) {
           auto row_ref = row_number.ToRowReference(reference_table);
           row_ref.set_deobfuscated_field_name(interned_deobfuscated_name);
@@ -182,9 +187,11 @@ void DeobfuscationModule::ParseDeobfuscationMappingForProfiles(
   if (deobfuscation_mapping.package_name().size == 0)
     return;
 
-  auto opt_package_name_id = context_->storage->string_pool().GetId(
-      deobfuscation_mapping.package_name());
-  auto opt_memfd_id = context_->storage->string_pool().GetId("memfd");
+  auto opt_package_name_id =
+      context_->global_context->storage->string_pool().GetId(
+          deobfuscation_mapping.package_name());
+  auto opt_memfd_id =
+      context_->global_context->storage->string_pool().GetId("memfd");
   if (!opt_package_name_id && !opt_memfd_id)
     return;
 
@@ -197,8 +204,9 @@ void DeobfuscationModule::ParseDeobfuscationMappingForProfiles(
       std::string merged_obfuscated = cls.obfuscated_name().ToStdString() +
                                       "." +
                                       member.obfuscated_name().ToStdString();
-      auto merged_obfuscated_id = context_->storage->string_pool().GetId(
-          base::StringView(merged_obfuscated));
+      auto merged_obfuscated_id =
+          context_->global_context->storage->string_pool().GetId(
+              base::StringView(merged_obfuscated));
       if (!merged_obfuscated_id)
         continue;
       std::string merged_deobfuscated =
@@ -207,46 +215,52 @@ void DeobfuscationModule::ParseDeobfuscationMappingForProfiles(
       std::vector<tables::StackProfileFrameTable::Id> frames;
       if (opt_package_name_id) {
         const std::vector<tables::StackProfileFrameTable::Id> pkg_frames =
-            context_->stack_profile_tracker->JavaFramesForName(
+            context_->trace_context->stack_profile_tracker->JavaFramesForName(
                 {*merged_obfuscated_id, *opt_package_name_id});
         frames.insert(frames.end(), pkg_frames.begin(), pkg_frames.end());
       }
       if (opt_memfd_id) {
         const std::vector<tables::StackProfileFrameTable::Id> memfd_frames =
-            context_->stack_profile_tracker->JavaFramesForName(
+            context_->trace_context->stack_profile_tracker->JavaFramesForName(
                 {*merged_obfuscated_id, *opt_memfd_id});
         frames.insert(frames.end(), memfd_frames.begin(), memfd_frames.end());
       }
 
       for (tables::StackProfileFrameTable::Id frame_id : frames) {
-        auto* frames_tbl =
-            context_->storage->mutable_stack_profile_frame_table();
+        auto* frames_tbl = context_->global_context->storage
+                               ->mutable_stack_profile_frame_table();
         auto rr = *frames_tbl->FindById(frame_id);
-        rr.set_deobfuscated_name(context_->storage->InternString(
-            base::StringView(merged_deobfuscated)));
+        rr.set_deobfuscated_name(
+            context_->global_context->storage->InternString(
+                base::StringView(merged_deobfuscated)));
       }
-      obfuscated_to_deobfuscated_members[context_->storage->InternString(
-          member.obfuscated_name())] =
-          context_->storage->InternString(member.deobfuscated_name());
+      obfuscated_to_deobfuscated_members[context_->global_context->storage
+                                             ->InternString(
+                                                 member.obfuscated_name())] =
+          context_->global_context->storage->InternString(
+              member.deobfuscated_name());
     }
     // Members can contain a class name (e.g "ClassA.FunctionF")
     deobfuscation_mapping_table.AddClassTranslation(
         DeobfuscationMappingTable::PackageId{
             deobfuscation_mapping.package_name().ToStdString(),
             deobfuscation_mapping.version_code()},
-        context_->storage->InternString(cls.obfuscated_name()),
-        context_->storage->InternString(cls.deobfuscated_name()),
+        context_->global_context->storage->InternString(cls.obfuscated_name()),
+        context_->global_context->storage->InternString(
+            cls.deobfuscated_name()),
         std::move(obfuscated_to_deobfuscated_members));
   }
-  context_->args_translation_table->AddDeobfuscationMappingTable(
+  context_->trace_context->args_translation_table->AddDeobfuscationMappingTable(
       std::move(deobfuscation_mapping_table));
 }
 
 void DeobfuscationModule::GuessPackageForCallsite(
     tables::ProcessTable::Id upid,
     tables::StackProfileCallsiteTable::Id callsite_id) {
-  const auto& process_table = context_->storage->process_table();
-  auto* stack_profile_tracker = context_->stack_profile_tracker.get();
+  const auto& process_table =
+      context_->global_context->storage->process_table();
+  auto* stack_profile_tracker =
+      context_->trace_context->stack_profile_tracker.get();
 
   auto process = process_table.FindById(upid);
   if (!process.has_value()) {
@@ -259,8 +273,9 @@ void DeobfuscationModule::GuessPackageForCallsite(
 
   std::optional<StringId> package;
 
-  for (auto it = context_->storage->package_list_table().IterateRows(); it;
-       ++it) {
+  for (auto it = context_->global_context->storage->package_list_table()
+                     .IterateRows();
+       it; ++it) {
     if (it.uid() == *process->android_appid()) {
       package = it.package_name();
       break;
@@ -272,7 +287,7 @@ void DeobfuscationModule::GuessPackageForCallsite(
   }
 
   const auto& callsite_table =
-      context_->storage->stack_profile_callsite_table();
+      context_->global_context->storage->stack_profile_callsite_table();
   auto callsite = callsite_table.FindById(callsite_id);
   while (callsite.has_value()) {
     auto frame_id = callsite->frame_id();
@@ -293,7 +308,7 @@ void DeobfuscationModule::GuessPackageForCallsite(
 
 void DeobfuscationModule::GuessPackages() {
   const auto& heap_profile_allocation_table =
-      context_->storage->heap_profile_allocation_table();
+      context_->global_context->storage->heap_profile_allocation_table();
   for (auto allocation = heap_profile_allocation_table.IterateRows();
        allocation; ++allocation) {
     auto upid = tables::ProcessTable::Id(allocation.upid());
@@ -302,9 +317,10 @@ void DeobfuscationModule::GuessPackages() {
     GuessPackageForCallsite(upid, callsite_id);
   }
 
-  const auto& perf_sample_table = context_->storage->perf_sample_table();
+  const auto& perf_sample_table =
+      context_->global_context->storage->perf_sample_table();
   for (auto sample = perf_sample_table.IterateRows(); sample; ++sample) {
-    auto thread = context_->storage->thread_table().FindById(
+    auto thread = context_->global_context->storage->thread_table().FindById(
         tables::ThreadTable::Id(sample.utid()));
     if (!thread || !thread->upid().has_value() ||
         !sample.callsite_id().has_value()) {
@@ -319,7 +335,8 @@ void DeobfuscationModule::NotifyEndOfFile() {
   auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
   heap_graph_tracker->FinalizeAllProfiles();
 
-  if (context_->stack_profile_tracker->HasFramesWithoutKnownPackage()) {
+  if (context_->trace_context->stack_profile_tracker
+          ->HasFramesWithoutKnownPackage()) {
     GuessPackages();
   }
 

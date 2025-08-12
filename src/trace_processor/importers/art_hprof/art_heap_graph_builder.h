@@ -73,22 +73,24 @@ struct DebugStats {
   size_t record_count = 0;
 
   void Write(TraceProcessorContext* context_) const {
-    context_->storage->SetStats(stats::hprof_string_counter,
-                                static_cast<int64_t>(string_count));
-    context_->storage->SetStats(stats::hprof_class_counter,
-                                static_cast<int64_t>(class_count));
-    context_->storage->SetStats(stats::hprof_heap_dump_counter,
-                                static_cast<int64_t>(heap_dump_count));
-    context_->storage->SetStats(stats::hprof_instance_counter,
-                                static_cast<int64_t>(instance_count));
-    context_->storage->SetStats(stats::hprof_object_array_counter,
-                                static_cast<int64_t>(object_array_count));
-    context_->storage->SetStats(stats::hprof_primitive_array_counter,
-                                static_cast<int64_t>(primitive_array_count));
-    context_->storage->SetStats(stats::hprof_reference_counter,
-                                static_cast<int64_t>(reference_count));
-    context_->storage->SetStats(stats::hprof_root_counter,
-                                static_cast<int64_t>(root_count));
+    context_->global_context->storage->SetStats(
+        stats::hprof_string_counter, static_cast<int64_t>(string_count));
+    context_->global_context->storage->SetStats(
+        stats::hprof_class_counter, static_cast<int64_t>(class_count));
+    context_->global_context->storage->SetStats(
+        stats::hprof_heap_dump_counter, static_cast<int64_t>(heap_dump_count));
+    context_->global_context->storage->SetStats(
+        stats::hprof_instance_counter, static_cast<int64_t>(instance_count));
+    context_->global_context->storage->SetStats(
+        stats::hprof_object_array_counter,
+        static_cast<int64_t>(object_array_count));
+    context_->global_context->storage->SetStats(
+        stats::hprof_primitive_array_counter,
+        static_cast<int64_t>(primitive_array_count));
+    context_->global_context->storage->SetStats(
+        stats::hprof_reference_counter, static_cast<int64_t>(reference_count));
+    context_->global_context->storage->SetStats(
+        stats::hprof_root_counter, static_cast<int64_t>(root_count));
   }
 
   void AddRecordCount(size_t count) { record_count += count; }

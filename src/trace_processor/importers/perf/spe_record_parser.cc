@@ -97,7 +97,7 @@ const char* SpeRecordParserImpl::ToString(OperationName name) {
 StringId SpeRecordParserImpl::ToStringId(OperationName name) {
   if (operation_name_strings_[name] == kNullStringId) {
     operation_name_strings_[name] =
-        context_->storage->InternString(ToString(name));
+        context_->global_context->storage->InternString(ToString(name));
   }
   return operation_name_strings_[name];
 }
@@ -105,14 +105,15 @@ StringId SpeRecordParserImpl::ToStringId(OperationName name) {
 StringId SpeRecordParserImpl::ToStringId(spe::ExceptionLevel el) {
   if (exception_level_strings_[el] == kNullStringId) {
     exception_level_strings_[el] =
-        context_->storage->InternString(ToString(el));
+        context_->global_context->storage->InternString(ToString(el));
   }
   return exception_level_strings_[el];
 }
 
 StringId SpeRecordParserImpl::ToStringId(spe::DataSource ds) {
   if (data_source_strings_[ds] == kNullStringId) {
-    data_source_strings_[ds] = context_->storage->InternString(ToString(ds));
+    data_source_strings_[ds] =
+        context_->global_context->storage->InternString(ToString(ds));
   }
   return data_source_strings_[ds];
 }
@@ -144,7 +145,8 @@ void SpeRecordParserImpl::Parse(int64_t ts, TraceBlobView data) {
     }
   }
   if (!inflight_record_.instruction_address) {
-    context_->storage->mutable_spe_record_table()->Insert(inflight_row_);
+    context_->global_context->storage->mutable_spe_record_table()->Insert(
+        inflight_row_);
     return;
   }
 
@@ -154,20 +156,21 @@ void SpeRecordParserImpl::Parse(int64_t ts, TraceBlobView data) {
 
   if (inst.el == spe::ExceptionLevel::kEl0 && inflight_row_.utid) {
     const auto upid =
-        *context_->storage->thread_table()
+        *context_->global_context->storage->thread_table()
              .FindById(tables::ThreadTable::Id(*inflight_row_.utid))
              ->upid();
 
     VirtualMemoryMapping* mapping =
-        context_->mapping_tracker->FindUserMappingForAddress(upid,
-                                                             inst.address);
+        context_->machine_context->mapping_tracker->FindUserMappingForAddress(
+            upid, inst.address);
     if (mapping) {
       inflight_row_.instruction_frame_id =
           mapping->InternFrame(mapping->ToRelativePc(inst.address), "");
     }
   } else if (inst.el == spe::ExceptionLevel::kEl1) {
     VirtualMemoryMapping* mapping =
-        context_->mapping_tracker->FindKernelMappingForAddress(inst.address);
+        context_->machine_context->mapping_tracker->FindKernelMappingForAddress(
+            inst.address);
     if (mapping) {
       inflight_row_.instruction_frame_id =
           mapping->InternFrame(mapping->ToRelativePc(inst.address), "");
@@ -179,7 +182,8 @@ void SpeRecordParserImpl::Parse(int64_t ts, TraceBlobView data) {
         GetDummyMapping()->ToRelativePc(inst.address), "");
   }
 
-  context_->storage->mutable_spe_record_table()->Insert(inflight_row_);
+  context_->global_context->storage->mutable_spe_record_table()->Insert(
+      inflight_row_);
 }
 
 void SpeRecordParserImpl::ReadShortPacket(spe::ShortHeader short_header) {
@@ -275,7 +279,8 @@ void SpeRecordParserImpl::ReadEventsPacket(spe::ShortHeader short_header) {
 void SpeRecordParserImpl::ReadContextPacket(spe::ShortHeader short_header) {
   uint32_t tid;
   reader_.Read(tid);
-  inflight_row_.utid = context_->process_tracker->GetOrCreateThread(tid);
+  inflight_row_.utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(tid);
   switch (short_header.GetContextIndex()) {
     case spe::ContextIndex::kEl1:
     case spe::ContextIndex::kEl2:
@@ -324,7 +329,8 @@ SpeRecordParserImpl::OperationName SpeRecordParserImpl::GetOperationName(
 VirtualMemoryMapping* SpeRecordParserImpl::GetDummyMapping() {
   if (!dummy_mapping_) {
     dummy_mapping_ =
-        &context_->mapping_tracker->CreateDummyMapping("spe_dummy");
+        &context_->machine_context->mapping_tracker->CreateDummyMapping(
+            "spe_dummy");
   }
   return dummy_mapping_;
 }

@@ -59,25 +59,31 @@ using ::perfetto::protos::pbzero::TrafficDirection;
 class NetworkTraceModuleTest : public testing::Test {
  public:
   NetworkTraceModuleTest() {
-    context_.register_additional_proto_modules = &RegisterAdditionalModules;
-    context_.storage = std::make_shared<TraceStorage>();
-    storage_ = context_.storage.get();
-    storage_ = context_.storage.get();
-    context_.track_tracker = std::make_unique<TrackTracker>(&context_);
-    context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
-    context_.args_tracker = std::make_unique<ArgsTracker>(&context_);
-    context_.global_args_tracker =
+    context_.global_context->register_additional_proto_modules =
+        &RegisterAdditionalModules;
+    context_.global_context->storage = std::make_shared<TraceStorage>();
+    storage_ = context_.global_context->storage.get();
+    storage_ = context_.global_context->storage.get();
+    context_.machine_context->track_tracker =
+        std::make_unique<TrackTracker>(&context_);
+    context_.trace_context->slice_tracker =
+        std::make_unique<SliceTracker>(&context_);
+    context_.trace_context->args_tracker =
+        std::make_unique<ArgsTracker>(&context_);
+    context_.trace_context->global_args_tracker =
         std::make_unique<GlobalArgsTracker>(storage_);
-    context_.slice_translation_table =
+    context_.trace_context->slice_translation_table =
         std::make_unique<SliceTranslationTable>(storage_);
-    context_.process_track_translation_table =
+    context_.trace_context->process_track_translation_table =
         std::make_unique<ProcessTrackTranslationTable>(storage_);
-    context_.args_translation_table =
+    context_.trace_context->args_translation_table =
         std::make_unique<ArgsTranslationTable>(storage_);
-    context_.track_compressor = std::make_unique<TrackCompressor>(&context_);
-    context_.sorter = std::make_shared<TraceSorter>(
+    context_.machine_context->track_compressor =
+        std::make_unique<TrackCompressor>(&context_);
+    context_.global_context->sorter = std::make_shared<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
-    context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
+    context_.global_context->descriptor_pool_ =
+        std::make_unique<DescriptorPool>();
   }
 
   base::Status TokenizeAndParse() {
@@ -88,9 +94,9 @@ class NetworkTraceModuleTest : public testing::Test {
     auto reader = std::make_unique<ProtoTraceReader>(&context_);
     auto status =
         reader->Parse(TraceBlobView(TraceBlob::CopyFrom(v.data(), v.size())));
-    context_.sorter->ExtractEventsForced();
-    context_.slice_tracker->FlushPendingSlices();
-    context_.args_tracker->Flush();
+    context_.global_context->sorter->ExtractEventsForced();
+    context_.trace_context->slice_tracker->FlushPendingSlices();
+    context_.trace_context->args_tracker->Flush();
     return status;
   }
 

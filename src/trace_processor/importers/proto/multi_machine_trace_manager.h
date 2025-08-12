@@ -25,7 +25,7 @@
 
 namespace perfetto::trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 class ProtoTraceReader;
 
 // This class provides the get-or-create function for ProtoTraceReader to

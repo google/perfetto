@@ -39,7 +39,7 @@
 
 namespace perfetto {
 namespace trace_processor {
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 namespace perf_importer {
 
@@ -134,7 +134,8 @@ class AuxStreamManager {
 
   std::optional<uint64_t> ConvertTscToPerfTime(uint64_t cycles) {
     if (!time_conv_) {
-      context_->storage->IncrementStats(stats::perf_no_tsc_data);
+      context_->global_context->storage->IncrementStats(
+          stats::perf_no_tsc_data);
       return std::nullopt;
     }
     return time_conv_->ConvertTscToPerfTime(cycles);

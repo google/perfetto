@@ -27,7 +27,7 @@
 namespace perfetto ::trace_processor {
 
 class AndroidBatteryStatsHistoryStringTracker;
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 class AndroidDumpstateEventParser
     : public TraceSorter::Sink<AndroidDumpstateEvent,

@@ -31,7 +31,7 @@
 #include "src/trace_processor/tables/perf_tables_py.h"
 
 namespace perfetto::trace_processor {
-class TraceProcessorContext;
+struct TraceProcessorContext;
 namespace perf_importer {
 
 class SpeRecordParserImpl

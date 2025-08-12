@@ -87,11 +87,12 @@ constexpr auto kCommandBlueprint = TrackCompressor::SliceBlueprint(
 
 VirtioVideoTracker::VirtioVideoTracker(TraceProcessorContext* context)
     : context_(context),
-      unknown_id_(context->storage->InternString("Unknown")),
-      input_queue_id_(context->storage->InternString("INPUT")),
-      output_queue_id_(context->storage->InternString("OUTPUT")),
-      fields_string_ids_(*context->storage) {
-  TraceStorage& storage = *context_->storage;
+      unknown_id_(context->global_context->storage->InternString("Unknown")),
+      input_queue_id_(context->global_context->storage->InternString("INPUT")),
+      output_queue_id_(
+          context->global_context->storage->InternString("OUTPUT")),
+      fields_string_ids_(*context->global_context->storage) {
+  TraceStorage& storage = *context_->global_context->storage;
 
   command_names_.Insert(0x100, storage.InternString("QUERY_CAPABILITY"));
   command_names_.Insert(0x101, storage.InternString("STREAM_CREATE"));
@@ -120,24 +121,26 @@ void VirtioVideoTracker::ParseVirtioVideoEvent(uint64_t fld_id,
       VirtioVideoResourceQueueFtraceEvent::Decoder pb_evt(blob);
 
       base::StackString<64> name("Resource #%d", pb_evt.resource_id());
-      StringId name_id = context_->storage->InternString(name.string_view());
+      StringId name_id =
+          context_->global_context->storage->InternString(name.string_view());
 
-      TrackId begin_id = context_->track_compressor->InternBegin(
-          kQueueEventBlueprint,
-          tracks::Dimensions(pb_evt.stream_id(), pb_evt.queue_type()),
-          static_cast<int64_t>(pb_evt.resource_id()));
-      context_->slice_tracker->Begin(timestamp, begin_id, kNullStringId,
-                                     name_id);
+      TrackId begin_id =
+          context_->machine_context->track_compressor->InternBegin(
+              kQueueEventBlueprint,
+              tracks::Dimensions(pb_evt.stream_id(), pb_evt.queue_type()),
+              static_cast<int64_t>(pb_evt.resource_id()));
+      context_->trace_context->slice_tracker->Begin(timestamp, begin_id,
+                                                    kNullStringId, name_id);
       break;
     }
     case FtraceEvent::kVirtioVideoResourceQueueDoneFieldNumber: {
       VirtioVideoResourceQueueDoneFtraceEvent::Decoder pb_evt(blob);
 
-      TrackId end_id = context_->track_compressor->InternEnd(
+      TrackId end_id = context_->machine_context->track_compressor->InternEnd(
           kQueueEventBlueprint,
           tracks::Dimensions(pb_evt.stream_id(), pb_evt.queue_type()),
           static_cast<int64_t>(pb_evt.resource_id()));
-      context_->slice_tracker->End(
+      context_->trace_context->slice_tracker->End(
           timestamp, end_id, {}, {},
           [this, &pb_evt](ArgsTracker::BoundInserter* args) {
             this->AddCommandSliceArgs(&pb_evt, args);
@@ -176,11 +179,12 @@ void VirtioVideoTracker::AddCommandSlice(int64_t timestamp,
     cmd_name_id = &unknown_id_;
   }
 
-  TrackId track_id = context_->track_compressor->InternScoped(
+  TrackId track_id = context_->machine_context->track_compressor->InternScoped(
       kCommandBlueprint, tracks::Dimensions(stream_id, response), timestamp,
       kVirtioVideoCmdDuration);
-  context_->slice_tracker->Scoped(timestamp, track_id, kNullStringId,
-                                  *cmd_name_id, kVirtioVideoCmdDuration);
+  context_->trace_context->slice_tracker->Scoped(timestamp, track_id,
+                                                 kNullStringId, *cmd_name_id,
+                                                 kVirtioVideoCmdDuration);
 }
 
 void VirtioVideoTracker::AddCommandSliceArgs(

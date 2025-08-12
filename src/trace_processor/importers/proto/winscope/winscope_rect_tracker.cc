@@ -33,7 +33,9 @@ const tables::WinscopeRectTable::Id& WinscopeRectTracker::GetOrInsertRow(
   row.y = rect.y;
   row.w = rect.w;
   row.h = rect.h;
-  auto id = context_->storage->mutable_winscope_rect_table()->Insert(row).id;
+  auto id = context_->global_context->storage->mutable_winscope_rect_table()
+                ->Insert(row)
+                .id;
 
   return *rows_.Insert(rect, id).first;
 }

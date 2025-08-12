@@ -127,7 +127,7 @@ std::optional<DecodedMessage> ProtoLogMessageDecoder::Decode(
 void ProtoLogMessageDecoder::TrackGroup(uint32_t id, const std::string& tag) {
   auto tracked_group = tracked_groups_.Find(id);
   if (tracked_group != nullptr && tracked_group->tag != tag) {
-    context_->storage->IncrementStats(
+    context_->global_context->storage->IncrementStats(
         stats::winscope_protolog_view_config_collision);
   }
   tracked_groups_.Insert(id, TrackedGroup{tag});
@@ -141,7 +141,7 @@ void ProtoLogMessageDecoder::TrackMessage(
     const std::optional<std::string>& location) {
   auto tracked_message = tracked_messages_.Find(message_id);
   if (tracked_message != nullptr && tracked_message->message != message) {
-    context_->storage->IncrementStats(
+    context_->global_context->storage->IncrementStats(
         stats::winscope_protolog_view_config_collision);
   }
   tracked_messages_.Insert(message_id,

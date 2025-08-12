@@ -29,12 +29,15 @@ namespace perfetto::trace_processor {
 
 TrackCompressor::TrackCompressor(TraceProcessorContext* context)
     : context_(context),
-      source_key_(context->storage->InternString("source")),
+      source_key_(context->global_context->storage->InternString("source")),
       trace_id_is_process_scoped_key_(
-          context->storage->InternString("trace_id_is_process_scoped")),
-      upid_(context->storage->InternString("upid")),
-      source_scope_key_(context->storage->InternString("source_scope")),
-      chrome_source_(context->storage->InternString("chrome")) {}
+          context->global_context->storage->InternString(
+              "trace_id_is_process_scoped")),
+      upid_(context->global_context->storage->InternString("upid")),
+      source_scope_key_(
+          context->global_context->storage->InternString("source_scope")),
+      chrome_source_(context->global_context->storage->InternString("chrome")) {
+}
 
 std::pair<TrackId*, uint32_t> TrackCompressor::BeginInternal(
     TrackSet& set,
@@ -142,7 +145,8 @@ TrackId TrackCompressor::InternLegacyAsyncTrack(StringId raw_name,
   };
   if (trace_id_is_process_scoped) {
     const StringId name =
-        context_->process_track_translation_table->TranslateName(raw_name);
+        context_->trace_context->process_track_translation_table->TranslateName(
+            raw_name);
     static constexpr auto kBlueprint = TrackCompressor::SliceBlueprint(
         "legacy_async_process_slice",
         tracks::DimensionBlueprints(tracks::kProcessDimensionBlueprint,

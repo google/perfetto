@@ -64,13 +64,13 @@ class MockSliceTracker : public SliceTracker {
 class SyscallTrackerTest : public ::testing::Test {
  public:
   SyscallTrackerTest() {
-    context.storage.reset(new TraceStorage());
-    context.global_args_tracker.reset(
-        new GlobalArgsTracker(context.storage.get()));
+    context.global_context->storage.reset(new TraceStorage());
+    context.trace_context->global_args_tracker.reset(
+        new GlobalArgsTracker(context.global_context->storage.get()));
     track_tracker = new TrackTracker(&context);
-    context.track_tracker.reset(track_tracker);
+    context.machine_context->track_tracker.reset(track_tracker);
     slice_tracker = new MockSliceTracker(&context);
-    context.slice_tracker.reset(slice_tracker);
+    context.trace_context->slice_tracker.reset(slice_tracker);
   }
 
  protected:
@@ -91,8 +91,8 @@ TEST_F(SyscallTrackerTest, ReportUnknownSyscalls) {
   SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(&context);
   syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 57 /*sys_read*/);
   syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 57 /*sys_read*/);
-  EXPECT_EQ(context.storage->GetString(begin_name), "sys_57");
-  EXPECT_EQ(context.storage->GetString(end_name), "sys_57");
+  EXPECT_EQ(context.global_context->storage->GetString(begin_name), "sys_57");
+  EXPECT_EQ(context.global_context->storage->GetString(end_name), "sys_57");
 }
 
 TEST_F(SyscallTrackerTest, ReportSysreturn) {
@@ -116,8 +116,8 @@ TEST_F(SyscallTrackerTest, Arm64) {
   syscall_tracker->SetArchitecture(Architecture::kArm64);
   syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 63 /*sys_read*/);
   syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 63 /*sys_read*/);
-  EXPECT_EQ(context.storage->GetString(begin_name), "sys_read");
-  EXPECT_EQ(context.storage->GetString(end_name), "sys_read");
+  EXPECT_EQ(context.global_context->storage->GetString(begin_name), "sys_read");
+  EXPECT_EQ(context.global_context->storage->GetString(end_name), "sys_read");
 }
 
 TEST_F(SyscallTrackerTest, x8664) {
@@ -133,8 +133,8 @@ TEST_F(SyscallTrackerTest, x8664) {
   syscall_tracker->SetArchitecture(Architecture::kX86_64);
   syscall_tracker->Enter(100 /*ts*/, 42 /*utid*/, 0 /*sys_read*/);
   syscall_tracker->Exit(110 /*ts*/, 42 /*utid*/, 0 /*sys_read*/);
-  EXPECT_EQ(context.storage->GetString(begin_name), "sys_read");
-  EXPECT_EQ(context.storage->GetString(end_name), "sys_read");
+  EXPECT_EQ(context.global_context->storage->GetString(begin_name), "sys_read");
+  EXPECT_EQ(context.global_context->storage->GetString(end_name), "sys_read");
 }
 
 TEST_F(SyscallTrackerTest, SyscallNumberTooLarge) {

@@ -45,28 +45,31 @@ TrackId TrackTracker::AddTrack(const tracks::BlueprintBase& blueprint,
   for (uint32_t i = 0; i < d_size; ++i) {
     base::StringView str(dims[i].name.data(), dims[i].name.size());
     if (str == "cpu" && d_args[i].value.type == Variadic::kInt) {
-      context_->cpu_tracker->MarkCpuValid(
+      context_->machine_context->cpu_tracker->MarkCpuValid(
           static_cast<uint32_t>(d_args[i].value.int_value));
     } else if (str == "utid" && d_args[i].value.type == Variadic::kInt) {
       row.utid = static_cast<uint32_t>(d_args[i].value.int_value);
     } else if (str == "upid" && d_args[i].value.type == Variadic::kInt) {
       row.upid = static_cast<uint32_t>(d_args[i].value.int_value);
     }
-    StringId key = context_->storage->InternString(str);
+    StringId key = context_->global_context->storage->InternString(str);
     d_args[i].key = key;
     d_args[i].flat_key = key;
   }
 
-  row.machine_id = context_->machine_id();
-  row.type = context_->storage->InternString(
+  row.machine_id = context_->machine_context->machine_id();
+  row.type = context_->global_context->storage->InternString(
       base::StringView(blueprint.type.data(), blueprint.type.size()));
   if (d_size > 0) {
     row.dimension_arg_set_id =
-        context_->global_args_tracker->AddArgSet(d_args, 0, d_size);
+        context_->trace_context->global_args_tracker->AddArgSet(d_args, 0,
+                                                                d_size);
   }
-  row.event_type = context_->storage->InternString(blueprint.event_type);
+  row.event_type =
+      context_->global_context->storage->InternString(blueprint.event_type);
   row.counter_unit = counter_unit;
-  TrackId id = context_->storage->mutable_track_table()->Insert(row).id;
+  TrackId id =
+      context_->global_context->storage->mutable_track_table()->Insert(row).id;
   if (args) {
     auto inserter = args_tracker_.AddArgsTo(id);
     args(inserter);

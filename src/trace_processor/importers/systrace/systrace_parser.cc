@@ -40,10 +40,10 @@ namespace perfetto::trace_processor {
 
 SystraceParser::SystraceParser(TraceProcessorContext* ctx)
     : context_(ctx),
-      lmk_id_(ctx->storage->InternString("mem.lmk")),
-      cookie_id_(ctx->storage->InternString("cookie")),
-      utid_id_(ctx->storage->InternString("utid")),
-      end_utid_id_(ctx->storage->InternString("end_utid")) {}
+      lmk_id_(ctx->global_context->storage->InternString("mem.lmk")),
+      cookie_id_(ctx->global_context->storage->InternString("cookie")),
+      utid_id_(ctx->global_context->storage->InternString("utid")),
+      end_utid_id_(ctx->global_context->storage->InternString("end_utid")) {}
 
 SystraceParser::~SystraceParser() = default;
 
@@ -60,7 +60,8 @@ void SystraceParser::ParsePrintEvent(int64_t ts,
       ParseSystracePoint(ts, pid, point);
       break;
     case systrace_utils::SystraceParseResult::kFailure:
-      context_->storage->IncrementStats(stats::systrace_parse_failure);
+      context_->global_context->storage->IncrementStats(
+          stats::systrace_parse_failure);
       break;
     case systrace_utils::SystraceParseResult::kUnsupported:
       // Silently ignore unsupported results.
@@ -91,7 +92,8 @@ void SystraceParser::ParseZeroEvent(int64_t ts,
   } else if ((flag & kSystraceEventInt64) != 0) {
     point.phase = 'C';
   } else {
-    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    context_->global_context->storage->IncrementStats(
+        stats::systrace_parse_failure);
     return;
   }
   // Note: for counter (C) events, we cannot assume that pid is within tgid.
@@ -119,7 +121,8 @@ void SystraceParser::ParseKernelTracingMarkWrite(int64_t ts,
              trace_type == 'I') {
     point.phase = trace_type;
   } else {
-    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    context_->global_context->storage->IncrementStats(
+        stats::systrace_parse_failure);
     return;
   }
 
@@ -151,17 +154,20 @@ void SystraceParser::ParseSystracePoint(
     systrace_utils::SystraceTracePoint point) {
   auto get_utid = [pid, &point, this]() {
     if (point.tgid == 0)
-      return context_->process_tracker->GetOrCreateThread(pid);
-    return context_->process_tracker->UpdateThread(pid, point.tgid);
+      return context_->machine_context->process_tracker->GetOrCreateThread(pid);
+    return context_->machine_context->process_tracker->UpdateThread(pid,
+                                                                    point.tgid);
   };
 
   switch (point.phase) {
     case 'B': {
-      StringId name_id = context_->storage->InternString(point.name);
+      StringId name_id =
+          context_->global_context->storage->InternString(point.name);
       UniqueTid utid = get_utid();
-      TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      context_->slice_tracker->Begin(ts, track_id, kNullStringId /* cat */,
-                                     name_id);
+      TrackId track_id =
+          context_->machine_context->track_tracker->InternThreadTrack(utid);
+      context_->trace_context->slice_tracker->Begin(
+          ts, track_id, kNullStringId /* cat */, name_id);
       PostProcessSpecialSliceBegin(ts, point.name);
       break;
     }
@@ -173,15 +179,18 @@ void SystraceParser::ParseSystracePoint(
       if (point.tgid == 0) {
         // If we haven't seen this thread before, there can't have been a Begin
         // event for it so just ignore the event.
-        auto opt_utid = context_->process_tracker->GetThreadOrNull(pid);
+        auto opt_utid =
+            context_->machine_context->process_tracker->GetThreadOrNull(pid);
         if (!opt_utid)
           break;
         utid = *opt_utid;
       } else {
-        utid = context_->process_tracker->UpdateThread(pid, point.tgid);
+        utid = context_->machine_context->process_tracker->UpdateThread(
+            pid, point.tgid);
       }
-      TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      context_->slice_tracker->End(ts, track_id);
+      TrackId track_id =
+          context_->machine_context->track_tracker->InternThreadTrack(utid);
+      context_->trace_context->slice_tracker->End(ts, track_id);
       break;
     }
 
@@ -193,10 +202,12 @@ void SystraceParser::ParseSystracePoint(
                                       tracks::kNameFromTraceDimensionBlueprint),
           tracks::DynamicNameBlueprint());
 
-      StringId name_id = context_->storage->InternString(point.name);
+      StringId name_id =
+          context_->global_context->storage->InternString(point.name);
       int64_t cookie = point.int_value;
       UniquePid upid =
-          context_->process_tracker->GetOrCreateProcess(point.tgid);
+          context_->machine_context->process_tracker->GetOrCreateProcess(
+              point.tgid);
 
       if (point.phase == 'S') {
         // Historically, async slices on Android did not support nesting async
@@ -215,43 +226,50 @@ void SystraceParser::ParseSystracePoint(
         // issues. No other code should ever use |BeginLegacyUnnestable|.
         tables::SliceTable::Row row;
         row.ts = ts;
-        row.track_id = context_->track_compressor->InternBegin(
+        row.track_id = context_->machine_context->track_compressor->InternBegin(
             kBlueprint, tracks::Dimensions(upid, point.name), cookie,
             tracks::DynamicName(name_id));
         row.name = name_id;
-        context_->slice_tracker->BeginLegacyUnnestable(
+        context_->trace_context->slice_tracker->BeginLegacyUnnestable(
             row, [this, cookie](ArgsTracker::BoundInserter* inserter) {
               inserter->AddArg(cookie_id_, Variadic::Integer(cookie));
             });
       } else {
-        TrackId track_id = context_->track_compressor->InternEnd(
-            kBlueprint, tracks::Dimensions(upid, point.name), cookie,
-            tracks::DynamicName(name_id));
-        context_->slice_tracker->End(ts, track_id);
+        TrackId track_id =
+            context_->machine_context->track_compressor->InternEnd(
+                kBlueprint, tracks::Dimensions(upid, point.name), cookie,
+                tracks::DynamicName(name_id));
+        context_->trace_context->slice_tracker->End(ts, track_id);
       }
       break;
     }
 
     case 'I': {
-      StringId name_id = context_->storage->InternString(point.name);
+      StringId name_id =
+          context_->global_context->storage->InternString(point.name);
       UniqueTid utid = get_utid();
-      TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-      context_->slice_tracker->Scoped(ts, track_id, kNullStringId, name_id, 0);
+      TrackId track_id =
+          context_->machine_context->track_tracker->InternThreadTrack(utid);
+      context_->trace_context->slice_tracker->Scoped(ts, track_id,
+                                                     kNullStringId, name_id, 0);
       break;
     }
 
     case 'N':
     case 'G':
     case 'H': {
-      StringId name_id = context_->storage->InternString(point.name);
-      StringId track_name_id = context_->storage->InternString(point.str_value);
+      StringId name_id =
+          context_->global_context->storage->InternString(point.name);
+      StringId track_name_id =
+          context_->global_context->storage->InternString(point.str_value);
 
       // Promote DeviceStateChanged to its own top level track.
       if (point.str_value == "DeviceStateChanged" && point.phase == 'N') {
-        TrackId track_id = context_->track_tracker->InternTrack(
-            tracks::kAndroidDeviceStateBlueprint);
-        context_->slice_tracker->Scoped(ts, track_id, kNullStringId, name_id,
-                                        0);
+        TrackId track_id =
+            context_->machine_context->track_tracker->InternTrack(
+                tracks::kAndroidDeviceStateBlueprint);
+        context_->trace_context->slice_tracker->Scoped(
+            ts, track_id, kNullStringId, name_id, 0);
         break;
       }
 
@@ -262,35 +280,42 @@ void SystraceParser::ParseSystracePoint(
           tracks::DynamicNameBlueprint());
 
       UniquePid upid =
-          context_->process_tracker->GetOrCreateProcess(point.tgid);
+          context_->machine_context->process_tracker->GetOrCreateProcess(
+              point.tgid);
       if (point.phase == 'N') {
-        TrackId track_id = context_->track_compressor->InternScoped(
-            kBlueprint, tracks::Dimensions(upid, point.str_value), ts, 0,
-            tracks::DynamicName(track_name_id));
-        auto utid = context_->process_tracker->GetOrCreateThread(pid);
-        context_->slice_tracker->Scoped(
+        TrackId track_id =
+            context_->machine_context->track_compressor->InternScoped(
+                kBlueprint, tracks::Dimensions(upid, point.str_value), ts, 0,
+                tracks::DynamicName(track_name_id));
+        auto utid =
+            context_->machine_context->process_tracker->GetOrCreateThread(pid);
+        context_->trace_context->slice_tracker->Scoped(
             ts, track_id, kNullStringId, name_id, 0,
             [this, utid](ArgsTracker::BoundInserter* inserter) {
               inserter->AddArg(utid_id_, Variadic::UnsignedInteger(utid),
                                ArgsTracker::UpdatePolicy::kSkipIfExists);
             });
       } else if (point.phase == 'G') {
-        TrackId track_id = context_->track_compressor->InternBegin(
-            kBlueprint, tracks::Dimensions(upid, point.str_value),
-            point.int_value, tracks::DynamicName(track_name_id));
-        auto utid = context_->process_tracker->GetOrCreateThread(pid);
-        context_->slice_tracker->Begin(
+        TrackId track_id =
+            context_->machine_context->track_compressor->InternBegin(
+                kBlueprint, tracks::Dimensions(upid, point.str_value),
+                point.int_value, tracks::DynamicName(track_name_id));
+        auto utid =
+            context_->machine_context->process_tracker->GetOrCreateThread(pid);
+        context_->trace_context->slice_tracker->Begin(
             ts, track_id, kNullStringId, name_id,
             [this, utid](ArgsTracker::BoundInserter* inserter) {
               inserter->AddArg(utid_id_, Variadic::UnsignedInteger(utid),
                                ArgsTracker::UpdatePolicy::kSkipIfExists);
             });
       } else if (point.phase == 'H') {
-        TrackId track_id = context_->track_compressor->InternEnd(
-            kBlueprint, tracks::Dimensions(upid, point.str_value),
-            point.int_value, tracks::DynamicName(track_name_id));
-        auto utid = context_->process_tracker->GetOrCreateThread(pid);
-        context_->slice_tracker->End(
+        TrackId track_id =
+            context_->machine_context->track_compressor->InternEnd(
+                kBlueprint, tracks::Dimensions(upid, point.str_value),
+                point.int_value, tracks::DynamicName(track_name_id));
+        auto utid =
+            context_->machine_context->process_tracker->GetOrCreateThread(pid);
+        context_->trace_context->slice_tracker->End(
             ts, track_id, {}, {},
             [this, utid](ArgsTracker::BoundInserter* inserter) {
               inserter->AddArg(end_utid_id_, Variadic::UnsignedInteger(utid),
@@ -314,28 +339,30 @@ void SystraceParser::ParseSystracePoint(
         auto killed_pid = static_cast<uint32_t>(point.int_value);
         if (killed_pid != 0) {
           UniquePid killed_upid =
-              context_->process_tracker->GetOrCreateProcess(killed_pid);
-          TrackId track = context_->track_tracker->InternTrack(
+              context_->machine_context->process_tracker->GetOrCreateProcess(
+                  killed_pid);
+          TrackId track = context_->machine_context->track_tracker->InternTrack(
               tracks::kAndroidLmkBlueprint, tracks::Dimensions(killed_upid));
-          context_->slice_tracker->Scoped(ts, track, kNullStringId, lmk_id_, 0);
+          context_->trace_context->slice_tracker->Scoped(
+              ts, track, kNullStringId, lmk_id_, 0);
         }
         // TODO(lalitm): we should not add LMK events to the counters table
         // once the UI has support for displaying instants.
       } else if (point.name == "ScreenState") {
         // Promote ScreenState to its own top level counter.
-        TrackId track = context_->track_tracker->InternTrack(
+        TrackId track = context_->machine_context->track_tracker->InternTrack(
             tracks::kAndroidScreenStateBlueprint);
-        context_->event_tracker->PushCounter(
+        context_->trace_context->event_tracker->PushCounter(
             ts, static_cast<double>(point.int_value), track);
         return;
       } else if (point.name.StartsWith("battery_stats.")) {
         // Promote battery_stats conters to global tracks.
         // Track name and definition should be kept in sync with
         // android_probes_parser.cc
-        TrackId track = context_->track_tracker->InternTrack(
+        TrackId track = context_->machine_context->track_tracker->InternTrack(
             tracks::kAndroidBatteryStatsBlueprint,
             tracks::Dimensions(point.name));
-        context_->event_tracker->PushCounter(
+        context_->trace_context->event_tracker->PushCounter(
             ts, static_cast<double>(point.int_value), track);
         return;
       }
@@ -344,12 +371,14 @@ void SystraceParser::ParseSystracePoint(
       // from arbitrary threads but expect to be per process (b/123560328).
       // This affects both userspace and kernel counters.
       UniquePid upid =
-          context_->process_tracker->GetOrCreateProcess(point.tgid);
-      auto opt_utid = context_->process_tracker->GetThreadOrNull(pid);
-      TrackId track_id = context_->track_tracker->InternTrack(
+          context_->machine_context->process_tracker->GetOrCreateProcess(
+              point.tgid);
+      auto opt_utid =
+          context_->machine_context->process_tracker->GetThreadOrNull(pid);
+      TrackId track_id = context_->machine_context->track_tracker->InternTrack(
           tracks::kAndroidAtraceCounterBlueprint,
           tracks::Dimensions(upid, point.name));
-      context_->event_tracker->PushCounter(
+      context_->trace_context->event_tracker->PushCounter(
           ts, static_cast<double>(point.int_value), track_id,
           [this, opt_utid](ArgsTracker::BoundInserter* inserter) {
             if (opt_utid) {
@@ -378,17 +407,21 @@ void SystraceParser::PostProcessSpecialSliceBegin(int64_t ts,
     }
 
     UniquePid killed_upid =
-        context_->process_tracker->GetOrCreateProcess(*killed_pid);
+        context_->machine_context->process_tracker->GetOrCreateProcess(
+            *killed_pid);
 
     // Add the oom score entry
-    TrackId counter_track = context_->track_tracker->InternTrack(
-        tracks::kOomScoreAdjBlueprint, tracks::Dimensions(killed_upid));
-    context_->event_tracker->PushCounter(ts, *oom_score_adj, counter_track);
+    TrackId counter_track =
+        context_->machine_context->track_tracker->InternTrack(
+            tracks::kOomScoreAdjBlueprint, tracks::Dimensions(killed_upid));
+    context_->trace_context->event_tracker->PushCounter(ts, *oom_score_adj,
+                                                        counter_track);
 
     // Add mem.lmk instant event for consistency with other methods.
-    TrackId track = context_->track_tracker->InternTrack(
+    TrackId track = context_->machine_context->track_tracker->InternTrack(
         tracks::kAndroidLmkBlueprint, tracks::Dimensions(killed_upid));
-    context_->slice_tracker->Scoped(ts, track, kNullStringId, lmk_id_, 0);
+    context_->trace_context->slice_tracker->Scoped(ts, track, kNullStringId,
+                                                   lmk_id_, 0);
   }
 }
 

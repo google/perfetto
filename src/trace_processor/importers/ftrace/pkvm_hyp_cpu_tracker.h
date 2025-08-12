@@ -24,7 +24,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 // Handles parsing and showing hypervisor events in the UI.
 // TODO(b/249050813): link to the documentation once it's available in AOSP.

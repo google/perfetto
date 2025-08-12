@@ -29,7 +29,7 @@
 #include "src/trace_processor/tables/etm_tables_py.h"
 
 namespace perfetto::trace_processor {
-class TraceProcessorContext;
+struct TraceProcessorContext;
 namespace etm {
 class FrameDecoder;
 class EtmV4Stream : public perf_importer::AuxDataStream, public ITrcDataIn {

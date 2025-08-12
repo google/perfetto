@@ -45,12 +45,12 @@ base::StatusOr<AuxDataStream*> DummyAuxDataTokenizer::InitializeAuxDataStream(
 DummyAuxDataStream::DummyAuxDataStream(TraceProcessorContext* context)
     : context_(context) {}
 void DummyAuxDataStream::OnDataLoss(uint64_t size) {
-  context_->storage->IncrementStats(stats::perf_aux_lost,
-                                    static_cast<int>(size));
+  context_->global_context->storage->IncrementStats(stats::perf_aux_lost,
+                                                    static_cast<int>(size));
 }
 base::Status DummyAuxDataStream::Parse(AuxRecord, TraceBlobView data) {
-  context_->storage->IncrementStats(stats::perf_aux_ignored,
-                                    static_cast<int>(data.size()));
+  context_->global_context->storage->IncrementStats(
+      stats::perf_aux_ignored, static_cast<int>(data.size()));
   return base::OkStatus();
 }
 base::Status DummyAuxDataStream::NotifyEndOfStream() {

@@ -21,7 +21,7 @@
 
 #include "perfetto/ext/base/status_or.h"
 namespace perfetto::trace_processor {
-class TraceProcessorContext;
+struct TraceProcessorContext;
 namespace perf_importer {
 class AuxDataTokenizer;
 struct AuxtraceInfoRecord;

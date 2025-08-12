@@ -65,7 +65,7 @@ VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMapping(
     uint64_t iid) {
   if (pid_and_tid_valid()) {
     return FindOrInsertMappingImpl(
-        context_->process_tracker->GetOrCreateProcess(
+        context_->machine_context->process_tracker->GetOrCreateProcess(
             static_cast<uint32_t>(pid())),
         iid);
   }
@@ -83,7 +83,8 @@ VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMappingImpl(
       LookupInternedMessage<protos::pbzero::InternedData::kMappingsFieldNumber,
                             protos::pbzero::Mapping>(iid);
   if (!decoder) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
+    context_->global_context->storage->IncrementStats(
+        stats::stackprofile_invalid_mapping_id);
     return nullptr;
   }
 
@@ -117,19 +118,21 @@ VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMappingImpl(
   VirtualMemoryMapping* mapping;
 
   if (IsMagicalKernelMapping(params)) {
-    mapping = &context_->mapping_tracker->CreateKernelMemoryMapping(
-        std::move(params));
+    mapping =
+        &context_->machine_context->mapping_tracker->CreateKernelMemoryMapping(
+            std::move(params));
     // A lot of tests to not set a proper mapping range
     // Dummy mappings can also be emitted (e.g. for errors during unwinding)
   } else if (params.memory_range.empty()) {
-    mapping =
-        &context_->mapping_tracker->InternMemoryMapping(std::move(params));
+    mapping = &context_->machine_context->mapping_tracker->InternMemoryMapping(
+        std::move(params));
   } else if (upid.has_value()) {
-    mapping = &context_->mapping_tracker->CreateUserMemoryMapping(
-        *upid, std::move(params));
-  } else {
     mapping =
-        &context_->mapping_tracker->InternMemoryMapping(std::move(params));
+        &context_->machine_context->mapping_tracker->CreateUserMemoryMapping(
+            *upid, std::move(params));
+  } else {
+    mapping = &context_->machine_context->mapping_tracker->InternMemoryMapping(
+        std::move(params));
   }
 
   cached_mappings_.Insert({upid, iid}, mapping);
@@ -147,7 +150,8 @@ StackProfileSequenceState::LookupInternedBuildId(uint64_t iid) {
       LookupInternedMessage<protos::pbzero::InternedData::kBuildIdsFieldNumber,
                             protos::pbzero::InternedString>(iid);
   if (!decoder) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
+    context_->global_context->storage->IncrementStats(
+        stats::stackprofile_invalid_string_id);
     return std::nullopt;
   }
 
@@ -160,7 +164,8 @@ StackProfileSequenceState::LookupInternedMappingPath(uint64_t iid) {
       protos::pbzero::InternedData::kMappingPathsFieldNumber,
       protos::pbzero::InternedString>(iid);
   if (!decoder) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
+    context_->global_context->storage->IncrementStats(
+        stats::stackprofile_invalid_string_id);
     return std::nullopt;
   }
 
@@ -177,7 +182,8 @@ std::optional<CallsiteId> StackProfileSequenceState::FindOrInsertCallstack(
       protos::pbzero::InternedData::kCallstacksFieldNumber,
       protos::pbzero::Callstack>(iid);
   if (!decoder) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_callstack_id);
+    context_->global_context->storage->IncrementStats(
+        stats::stackprofile_invalid_callstack_id);
     return std::nullopt;
   }
 
@@ -188,13 +194,15 @@ std::optional<CallsiteId> StackProfileSequenceState::FindOrInsertCallstack(
     if (!frame_id) {
       return std::nullopt;
     }
-    parent_callsite_id = context_->stack_profile_tracker->InternCallsite(
-        parent_callsite_id, *frame_id, depth);
+    parent_callsite_id =
+        context_->trace_context->stack_profile_tracker->InternCallsite(
+            parent_callsite_id, *frame_id, depth);
     ++depth;
   }
 
   if (!parent_callsite_id) {
-    context_->storage->IncrementStats(stats::stackprofile_empty_callstack);
+    context_->global_context->storage->IncrementStats(
+        stats::stackprofile_empty_callstack);
     return std::nullopt;
   }
 
@@ -213,7 +221,8 @@ std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
       LookupInternedMessage<protos::pbzero::InternedData::kFramesFieldNumber,
                             protos::pbzero::Frame>(iid);
   if (!decoder) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_frame_id);
+    context_->global_context->storage->IncrementStats(
+        stats::stackprofile_invalid_frame_id);
     return std::nullopt;
   }
 
@@ -252,7 +261,8 @@ StackProfileSequenceState::LookupInternedFunctionName(uint64_t iid) {
       protos::pbzero::InternedData::kFunctionNamesFieldNumber,
       protos::pbzero::InternedString>(iid);
   if (!decoder) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
+    context_->global_context->storage->IncrementStats(
+        stats::stackprofile_invalid_string_id);
     return std::nullopt;
   }
 

@@ -43,7 +43,7 @@
 
 namespace perfetto {
 namespace trace_processor {
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 namespace perf_importer {
 

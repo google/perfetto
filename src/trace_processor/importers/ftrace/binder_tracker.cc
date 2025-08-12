@@ -219,26 +219,38 @@ enum BinderTracker::TxnFrame::State : uint32_t {
 
 BinderTracker::BinderTracker(TraceProcessorContext* context)
     : context_(context),
-      binder_category_id_(context->storage->InternString("binder")),
-      lock_waiting_id_(context->storage->InternString("binder lock waiting")),
-      lock_held_id_(context->storage->InternString("binder lock held")),
+      binder_category_id_(
+          context->global_context->storage->InternString("binder")),
+      lock_waiting_id_(context->global_context->storage->InternString(
+          "binder lock waiting")),
+      lock_held_id_(
+          context->global_context->storage->InternString("binder lock held")),
       transaction_slice_id_(
-          context->storage->InternString("binder transaction")),
-      transaction_async_id_(
-          context->storage->InternString("binder transaction async")),
-      reply_id_(context->storage->InternString("binder reply")),
-      async_rcv_id_(context->storage->InternString("binder async rcv")),
-      transaction_id_(context->storage->InternString("transaction id")),
-      dest_node_(context->storage->InternString("destination node")),
-      dest_process_(context->storage->InternString("destination process")),
-      dest_thread_(context->storage->InternString("destination thread")),
-      dest_name_(context->storage->InternString("destination name")),
-      is_reply_(context->storage->InternString("reply transaction?")),
-      flags_(context->storage->InternString("flags")),
-      code_(context->storage->InternString("code")),
-      calling_tid_(context->storage->InternString("calling tid")),
-      data_size_(context->storage->InternString("data size")),
-      offsets_size_(context->storage->InternString("offsets size")) {}
+          context->global_context->storage->InternString("binder transaction")),
+      transaction_async_id_(context->global_context->storage->InternString(
+          "binder transaction async")),
+      reply_id_(context->global_context->storage->InternString("binder reply")),
+      async_rcv_id_(
+          context->global_context->storage->InternString("binder async rcv")),
+      transaction_id_(
+          context->global_context->storage->InternString("transaction id")),
+      dest_node_(
+          context->global_context->storage->InternString("destination node")),
+      dest_process_(context->global_context->storage->InternString(
+          "destination process")),
+      dest_thread_(
+          context->global_context->storage->InternString("destination thread")),
+      dest_name_(
+          context->global_context->storage->InternString("destination name")),
+      is_reply_(
+          context->global_context->storage->InternString("reply transaction?")),
+      flags_(context->global_context->storage->InternString("flags")),
+      code_(context->global_context->storage->InternString("code")),
+      calling_tid_(
+          context->global_context->storage->InternString("calling tid")),
+      data_size_(context->global_context->storage->InternString("data size")),
+      offsets_size_(
+          context->global_context->storage->InternString("offsets size")) {}
 
 BinderTracker::~BinderTracker() = default;
 
@@ -251,8 +263,10 @@ void BinderTracker::Transaction(int64_t ts,
                                 bool is_reply,
                                 uint32_t flags,
                                 StringId code) {
-  UniqueTid src_utid = context_->process_tracker->GetOrCreateThread(tid);
-  TrackId track_id = context_->track_tracker->InternThreadTrack(src_utid);
+  UniqueTid src_utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(tid);
+  TrackId track_id =
+      context_->machine_context->track_tracker->InternThreadTrack(src_utid);
 
   auto args_inserter = [this, transaction_id, dest_node, dest_tgid, is_reply,
                         flags, code,
@@ -263,8 +277,10 @@ void BinderTracker::Transaction(int64_t ts,
     inserter->AddArg(is_reply_, Variadic::Boolean(is_reply));
     std::string flag_str =
         base::IntToHexString(flags) + " " + BinderFlagsToHuman(flags);
-    inserter->AddArg(flags_, Variadic::String(context_->storage->InternString(
-                                 base::StringView(flag_str))));
+    inserter->AddArg(
+        flags_,
+        Variadic::String(context_->global_context->storage->InternString(
+            base::StringView(flag_str))));
     inserter->AddArg(code_, Variadic::String(code));
     inserter->AddArg(calling_tid_, Variadic::UnsignedInteger(tid));
   };
@@ -272,9 +288,11 @@ void BinderTracker::Transaction(int64_t ts,
   bool is_oneway = (flags & kOneWay) == kOneWay;
   auto insert_slice = [&]() {
     if (is_reply) {
-      UniqueTid utid = context_->process_tracker->GetOrCreateThread(
-          static_cast<uint32_t>(dest_tid));
-      auto dest_thread_name = context_->storage->thread_table()[utid].name();
+      UniqueTid utid =
+          context_->machine_context->process_tracker->GetOrCreateThread(
+              static_cast<uint32_t>(dest_tid));
+      auto dest_thread_name =
+          context_->global_context->storage->thread_table()[utid].name();
       auto dest_args_inserter = [this, dest_tid, &dest_thread_name](
                                     ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(dest_thread_, Variadic::Integer(dest_tid));
@@ -282,18 +300,19 @@ void BinderTracker::Transaction(int64_t ts,
           inserter->AddArg(dest_name_, Variadic::String(*dest_thread_name));
         }
       };
-      context_->slice_tracker->AddArgs(track_id, binder_category_id_, reply_id_,
-                                       dest_args_inserter);
-      return context_->slice_tracker->End(ts, track_id, kNullStringId,
-                                          kNullStringId, args_inserter);
+      context_->trace_context->slice_tracker->AddArgs(
+          track_id, binder_category_id_, reply_id_, dest_args_inserter);
+      return context_->trace_context->slice_tracker->End(
+          ts, track_id, kNullStringId, kNullStringId, args_inserter);
     }
     if (is_oneway) {
-      return context_->slice_tracker->Scoped(ts, track_id, binder_category_id_,
-                                             transaction_async_id_, 0,
-                                             args_inserter);
+      return context_->trace_context->slice_tracker->Scoped(
+          ts, track_id, binder_category_id_, transaction_async_id_, 0,
+          args_inserter);
     }
-    return context_->slice_tracker->Begin(ts, track_id, binder_category_id_,
-                                          transaction_slice_id_, args_inserter);
+    return context_->trace_context->slice_tracker->Begin(
+        ts, track_id, binder_category_id_, transaction_slice_id_,
+        args_inserter);
   };
 
   OutstandingTransaction transaction;
@@ -332,8 +351,10 @@ void BinderTracker::TransactionReceived(int64_t ts,
   OutstandingTransaction transaction(std::move(it->second));
   outstanding_transactions_.erase(it);
 
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  UniqueTid utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id =
+      context_->machine_context->track_tracker->InternThreadTrack(utid);
 
   // If it's a oneway transaction, there's no stack to track on the receiving
   // side.
@@ -355,13 +376,13 @@ void BinderTracker::TransactionReceived(int64_t ts,
   if (transaction.is_reply) {
     // Simply end the slice started back when the first |expects_reply|
     // transaction was sent.
-    context_->slice_tracker->End(ts, track_id);
+    context_->trace_context->slice_tracker->End(ts, track_id);
     return;
   }
 
   std::optional<SliceId> recv_slice_id;
   if (transaction.is_oneway) {
-    recv_slice_id = context_->slice_tracker->Scoped(
+    recv_slice_id = context_->trace_context->slice_tracker->Scoped(
         ts, track_id, binder_category_id_, async_rcv_id_, 0,
         std::move(transaction.args_inserter));
   } else {
@@ -369,23 +390,24 @@ void BinderTracker::TransactionReceived(int64_t ts,
       auto args_inserter = [this, utid,
                             pid](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(dest_thread_, Variadic::UnsignedInteger(pid));
-        auto dest_thread_name = context_->storage->thread_table()[utid].name();
+        auto dest_thread_name =
+            context_->global_context->storage->thread_table()[utid].name();
         if (dest_thread_name.has_value()) {
           inserter->AddArg(dest_name_, Variadic::String(*dest_thread_name));
         }
       };
-      context_->slice_tracker->AddArgs(*transaction.send_track_id,
-                                       binder_category_id_,
-                                       transaction_slice_id_, args_inserter);
+      context_->trace_context->slice_tracker->AddArgs(
+          *transaction.send_track_id, binder_category_id_,
+          transaction_slice_id_, args_inserter);
     }
-    recv_slice_id = context_->slice_tracker->Begin(
+    recv_slice_id = context_->trace_context->slice_tracker->Begin(
         ts, track_id, binder_category_id_, reply_id_);
   }
 
   // Create a flow between the sending slice and this slice.
   if (transaction.send_slice_id && recv_slice_id) {
-    context_->flow_tracker->InsertFlow(*transaction.send_slice_id,
-                                       *recv_slice_id);
+    context_->trace_context->flow_tracker->InsertFlow(
+        *transaction.send_slice_id, *recv_slice_id);
   }
 }
 
@@ -432,11 +454,12 @@ void BinderTracker::ReturnFromKernel(int64_t ts, uint32_t tid, uint32_t cmd) {
           case TxnFrame::kSndAfterBR_TRANSACTION_COMPLETE:
             if (frame->txn_info.has_value()) {
               if (!frame->txn_info->is_oneway && !frame->txn_info->is_reply) {
-                UniqueTid utid =
-                    context_->process_tracker->GetOrCreateThread(tid);
+                UniqueTid utid = context_->machine_context->process_tracker
+                                     ->GetOrCreateThread(tid);
                 TrackId track_id =
-                    context_->track_tracker->InternThreadTrack(utid);
-                context_->slice_tracker->End(ts, track_id);
+                    context_->machine_context->track_tracker->InternThreadTrack(
+                        utid);
+                context_->trace_context->slice_tracker->End(ts, track_id);
               }
             }
             PopTidFrame(tid);
@@ -502,36 +525,42 @@ void BinderTracker::ReturnFromKernel(int64_t ts, uint32_t tid, uint32_t cmd) {
 void BinderTracker::Lock(int64_t ts, uint32_t pid) {
   attempt_lock_[pid] = ts;
 
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-  context_->slice_tracker->Begin(ts, track_id, binder_category_id_,
-                                 lock_waiting_id_);
+  UniqueTid utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id =
+      context_->machine_context->track_tracker->InternThreadTrack(utid);
+  context_->trace_context->slice_tracker->Begin(
+      ts, track_id, binder_category_id_, lock_waiting_id_);
 }
 
 void BinderTracker::Locked(int64_t ts, uint32_t pid) {
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  UniqueTid utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(pid);
 
   if (!attempt_lock_.Find(pid))
     return;
 
-  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-  context_->slice_tracker->End(ts, track_id);
-  context_->slice_tracker->Begin(ts, track_id, binder_category_id_,
-                                 lock_held_id_);
+  TrackId track_id =
+      context_->machine_context->track_tracker->InternThreadTrack(utid);
+  context_->trace_context->slice_tracker->End(ts, track_id);
+  context_->trace_context->slice_tracker->Begin(
+      ts, track_id, binder_category_id_, lock_held_id_);
 
   lock_acquired_[pid] = ts;
   attempt_lock_.Erase(pid);
 }
 
 void BinderTracker::Unlock(int64_t ts, uint32_t pid) {
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  UniqueTid utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(pid);
 
   if (!lock_acquired_.Find(pid))
     return;
 
-  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-  context_->slice_tracker->End(ts, track_id, binder_category_id_,
-                               lock_held_id_);
+  TrackId track_id =
+      context_->machine_context->track_tracker->InternThreadTrack(utid);
+  context_->trace_context->slice_tracker->End(ts, track_id, binder_category_id_,
+                                              lock_held_id_);
   lock_acquired_.Erase(pid);
 }
 
@@ -539,22 +568,25 @@ void BinderTracker::TransactionAllocBuf(int64_t ts,
                                         uint32_t pid,
                                         uint64_t data_size,
                                         uint64_t offsets_size) {
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  UniqueTid utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id =
+      context_->machine_context->track_tracker->InternThreadTrack(utid);
 
   auto args_inserter = [this, &data_size,
                         offsets_size](ArgsTracker::BoundInserter* inserter) {
     inserter->AddArg(data_size_, Variadic::UnsignedInteger(data_size));
     inserter->AddArg(offsets_size_, Variadic::UnsignedInteger(offsets_size));
   };
-  context_->slice_tracker->AddArgs(track_id, binder_category_id_,
-                                   transaction_slice_id_, args_inserter);
+  context_->trace_context->slice_tracker->AddArgs(
+      track_id, binder_category_id_, transaction_slice_id_, args_inserter);
 
   base::ignore_result(ts);
 }
 
 BinderTracker::TxnFrame* BinderTracker::GetTidTopFrame(uint32_t tid) {
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
+  UniqueTid utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(tid);
   std::stack<BinderTracker::TxnFrame>* stack = utid_stacks_.Find(utid);
   if (stack == nullptr || stack->empty()) {
     return nullptr;
@@ -563,14 +595,16 @@ BinderTracker::TxnFrame* BinderTracker::GetTidTopFrame(uint32_t tid) {
 }
 
 BinderTracker::TxnFrame* BinderTracker::PushTidFrame(uint32_t tid) {
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
+  UniqueTid utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(tid);
   auto& stack = utid_stacks_[utid];
   stack.push({});
   return &stack.top();
 }
 
 void BinderTracker::PopTidFrame(uint32_t tid) {
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
+  UniqueTid utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(tid);
   std::stack<BinderTracker::TxnFrame>* stack = utid_stacks_.Find(utid);
   PERFETTO_CHECK(stack);
   stack->pop();

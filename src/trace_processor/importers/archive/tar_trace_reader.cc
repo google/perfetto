@@ -334,8 +334,9 @@ base::StatusOr<TarTraceReader::ParseResult> TarTraceReader::ParseContent() {
 void TarTraceReader::AddFile(const Metadata& metadata,
                              TraceBlobView header,
                              std::vector<TraceBlobView> data) {
-  auto file_id = context_->trace_file_tracker->AddFile(metadata.name);
-  context_->trace_file_tracker->SetSize(file_id, metadata.size);
+  auto file_id =
+      context_->trace_context->trace_file_tracker->AddFile(metadata.name);
+  context_->trace_context->trace_file_tracker->SetSize(file_id, metadata.size);
   ordered_files_.emplace(
       ArchiveEntry{metadata.name, ordered_files_.size(),
                    GuessTraceType(header.data(), header.size())},

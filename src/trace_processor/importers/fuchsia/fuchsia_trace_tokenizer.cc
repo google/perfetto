@@ -77,10 +77,10 @@ constexpr uint32_t kZxObjTypeThread = 2;
 FuchsiaTraceTokenizer::FuchsiaTraceTokenizer(TraceProcessorContext* context)
     : context_(context),
       proto_trace_reader_(context),
-      process_id_(context->storage->InternString("process")) {
+      process_id_(context->global_context->storage->InternString("process")) {
   auto parser = std::make_unique<FuchsiaTraceParser>(context);
   parser_ = parser.get();
-  stream_ = context->sorter->CreateStream(std::move(parser));
+  stream_ = context->global_context->sorter->CreateStream(std::move(parser));
   RegisterProvider(0, "");
 }
 
@@ -203,8 +203,8 @@ base::Status FuchsiaTraceTokenizer::Parse(TraceBlobView blob) {
 // facilitate the parsing after sorting, a small view of the provider's string
 // and thread tables is passed alongside the record. See |FuchsiaProviderView|.
 void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
-  TraceStorage* storage = context_->storage.get();
-  ProcessTracker* procs = context_->process_tracker.get();
+  TraceStorage* storage = context_->global_context->storage.get();
+  ProcessTracker* procs = context_->machine_context->process_tracker.get();
 
   fuchsia_trace_utils::RecordCursor cursor(tbv.data(), tbv.length());
   uint64_t header;
@@ -223,12 +223,13 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
 
   // Adapters for FuchsiaTraceParser::ParseArgs.
   const auto intern_string = [this](base::StringView string) {
-    return context_->storage->InternString(string);
+    return context_->global_context->storage->InternString(string);
   };
   const auto get_string = [this](uint16_t index) {
     StringId id = current_provider_->GetString(index);
     if (id == StringId::Null()) {
-      context_->storage->IncrementStats(stats::fuchsia_invalid_string_ref);
+      context_->global_context->storage->IncrementStats(
+          stats::fuchsia_invalid_string_ref);
     }
     return id;
   };
@@ -240,7 +241,8 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
       const size_t arg_base = cursor.WordIndex();
       uint64_t arg_header;
       if (!cursor.ReadUint64(&arg_header)) {
-        context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+        context_->global_context->storage->IncrementStats(
+            stats::fuchsia_record_read_error);
         return false;
       }
       auto arg_type =
@@ -253,13 +255,15 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
       if (fuchsia_trace_utils::IsInlineString(arg_name_ref)) {
         // Skip over inline string
         if (!cursor.ReadInlineString(arg_name_ref, nullptr)) {
-          context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+          context_->global_context->storage->IncrementStats(
+              stats::fuchsia_record_read_error);
           return false;
         }
       } else {
         StringId id = current_provider_->GetString(arg_name_ref);
         if (id == StringId::Null()) {
-          context_->storage->IncrementStats(stats::fuchsia_invalid_string_ref);
+          context_->global_context->storage->IncrementStats(
+              stats::fuchsia_invalid_string_ref);
           return false;
         }
         record.InsertString(arg_name_ref, id);
@@ -271,13 +275,14 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
         if (fuchsia_trace_utils::IsInlineString(arg_value_ref)) {
           // Skip over inline string
           if (!cursor.ReadInlineString(arg_value_ref, nullptr)) {
-            context_->storage->IncrementStats(stats::fuchsia_record_read_error);
+            context_->global_context->storage->IncrementStats(
+                stats::fuchsia_record_read_error);
             return false;
           }
         } else {
           StringId id = current_provider_->GetString(arg_value_ref);
           if (id == StringId::Null()) {
-            context_->storage->IncrementStats(
+            context_->global_context->storage->IncrementStats(
                 stats::fuchsia_invalid_string_ref);
             return false;
           }

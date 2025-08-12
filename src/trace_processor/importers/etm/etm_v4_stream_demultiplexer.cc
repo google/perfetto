@@ -282,7 +282,8 @@ class EtmV4StreamDemultiplexer : public perf_importer::AuxDataTokenizer {
  private:
   base::Status InitCpu(tables::EtmV4ConfigurationTable::Id config_id) {
     auto config =
-        *context_->storage->etm_v4_configuration_table().FindById(config_id);
+        *context_->global_context->storage->etm_v4_configuration_table()
+             .FindById(config_id);
 
     auto stream = std::make_unique<EtmV4Stream>(context_, &decoder_, config_id);
 

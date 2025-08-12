@@ -15,11 +15,6 @@
  */
 
 #include "src/trace_processor/types/per_trace_context.h"
-
-#include <memory>
-#include <optional>
-
-#include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
@@ -28,15 +23,32 @@
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
+#include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
 
 PerTraceContext::PerTraceContext() = default;
-
-PerTraceContext::Init() {}
-
 PerTraceContext::~PerTraceContext() = default;
+
+void PerTraceContext::Init(TraceProcessorContext* context) {
+  global_args_tracker = std::make_shared<GlobalArgsTracker>(
+      context->global_context->storage.get());
+  args_tracker = std::make_unique<ArgsTracker>(context);
+  args_translation_table = std::make_unique<ArgsTranslationTable>(
+      context->global_context->storage.get());
+  flow_tracker = std::make_unique<FlowTracker>(context);
+  event_tracker = std::make_unique<EventTracker>(context);
+  trace_file_tracker = std::make_unique<TraceFileTracker>(context);
+  stack_profile_tracker = std::make_unique<StackProfileTracker>(context);
+  process_track_translation_table =
+      std::make_unique<ProcessTrackTranslationTable>(
+          context->global_context->storage.get());
+  slice_tracker = std::make_unique<SliceTracker>(context);
+  slice_translation_table = std::make_unique<SliceTranslationTable>(
+      context->global_context->storage.get());
+}
 
 PerTraceContext::PerTraceContext(PerTraceContext&&) = default;
 PerTraceContext& PerTraceContext::operator=(PerTraceContext&&) = default;

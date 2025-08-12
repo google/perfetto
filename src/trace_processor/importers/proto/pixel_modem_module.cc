@@ -88,7 +88,8 @@ ModuleResult PixelModemModule::TokenizePacket(
     protozero::ConstBytes event_bytes = *it;
     ts += *ts_it;
     if (ts < 0) {
-      context_->storage->IncrementStats(stats::pixel_modem_negative_timestamp);
+      context_->global_context->storage->IncrementStats(
+          stats::pixel_modem_negative_timestamp);
       continue;
     }
 

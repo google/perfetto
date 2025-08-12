@@ -47,22 +47,24 @@ static constexpr char kBlockedFunction[] = "blocked1";
 class ThreadStateTrackerUnittest : public testing::Test {
  public:
   ThreadStateTrackerUnittest() {
-    context_.storage.reset(new TraceStorage());
-    context_.process_tracker.reset(new ProcessTracker(&context_));
-    context_.global_args_tracker.reset(
-        new GlobalArgsTracker(context_.storage.get()));
-    context_.machine_tracker.reset(new MachineTracker(&context_, 0));
-    context_.cpu_tracker.reset(new CpuTracker(&context_));
-    context_.args_tracker.reset(new ArgsTracker(&context_));
+    context_.global_context->storage.reset(new TraceStorage());
+    context_.machine_context->process_tracker.reset(
+        new ProcessTracker(&context_));
+    context_.trace_context->global_args_tracker.reset(
+        new GlobalArgsTracker(context_.global_context->storage.get()));
+    context_.machine_context->machine_tracker.reset(
+        new MachineTracker(&context_, 0));
+    context_.machine_context->cpu_tracker.reset(new CpuTracker(&context_));
+    context_.trace_context->args_tracker.reset(new ArgsTracker(&context_));
     tracker_.reset(new ThreadStateTracker(&context_));
   }
 
   StringId StringIdOf(const char* s) {
-    return context_.storage->InternString(s);
+    return context_.global_context->storage->InternString(s);
   }
 
   tables::ThreadStateTable::ConstIterator ThreadStateIterator() {
-    return context_.storage->thread_state_table().IterateRows();
+    return context_.global_context->storage->thread_state_table().IterateRows();
   }
 
   void VerifyThreadState(
@@ -87,7 +89,8 @@ class ThreadStateTrackerUnittest : public testing::Test {
     } else {
       ASSERT_EQ(it.ucpu(), std::nullopt);
     }
-    ASSERT_STREQ(context_.storage->GetString(it.state()).c_str(), state);
+    ASSERT_STREQ(
+        context_.global_context->storage->GetString(it.state()).c_str(), state);
     ASSERT_EQ(it.io_wait(), io_wait);
     ASSERT_EQ(it.blocked_function(), blocked_function);
     ASSERT_EQ(it.waker_utid(), waker_utid);
@@ -105,7 +108,8 @@ TEST_F(ThreadStateTrackerUnittest, BasicPushSchedSwitchEvent) {
   tracker_->PushSchedSwitchEvent(10, CPU_A, THREAD_A, StringIdOf("S"),
                                  THREAD_B);
 
-  ASSERT_EQ(context_.storage->thread_state_table().row_count(), 2ul);
+  ASSERT_EQ(context_.global_context->storage->thread_state_table().row_count(),
+            2ul);
   auto rows_it = ThreadStateIterator();
   VerifyThreadState(rows_it, 10, std::nullopt, THREAD_A, "S");
   VerifyThreadState(++rows_it, 10, std::nullopt, THREAD_B, kRunning);
@@ -113,7 +117,8 @@ TEST_F(ThreadStateTrackerUnittest, BasicPushSchedSwitchEvent) {
 
 TEST_F(ThreadStateTrackerUnittest, StartWithWakingEvent) {
   tracker_->PushWakingEvent(10, THREAD_A, THREAD_C);
-  ASSERT_EQ(context_.storage->thread_state_table().row_count(), 1ul);
+  ASSERT_EQ(context_.global_context->storage->thread_state_table().row_count(),
+            1ul);
 }
 
 TEST_F(ThreadStateTrackerUnittest, BasicWakingEvent) {
@@ -121,7 +126,8 @@ TEST_F(ThreadStateTrackerUnittest, BasicWakingEvent) {
                                  THREAD_B);
   tracker_->PushWakingEvent(20, THREAD_A, THREAD_C);
 
-  ASSERT_EQ(context_.storage->thread_state_table().row_count(), 3ul);
+  ASSERT_EQ(context_.global_context->storage->thread_state_table().row_count(),
+            3ul);
   auto row_it = ThreadStateIterator();
   VerifyThreadState(row_it, 10, 20, THREAD_A, "S");
   VerifyThreadState(++row_it, 10, std::nullopt, THREAD_B, kRunning);

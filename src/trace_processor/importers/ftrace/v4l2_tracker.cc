@@ -44,10 +44,10 @@ using protozero::ConstBytes;
 
 V4l2Tracker::V4l2Tracker(TraceProcessorContext* context)
     : context_(context),
-      buf_event_ids_(*context->storage),
-      buf_type_ids_(*context_->storage),
-      buf_field_ids_(*context->storage),
-      tc_type_ids_(*context->storage) {}
+      buf_event_ids_(*context->global_context->storage),
+      buf_type_ids_(*context_->global_context->storage),
+      buf_field_ids_(*context->global_context->storage),
+      tc_type_ids_(*context->global_context->storage) {}
 
 V4l2Tracker::~V4l2Tracker() = default;
 
@@ -83,8 +83,8 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
           " index=%" PRIu32,
           evt.device_minor, evt.sequence, *evt.type, *evt.index);
 
-      StringId buf_name_id =
-          context_->storage->InternString(buf_name.string_view());
+      StringId buf_name_id = context_->global_context->storage->InternString(
+          buf_name.string_view());
       std::optional<SliceId> slice_id =
           AddSlice(buf_name_id, timestamp, pid, evt);
 
@@ -124,8 +124,8 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
           " index=%" PRIu32,
           evt.device_minor, evt.sequence, *evt.type, *evt.index);
 
-      StringId buf_name_id =
-          context_->storage->InternString(buf_name.string_view());
+      StringId buf_name_id = context_->global_context->storage->InternString(
+          buf_name.string_view());
       std::optional<SliceId> slice_id =
           AddSlice(buf_name_id, timestamp, pid, evt);
 
@@ -135,8 +135,8 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
       const QueuedBuffer* queued_buffer = queued_buffers_.Find(hash);
       if (queued_buffer) {
         if (queued_buffer->queue_slice_id && slice_id) {
-          context_->flow_tracker->InsertFlow(*queued_buffer->queue_slice_id,
-                                             *slice_id);
+          context_->trace_context->flow_tracker->InsertFlow(
+              *queued_buffer->queue_slice_id, *slice_id);
         }
 
         queued_buffers_.Erase(hash);
@@ -169,8 +169,8 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
                                      " seq=%" PRIu32 " type=0 index=0",
                                      evt.device_minor, evt.sequence);
 
-      StringId buf_name_id =
-          context_->storage->InternString(buf_name.string_view());
+      StringId buf_name_id = context_->global_context->storage->InternString(
+          buf_name.string_view());
       AddSlice(buf_name_id, timestamp, pid, evt);
       break;
     }
@@ -200,8 +200,8 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
                                      " seq=%" PRIu32 " type=0 index=0",
                                      evt.device_minor, evt.sequence);
 
-      StringId buf_name_id =
-          context_->storage->InternString(buf_name.string_view());
+      StringId buf_name_id = context_->global_context->storage->InternString(
+          buf_name.string_view());
       AddSlice(buf_name_id, timestamp, pid, evt);
       break;
     }
@@ -231,8 +231,8 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
                                      " seq=%" PRIu32 " type=0 index=0",
                                      evt.device_minor, evt.sequence);
 
-      StringId buf_name_id =
-          context_->storage->InternString(buf_name.string_view());
+      StringId buf_name_id = context_->global_context->storage->InternString(
+          buf_name.string_view());
       AddSlice(buf_name_id, timestamp, pid, evt);
       break;
     }
@@ -262,8 +262,8 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
                                      " seq=%" PRIu32 " type=0 index=0",
                                      evt.device_minor, evt.sequence);
 
-      StringId buf_name_id =
-          context_->storage->InternString(buf_name.string_view());
+      StringId buf_name_id = context_->global_context->storage->InternString(
+          buf_name.string_view());
       AddSlice(buf_name_id, timestamp, pid, evt);
       break;
     }
@@ -276,14 +276,17 @@ std::optional<SliceId> V4l2Tracker::AddSlice(StringId buf_name_id,
                                              int64_t timestamp,
                                              uint32_t pid,
                                              const BufferEvent& evt) {
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
+  UniqueTid utid =
+      context_->machine_context->process_tracker->GetOrCreateThread(pid);
+  TrackId track_id =
+      context_->machine_context->track_tracker->InternThreadTrack(utid);
 
-  std::optional<SliceId> slice_id = context_->slice_tracker->Scoped(
-      timestamp, track_id, buf_event_ids_.v4l2, buf_name_id, 0,
-      [this, &evt](ArgsTracker::BoundInserter* inserter) {
-        this->AddArgs(evt, inserter);
-      });
+  std::optional<SliceId> slice_id =
+      context_->trace_context->slice_tracker->Scoped(
+          timestamp, track_id, buf_event_ids_.v4l2, buf_name_id, 0,
+          [this, &evt](ArgsTracker::BoundInserter* inserter) {
+            this->AddArgs(evt, inserter);
+          });
 
   return slice_id;
 }
@@ -520,7 +523,7 @@ StringId V4l2Tracker::InternBufFlags(uint32_t flags) {
   if (flags & 0x00800000)
     present_flags.push_back("REQUEST_FD");
 
-  return context_->storage->InternString(
+  return context_->global_context->storage->InternString(
       base::Join(present_flags, "|").c_str());
 }
 
@@ -542,7 +545,7 @@ StringId V4l2Tracker::InternTcFlags(uint32_t flags) {
   if (flags & 0x0008)
     present_flags.push_back("USERBITS_8BITCHARS");
 
-  return context_->storage->InternString(
+  return context_->global_context->storage->InternString(
       base::Join(present_flags, "|").c_str());
 }
 

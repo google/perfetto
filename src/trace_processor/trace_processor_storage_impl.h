@@ -25,22 +25,11 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor_storage.h"
-#include "src/trace_processor/types/per_machine_context.h"
-#include "src/trace_processor/types/per_trace_context.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor {
 
 class ForwardingTraceParser;
-
-// TOOD(sashwinbalaji):
-//    - Rename TPContext to TraceProcessorContext
-//    - Rename TraceProcessorContext to GlobalContext
-struct TPContext {
-  TraceProcessorContext global_context;
-  PerMachineContext per_machine_context;
-  PerTraceContext per_trace_context;
-};
 
 class TraceProcessorStorageImpl : public TraceProcessorStorage {
  public:
@@ -53,12 +42,12 @@ class TraceProcessorStorageImpl : public TraceProcessorStorage {
 
   void DestroyContext();
 
-  TraceProcessorContext* context() { return &context_.global_context; }
+  TraceProcessorContext* context() { return &context_; }
 
  protected:
   base::FnvHasher trace_hash_;
   // TODO(sashwinbalaji): Move ownership of per trace to forwarding_trace_parser
-  TPContext context_;
+  TraceProcessorContext context_;
   bool unrecoverable_parse_error_ = false;
   bool eof_ = false;
   size_t hash_input_size_remaining_ = 4096;

@@ -57,7 +57,8 @@ void ProfilePacketSequenceState::SetProfilePacketIndex(uint64_t index) {
   }
 
   if (dropped_packet) {
-    context_->storage->IncrementStats(stats::heapprofd_missing_packet);
+    context_->global_context->storage->IncrementStats(
+        stats::heapprofd_missing_packet);
   }
   prev_index = index;
 }
@@ -74,7 +75,8 @@ void ProfilePacketSequenceState::AddMapping(SourceMappingId id,
   if (std::string* str = strings_.Find(mapping.build_id); str) {
     params.build_id = BuildId::FromRaw(*str);
   } else {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
+    context_->global_context->storage->IncrementStats(
+        stats::stackprofile_invalid_string_id);
     return;
   }
   params.exact_offset = mapping.exact_offset;
@@ -88,7 +90,8 @@ void ProfilePacketSequenceState::AddMapping(SourceMappingId id,
     if (std::string* str = strings_.Find(string_id); str) {
       path_components.push_back(base::StringView(*str));
     } else {
-      context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
+      context_->global_context->storage->IncrementStats(
+          stats::stackprofile_invalid_string_id);
       // For backward compatibility reasons we do not return an error but
       // instead stop adding path components.
       break;
@@ -97,7 +100,8 @@ void ProfilePacketSequenceState::AddMapping(SourceMappingId id,
 
   params.name = ProfilePacketUtils::MakeMappingName(path_components);
   mappings_.Insert(
-      id, &context_->mapping_tracker->InternMemoryMapping(std::move(params)));
+      id, &context_->machine_context->mapping_tracker->InternMemoryMapping(
+              std::move(params)));
 }
 
 void ProfilePacketSequenceState::AddFrame(SourceFrameId id,
@@ -106,13 +110,15 @@ void ProfilePacketSequenceState::AddFrame(SourceFrameId id,
   if (auto* ptr = mappings_.Find(frame.mapping_id); ptr) {
     mapping = *ptr;
   } else {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
+    context_->global_context->storage->IncrementStats(
+        stats::stackprofile_invalid_mapping_id);
     return;
   }
 
   std::string* function_name = strings_.Find(frame.name_id);
   if (!function_name) {
-    context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
+    context_->global_context->storage->IncrementStats(
+        stats::stackprofile_invalid_string_id);
     return;
   }
 
@@ -130,16 +136,19 @@ void ProfilePacketSequenceState::AddCallstack(
   for (SourceFrameId source_frame_id : callstack) {
     FrameId* frame_id = frames_.Find(source_frame_id);
     if (!frame_id) {
-      context_->storage->IncrementStats(stats::stackprofile_invalid_frame_id);
+      context_->global_context->storage->IncrementStats(
+          stats::stackprofile_invalid_frame_id);
       return;
     }
-    parent_callsite_id = context_->stack_profile_tracker->InternCallsite(
-        parent_callsite_id, *frame_id, depth);
+    parent_callsite_id =
+        context_->trace_context->stack_profile_tracker->InternCallsite(
+            parent_callsite_id, *frame_id, depth);
     ++depth;
   }
 
   if (!parent_callsite_id) {
-    context_->storage->IncrementStats(stats::stackprofile_empty_callstack);
+    context_->global_context->storage->IncrementStats(
+        stats::stackprofile_empty_callstack);
     return;
   }
 
@@ -176,8 +185,9 @@ FrameId ProfilePacketSequenceState::GetDatabaseFrameIdForTesting(
 }
 
 void ProfilePacketSequenceState::AddAllocation(const SourceAllocation& alloc) {
-  const UniquePid upid = context_->process_tracker->GetOrCreateProcess(
-      static_cast<uint32_t>(alloc.pid));
+  const UniquePid upid =
+      context_->machine_context->process_tracker->GetOrCreateProcess(
+          static_cast<uint32_t>(alloc.pid));
   auto opt_callstack_id = FindOrInsertCallstack(upid, alloc.callstack_id);
   if (!opt_callstack_id)
     return;
@@ -252,25 +262,26 @@ void ProfilePacketSequenceState::AddAllocation(const SourceAllocation& alloc) {
   if (alloc_delta.count < 0 || alloc_delta.size < 0 || free_delta.count > 0 ||
       free_delta.size > 0) {
     PERFETTO_DLOG("Non-monotonous allocation.");
-    context_->storage->IncrementIndexedStats(stats::heapprofd_malformed_packet,
-                                             static_cast<int>(upid));
+    context_->global_context->storage->IncrementIndexedStats(
+        stats::heapprofd_malformed_packet, static_cast<int>(upid));
     return;
   }
 
   // Dump at max profiles do not have .count set.
   if (alloc_delta.count || alloc_delta.size) {
-    context_->storage->mutable_heap_profile_allocation_table()->Insert(
-        alloc_delta);
+    context_->global_context->storage->mutable_heap_profile_allocation_table()
+        ->Insert(alloc_delta);
   }
 
   // ART only reports allocations, and not frees. This throws off our logic
   // that assumes that if a new object was allocated with the same address,
   // the old one has to have been freed in the meantime.
   // See HeapTracker::RecordMalloc in bookkeeping.cc.
-  if (context_->storage->GetString(alloc.heap_name) != kArtHeapName &&
+  if (context_->global_context->storage->GetString(alloc.heap_name) !=
+          kArtHeapName &&
       (free_delta.count || free_delta.size)) {
-    context_->storage->mutable_heap_profile_allocation_table()->Insert(
-        free_delta);
+    context_->global_context->storage->mutable_heap_profile_allocation_table()
+        ->Insert(free_delta);
   }
 
   *prev_alloc = alloc_row;

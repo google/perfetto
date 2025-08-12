@@ -33,24 +33,26 @@ namespace perfetto::trace_processor::etm {
 
 // static
 void TargetMemory::InitStorage(TraceProcessorContext* context) {
-  PERFETTO_CHECK(context->storage->etm_target_memory() == nullptr);
-  context->storage->set_etm_target_memory(
+  PERFETTO_CHECK(context->global_context->storage->etm_target_memory() ==
+                 nullptr);
+  context->global_context->storage->set_etm_target_memory(
       std::unique_ptr<Destructible>(new TargetMemory(context)));
 }
 
 TargetMemory::TargetMemory(TraceProcessorContext* context)
-    : storage_(context->storage.get()),
+    : storage_(context->global_context->storage.get()),
       thread_cursor_(
-          context->storage->thread_table().CreateCursor({dataframe::FilterSpec{
-              tables::ThreadTable::ColumnIndex::tid,
-              0,
-              dataframe::Eq{},
-              {},
-          }})) {
+          context->global_context->storage->thread_table().CreateCursor(
+              {dataframe::FilterSpec{
+                  tables::ThreadTable::ColumnIndex::tid,
+                  0,
+                  dataframe::Eq{},
+                  {},
+              }})) {
   auto kernel = VirtualAddressSpace::Builder(context);
   base::FlatHashMap<UniquePid, VirtualAddressSpace::Builder> user;
 
-  const auto& table = context->storage->mmap_record_table();
+  const auto& table = context->global_context->storage->mmap_record_table();
   for (auto mmap = table.IterateRows(); mmap; ++mmap) {
     std::optional<UniquePid> upid = mmap.upid();
     if (!upid) {

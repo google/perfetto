@@ -43,7 +43,7 @@ void GenericFtraceTracker::AddDescriptor(uint32_t pb_field_id,
   protos::pbzero::DescriptorProto::Decoder decoder(pb_descriptor);
 
   GenericEvent event;
-  event.name = context_->storage->InternString(decoder.name());
+  event.name = context_->global_context->storage->InternString(decoder.name());
   for (auto it = decoder.field(); it; ++it) {
     protos::pbzero::FieldDescriptorProto::Decoder field_decoder(it->data(),
                                                                 it->size());
@@ -51,13 +51,13 @@ void GenericFtraceTracker::AddDescriptor(uint32_t pb_field_id,
     uint32_t field_id = static_cast<uint32_t>(field_decoder.number());
     if (field_id >= kMaxAllowedFields) {
       PERFETTO_DLOG("Skipping generic descriptor with >32 fields.");
-      context_->storage->IncrementStats(
+      context_->global_context->storage->IncrementStats(
           stats::ftrace_generic_descriptor_errors);
       return;
     }
     if (field_decoder.type() > static_cast<int32_t>(ProtoSchemaType::kSint64)) {
       PERFETTO_DLOG("Skipping generic descriptor with invalid field type.");
-      context_->storage->IncrementStats(
+      context_->global_context->storage->IncrementStats(
           stats::ftrace_generic_descriptor_errors);
       return;
     }
@@ -68,7 +68,8 @@ void GenericFtraceTracker::AddDescriptor(uint32_t pb_field_id,
     }
     GenericField& field = event.fields[field_id];
 
-    field.name = context_->storage->InternString(field_decoder.name());
+    field.name =
+        context_->global_context->storage->InternString(field_decoder.name());
     field.type = static_cast<ProtoSchemaType>(field_decoder.type());
   }
   events_.Insert(pb_field_id, std::move(event));

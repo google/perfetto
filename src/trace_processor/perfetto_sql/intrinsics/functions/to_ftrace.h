@@ -57,7 +57,7 @@ class SystraceSerializer {
 struct ToFtrace : public LegacySqlFunction {
   struct Context {
     explicit Context(TraceProcessorContext* ctx)
-        : storage(ctx->storage.get()), serializer(ctx) {}
+        : storage(ctx->global_context->storage.get()), serializer(ctx) {}
     const TraceStorage* storage;
     SystraceSerializer serializer;
   };

@@ -95,8 +95,9 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
                                      protozero::ConstBytes blob) {
   auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
   protos::pbzero::HeapGraph::Decoder heap_graph(blob.data, blob.size);
-  UniquePid upid = context_->process_tracker->GetOrCreateProcess(
-      static_cast<uint32_t>(heap_graph.pid()));
+  UniquePid upid =
+      context_->machine_context->process_tracker->GetOrCreateProcess(
+          static_cast<uint32_t>(heap_graph.pid()));
   heap_graph_tracker->SetPacketIndex(seq_id, heap_graph.index());
   for (auto it = heap_graph.objects(); it; ++it) {
     protos::pbzero::HeapGraphObject::Decoder object(*it);
@@ -154,13 +155,13 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
     }
 
     if (parse_error) {
-      context_->storage->IncrementIndexedStats(
+      context_->global_context->storage->IncrementIndexedStats(
           stats::heap_graph_malformed_packet, static_cast<int>(upid));
       break;
     }
     if (!obj.field_name_ids.empty() &&
         (obj.field_name_ids.size() != obj.referred_objects.size())) {
-      context_->storage->IncrementIndexedStats(
+      context_->global_context->storage->IncrementIndexedStats(
           stats::heap_graph_malformed_packet, static_cast<int>(upid));
       continue;
     }
@@ -179,7 +180,7 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
         [&field_name_ids](uint64_t value) { field_name_ids.push_back(value); });
 
     if (parse_error) {
-      context_->storage->IncrementIndexedStats(
+      context_->global_context->storage->IncrementIndexedStats(
           stats::heap_graph_malformed_packet, static_cast<int>(upid));
       continue;
     }
@@ -201,9 +202,10 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
       location_id = entry.location_id();
 
     heap_graph_tracker->AddInternedType(
-        seq_id, entry.id(), context_->storage->InternString(str_view),
-        location_id, entry.object_size(), std::move(field_name_ids),
-        entry.superclass_id(), entry.classloader_id(), no_fields, kind);
+        seq_id, entry.id(),
+        context_->global_context->storage->InternString(str_view), location_id,
+        entry.object_size(), std::move(field_name_ids), entry.superclass_id(),
+        entry.classloader_id(), no_fields, kind);
   }
   for (auto it = heap_graph.field_names(); it; ++it) {
     protos::pbzero::InternedString::Decoder entry(*it);
@@ -218,7 +220,8 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
     auto str_view = base::StringView(str, entry.str().size);
 
     heap_graph_tracker->AddInternedLocationName(
-        seq_id, entry.iid(), context_->storage->InternString(str_view));
+        seq_id, entry.iid(),
+        context_->global_context->storage->InternString(str_view));
   }
   for (auto it = heap_graph.roots(); it; ++it) {
     protos::pbzero::HeapGraphRoot::Decoder entry(*it);
@@ -238,7 +241,7 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
               src_root.object_ids.emplace_back(value);
             });
     if (parse_error) {
-      context_->storage->IncrementIndexedStats(
+      context_->global_context->storage->IncrementIndexedStats(
           stats::heap_graph_malformed_packet, static_cast<int>(upid));
       break;
     }

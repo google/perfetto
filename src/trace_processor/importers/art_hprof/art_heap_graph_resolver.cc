@@ -26,7 +26,8 @@ T ReadBigEndian(TraceProcessorContext* context,
                 size_t offset,
                 size_t length) {
   if (offset + length > data.size()) {
-    context->storage->IncrementStats(stats::hprof_field_value_errors);
+    context->global_context->storage->IncrementStats(
+        stats::hprof_field_value_errors);
     return 0;
   }
 
@@ -213,7 +214,8 @@ bool HeapGraphResolver::ExtractObjectReferences(Object& obj,
           stats_.reference_count++;
         }
       } else {
-        context_->storage->IncrementStats(stats::hprof_reference_errors);
+        context_->global_context->storage->IncrementStats(
+            stats::hprof_reference_errors);
         break;
       }
     } else {

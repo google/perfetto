@@ -47,32 +47,39 @@ constexpr auto kPkvmBlueprint = tracks::SliceBlueprint(
 PkvmHypervisorCpuTracker::PkvmHypervisorCpuTracker(
     TraceProcessorContext* context)
     : context_(context),
-      category_(context->storage->InternString("pkvm_hyp")),
-      slice_name_(context->storage->InternString("hyp")),
-      hyp_enter_reason_(context->storage->InternString("hyp_enter_reason")),
-      func_id_(context_->storage->InternString("func_id")),
-      handled_(context_->storage->InternString("handled")),
-      err_(context_->storage->InternString("err")),
-      host_ffa_call_(context_->storage->InternString("host_ffa_call")),
-      iommu_idmap_(context_->storage->InternString("iommu_idmap")),
-      from_(context_->storage->InternString("from")),
-      to_(context_->storage->InternString("to")),
-      prot_(context_->storage->InternString("prot")),
-      psci_mem_protect_(context_->storage->InternString("psci_mem_protect")),
-      count_(context_->storage->InternString("count")),
-      was_(context_->storage->InternString("was")),
-      iommu_idmap_complete_(
-          context_->storage->InternString("iommu_idmap_complete")),
-      map_(context_->storage->InternString("map")),
-      vcpu_illegal_trap_(context_->storage->InternString("vcpu_illegal_trap")),
-      esr_(context_->storage->InternString("esr")),
-      host_hcall_(context_->storage->InternString("host_hcall")),
-      id_(context_->storage->InternString("id")),
-      invalid_(context_->storage->InternString("invalid")),
-      host_smc_(context_->storage->InternString("host_smc")),
-      forwarded_(context_->storage->InternString("forwarded")),
-      host_mem_abort_(context_->storage->InternString("host_mem_abort")),
-      addr_(context_->storage->InternString("addr")) {}
+      category_(context->global_context->storage->InternString("pkvm_hyp")),
+      slice_name_(context->global_context->storage->InternString("hyp")),
+      hyp_enter_reason_(
+          context->global_context->storage->InternString("hyp_enter_reason")),
+      func_id_(context_->global_context->storage->InternString("func_id")),
+      handled_(context_->global_context->storage->InternString("handled")),
+      err_(context_->global_context->storage->InternString("err")),
+      host_ffa_call_(
+          context_->global_context->storage->InternString("host_ffa_call")),
+      iommu_idmap_(
+          context_->global_context->storage->InternString("iommu_idmap")),
+      from_(context_->global_context->storage->InternString("from")),
+      to_(context_->global_context->storage->InternString("to")),
+      prot_(context_->global_context->storage->InternString("prot")),
+      psci_mem_protect_(
+          context_->global_context->storage->InternString("psci_mem_protect")),
+      count_(context_->global_context->storage->InternString("count")),
+      was_(context_->global_context->storage->InternString("was")),
+      iommu_idmap_complete_(context_->global_context->storage->InternString(
+          "iommu_idmap_complete")),
+      map_(context_->global_context->storage->InternString("map")),
+      vcpu_illegal_trap_(
+          context_->global_context->storage->InternString("vcpu_illegal_trap")),
+      esr_(context_->global_context->storage->InternString("esr")),
+      host_hcall_(
+          context_->global_context->storage->InternString("host_hcall")),
+      id_(context_->global_context->storage->InternString("id")),
+      invalid_(context_->global_context->storage->InternString("invalid")),
+      host_smc_(context_->global_context->storage->InternString("host_smc")),
+      forwarded_(context_->global_context->storage->InternString("forwarded")),
+      host_mem_abort_(
+          context_->global_context->storage->InternString("host_mem_abort")),
+      addr_(context_->global_context->storage->InternString("addr")) {}
 
 // static
 bool PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(uint32_t event_id) {
@@ -152,24 +159,25 @@ void PkvmHypervisorCpuTracker::ParseHypEvent(uint32_t cpu,
 
 void PkvmHypervisorCpuTracker::ParseHypEnter(uint32_t cpu, int64_t timestamp) {
   // TODO(b/249050813): handle bad events (e.g. 2 hyp_enter in a row)
-  TrackId track_id = context_->track_tracker->InternTrack(
+  TrackId track_id = context_->machine_context->track_tracker->InternTrack(
       kPkvmBlueprint, tracks::Dimensions(cpu));
-  context_->slice_tracker->Begin(timestamp, track_id, category_, slice_name_);
+  context_->trace_context->slice_tracker->Begin(timestamp, track_id, category_,
+                                                slice_name_);
 }
 
 void PkvmHypervisorCpuTracker::ParseHypExit(uint32_t cpu, int64_t timestamp) {
   // TODO(b/249050813): handle bad events (e.g. 2 hyp_exit in a row)
-  TrackId track_id = context_->track_tracker->InternTrack(
+  TrackId track_id = context_->machine_context->track_tracker->InternTrack(
       kPkvmBlueprint, tracks::Dimensions(cpu));
-  context_->slice_tracker->End(timestamp, track_id);
+  context_->trace_context->slice_tracker->End(timestamp, track_id);
 }
 
 void PkvmHypervisorCpuTracker::ParseHostHcall(uint32_t cpu,
                                               protozero::ConstBytes blob) {
   protos::pbzero::HostHcallFtraceEvent::Decoder evt(blob);
-  TrackId track_id = context_->track_tracker->InternTrack(
+  TrackId track_id = context_->machine_context->track_tracker->InternTrack(
       kPkvmBlueprint, tracks::Dimensions(cpu));
-  context_->slice_tracker->AddArgs(
+  context_->trace_context->slice_tracker->AddArgs(
       track_id, category_, slice_name_,
       [&, this](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(hyp_enter_reason_, Variadic::String(host_hcall_));
@@ -181,9 +189,9 @@ void PkvmHypervisorCpuTracker::ParseHostHcall(uint32_t cpu,
 void PkvmHypervisorCpuTracker::ParseHostSmc(uint32_t cpu,
                                             protozero::ConstBytes blob) {
   protos::pbzero::HostSmcFtraceEvent::Decoder evt(blob);
-  TrackId track_id = context_->track_tracker->InternTrack(
+  TrackId track_id = context_->machine_context->track_tracker->InternTrack(
       kPkvmBlueprint, tracks::Dimensions(cpu));
-  context_->slice_tracker->AddArgs(
+  context_->trace_context->slice_tracker->AddArgs(
       track_id, category_, slice_name_,
       [&, this](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(hyp_enter_reason_, Variadic::String(host_smc_));
@@ -196,9 +204,9 @@ void PkvmHypervisorCpuTracker::ParseHostSmc(uint32_t cpu,
 void PkvmHypervisorCpuTracker::ParseHostMemAbort(uint32_t cpu,
                                                  protozero::ConstBytes blob) {
   protos::pbzero::HostMemAbortFtraceEvent::Decoder evt(blob);
-  TrackId track_id = context_->track_tracker->InternTrack(
+  TrackId track_id = context_->machine_context->track_tracker->InternTrack(
       kPkvmBlueprint, tracks::Dimensions(cpu));
-  context_->slice_tracker->AddArgs(
+  context_->trace_context->slice_tracker->AddArgs(
       track_id, category_, slice_name_,
       [&, this](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(hyp_enter_reason_, Variadic::String(host_mem_abort_));
@@ -210,9 +218,9 @@ void PkvmHypervisorCpuTracker::ParseHostMemAbort(uint32_t cpu,
 void PkvmHypervisorCpuTracker::ParseHostFfaCall(uint32_t cpu,
                                                 protozero::ConstBytes blob) {
   protos::pbzero::HostFfaCallFtraceEvent::Decoder evt(blob);
-  TrackId track_id = context_->track_tracker->InternTrack(
+  TrackId track_id = context_->machine_context->track_tracker->InternTrack(
       kPkvmBlueprint, tracks::Dimensions(cpu));
-  context_->slice_tracker->AddArgs(
+  context_->trace_context->slice_tracker->AddArgs(
       track_id, category_, slice_name_,
       [&, this](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(hyp_enter_reason_, Variadic::String(host_ffa_call_));
@@ -225,9 +233,9 @@ void PkvmHypervisorCpuTracker::ParseHostFfaCall(uint32_t cpu,
 void PkvmHypervisorCpuTracker::ParseIommuIdmap(uint32_t cpu,
                                                protozero::ConstBytes blob) {
   protos::pbzero::IommuIdmapFtraceEvent::Decoder evt(blob);
-  TrackId track_id = context_->track_tracker->InternTrack(
+  TrackId track_id = context_->machine_context->track_tracker->InternTrack(
       kPkvmBlueprint, tracks::Dimensions(cpu));
-  context_->slice_tracker->AddArgs(
+  context_->trace_context->slice_tracker->AddArgs(
       track_id, category_, slice_name_,
       [&, this](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(hyp_enter_reason_, Variadic::String(iommu_idmap_));
@@ -240,9 +248,9 @@ void PkvmHypervisorCpuTracker::ParseIommuIdmap(uint32_t cpu,
 void PkvmHypervisorCpuTracker::ParsePsciMemProtect(uint32_t cpu,
                                                    protozero::ConstBytes blob) {
   protos::pbzero::PsciMemProtectFtraceEvent::Decoder evt(blob);
-  TrackId track_id = context_->track_tracker->InternTrack(
+  TrackId track_id = context_->machine_context->track_tracker->InternTrack(
       kPkvmBlueprint, tracks::Dimensions(cpu));
-  context_->slice_tracker->AddArgs(
+  context_->trace_context->slice_tracker->AddArgs(
       track_id, category_, slice_name_,
       [&, this](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(hyp_enter_reason_,
@@ -256,9 +264,9 @@ void PkvmHypervisorCpuTracker::ParseIommuIdmapComplete(
     uint32_t cpu,
     protozero::ConstBytes blob) {
   protos::pbzero::HypervisorIommuIdmapCompleteFtraceEvent::Decoder evt(blob);
-  TrackId track_id = context_->track_tracker->InternTrack(
+  TrackId track_id = context_->machine_context->track_tracker->InternTrack(
       kPkvmBlueprint, tracks::Dimensions(cpu));
-  context_->slice_tracker->AddArgs(
+  context_->trace_context->slice_tracker->AddArgs(
       track_id, category_, slice_name_,
       [&, this](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(hyp_enter_reason_,
@@ -270,9 +278,9 @@ void PkvmHypervisorCpuTracker::ParseIommuIdmapComplete(
 void PkvmHypervisorCpuTracker::ParseVcuIllegalTrap(uint32_t cpu,
                                                    protozero::ConstBytes blob) {
   protos::pbzero::HypervisorVcpuIllegalTrapFtraceEvent::Decoder evt(blob);
-  TrackId track_id = context_->track_tracker->InternTrack(
+  TrackId track_id = context_->machine_context->track_tracker->InternTrack(
       kPkvmBlueprint, tracks::Dimensions(cpu));
-  context_->slice_tracker->AddArgs(
+  context_->trace_context->slice_tracker->AddArgs(
       track_id, category_, slice_name_,
       [&, this](ArgsTracker::BoundInserter* inserter) {
         inserter->AddArg(hyp_enter_reason_,

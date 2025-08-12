@@ -53,10 +53,10 @@ namespace perfetto::trace_processor {
 
 TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg)
     : context_({cfg, std::make_shared<TraceStorage>(cfg)}) {
-  context_.reader_registry->RegisterTraceReader<ProtoTraceReader>(
-      kProtoTraceType);
-  context_.reader_registry->RegisterTraceReader<ProtoTraceReader>(
-      kSymbolsTraceType);
+  context_.global_context->reader_registry
+      ->RegisterTraceReader<ProtoTraceReader>(kProtoTraceType);
+  context_.global_context->reader_registry
+      ->RegisterTraceReader<ProtoTraceReader>(kSymbolsTraceType);
 }
 
 TraceProcessorStorageImpl::~TraceProcessorStorageImpl() {}
@@ -73,22 +73,24 @@ base::Status TraceProcessorStorageImpl::Parse(TraceBlobView blob) {
 
   if (!parser_) {
     parser_ = std::make_unique<ForwardingTraceParser>(
-        &context_, context_.trace_file_tracker->AddFile());
+        &context_, context_.trace_context->trace_file_tracker->AddFile());
   }
 
-  auto scoped_trace = context_.storage->TraceExecutionTimeIntoStats(
-      stats::parse_trace_duration_ns);
+  auto scoped_trace =
+      context_.global_context->storage->TraceExecutionTimeIntoStats(
+          stats::parse_trace_duration_ns);
 
-  if (hash_input_size_remaining_ > 0 && !context_.uuid_found_in_trace) {
+  if (hash_input_size_remaining_ > 0 &&
+      !context_.trace_context->uuid_found_in_trace) {
     const size_t hash_size = std::min(hash_input_size_remaining_, blob.size());
     hash_input_size_remaining_ -= hash_size;
 
     trace_hash_.Update(reinterpret_cast<const char*>(blob.data()), hash_size);
     base::Uuid uuid(static_cast<int64_t>(trace_hash_.digest()), 0);
-    const StringId id_for_uuid =
-        context_.storage->InternString(base::StringView(uuid.ToPrettyString()));
-    context_.metadata_tracker->SetMetadata(metadata::trace_uuid,
-                                           Variadic::String(id_for_uuid));
+    const StringId id_for_uuid = context_.global_context->storage->InternString(
+        base::StringView(uuid.ToPrettyString()));
+    context_.global_context->metadata_tracker->SetMetadata(
+        metadata::trace_uuid, Variadic::String(id_for_uuid));
   }
 
   base::Status status = parser_->Parse(std::move(blob));
@@ -100,9 +102,9 @@ void TraceProcessorStorageImpl::Flush() {
   if (unrecoverable_parse_error_)
     return;
 
-  if (context_.sorter)
-    context_.sorter->ExtractEventsForced();
-  context_.args_tracker->Flush();
+  if (context_.global_context->sorter)
+    context_.global_context->sorter->ExtractEventsForced();
+  context_.trace_context->args_tracker->Flush();
 }
 
 base::Status TraceProcessorStorageImpl::NotifyEndOfFile() {
@@ -117,33 +119,37 @@ base::Status TraceProcessorStorageImpl::NotifyEndOfFile() {
   RETURN_IF_ERROR(parser_->NotifyEndOfFile());
   // NotifyEndOfFile might have pushed packets to the sorter.
   Flush();
-  if (context_.content_analyzer) {
+  if (context_.trace_context->content_analyzer) {
     PacketAnalyzer::Get(&context_)->NotifyEndOfFile();
   }
 
-  context_.event_tracker->FlushPendingEvents();
-  context_.slice_tracker->FlushPendingSlices();
-  context_.args_tracker->Flush();
-  context_.process_tracker->NotifyEndOfFile();
+  context_.trace_context->event_tracker->FlushPendingEvents();
+  context_.trace_context->slice_tracker->FlushPendingSlices();
+  context_.trace_context->args_tracker->Flush();
+  context_.machine_context->process_tracker->NotifyEndOfFile();
   return base::OkStatus();
 }
 
 void TraceProcessorStorageImpl::DestroyContext() {
   TraceProcessorContext context;
-  context.storage = std::move(context_.storage);
+  context.global_context->storage = std::move(context_.global_context->storage);
 
   // TODO(b/309623584): Decouple from storage and remove from here. This
   // function should only move storage and delete everything else.
-  context.heap_graph_tracker = std::move(context_.heap_graph_tracker);
-  context.clock_converter = std::move(context_.clock_converter);
+  context.trace_context->heap_graph_tracker =
+      std::move(context_.trace_context->heap_graph_tracker);
+  context.global_context->clock_converter =
+      std::move(context_.global_context->clock_converter);
   // "to_ftrace" textual converter of the "raw" table requires remembering the
   // kernel version (inside system_info_tracker) to know how to textualise
   // sched_switch.prev_state bitflags.
-  context.system_info_tracker = std::move(context_.system_info_tracker);
+  context.machine_context->system_info_tracker =
+      std::move(context_.machine_context->system_info_tracker);
 
   // "__intrinsic_winscope_proto_to_args_with_defaults" and trace summarization
   // both require the descriptor pool to be alive.
-  context.descriptor_pool_ = std::move(context_.descriptor_pool_);
+  context.global_context->descriptor_pool_ =
+      std::move(context_.global_context->descriptor_pool_);
 
   context_ = std::move(context);
 

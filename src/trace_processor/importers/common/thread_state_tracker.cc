@@ -25,7 +25,7 @@
 namespace perfetto {
 namespace trace_processor {
 ThreadStateTracker::ThreadStateTracker(TraceProcessorContext* context)
-    : storage_(context->storage.get()),
+    : storage_(context->global_context->storage.get()),
       context_(context),
       running_string_id_(storage_->InternString("Running")),
       runnable_string_id_(storage_->InternString("R")) {}
@@ -134,7 +134,7 @@ void ThreadStateTracker::AddOpenState(int64_t ts,
                                       std::optional<uint16_t> common_flags) {
   // Ignore the swapper utid because it corresponds to the swapper thread which
   // doesn't make sense to insert.
-  if (utid == context_->process_tracker->swapper_utid())
+  if (utid == context_->machine_context->process_tracker->swapper_utid())
     return;
 
   // Insert row with unfinished state
@@ -145,7 +145,7 @@ void ThreadStateTracker::AddOpenState(int64_t ts,
   row.utid = utid;
   row.state = state;
   if (cpu)
-    row.ucpu = context_->cpu_tracker->GetOrCreateCpu(*cpu);
+    row.ucpu = context_->machine_context->cpu_tracker->GetOrCreateCpu(*cpu);
   if (common_flags.has_value()) {
     row.irq_context = CommonFlagsToIrqContext(*common_flags);
   }
@@ -232,7 +232,8 @@ void ThreadStateTracker::UpdatePendingState(
 
   row_ref.set_state(state);
   if (cpu)
-    row_ref.set_ucpu(context_->cpu_tracker->GetOrCreateCpu(*cpu));
+    row_ref.set_ucpu(
+        context_->machine_context->cpu_tracker->GetOrCreateCpu(*cpu));
   if (waker_utid)
     row_ref.set_waker_utid(*waker_utid);
   if (common_flags.has_value()) {

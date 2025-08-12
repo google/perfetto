@@ -318,7 +318,8 @@ std::unique_ptr<tables::ExperimentalFlamegraphTable> FocusTable(
 }  // namespace
 
 ExperimentalFlamegraph::Cursor::Cursor(TraceProcessorContext* context)
-    : context_(context), table_(context_->storage->mutable_string_pool()) {}
+    : context_(context),
+      table_(context_->global_context->storage->mutable_string_pool()) {}
 
 bool ExperimentalFlamegraph::Cursor::Run(
     const std::vector<SqlValue>& arguments) {
@@ -347,14 +348,14 @@ bool ExperimentalFlamegraph::Cursor::Run(
             "experimental_flamegraph: ts and upid must be present for heap "
             "profile"));
       }
-      constructed_table = BuildHeapProfileFlamegraph(context_->storage.get(),
-                                                     *values.upid, *values.ts);
+      constructed_table = BuildHeapProfileFlamegraph(
+          context_->global_context->storage.get(), *values.upid, *values.ts);
       break;
     }
     case ProfileType::kPerf: {
       constructed_table = BuildNativeCallStackSamplingFlamegraph(
-          context_->storage.get(), values.upid, values.upid_group,
-          values.time_constraints);
+          context_->global_context->storage.get(), values.upid,
+          values.upid_group, values.time_constraints);
       break;
     }
   }
@@ -363,8 +364,8 @@ bool ExperimentalFlamegraph::Cursor::Run(
   }
   if (values.focus_str) {
     constructed_table =
-        FocusTable(context_->storage.get(), std::move(constructed_table),
-                   *values.focus_str);
+        FocusTable(context_->global_context->storage.get(),
+                   std::move(constructed_table), *values.focus_str);
   }
   table_ = std::move(*constructed_table);
   return OnSuccess(&table_.dataframe());

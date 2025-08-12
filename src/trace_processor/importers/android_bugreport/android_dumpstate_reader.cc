@@ -52,7 +52,7 @@ base::Status AndroidDumpstateReader::ParseLine(base::StringView line) {
 base::Status AndroidDumpstateReader::ParseLine(
     BufferingAndroidLogReader* const log_reader,
     base::StringView line) {
-  context_->clock_tracker->SetTraceTimeClock(
+  context_->global_context->clock_tracker->SetTraceTimeClock(
       protos::pbzero::BUILTIN_CLOCK_REALTIME);
 
   // Dumpstate is organized in a two level hierarchy, beautifully flattened into
@@ -97,7 +97,8 @@ base::Status AndroidDumpstateReader::ParseLine(
     if (end_marker) {
       current_section_id_ = StringId::Null();
     } else {
-      current_section_id_ = context_->storage->InternString(section);
+      current_section_id_ =
+          context_->global_context->storage->InternString(section);
       current_section_ = Section::kOther;
       if (section.StartsWith("DUMPSYS")) {
         current_section_ = Section::kDumpsys;
@@ -110,7 +111,8 @@ base::Status AndroidDumpstateReader::ParseLine(
       } else if (section.StartsWith("BLOCK STAT")) {
         // Coalesce all the block stats into one section. Otherwise they
         // pollute the table with one section per block device.
-        current_section_id_ = context_->storage->InternString("BLOCK STAT");
+        current_section_id_ =
+            context_->global_context->storage->InternString("BLOCK STAT");
       } else if (section.StartsWith("CHECKIN BATTERYSTATS")) {
         current_section_ = Section::kBatteryStats;
       }
@@ -138,7 +140,7 @@ base::Status AndroidDumpstateReader::ParseLine(
     // DUMP OF SERVICE [CRITICAL|HIGH] ServiceName:
     base::StringView svc = line.substr(line.rfind(' ') + 1);
     svc = svc.substr(0, svc.size() - 1);
-    current_service_id_ = context_->storage->InternString(svc);
+    current_service_id_ = context_->global_context->storage->InternString(svc);
     current_service_ = svc;
   } else if (current_section_ == Section::kDumpsys &&
              current_service_ == "alarm") {
@@ -151,9 +153,9 @@ base::Status AndroidDumpstateReader::ParseLine(
   }
 
   // Append the line to the android_dumpstate table.
-  context_->storage->mutable_android_dumpstate_table()->Insert(
+  context_->global_context->storage->mutable_android_dumpstate_table()->Insert(
       {current_section_id_, current_service_id_,
-       context_->storage->InternString(line)});
+       context_->global_context->storage->InternString(line)});
 
   return base::OkStatus();
 }
@@ -234,7 +236,7 @@ void AndroidDumpstateReader::MaybeSetTzOffsetFromAlarmService(
     // Compute the timezone offset in nanoseconds and set it.
     int64_t tz_offset_ns =
         (tz_adjusted_ts_ms - non_tz_adjusted_ts_ms.value()) * 1000 * 1000;
-    context_->clock_tracker->set_timezone_offset(tz_offset_ns);
+    context_->global_context->clock_tracker->set_timezone_offset(tz_offset_ns);
   }
 }
 

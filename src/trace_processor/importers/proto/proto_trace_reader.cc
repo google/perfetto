@@ -146,32 +146,37 @@ class InlineSchedWakingSink
 ProtoTraceReader::ProtoTraceReader(TraceProcessorContext* ctx)
     : context_(ctx),
       parser_(std::make_unique<ProtoTraceParserImpl>(ctx, &module_context_)),
-      skipped_packet_key_id_(ctx->storage->InternString("skipped_packet")),
+      skipped_packet_key_id_(
+          ctx->global_context->storage->InternString("skipped_packet")),
       invalid_incremental_state_key_id_(
-          ctx->storage->InternString("invalid_incremental_state")) {
-  module_context_.trace_packet_stream = context_->sorter->CreateStream(
-      std::make_unique<TracePacketSink>(parser_.get()));
-  module_context_.track_event_stream = context_->sorter->CreateStream(
-      std::make_unique<TrackEventSink>(parser_.get()));
+          ctx->global_context->storage->InternString(
+              "invalid_incremental_state")) {
+  module_context_.trace_packet_stream =
+      context_->global_context->sorter->CreateStream(
+          std::make_unique<TracePacketSink>(parser_.get()));
+  module_context_.track_event_stream =
+      context_->global_context->sorter->CreateStream(
+          std::make_unique<TrackEventSink>(parser_.get()));
   module_context_.ftrace_stream_factory = [this](uint32_t cpu) {
-    return context_->sorter->CreateStream(
+    return context_->global_context->sorter->CreateStream(
         std::make_unique<FtraceEventSink>(parser_.get(), cpu));
   };
   module_context_.etw_stream_factory = [this](uint32_t cpu) {
-    return context_->sorter->CreateStream(
+    return context_->global_context->sorter->CreateStream(
         std::make_unique<EtwEventSink>(parser_.get(), cpu));
   };
   module_context_.inline_sched_switch_stream_factory = [this](uint32_t cpu) {
-    return context_->sorter->CreateStream(
+    return context_->global_context->sorter->CreateStream(
         std::make_unique<InlineSchedSwitchSink>(parser_.get(), cpu));
   };
   module_context_.inline_sched_waking_stream_factory = [this](uint32_t cpu) {
-    return context_->sorter->CreateStream(
+    return context_->global_context->sorter->CreateStream(
         std::make_unique<InlineSchedWakingSink>(parser_.get(), cpu));
   };
   RegisterDefaultModules(&module_context_, context_);
-  if (context_->register_additional_proto_modules) {
-    context_->register_additional_proto_modules(&module_context_, context_);
+  if (context_->global_context->register_additional_proto_modules) {
+    context_->global_context->register_additional_proto_modules(
+        &module_context_, context_);
   }
 }
 
@@ -188,7 +193,7 @@ base::Status ProtoTraceReader::ParseExtensionDescriptor(ConstBytes descriptor) {
                                                        descriptor.size);
 
   auto extension = decoder.extension_set();
-  return context_->descriptor_pool_->AddFromFileDescriptorSet(
+  return context_->global_context->descriptor_pool_->AddFromFileDescriptorSet(
       extension.data, extension.size,
       /*skip_prefixes*/ {},
       /*merge_existing_messages=*/true);
@@ -208,16 +213,17 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   // using a different ProtoTraceReader instance. The packet will be parsed
   // in the context of the remote machine.
   if (PERFETTO_UNLIKELY(decoder.has_machine_id())) {
-    if (!context_->machine_id()) {
+    if (!context_->machine_context->machine_id()) {
       // Default context: switch to another reader instance to parse the packet.
-      PERFETTO_DCHECK(context_->multi_machine_trace_manager);
-      auto* reader = context_->multi_machine_trace_manager->GetOrCreateReader(
-          decoder.machine_id());
+      PERFETTO_DCHECK(context_->global_context->multi_machine_trace_manager);
+      auto* reader = context_->global_context->multi_machine_trace_manager
+                         ->GetOrCreateReader(decoder.machine_id());
       return reader->ParsePacket(std::move(packet));
     }
   }
   // Assert that the packet is parsed using the right instance of reader.
-  PERFETTO_DCHECK(decoder.has_machine_id() == !!context_->machine_id());
+  PERFETTO_DCHECK(decoder.has_machine_id() ==
+                  !!context_->machine_context->machine_id());
 
   uint32_t seq_id = decoder.trusted_packet_sequence_id();
   auto [scoped_state, inserted] = sequence_state_.Insert(seq_id, {});
@@ -261,7 +267,7 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   }
 
   if (decoder.has_remote_clock_sync()) {
-    PERFETTO_DCHECK(context_->machine_id());
+    PERFETTO_DCHECK(context_->machine_context->machine_id());
     return ParseRemoteClockSync(decoder.remote_clock_sync());
   }
 
@@ -287,7 +293,7 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
     scoped_state->needs_incremental_state_total++;
 
     if (!state->IsIncrementalStateValid()) {
-      if (context_->content_analyzer) {
+      if (context_->trace_context->content_analyzer) {
         // Account for the skipped packet for trace proto content analysis,
         // with a special annotation.
         PacketAnalyzer::SampleAnnotation annotation;
@@ -296,12 +302,13 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
         PacketAnalyzer::Get(context_)->ProcessPacket(packet, annotation);
       }
       scoped_state->needs_incremental_state_skipped++;
-      context_->storage->IncrementStats(stats::tokenizer_skipped_packets);
+      context_->global_context->storage->IncrementStats(
+          stats::tokenizer_skipped_packets);
       return base::OkStatus();
     }
   }
 
-  if (context_->content_analyzer && !decoder.has_track_event()) {
+  if (context_->trace_context->content_analyzer && !decoder.has_track_event()) {
     PacketAnalyzer::Get(context_)->ProcessPacket(packet, {});
   }
 
@@ -340,7 +347,7 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
       // snapshot.
       // TODO(eseckler): Set timestamp_clock_id and emit ClockSnapshots in
       // chrome and then remove this.
-      auto trace_ts = context_->clock_tracker->ToTraceTime(
+      auto trace_ts = context_->global_context->clock_tracker->ToTraceTime(
           protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
       if (trace_ts.ok())
         timestamp = trace_ts.value();
@@ -359,13 +366,13 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
         converted_clock_id =
             ClockTracker::SequenceToGlobalClock(seq_id, timestamp_clock_id);
       }
-      auto trace_ts =
-          context_->clock_tracker->ToTraceTime(converted_clock_id, timestamp);
+      auto trace_ts = context_->global_context->clock_tracker->ToTraceTime(
+          converted_clock_id, timestamp);
       if (!trace_ts.ok()) {
         // We need to switch to full sorting mode to ensure that packets with
         // missing timestamp are handled correctly. Don't save the packet unless
         // switching to full sorting mode succeeded.
-        if (!received_eof_ && context_->sorter->SetSortingMode(
+        if (!received_eof_ && context_->global_context->sorter->SetSortingMode(
                                   TraceSorter::SortingMode::kFullSort)) {
           eof_deferred_packets_.push_back(std::move(packet));
           return base::OkStatus();
@@ -373,13 +380,15 @@ base::Status ProtoTraceReader::TimestampTokenizeAndPushToSorter(
         // We don't return an error here as it will cause the trace to stop
         // parsing. Instead, we rely on the stat increment to inform the user
         // about the error.
-        context_->storage->IncrementStats(stats::clock_sync_failure);
+        context_->global_context->storage->IncrementStats(
+            stats::clock_sync_failure);
         return base::OkStatus();
       }
       timestamp = trace_ts.value();
     }
   } else {
-    timestamp = std::max(latest_timestamp_, context_->sorter->max_timestamp());
+    timestamp = std::max(latest_timestamp_,
+                         context_->global_context->sorter->max_timestamp());
   }
   latest_timestamp_ = std::max(timestamp, latest_timestamp_);
 
@@ -409,13 +418,14 @@ void ProtoTraceReader::ParseTraceConfig(protozero::ConstBytes blob) {
   Config::Decoder trace_config(blob);
   if (trace_config.write_into_file()) {
     if (!trace_config.flush_period_ms()) {
-      context_->storage->IncrementStats(stats::config_write_into_file_no_flush);
+      context_->global_context->storage->IncrementStats(
+          stats::config_write_into_file_no_flush);
     }
     int i = 0;
     for (auto it = trace_config.buffers(); it; ++it, ++i) {
       Config::BufferConfig::Decoder buf(*it);
       if (buf.fill_policy() == Config::BufferConfig::FillPolicy::DISCARD) {
-        context_->storage->IncrementIndexedStats(
+        context_->global_context->storage->IncrementIndexedStats(
             stats::config_write_into_file_discard, i);
       }
     }
@@ -427,7 +437,8 @@ void ProtoTraceReader::HandleIncrementalStateCleared(
   if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
     PERFETTO_ELOG(
         "incremental_state_cleared without trusted_packet_sequence_id");
-    context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::interned_data_tokenizer_errors);
     return;
   }
   GetIncrementalStateForPacketSequence(
@@ -450,7 +461,8 @@ void ProtoTraceReader::HandlePreviousPacketDropped(
     const protos::pbzero::TracePacket::Decoder& packet_decoder) {
   if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
     PERFETTO_ELOG("previous_packet_dropped without trusted_packet_sequence_id");
-    context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::interned_data_tokenizer_errors);
     return;
   }
   GetIncrementalStateForPacketSequence(
@@ -464,7 +476,8 @@ void ProtoTraceReader::ParseTracePacketDefaults(
   if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
     PERFETTO_ELOG(
         "TracePacketDefaults packet without trusted_packet_sequence_id");
-    context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::interned_data_tokenizer_errors);
     return;
   }
 
@@ -478,7 +491,8 @@ void ProtoTraceReader::ParseInternedData(
     TraceBlobView interned_data) {
   if (PERFETTO_UNLIKELY(!packet_decoder.has_trusted_packet_sequence_id())) {
     PERFETTO_ELOG("InternedData packet without trusted_packet_sequence_id");
-    context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+    context_->global_context->storage->IncrementStats(
+        stats::interned_data_tokenizer_errors);
     return;
   }
 
@@ -488,7 +502,8 @@ void ProtoTraceReader::ParseInternedData(
   // Don't parse interned data entries until incremental state is valid, because
   // they could otherwise be associated with the wrong generation in the state.
   if (!state->IsIncrementalStateValid()) {
-    context_->storage->IncrementStats(stats::tokenizer_skipped_packets);
+    context_->global_context->storage->IncrementStats(
+        stats::tokenizer_skipped_packets);
     return;
   }
 
@@ -506,7 +521,7 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
   std::vector<ClockTracker::ClockTimestamp> clock_timestamps;
   protos::pbzero::ClockSnapshot::Decoder evt(blob.data, blob.size);
   if (evt.primary_trace_clock()) {
-    context_->clock_tracker->SetTraceTimeClock(
+    context_->global_context->clock_tracker->SetTraceTimeClock(
         static_cast<ClockTracker::ClockId>(evt.primary_trace_clock()));
   }
   for (auto it = evt.clocks(); it; ++it) {
@@ -530,14 +545,15 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
   }
 
   base::StatusOr<uint32_t> snapshot_id =
-      context_->clock_tracker->AddSnapshot(clock_timestamps);
+      context_->global_context->clock_tracker->AddSnapshot(clock_timestamps);
   if (!snapshot_id.ok()) {
     PERFETTO_ELOG("%s", snapshot_id.status().c_message());
     return base::OkStatus();
   }
 
   std::optional<int64_t> trace_time_from_snapshot =
-      context_->clock_tracker->ToTraceTimeFromSnapshot(clock_timestamps);
+      context_->global_context->clock_tracker->ToTraceTimeFromSnapshot(
+          clock_timestamps);
 
   // Add the all the clock snapshots to the clock snapshot table.
   std::optional<int64_t> trace_ts_for_check;
@@ -548,8 +564,9 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
         clock_timestamp.clock.is_incremental ? 0 : clock_timestamp.timestamp;
     // Even if we have trace time from snapshot, we still run ToTraceTime to
     // optimise future conversions.
-    base::StatusOr<int64_t> opt_trace_ts = context_->clock_tracker->ToTraceTime(
-        clock_timestamp.clock.id, ts_to_convert);
+    base::StatusOr<int64_t> opt_trace_ts =
+        context_->global_context->clock_tracker->ToTraceTime(
+            clock_timestamp.clock.id, ts_to_convert);
 
     if (!opt_trace_ts.ok()) {
       // This can happen if |AddSnapshot| failed to resolve this clock, e.g. if
@@ -574,9 +591,10 @@ base::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
         clock_timestamp.timestamp * clock_timestamp.clock.unit_multiplier_ns;
     row.clock_name = GetBuiltinClockNameOrNull(clock_timestamp.clock.id);
     row.snapshot_id = *snapshot_id;
-    row.machine_id = context_->machine_id();
+    row.machine_id = context_->machine_context->machine_id();
 
-    context_->storage->mutable_clock_snapshot_table()->Insert(row);
+    context_->global_context->storage->mutable_clock_snapshot_table()->Insert(
+        row);
   }
   return base::OkStatus();
 }
@@ -615,13 +633,14 @@ base::Status ProtoTraceReader::ParseRemoteClockSync(ConstBytes blob) {
     // clock snapshots. This builds a clock conversion path from a local trace
     // time (e.g. Chrome trace time) to client builtin clock (CLOCK_MONOTONIC)
     // which can be converted to host trace time (CLOCK_BOOTTIME).
-    context_->clock_tracker->AddSnapshot(clock_timestamps);
+    context_->global_context->clock_tracker->AddSnapshot(clock_timestamps);
   }
 
   // Calculate clock offsets and report to the ClockTracker.
   auto clock_offsets = CalculateClockOffsets(sync_clock_snapshots);
   for (auto it = clock_offsets.GetIterator(); it; ++it) {
-    context_->clock_tracker->SetClockOffset(it.key(), it.value());
+    context_->global_context->clock_tracker->SetClockOffset(it.key(),
+                                                            it.value());
   }
 
   return base::OkStatus();
@@ -705,17 +724,18 @@ std::optional<StringId> ProtoTraceReader::GetBuiltinClockNameOrNull(
     int64_t clock_id) {
   switch (clock_id) {
     case protos::pbzero::ClockSnapshot::Clock::REALTIME:
-      return context_->storage->InternString("REALTIME");
+      return context_->global_context->storage->InternString("REALTIME");
     case protos::pbzero::ClockSnapshot::Clock::REALTIME_COARSE:
-      return context_->storage->InternString("REALTIME_COARSE");
+      return context_->global_context->storage->InternString("REALTIME_COARSE");
     case protos::pbzero::ClockSnapshot::Clock::MONOTONIC:
-      return context_->storage->InternString("MONOTONIC");
+      return context_->global_context->storage->InternString("MONOTONIC");
     case protos::pbzero::ClockSnapshot::Clock::MONOTONIC_COARSE:
-      return context_->storage->InternString("MONOTONIC_COARSE");
+      return context_->global_context->storage->InternString(
+          "MONOTONIC_COARSE");
     case protos::pbzero::ClockSnapshot::Clock::MONOTONIC_RAW:
-      return context_->storage->InternString("MONOTONIC_RAW");
+      return context_->global_context->storage->InternString("MONOTONIC_RAW");
     case protos::pbzero::ClockSnapshot::Clock::BOOTTIME:
-      return context_->storage->InternString("BOOTTIME");
+      return context_->global_context->storage->InternString("BOOTTIME");
     default:
       return std::nullopt;
   }
@@ -724,24 +744,24 @@ std::optional<StringId> ProtoTraceReader::GetBuiltinClockNameOrNull(
 base::Status ProtoTraceReader::ParseServiceEvent(int64_t ts, ConstBytes blob) {
   protos::pbzero::TracingServiceEvent::Decoder tse(blob);
   if (tse.tracing_started()) {
-    context_->metadata_tracker->SetMetadata(metadata::tracing_started_ns,
-                                            Variadic::Integer(ts));
+    context_->global_context->metadata_tracker->SetMetadata(
+        metadata::tracing_started_ns, Variadic::Integer(ts));
   }
   if (tse.tracing_disabled()) {
-    context_->metadata_tracker->SetMetadata(metadata::tracing_disabled_ns,
-                                            Variadic::Integer(ts));
+    context_->global_context->metadata_tracker->SetMetadata(
+        metadata::tracing_disabled_ns, Variadic::Integer(ts));
   }
   if (tse.all_data_sources_started()) {
-    context_->metadata_tracker->SetMetadata(
+    context_->global_context->metadata_tracker->SetMetadata(
         metadata::all_data_source_started_ns, Variadic::Integer(ts));
   }
   if (tse.all_data_sources_flushed()) {
-    context_->metadata_tracker->AppendMetadata(
+    context_->global_context->metadata_tracker->AppendMetadata(
         metadata::all_data_source_flushed_ns, Variadic::Integer(ts));
-    context_->sorter->NotifyFlushEvent();
+    context_->global_context->sorter->NotifyFlushEvent();
   }
   if (tse.read_tracing_buffers_completed()) {
-    context_->sorter->NotifyReadBufferEvent();
+    context_->global_context->sorter->NotifyReadBufferEvent();
   }
   if (tse.has_slow_starting_data_sources()) {
     protos::pbzero::TracingServiceEvent::DataSources::Decoder msg(
@@ -751,17 +771,18 @@ base::Status ProtoTraceReader::ParseServiceEvent(int64_t ts, ConstBytes blob) {
           data_source(*it);
       std::string formatted = data_source.producer_name().ToStdString() + " " +
                               data_source.data_source_name().ToStdString();
-      context_->metadata_tracker->AppendMetadata(
+      context_->global_context->metadata_tracker->AppendMetadata(
           metadata::slow_start_data_source,
-          Variadic::String(
-              context_->storage->InternString(base::StringView(formatted))));
+          Variadic::String(context_->global_context->storage->InternString(
+              base::StringView(formatted))));
     }
   }
   if (tse.has_clone_started()) {
-    context_->storage->SetStats(stats::traced_clone_started_timestamp_ns, ts);
+    context_->global_context->storage->SetStats(
+        stats::traced_clone_started_timestamp_ns, ts);
   }
   if (tse.has_buffer_cloned()) {
-    context_->storage->SetIndexedStats(
+    context_->global_context->storage->SetIndexedStats(
         stats::traced_buf_clone_done_timestamp_ns,
         static_cast<int>(tse.buffer_cloned()), ts);
   }
@@ -770,7 +791,7 @@ base::Status ProtoTraceReader::ParseServiceEvent(int64_t ts, ConstBytes blob) {
 
 void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
   protos::pbzero::TraceStats::Decoder evt(blob.data, blob.size);
-  auto* storage = context_->storage.get();
+  auto* storage = context_->global_context->storage.get();
   storage->SetStats(stats::traced_producers_connected,
                     static_cast<int64_t>(evt.producers_connected()));
   storage->SetStats(stats::traced_producers_seen,

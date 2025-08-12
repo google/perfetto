@@ -43,11 +43,13 @@ bool ElfTracker::ProcessFile(tables::FileTable::Id file_id,
   row.load_bias = static_cast<int64_t>(bin_info->load_bias);
 
   if (build_id) {
-    row.build_id = context_->storage->InternString(
+    row.build_id = context_->global_context->storage->InternString(
         BuildId::FromRaw(*bin_info->build_id).ToHex());
   }
 
-  auto id = context_->storage->mutable_elf_file_table()->Insert(row).id;
+  auto id = context_->global_context->storage->mutable_elf_file_table()
+                ->Insert(row)
+                .id;
 
   if (build_id) {
     files_by_build_id_.Insert(*build_id, id);

@@ -36,12 +36,16 @@ using ::testing::Invoke;
 class ProcessTrackerTest : public ::testing::Test {
  public:
   ProcessTrackerTest() {
-    context.storage = std::make_shared<TraceStorage>();
-    context.global_args_tracker =
-        std::make_unique<GlobalArgsTracker>(context.storage.get());
-    context.args_tracker = std::make_unique<ArgsTracker>(&context);
-    context.process_tracker = std::make_unique<ProcessTracker>(&context);
-    context.event_tracker = std::make_unique<EventTracker>(&context);
+    context.global_context->storage = std::make_shared<TraceStorage>();
+    context.trace_context->global_args_tracker =
+        std::make_unique<GlobalArgsTracker>(
+            context.global_context->storage.get());
+    context.trace_context->args_tracker =
+        std::make_unique<ArgsTracker>(&context);
+    context.machine_context->process_tracker =
+        std::make_unique<ProcessTracker>(&context);
+    context.trace_context->event_tracker =
+        std::make_unique<EventTracker>(&context);
   }
 
  protected:
@@ -49,221 +53,278 @@ class ProcessTrackerTest : public ::testing::Test {
 };
 
 TEST_F(ProcessTrackerTest, PushProcess) {
-  context.process_tracker->SetProcessMetadata(1, std::nullopt, "test",
-                                              base::StringView());
-  auto opt_upid = context.process_tracker->UpidForPidForTesting(1);
+  context.machine_context->process_tracker->SetProcessMetadata(
+      1, std::nullopt, "test", base::StringView());
+  auto opt_upid =
+      context.machine_context->process_tracker->UpidForPidForTesting(1);
   ASSERT_EQ(opt_upid.value_or(-1), 1u);
 }
 
 TEST_F(ProcessTrackerTest, GetOrCreateNewProcess) {
-  auto upid = context.process_tracker->GetOrCreateProcess(123);
-  ASSERT_EQ(context.process_tracker->GetOrCreateProcess(123), upid);
+  auto upid = context.machine_context->process_tracker->GetOrCreateProcess(123);
+  ASSERT_EQ(context.machine_context->process_tracker->GetOrCreateProcess(123),
+            upid);
 }
 
 TEST_F(ProcessTrackerTest, StartNewProcess) {
-  auto upid = context.process_tracker->StartNewProcess(
+  auto upid = context.machine_context->process_tracker->StartNewProcess(
       1000, 0u, 123, kNullStringId, ThreadNamePriority::kFtrace);
-  ASSERT_EQ(context.process_tracker->GetOrCreateProcess(123), upid);
-  ASSERT_EQ(context.storage->process_table()[upid].start_ts(), 1000);
+  ASSERT_EQ(context.machine_context->process_tracker->GetOrCreateProcess(123),
+            upid);
+  ASSERT_EQ(context.global_context->storage->process_table()[upid].start_ts(),
+            1000);
 }
 
 TEST_F(ProcessTrackerTest, PushTwoProcessEntries_SamePidAndName) {
-  context.process_tracker->SetProcessMetadata(1, std::nullopt, "test",
-                                              base::StringView());
-  context.process_tracker->SetProcessMetadata(1, std::nullopt, "test",
-                                              base::StringView());
-  auto opt_upid = context.process_tracker->UpidForPidForTesting(1);
+  context.machine_context->process_tracker->SetProcessMetadata(
+      1, std::nullopt, "test", base::StringView());
+  context.machine_context->process_tracker->SetProcessMetadata(
+      1, std::nullopt, "test", base::StringView());
+  auto opt_upid =
+      context.machine_context->process_tracker->UpidForPidForTesting(1);
   ASSERT_EQ(opt_upid.value_or(-1), 1u);
 }
 
 TEST_F(ProcessTrackerTest, PushTwoProcessEntries_DifferentPid) {
-  context.process_tracker->SetProcessMetadata(1, std::nullopt, "test",
-                                              base::StringView());
-  context.process_tracker->SetProcessMetadata(3, std::nullopt, "test",
-                                              base::StringView());
-  auto opt_upid = context.process_tracker->UpidForPidForTesting(1);
+  context.machine_context->process_tracker->SetProcessMetadata(
+      1, std::nullopt, "test", base::StringView());
+  context.machine_context->process_tracker->SetProcessMetadata(
+      3, std::nullopt, "test", base::StringView());
+  auto opt_upid =
+      context.machine_context->process_tracker->UpidForPidForTesting(1);
   ASSERT_EQ(opt_upid.value_or(-1), 1u);
-  opt_upid = context.process_tracker->UpidForPidForTesting(3);
+  opt_upid = context.machine_context->process_tracker->UpidForPidForTesting(3);
   ASSERT_EQ(opt_upid.value_or(-1), 2u);
 }
 
 TEST_F(ProcessTrackerTest, AddProcessEntry_CorrectName) {
-  context.process_tracker->SetProcessMetadata(1, std::nullopt, "test",
-                                              base::StringView());
-  auto name = context.storage->process_table()[1].name();
-  ASSERT_EQ(context.storage->GetString(*name), "test");
+  context.machine_context->process_tracker->SetProcessMetadata(
+      1, std::nullopt, "test", base::StringView());
+  auto name = context.global_context->storage->process_table()[1].name();
+  ASSERT_EQ(context.global_context->storage->GetString(*name), "test");
 }
 
 TEST_F(ProcessTrackerTest, UpdateThreadCreate) {
-  context.process_tracker->UpdateThread(12, 2);
+  context.machine_context->process_tracker->UpdateThread(12, 2);
 
   // We expect 3 threads: Invalid thread, main thread for pid, tid 12.
-  ASSERT_EQ(context.storage->thread_table().row_count(), 3u);
+  ASSERT_EQ(context.global_context->storage->thread_table().row_count(), 3u);
 
-  auto tid_it = context.process_tracker->UtidsForTidForTesting(12);
+  auto tid_it =
+      context.machine_context->process_tracker->UtidsForTidForTesting(12);
   ASSERT_NE(tid_it.first, tid_it.second);
-  ASSERT_EQ(context.storage->thread_table()[1].upid().value(), 1u);
-  auto opt_upid = context.process_tracker->UpidForPidForTesting(2);
+  ASSERT_EQ(context.global_context->storage->thread_table()[1].upid().value(),
+            1u);
+  auto opt_upid =
+      context.machine_context->process_tracker->UpidForPidForTesting(2);
   ASSERT_TRUE(opt_upid.has_value());
-  ASSERT_EQ(context.storage->process_table().row_count(), 2u);
+  ASSERT_EQ(context.global_context->storage->process_table().row_count(), 2u);
 }
 
 TEST_F(ProcessTrackerTest, PidReuseWithoutStartAndEndThread) {
-  UniquePid p1 = context.process_tracker->StartNewProcess(
+  UniquePid p1 = context.machine_context->process_tracker->StartNewProcess(
       std::nullopt, std::nullopt, /*pid=*/1, kNullStringId,
       ThreadNamePriority::kFtrace);
-  UniqueTid t1 = context.process_tracker->UpdateThread(/*tid=*/2, /*pid=*/1);
+  UniqueTid t1 = context.machine_context->process_tracker->UpdateThread(
+      /*tid=*/2, /*pid=*/1);
 
-  UniquePid p2 = context.process_tracker->StartNewProcess(
+  UniquePid p2 = context.machine_context->process_tracker->StartNewProcess(
       std::nullopt, std::nullopt, /*pid=*/1, kNullStringId,
       ThreadNamePriority::kFtrace);
-  UniqueTid t2 = context.process_tracker->UpdateThread(/*tid=*/2, /*pid=*/1);
+  UniqueTid t2 = context.machine_context->process_tracker->UpdateThread(
+      /*tid=*/2, /*pid=*/1);
 
   ASSERT_NE(p1, p2);
   ASSERT_NE(t1, t2);
 
   // We expect 3 processes: idle process, 2x pid 1.
-  ASSERT_EQ(context.storage->process_table().row_count(), 3u);
+  ASSERT_EQ(context.global_context->storage->process_table().row_count(), 3u);
   // We expect 5 threads: Invalid thread, 2x (main thread + sub thread).
-  ASSERT_EQ(context.storage->thread_table().row_count(), 5u);
+  ASSERT_EQ(context.global_context->storage->thread_table().row_count(), 5u);
 }
 
 TEST_F(ProcessTrackerTest, Cmdline) {
-  UniquePid upid = context.process_tracker->SetProcessMetadata(
+  UniquePid upid = context.machine_context->process_tracker->SetProcessMetadata(
       1, std::nullopt, "test", "cmdline blah");
-  auto cmdline = *context.storage->process_table()[upid].cmdline();
-  ASSERT_EQ(context.storage->GetString(cmdline), "cmdline blah");
+  auto cmdline =
+      *context.global_context->storage->process_table()[upid].cmdline();
+  ASSERT_EQ(context.global_context->storage->GetString(cmdline),
+            "cmdline blah");
 }
 
 TEST_F(ProcessTrackerTest, UpdateThreadName) {
-  auto name1 = context.storage->InternString("name1");
-  auto name2 = context.storage->InternString("name2");
-  auto name3 = context.storage->InternString("name3");
+  auto name1 = context.global_context->storage->InternString("name1");
+  auto name2 = context.global_context->storage->InternString("name2");
+  auto name3 = context.global_context->storage->InternString("name3");
 
-  auto utid = context.process_tracker->GetOrCreateThread(1);
+  auto utid = context.machine_context->process_tracker->GetOrCreateThread(1);
 
-  context.process_tracker->UpdateThreadName(utid, name1,
-                                            ThreadNamePriority::kFtrace);
-  ASSERT_EQ(context.storage->thread_table().row_count(), 2u);
-  ASSERT_EQ(context.storage->thread_table()[1].name(), name1);
+  context.machine_context->process_tracker->UpdateThreadName(
+      utid, name1, ThreadNamePriority::kFtrace);
+  ASSERT_EQ(context.global_context->storage->thread_table().row_count(), 2u);
+  ASSERT_EQ(context.global_context->storage->thread_table()[1].name(), name1);
 
-  context.process_tracker->UpdateThreadName(utid, name2,
-                                            ThreadNamePriority::kProcessTree);
+  context.machine_context->process_tracker->UpdateThreadName(
+      utid, name2, ThreadNamePriority::kProcessTree);
   // The priority is higher: the name should change.
-  ASSERT_EQ(context.storage->thread_table().row_count(), 2u);
-  ASSERT_EQ(context.storage->thread_table()[1].name(), name2);
+  ASSERT_EQ(context.global_context->storage->thread_table().row_count(), 2u);
+  ASSERT_EQ(context.global_context->storage->thread_table()[1].name(), name2);
 
-  context.process_tracker->UpdateThreadName(utid, name3,
-                                            ThreadNamePriority::kFtrace);
+  context.machine_context->process_tracker->UpdateThreadName(
+      utid, name3, ThreadNamePriority::kFtrace);
   // The priority is lower: the name should stay the same.
-  ASSERT_EQ(context.storage->thread_table().row_count(), 2u);
-  ASSERT_EQ(context.storage->thread_table()[1].name(), name2);
+  ASSERT_EQ(context.global_context->storage->thread_table().row_count(), 2u);
+  ASSERT_EQ(context.global_context->storage->thread_table()[1].name(), name2);
 }
 
 TEST_F(ProcessTrackerTest, SetStartTsIfUnset) {
-  auto upid = context.process_tracker->StartNewProcess(
+  auto upid = context.machine_context->process_tracker->StartNewProcess(
       /*timestamp=*/std::nullopt, 0u, 123, kNullStringId,
       ThreadNamePriority::kFtrace);
-  context.process_tracker->SetStartTsIfUnset(upid, 1000);
-  ASSERT_EQ(context.storage->process_table()[upid].start_ts(), 1000);
+  context.machine_context->process_tracker->SetStartTsIfUnset(upid, 1000);
+  ASSERT_EQ(context.global_context->storage->process_table()[upid].start_ts(),
+            1000);
 
-  context.process_tracker->SetStartTsIfUnset(upid, 3000);
-  ASSERT_EQ(context.storage->process_table()[upid].start_ts(), 1000);
+  context.machine_context->process_tracker->SetStartTsIfUnset(upid, 3000);
+  ASSERT_EQ(context.global_context->storage->process_table()[upid].start_ts(),
+            1000);
 }
 
 TEST_F(ProcessTrackerTest, PidReuseAfterExplicitEnd) {
-  UniquePid upid = context.process_tracker->GetOrCreateProcess(123);
-  context.process_tracker->EndThread(100, 123);
+  UniquePid upid =
+      context.machine_context->process_tracker->GetOrCreateProcess(123);
+  context.machine_context->process_tracker->EndThread(100, 123);
 
-  UniquePid reuse = context.process_tracker->GetOrCreateProcess(123);
+  UniquePid reuse =
+      context.machine_context->process_tracker->GetOrCreateProcess(123);
   ASSERT_NE(upid, reuse);
 }
 
 TEST_F(ProcessTrackerTest, TidReuseAfterExplicitEnd) {
-  UniqueTid utid = context.process_tracker->UpdateThread(123, 123);
-  context.process_tracker->EndThread(100, 123);
+  UniqueTid utid =
+      context.machine_context->process_tracker->UpdateThread(123, 123);
+  context.machine_context->process_tracker->EndThread(100, 123);
 
-  UniqueTid reuse = context.process_tracker->UpdateThread(123, 123);
+  UniqueTid reuse =
+      context.machine_context->process_tracker->UpdateThread(123, 123);
   ASSERT_NE(utid, reuse);
 
-  UniqueTid reuse_again = context.process_tracker->UpdateThread(123, 123);
+  UniqueTid reuse_again =
+      context.machine_context->process_tracker->UpdateThread(123, 123);
   ASSERT_EQ(reuse, reuse_again);
 }
 
 TEST_F(ProcessTrackerTest, EndThreadAfterProcessEnd) {
-  context.process_tracker->StartNewProcess(
+  context.machine_context->process_tracker->StartNewProcess(
       100, std::nullopt, 123, kNullStringId, ThreadNamePriority::kFtrace);
-  context.process_tracker->UpdateThread(124, 123);
+  context.machine_context->process_tracker->UpdateThread(124, 123);
 
-  context.process_tracker->EndThread(200, 123);
-  context.process_tracker->EndThread(201, 124);
+  context.machine_context->process_tracker->EndThread(200, 123);
+  context.machine_context->process_tracker->EndThread(201, 124);
 
   // We expect two processes: the idle process and 123.
-  ASSERT_EQ(context.storage->process_table().row_count(), 2u);
+  ASSERT_EQ(context.global_context->storage->process_table().row_count(), 2u);
 
   // We expect three theads: the idle thread, 123 and 124.
-  ASSERT_EQ(context.storage->thread_table().row_count(), 3u);
+  ASSERT_EQ(context.global_context->storage->thread_table().row_count(), 3u);
 }
 
 TEST_F(ProcessTrackerTest, UpdateTrustedPid) {
-  context.process_tracker->UpdateTrustedPid(/*trusted_pid=*/123, /*uuid=*/1001);
-  context.process_tracker->UpdateTrustedPid(/*trusted_pid=*/456, /*uuid=*/1002);
+  context.machine_context->process_tracker->UpdateTrustedPid(
+      /*trusted_pid=*/123, /*uuid=*/1001);
+  context.machine_context->process_tracker->UpdateTrustedPid(
+      /*trusted_pid=*/456, /*uuid=*/1002);
 
-  ASSERT_EQ(context.process_tracker->GetTrustedPid(1001).value(), 123u);
-  ASSERT_EQ(context.process_tracker->GetTrustedPid(1002).value(), 456u);
+  ASSERT_EQ(
+      context.machine_context->process_tracker->GetTrustedPid(1001).value(),
+      123u);
+  ASSERT_EQ(
+      context.machine_context->process_tracker->GetTrustedPid(1002).value(),
+      456u);
 
   // PID reuse. Multiple track UUIDs map to the same trusted_pid.
-  context.process_tracker->UpdateTrustedPid(/*trusted_pid=*/123, /*uuid=*/1003);
-  ASSERT_EQ(context.process_tracker->GetTrustedPid(1001).value(), 123u);
-  ASSERT_EQ(context.process_tracker->GetTrustedPid(1003).value(), 123u);
+  context.machine_context->process_tracker->UpdateTrustedPid(
+      /*trusted_pid=*/123, /*uuid=*/1003);
+  ASSERT_EQ(
+      context.machine_context->process_tracker->GetTrustedPid(1001).value(),
+      123u);
+  ASSERT_EQ(
+      context.machine_context->process_tracker->GetTrustedPid(1003).value(),
+      123u);
 }
 
 TEST_F(ProcessTrackerTest, NamespacedProcessesAndThreads) {
-  context.process_tracker->UpdateNamespacedProcess(/*pid=*/1001,
-                                                   /*nspid=*/{1001, 190, 1});
-  context.process_tracker->UpdateNamespacedThread(/*pid=*/1001, /*tid=*/1002,
-                                                  /*nstid=*/{1002, 192, 2});
-  context.process_tracker->UpdateNamespacedThread(1001, 1003, {1003, 193, 3});
+  context.machine_context->process_tracker->UpdateNamespacedProcess(
+      /*pid=*/1001,
+      /*nspid=*/{1001, 190, 1});
+  context.machine_context->process_tracker->UpdateNamespacedThread(
+      /*pid=*/1001, /*tid=*/1002,
+      /*nstid=*/{1002, 192, 2});
+  context.machine_context->process_tracker->UpdateNamespacedThread(
+      1001, 1003, {1003, 193, 3});
 
-  context.process_tracker->UpdateNamespacedProcess(/*pid=*/1023,
-                                                   /*nspid=*/{1023, 201, 21});
-  context.process_tracker->UpdateNamespacedThread(/*pid=*/1023, /*tid=*/1026,
-                                                  {1026, 196, 26});
-  context.process_tracker->UpdateNamespacedThread(/*pid=*/1023, /*tid=*/1027,
-                                                  {1027, 197, 27});
+  context.machine_context->process_tracker->UpdateNamespacedProcess(
+      /*pid=*/1023,
+      /*nspid=*/{1023, 201, 21});
+  context.machine_context->process_tracker->UpdateNamespacedThread(
+      /*pid=*/1023, /*tid=*/1026, {1026, 196, 26});
+  context.machine_context->process_tracker->UpdateNamespacedThread(
+      /*pid=*/1023, /*tid=*/1027, {1027, 197, 27});
 
-  context.process_tracker->UpdateNamespacedProcess(/*pid=*/1024,
-                                                   /*nspid=*/{1024, 202, 22});
-  context.process_tracker->UpdateNamespacedThread(/*pid=*/1024, /*tid=*/1028,
-                                                  /*nstid=*/{1028, 198, 28});
-  context.process_tracker->UpdateNamespacedThread(/*pid=*/1024, /*tid=*/1029,
-                                                  /*nstid=*/{1029, 198, 29});
+  context.machine_context->process_tracker->UpdateNamespacedProcess(
+      /*pid=*/1024,
+      /*nspid=*/{1024, 202, 22});
+  context.machine_context->process_tracker->UpdateNamespacedThread(
+      /*pid=*/1024, /*tid=*/1028,
+      /*nstid=*/{1028, 198, 28});
+  context.machine_context->process_tracker->UpdateNamespacedThread(
+      /*pid=*/1024, /*tid=*/1029,
+      /*nstid=*/{1029, 198, 29});
 
   // Don't resolve if the process/thread isn't namespaced.
-  ASSERT_EQ(context.process_tracker->ResolveNamespacedTid(2001, 2002),
+  ASSERT_EQ(context.machine_context->process_tracker->ResolveNamespacedTid(
+                2001, 2002),
             std::nullopt);
 
   // Resolve from namespace-local PID to root-level PID.
-  ASSERT_EQ(context.process_tracker->ResolveNamespacedTid(1001, 1).value(),
-            1001u);
-  ASSERT_EQ(context.process_tracker->ResolveNamespacedTid(1023, 21).value(),
-            1023u);
-  ASSERT_EQ(context.process_tracker->ResolveNamespacedTid(1024, 22).value(),
-            1024u);
+  ASSERT_EQ(
+      context.machine_context->process_tracker->ResolveNamespacedTid(1001, 1)
+          .value(),
+      1001u);
+  ASSERT_EQ(
+      context.machine_context->process_tracker->ResolveNamespacedTid(1023, 21)
+          .value(),
+      1023u);
+  ASSERT_EQ(
+      context.machine_context->process_tracker->ResolveNamespacedTid(1024, 22)
+          .value(),
+      1024u);
 
   // Resolve from namespace-local TID to root-level TID.
-  ASSERT_EQ(context.process_tracker->ResolveNamespacedTid(1001, 2).value(),
-            1002u);
-  ASSERT_EQ(context.process_tracker->ResolveNamespacedTid(1001, 3).value(),
-            1003u);
-  ASSERT_EQ(context.process_tracker->ResolveNamespacedTid(1023, 26).value(),
-            1026u);
-  ASSERT_EQ(context.process_tracker->ResolveNamespacedTid(1023, 27).value(),
-            1027u);
-  ASSERT_EQ(context.process_tracker->ResolveNamespacedTid(1024, 28).value(),
-            1028u);
-  ASSERT_EQ(context.process_tracker->ResolveNamespacedTid(1024, 29).value(),
-            1029u);
+  ASSERT_EQ(
+      context.machine_context->process_tracker->ResolveNamespacedTid(1001, 2)
+          .value(),
+      1002u);
+  ASSERT_EQ(
+      context.machine_context->process_tracker->ResolveNamespacedTid(1001, 3)
+          .value(),
+      1003u);
+  ASSERT_EQ(
+      context.machine_context->process_tracker->ResolveNamespacedTid(1023, 26)
+          .value(),
+      1026u);
+  ASSERT_EQ(
+      context.machine_context->process_tracker->ResolveNamespacedTid(1023, 27)
+          .value(),
+      1027u);
+  ASSERT_EQ(
+      context.machine_context->process_tracker->ResolveNamespacedTid(1024, 28)
+          .value(),
+      1028u);
+  ASSERT_EQ(
+      context.machine_context->process_tracker->ResolveNamespacedTid(1024, 29)
+          .value(),
+      1029u);
 }
 
 }  // namespace

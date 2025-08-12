@@ -105,21 +105,25 @@ std::optional<UniqueTid> V8Module::GetUtid(
   auto* pid = isolate_to_pid_.Find(isolate_id);
   if (!pid) {
     tables::ProcessTable::Id upid(
-        context_->storage->v8_isolate_table().FindById(isolate_id)->upid());
+        context_->global_context->storage->v8_isolate_table()
+            .FindById(isolate_id)
+            ->upid());
     pid = isolate_to_pid_
-              .Insert(
-                  isolate_id,
-                  static_cast<uint32_t>(
-                      context_->storage->process_table().FindById(upid)->pid()))
+              .Insert(isolate_id,
+                      static_cast<uint32_t>(
+                          context_->global_context->storage->process_table()
+                              .FindById(upid)
+                              ->pid()))
               .first;
   }
 
   if (code.has_tid()) {
-    return context_->process_tracker->UpdateThread(code.tid(), *pid);
+    return context_->machine_context->process_tracker->UpdateThread(code.tid(),
+                                                                    *pid);
   }
 
   if (auto tid = GetDefaultTid(generation); tid.has_value()) {
-    return context_->process_tracker->UpdateThread(*tid, *pid);
+    return context_->machine_context->process_tracker->UpdateThread(*tid, *pid);
   }
 
   return std::nullopt;
@@ -129,18 +133,18 @@ std::optional<uint32_t> V8Module::GetDefaultTid(
     PacketSequenceStateGeneration& generation) const {
   auto* tp_defaults = generation.GetTracePacketDefaults();
   if (!tp_defaults) {
-    context_->storage->IncrementStats(stats::v8_no_defaults);
+    context_->global_context->storage->IncrementStats(stats::v8_no_defaults);
     return std::nullopt;
   }
   if (!tp_defaults->has_v8_code_defaults()) {
-    context_->storage->IncrementStats(stats::v8_no_defaults);
+    context_->global_context->storage->IncrementStats(stats::v8_no_defaults);
     return std::nullopt;
   }
 
   V8CodeDefaults::Decoder v8_defaults(tp_defaults->v8_code_defaults());
 
   if (!v8_defaults.has_tid()) {
-    context_->storage->IncrementStats(stats::v8_no_defaults);
+    context_->global_context->storage->IncrementStats(stats::v8_no_defaults);
     return std::nullopt;
   }
 

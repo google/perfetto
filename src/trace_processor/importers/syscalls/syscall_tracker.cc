@@ -46,7 +46,7 @@ void SyscallTracker::SetArchitecture(Architecture arch) {
     StringId id = kNullStringId;
     const char* name = syscalls.GetById(i);
     if (name && *name) {
-      id = context_->storage->InternString(name);
+      id = context_->global_context->storage->InternString(name);
       if (!strcmp(name, "sys_write")) {
         sys_write_string_id_ = id;
       } else if (!strcmp(name, "sys_rt_sigreturn")) {
@@ -54,7 +54,8 @@ void SyscallTracker::SetArchitecture(Architecture arch) {
       }
     } else {
       base::StackString<64> unknown_str("sys_%zu", i);
-      id = context_->storage->InternString(unknown_str.string_view());
+      id = context_->global_context->storage->InternString(
+          unknown_str.string_view());
     }
     arch_syscall_to_string_id_[i] = id;
   }

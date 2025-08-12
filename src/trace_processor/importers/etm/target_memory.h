@@ -29,7 +29,7 @@
 
 namespace perfetto::trace_processor {
 class AddressRange;
-class TraceProcessorContext;
+struct TraceProcessorContext;
 namespace etm {
 
 class MappingVersion;

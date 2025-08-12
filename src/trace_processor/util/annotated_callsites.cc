@@ -35,8 +35,8 @@ AnnotatedCallsites::AnnotatedCallsites(const TraceProcessorContext* context)
       // frames in the trace so there is no point in adding it to the pool to do
       // all comparisons, instead we initialize the member to std::nullopt and
       // the string comparisons will all fail.
-      art_jni_trampoline_(
-          context->storage->string_pool().GetId("art_jni_trampoline")) {}
+      art_jni_trampoline_(context->global_context->storage->string_pool().GetId(
+          "art_jni_trampoline")) {}
 
 AnnotatedCallsites::State AnnotatedCallsites::GetState(
     std::optional<CallsiteId> id) {
@@ -49,7 +49,8 @@ AnnotatedCallsites::State AnnotatedCallsites::GetState(
   }
 
   State state =
-      Get(*context_.storage->stack_profile_callsite_table().FindById(*id))
+      Get(*context_.global_context->storage->stack_profile_callsite_table()
+               .FindById(*id))
           .first;
   states_.emplace(*id, state);
   return state;
@@ -76,8 +77,9 @@ AnnotatedCallsites::Get(
   // TODO(rsavitski): consider detecting standard JNI upcall entrypoints -
   // _JNIEnv::Call*. These are sometimes inlined into other DSOs, so erasing
   // only the libart frames does not clean up all of the JNI-related frames.
-  auto frame = *context_.storage->stack_profile_frame_table().FindById(
-      callsite.frame_id());
+  auto frame =
+      *context_.global_context->storage->stack_profile_frame_table().FindById(
+          callsite.frame_id());
   // art_jni_trampoline_ could be std::nullopt if the string does not exist in
   // the StringPool, but that also means no frame will ever have that name.
   if (art_jni_trampoline_.has_value() &&
@@ -125,7 +127,8 @@ AnnotatedCallsites::Get(
   // For "switch" interpreter, we match any frame starting with
   // "art::interpreter::" according to itanium mangling.
   if (state == State::kEraseLibart && map_type == MapType::kNativeLibart) {
-    NullTermStringView fname = context_.storage->GetString(frame.name());
+    NullTermStringView fname =
+        context_.global_context->storage->GetString(frame.name());
     if (fname.StartsWith("nterp_") || fname.StartsWith("Nterp") ||
         fname.StartsWith("ExecuteNterp") ||
         fname.StartsWith("ExecuteSwitchImpl") ||
@@ -145,10 +148,12 @@ AnnotatedCallsites::MapType AnnotatedCallsites::GetMapType(MappingId id) {
   }
 
   return map_types_
-      .emplace(id, ClassifyMap(context_.storage->GetString(
-                       context_.storage->stack_profile_mapping_table()
-                           .FindById(id)
-                           ->name())))
+      .emplace(
+          id,
+          ClassifyMap(context_.global_context->storage->GetString(
+              context_.global_context->storage->stack_profile_mapping_table()
+                  .FindById(id)
+                  ->name())))
       .first->second;
 }
 

@@ -30,7 +30,8 @@ namespace perfetto::trace_processor::winscope {
 
 SurfaceFlingerLayersParser::SurfaceFlingerLayersParser(WinscopeContext* context)
     : context_{context},
-      args_parser_{*context->trace_processor_context_->descriptor_pool_} {}
+      args_parser_{*context->trace_processor_context_->global_context
+                        ->descriptor_pool_} {}
 
 void SurfaceFlingerLayersParser::Parse(int64_t timestamp,
                                        protozero::ConstBytes blob,
@@ -64,7 +65,7 @@ void SurfaceFlingerLayersParser::Parse(int64_t timestamp,
       computed_visibility =
           surfaceflinger_layers::VisibilityComputation(
               snapshot_decoder, layers_top_to_bottom, layers_by_id,
-              context_->trace_processor_context_->storage
+              context_->trace_processor_context_->global_context->storage
                   ->mutable_string_pool())
               .Compute();
 
@@ -98,7 +99,7 @@ const SnapshotId SurfaceFlingerLayersParser::ParseSnapshot(
     int64_t timestamp,
     protozero::ConstBytes blob,
     std::optional<uint32_t> sequence_id) {
-  auto storage = context_->trace_processor_context_->storage;
+  auto storage = context_->trace_processor_context_->global_context->storage;
   tables::SurfaceFlingerLayersSnapshotTable::Row snapshot;
   snapshot.ts = timestamp;
   snapshot.base64_proto_id = storage->mutable_string_pool()
@@ -113,8 +114,8 @@ const SnapshotId SurfaceFlingerLayersParser::ParseSnapshot(
           ->Insert(snapshot)
           .id;
 
-  auto inserter =
-      context_->trace_processor_context_->args_tracker->AddArgsTo(snapshot_id);
+  auto inserter = context_->trace_processor_context_->trace_context
+                      ->args_tracker->AddArgsTo(snapshot_id);
   ArgsParser writer(timestamp, inserter, *storage);
   const auto table_name = tables::SurfaceFlingerLayersSnapshotTable::Name();
   auto allowed_fields =
@@ -136,7 +137,7 @@ void SurfaceFlingerLayersParser::ParseLayer(
         visibility,
     const std::unordered_map<int32_t, LayerDecoder>& layers_by_id,
     const surfaceflinger_layers::SurfaceFlingerRects& rects) {
-  auto storage = context_->trace_processor_context_->storage;
+  auto storage = context_->trace_processor_context_->global_context->storage;
   ArgsTracker tracker(context_->trace_processor_context_);
   auto row_id =
       InsertLayerRow(blob, snapshot_id, visibility, layers_by_id, rects);
@@ -178,8 +179,8 @@ tables::SurfaceFlingerLayerTable::Id SurfaceFlingerLayersParser::InsertLayerRow(
         visibility,
     const std::unordered_map<int32_t, LayerDecoder>& layers_by_id,
     const surfaceflinger_layers::SurfaceFlingerRects& rects) {
-  auto* string_pool =
-      context_->trace_processor_context_->storage->mutable_string_pool();
+  auto* string_pool = context_->trace_processor_context_->global_context
+                          ->storage->mutable_string_pool();
 
   tables::SurfaceFlingerLayerTable::Row layer;
   layer.snapshot_id = snapshot_id;
@@ -236,7 +237,7 @@ tables::SurfaceFlingerLayerTable::Id SurfaceFlingerLayersParser::InsertLayerRow(
   layer.is_visible = visibility.has_value() ? visibility->is_visible : false;
   layer.layer_rect_id = rects.layer_rect;
   layer.input_rect_id = rects.input_rect;
-  return context_->trace_processor_context_->storage
+  return context_->trace_processor_context_->global_context->storage
       ->mutable_surfaceflinger_layer_table()
       ->Insert(layer)
       .id;
@@ -271,7 +272,8 @@ void SurfaceFlingerLayersParser::ParseDisplay(
 
   if (display_decoder.has_name()) {
     display.display_name =
-        context_->trace_processor_context_->storage->mutable_string_pool()
+        context_->trace_processor_context_->global_context->storage
+            ->mutable_string_pool()
             ->InternString(display_decoder.name());
   }
 
@@ -288,7 +290,7 @@ void SurfaceFlingerLayersParser::ParseDisplay(
   display.trace_rect_id =
       InsertDisplayTraceRectRow(display_decoder, rect_id, index);
 
-  context_->trace_processor_context_->storage
+  context_->trace_processor_context_->global_context->storage
       ->mutable_surfaceflinger_display_table()
       ->Insert(display);
 }
@@ -323,7 +325,7 @@ SurfaceFlingerLayersParser::InsertDisplayTraceRectRow(
   row.group_id = display_decoder.layer_stack();
   row.depth = static_cast<uint32_t>(index);
   row.is_spy = false;
-  return context_->trace_processor_context_->storage
+  return context_->trace_processor_context_->global_context->storage
       ->mutable_winscope_trace_rect_table()
       ->Insert(row)
       .id;

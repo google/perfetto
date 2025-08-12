@@ -31,7 +31,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 class BinderTracker : public Destructible {
  public:
@@ -63,10 +63,12 @@ class BinderTracker : public Destructible {
   BinderTracker& operator=(const BinderTracker&) = delete;
   ~BinderTracker() override;
   static BinderTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->binder_tracker) {
-      context->binder_tracker.reset(new BinderTracker(context));
+    if (!context->machine_context->binder_tracker) {
+      context->machine_context->binder_tracker.reset(
+          new BinderTracker(context));
     }
-    return static_cast<BinderTracker*>(context->binder_tracker.get());
+    return static_cast<BinderTracker*>(
+        context->machine_context->binder_tracker.get());
   }
 
   void Transaction(int64_t timestamp,

@@ -26,7 +26,7 @@ namespace perfetto {
 namespace trace_processor {
 
 class PerfettoSqlEngine;
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 // Registers the following functions:
 //

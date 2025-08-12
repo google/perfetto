@@ -54,7 +54,7 @@ AndroidBatteryStatsReader::AndroidBatteryStatsReader(
     : context_(context),
       history_string_tracker_(
           std::make_unique<AndroidBatteryStatsHistoryStringTracker>()),
-      stream_(context->sorter->CreateStream(
+      stream_(context->global_context->sorter->CreateStream(
           std::make_unique<AndroidDumpstateEventParser>(
               context,
               history_string_tracker_.get()))) {}
@@ -153,7 +153,7 @@ base::Status AndroidBatteryStatsReader::SendToSorter(
     AndroidDumpstateEvent event) {
   ASSIGN_OR_RETURN(
       int64_t trace_ts,
-      context_->clock_tracker->ToTraceTime(
+      context_->global_context->clock_tracker->ToTraceTime(
           protos::pbzero::ClockSnapshot::Clock::REALTIME, event_ts.count()));
   stream_->Push(trace_ts, std::move(event));
   return base::OkStatus();

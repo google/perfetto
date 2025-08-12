@@ -247,66 +247,73 @@ void GProfileBuilder::SampleAggregator::WriteTo(Profile& profile) {
 GProfileBuilder::GProfileBuilder(const TraceProcessorContext* context,
                                  const std::vector<ValueType>& sample_types)
     : context_(*context),
-      string_table_(&result_, &context->storage->string_pool()),
+      string_table_(&result_, &context->global_context->storage->string_pool()),
       annotations_(context),
-      jit_frame_cursor_(context->storage->jit_frame_table().CreateCursor({
-          dataframe::FilterSpec{
-              tables::JitFrameTable::ColumnIndex::frame_id,
-              0,
-              dataframe::Eq{},
-              {},
-          },
-      })),
-      v8_js_code_cursor_(context->storage->v8_js_code_table().CreateCursor({
-          dataframe::FilterSpec{
-              tables::V8JsCodeTable::ColumnIndex::jit_code_id,
-              0,
-              dataframe::Eq{},
-              {},
-          },
-      })),
-      v8_wasm_code_cursor_(context->storage->v8_wasm_code_table().CreateCursor({
-          dataframe::FilterSpec{
-              tables::V8WasmCodeTable::ColumnIndex::jit_code_id,
-              0,
-              dataframe::Eq{},
-              {},
-          },
-      })),
+      jit_frame_cursor_(
+          context->global_context->storage->jit_frame_table().CreateCursor({
+              dataframe::FilterSpec{
+                  tables::JitFrameTable::ColumnIndex::frame_id,
+                  0,
+                  dataframe::Eq{},
+                  {},
+              },
+          })),
+      v8_js_code_cursor_(
+          context->global_context->storage->v8_js_code_table().CreateCursor({
+              dataframe::FilterSpec{
+                  tables::V8JsCodeTable::ColumnIndex::jit_code_id,
+                  0,
+                  dataframe::Eq{},
+                  {},
+              },
+          })),
+      v8_wasm_code_cursor_(
+          context->global_context->storage->v8_wasm_code_table().CreateCursor({
+              dataframe::FilterSpec{
+                  tables::V8WasmCodeTable::ColumnIndex::jit_code_id,
+                  0,
+                  dataframe::Eq{},
+                  {},
+              },
+          })),
       v8_regexp_code_cursor_(
-          context->storage->v8_regexp_code_table().CreateCursor({
-              dataframe::FilterSpec{
-                  tables::V8RegexpCodeTable::ColumnIndex::jit_code_id,
-                  0,
-                  dataframe::Eq{},
-                  {},
-              },
-          })),
+          context->global_context->storage->v8_regexp_code_table().CreateCursor(
+              {
+                  dataframe::FilterSpec{
+                      tables::V8RegexpCodeTable::ColumnIndex::jit_code_id,
+                      0,
+                      dataframe::Eq{},
+                      {},
+                  },
+              })),
       v8_internal_code_cursor_(
-          context->storage->v8_internal_code_table().CreateCursor({
+          context->global_context->storage->v8_internal_code_table()
+              .CreateCursor({
+                  dataframe::FilterSpec{
+                      tables::V8InternalCodeTable::ColumnIndex::jit_code_id,
+                      0,
+                      dataframe::Eq{},
+                      {},
+                  },
+              })),
+      jit_code_cursor_(
+          context->global_context->storage->jit_code_table().CreateCursor({
               dataframe::FilterSpec{
-                  tables::V8InternalCodeTable::ColumnIndex::jit_code_id,
+                  tables::JitCodeTable::ColumnIndex::function_name,
                   0,
                   dataframe::Eq{},
                   {},
               },
           })),
-      jit_code_cursor_(context->storage->jit_code_table().CreateCursor({
-          dataframe::FilterSpec{
-              tables::JitCodeTable::ColumnIndex::function_name,
-              0,
-              dataframe::Eq{},
-              {},
-          },
-      })),
-      symbol_cursor_(context->storage->symbol_table().CreateCursor({
-          dataframe::FilterSpec{
-              tables::SymbolTable::ColumnIndex::symbol_set_id,
-              0,
-              dataframe::Eq{},
-              {},
-          },
-      })) {
+      symbol_cursor_(
+          context->global_context->storage->symbol_table().CreateCursor({
+              dataframe::FilterSpec{
+                  tables::SymbolTable::ColumnIndex::symbol_set_id,
+                  0,
+                  dataframe::Eq{},
+                  {},
+              },
+          })) {
   // Make sure the empty function always gets id 0 which will be ignored
   // when writing the proto file.
   functions_.insert(
@@ -413,7 +420,8 @@ const protozero::PackedVarInt& GProfileBuilder::GetLocationIdsForCallsite(
   protozero::PackedVarInt& location_ids =
       cached_location_ids_[{callsite_id, annotated}];
 
-  const auto& cs_table = context_.storage->stack_profile_callsite_table();
+  const auto& cs_table =
+      context_.global_context->storage->stack_profile_callsite_table();
 
   std::optional<tables::StackProfileCallsiteTable::ConstRowReference>
       start_ref = cs_table.FindById(callsite_id);
@@ -446,10 +454,12 @@ uint64_t GProfileBuilder::WriteLocationIfNeeded(FrameId frame_id,
     return it->second;
   }
 
-  const auto& frames = context_.storage->stack_profile_frame_table();
+  const auto& frames =
+      context_.global_context->storage->stack_profile_frame_table();
   auto frame = *frames.FindById(key.frame_id);
 
-  const auto& mappings = context_.storage->stack_profile_mapping_table();
+  const auto& mappings =
+      context_.global_context->storage->stack_profile_mapping_table();
   auto mapping = *mappings.FindById(frame.mapping());
   uint64_t mapping_id = WriteMappingIfNeeded(mapping);
 
@@ -564,20 +574,23 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForJitFrame(
       0, jit_frame_cursor_.jit_code_id().value);
   v8_js_code_cursor_.Execute();
   if (!v8_js_code_cursor_.Eof()) {
-    const auto& v8_js_funcs = context_.storage->v8_js_function_table();
+    const auto& v8_js_funcs =
+        context_.global_context->storage->v8_js_function_table();
     auto maybe_jsf =
         v8_js_funcs.FindById(v8_js_code_cursor_.v8_js_function_id());
     if (maybe_jsf) {
       auto jsf = *maybe_jsf;
-      auto jsf_name = context_.storage->string_pool().Get(jsf.name());
-      auto jsf_tier =
-          context_.storage->string_pool().Get(v8_js_code_cursor_.tier());
+      auto jsf_name =
+          context_.global_context->storage->string_pool().Get(jsf.name());
+      auto jsf_tier = context_.global_context->storage->string_pool().Get(
+          v8_js_code_cursor_.tier());
       base::StackString<64> name(
           "JS: %s:%u:%u [%s]",
           jsf_name.empty() ? "(anonymous)" : jsf_name.c_str(),
           jsf.line().value_or(0), jsf.col().value_or(0), jsf_tier.c_str());
 
-      const auto& v8_js_scripts = context_.storage->v8_js_script_table();
+      const auto& v8_js_scripts =
+          context_.global_context->storage->v8_js_script_table();
       auto maybe_jss = v8_js_scripts.FindById(jsf.v8_js_script_id());
 
       return {
@@ -594,9 +607,9 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForJitFrame(
   v8_wasm_code_cursor_.Execute();
   if (!v8_wasm_code_cursor_.Eof()) {
     std::string name =
-        "WASM: " +
-        context_.storage->GetString(v8_wasm_code_cursor_.function_name())
-            .ToStdString();
+        "WASM: " + context_.global_context->storage
+                       ->GetString(v8_wasm_code_cursor_.function_name())
+                       .ToStdString();
     return {Line{WriteFunctionIfNeeded(base::StringView(name), kNullStringId,
                                        annotation, mapping_id),
                  0}};
@@ -607,9 +620,9 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForJitFrame(
   v8_regexp_code_cursor_.Execute();
   if (!v8_regexp_code_cursor_.Eof()) {
     std::string name =
-        "REGEXP: " +
-        context_.storage->GetString(v8_regexp_code_cursor_.pattern())
-            .ToStdString();
+        "REGEXP: " + context_.global_context->storage
+                         ->GetString(v8_regexp_code_cursor_.pattern())
+                         .ToStdString();
     return {Line{WriteFunctionIfNeeded(base::StringView(name), kNullStringId,
                                        annotation, mapping_id),
                  0}};
@@ -620,9 +633,9 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForJitFrame(
   v8_internal_code_cursor_.Execute();
   if (!v8_internal_code_cursor_.Eof()) {
     std::string name =
-        "V8: " +
-        context_.storage->GetString(v8_internal_code_cursor_.function_name())
-            .ToStdString();
+        "V8: " + context_.global_context->storage
+                     ->GetString(v8_internal_code_cursor_.function_name())
+                     .ToStdString();
     return {Line{WriteFunctionIfNeeded(base::StringView(name), kNullStringId,
                                        annotation, mapping_id),
                  0}};
@@ -633,7 +646,8 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForJitFrame(
   jit_code_cursor_.Execute();
   if (!jit_code_cursor_.Eof()) {
     std::string name =
-        "JIT: " + context_.storage->GetString(jit_code_cursor_.function_name())
+        "JIT: " + context_.global_context->storage
+                      ->GetString(jit_code_cursor_.function_name())
                       .ToStdString();
     return {Line{WriteFunctionIfNeeded(base::StringView(name), kNullStringId,
                                        annotation, mapping_id),
@@ -732,7 +746,8 @@ uint64_t GProfileBuilder::WriteFunctionIfNeeded(
 int64_t GProfileBuilder::GetNameForFrame(
     const tables::StackProfileFrameTable::ConstRowReference& frame,
     CallsiteAnnotation annotation) {
-  NullTermStringView system_name = context_.storage->GetString(frame.name());
+  NullTermStringView system_name =
+      context_.global_context->storage->GetString(frame.name());
   int64_t name = kEmptyStringIndex;
   if (frame.deobfuscated_name()) {
     name = string_table_.GetAnnotatedString(*frame.deobfuscated_name(),
@@ -811,7 +826,8 @@ uint64_t GProfileBuilder::WriteMappingIfNeeded(
       {MappingKey(mapping_ref, string_table_), mapping_keys_.size() + 1});
 
   if (ins.second) {
-    mappings_.emplace_back(mapping_ref, context_.storage->string_pool(),
+    mappings_.emplace_back(mapping_ref,
+                           context_.global_context->storage->string_pool(),
                            string_table_);
   }
 

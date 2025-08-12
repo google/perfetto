@@ -40,7 +40,8 @@
 namespace perfetto::trace_processor {
 
 ExperimentalFlatSlice::Cursor::Cursor(TraceProcessorContext* context)
-    : context_(context), table_(context_->storage->mutable_string_pool()) {}
+    : context_(context),
+      table_(context_->global_context->storage->mutable_string_pool()) {}
 
 bool ExperimentalFlatSlice::Cursor::Run(
     const std::vector<SqlValue>& arguments) {
@@ -63,9 +64,9 @@ bool ExperimentalFlatSlice::Cursor::Run(
 
   std::unique_ptr<tables::ExperimentalFlatSliceTable> constructed_table =
       ExperimentalFlatSlice::ComputeFlatSliceTable(
-          context_->storage->slice_table(),
-          context_->storage->mutable_string_pool(), arguments[0].AsLong(),
-          arguments[1].AsLong());
+          context_->global_context->storage->slice_table(),
+          context_->global_context->storage->mutable_string_pool(),
+          arguments[0].AsLong(), arguments[1].AsLong());
   if (!constructed_table) {
     return OnFailure(
         base::ErrStatus("Failed to compute ExperimentalFlatSliceTable"));

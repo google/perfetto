@@ -125,9 +125,10 @@ base::Status EtmV4Stream::OnItraceStartRecord(
     perf_importer::ItraceStartRecord start) {
   std::optional<int64_t> start_ts;
   if (start.time().has_value()) {
-    ASSIGN_OR_RETURN(start_ts, context_->clock_tracker->ToTraceTime(
-                                   start.attr->clock_id(),
-                                   static_cast<int64_t>(*start.time())));
+    ASSIGN_OR_RETURN(
+        start_ts,
+        context_->global_context->clock_tracker->ToTraceTime(
+            start.attr->clock_id(), static_cast<int64_t>(*start.time())));
   }
   if (session_.has_value()) {
     EndSession();
@@ -139,9 +140,10 @@ base::Status EtmV4Stream::OnItraceStartRecord(
 void EtmV4Stream::StartSession(std::optional<int64_t> start_ts) {
   PERFETTO_CHECK(stream_active_);
   PERFETTO_CHECK(!session_.has_value());
-  session_.emplace(context_->storage->mutable_etm_v4_session_table()
-                       ->Insert({config_id_, start_ts})
-                       .id);
+  session_.emplace(
+      context_->global_context->storage->mutable_etm_v4_session_table()
+          ->Insert({config_id_, start_ts})
+          .id);
 }
 
 void EtmV4Stream::AddTrace(TraceBlobView trace) {
@@ -153,12 +155,13 @@ void EtmV4Stream::EndSession() {
   PERFETTO_CHECK(session_.has_value());
   // There should be no inflight framed data.
   PERFETTO_CHECK(buffer_.empty());
-  uint32_t trace_set_id = context_->storage->etm_v4_trace_table().row_count();
+  uint32_t trace_set_id =
+      context_->global_context->storage->etm_v4_trace_table().row_count();
   for (auto& trace : session_->traces_) {
     if (trace.size() == 0) {
       continue;
     }
-    auto id = context_->storage->mutable_etm_v4_trace_table()
+    auto id = context_->global_context->storage->mutable_etm_v4_trace_table()
                   ->Insert({session_->session_id, trace_set_id,
                             static_cast<int64_t>(trace.size())})
                   .id;

@@ -49,10 +49,13 @@ using ::testing::SaveArg;
 class JitTrackerTest : public testing::Test {
  public:
   JitTrackerTest() : jit_tracker_(&context_) {
-    context_.storage.reset(new TraceStorage());
-    context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
-    context_.mapping_tracker.reset(new MappingTracker(&context_));
-    context_.process_tracker.reset(new ProcessTracker(&context_));
+    context_.global_context->storage.reset(new TraceStorage());
+    context_.trace_context->stack_profile_tracker.reset(
+        new StackProfileTracker(&context_));
+    context_.machine_context->mapping_tracker.reset(
+        new MappingTracker(&context_));
+    context_.machine_context->process_tracker.reset(
+        new ProcessTracker(&context_));
   }
 
  protected:
@@ -60,7 +63,9 @@ class JitTrackerTest : public testing::Test {
                                 AddressRange range,
                                 uint64_t exact_offset = 0,
                                 uint64_t load_bias = 0) {
-    uint32_t id = context_.storage->stack_profile_mapping_table().row_count();
+    uint32_t id =
+        context_.global_context->storage->stack_profile_mapping_table()
+            .row_count();
     CreateMappingParams params;
     params.memory_range = range;
     params.build_id =
@@ -70,8 +75,8 @@ class JitTrackerTest : public testing::Test {
     params.load_bias = load_bias;
     params.name = "Mapping ";
     params.name += std::to_string(id);
-    return context_.mapping_tracker->CreateUserMemoryMapping(upid,
-                                                             std::move(params));
+    return context_.machine_context->mapping_tracker->CreateUserMemoryMapping(
+        upid, std::move(params));
   }
 
   TraceProcessorContext context_;
@@ -79,14 +84,18 @@ class JitTrackerTest : public testing::Test {
 };
 
 TEST_F(JitTrackerTest, BasicFunctionality) {
-  const UniquePid upid = context_.process_tracker->GetOrCreateProcess(1234);
-  const UniqueTid utid = context_.process_tracker->UpdateThread(4321, 1234);
+  const UniquePid upid =
+      context_.machine_context->process_tracker->GetOrCreateProcess(1234);
+  const UniqueTid utid =
+      context_.machine_context->process_tracker->UpdateThread(4321, 1234);
   const AddressRange jit_range(0, 1000);
   auto& mapping = AddMapping(upid, jit_range);
   JitCache* cache = jit_tracker_.CreateJitCache("name", upid, jit_range);
 
-  const StringId function_name = context_.storage->InternString("Function 1");
-  const StringId source_file = context_.storage->InternString("SourceFile");
+  const StringId function_name =
+      context_.global_context->storage->InternString("Function 1");
+  const StringId source_file =
+      context_.global_context->storage->InternString("SourceFile");
   const int64_t create_ts = 12345;
   const AddressRange code_range(0, 100);
 
@@ -94,7 +103,8 @@ TEST_F(JitTrackerTest, BasicFunctionality) {
                                  JitCache::SourceLocation{source_file, 10},
                                  TraceBlobView());
 
-  auto code = *context_.storage->jit_code_table().FindById(code_id);
+  auto code =
+      *context_.global_context->storage->jit_code_table().FindById(code_id);
   EXPECT_THAT(code.create_ts(), Eq(create_ts));
   EXPECT_THAT(code.estimated_delete_ts(), Eq(std::nullopt));
   EXPECT_THAT(code.utid(), Eq(utid));
@@ -106,10 +116,11 @@ TEST_F(JitTrackerTest, BasicFunctionality) {
   auto frame_id = mapping.InternFrame(50, "");
 
   auto frame =
-      *context_.storage->stack_profile_frame_table().FindById(frame_id);
+      *context_.global_context->storage->stack_profile_frame_table().FindById(
+          frame_id);
   EXPECT_THAT(frame.name(), Eq(function_name));
 
-  auto row = context_.storage->jit_frame_table().FindById(
+  auto row = context_.global_context->storage->jit_frame_table().FindById(
       tables::JitFrameTable::Id(0));
   ASSERT_THAT(row, Ne(std::nullopt));
 
@@ -118,15 +129,20 @@ TEST_F(JitTrackerTest, BasicFunctionality) {
 }
 
 TEST_F(JitTrackerTest, FunctionOverlapUpdatesDeleteTs) {
-  const UniquePid upid = context_.process_tracker->GetOrCreateProcess(1234);
-  const UniqueTid utid = context_.process_tracker->UpdateThread(4321, 1234);
+  const UniquePid upid =
+      context_.machine_context->process_tracker->GetOrCreateProcess(1234);
+  const UniqueTid utid =
+      context_.machine_context->process_tracker->UpdateThread(4321, 1234);
   const AddressRange jit_range(0, 1000);
   auto& mapping = AddMapping(upid, jit_range);
   JitCache* cache = jit_tracker_.CreateJitCache("name", upid, jit_range);
 
-  const StringId function_name_1 = context_.storage->InternString("Function 1");
-  const StringId function_name_2 = context_.storage->InternString("Function 2");
-  const StringId source_file = context_.storage->InternString("SourceFile");
+  const StringId function_name_1 =
+      context_.global_context->storage->InternString("Function 1");
+  const StringId function_name_2 =
+      context_.global_context->storage->InternString("Function 2");
+  const StringId source_file =
+      context_.global_context->storage->InternString("SourceFile");
   const int64_t create_ts_1 = 12345;
   const int64_t create_ts_2 = 23456;
   const AddressRange code_range_1(0, 100);
@@ -140,8 +156,10 @@ TEST_F(JitTrackerTest, FunctionOverlapUpdatesDeleteTs) {
       JitCache::SourceLocation{source_file, 10}, TraceBlobView());
   EXPECT_THAT(code_id_1, Ne(code_id_2));
 
-  auto code_1 = *context_.storage->jit_code_table().FindById(code_id_1);
-  auto code_2 = *context_.storage->jit_code_table().FindById(code_id_2);
+  auto code_1 =
+      *context_.global_context->storage->jit_code_table().FindById(code_id_1);
+  auto code_2 =
+      *context_.global_context->storage->jit_code_table().FindById(code_id_2);
 
   // Code 1 has been deleted
   EXPECT_THAT(code_1.create_ts(), Eq(create_ts_1));
@@ -154,26 +172,35 @@ TEST_F(JitTrackerTest, FunctionOverlapUpdatesDeleteTs) {
   // No frame should mention code 1
   FrameId frame_id = mapping.InternFrame(50, "");
   auto frame_a =
-      *context_.storage->stack_profile_frame_table().FindById(frame_id);
+      *context_.global_context->storage->stack_profile_frame_table().FindById(
+          frame_id);
   EXPECT_THAT(frame_a.name(), Eq(function_name_2));
-  ASSERT_THAT(context_.storage->jit_frame_table().row_count(), Eq(1u));
-  auto row = context_.storage->jit_frame_table().FindById(
+  ASSERT_THAT(context_.global_context->storage->jit_frame_table().row_count(),
+              Eq(1u));
+  auto row = context_.global_context->storage->jit_frame_table().FindById(
       tables::JitFrameTable::Id(0));
   EXPECT_THAT(row->jit_code_id(), Eq(code_id_2));
   EXPECT_THAT(row->frame_id(), Eq(frame_id));
 
   // Frames for the old code 1 must fail to resolve to a jitted function but
   // still generate a frame.
-  EXPECT_THAT(context_.storage->stats().at(stats::jit_unknown_frame).value,
+  EXPECT_THAT(context_.global_context->storage->stats()
+                  .at(stats::jit_unknown_frame)
+                  .value,
               Eq(0));
   frame_id = mapping.InternFrame(0, "custom");
-  EXPECT_THAT(context_.storage->stats().at(stats::jit_unknown_frame).value,
+  EXPECT_THAT(context_.global_context->storage->stats()
+                  .at(stats::jit_unknown_frame)
+                  .value,
               Eq(1));
   auto frame_b =
-      *context_.storage->stack_profile_frame_table().FindById(frame_id);
+      *context_.global_context->storage->stack_profile_frame_table().FindById(
+          frame_id);
   EXPECT_THAT(frame_a.id(), Ne(frame_b.id()));
-  EXPECT_THAT(context_.storage->GetString(frame_b.name()), Eq("custom"));
-  EXPECT_THAT(context_.storage->jit_frame_table().row_count(), Eq(1u));
+  EXPECT_THAT(context_.global_context->storage->GetString(frame_b.name()),
+              Eq("custom"));
+  EXPECT_THAT(context_.global_context->storage->jit_frame_table().row_count(),
+              Eq(1u));
 }
 
 }  // namespace

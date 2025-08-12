@@ -44,7 +44,7 @@ class EtwModule;
 class FtraceModule;
 class TrackEventModule;
 class TraceBlobView;
-class TraceProcessorContext;
+struct TraceProcessorContext;
 class TrackEventModule;
 struct InlineSchedSwitch;
 struct InlineSchedWaking;

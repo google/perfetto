@@ -30,7 +30,7 @@
 
 namespace perfetto::trace_processor {
 
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 // The "experimental_annotated_callstack" dynamic table.
 //

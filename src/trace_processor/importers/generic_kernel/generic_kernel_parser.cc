@@ -60,20 +60,23 @@ void GenericKernelParser::RemovePendingStateInfoForTid(UniqueTid utid) {
 
 GenericKernelParser::GenericKernelParser(TraceProcessorContext* context)
     : context_(context),
-      created_string_id_(context_->storage->InternString("Created")),
-      running_string_id_(context_->storage->InternString("Running")),
-      dead_string_id_(context_->storage->InternString("Z")),
-      destroyed_string_id_(context_->storage->InternString("X")),
+      created_string_id_(
+          context_->global_context->storage->InternString("Created")),
+      running_string_id_(
+          context_->global_context->storage->InternString("Running")),
+      dead_string_id_(context_->global_context->storage->InternString("Z")),
+      destroyed_string_id_(
+          context_->global_context->storage->InternString("X")),
       task_states_({
-          context_->storage->InternString("Unknown"),
-          context_->storage->InternString("Created"),
-          context_->storage->InternString("R"),
-          context_->storage->InternString("Running"),
-          context_->storage->InternString("S"),
-          context_->storage->InternString("D"),
-          context_->storage->InternString("T"),
-          context_->storage->InternString("Z"),
-          context_->storage->InternString("X"),
+          context_->global_context->storage->InternString("Unknown"),
+          context_->global_context->storage->InternString("Created"),
+          context_->global_context->storage->InternString("R"),
+          context_->global_context->storage->InternString("Running"),
+          context_->global_context->storage->InternString("S"),
+          context_->global_context->storage->InternString("D"),
+          context_->global_context->storage->InternString("T"),
+          context_->global_context->storage->InternString("Z"),
+          context_->global_context->storage->InternString("X"),
       }) {}
 
 void GenericKernelParser::ParseGenericTaskStateEvent(
@@ -81,7 +84,8 @@ void GenericKernelParser::ParseGenericTaskStateEvent(
     protozero::ConstBytes data) {
   protos::pbzero::GenericKernelTaskStateEvent::Decoder task_event(data);
 
-  StringId comm_id = context_->storage->InternString(task_event.comm());
+  StringId comm_id =
+      context_->global_context->storage->InternString(task_event.comm());
   const uint32_t cpu = static_cast<uint32_t>(task_event.cpu());
   const int64_t tid = task_event.tid();
   const int32_t prio = task_event.prio();
@@ -141,40 +145,44 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
                                                               size_t state) {
   switch (state) {
     case TaskStateEnum::TASK_STATE_CREATED: {
-      if (context_->process_tracker->GetThreadOrNull(tid)) {
-        context_->storage->IncrementStats(
+      if (context_->machine_context->process_tracker->GetThreadOrNull(tid)) {
+        context_->global_context->storage->IncrementStats(
             stats::generic_task_state_invalid_order);
         return std::nullopt;
       }
-      UniqueTid utid = context_->process_tracker->StartNewThread(ts, tid);
-      context_->process_tracker->UpdateThreadName(
+      UniqueTid utid =
+          context_->machine_context->process_tracker->StartNewThread(ts, tid);
+      context_->machine_context->process_tracker->UpdateThreadName(
           utid, comm_id, ThreadNamePriority::kGenericKernelTask);
       return utid;
     }
     case TaskStateEnum::TASK_STATE_DESTROYED: {
-      return context_->process_tracker->GetThreadOrNull(tid);
+      return context_->machine_context->process_tracker->GetThreadOrNull(tid);
     }
     case TaskStateEnum::TASK_STATE_DEAD: {
-      auto utid_opt = context_->process_tracker->GetThreadOrNull(tid);
+      auto utid_opt =
+          context_->machine_context->process_tracker->GetThreadOrNull(tid);
       if (!utid_opt) {
-        utid_opt = context_->process_tracker->GetOrCreateThread(tid);
-        context_->process_tracker->UpdateThreadName(
+        utid_opt =
+            context_->machine_context->process_tracker->GetOrCreateThread(tid);
+        context_->machine_context->process_tracker->UpdateThreadName(
             *utid_opt, comm_id, ThreadNamePriority::kGenericKernelTask);
       } else if (ThreadStateTracker::GetOrCreate(context_)->GetPrevEndState(
                      *utid_opt) == destroyed_string_id_) {
-        context_->storage->IncrementStats(
+        context_->global_context->storage->IncrementStats(
             stats::generic_task_state_invalid_order);
         utid_opt = std::nullopt;
       }
-      context_->process_tracker->EndThread(ts, tid);
+      context_->machine_context->process_tracker->EndThread(ts, tid);
       return utid_opt;
     }
     case TaskStateEnum::TASK_STATE_RUNNING: {
-      auto utid_opt = context_->process_tracker->GetThreadOrNull(tid);
+      auto utid_opt =
+          context_->machine_context->process_tracker->GetThreadOrNull(tid);
       if (utid_opt &&
           ThreadStateTracker::GetOrCreate(context_)->GetPrevEndState(
               *utid_opt) == running_string_id_) {
-        context_->storage->IncrementStats(
+        context_->global_context->storage->IncrementStats(
             stats::generic_task_state_invalid_order);
         return std::nullopt;
       }
@@ -184,14 +192,16 @@ std::optional<UniqueTid> GenericKernelParser::GetUtidForState(int64_t ts,
     case TaskStateEnum::TASK_STATE_INTERRUPTIBLE_SLEEP:
     case TaskStateEnum::TASK_STATE_UNINTERRUPTIBLE_SLEEP:
     case TaskStateEnum::TASK_STATE_STOPPED: {
-      UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
-      context_->process_tracker->UpdateThreadName(
+      UniqueTid utid =
+          context_->machine_context->process_tracker->GetOrCreateThread(tid);
+      context_->machine_context->process_tracker->UpdateThreadName(
           utid, comm_id, ThreadNamePriority::kGenericKernelTask);
       return utid;
     }
     case TaskStateEnum::TASK_STATE_UNKNOWN:
     default: {
-      context_->storage->IncrementStats(stats::task_state_invalid);
+      context_->global_context->storage->IncrementStats(
+          stats::task_state_invalid);
       return std::nullopt;
     }
   }
@@ -225,14 +235,15 @@ GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
     auto rc = kStart;
     // Close the previous sched slice
     if (pending_slice_idx < std::numeric_limits<uint32_t>::max()) {
-      context_->sched_event_tracker->ClosePendingSlice(pending_slice_idx, ts,
-                                                       kNullStringId);
+      context_->machine_context->sched_event_tracker->ClosePendingSlice(
+          pending_slice_idx, ts, kNullStringId);
       InsertPendingStateInfoForTid(pending_sched->last_utid, *pending_sched);
       rc = kStartWithPending;
     }
     // Start a new sched slice for the new task.
     auto new_slice_idx =
-        context_->sched_event_tracker->AddStartSlice(cpu, ts, utid, prio);
+        context_->machine_context->sched_event_tracker->AddStartSlice(
+            cpu, ts, utid, prio);
 
     pending_sched->pending_slice_storage_idx = new_slice_idx;
     pending_sched->last_pid = tid;
@@ -243,8 +254,8 @@ GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
   // Close the pending slice if applicable
   if (pending_slice_idx < std::numeric_limits<uint32_t>::max() &&
       tid == pending_sched->last_pid) {
-    context_->sched_event_tracker->ClosePendingSlice(pending_slice_idx, ts,
-                                                     state_string_id);
+    context_->machine_context->sched_event_tracker->ClosePendingSlice(
+        pending_slice_idx, ts, state_string_id);
     // Clear the pending slice
     *pending_sched = SchedEventState::PendingSchedInfo();
     return kClose;
@@ -255,12 +266,11 @@ GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
   auto hanging_sched = GetPendingStateInfoForTid(utid);
   if (hanging_sched.has_value()) {
     auto sched_slice_idx = hanging_sched->pending_slice_storage_idx;
-    auto close_ts =
-        context_->sched_event_tracker->GetEndTimestampForPendingSlice(
-            sched_slice_idx);
+    auto close_ts = context_->machine_context->sched_event_tracker
+                        ->GetEndTimestampForPendingSlice(sched_slice_idx);
     if (ts == close_ts) {
-      context_->sched_event_tracker->SetEndStateForPendingSlice(
-          sched_slice_idx, state_string_id);
+      context_->machine_context->sched_event_tracker
+          ->SetEndStateForPendingSlice(sched_slice_idx, state_string_id);
       RemovePendingStateInfoForTid(utid);
       return kUpdateEndState;
     }
@@ -271,18 +281,21 @@ GenericKernelParser::SchedSwitchType GenericKernelParser::PushSchedSwitch(
 void GenericKernelParser::ParseGenericTaskRenameEvent(
     protozero::ConstBytes data) {
   protos::pbzero::GenericKernelTaskRenameEvent::Decoder task_rename_event(data);
-  StringId comm = context_->storage->InternString(task_rename_event.comm());
-  context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
-      task_rename_event.tid(), comm, ThreadNamePriority::kGenericKernelTask);
+  StringId comm =
+      context_->global_context->storage->InternString(task_rename_event.comm());
+  context_->machine_context->process_tracker
+      ->UpdateThreadNameAndMaybeProcessName(
+          task_rename_event.tid(), comm,
+          ThreadNamePriority::kGenericKernelTask);
 }
 
 void GenericKernelParser::ParseGenericCpuFrequencyEvent(
     int64_t ts,
     protozero::ConstBytes data) {
   protos::pbzero::GenericKernelCpuFrequencyEvent::Decoder cpu_freq_event(data);
-  TrackId track = context_->track_tracker->InternTrack(
+  TrackId track = context_->machine_context->track_tracker->InternTrack(
       tracks::kCpuFrequencyBlueprint, tracks::Dimensions(cpu_freq_event.cpu()));
-  context_->event_tracker->PushCounter(
+  context_->trace_context->event_tracker->PushCounter(
       ts, static_cast<double>(cpu_freq_event.freq_hz()) / 1000.0, track);
 }
 

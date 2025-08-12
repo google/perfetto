@@ -24,8 +24,9 @@ using tables::MachineTable;
 MachineTracker::MachineTracker(TraceProcessorContext* context,
                                uint32_t raw_machine_id)
     : context_(context) {
-  auto id =
-      context_->storage->mutable_machine_table()->Insert({raw_machine_id}).id;
+  auto id = context_->global_context->storage->mutable_machine_table()
+                ->Insert({raw_machine_id})
+                .id;
 
   if (raw_machine_id)
     machine_id_ = id;
@@ -63,7 +64,7 @@ void MachineTracker::SetAndroidSdkVersion(int64_t sdk_version) {
 
 PERFETTO_ALWAYS_INLINE
 std::optional<MachineTable::RowReference> MachineTracker::getRow() {
-  auto& machines = *context_->storage->mutable_machine_table();
+  auto& machines = *context_->global_context->storage->mutable_machine_table();
   // Host machine has ID 0
   auto machine_id = machine_id_ ? *machine_id_ : MachineTable::Id(0);
   return machines.FindById(machine_id);

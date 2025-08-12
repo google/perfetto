@@ -27,7 +27,7 @@
 namespace perfetto::trace_processor {
 
 class ChunkedTraceReader;
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 // Maps `TraceType` values to `ChunkedTraceReader` subclasses.
 // This class is used to create `ChunkedTraceReader` instances for a given

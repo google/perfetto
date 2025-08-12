@@ -58,7 +58,7 @@ std::string Slice(const std::string& str, size_t start, size_t end) {
 
 PerfTextTraceTokenizer::PerfTextTraceTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
-      stream_(ctx->sorter->CreateStream(
+      stream_(ctx->global_context->sorter->CreateStream(
           std::make_unique<PerfTextTraceParser>(ctx))) {}
 PerfTextTraceTokenizer::~PerfTextTraceTokenizer() = default;
 
@@ -120,7 +120,9 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
           mapping_ptr) {
         mapping = *mapping_ptr;
       } else {
-        mapping = &context_->mapping_tracker->CreateDummyMapping(mapping_name);
+        mapping =
+            &context_->machine_context->mapping_tracker->CreateDummyMapping(
+                mapping_name);
         PERFETTO_CHECK(mappings_.Insert(mapping_name, mapping).second);
       }
 
@@ -135,7 +137,7 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
           mapping->InternDummyFrame(symbol_name, base::StringView()));
     }
     if (frames.empty()) {
-      context_->storage->IncrementStats(
+      context_->global_context->storage->IncrementStats(
           stats::perf_text_importer_sample_no_frames);
       continue;
     }
@@ -143,14 +145,15 @@ base::Status PerfTextTraceTokenizer::Parse(TraceBlobView blob) {
     std::optional<CallsiteId> parent_callsite;
     uint32_t depth = 0;
     for (auto rit = frames.rbegin(); rit != frames.rend(); ++rit) {
-      parent_callsite = context_->stack_profile_tracker->InternCallsite(
-          parent_callsite, *rit, ++depth);
+      parent_callsite =
+          context_->trace_context->stack_profile_tracker->InternCallsite(
+              parent_callsite, *rit, ++depth);
     }
     frames.clear();
 
     PerfTextEvent evt;
     if (!sample->comm.empty()) {
-      evt.comm = context_->storage->InternString(
+      evt.comm = context_->global_context->storage->InternString(
           base::StringView(sample->comm.data(), sample->comm.size()));
     }
     evt.tid = sample->tid;

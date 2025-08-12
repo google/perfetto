@@ -43,10 +43,11 @@ class AuxDataTokenizer;
 class PerfTracker : public Destructible {
  public:
   static PerfTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->perf_tracker) {
-      context->perf_tracker.reset(new PerfTracker(context));
+    if (!context->machine_context->perf_tracker) {
+      context->machine_context->perf_tracker.reset(new PerfTracker(context));
     }
-    return static_cast<PerfTracker*>(context->perf_tracker.get());
+    return static_cast<PerfTracker*>(
+        context->machine_context->perf_tracker.get());
   }
   ~PerfTracker() override;
 

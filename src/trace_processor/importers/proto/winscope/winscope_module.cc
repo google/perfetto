@@ -47,14 +47,14 @@ WinscopeModule::WinscopeModule(ProtoImporterModuleContext* module_context,
                                TraceProcessorContext* context)
     : ProtoImporterModule(module_context),
       context_{context},
-      args_parser_{*context->descriptor_pool_},
+      args_parser_{*context->global_context->descriptor_pool_},
       surfaceflinger_layers_parser_(&context_),
       surfaceflinger_transactions_parser_(context),
       shell_transitions_parser_(&context_),
       protolog_parser_(&context_),
       android_input_event_parser_(context),
       viewcapture_parser_(context) {
-  context->descriptor_pool_->AddFromFileDescriptorSet(
+  context->global_context->descriptor_pool_->AddFromFileDescriptorSet(
       kWinscopeDescriptor.data(), kWinscopeDescriptor.size());
   RegisterForField(TracePacket::kSurfaceflingerLayersSnapshotFieldNumber);
   RegisterForField(TracePacket::kSurfaceflingerTransactionsFieldNumber);
@@ -155,25 +155,27 @@ void WinscopeModule::ParseInputMethodClientsData(int64_t timestamp,
   auto* trace_processor_context = context_.trace_processor_context_;
   tables::InputMethodClientsTable::Row row;
   row.ts = timestamp;
-  row.base64_proto_id = trace_processor_context->storage->mutable_string_pool()
-                            ->InternString(base::StringView(
-                                base::Base64Encode(blob.data, blob.size)))
-                            .raw_id();
-  auto rowId =
-      trace_processor_context->storage->mutable_inputmethod_clients_table()
-          ->Insert(row)
-          .id;
+  row.base64_proto_id =
+      trace_processor_context->global_context->storage->mutable_string_pool()
+          ->InternString(
+              base::StringView(base::Base64Encode(blob.data, blob.size)))
+          .raw_id();
+  auto rowId = trace_processor_context->global_context->storage
+                   ->mutable_inputmethod_clients_table()
+                   ->Insert(row)
+                   .id;
 
   ArgsTracker tracker(trace_processor_context);
   auto inserter = tracker.AddArgsTo(rowId);
-  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage);
+  ArgsParser writer(timestamp, inserter,
+                    *trace_processor_context->global_context->storage);
   base::Status status =
       args_parser_.ParseMessage(blob,
                                 *util::winscope_proto_mapping::GetProtoName(
                                     tables::InputMethodClientsTable::Name()),
                                 nullptr /* parse all fields */, writer);
   if (!status.ok()) {
-    trace_processor_context->storage->IncrementStats(
+    trace_processor_context->global_context->storage->IncrementStats(
         stats::winscope_inputmethod_clients_parse_errors);
   }
 }
@@ -184,25 +186,27 @@ void WinscopeModule::ParseInputMethodManagerServiceData(
   auto* trace_processor_context = context_.trace_processor_context_;
   tables::InputMethodManagerServiceTable::Row row;
   row.ts = timestamp;
-  row.base64_proto_id = trace_processor_context->storage->mutable_string_pool()
-                            ->InternString(base::StringView(
-                                base::Base64Encode(blob.data, blob.size)))
-                            .raw_id();
-  auto rowId = trace_processor_context->storage
+  row.base64_proto_id =
+      trace_processor_context->global_context->storage->mutable_string_pool()
+          ->InternString(
+              base::StringView(base::Base64Encode(blob.data, blob.size)))
+          .raw_id();
+  auto rowId = trace_processor_context->global_context->storage
                    ->mutable_inputmethod_manager_service_table()
                    ->Insert(row)
                    .id;
 
   ArgsTracker tracker(trace_processor_context);
   auto inserter = tracker.AddArgsTo(rowId);
-  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage);
+  ArgsParser writer(timestamp, inserter,
+                    *trace_processor_context->global_context->storage);
   base::Status status = args_parser_.ParseMessage(
       blob,
       *util::winscope_proto_mapping::GetProtoName(
           tables::InputMethodManagerServiceTable::Name()),
       nullptr /* parse all fields */, writer);
   if (!status.ok()) {
-    trace_processor_context->storage->IncrementStats(
+    trace_processor_context->global_context->storage->IncrementStats(
         stats::winscope_inputmethod_manager_service_parse_errors);
   }
 }
@@ -212,25 +216,27 @@ void WinscopeModule::ParseInputMethodServiceData(int64_t timestamp,
   auto* trace_processor_context = context_.trace_processor_context_;
   tables::InputMethodServiceTable::Row row;
   row.ts = timestamp;
-  row.base64_proto_id = trace_processor_context->storage->mutable_string_pool()
-                            ->InternString(base::StringView(
-                                base::Base64Encode(blob.data, blob.size)))
-                            .raw_id();
-  auto rowId =
-      trace_processor_context->storage->mutable_inputmethod_service_table()
-          ->Insert(row)
-          .id;
+  row.base64_proto_id =
+      trace_processor_context->global_context->storage->mutable_string_pool()
+          ->InternString(
+              base::StringView(base::Base64Encode(blob.data, blob.size)))
+          .raw_id();
+  auto rowId = trace_processor_context->global_context->storage
+                   ->mutable_inputmethod_service_table()
+                   ->Insert(row)
+                   .id;
 
   ArgsTracker tracker(trace_processor_context);
   auto inserter = tracker.AddArgsTo(rowId);
-  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage);
+  ArgsParser writer(timestamp, inserter,
+                    *trace_processor_context->global_context->storage);
   base::Status status =
       args_parser_.ParseMessage(blob,
                                 *util::winscope_proto_mapping::GetProtoName(
                                     tables::InputMethodServiceTable::Name()),
                                 nullptr /* parse all fields */, writer);
   if (!status.ok()) {
-    trace_processor_context->storage->IncrementStats(
+    trace_processor_context->global_context->storage->IncrementStats(
         stats::winscope_inputmethod_service_parse_errors);
   }
 }
@@ -240,24 +246,27 @@ void WinscopeModule::ParseWindowManagerData(int64_t timestamp,
   auto* trace_processor_context = context_.trace_processor_context_;
   tables::WindowManagerTable::Row row;
   row.ts = timestamp;
-  row.base64_proto_id = trace_processor_context->storage->mutable_string_pool()
-                            ->InternString(base::StringView(
-                                base::Base64Encode(blob.data, blob.size)))
-                            .raw_id();
-  auto rowId = trace_processor_context->storage->mutable_windowmanager_table()
+  row.base64_proto_id =
+      trace_processor_context->global_context->storage->mutable_string_pool()
+          ->InternString(
+              base::StringView(base::Base64Encode(blob.data, blob.size)))
+          .raw_id();
+  auto rowId = trace_processor_context->global_context->storage
+                   ->mutable_windowmanager_table()
                    ->Insert(row)
                    .id;
 
   ArgsTracker tracker(trace_processor_context);
   auto inserter = tracker.AddArgsTo(rowId);
-  ArgsParser writer(timestamp, inserter, *trace_processor_context->storage);
+  ArgsParser writer(timestamp, inserter,
+                    *trace_processor_context->global_context->storage);
   base::Status status =
       args_parser_.ParseMessage(blob,
                                 *util::winscope_proto_mapping::GetProtoName(
                                     tables::WindowManagerTable::Name()),
                                 nullptr /* parse all fields */, writer);
   if (!status.ok()) {
-    trace_processor_context->storage->IncrementStats(
+    trace_processor_context->global_context->storage->IncrementStats(
         stats::winscope_windowmanager_parse_errors);
   }
 }

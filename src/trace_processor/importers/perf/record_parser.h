@@ -36,7 +36,7 @@ namespace trace_processor {
 
 class DummyMemoryMapping;
 class MappingTracker;
-class TraceProcessorContext;
+struct TraceProcessorContext;
 
 namespace perf_importer {
 

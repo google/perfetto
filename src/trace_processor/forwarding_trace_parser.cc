@@ -77,7 +77,7 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
 
     case kProtoTraceType:
     case kSymbolsTraceType:
-      return ConvertSortingMode(context.config.sorting_mode);
+      return ConvertSortingMode(context.global_context->config.sorting_mode);
 
     case kAndroidBugreportTraceType:
       PERFETTO_FATAL(
@@ -98,8 +98,9 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   PERFETTO_CHECK(!reader_);
 
   {
-    auto scoped_trace = context_->storage->TraceExecutionTimeIntoStats(
-        stats::guess_trace_type_duration_ns);
+    auto scoped_trace =
+        context_->global_context->storage->TraceExecutionTimeIntoStats(
+            stats::guess_trace_type_duration_ns);
     trace_type_ = GuessTraceType(blob.data(), blob.size());
   }
   if (trace_type_ == kUnknownTraceType) {
@@ -110,14 +111,17 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   PERFETTO_DLOG("%s trace detected", TraceTypeToString(trace_type_));
   UpdateSorterForTraceType(trace_type_);
   ASSIGN_OR_RETURN(reader_,
-                   context_->reader_registry->CreateTraceReader(trace_type_));
-  context_->trace_file_tracker->StartParsing(file_id_, trace_type_);
+                   context_->global_context->reader_registry->CreateTraceReader(
+                       trace_type_));
+  context_->trace_context->trace_file_tracker->StartParsing(file_id_,
+                                                            trace_type_);
 
   // TODO(b/334978369) Make sure kProtoTraceType and kSystraceTraceType are
   // parsed first so that we do not get issues with
   // SetPidZeroIsUpidZeroIdleProcess()
   if (trace_type_ == kProtoTraceType || trace_type_ == kSystraceTraceType) {
-    context_->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
+    context_->machine_context->process_tracker
+        ->SetPidZeroIsUpidZeroIdleProcess();
   }
   return base::OkStatus();
 }
@@ -129,9 +133,9 @@ void ForwardingTraceParser::UpdateSorterForTraceType(TraceType trace_type) {
     return;
   }
 
-  if (!context_->sorter) {
+  if (!context_->global_context->sorter) {
     TraceSorter::EventHandling event_handling;
-    switch (context_->config.parsing_mode) {
+    switch (context_->global_context->config.parsing_mode) {
       case ParsingMode::kDefault:
         event_handling = TraceSorter::EventHandling::kSortAndPush;
         break;
@@ -142,17 +146,19 @@ void ForwardingTraceParser::UpdateSorterForTraceType(TraceType trace_type) {
         event_handling = TraceSorter::EventHandling::kSortAndDrop;
         break;
     }
-    if (context_->config.enable_dev_features) {
-      auto it = context_->config.dev_flags.find("drop-after-sort");
-      if (it != context_->config.dev_flags.end() && it->second == "true") {
+    if (context_->global_context->config.enable_dev_features) {
+      auto it =
+          context_->global_context->config.dev_flags.find("drop-after-sort");
+      if (it != context_->global_context->config.dev_flags.end() &&
+          it->second == "true") {
         event_handling = TraceSorter::EventHandling::kSortAndDrop;
       }
     }
-    context_->sorter = std::make_shared<TraceSorter>(
+    context_->global_context->sorter = std::make_shared<TraceSorter>(
         context_, *minimum_sorting_mode, event_handling);
   }
 
-  switch (context_->sorter->sorting_mode()) {
+  switch (context_->global_context->sorter->sorting_mode()) {
     case TraceSorter::SortingMode::kDefault:
       PERFETTO_CHECK(minimum_sorting_mode ==
                      TraceSorter::SortingMode::kDefault);
@@ -177,7 +183,8 @@ base::Status ForwardingTraceParser::NotifyEndOfFile() {
     RETURN_IF_ERROR(reader_->NotifyEndOfFile());
   }
   if (trace_type_ != kUnknownTraceType) {
-    context_->trace_file_tracker->DoneParsing(file_id_, trace_size_);
+    context_->trace_context->trace_file_tracker->DoneParsing(file_id_,
+                                                             trace_size_);
   }
   return base::OkStatus();
 }
