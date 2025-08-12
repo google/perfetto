@@ -72,7 +72,7 @@ jobs:
 
       - name: Print ccache stats
         shell: bash
-        run: ccache --show-stats --verbose
+        run: ccache --show-stats
 
 
       - name: UI unittests
