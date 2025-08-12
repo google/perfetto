@@ -24,7 +24,6 @@
 
 .pf-metrics-page {
   padding: 30px;
-  font-family: "Roboto", sans-serif;
   overflow-y: scroll;
   overflow-x: hidden;
 
@@ -35,7 +34,7 @@
   pre {
     background-color: #eee;
     padding: 20px;
-    font-family: "Roboto Mono";
+    font-family: var(--pf-font-monospace);
     line-height: 1.5em;
     border-radius: $pf-border-radius;
     overflow-x: auto;
