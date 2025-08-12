@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/importers/proto/chrome_string_lookup.h"
 
+#include <map>
+
 #include "perfetto/ext/base/utils.h"
 #include "protos/perfetto/trace/track_event/chrome_legacy_ipc.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
@@ -108,7 +110,7 @@ constexpr ProcessName kProcessNames[] = {
 };
 
 struct ThreadName {
-  protos::pbzero::ChromeThreadDescriptor::ThreadType type;
+  ChromeThreadDescriptor::ThreadType type;
   const char* name;
 };
 
@@ -171,17 +173,42 @@ constexpr ThreadName kThreadNames[] = {
 
 }  // namespace
 
-ChromeStringLookup::ChromeStringLookup(TraceStorage* storage) {
-  for (uint32_t i = 0; i < base::ArraySize(kProcessNames); i++) {
-    chrome_process_name_ids_[kProcessNames[i].type] =
-        kProcessNames[i].name ? storage->InternString(kProcessNames[i].name)
-                              : kNullStringId;
+ChromeStringLookup::ChromeStringLookup(
+    TraceStorage* storage,
+    bool ignore_predefined_names_for_testing) {
+  std::map<chrome_enums::ProcessType, const char*> known_process_names;
+  std::map<ChromeThreadDescriptor::ThreadType, const char*> known_thread_names;
+  if (!ignore_predefined_names_for_testing) {
+    for (size_t i = 0; i < base::ArraySize(kProcessNames); i++) {
+      known_process_names.emplace(kProcessNames[i].type, kProcessNames[i].name);
+    }
+    for (size_t i = 0; i < base::ArraySize(kThreadNames); i++) {
+      known_thread_names.emplace(kThreadNames[i].type, kThreadNames[i].name);
+    }
   }
 
-  for (uint32_t i = 0; i < base::ArraySize(kThreadNames); i++) {
-    chrome_thread_name_ids_[kThreadNames[i].type] =
-        kThreadNames[i].name ? storage->InternString(kThreadNames[i].name)
-                             : kNullStringId;
+  for (int32_t i = chrome_enums::ProcessType_MIN;
+       i <= chrome_enums::ProcessType_MAX; ++i) {
+    const auto type = static_cast<chrome_enums::ProcessType>(i);
+    const auto it = known_process_names.find(type);
+    const char* name = (it != known_process_names.end())
+                           ? it->second
+                           : chrome_enums::ProcessType_Name(type);
+    chrome_process_name_ids_[type] =
+        name ? storage->InternString(name) : kNullStringId;
+  }
+
+  for (int32_t i =
+           ::perfetto::protos::pbzero::ChromeThreadDescriptor_ThreadType_MIN;
+       i <= ::perfetto::protos::pbzero::ChromeThreadDescriptor_ThreadType_MAX;
+       ++i) {
+    const auto type = static_cast<ChromeThreadDescriptor::ThreadType>(i);
+    const auto it = known_thread_names.find(type);
+    const char* name = (it != known_thread_names.end())
+                           ? it->second
+                           : ChromeThreadDescriptor::ThreadType_Name(type);
+    chrome_thread_name_ids_[type] =
+        name ? storage->InternString(name) : kNullStringId;
   }
 }
 
