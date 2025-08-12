@@ -39,20 +39,22 @@ MultiMachineTraceManager::~MultiMachineTraceManager() = default;
 // TODO(sashwinbalaji): Fix this
 std::unique_ptr<TraceProcessorContext> MultiMachineTraceManager::CreateContext(
     RawMachineId raw_machine_id) {
-  TraceProcessorContext::InitArgs args{
-      default_context_->global_context->config,
-      default_context_->global_context->storage, raw_machine_id};
+  PerGlobalContext::InitArgs args{default_context_->global_context->config,
+                                  default_context_->global_context->storage,
+                                  raw_machine_id};
   auto new_context = std::make_unique<TraceProcessorContext>(args);
-  new_context->register_additional_proto_modules =
+
+  new_context->global_context->register_additional_proto_modules =
       default_context_->global_context->register_additional_proto_modules;
 
   // Set up shared member fields:
   // arg_set_id is a monotonically increasing ID.
   // Share |global_args_tracker| between contexts.
-  new_context->global_args_tracker =
+  new_context->trace_context->global_args_tracker =
       default_context_->trace_context->global_args_tracker;
-  // Share the sorter, but enable for the parser.
-  new_context->sorter = default_context_->global_context->sorter;
+  new_context->global_context->sorter =
+      default_context_->global_context->sorter;
+
   new_context->machine_context->process_tracker
       ->SetPidZeroIsUpidZeroIdleProcess();
 

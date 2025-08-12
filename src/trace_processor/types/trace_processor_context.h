@@ -19,6 +19,9 @@ struct TraceProcessorContext {
   // Default constructor for testing purposes.
   TraceProcessorContext();
   ~TraceProcessorContext();
+
+  TraceProcessorContext(TraceProcessorContext&&);
+  TraceProcessorContext& operator=(TraceProcessorContext&&);
 };
 
 }  // namespace perfetto::trace_processor

@@ -26,6 +26,12 @@
 
 namespace perfetto::trace_processor {
 
+PerMachineContext::PerMachineContext() = default;
+PerMachineContext::~PerMachineContext() = default;
+
+PerMachineContext::PerMachineContext(PerMachineContext&&) = default;
+PerMachineContext& PerMachineContext::operator=(PerMachineContext&&) = default;
+
 void PerMachineContext::Init(TraceProcessorContext* context,
                              uint32_t raw_machine_id) {
   machine_tracker = std::make_unique<MachineTracker>(context, raw_machine_id);

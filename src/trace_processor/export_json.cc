@@ -1913,7 +1913,7 @@ base::Status ExportJson(TraceProcessorStorage* tp,
                         LabelFilterPredicate label_filter) {
   const TraceStorage* storage = reinterpret_cast<TraceProcessorStorageImpl*>(tp)
                                     ->context()
-                                    ->storage.get();
+                                    ->global_context->storage.get();
   return ExportJson(storage, output, std::move(argument_filter),
                     std::move(metadata_filter), std::move(label_filter));
 }

@@ -32,6 +32,9 @@ namespace perfetto::trace_processor {
 PerTraceContext::PerTraceContext() = default;
 PerTraceContext::~PerTraceContext() = default;
 
+PerTraceContext::PerTraceContext(PerTraceContext&&) = default;
+PerTraceContext& PerTraceContext::operator=(PerTraceContext&&) = default;
+
 void PerTraceContext::Init(TraceProcessorContext* context) {
   global_args_tracker = std::make_shared<GlobalArgsTracker>(
       context->global_context->storage.get());
@@ -49,8 +52,5 @@ void PerTraceContext::Init(TraceProcessorContext* context) {
   slice_translation_table = std::make_unique<SliceTranslationTable>(
       context->global_context->storage.get());
 }
-
-PerTraceContext::PerTraceContext(PerTraceContext&&) = default;
-PerTraceContext& PerTraceContext::operator=(PerTraceContext&&) = default;
 
 }  // namespace perfetto::trace_processor

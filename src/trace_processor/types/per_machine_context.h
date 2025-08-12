@@ -38,14 +38,18 @@ using MachineId = tables::MachineTable::Id;
 
 class PerMachineContext {
  public:
-  void Init(struct TraceProcessorContext);
-  std::unique_ptr<TrackCompressor> track_compressor;
+  PerMachineContext();
+  ~PerMachineContext();
 
+  PerMachineContext(PerMachineContext&&);
+  PerMachineContext& operator=(PerMachineContext&&);
+
+  void Init(TraceProcessorContext* context, uint32_t raw_machine_id);
+
+  std::unique_ptr<TrackCompressor> track_compressor;
   std::unique_ptr<MachineTracker> machine_tracker;
   std::unique_ptr<CpuTracker> cpu_tracker;
   std::unique_ptr<MappingTracker> mapping_tracker;
-
-  // First requested will have exclusive access.
   std::unique_ptr<SchedEventTracker> sched_event_tracker;
   std::unique_ptr<ProcessTracker> process_tracker;
   std::unique_ptr<TrackTracker> track_tracker;
@@ -56,13 +60,13 @@ class PerMachineContext {
   // the GetOrCreate() method on their subclass type, e.g.
   // SyscallTracker::GetOrCreate(context)
   // clang-format off
-  std::unique_ptr<Destructible> binder_tracker;                         // BinderTracker
-  std::unique_ptr<Destructible> syscall_tracker;                        // SyscallTracker
-  std::unique_ptr<Destructible> system_info_tracker;                    // SystemInfoTracker
-  std::unique_ptr<Destructible> ftrace_sched_tracker;                   // FtraceSchedEventTracker
-  std::unique_ptr<Destructible> thread_state_tracker;                   // ThreadStateTracker
-  std::unique_ptr<Destructible> elf_tracker;                            // ElfTracker
-  std::unique_ptr<Destructible> perf_tracker;                           // PerfTracker
+  std::unique_ptr<Destructible> binder_tracker;       // BinderTracker
+  std::unique_ptr<Destructible> syscall_tracker;      // SyscallTracker
+  std::unique_ptr<Destructible> system_info_tracker;  // SystemInfoTracker
+  std::unique_ptr<Destructible> ftrace_sched_tracker; // FtraceSchedEventTracker
+  std::unique_ptr<Destructible> thread_state_tracker; // ThreadStateTracker
+  std::unique_ptr<Destructible> elf_tracker;          // ElfTracker
+  std::unique_ptr<Destructible> perf_tracker;         // PerfTracker
   // clang-format on
 
   std::optional<MachineId> machine_id() const;

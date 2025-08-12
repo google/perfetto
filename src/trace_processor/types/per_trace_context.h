@@ -32,16 +32,19 @@ class ProcessTrackTranslationTable;
 class SliceTracker;
 class SliceTranslationTable;
 class TraceFileTracker;
+struct TraceProcessorContext;
 
 // This struct holds all the state for a single trace parsing session.
 // It is owned by the ForwardingTraceParser.
 class PerTraceContext {
  public:
-  explicit PerTraceContext();
+  PerTraceContext();
   ~PerTraceContext();
 
   PerTraceContext(PerTraceContext&&);
   PerTraceContext& operator=(PerTraceContext&&);
+
+  void Init(TraceProcessorContext* context);
 
   std::unique_ptr<Destructible> content_analyzer;
 
@@ -65,10 +68,10 @@ class PerTraceContext {
   // the GetOrCreate() method on their subclass type, e.g.
   // SyscallTracker::GetOrCreate(context)
   // clang-format off
-  std::unique_ptr<Destructible> heap_graph_tracker;  // HeapGraphTracker
-  std::unique_ptr<Destructible> file_tracker;        // FileTracker
-  std::unique_ptr<Destructible> etm_tracker;         // EtmTracker
-  std::unique_ptr<Destructible> systrace_parser;     // SystraceParser
+  std::unique_ptr<Destructible> heap_graph_tracker; // HeapGraphTracker
+  std::unique_ptr<Destructible> file_tracker;       // FileTracker
+  std::unique_ptr<Destructible> etm_tracker;        // EtmTracker
+  std::unique_ptr<Destructible> systrace_parser;    // SystraceParser
   // clang-format on
 
   // Marks whether the uuid was read from the trace.

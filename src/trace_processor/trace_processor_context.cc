@@ -28,5 +28,8 @@ TraceProcessorContext::TraceProcessorContext() {
 }
 
 TraceProcessorContext::~TraceProcessorContext() = default;
+TraceProcessorContext::TraceProcessorContext(TraceProcessorContext&&) = default;
+TraceProcessorContext& TraceProcessorContext::operator=(
+    TraceProcessorContext&&) = default;
 
 }  // namespace perfetto::trace_processor
