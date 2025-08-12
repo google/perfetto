@@ -760,8 +760,8 @@ base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
   auto error_it = evt.ftrace_parse_errors();
   if (error_it) {
     auto dev_flag =
-        context_->config.dev_flags.find("ignore-ftrace-parse-errors");
-    bool dev_skip_errors = dev_flag != context_->config.dev_flags.end() &&
+        context_->config->dev_flags.find("ignore-ftrace-parse-errors");
+    bool dev_skip_errors = dev_flag != context_->config->dev_flags.end() &&
                            dev_flag->second == "true";
     if (!dev_skip_errors) {
       std::string msg =
@@ -1525,7 +1525,7 @@ void FtraceParser::MaybeOnFirstFtraceEvent() {
   // tracing started.
   DropFtraceDataBefore drop_before =
       preserve_ftrace_buffer_ ? DropFtraceDataBefore::kNoDrop
-                              : context_->config.drop_ftrace_data_before;
+                              : context_->config->drop_ftrace_data_before;
   switch (drop_before) {
     case DropFtraceDataBefore::kNoDrop: {
       drop_ftrace_data_before_ts_ = 0;
@@ -1549,7 +1549,7 @@ void FtraceParser::MaybeOnFirstFtraceEvent() {
   // Calculate the timestamp used to skip early events, while still populating
   // the |ftrace_events| table.
   SoftDropFtraceDataBefore soft_drop_before =
-      context_->config.soft_drop_ftrace_data_before;
+      context_->config->soft_drop_ftrace_data_before;
 
   // TODO(b/344969928): Workaround, can be removed when perfetto v47+ traces are
   // the norm in Android.
@@ -1625,7 +1625,7 @@ void FtraceParser::ParseGenericFtrace(uint32_t event_proto_id,
     generic_tracker_->MaybeParseAsTrackEvent(event_proto_id, ts, tid, decoder);
   }
 
-  if (PERFETTO_UNLIKELY(!context_->config.ingest_ftrace_in_raw_table)) {
+  if (PERFETTO_UNLIKELY(!context_->config->ingest_ftrace_in_raw_table)) {
     return;
   }
 
@@ -1672,12 +1672,12 @@ void FtraceParser::ParseTypedFtraceToRaw(
     uint32_t tid,
     ConstBytes blob,
     PacketSequenceStateGeneration* seq_state) {
-  if (PERFETTO_UNLIKELY(!context_->config.ingest_ftrace_in_raw_table))
+  if (PERFETTO_UNLIKELY(!context_->config->ingest_ftrace_in_raw_table))
     return;
 
   ProtoDecoder decoder(blob);
   if (ftrace_id >= GetDescriptorsSize()) {
-    PERFETTO_DLOG("Event with id: %d does not exist and cannot be parsed.",
+    PERFETTO_DLOG("Event with id: %u does not exist and cannot be parsed.",
                   ftrace_id);
     return;
   }
@@ -2928,7 +2928,7 @@ void FtraceParser::ParseSoftIrqEntry(uint32_t cpu,
                                      protozero::ConstBytes blob) {
   protos::pbzero::SoftirqEntryFtraceEvent::Decoder evt(blob);
   if (evt.vec() >= base::ArraySize(kActionNames)) {
-    PERFETTO_DFATAL("No action name at index %d for softirq event.", evt.vec());
+    PERFETTO_DFATAL("No action name at index %u for softirq event.", evt.vec());
     return;
   }
 

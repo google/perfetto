@@ -77,7 +77,7 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
 
     case kProtoTraceType:
     case kSymbolsTraceType:
-      return ConvertSortingMode(context.config.sorting_mode);
+      return ConvertSortingMode(context.config->sorting_mode);
 
     case kAndroidBugreportTraceType:
       PERFETTO_FATAL(
@@ -109,8 +109,8 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   }
   PERFETTO_DLOG("%s trace detected", TraceTypeToString(trace_type_));
   UpdateSorterForTraceType(trace_type_);
-  ASSIGN_OR_RETURN(reader_,
-                   context_->reader_registry->CreateTraceReader(trace_type_));
+  ASSIGN_OR_RETURN(reader_, context_->reader_registry->CreateTraceReader(
+                                trace_type_, context_));
   context_->trace_file_tracker->StartParsing(file_id_, trace_type_);
 
   // TODO(b/334978369) Make sure kProtoTraceType and kSystraceTraceType are
@@ -131,7 +131,7 @@ void ForwardingTraceParser::UpdateSorterForTraceType(TraceType trace_type) {
 
   if (!context_->sorter) {
     TraceSorter::EventHandling event_handling;
-    switch (context_->config.parsing_mode) {
+    switch (context_->config->parsing_mode) {
       case ParsingMode::kDefault:
         event_handling = TraceSorter::EventHandling::kSortAndPush;
         break;
@@ -142,9 +142,9 @@ void ForwardingTraceParser::UpdateSorterForTraceType(TraceType trace_type) {
         event_handling = TraceSorter::EventHandling::kSortAndDrop;
         break;
     }
-    if (context_->config.enable_dev_features) {
-      auto it = context_->config.dev_flags.find("drop-after-sort");
-      if (it != context_->config.dev_flags.end() && it->second == "true") {
+    if (context_->config->enable_dev_features) {
+      auto it = context_->config->dev_flags.find("drop-after-sort");
+      if (it != context_->config->dev_flags.end() && it->second == "true") {
         event_handling = TraceSorter::EventHandling::kSortAndDrop;
       }
     }

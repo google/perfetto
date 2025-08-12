@@ -2369,8 +2369,6 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/memory_tracker_snapshot_parser.h",
         "src/trace_processor/importers/proto/metadata_minimal_module.cc",
         "src/trace_processor/importers/proto/metadata_minimal_module.h",
-        "src/trace_processor/importers/proto/multi_machine_trace_manager.cc",
-        "src/trace_processor/importers/proto/multi_machine_trace_manager.h",
         "src/trace_processor/importers/proto/network_trace_module.cc",
         "src/trace_processor/importers/proto/network_trace_module.h",
         "src/trace_processor/importers/proto/packet_analyzer.cc",

@@ -229,7 +229,7 @@ void FtraceSchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
   }
   auto curr_utid = pending_sched->last_utid;
 
-  if (PERFETTO_LIKELY(context_->config.ingest_ftrace_in_raw_table)) {
+  if (PERFETTO_LIKELY(context_->config->ingest_ftrace_in_raw_table)) {
     tables::FtraceEventTable::Row row;
     row.ts = ts;
     row.name = sched_waking_id_;
@@ -272,7 +272,7 @@ void FtraceSchedEventTracker::AddRawSchedSwitchEvent(uint32_t cpu,
                                                      int64_t next_pid,
                                                      StringId next_comm_id,
                                                      int32_t next_prio) {
-  if (PERFETTO_LIKELY(context_->config.ingest_ftrace_in_raw_table)) {
+  if (PERFETTO_LIKELY(context_->config->ingest_ftrace_in_raw_table)) {
     // Push the raw event - this is done as the raw ftrace event codepath does
     // not insert sched_switch.
     auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
