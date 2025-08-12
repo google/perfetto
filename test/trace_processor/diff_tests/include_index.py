@@ -49,6 +49,7 @@ from diff_tests.parser.android_fs.tests import AndroidFs
 from diff_tests.parser.android.tests import AndroidParser
 from diff_tests.parser.android.tests_android_input_event import AndroidInputEvent
 from diff_tests.parser.android.tests_bugreport import AndroidBugreport
+from diff_tests.parser.android.tests_cpu_per_uid import AndroidCpuPerUid
 from diff_tests.parser.android.tests_dumpstate import AndroidDumpstate
 from diff_tests.parser.android.tests_games import AndroidGames
 from diff_tests.parser.android.tests_inputmethod_clients import InputMethodClients
@@ -177,6 +178,7 @@ def fetch_all_diff_tests(
     index_path: str) -> List[Tuple[str, 'testing.DiffTestBlueprint']]:
   parser_tests = [
       AndroidBugreport,
+      AndroidCpuPerUid,
       AndroidDumpstate,
       AndroidFs,
       AndroidGames,

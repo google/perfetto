@@ -14285,6 +14285,8 @@ filegroup {
     srcs: [
         "src/trace_processor/importers/proto/additional_modules.cc",
         "src/trace_processor/importers/proto/android_camera_event_module.cc",
+        "src/trace_processor/importers/proto/android_cpu_per_uid_module.cc",
+        "src/trace_processor/importers/proto/android_cpu_per_uid_state.cc",
         "src/trace_processor/importers/proto/android_kernel_wakelocks_module.cc",
         "src/trace_processor/importers/proto/android_kernel_wakelocks_state.cc",
         "src/trace_processor/importers/proto/android_probes_module.cc",
