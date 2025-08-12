@@ -17,6 +17,7 @@ import {z} from 'zod';
 import {addQueryResultsTab} from '../../components/query_table/query_result_tab';
 import {Trace} from '../../public/trace';
 import {Time} from '../../base/time';
+import {assertTrue} from '../../base/logging';
 
 export function registerUiTools(server: McpServer, ctxt: Trace) {
   server.tool(
@@ -42,14 +43,17 @@ export function registerUiTools(server: McpServer, ctxt: Trace) {
     'show-timeline',
     `
       Shows some context in the Timeline view.
-      'timeSpan' controls the range of time to be shown.
+      'timeSpan' controls the range of time to be shown. For example { startTime: '261195375150266', endTime: '261197502806936' }
       'focus' controls the row to be shown. For example { table: 'slice', id: 1234 }
+
+      Timestamps in Perfetto are bigints, and in most tables represent nanoseconds in 'trace processor time'.
+      These are device and trace specific, you can query the min/max of the slice table to get a valid range.
     `,
     {
       timeSpan: z
         .object({
-          startMicros: z.number(),
-          endMicros: z.number(),
+          startTime: z.string(),
+          endTime: z.string(),
         })
         .optional(),
       focus: z
@@ -60,10 +64,15 @@ export function registerUiTools(server: McpServer, ctxt: Trace) {
         .optional(),
     },
     async ({timeSpan, focus}) => {
+      console.log(timeSpan);
       if (timeSpan) {
+        const startTime = BigInt(timeSpan.startTime);
+        const endTime = BigInt(timeSpan.endTime);
+        assertTrue(startTime >= ctxt.traceInfo.start);
+        assertTrue(endTime <= ctxt.traceInfo.end);
         ctxt.timeline.setViewportTime(
-          Time.fromMicros(timeSpan.startMicros),
-          Time.fromMicros(timeSpan.endMicros),
+          Time.fromRaw(startTime),
+          Time.fromRaw(endTime),
         );
       }
       if (focus) {
