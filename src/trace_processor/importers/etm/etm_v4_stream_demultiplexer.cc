@@ -39,6 +39,7 @@
 #include "src/trace_processor/importers/perf/util.h"
 #include "src/trace_processor/tables/etm_tables_py.h"
 
+// Be aware the in the OSCD namespace an ETM chunk is an ETM trace.
 namespace perfetto::trace_processor::etm {
 namespace {
 
@@ -286,8 +287,8 @@ class EtmV4StreamDemultiplexer : public perf_importer::AuxDataTokenizer {
 
     auto stream = std::make_unique<EtmV4Stream>(context_, &decoder_, config_id);
 
-    RETURN_IF_ERROR(decoder_.Attach(static_cast<uint8_t>(config.cs_trace_id()),
-                                    stream.get()));
+    RETURN_IF_ERROR(decoder_.Attach(
+        static_cast<uint8_t>(config.cs_trace_stream_id()), stream.get()));
     PERFETTO_CHECK(streams_.Insert(config.cpu(), std::move(stream)).second);
     return base::OkStatus();
   }

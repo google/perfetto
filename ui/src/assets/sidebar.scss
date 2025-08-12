@@ -35,7 +35,7 @@
     display: none;
   }
   > header {
-    font-family: "Roboto Condensed", sans-serif;
+    font-family: var(--pf-font-compact);
     font-weight: 700;
     font-size: 24px;
     height: var(--topbar-height);
@@ -57,7 +57,7 @@
       position: absolute;
       font-size: 10px;
       line-height: 5px;
-      font-family: "Roboto", sans-serif;
+      font-family: var(--pf-font);
       top: 7px;
       right: 48px;
     }
@@ -234,7 +234,7 @@
         }
         .pf-sidebar__trace-file-name {
           white-space: break-spaces;
-          font-family: "Roboto Condensed", sans-serif;
+          font-family: var(--pf-font-compact);
           word-break: break-all;
           font-weight: 300;
           letter-spacing: 0;
@@ -267,7 +267,7 @@
     }
 
     > .pf-sidebar__dbg-info-square {
-      font-family: "Roboto Condensed", sans-serif;
+      font-family: var(--pf-font-compact);
       width: 24px;
       height: 24px;
       line-height: 24px;
@@ -305,7 +305,7 @@
       right: 8px;
       bottom: 3px;
       font-size: 12px;
-      font-family: "Roboto Condensed", sans-serif;
+      font-family: var(--pf-font-compact);
       a {
         color: rgba(255, 255, 255, 0.5);
         text-decoration: none;
@@ -322,7 +322,6 @@ body.testing .pf-sidebar__footer {
 }
 
 .pf-hiring-banner {
-  font-family: "Roboto", sans-serif;
   font-size: 12px;
   background: #db4634;
   box-shadow: 0 0 3px rgba(0, 0, 0, 30%);

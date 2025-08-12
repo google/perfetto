@@ -163,8 +163,8 @@ struct Uint32SetIdSortedEq : Bytecode {
 };
 
 // Equality filter for columns with a specialized storage containing
-// SmallValueEq.
-struct SpecializedStorageSmallValueEq : Bytecode {
+// SmallValueEqSortedNoDup.
+struct SmallValueEqSortedNoDup : Bytecode {
   // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
   // is plucked from thin air and has no real foundation. Fix this by creating
   // benchmarks and backing it up with actual data.
@@ -176,6 +176,38 @@ struct SpecializedStorageSmallValueEq : Bytecode {
                                      val_register,
                                      reg::RwHandle<Range>,
                                      update_register);
+};
+
+// Equality filter for columns with a specialized storage containing
+// SmallValueEqNoDup.
+struct SmallValueEqNoDup : Bytecode {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = FixedCost{10};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(uint32_t,
+                                     col,
+                                     reg::ReadHandle<CastFilterValueResult>,
+                                     val_register,
+                                     reg::RwHandle<Range>,
+                                     update_register);
+};
+
+// Computes a span of indices for a column with a specialized storage
+// containing SmallValueEq.
+struct SmallValueEq : Bytecode {
+  // TODO(lalitm): while the cost type is legitimate, the cost estimate inside
+  // is plucked from thin air and has no real foundation. Fix this by creating
+  // benchmarks and backing it up with actual data.
+  static constexpr Cost kCost = LinearPerRowCost{5};
+
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(uint32_t,
+                                     col,
+                                     reg::ReadHandle<CastFilterValueResult>,
+                                     val_register,
+                                     reg::WriteHandle<Span<const uint32_t>>,
+                                     write_register);
 };
 
 // Filter operations on non-string columns.
@@ -460,7 +492,7 @@ struct IndexPermutationVectorToSpan : Bytecode {
 
   PERFETTO_DATAFRAME_BYTECODE_IMPL_2(uint32_t,
                                      index,
-                                     reg::WriteHandle<Span<uint32_t>>,
+                                     reg::WriteHandle<Span<const uint32_t>>,
                                      write_register);
 };
 
@@ -480,7 +512,7 @@ struct IndexedFilterEqBase
                                      filter_value_reg,
                                      reg::ReadHandle<Slab<uint32_t>>,
                                      popcount_register,
-                                     reg::RwHandle<Span<uint32_t>>,
+                                     reg::RwHandle<Span<const uint32_t>>,
                                      update_register);
 };
 template <typename T, typename N>
@@ -498,7 +530,7 @@ struct CopySpanIntersectingRange : Bytecode {
   // benchmarks and backing it up with actual data.
   static constexpr Cost kCost = LinearPerRowCost{5};
 
-  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(reg::ReadHandle<Span<uint32_t>>,
+  PERFETTO_DATAFRAME_BYTECODE_IMPL_3(reg::ReadHandle<Span<const uint32_t>>,
                                      source_register,
                                      reg::ReadHandle<Range>,
                                      source_range_register,
@@ -655,7 +687,9 @@ struct Reverse : Bytecode {
   X(SortedFilter<String, LowerBound>)        \
   X(SortedFilter<String, UpperBound>)        \
   X(Uint32SetIdSortedEq)                     \
-  X(SpecializedStorageSmallValueEq)          \
+  X(SmallValueEqSortedNoDup)                 \
+  X(SmallValueEqNoDup)                       \
+  X(SmallValueEq)                            \
   X(LinearFilterEq<Uint32>)                  \
   X(LinearFilterEq<Int32>)                   \
   X(LinearFilterEq<Int64>)                   \

@@ -1009,6 +1009,14 @@ message EtwConfig {
   // session. These kernel flags have been built to expose the useful events
   // captured from the kernel mode only.
   repeated KernelFlag kernel_flags = 1;
+
+  // See the list of keywords for for individual providers.
+  // https://learn.microsoft.com/en-us/windows/win32/etw/system-providers
+
+  // Provides events relating to the scheduler.
+  repeated string scheduler_provider_events = 2;
+  // Provides events relating to the memory manager.
+  repeated string memory_provider_events = 3;
 }
 // End of protos/perfetto/config/etw/etw_config.proto
 
@@ -16514,6 +16522,15 @@ message CounterDescriptor {
 
   // TODO(eseckler): Support arguments describing the counter (?).
   // repeated DebugAnnotation debug_annotations;
+
+  // When visualizing multiple counter tracks, it is often useful to have them
+  // share the same Y-axis range. This allows for easy comparison of their
+  // values.
+  //
+  // All counter tracks with the same |y_axis_share_key| and the same parent
+  // track (e.g. grouped under the same process track) will share their y-axis
+  // range in the UI.
+  optional string y_axis_share_key = 7;
 }
 
 // End of protos/perfetto/trace/track_event/counter_descriptor.proto
