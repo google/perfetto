@@ -46,7 +46,7 @@
   &__error-popup {
     width: 100px;
     font-size: 14px;
-    font-family: "Roboto Condensed", sans-serif;
+    font-family: var(--pf-font-compact);
   }
 }
 
@@ -79,7 +79,7 @@
     border: 0;
     padding: 0 10px;
     font-size: 18px;
-    font-family: "Roboto Condensed", sans-serif;
+    font-family: var(--pf-font-compact);
     font-weight: 300;
     color: #666;
     background-color: transparent;
@@ -90,7 +90,7 @@
 
     &::placeholder {
       color: #b4b7ba;
-      font-family: "Roboto Condensed", sans-serif;
+      font-family: var(--pf-font-compact);
       font-weight: 400;
     }
   }
@@ -106,7 +106,7 @@
 
     input {
       color: #9ddc67;
-      font-family: var(--monospace-font);
+      font-family: var(--pf-font-monospace);
       padding-left: 0;
     }
 
@@ -141,7 +141,7 @@
     border-radius: $pf-border-radius;
     input::placeholder {
       font-weight: 400;
-      font-family: var(--monospace-font);
+      font-family: var(--pf-font-monospace);
       color: hsl(213, 40%, 50%);
     }
     &:before {
@@ -154,7 +154,7 @@
     display: flex;
     font: inherit;
     font-size: 14px;
-    font-family: "Roboto Condensed", sans-serif;
+    font-family: var(--pf-font-compact);
     font-weight: 300;
     color: #aaa;
 
@@ -165,7 +165,7 @@
 }
 
 .pf-omnibox-dropdown {
-  font-family: $pf-font;
+  font-family: var(--pf-font-compact);
 
   ul {
     padding: 0;
@@ -191,7 +191,7 @@
       display: flex;
       gap: 4px;
       user-select: none;
-      font-family: $pf-font;
+      font-family: var(--pf-font-compact);
       cursor: pointer;
       padding: 4px 8px;
       border-radius: $pf-border-radius;

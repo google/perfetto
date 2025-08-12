@@ -136,12 +136,11 @@ def get_trace_descriptor_path(out_path: str, trace_descriptor: str):
   return trace_descriptor_path
 
 
-def read_all_tests(name_filter: str, root_dir: str,
-                   test_data_dir: str) -> List[models.TestCase]:
+def read_all_tests(name_filter: str,
+                   root_dir: os.PathLike) -> List[models.TestCase]:
   """Reads all diff tests from the given directory."""
   from python.generators.diff_tests.test_loader import TestLoader
-  return TestLoader(test_data_dir).discover_and_load_tests(
-      root_dir, name_filter)
+  return TestLoader(root_dir).discover_and_load_tests(name_filter)
 
 
 def write_diff(expected: str, actual: str) -> str:

@@ -1617,10 +1617,18 @@ void FtraceParser::ParseGenericFtrace(uint32_t event_proto_id,
                                       uint32_t cpu,
                                       uint32_t tid,
                                       ConstBytes blob) {
-  if (PERFETTO_UNLIKELY(!context_->config.ingest_ftrace_in_raw_table))
-    return;
-
   protozero::ProtoDecoder decoder(blob);
+
+  // Special handling for events matching a convention - derive track/counter
+  // tracks for them automatically (no perfetto code changes needed).
+  if (PERFETTO_LIKELY(ts >= soft_drop_ftrace_data_before_ts_)) {
+    generic_tracker_->MaybeParseAsTrackEvent(event_proto_id, ts, tid, decoder);
+  }
+
+  if (PERFETTO_UNLIKELY(!context_->config.ingest_ftrace_in_raw_table)) {
+    return;
+  }
+
   GenericFtraceTracker::GenericEvent* descriptor =
       generic_tracker_->GetEvent(event_proto_id);
   if (!descriptor) {
