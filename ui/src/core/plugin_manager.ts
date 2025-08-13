@@ -37,49 +37,6 @@ function makePlugin(
   return new PluginClass(trace);
 }
 
-// Parse the passed-in plugin parameters, which are split by commas
-// Example: pluginParams=(plugin-1:parameters-1, plugin-2:paramters-2)
-export function parseAndSplitParams(pluginParams: string): Array<string> {
-  const result = [];
-  let current = '';
-  let inQuotes = false;
-  for (let i = 0; i < pluginParams.length; i++) {
-    const char = pluginParams[i];
-    if (char === '"') {
-      // Toggle inQuotes when encountering a quote
-      inQuotes = !inQuotes;
-      current += char;
-    } else if (char === ',' && !inQuotes) {
-      // Only split on commas outside of quotes
-      result.push(current.trim());
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  // Add the last segment
-  if (current) {
-    result.push(current.trim());
-  }
-  return result;
-}
-
-// Parse the plugin parameters values, which are split by -- and wrapped by ()
-// Examples: paramer-1=(value1--value2)
-export function getParamValues(
-  pluginParams: ReadonlyArray<string>,
-  paramName: string,
-): string[] {
-  const regex = new RegExp(`^${paramName}=\\(([^)]*)\\)$`);
-  for (const item of pluginParams) {
-    const match = item.match(regex);
-    if (match) {
-      return match[1].split('--').map((v) => v.trim());
-    }
-  }
-  return [];
-}
-
 // This interface injects AppImpl's methods into PluginManager to avoid
 // circular dependencies between PluginManager and AppImpl.
 export interface PluginAppInterface {
@@ -149,12 +106,8 @@ export class PluginManagerImpl {
    *
    * @param enableOverrides - The list of plugins that are enabled regardless of
    * the current flag setting.
-   * @param pluginParams - The list of parmaeters passed in for the plugins
    */
-  activatePlugins(
-    enableOverrides: ReadonlyArray<string> = [],
-    pluginParams: ReadonlyArray<string> = [],
-  ) {
+  activatePlugins(enableOverrides: ReadonlyArray<string> = []) {
     const enabledPlugins = this.registry
       .valuesAsArray()
       .filter((p) => p.enableFlag.get() || enableOverrides.includes(p.desc.id));
@@ -164,8 +117,7 @@ export class PluginManagerImpl {
     this.orderedPlugins.forEach((p) => {
       if (p.active) return;
       const app = this.app.forkForPlugin(p.desc.id);
-      const params = this.getValuesById(pluginParams, p.desc.id);
-      p.desc.onActivate?.(app, params);
+      p.desc.onActivate?.(app);
       p.active = true;
     });
   }
@@ -263,18 +215,5 @@ export class PluginManagerImpl {
     plugins.forEach((p) => visit(p));
 
     return orderedPlugins;
-  }
-
-  private getValuesById(
-    pluginParams: ReadonlyArray<string>,
-    id: string,
-  ): Array<string> {
-    const regex = new RegExp(`^${id}:(.*)$`);
-    return pluginParams
-      .map((param) => {
-        const match = param.match(regex);
-        return match ? match[1].trim() : null;
-      })
-      .filter((value) => value !== null);
   }
 }

@@ -57,10 +57,6 @@ export const ROUTE_SCHEMA = z
     // A comma-separated list of plugins to enable for the current session.
     enablePlugins: z.string().optional().catch(undefined),
 
-    // A comma-separated list of parameters/values want to pass in the plugin
-    // Example: pluginParams=plugin-id-1:parameters/values, plugin-id-2:parameters/values
-    pluginParams: z.string().optional().catch(undefined),
-
     // Deep link support
     table: z.string().optional().catch(undefined),
     ts: z.string().optional().catch(undefined),

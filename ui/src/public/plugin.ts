@@ -28,7 +28,7 @@ export interface PerfettoPluginStatic<T extends PerfettoPlugin> {
   readonly id: string;
   readonly description?: string;
   readonly dependencies?: ReadonlyArray<PerfettoPluginStatic<PerfettoPlugin>>;
-  onActivate?(app: App, pluginParams: ReadonlyArray<string>): void;
+  onActivate?(app: App): void;
   metricVisualisations?(): MetricVisualisation[];
   new (trace: Trace): T;
 }

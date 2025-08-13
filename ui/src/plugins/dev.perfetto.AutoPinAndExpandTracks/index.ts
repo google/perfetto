@@ -19,7 +19,6 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Track} from '../../public/track';
 import {z} from 'zod';
 import {assertIsInstance} from '../../base/logging';
-import {getParamValues} from '../../core/plugin_manager';
 
 const PLUGIN_ID = 'dev.perfetto.AutoPinAndExpandTracks';
 const SAVED_TRACKS_KEY = `${PLUGIN_ID}#savedPerfettoTracks`;
@@ -28,6 +27,16 @@ const RESTORE_COMMAND_ID = `${PLUGIN_ID}#restore`;
 
 const URL_PARAM_EXPAND_TRACKS = 'expand_tracks_with_name_on_startup';
 const URL_PARAM_PINNED_TRACKS = 'pin_tracks_with_name_on_startup';
+
+// Parse the plugin parameters values, which are split by -- and wrapped by ()
+// Examples: (value1--value2)
+function getParamValues(pluginParams: string): string[] {
+  const match = pluginParams.match(/^\((.*)\)$/);
+  if (match) {
+    return match[1].split('--').map((v) => v.trim());
+  }
+  return [];
+}
 
 /**
  * Fuzzy save and restore of pinned tracks.
@@ -42,7 +51,7 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
   private static expandTracks: string[] = [];
   private static pinTracks: string[] = [];
 
-  static onActivate(_app: App, pluginParams: ReadonlyArray<string> = []) {
+  static onActivate(app: App) {
     const input = document.createElement('input');
     input.classList.add('pinned_tracks_import_selector');
     input.setAttribute('type', 'file');
@@ -69,14 +78,12 @@ export default class AutoPinAndExpandTracks implements PerfettoPlugin {
       addOrReplaceNamedPinnedTracks(parsed.data);
     });
     document.body.appendChild(input);
-
+    const pluginParams = app.initialPluginRouteArgs ?? {};
     AutoPinAndExpandTracks.expandTracks = getParamValues(
-      pluginParams,
-      URL_PARAM_EXPAND_TRACKS,
+      String(pluginParams[URL_PARAM_EXPAND_TRACKS]),
     );
     AutoPinAndExpandTracks.pinTracks = getParamValues(
-      pluginParams,
-      URL_PARAM_PINNED_TRACKS,
+      String(pluginParams[URL_PARAM_PINNED_TRACKS]),
     );
   }
 
