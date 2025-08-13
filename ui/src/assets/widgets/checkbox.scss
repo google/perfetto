@@ -67,9 +67,9 @@
     margin-bottom: auto;
     height: $box-size;
     width: $box-size;
-    border-radius: $pf-border-radius;
+    border-radius: $border-radius;
     border: solid 2px currentColor;
-    transition: background $pf-anim-timing;
+    transition: background $anim-timing;
     background: none;
 
     // The :after element forms the "tick" of the checkbox
@@ -81,7 +81,7 @@
       left: 1px;
       width: 0px;
       height: 0px;
-      border-color: white;
+      border-color: var(--pf-color-text-on-primary);
       border-style: solid;
       border-width: 0;
       transform-origin: 0% 100%; // Put the origin at the short edge of the tick
@@ -100,8 +100,8 @@
   }
 
   input:checked + span {
-    border-color: var(--pf-color-accent);
-    background: var(--pf-color-accent);
+    border-color: var(--pf-color-primary);
+    background: var(--pf-color-primary);
   }
 
   input:focus-visible + span {
