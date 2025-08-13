@@ -294,6 +294,7 @@ source_set("unittests") {
   testonly = true
   sources = [
     "active_chrome_processes_tracker_unittest.cc",
+    "chrome_string_lookup_unittest.cc",
     "heap_graph_tracker_unittest.cc",
     "jit_tracker_unittest.cc",
     "network_trace_module_unittest.cc",
@@ -325,6 +326,7 @@ source_set("unittests") {
     "../../../../protos/perfetto/trace/ps:zero",
     "../../../../protos/perfetto/trace/sys_stats:zero",
     "../../../../protos/perfetto/trace/track_event:zero",
+    "../../../../protos/third_party/chromium:zero",
     "../../../base:test_support",
     "../../../protozero",
     "../../containers",
