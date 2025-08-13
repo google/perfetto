@@ -13254,7 +13254,7 @@ class ProcessStatsConfig(_message.Message):
     resolve_process_fds: bool
     scan_all_processes_on_start: bool
     scan_smaps_rollup: bool
-    def __init__(self, quirks: _Optional[_Iterable[_Union[ProcessStatsConfig.Quirks, str]]] = ..., scan_all_processes_on_start: bool = ..., record_thread_names: bool = ..., proc_stats_poll_ms: _Optional[int] = ..., proc_stats_cache_ttl_ms: _Optional[int] = ..., resolve_process_fds: bool = ..., scan_smaps_rollup: bool = ..., record_process_age: bool = ..., record_process_runtime: bool = ...) -> None: ...
+    def __init__(self, quirks: _Optional[_Iterable[_Union[ProcessStatsConfig.Quirks, str]]] = ..., scan_all_processes_on_start: bool = ..., record_thread_names: bool = ..., proc_stats_poll_ms: _Optional[int] = ..., proc_stats_cache_ttl_ms: _Optional[int] = ..., scan_smaps_rollup: bool = ..., record_process_age: bool = ..., record_process_runtime: bool = ..., resolve_process_fds: bool = ...) -> None: ...
 
 class ProcessTrackNameTranslationTable(_message.Message):
     __slots__ = ["raw_to_deobfuscated_name"]

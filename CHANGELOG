@@ -1,6 +1,10 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Deprecated: "resolve_process_fds" option in "linux.process_stats" data
+      source. Asynchronous scraping is too unreliable and there are no known
+      maintainers or users.
+    * Deprecated: "linux.inode_file_map" data source that is not known to be
+      used since 2017. The implementation is too unreliable and unmaintained.
   SQL Standard library:
     * Added `android.bitmaps` module with timeseries information about bitmap
       usage in Android.
