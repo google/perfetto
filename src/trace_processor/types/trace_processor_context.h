@@ -91,7 +91,7 @@ class TraceProcessorContext {
   // It is initialized once when the root TraceProcessorContext is created and
   // then shared between all machines.
 
-  GlobalPtr<Config> config;
+  Config config;
   GlobalPtr<TraceStorage> storage;
   GlobalPtr<TraceSorter> sorter;
   GlobalPtr<TraceReaderRegistry> reader_registry;

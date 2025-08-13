@@ -84,10 +84,10 @@ void InitPerMachineState(TraceProcessorContext* context, uint32_t machine_id) {
 }  // namespace
 
 TraceProcessorContext::TraceProcessorContext() = default;
-TraceProcessorContext::TraceProcessorContext(const Config& c) {
+TraceProcessorContext::TraceProcessorContext(const Config& _config) {
   // Global state.
-  config = std::make_shared<Config>(c);
-  storage = std::make_shared<TraceStorage>(c);
+  config = _config;
+  storage = std::make_shared<TraceStorage>(config);
   reader_registry = std::make_shared<TraceReaderRegistry>();
   global_args_tracker = std::make_shared<GlobalArgsTracker>(storage.get());
   trace_file_tracker = std::make_shared<TraceFileTracker>(this);

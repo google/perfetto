@@ -415,7 +415,7 @@ void TrackEventParser::ParseTrackEvent(int64_t ts,
                                        uint32_t packet_sequence_id) {
   const auto range_of_interest_start_us =
       track_event_tracker_->range_of_interest_start_us();
-  if (context_->config->drop_track_event_data_before ==
+  if (context_->config.drop_track_event_data_before ==
           DropTrackEventDataBefore::kTrackEventRangeOfInterest &&
       range_of_interest_start_us && ts < *range_of_interest_start_us * 1000) {
     // The event is outside of the range of interest, and dropping is enabled.

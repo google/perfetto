@@ -106,7 +106,7 @@ void RegisterAdditionalModules(ProtoImporterModuleContext* module_context,
   module_context->etw_module =
       static_cast<EtwModule*>(module_context->modules.back().get());
 
-  if (context->config->analyze_trace_proto_content) {
+  if (context->config.analyze_trace_proto_content) {
     context->content_analyzer = std::make_unique<ProtoContentAnalyzer>(context);
   }
 }
