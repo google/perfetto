@@ -147,21 +147,17 @@ RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
 
 # Install ccache from github, the version in ubunut repo (3.7) is too old for us.
 RUN set -e; \
-    CCACHE_PUB_KEY=5A939A71A46792CF57866A51996DDA075594ADB8; \
+    CCACHE_ARCHIVE_SHA256=7766991b91b3a5a177ab33fa043fe09e72c68586d5a86d20a563a05b74f119c0; \
     CCACHE_VER=4.11.3; \
     CCACHE_ARTIFACT_NAME=ccache-${CCACHE_VER}-linux-x86_64; \
-    CCACHE_URL_PREFIX=https://github.com/ccache/ccache/releases/download/v${CCACHE_VER}; \
-    curl -fsSL -O ${CCACHE_URL_PREFIX}/${CCACHE_ARTIFACT_NAME}.tar.xz; \
-    curl -fsSL -O ${CCACHE_URL_PREFIX}/${CCACHE_ARTIFACT_NAME}.tar.xz.asc; \
-    echo "Downloaded ccache-${CCACHE_VER} archive and key."; \
-    gpg --no-default-keyring --keyring ccache.gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys $CCACHE_PUB_KEY; \
-    gpg --keyring ccache.gpg --verify ${CCACHE_ARTIFACT_NAME}.tar.xz.asc; \
-    echo "Key verified."; \
-    gpg --batch --yes --keyring ccache.gpg --delete-keys; \
+    curl -fsSL -O https://github.com/ccache/ccache/releases/download/v${CCACHE_VER}/${CCACHE_ARTIFACT_NAME}.tar.xz; \
+    echo "Downloaded ccache-${CCACHE_VER}."; \
+    DOWNLOADED_SHA256=$(sha256sum ${CCACHE_ARTIFACT_NAME}.tar.xz | awk '{print $1}'); \
+    [ "$CCACHE_ARCHIVE_SHA256" = "$DOWNLOADED_SHA256" ] || { echo "Error: sha256 do not match."; exit 1; }; \
     tar -xf ${CCACHE_ARTIFACT_NAME}.tar.xz --one-top-level; \
     cp ${CCACHE_ARTIFACT_NAME}/ccache /usr/local/bin/; \
     ccache --version; \
-    rm -rf ${CCACHE_ARTIFACT_NAME} ${CCACHE_ARTIFACT_NAME}.tar.xz ${CCACHE_ARTIFACT_NAME}.tar.xz.asc;
+    rm -rf ${CCACHE_ARTIFACT_NAME} ${CCACHE_ARTIFACT_NAME}.tar.xz;
 
 WORKDIR /opt/ci
 
