@@ -45,7 +45,11 @@ class AndroidDumpstate(TestSuite):
         trace=RawText(
             "========================================================\n"
             "== dumpstate: 2021-08-24 23:35:40\n"
-            "========================================================\n"),
+            "========================================================\n"
+            "\n"
+            "Build: crosshatch-userdebug 12 SPB5.210812.002 7671067 dev-keys\n"
+            "Build fingerprint: 'google/crosshatch/crosshatch:12/SPB5.210812.002/7671067:userdebug/dev-keys'\n"
+        ),
         query="""
         SELECT
           section, service, line
@@ -57,6 +61,9 @@ class AndroidDumpstate(TestSuite):
         "[NULL]","[NULL]","========================================================"
         "[NULL]","[NULL]","== dumpstate: 2021-08-24 23:35:40"
         "[NULL]","[NULL]","========================================================"
+        "[NULL]","[NULL]",""
+        "[NULL]","[NULL]","Build: crosshatch-userdebug 12 SPB5.210812.002 7671067 dev-keys"
+        "[NULL]","[NULL]","Build fingerprint: 'google/crosshatch/crosshatch:12/SPB5.210812.002/7671067:userdebug/dev-keys'"
         """))
 
   def test_android_dumpstate_standalone_battery_stats_checkin(self):
