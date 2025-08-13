@@ -102,6 +102,11 @@
   &__scroll {
     overflow-y: auto;
     flex: 1;
+
+    // Override scrollbar colors for the sidebar as it doesn't use the theme
+    // provided styles.
+    scrollbar-color: #b4b7ba6e #19212b;
+
     &::-webkit-scrollbar {
       width: 0.5em;
     }
