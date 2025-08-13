@@ -12557,6 +12557,16 @@ message FtraceStats {
 
   // Kprobe profile stats for functions hits and misses
   optional FtraceKprobeStats kprobe_stats = 10;
+
+  // Per-cpu buffer size as returned by buffer_size_kb in pages (rounded up).
+  // Added in: perfetto v52.
+  optional uint32 cpu_buffer_size_pages = 11;
+
+  // Per-cpu buffer size as cached by our implementation (ftrace muxer), based
+  // on the value we're writing into the tracefs control file. Might not be
+  // exactly equal to |cpu_buffer_size_pages| due to the kernel allocating extra
+  // scratch pages (and/or other factors). Added in: perfetto v52.
+  optional uint32 cached_cpu_buffer_size_pages = 12;
 }
 
 enum FtraceParseStatus {
