@@ -91,8 +91,11 @@ bool IsInKernel(protos::pbzero::Profiling::CpuMode cpu_mode) {
 using FramesTable = tables::StackProfileFrameTable;
 using CallsitesTable = tables::StackProfileCallsiteTable;
 
-RecordParser::RecordParser(TraceProcessorContext* context)
-    : context_(context), mapping_tracker_(context->mapping_tracker.get()) {}
+RecordParser::RecordParser(TraceProcessorContext* context,
+                           PerfTracker* perf_tracker)
+    : context_(context),
+      perf_tracker_(perf_tracker),
+      mapping_tracker_(context->mapping_tracker.get()) {}
 
 RecordParser::~RecordParser() = default;
 
@@ -268,11 +271,10 @@ base::Status RecordParser::ParseMmap(int64_t trace_ts, Record record) {
       BuildCreateMappingParams(mmap, mmap.filename, std::move(build_id));
 
   if (IsInKernel(record.GetCpuMode())) {
-    PerfTracker::GetOrCreate(context_)->CreateKernelMemoryMapping(
-        trace_ts, std::move(params));
+    perf_tracker_->CreateKernelMemoryMapping(trace_ts, std::move(params));
   } else {
-    PerfTracker::GetOrCreate(context_)->CreateUserMemoryMapping(
-        trace_ts, GetUpid(mmap), std::move(params));
+    perf_tracker_->CreateUserMemoryMapping(trace_ts, GetUpid(mmap),
+                                           std::move(params));
   }
   return base::OkStatus();
 }
@@ -289,11 +291,10 @@ base::Status RecordParser::ParseMmap2(int64_t trace_ts, Record record) {
       BuildCreateMappingParams(mmap2, mmap2.filename, std::move(build_id));
 
   if (IsInKernel(record.GetCpuMode())) {
-    PerfTracker::GetOrCreate(context_)->CreateKernelMemoryMapping(
-        trace_ts, std::move(params));
+    perf_tracker_->CreateKernelMemoryMapping(trace_ts, std::move(params));
   } else {
-    PerfTracker::GetOrCreate(context_)->CreateUserMemoryMapping(
-        trace_ts, GetUpid(mmap2), std::move(params));
+    perf_tracker_->CreateUserMemoryMapping(trace_ts, GetUpid(mmap2),
+                                           std::move(params));
   }
 
   return base::OkStatus();

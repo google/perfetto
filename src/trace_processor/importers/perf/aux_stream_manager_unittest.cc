@@ -15,14 +15,18 @@
  */
 
 #include "src/trace_processor/importers/perf/aux_stream_manager.h"
+
 #include <cstdint>
 #include <memory>
+#include <utility>
 
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/perf/aux_record.h"
 #include "src/trace_processor/importers/perf/auxtrace_info_record.h"
+#include "src/trace_processor/importers/perf/auxtrace_record.h"
+#include "src/trace_processor/importers/perf/perf_tracker.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -66,13 +70,15 @@ AuxtraceRecord CreateAuxtraceRecord(uint64_t offset,
 
 TEST(AuxStreamManagerTest, NoAuxStreamsCanFinalize) {
   auto ctx = CreateTraceProcessorContext();
-  AuxStreamManager manager(ctx.get());
+  PerfTracker perf_tracker(ctx.get());
+  AuxStreamManager manager(ctx.get(), &perf_tracker);
   EXPECT_TRUE(manager.FinalizeStreams().ok());
 }
 
 TEST(AuxStreamManagerTest, NoAuxTraceInfoFailsMethods) {
   auto ctx = CreateTraceProcessorContext();
-  AuxStreamManager manager(ctx.get());
+  PerfTracker perf_tracker(ctx.get());
+  AuxStreamManager manager(ctx.get(), &perf_tracker);
 
   EXPECT_FALSE(manager
                    .OnAuxtraceRecord(CreateAuxtraceRecord(0, 10, 0),
@@ -83,7 +89,8 @@ TEST(AuxStreamManagerTest, NoAuxTraceInfoFailsMethods) {
 
 TEST(AuxStreamManagerTest, MultipleAuxTraceInfoFails) {
   auto ctx = CreateTraceProcessorContext();
-  AuxStreamManager manager(ctx.get());
+  PerfTracker perf_tracker(ctx.get());
+  AuxStreamManager manager(ctx.get(), &perf_tracker);
 
   AuxtraceInfoRecord info_0;
   info_0.type = 0;
@@ -100,7 +107,8 @@ TEST(AuxStreamManagerTest, ReconstructsStream) {
   TraceBlobView data(TraceBlob::Allocate(kSize));
   TraceBlobView double_data(TraceBlob::Allocate(2 * kSize));
   auto ctx = CreateTraceProcessorContext();
-  AuxStreamManager manager(ctx.get());
+  PerfTracker perf_tracker(ctx.get());
+  AuxStreamManager manager(ctx.get(), &perf_tracker);
   ASSERT_TRUE(manager.OnAuxtraceInfoRecord(CreateAuxtraceInfoRecord()).ok());
 
   manager.OnAuxRecord(CreateAuxRecord(0, kSize, kCpu));
@@ -129,7 +137,8 @@ TEST(AuxStreamManagerTest, AuxLoss) {
   TraceBlobView data(TraceBlob::Allocate(kSize));
   TraceBlobView triple_data(TraceBlob::Allocate(3 * kSize));
   auto ctx = CreateTraceProcessorContext();
-  AuxStreamManager manager(ctx.get());
+  PerfTracker perf_tracker(ctx.get());
+  AuxStreamManager manager(ctx.get(), &perf_tracker);
   ASSERT_TRUE(manager.OnAuxtraceInfoRecord(CreateAuxtraceInfoRecord()).ok());
 
   manager.OnAuxRecord(CreateAuxRecord(10, kSize, kCpu));
@@ -157,7 +166,8 @@ TEST(AuxStreamManagerTest, AuxtraceLoss) {
   constexpr uint32_t kCpu = 0;
   TraceBlobView data(TraceBlob::Allocate(kSize));
   auto ctx = CreateTraceProcessorContext();
-  AuxStreamManager manager(ctx.get());
+  PerfTracker perf_tracker(ctx.get());
+  AuxStreamManager manager(ctx.get(), &perf_tracker);
   ASSERT_TRUE(manager.OnAuxtraceInfoRecord(CreateAuxtraceInfoRecord()).ok());
 
   manager.OnAuxtraceRecord(CreateAuxtraceRecord(10, kSize, kCpu), data.copy());
@@ -186,7 +196,8 @@ TEST(AuxStreamManagerTest, ComplexStream) {
   TraceBlobView data_15(TraceBlob::Allocate(15));
 
   auto ctx = CreateTraceProcessorContext();
-  AuxStreamManager manager(ctx.get());
+  PerfTracker perf_tracker(ctx.get());
+  AuxStreamManager manager(ctx.get(), &perf_tracker);
   ASSERT_TRUE(manager.OnAuxtraceInfoRecord(CreateAuxtraceInfoRecord()).ok());
 
   uint64_t aux_offset = 0;
@@ -239,7 +250,8 @@ TEST(AuxStreamManagerTest, StreamOverlapFails) {
   constexpr uint32_t kCpu = 0;
   TraceBlobView data(TraceBlob::Allocate(kSize));
   auto ctx = CreateTraceProcessorContext();
-  AuxStreamManager manager(ctx.get());
+  PerfTracker perf_tracker(ctx.get());
+  AuxStreamManager manager(ctx.get(), &perf_tracker);
   ASSERT_TRUE(manager.OnAuxtraceInfoRecord(CreateAuxtraceInfoRecord()).ok());
 
   EXPECT_TRUE(manager.OnAuxRecord(CreateAuxRecord(0, kSize, kCpu)).ok());
@@ -261,7 +273,8 @@ TEST(AuxStreamManagerTest, MultipleStreams) {
   constexpr uint32_t kCpu_1 = 1;
   TraceBlobView data(TraceBlob::Allocate(kSize));
   auto ctx = CreateTraceProcessorContext();
-  AuxStreamManager manager(ctx.get());
+  PerfTracker perf_tracker(ctx.get());
+  AuxStreamManager manager(ctx.get(), &perf_tracker);
   ASSERT_TRUE(manager.OnAuxtraceInfoRecord(CreateAuxtraceInfoRecord()).ok());
 
   EXPECT_TRUE(manager.OnAuxRecord(CreateAuxRecord(0, kSize, kCpu_0)).ok());

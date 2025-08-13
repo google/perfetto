@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ELF_BINARY_INFO_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_ELF_BINARY_INFO_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_ELF_BINARY_INFO_H_
+#define SRC_TRACE_PROCESSOR_UTIL_ELF_BINARY_INFO_H_
 
 #include <cstdint>
 #include <optional>
@@ -41,4 +41,4 @@ std::optional<BinaryInfo> GetBinaryInfo(const uint8_t* mem, size_t size);
 
 }  // namespace perfetto::trace_processor::elf
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ELF_BINARY_INFO_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_ELF_BINARY_INFO_H_

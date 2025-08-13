@@ -14,7 +14,7 @@
 
 import("../../../../gn/perfetto.gni")
 
-source_set("binary_info") {
+source_set("elf") {
   deps = [
     "../../../../gn:default_deps",
     "../../../../include/perfetto/base:base",

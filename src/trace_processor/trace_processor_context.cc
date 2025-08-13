@@ -35,9 +35,11 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/registered_file_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/symbol_tracker.h"
 #include "src/trace_processor/importers/common/trace_file_tracker.h"
 #include "src/trace_processor/importers/common/track_compressor.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -55,6 +57,7 @@ using Ptr = TraceProcessorContextPtr<T>;
 
 void InitPerMachineState(TraceProcessorContext* context, uint32_t machine_id) {
   // Per-machine state.
+  context->symbol_tracker = Ptr<SymbolTracker>::MakeRoot(context);
   context->machine_tracker = Ptr<MachineTracker>::MakeRoot(context, machine_id);
   context->process_tracker = Ptr<ProcessTracker>::MakeRoot(context);
   context->clock_tracker = Ptr<ClockTracker>::MakeRoot(context);
@@ -101,6 +104,7 @@ TraceProcessorContext::TraceProcessorContext(const Config& _config) {
 
   // Global state (per-trace).
   metadata_tracker = Ptr<MetadataTracker>::MakeRoot(storage.get());
+  registered_file_tracker = Ptr<RegisteredFileTracker>::MakeRoot(this);
 
   InitPerMachineState(this, 0);
 }
