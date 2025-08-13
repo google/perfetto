@@ -631,7 +631,9 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     // Write the Y scale on the top left corner.
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = theme.COLOR_BACKGROUND;
+    ctx.globalAlpha = 0.6;
     ctx.fillRect(0, 0, 42, 18);
+    ctx.globalAlpha = 1;
     ctx.fillStyle = theme.COLOR_TEXT;
     ctx.textAlign = 'left';
     ctx.fillText(`${yLabel}`, 4, 14);
