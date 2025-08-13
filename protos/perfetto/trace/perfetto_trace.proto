@@ -1349,6 +1349,8 @@ message VulkanMemoryConfig {
 
 // Begin of protos/perfetto/config/inode_file/inode_file_config.proto
 
+// WARNING: unmaintained and deprecated. Likely won't work at all on modern
+// systems.
 message InodeFileConfig {
   message MountPointMappingEntry {
     optional string mountpoint = 1;
@@ -1469,6 +1471,10 @@ message PriorityBoostConfig {
 
 // Begin of protos/perfetto/config/process_stats/process_stats_config.proto
 
+// Config for polling process-related information from /proc/pid/status and
+// related files on Linux.
+//
+// Data source name: "linux.process_stats".
 message ProcessStatsConfig {
   enum Quirks {
     QUIRKS_UNSPECIFIED = 0;
@@ -1478,6 +1484,9 @@ message ProcessStatsConfig {
     // |scan_all_processes_on_start| arg.
     DISABLE_INITIAL_DUMP = 1 [deprecated = true];
 
+    // If set, disables the special interaction with "linux.ftrace" data source,
+    // where the process stats rescrapes any thread id seen in the ftrace
+    // stream.
     DISABLE_ON_DEMAND = 2;
   }
   repeated Quirks quirks = 1;
@@ -1491,28 +1500,21 @@ message ProcessStatsConfig {
 
   // If > 0 samples counters (see process_stats.proto) from
   // /proc/pid/status and oom_score_adj every X ms.
-  // It will also sample /proc/pid/smaps_rollup if scan_smaps_rollup = true.
   // This is required to be > 100ms to avoid excessive CPU usage.
   optional uint32 proc_stats_poll_ms = 4;
 
   // id 5 never used
 
-  // This is required to be either = 0 or a multiple of |proc_stats_poll_ms|
-  // (default: |proc_stats_poll_ms|). If = 0, will be set to
-  // |proc_stats_poll_ms|. Non-multiples will be rounded down to the nearest
-  // multiple.
+  // Explicit caching period during which the polling won't re-emit identical
+  // counter values. This is required to be either = 0 or a multiple of
+  // |proc_stats_poll_ms| (default: |proc_stats_poll_ms|). Non-multiples will be
+  // rounded down to the nearest multiple.
   optional uint32 proc_stats_cache_ttl_ms = 6;
 
-  // Niche feature: If true this will resolve file descriptors for each process
-  // so these can be mapped to their actual device or file.
-  // Requires raw_syscalls/sys_{enter,exit} ftrace events to be enabled or
-  // new fds opened after initially scanning a process will not be
-  // recognized.
-  optional bool resolve_process_fds = 9;
-
-  // If true, output will include memory stats from /proc/pid/smaps_rollup.
+  // If true and |proc_stats_poll_ms| is set, sample memory stats from
+  // /proc/pid/smaps_rollup.
   //
-  // Does NOT work with the Android system daemon by default, as it requires
+  // Android: does NOT work with the system daemons by default, as it requires
   // running the recording process (traced_probes or tracebox) as root. It is
   // possible to avoid the root requirement, but the exact steps depend on the
   // Linux distibution. The proc file requires passing a PTRACE_MODE_READ
@@ -1524,10 +1526,17 @@ message ProcessStatsConfig {
   // Introduced in: perfetto v44.
   optional bool record_process_age = 11;
 
-  // If true and |proc_stats_poll_ms| is true, process stats will include time
+  // If true and |proc_stats_poll_ms| is set, process stats will include time
   // spent running in user/kernel mode (utime/stime in /proc/pid/stat).
   // Introduced in: perfetto v44.
   optional bool record_process_runtime = 12;
+
+  // WARNING: unmaintained and deprecated. If true this will resolve file
+  // descriptors for each process so these can be mapped to their actual device
+  // or file. Requires raw_syscalls/sys_{enter,exit} ftrace events to be enabled
+  // or new fds opened after initially scanning a process will not be
+  // recognized.
+  optional bool resolve_process_fds = 9;
 
   // record_thread_time_in_state
   reserved 7;
@@ -12557,6 +12566,16 @@ message FtraceStats {
 
   // Kprobe profile stats for functions hits and misses
   optional FtraceKprobeStats kprobe_stats = 10;
+
+  // Per-cpu buffer size as returned by buffer_size_kb in pages (rounded up).
+  // Added in: perfetto v52.
+  optional uint32 cpu_buffer_size_pages = 11;
+
+  // Per-cpu buffer size as cached by our implementation (ftrace muxer), based
+  // on the value we're writing into the tracefs control file. Might not be
+  // exactly equal to |cpu_buffer_size_pages| due to the kernel allocating extra
+  // scratch pages (and/or other factors). Added in: perfetto v52.
+  optional uint32 cached_cpu_buffer_size_pages = 12;
 }
 
 enum FtraceParseStatus {
@@ -16550,7 +16569,7 @@ message CounterDescriptor {
 // |TrackEvent::track_uuid|. It is possible but not necessary to emit a
 // TrackDescriptor for this implicit track.
 //
-// Next id: 17.
+// Next id: 18.
 message TrackDescriptor {
   // Unique ID that identifies this track. This ID is global to the whole trace.
   // Producers should ensure that it is unlikely to clash with IDs emitted by
@@ -16848,7 +16867,10 @@ message TrackDescriptor {
   //
   // Only meaningful when `sibling_merge_behavior` is set to
   // `SIBLING_MERGE_BEHAVIOR_BY_SIBLING_MERGE_KEY`.
-  optional string sibling_merge_key = 16;
+  oneof sibling_merge_key_field {
+    string sibling_merge_key = 16;
+    uint64 sibling_merge_key_int = 17;
+  }
 }
 
 // End of protos/perfetto/trace/track_event/track_descriptor.proto

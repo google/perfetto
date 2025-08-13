@@ -24,6 +24,7 @@
 @import "cookie_consent";
 @import "perf_monitor";
 @import "help_modal";
+@import "theme_provider";
 
 // Widgets/components - keep these sorted alphabetically
 @import "components/aggregation_adapter";
@@ -54,6 +55,7 @@
 @import "widgets/modal";
 @import "widgets/multiselect_input";
 @import "widgets/multiselect";
+@import "widgets/overlay_container";
 @import "widgets/popup";
 @import "widgets/resize_handle";
 @import "widgets/section";
@@ -66,8 +68,8 @@
 @import "widgets/stack";
 @import "widgets/switch";
 @import "widgets/tabbed_split_panel";
-@import "widgets/tabs";
 @import "widgets/table";
+@import "widgets/tabs";
 @import "widgets/tag_input";
 @import "widgets/text_input";
 @import "widgets/text_paragraph";

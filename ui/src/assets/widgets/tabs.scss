@@ -40,8 +40,8 @@
     }
 
     &[active] {
-      color: var(--pf-color-accent);
-      border-bottom: solid 2px var(--pf-color-accent);
+      color: var(--pf-color-primary);
+      border-bottom: solid 2px var(--pf-color-primary);
       cursor: default;
     }
 

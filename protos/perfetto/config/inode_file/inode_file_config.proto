@@ -18,6 +18,8 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+// WARNING: unmaintained and deprecated. Likely won't work at all on modern
+// systems.
 message InodeFileConfig {
   message MountPointMappingEntry {
     optional string mountpoint = 1;

@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,17 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../theme";
-
-.pf-section {
-  border-radius: $border-radius;
-  border: 1px solid var(--pf-color-border-secondary);
-  header {
-    padding: 6px;
-    border-bottom: 1px solid var(--pf-color-border-secondary);
-  }
-  article {
-    padding: 6px;
-    font-size: 14px;
-  }
+export interface Theme {
+  COLOR_BORDER: string;
+  COLOR_BORDER_SECONDARY: string;
+  COLOR_BACKGROUND_SECONDARY: string;
+  COLOR_ACCENT: string;
+  COLOR_BACKGROUND: string;
+  COLOR_TEXT: string;
+  COLOR_TEXT_MUTED: string;
+  COLOR_NEUTRAL: string;
 }
