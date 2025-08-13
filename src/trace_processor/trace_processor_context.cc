@@ -155,24 +155,29 @@ std::optional<MachineId> TraceProcessorContext::machine_id() const {
 }
 
 void TraceProcessorContext::DestroyNonEssential() {
-  TraceProcessorContext ctx;
-
-  ctx.storage = std::move(storage);
+  auto _storage = std::move(storage);
 
   // TODO(b/309623584): Decouple from storage and remove from here. This
   // function should only move storage and delete everything else.
-  ctx.heap_graph_tracker = std::move(heap_graph_tracker);
-  ctx.clock_converter = std::move(clock_converter);
+  auto _heap_graph_tracker = std::move(heap_graph_tracker);
+  auto _clock_converter = std::move(clock_converter);
   // "to_ftrace" textual converter of the "raw" table requires remembering the
   // kernel version (inside system_info_tracker) to know how to textualise
   // sched_switch.prev_state bitflags.
-  ctx.system_info_tracker = std::move(system_info_tracker);
+  auto _system_info_tracker = std::move(system_info_tracker);
 
   // "__intrinsic_winscope_proto_to_args_with_defaults" and trace summarization
   // both require the descriptor pool to be alive.
-  ctx.descriptor_pool_ = std::move(descriptor_pool_);
+  auto _descriptor_pool_ = std::move(descriptor_pool_);
 
-  *this = std::move(ctx);
+  this->~TraceProcessorContext();
+  new (this) TraceProcessorContext();
+
+  storage = std::move(_storage);
+  heap_graph_tracker = std::move(_heap_graph_tracker);
+  clock_converter = std::move(_clock_converter);
+  system_info_tracker = std::move(_system_info_tracker);
+  descriptor_pool_ = std::move(_descriptor_pool_);
 }
 
 }  // namespace perfetto::trace_processor
