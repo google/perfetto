@@ -27,6 +27,8 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
+#include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/tracks.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -39,9 +41,47 @@ namespace trace_processor {
 
 namespace {
 
+static constexpr auto kZeroPageCountBlueprint =
+    tracks::CounterBlueprint("zero_page_count",
+                             tracks::StaticUnitBlueprint("pages"));
+// static constexpr auto kFreePageCountBlueprint = tracks::CounterBlueprint(
+//     "free_page_count",
+//     tracks::StaticUnitBlueprint("pages"));
+// static constexpr auto kModifiedPageCountBlueprint = tracks::CounterBlueprint(
+//     "modified_page_count",
+//     tracks::StaticUnitBlueprint("pages"));
+// static constexpr auto kModifiedNoWritePageCountBlueprint =
+// tracks::CounterBlueprint(
+//     "modified_no_write_page_count",
+//     tracks::StaticUnitBlueprint("pages"));
+// static constexpr auto kBadPageCountBlueprint = tracks::CounterBlueprint(
+//     "bad_page_count",
+//     tracks::StaticUnitBlueprint("pages"));
+// static constexpr auto kModifiedPageCountPageFileBlueprint =
+// tracks::CounterBlueprint(
+//     "modified_page_count_page_file",
+//     tracks::StaticUnitBlueprint("pages"));
+// static constexpr auto kPagedPoolPageCountBlueprint =
+// tracks::CounterBlueprint(
+//     "paged_pool_page_count",
+//     tracks::StaticUnitBlueprint("pages"));
+// static constexpr auto kNonPagedPoolPageCountBlueprint =
+// tracks::CounterBlueprint(
+//     "non_paged_pool_page_count",
+//     tracks::StaticUnitBlueprint("pages"));
+// static constexpr auto kMdlPageCountBlueprint = tracks::CounterBlueprint(
+//     "mdl_page_count",
+//     tracks::StaticUnitBlueprint("pages"));
+// static constexpr auto kCommitPageCountBlueprint = tracks::CounterBlueprint(
+//     "commit_page_count",
+//     tracks::StaticUnitBlueprint("pages"));
+// tracks::LongDimensionBlueprint("standby_page_count"),
+// tracks::LongDimensionBlueprint("repurposed_page_count"),
+
 using protozero::ConstBytes;
 
 }  // namespace
+
 EtwParser::EtwParser(TraceProcessorContext* context) : context_(context) {}
 
 base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
@@ -57,6 +97,10 @@ base::Status EtwParser::ParseEtwEvent(uint32_t cpu,
 
   if (decoder.has_ready_thread()) {
     ParseReadyThread(ts, decoder.thread_id(), decoder.ready_thread());
+  }
+
+  if (decoder.has_mem_info()) {
+    ParseMemInfo(ts, decoder.mem_info());
   }
 
   return base::OkStatus();
@@ -87,6 +131,15 @@ void EtwParser::ParseReadyThread(int64_t timestamp,
       context_->process_tracker->GetOrCreateThread(waker_tid);
   ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(
       timestamp, wakee_utid, waker_utid);
+}
+
+void EtwParser::ParseMemInfo(int64_t timestamp, ConstBytes blob) {
+  protos::pbzero::MemInfoEtwEvent::Decoder meminfo(blob);
+  TrackId zero_page_count_track_id =
+      context_->track_tracker->InternTrack(kZeroPageCountBlueprint);
+
+  context_->event_tracker->PushCounter(timestamp, meminfo.zero_page_count(),
+                                       zero_page_count_track_id);
 }
 
 void EtwParser::PushSchedSwitch(uint32_t cpu,
