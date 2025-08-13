@@ -41,6 +41,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -209,12 +210,15 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   if (PERFETTO_UNLIKELY(decoder.machine_id())) {
     if (!context_->machine_id()) {
       auto [it, inserted] =
-          context_->multi_machine_context->proto_readers.Insert(
-              decoder.machine_id(), nullptr);
+          machine_to_proto_readers_.Insert(decoder.machine_id(), nullptr);
       if (PERFETTO_UNLIKELY(inserted)) {
         auto* machine_context =
-            context_->GetOrCreateContextForMachine(decoder.machine_id());
+            context_->ForkContextForMachineInCurrentTrace(decoder.machine_id());
         *it = std::make_unique<ProtoTraceReader>(machine_context);
+
+        // TODO(lalitm): this doesn't seem the right place for this but I cannot
+        // think of a much better place either.
+        machine_context->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
       }
       return it->get()->ParsePacket(std::move(packet));
     }

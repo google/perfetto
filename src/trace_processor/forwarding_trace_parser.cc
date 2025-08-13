@@ -90,7 +90,7 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
 
 ForwardingTraceParser::ForwardingTraceParser(TraceProcessorContext* context,
                                              tables::TraceFileTable::Id id)
-    : context_(context), file_id_(id) {}
+    : context_(context->ForkContextForTrace(id.value, 0)), file_id_(id) {}
 
 ForwardingTraceParser::~ForwardingTraceParser() = default;
 
