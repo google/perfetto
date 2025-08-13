@@ -20,8 +20,20 @@
   &__help-icon {
     font-size: 18px;
     margin-left: 10px;
-    color: #43a047;
+    color: var(--pf-color-text-muted);
     cursor: default;
+  }
+
+  &__errors {
+    color: var(--pf-color-danger);
+    background: color-mix(in srgb, var(--pf-color-danger) 20%, transparent);
+  }
+
+  &__metric-error {
+    font-family: var(--pf-font-monospace);
+    font-size: 12px;
+    padding: 5px;
+    word-break: break-all;
   }
 
   section {
@@ -31,20 +43,8 @@
     padding: 20px;
     border-radius: 8px;
 
-    &__errors {
-      background-color: #f3e5f5;
-    }
-
-    &__metric-error {
-      font-family: var(--pf-font-monospace);
-      font-size: 12px;
-      padding: 5px;
-      word-break: break-all;
-    }
-
     h2 {
       font-weight: 400;
-      letter-spacing: 0.25px;
       font-size: 2rem;
       margin-bottom: 1rem;
     }
@@ -54,7 +54,6 @@
       font-weight: 400;
       margin-top: 1.25rem;
       margin-bottom: 1rem;
-      color: #333;
     }
 
     h4 {
@@ -62,7 +61,6 @@
       font-weight: 400;
       line-height: 1.25rem;
       margin: 10px 0;
-      color: #333;
     }
 
     table {
@@ -71,7 +69,7 @@
       thead td {
         margin-bottom: 5px;
         padding-bottom: 5px;
-        border-bottom: 1px solid #333;
+        border-bottom: 1px solid var(--pf-color-border);
         font-weight: 500;
       }
       tr td {
@@ -80,7 +78,7 @@
 
       tbody {
         tr:nth-child(2n + 1) td {
-          background-color: rgba(0, 0, 0, 0.04);
+          background-color: var(--pf-color-background-secondary);
         }
 
         td.name {

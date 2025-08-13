@@ -13,56 +13,54 @@
 // limitations under the License.
 
 // This code can be used in unittests where we can't read CSS variables.
-// Also we cannot have global constructors beacause when the javascript is
+// Also we cannot have global constructors because when the javascript is
 // loaded, the CSS might not be ready yet.
 export let TRACK_SHELL_WIDTH = 100;
-export let SIDEBAR_WIDTH = 100;
-export let TRACK_BORDER_COLOR = '#ffc0cb';
-export let TOPBAR_HEIGHT = 48;
-export let SELECTION_STROKE_COLOR = '#00344596';
-export let SELECTION_FILL_COLOR = '#8398e64d';
-export let OVERVIEW_TIMELINE_NON_VISIBLE_COLOR = '#c8c8c8cc';
 export let DEFAULT_DETAILS_CONTENT_HEIGHT = 308;
-export let BACKGROUND_COLOR = '#ffffff';
-export let FOREGROUND_COLOR = '#222';
-export let COLLAPSED_BACKGROUND = '#ffffff';
-export let EXPANDED_BACKGROUND = '#ffffff';
 
-export function initCssConstants() {
+export let FONT_COMPACT = '"Roboto Condensed", sans-serif';
+
+export let COLOR_BORDER = 'hotpink';
+export let COLOR_BORDER_SECONDARY = 'hotpink';
+export let COLOR_BACKGROUND_SECONDARY = 'hotpink';
+export let COLOR_ACCENT = 'hotpink';
+export let COLOR_BACKGROUND = 'hotpink';
+export let COLOR_TEXT = 'hotpink';
+export let COLOR_TEXT_MUTED = 'hotpink';
+export let COLOR_NEUTRAL = 'hotpink';
+
+export function initCssConstants(element?: Element) {
+  function getCssStr(prop: string): string | undefined {
+    if (typeof window === 'undefined') return undefined;
+    const searchElement = element ?? window.document.body;
+    const value = window.getComputedStyle(searchElement).getPropertyValue(prop);
+    // Note: getPropertyValue() returns an empty string if not set
+    // https://developer.mozilla.org/en-US/docs/Web/API/CSSStyleDeclaration/getPropertyValue#return_value
+    return value === '' ? undefined : value;
+  }
+
+  function getCssNum(prop: string): number | undefined {
+    const str = getCssStr(prop);
+    if (str === undefined) return undefined;
+    const match = str.match(/^\W*(\d+)px(|\!important')$/);
+    if (!match) {
+      throw Error(`Could not parse CSS property "${str}" as a number`);
+    }
+    return Number(match[1]);
+  }
+
   TRACK_SHELL_WIDTH = getCssNum('--track-shell-width') ?? TRACK_SHELL_WIDTH;
-  SIDEBAR_WIDTH = getCssNum('--sidebar-width') ?? SIDEBAR_WIDTH;
-  TRACK_BORDER_COLOR = getCssStr('--track-border-color') ?? TRACK_BORDER_COLOR;
-  TOPBAR_HEIGHT = getCssNum('--topbar-height') ?? TOPBAR_HEIGHT;
-  SELECTION_STROKE_COLOR =
-    getCssStr('--selection-stroke-color') ?? SELECTION_STROKE_COLOR;
-  SELECTION_FILL_COLOR =
-    getCssStr('--selection-fill-color') ?? SELECTION_FILL_COLOR;
-  OVERVIEW_TIMELINE_NON_VISIBLE_COLOR =
-    getCssStr('--overview-timeline-non-visible-color') ??
-    OVERVIEW_TIMELINE_NON_VISIBLE_COLOR;
+  COLOR_BORDER = getCssStr('--pf-color-border') ?? COLOR_BORDER;
+  COLOR_BORDER_SECONDARY =
+    getCssStr('--pf-color-border-secondary') ?? COLOR_BORDER_SECONDARY;
+  COLOR_BACKGROUND_SECONDARY =
+    getCssStr('--pf-color-background-secondary') ?? COLOR_BACKGROUND_SECONDARY;
+  COLOR_ACCENT = getCssStr('--pf-color-accent') ?? COLOR_ACCENT;
   DEFAULT_DETAILS_CONTENT_HEIGHT =
     getCssNum('--details-content-height') ?? DEFAULT_DETAILS_CONTENT_HEIGHT;
-  BACKGROUND_COLOR = getCssStr('--main-background-color') ?? BACKGROUND_COLOR;
-  FOREGROUND_COLOR = getCssStr('--main-foreground-color') ?? FOREGROUND_COLOR;
-  COLLAPSED_BACKGROUND =
-    getCssStr('--collapsed-background') ?? COLLAPSED_BACKGROUND;
-  EXPANDED_BACKGROUND =
-    getCssStr('--expanded-background') ?? EXPANDED_BACKGROUND;
-}
-
-function getCssStr(prop: string): string | undefined {
-  if (typeof window === 'undefined') return undefined;
-  const body = window.document.body;
-  const value = window.getComputedStyle(body).getPropertyValue(prop);
-  // Note: getPropertyValue() returns an empty string if not set
-  // https://developer.mozilla.org/en-US/docs/Web/API/CSSStyleDeclaration/getPropertyValue#return_value
-  return value === '' ? undefined : value;
-}
-
-function getCssNum(prop: string): number | undefined {
-  const str = getCssStr(prop);
-  if (str === undefined) return undefined;
-  const match = str.match(/^\W*(\d+)px(|\!important')$/);
-  if (!match) throw Error(`Could not parse CSS property "${str}" as a number`);
-  return Number(match[1]);
+  COLOR_BACKGROUND = getCssStr('--pf-color-background') ?? COLOR_BACKGROUND;
+  COLOR_TEXT = getCssStr('--pf-color-text') ?? COLOR_TEXT;
+  FONT_COMPACT = getCssStr('--pf-font-compact') ?? FONT_COMPACT;
+  COLOR_TEXT_MUTED = getCssStr('--pf-color-text-muted') ?? COLOR_TEXT_MUTED;
+  COLOR_NEUTRAL = getCssStr('--pf-color-neutral') ?? COLOR_NEUTRAL;
 }

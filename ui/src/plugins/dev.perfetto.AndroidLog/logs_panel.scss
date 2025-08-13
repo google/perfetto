@@ -43,7 +43,7 @@
     }
 
     &--highlighted {
-      background: #d2efe0;
+      background: var(--pf-color-highlight);
     }
   }
 }
