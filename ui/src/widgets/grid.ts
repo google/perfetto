@@ -327,3 +327,60 @@ export function renderSortMenuItems(
       }),
   ];
 }
+
+export interface PageControlAttrs {
+  readonly from: number;
+  readonly to: number;
+  readonly of: number;
+  nextPageClick(): void;
+  prevPageClick(): void;
+  firstPageClick(): void;
+  lastPageClick(): void;
+}
+
+import {Stack} from './stack';
+
+export class PageControl implements m.ClassComponent<PageControlAttrs> {
+  view({attrs}: m.Vnode<PageControlAttrs>) {
+    const {
+      from,
+      to,
+      of,
+      firstPageClick,
+      prevPageClick,
+      nextPageClick,
+      lastPageClick,
+    } = attrs;
+
+    const isFirstPage = from === 1;
+    const isLastPage = to === of;
+
+    return m(Stack, {className: 'pf-page-control', orientation: 'horizontal'}, [
+      m('span', `${from} - ${to} of ${of}`),
+      m(Button, {
+        icon: Icons.FirstPage,
+        disabled: isFirstPage,
+        title: 'First Page',
+        onclick: firstPageClick,
+      }),
+      m(Button, {
+        icon: Icons.PrevPage,
+        disabled: isFirstPage,
+        title: 'Previous Page',
+        onclick: prevPageClick,
+      }),
+      m(Button, {
+        icon: Icons.NextPage,
+        disabled: isLastPage,
+        title: 'Next Page',
+        onclick: nextPageClick,
+      }),
+      m(Button, {
+        icon: Icons.LastPage,
+        disabled: isLastPage,
+        title: 'Last Page',
+        onclick: lastPageClick,
+      }),
+    ]);
+  }
+}

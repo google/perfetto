@@ -41,6 +41,7 @@ import {
   GridHeaderCell,
   GridRow,
   renderSortMenuItems,
+  PageControl,
   SortDirection,
 } from '../../../widgets/grid';
 import {classNames} from '../../../base/classnames';
@@ -482,52 +483,31 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
               ),
             ]),
         ]),
-        m(Stack, {orientation: 'horizontal'}, [
-          m(
-            'span',
-            this.renderPageInfo(this.currentPage, maxRowsPerPage, totalRows),
-          ),
-          m(Button, {
-            icon: Icons.FirstPage,
-            disabled: this.currentPage === 0,
-            title: 'First Page',
-            onclick: () => {
-              if (this.currentPage !== 0) {
-                this.currentPage = 0;
-              }
-            },
-          }),
-          m(Button, {
-            icon: Icons.PrevPage,
-            disabled: this.currentPage === 0,
-            title: 'Previous Page',
-            onclick: () => {
-              if (this.currentPage > 0) {
-                this.currentPage -= 1;
-              }
-            },
-          }),
-          m(Button, {
-            icon: Icons.NextPage,
-            disabled: this.currentPage >= totalPages - 1,
-            title: 'Next Page',
-            onclick: () => {
-              if (this.currentPage < totalPages - 1) {
-                this.currentPage += 1;
-              }
-            },
-          }),
-          m(Button, {
-            icon: Icons.LastPage,
-            disabled: this.currentPage >= totalPages - 1,
-            title: 'Last Page',
-            onclick: () => {
-              if (this.currentPage < totalPages - 1) {
-                this.currentPage = Math.max(0, totalPages - 1);
-              }
-            },
-          }),
-        ]),
+        m(PageControl, {
+          from: this.currentPage * maxRowsPerPage + 1,
+          to: Math.min((this.currentPage + 1) * maxRowsPerPage, totalRows),
+          of: totalRows,
+          firstPageClick: () => {
+            if (this.currentPage !== 0) {
+              this.currentPage = 0;
+            }
+          },
+          prevPageClick: () => {
+            if (this.currentPage > 0) {
+              this.currentPage -= 1;
+            }
+          },
+          nextPageClick: () => {
+            if (this.currentPage < totalPages - 1) {
+              this.currentPage += 1;
+            }
+          },
+          lastPageClick: () => {
+            if (this.currentPage < totalPages - 1) {
+              this.currentPage = Math.max(0, totalPages - 1);
+            }
+          },
+        }),
         toolbarItemsRight,
       ]),
     ]);
@@ -539,21 +519,6 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
     } else {
       return `${filter.column} ${filter.op}`;
     }
-  }
-
-  private renderPageInfo(
-    currentPage: number,
-    maxRowsPerPage: number,
-    totalRows: number,
-  ): string {
-    const startRow = Math.min(currentPage * maxRowsPerPage + 1, totalRows);
-    const endRow = Math.min((currentPage + 1) * maxRowsPerPage, totalRows);
-
-    const startRowStr = startRow.toLocaleString();
-    const endRowStr = endRow.toLocaleString();
-    const totalRowsStr = totalRows.toLocaleString();
-
-    return `${startRowStr}-${endRowStr} of ${totalRowsStr}`;
   }
 
   private renderTableBody(
