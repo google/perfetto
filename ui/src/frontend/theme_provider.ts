@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,17 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../theme";
+import m from 'mithril';
 
-.pf-section {
-  border-radius: $border-radius;
-  border: 1px solid var(--pf-color-border-secondary);
-  header {
-    padding: 6px;
-    border-bottom: 1px solid var(--pf-color-border-secondary);
-  }
-  article {
-    padding: 6px;
-    font-size: 14px;
+interface ThemeProviderAttrs {
+  readonly theme: 'dark' | 'light';
+}
+
+export class ThemeProvider implements m.Component<ThemeProviderAttrs> {
+  view(vnode: m.Vnode<ThemeProviderAttrs>) {
+    // This component is used to provide the theme context to the children.
+    // It does not render anything itself.
+    return m(
+      '.pf-theme-provider',
+      {className: `pf-theme-provider--${vnode.attrs.theme}`},
+      vnode.children,
+    );
   }
 }

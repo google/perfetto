@@ -138,7 +138,6 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
           const x = Math.floor(timescale.timeToPx(cell.ts));
           const width = Math.ceil(timescale.durationToPx(cell.dur));
           const yOff = Math.floor(headerHeight + y * trackHeight);
-          // const alpha = Math.ceil((1 - cell.load * 0.7) * 100);
           const color = colorForCpu(y).setHSL({s: 50}).setAlpha(cell.load);
           ctx.fillStyle = color.cssString;
           ctx.clearRect(x, yOff, width, Math.ceil(trackHeight));

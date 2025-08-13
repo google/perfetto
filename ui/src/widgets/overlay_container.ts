@@ -12,28 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.pf-ui-main {
-  display: grid;
-  grid-template-areas:
-    "sidebar topbar"
-    "sidebar loading"
-    "sidebar alerts"
-    "sidebar page"
-    "statusbar statusbar";
-  grid-template-rows: auto auto auto 1fr auto;
-  grid-template-columns: auto 1fr;
-  overflow: hidden;
-  width: 100%;
-  height: 100%;
-  background: var(--pf-color-background);
-  color: var(--pf-color-text);
+import m from 'mithril';
+import {classNames} from '../base/classnames';
 
-  &__loading {
-    grid-area: loading;
-  }
+export interface OverlayContainerAttrs {
+  // Fill parent container vertically.
+  readonly fillParent?: boolean;
+}
 
-  &__page-container {
-    grid-area: page;
-    overflow: auto;
+export class OverlayContainer
+  implements m.ClassComponent<OverlayContainerAttrs>
+{
+  view({attrs, children}: m.Vnode<OverlayContainerAttrs>) {
+    const {fillParent = false} = attrs as OverlayContainerAttrs;
+    return m(
+      '.pf-overlay-container',
+      {
+        className: classNames(
+          fillParent && 'pf-overlay-container--fill-parent',
+        ),
+      },
+      children,
+    );
   }
 }

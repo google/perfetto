@@ -29,7 +29,26 @@ export let COLOR_TEXT = 'hotpink';
 export let COLOR_TEXT_MUTED = 'hotpink';
 export let COLOR_NEUTRAL = 'hotpink';
 
-export function initCssConstants() {
+export function initCssConstants(element?: Element) {
+  function getCssStr(prop: string): string | undefined {
+    if (typeof window === 'undefined') return undefined;
+    const searchElement = element ?? window.document.body;
+    const value = window.getComputedStyle(searchElement).getPropertyValue(prop);
+    // Note: getPropertyValue() returns an empty string if not set
+    // https://developer.mozilla.org/en-US/docs/Web/API/CSSStyleDeclaration/getPropertyValue#return_value
+    return value === '' ? undefined : value;
+  }
+
+  function getCssNum(prop: string): number | undefined {
+    const str = getCssStr(prop);
+    if (str === undefined) return undefined;
+    const match = str.match(/^\W*(\d+)px(|\!important')$/);
+    if (!match) {
+      throw Error(`Could not parse CSS property "${str}" as a number`);
+    }
+    return Number(match[1]);
+  }
+
   TRACK_SHELL_WIDTH = getCssNum('--track-shell-width') ?? TRACK_SHELL_WIDTH;
   COLOR_BORDER = getCssStr('--pf-color-border') ?? COLOR_BORDER;
   COLOR_BORDER_SECONDARY =
@@ -44,21 +63,4 @@ export function initCssConstants() {
   FONT_COMPACT = getCssStr('--pf-font-compact') ?? FONT_COMPACT;
   COLOR_TEXT_MUTED = getCssStr('--pf-color-text-muted') ?? COLOR_TEXT_MUTED;
   COLOR_NEUTRAL = getCssStr('--pf-color-neutral') ?? COLOR_NEUTRAL;
-}
-
-function getCssStr(prop: string): string | undefined {
-  if (typeof window === 'undefined') return undefined;
-  const body = window.document.body;
-  const value = window.getComputedStyle(body).getPropertyValue(prop);
-  // Note: getPropertyValue() returns an empty string if not set
-  // https://developer.mozilla.org/en-US/docs/Web/API/CSSStyleDeclaration/getPropertyValue#return_value
-  return value === '' ? undefined : value;
-}
-
-function getCssNum(prop: string): number | undefined {
-  const str = getCssStr(prop);
-  if (str === undefined) return undefined;
-  const match = str.match(/^\W*(\d+)px(|\!important')$/);
-  if (!match) throw Error(`Could not parse CSS property "${str}" as a number`);
-  return Number(match[1]);
 }
