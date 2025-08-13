@@ -29,8 +29,7 @@
 
   &__handle {
     background-color: var(--pf-color-background-secondary);
-    border: 1px solid var(--pf-color-border);
-    border-bottom: none;
+    border-top: 1px solid var(--pf-color-border);
     cursor: row-resize;
     // Disable user selection since this handle is draggable to resize the
     // bottom panels.

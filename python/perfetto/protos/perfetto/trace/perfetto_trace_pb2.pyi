@@ -8834,10 +8834,12 @@ class FtraceKprobeStats(_message.Message):
     def __init__(self, hits: _Optional[int] = ..., misses: _Optional[int] = ...) -> None: ...
 
 class FtraceStats(_message.Message):
-    __slots__ = ["atrace_errors", "cpu_stats", "failed_ftrace_events", "ftrace_parse_errors", "kernel_symbols_mem_kb", "kernel_symbols_parsed", "kprobe_stats", "phase", "preserve_ftrace_buffer", "unknown_ftrace_events"]
+    __slots__ = ["atrace_errors", "cached_cpu_buffer_size_pages", "cpu_buffer_size_pages", "cpu_stats", "failed_ftrace_events", "ftrace_parse_errors", "kernel_symbols_mem_kb", "kernel_symbols_parsed", "kprobe_stats", "phase", "preserve_ftrace_buffer", "unknown_ftrace_events"]
     class Phase(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     ATRACE_ERRORS_FIELD_NUMBER: _ClassVar[int]
+    CACHED_CPU_BUFFER_SIZE_PAGES_FIELD_NUMBER: _ClassVar[int]
+    CPU_BUFFER_SIZE_PAGES_FIELD_NUMBER: _ClassVar[int]
     CPU_STATS_FIELD_NUMBER: _ClassVar[int]
     END_OF_TRACE: FtraceStats.Phase
     FAILED_FTRACE_EVENTS_FIELD_NUMBER: _ClassVar[int]
@@ -8851,6 +8853,8 @@ class FtraceStats(_message.Message):
     UNKNOWN_FTRACE_EVENTS_FIELD_NUMBER: _ClassVar[int]
     UNSPECIFIED: FtraceStats.Phase
     atrace_errors: str
+    cached_cpu_buffer_size_pages: int
+    cpu_buffer_size_pages: int
     cpu_stats: _containers.RepeatedCompositeFieldContainer[FtraceCpuStats]
     failed_ftrace_events: _containers.RepeatedScalarFieldContainer[str]
     ftrace_parse_errors: _containers.RepeatedScalarFieldContainer[FtraceParseStatus]
@@ -8860,7 +8864,7 @@ class FtraceStats(_message.Message):
     phase: FtraceStats.Phase
     preserve_ftrace_buffer: bool
     unknown_ftrace_events: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, phase: _Optional[_Union[FtraceStats.Phase, str]] = ..., cpu_stats: _Optional[_Iterable[_Union[FtraceCpuStats, _Mapping]]] = ..., kernel_symbols_parsed: _Optional[int] = ..., kernel_symbols_mem_kb: _Optional[int] = ..., atrace_errors: _Optional[str] = ..., unknown_ftrace_events: _Optional[_Iterable[str]] = ..., failed_ftrace_events: _Optional[_Iterable[str]] = ..., preserve_ftrace_buffer: bool = ..., ftrace_parse_errors: _Optional[_Iterable[_Union[FtraceParseStatus, str]]] = ..., kprobe_stats: _Optional[_Union[FtraceKprobeStats, _Mapping]] = ...) -> None: ...
+    def __init__(self, phase: _Optional[_Union[FtraceStats.Phase, str]] = ..., cpu_stats: _Optional[_Iterable[_Union[FtraceCpuStats, _Mapping]]] = ..., kernel_symbols_parsed: _Optional[int] = ..., kernel_symbols_mem_kb: _Optional[int] = ..., atrace_errors: _Optional[str] = ..., unknown_ftrace_events: _Optional[_Iterable[str]] = ..., failed_ftrace_events: _Optional[_Iterable[str]] = ..., preserve_ftrace_buffer: bool = ..., ftrace_parse_errors: _Optional[_Iterable[_Union[FtraceParseStatus, str]]] = ..., kprobe_stats: _Optional[_Union[FtraceKprobeStats, _Mapping]] = ..., cpu_buffer_size_pages: _Optional[int] = ..., cached_cpu_buffer_size_pages: _Optional[int] = ...) -> None: ...
 
 class FuncgraphEntryFtraceEvent(_message.Message):
     __slots__ = ["depth", "func"]
@@ -13250,7 +13254,7 @@ class ProcessStatsConfig(_message.Message):
     resolve_process_fds: bool
     scan_all_processes_on_start: bool
     scan_smaps_rollup: bool
-    def __init__(self, quirks: _Optional[_Iterable[_Union[ProcessStatsConfig.Quirks, str]]] = ..., scan_all_processes_on_start: bool = ..., record_thread_names: bool = ..., proc_stats_poll_ms: _Optional[int] = ..., proc_stats_cache_ttl_ms: _Optional[int] = ..., resolve_process_fds: bool = ..., scan_smaps_rollup: bool = ..., record_process_age: bool = ..., record_process_runtime: bool = ...) -> None: ...
+    def __init__(self, quirks: _Optional[_Iterable[_Union[ProcessStatsConfig.Quirks, str]]] = ..., scan_all_processes_on_start: bool = ..., record_thread_names: bool = ..., proc_stats_poll_ms: _Optional[int] = ..., proc_stats_cache_ttl_ms: _Optional[int] = ..., scan_smaps_rollup: bool = ..., record_process_age: bool = ..., record_process_runtime: bool = ..., resolve_process_fds: bool = ...) -> None: ...
 
 class ProcessTrackNameTranslationTable(_message.Message):
     __slots__ = ["raw_to_deobfuscated_name"]
@@ -15688,7 +15692,7 @@ class TracingServiceState(_message.Message):
     def __init__(self, producers: _Optional[_Iterable[_Union[TracingServiceState.Producer, _Mapping]]] = ..., data_sources: _Optional[_Iterable[_Union[TracingServiceState.DataSource, _Mapping]]] = ..., tracing_sessions: _Optional[_Iterable[_Union[TracingServiceState.TracingSession, _Mapping]]] = ..., supports_tracing_sessions: bool = ..., num_sessions: _Optional[int] = ..., num_sessions_started: _Optional[int] = ..., tracing_service_version: _Optional[str] = ...) -> None: ...
 
 class TrackDescriptor(_message.Message):
-    __slots__ = ["atrace_name", "child_ordering", "chrome_process", "chrome_thread", "counter", "description", "disallow_merging_with_system_tracks", "name", "parent_uuid", "process", "sibling_merge_behavior", "sibling_merge_key", "sibling_order_rank", "static_name", "thread", "uuid"]
+    __slots__ = ["atrace_name", "child_ordering", "chrome_process", "chrome_thread", "counter", "description", "disallow_merging_with_system_tracks", "name", "parent_uuid", "process", "sibling_merge_behavior", "sibling_merge_key", "sibling_merge_key_int", "sibling_order_rank", "static_name", "thread", "uuid"]
     class ChildTracksOrdering(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = []
     class SiblingMergeBehavior(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -15712,6 +15716,7 @@ class TrackDescriptor(_message.Message):
     SIBLING_MERGE_BEHAVIOR_NONE: TrackDescriptor.SiblingMergeBehavior
     SIBLING_MERGE_BEHAVIOR_UNSPECIFIED: TrackDescriptor.SiblingMergeBehavior
     SIBLING_MERGE_KEY_FIELD_NUMBER: _ClassVar[int]
+    SIBLING_MERGE_KEY_INT_FIELD_NUMBER: _ClassVar[int]
     SIBLING_ORDER_RANK_FIELD_NUMBER: _ClassVar[int]
     STATIC_NAME_FIELD_NUMBER: _ClassVar[int]
     THREAD_FIELD_NUMBER: _ClassVar[int]
@@ -15729,11 +15734,12 @@ class TrackDescriptor(_message.Message):
     process: ProcessDescriptor
     sibling_merge_behavior: TrackDescriptor.SiblingMergeBehavior
     sibling_merge_key: str
+    sibling_merge_key_int: int
     sibling_order_rank: int
     static_name: str
     thread: ThreadDescriptor
     uuid: int
-    def __init__(self, uuid: _Optional[int] = ..., parent_uuid: _Optional[int] = ..., name: _Optional[str] = ..., static_name: _Optional[str] = ..., atrace_name: _Optional[str] = ..., description: _Optional[str] = ..., process: _Optional[_Union[ProcessDescriptor, _Mapping]] = ..., chrome_process: _Optional[_Union[ChromeProcessDescriptor, _Mapping]] = ..., thread: _Optional[_Union[ThreadDescriptor, _Mapping]] = ..., chrome_thread: _Optional[_Union[ChromeThreadDescriptor, _Mapping]] = ..., counter: _Optional[_Union[CounterDescriptor, _Mapping]] = ..., disallow_merging_with_system_tracks: bool = ..., child_ordering: _Optional[_Union[TrackDescriptor.ChildTracksOrdering, str]] = ..., sibling_order_rank: _Optional[int] = ..., sibling_merge_behavior: _Optional[_Union[TrackDescriptor.SiblingMergeBehavior, str]] = ..., sibling_merge_key: _Optional[str] = ...) -> None: ...
+    def __init__(self, uuid: _Optional[int] = ..., parent_uuid: _Optional[int] = ..., name: _Optional[str] = ..., static_name: _Optional[str] = ..., atrace_name: _Optional[str] = ..., description: _Optional[str] = ..., process: _Optional[_Union[ProcessDescriptor, _Mapping]] = ..., chrome_process: _Optional[_Union[ChromeProcessDescriptor, _Mapping]] = ..., thread: _Optional[_Union[ThreadDescriptor, _Mapping]] = ..., chrome_thread: _Optional[_Union[ChromeThreadDescriptor, _Mapping]] = ..., counter: _Optional[_Union[CounterDescriptor, _Mapping]] = ..., disallow_merging_with_system_tracks: bool = ..., child_ordering: _Optional[_Union[TrackDescriptor.ChildTracksOrdering, str]] = ..., sibling_order_rank: _Optional[int] = ..., sibling_merge_behavior: _Optional[_Union[TrackDescriptor.SiblingMergeBehavior, str]] = ..., sibling_merge_key: _Optional[str] = ..., sibling_merge_key_int: _Optional[int] = ...) -> None: ...
 
 class TrackEvent(_message.Message):
     __slots__ = ["categories", "category_iids", "cc_scheduler_state", "chrome_active_processes", "chrome_application_state_info", "chrome_content_settings_event_info", "chrome_frame_reporter", "chrome_histogram_sample", "chrome_keyed_service", "chrome_latency_info", "chrome_legacy_ipc", "chrome_message_pump", "chrome_mojo_event_info", "chrome_renderer_scheduler_state", "chrome_user_event", "chrome_window_handle_event_info", "correlation_id", "correlation_id_str", "correlation_id_str_iid", "counter_value", "debug_annotations", "double_counter_value", "extra_counter_track_uuids", "extra_counter_values", "extra_double_counter_track_uuids", "extra_double_counter_values", "flow_ids", "flow_ids_old", "legacy_event", "log_message", "name", "name_iid", "screenshot", "source_location", "source_location_iid", "task_execution", "terminating_flow_ids", "terminating_flow_ids_old", "thread_instruction_count_absolute", "thread_instruction_count_delta", "thread_time_absolute_us", "thread_time_delta_us", "timestamp_absolute_us", "timestamp_delta_us", "track_uuid", "type"]

@@ -42,7 +42,7 @@
   font-family: var(--pf-font-compact);
   line-height: 1;
   user-select: none;
-  border-radius: $pf-border-radius;
+  border-radius: $border-radius;
   padding: 4px 8px;
   white-space: nowrap;
   min-width: max-content;
@@ -93,43 +93,75 @@
     cursor: not-allowed;
   }
 
-  // From here on in we just describe the colours
+  // From here on in we just describe the colors
   &--filled {
-    background: rgba(gray, 20%);
+    background: color-mix(
+      in srgb,
+      transparent,
+      var(--pf-color-interactive-base) 10%
+    );
 
     &:hover {
-      background: rgba(gray, 30%);
+      background: color-mix(
+        in srgb,
+        transparent,
+        var(--pf-color-interactive-base) 15%
+      );
     }
 
     &.pf-active,
     &:active {
-      background: rgba(gray, 40%);
+      background: color-mix(
+        in srgb,
+        transparent,
+        var(--pf-color-interactive-base) 20%
+      );
     }
 
     &[disabled] {
       &:hover {
-        background: rgba(gray, 20%); // Reset to the default background
+        background: color-mix(
+          in srgb,
+          transparent,
+          var(--pf-color-interactive-base) 10%
+        ); // Reset to the default background
       }
 
       &.pf-active {
-        background: rgba(gray, 40%);
+        background: color-mix(
+          in srgb,
+          transparent,
+          var(--pf-color-interactive-base) 40%
+        );
       }
     }
 
     &.pf-intent-primary {
-      @include filled-color-scheme(var(--pf-color-accent), white);
+      @include filled-color-scheme(
+        var(--pf-color-primary),
+        var(--pf-color-text-on-primary)
+      );
     }
 
     &.pf-intent-success {
-      @include filled-color-scheme(var(--pf-color-success), white);
+      @include filled-color-scheme(
+        var(--pf-color-success),
+        var(--pf-color-text-on-success)
+      );
     }
 
     &.pf-intent-danger {
-      @include filled-color-scheme(var(--pf-color-danger), white);
+      @include filled-color-scheme(
+        var(--pf-color-danger),
+        var(--pf-color-text-on-danger)
+      );
     }
 
     &.pf-intent-warning {
-      @include filled-color-scheme(var(--pf-color-warning), black);
+      @include filled-color-scheme(
+        var(--pf-color-warning),
+        var(--pf-color-text-on-warning)
+      );
     }
   }
 
@@ -149,7 +181,7 @@
     }
 
     &.pf-intent-primary {
-      color: var(--pf-color-accent);
+      color: var(--pf-color-primary);
     }
 
     &.pf-intent-success {
