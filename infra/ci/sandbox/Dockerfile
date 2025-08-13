@@ -33,7 +33,6 @@ RUN set -ex; \
         sudo \
         lz4 \
         tar \
-        ccache \
         tini \
         libpulse0 \
         libgl1 \
@@ -48,6 +47,7 @@ RUN set -ex; \
         g++ \
         zlib1g-dev \
         unzip \
+        xz-utils \
         gcc-8 \
         g++-8 \
         gcc-8-multilib \
@@ -144,6 +144,24 @@ RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
     echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" \
     | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list; \
     apt-get update && apt-get install -y google-cloud-cli;
+
+# Install ccache from github, the version in ubunut repo (3.7) is too old for us.
+RUN set -e; \
+    CCACHE_PUB_KEY=5A939A71A46792CF57866A51996DDA075594ADB8; \
+    CCACHE_VER=4.11.3; \
+    CCACHE_ARTIFACT_NAME=ccache-${CCACHE_VER}-linux-x86_64; \
+    CCACHE_URL_PREFIX=https://github.com/ccache/ccache/releases/download/v${CCACHE_VER}; \
+    curl -fsSL -O ${CCACHE_URL_PREFIX}/${CCACHE_ARTIFACT_NAME}.tar.xz; \
+    curl -fsSL -O ${CCACHE_URL_PREFIX}/${CCACHE_ARTIFACT_NAME}.tar.xz.asc; \
+    echo "Downloaded ccache-${CCACHE_VER} archive and key."; \
+    gpg --no-default-keyring --keyring ccache.gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys $CCACHE_PUB_KEY; \
+    gpg --keyring ccache.gpg --verify ${CCACHE_ARTIFACT_NAME}.tar.xz.asc; \
+    echo "Key verified."; \
+    gpg --batch --yes --keyring ccache.gpg --delete-keys; \
+    tar -xf ${CCACHE_ARTIFACT_NAME}.tar.xz --one-top-level; \
+    cp ${CCACHE_ARTIFACT_NAME}/ccache /usr/local/bin/; \
+    ccache --version; \
+    rm -rf ${CCACHE_ARTIFACT_NAME} ${CCACHE_ARTIFACT_NAME}.tar.xz ${CCACHE_ARTIFACT_NAME}.tar.xz.asc;
 
 WORKDIR /opt/ci
 
