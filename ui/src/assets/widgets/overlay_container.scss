@@ -12,42 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../assets/theme";
-
-.pf-settings-page {
-  &__card {
-    display: flex;
-    flex-direction: row;
-    gap: 6px;
-    justify-content: space-between;
-
-    &--changed {
-      border-left: solid 3px var(--pf-color-primary);
-    }
-  }
-
-  &__details {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  &__description {
-    font-size: smaller;
-  }
-
-  &__controls {
-    display: flex;
-    flex-direction: row;
-    column-gap: 12px;
-    align-items: center;
-  }
-
-  &__complex-error {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--pf-color-danger);
-    font-size: 14px;
+.pf-overlay-container {
+  &--fill-parent {
+    height: 100%;
   }
 }

@@ -65,9 +65,8 @@
     }
 
     &[disabled] {
-      color: $pf-minimal-foreground-disabled;
-      background: $pf-minimal-background-disabled;
-      box-shadow: none;
+      color: var(--pf-color-text-muted);
+      background: unset;
       cursor: not-allowed;
     }
 

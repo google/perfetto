@@ -12,42 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../assets/theme";
+import m from 'mithril';
 
-.pf-settings-page {
-  &__card {
-    display: flex;
-    flex-direction: row;
-    gap: 6px;
-    justify-content: space-between;
+interface ThemeProviderAttrs {
+  readonly theme: 'dark' | 'light';
+}
 
-    &--changed {
-      border-left: solid 3px var(--pf-color-primary);
-    }
-  }
-
-  &__details {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  &__description {
-    font-size: smaller;
-  }
-
-  &__controls {
-    display: flex;
-    flex-direction: row;
-    column-gap: 12px;
-    align-items: center;
-  }
-
-  &__complex-error {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--pf-color-danger);
-    font-size: 14px;
+export class ThemeProvider implements m.Component<ThemeProviderAttrs> {
+  view(vnode: m.Vnode<ThemeProviderAttrs>) {
+    // This component is used to provide the theme context to the children.
+    // It does not render anything itself.
+    return m(
+      '.pf-theme-provider',
+      {className: `pf-theme-provider--${vnode.attrs.theme}`},
+      vnode.children,
+    );
   }
 }

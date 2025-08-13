@@ -12,42 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-@import "../../assets/theme";
+import m from 'mithril';
+import {classNames} from '../base/classnames';
 
-.pf-settings-page {
-  &__card {
-    display: flex;
-    flex-direction: row;
-    gap: 6px;
-    justify-content: space-between;
+export interface OverlayContainerAttrs {
+  // Fill parent container vertically.
+  readonly fillParent?: boolean;
+}
 
-    &--changed {
-      border-left: solid 3px var(--pf-color-primary);
-    }
-  }
-
-  &__details {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  &__description {
-    font-size: smaller;
-  }
-
-  &__controls {
-    display: flex;
-    flex-direction: row;
-    column-gap: 12px;
-    align-items: center;
-  }
-
-  &__complex-error {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--pf-color-danger);
-    font-size: 14px;
+export class OverlayContainer
+  implements m.ClassComponent<OverlayContainerAttrs>
+{
+  view({attrs, children}: m.Vnode<OverlayContainerAttrs>) {
+    const {fillParent = false} = attrs as OverlayContainerAttrs;
+    return m(
+      '.pf-overlay-container',
+      {
+        className: classNames(
+          fillParent && 'pf-overlay-container--fill-parent',
+        ),
+      },
+      children,
+    );
   }
 }

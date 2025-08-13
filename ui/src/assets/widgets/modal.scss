@@ -66,12 +66,11 @@
   padding: 30px;
   max-width: 90vw;
   max-height: 90vh;
-  border-radius: $pf-border-radius;
+  border-radius: $border-radius;
   overflow-y: auto;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-weight: 300;
 
   &.pf-modal-dialog-valign-top {
     top: 1rem;

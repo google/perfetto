@@ -31,16 +31,8 @@
     margin-bottom: 1rem;
   }
 
-  pre {
-    background-color: #eee;
-    padding: 20px;
-    font-family: var(--pf-font-monospace);
-    line-height: 1.5em;
-    border-radius: $pf-border-radius;
-    overflow-x: auto;
-    &.metric-error {
-      color: #ef6c00;
-    }
+  .pf-metrics-page__error {
+    color: var(--pf-color-danger);
   }
 }
 
