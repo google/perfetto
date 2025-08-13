@@ -30,23 +30,26 @@ namespace trace_processor {
 
 namespace {
 
-// By design, these switches handle unrecognized enum values with a default
-// fallback, so that new entries can be added to
-// protos/third_party/chromium_chrome_enums.proto without immediately updating
-// the list of names.
-#if defined(__GNUC__)  // clang also supports GCC syntax.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcovered-switch-default"
-#pragma GCC diagnostic ignored "-Wswitch-enum"
-// -Wswitch includes all warnings from -Wswitch-enum except "enumeration value
-// not explicitly handled in switch".
-#pragma GCC diagnostic error "-Wswitch"
-#endif  // __GNUC__
+constexpr auto kThreadTypeMin =
+    ::perfetto::protos::pbzero::ChromeThreadDescriptor_ThreadType_MIN;
+constexpr auto kThreadTypeMax =
+    ::perfetto::protos::pbzero::ChromeThreadDescriptor_ThreadType_MAX;
+
+// Add Chrome process and thread names to these two functions to get
+// friendly-formatted names in field traces. If an entry is added to
+// chrome_enums.proto without adding it here, the enum value name from the proto
+// will be used, which is not as easy to understand but at least doesn't lose
+// information.
+//
+// The functions take int params instead of enums to prevent -Wswitch-enum from
+// complaining that every enum value isn't handled explicitly.
 
 // Returns a name, which may be null, for `process_type`.
 const char* GetProcessNameString(
-    chrome_enums::ProcessType process_type,
+    int32_t process_type,
     bool ignore_predefined_thread_types_for_testing) {
+  PERFETTO_DCHECK(process_type >= chrome_enums::ProcessType_MIN);
+  PERFETTO_DCHECK(process_type <= chrome_enums::ProcessType_MAX);
   if (!ignore_predefined_thread_types_for_testing) {
     switch (process_type) {
       case chrome_enums::PROCESS_UNSPECIFIED:
@@ -137,13 +140,16 @@ const char* GetProcessNameString(
         break;
     }
   }
-  return chrome_enums::ProcessType_Name(process_type);
+  return chrome_enums::ProcessType_Name(
+      static_cast<chrome_enums::ProcessType>(process_type));
 }
 
 // Returns a name, which may be null, for `thread_type`.
 const char* GetThreadNameString(
-    ChromeThreadDescriptor::ThreadType thread_type,
+    int32_t thread_type,
     bool ignore_predefined_thread_types_for_testing) {
+  PERFETTO_DCHECK(thread_type >= kThreadTypeMin);
+  PERFETTO_DCHECK(thread_type <= kThreadTypeMax);
   if (!ignore_predefined_thread_types_for_testing) {
     switch (thread_type) {
       case ChromeThreadDescriptor::THREAD_UNSPECIFIED:
@@ -176,7 +182,6 @@ const char* GetThreadNameString(
         return "MemoryInfra";
       case ChromeThreadDescriptor::THREAD_SAMPLING_PROFILER:
         return "StackSamplingProfiler";
-
       case ChromeThreadDescriptor::THREAD_BROWSER_MAIN:
         return "CrBrowserMain";
       case ChromeThreadDescriptor::THREAD_RENDERER_MAIN:
@@ -242,12 +247,9 @@ const char* GetThreadNameString(
         break;
     }
   }
-  return ChromeThreadDescriptor::ThreadType_Name(thread_type);
+  return ChromeThreadDescriptor::ThreadType_Name(
+      static_cast<ChromeThreadDescriptor::ThreadType>(thread_type));
 }
-
-#if defined(__GNUC__)  // clang also supports GCC syntax.
-#pragma GCC diagnostic pop
-#endif  // __GNUC__
 
 }  // namespace
 
@@ -256,21 +258,16 @@ ChromeStringLookup::ChromeStringLookup(
     bool ignore_predefined_names_for_testing) {
   for (int32_t i = chrome_enums::ProcessType_MIN;
        i <= chrome_enums::ProcessType_MAX; ++i) {
-    const auto type = static_cast<chrome_enums::ProcessType>(i);
     const char* name =
-        GetProcessNameString(type, ignore_predefined_names_for_testing);
-    chrome_process_name_ids_[type] =
+        GetProcessNameString(i, ignore_predefined_names_for_testing);
+    chrome_process_name_ids_[i] =
         name ? storage->InternString(name) : kNullStringId;
   }
 
-  for (int32_t i =
-           ::perfetto::protos::pbzero::ChromeThreadDescriptor_ThreadType_MIN;
-       i <= ::perfetto::protos::pbzero::ChromeThreadDescriptor_ThreadType_MAX;
-       ++i) {
-    const auto type = static_cast<ChromeThreadDescriptor::ThreadType>(i);
+  for (int32_t i = kThreadTypeMin; i <= kThreadTypeMax; ++i) {
     const char* name =
-        GetThreadNameString(type, ignore_predefined_names_for_testing);
-    chrome_thread_name_ids_[type] =
+        GetThreadNameString(i, ignore_predefined_names_for_testing);
+    chrome_thread_name_ids_[i] =
         name ? storage->InternString(name) : kNullStringId;
   }
 }
