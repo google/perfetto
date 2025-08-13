@@ -18,6 +18,13 @@ import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {NUM} from '../../trace_processor/query_result';
 import {randomColor} from '../../components/colorizer';
+import {
+  createView,
+  createVirtualTable,
+  createPerfettoTable,
+  DisposableSqlEntity,
+} from '../../trace_processor/sql_utils';
+import {AsyncDisposableStack} from '../../base/disposable_stack';
 
 const CREATE_BREAKDOWN_TABLE_SQL = `
   DROP TABLE IF EXISTS process_memory_breakdown;
@@ -28,6 +35,8 @@ const CREATE_BREAKDOWN_TABLE_SQL = `
       memory_rss_and_swap_per_process PARTITIONED upid
     );
 `;
+
+const MAX_AGGREGATED_PIDS = 5;
 
 export default class implements PerfettoPlugin {
   static readonly id = 'com.google.PixelMemory';
@@ -59,7 +68,7 @@ export default class implements PerfettoPlugin {
         const maxTs = BigInt(maxRow.ts);
         const maxValueInBytes = maxRow.value;
         const maxValueInKib = (maxValueInBytes / 1024.0).toFixed(2);
-        const noteText = `Max (${noteTarget}): ${maxValueInKib} KiB`;
+        const noteText = `${maxValueInKib} KiB : Max PID (${noteTarget})`;
         const color = randomColor();
 
         ctx.notes.addNote({
@@ -74,45 +83,54 @@ export default class implements PerfettoPlugin {
   }
 
   // Helper function to handle the aggregation logic for multiple PIDs.
-  private async createAggregatedTrackAndGetTableName(
+  private async createAggregatedTrackAndGetTable(
     ctx: Trace,
     id: string,
     pidList: string[],
     sqlValueExpr: string,
     titleSuffix: string,
     pidsIdentifier: string,
+    trash: AsyncDisposableStack,
   ): Promise<string> {
     const runId = id.replace(/[#\.]/g, '_');
-    const viewNames = pidList.map((pid) => `__view_${runId}_${pid}`);
     const valueColNames = pidList.map((pid) => `value_${pid}`);
     const aggTableName = `__agg_${runId}`;
 
     // 1. Create a separate VIEW for each PID's memory data.
+    const pidViews: DisposableSqlEntity[] = [];
     for (let i = 0; i < pidList.length; i++) {
-      const createViewSql = `
-        DROP VIEW IF EXISTS ${viewNames[i]};
-        CREATE VIEW ${viewNames[i]} AS
+      const pid = pidList[i];
+      const viewName = `__view_${runId}_${pid}`;
+      const createViewAs = `
         SELECT
             ts,
             dur,
             (${sqlValueExpr}) AS ${valueColNames[i]}
         FROM process_memory_breakdown
-        WHERE pid = ${pidList[i]};
+        WHERE pid = ${pid};
       `;
-      await ctx.engine.query(createViewSql);
+      const view = await createView({
+        engine: ctx.engine,
+        name: viewName,
+        as: createViewAs,
+      });
+      pidViews.push(view);
+      trash.use(view);
     }
+    const viewNames = pidViews.map((v) => v.name);
 
     // 2. Iteratively SPAN_OUTER_JOIN the views together.
     let previousTableName = viewNames[0];
     for (let i = 1; i < pidList.length; i++) {
       const newJoinedTableName = `__joined_${runId}_${i}`;
-      await ctx.engine.query(`DROP TABLE IF EXISTS ${newJoinedTableName};`);
-      const joinSql = `
-        CREATE VIRTUAL TABLE ${newJoinedTableName}
-        USING SPAN_OUTER_JOIN(${previousTableName}, ${viewNames[i]});
-      `;
-      await ctx.engine.query(joinSql);
-      previousTableName = newJoinedTableName;
+      const joinUsing = `SPAN_OUTER_JOIN(${previousTableName}, ${viewNames[i]})`;
+      const joinedTable = await createVirtualTable({
+        engine: ctx.engine,
+        name: newJoinedTableName,
+        using: joinUsing,
+      });
+      trash.use(joinedTable);
+      previousTableName = joinedTable.name;
     }
 
     const finalSelectTable = previousTableName;
@@ -120,17 +138,20 @@ export default class implements PerfettoPlugin {
       .map((col) => `IFNULL(${col}, 0)`)
       .join(' + ');
 
-    // 3. Materialize the aggregated sum into a standard table
-    await ctx.engine.query(`DROP TABLE IF EXISTS ${aggTableName}`);
-    const createAggTableSql = `
-      CREATE TABLE ${aggTableName} AS
+    // 3. Materialize the aggregated sum into a PERFETTO table
+    const createAggTableAs = `
       SELECT
         CAST(ts AS BIGINT) AS ts,
         (${sumOfValues}) AS value
       FROM ${finalSelectTable}
       WHERE ts IS NOT NULL;
     `;
-    await ctx.engine.query(createAggTableSql);
+    const aggTable = await createPerfettoTable({
+      engine: ctx.engine,
+      name: aggTableName,
+      as: createAggTableAs,
+    });
+    trash.use(aggTable);
 
     // 4. Add the debug track using the materialized aggregate table
     await addDebugCounterTrack({
@@ -153,17 +174,19 @@ export default class implements PerfettoPlugin {
     pidList: string[],
     sqlValueExpr: string,
     titleSuffix: string,
+    trash: AsyncDisposableStack,
   ): Promise<{findMaxSql: string; noteTarget: string}> {
     if (pidList.length > 1) {
       const pidsIdentifierForTracks = pidList.join('_');
       const noteTarget = pidList.join('+');
-      const aggTableName = await this.createAggregatedTrackAndGetTableName(
+      const aggTableName = await this.createAggregatedTrackAndGetTable(
         ctx,
         id,
         pidList,
         sqlValueExpr,
         titleSuffix,
         pidsIdentifierForTracks,
+        trash,
       );
 
       const findMaxSql = `
@@ -175,6 +198,7 @@ export default class implements PerfettoPlugin {
       `;
       return {findMaxSql, noteTarget};
     } else {
+      // pidList.length === 1
       const noteTarget = pidList[0];
       const findMaxSql = `
         SELECT
@@ -204,13 +228,11 @@ export default class implements PerfettoPlugin {
         if (pids === undefined) {
           pids =
             prompt(
-              'Enter one or more process pids, separated by commas',
+              `Enter up to ${MAX_AGGREGATED_PIDS} process pids, separated by commas`,
               'e.g. 1234, 5678',
             ) || '';
           if (!pids) return;
         }
-
-        await this.setupTables(ctx);
 
         const pidList = pids
           .split(',')
@@ -221,33 +243,53 @@ export default class implements PerfettoPlugin {
           return;
         }
 
-        // Add individual tracks for each PID.
-        for (const pid of pidList) {
-          await addDebugCounterTrack({
-            trace: ctx,
-            data: {
-              sqlSource: `
-                SELECT
-                  ts,
-                  (${sqlValueExpr}) AS value
-                FROM process_memory_breakdown
-                WHERE pid = ${pid}
-              `,
-              columns: ['ts', 'value'],
-            },
-            title: `${pid}${titleSuffix}`,
-          });
+        if (pidList.length > MAX_AGGREGATED_PIDS) {
+          alert(
+            `Please enter at most ${MAX_AGGREGATED_PIDS} PIDs. You entered ${pidList.length}.`,
+          );
+          return;
         }
 
-        const {findMaxSql, noteTarget} = await this.prepareAnnotationData(
-          ctx,
-          id,
-          pidList,
-          sqlValueExpr,
-          titleSuffix,
-        );
+        const trash = new AsyncDisposableStack();
+        await using _disposer = trash;
 
-        await this.addMaxMemoryAnnotation(ctx, findMaxSql, noteTarget);
+        try {
+          await this.setupTables(ctx);
+
+          // Add individual tracks for each PID.
+          for (const pid of pidList) {
+            await addDebugCounterTrack({
+              trace: ctx,
+              data: {
+                sqlSource: `
+                  SELECT
+                    ts,
+                    (${sqlValueExpr}) AS value
+                  FROM process_memory_breakdown
+                  WHERE pid = ${pid}
+                `,
+                columns: ['ts', 'value'],
+              },
+              title: `${pid}${titleSuffix}`,
+            });
+          }
+
+          const {findMaxSql, noteTarget} = await this.prepareAnnotationData(
+            ctx,
+            id,
+            pidList,
+            sqlValueExpr,
+            titleSuffix,
+            trash,
+          );
+
+          await this.addMaxMemoryAnnotation(ctx, findMaxSql, noteTarget);
+        } catch (e) {
+          console.error(`PixelMemory Plugin: Error in command ${id}:`, e);
+          alert(
+            `PixelMemory Plugin Error: ${e instanceof Error ? e.message : e}`,
+          );
+        }
       },
     });
   }
