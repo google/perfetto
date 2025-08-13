@@ -45,35 +45,37 @@
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_reader_registry.h"
+#include "src/trace_processor/types/trace_processor_context_ptr.h"
 
 namespace perfetto::trace_processor {
 namespace {
 
+template <typename T>
+using Ptr = TraceProcessorContextPtr<T>;
+
 void InitPerMachineState(TraceProcessorContext* context, uint32_t machine_id) {
   // Per-machine state.
-  context->machine_tracker =
-      std::make_unique<MachineTracker>(context, machine_id);
-  context->process_tracker = std::make_unique<ProcessTracker>(context);
-  context->clock_tracker = std::make_unique<ClockTracker>(context);
-  context->mapping_tracker = std::make_unique<MappingTracker>(context);
-  context->cpu_tracker = std::make_unique<CpuTracker>(context);
+  context->machine_tracker = Ptr<MachineTracker>::MakeRoot(context, machine_id);
+  context->process_tracker = Ptr<ProcessTracker>::MakeRoot(context);
+  context->clock_tracker = Ptr<ClockTracker>::MakeRoot(context);
+  context->mapping_tracker = Ptr<MappingTracker>::MakeRoot(context);
+  context->cpu_tracker = Ptr<CpuTracker>::MakeRoot(context);
 
   // Per-machine state (legacy).
-  context->args_tracker = std::make_unique<ArgsTracker>(context);
-  context->track_tracker = std::make_unique<TrackTracker>(context);
-  context->track_compressor = std::make_unique<TrackCompressor>(context);
-  context->slice_tracker = std::make_unique<SliceTracker>(context);
+  context->args_tracker = Ptr<ArgsTracker>::MakeRoot(context);
+  context->track_tracker = Ptr<TrackTracker>::MakeRoot(context);
+  context->track_compressor = Ptr<TrackCompressor>::MakeRoot(context);
+  context->slice_tracker = Ptr<SliceTracker>::MakeRoot(context);
   context->slice_translation_table =
-      std::make_unique<SliceTranslationTable>(context->storage.get());
-  context->flow_tracker = std::make_unique<FlowTracker>(context);
+      Ptr<SliceTranslationTable>::MakeRoot(context->storage.get());
+  context->flow_tracker = Ptr<FlowTracker>::MakeRoot(context);
   context->process_track_translation_table =
-      std::make_unique<ProcessTrackTranslationTable>(context->storage.get());
-  context->event_tracker = std::make_unique<EventTracker>(context);
-  context->sched_event_tracker = std::make_unique<SchedEventTracker>(context);
-  context->stack_profile_tracker =
-      std::make_unique<StackProfileTracker>(context);
+      Ptr<ProcessTrackTranslationTable>::MakeRoot(context->storage.get());
+  context->event_tracker = Ptr<EventTracker>::MakeRoot(context);
+  context->sched_event_tracker = Ptr<SchedEventTracker>::MakeRoot(context);
+  context->stack_profile_tracker = Ptr<StackProfileTracker>::MakeRoot(context);
   context->args_translation_table =
-      std::make_unique<ArgsTranslationTable>(context->storage.get());
+      Ptr<ArgsTranslationTable>::MakeRoot(context->storage.get());
 
   context->slice_tracker->SetOnSliceBeginCallback(
       [context](TrackId track_id, SliceId slice_id) {
@@ -87,18 +89,18 @@ TraceProcessorContext::TraceProcessorContext() = default;
 TraceProcessorContext::TraceProcessorContext(const Config& _config) {
   // Global state.
   config = _config;
-  storage = std::make_shared<TraceStorage>(config);
-  reader_registry = std::make_shared<TraceReaderRegistry>();
-  global_args_tracker = std::make_shared<GlobalArgsTracker>(storage.get());
-  trace_file_tracker = std::make_shared<TraceFileTracker>(this);
-  descriptor_pool_ = std::make_shared<DescriptorPool>();
+  storage = Ptr<TraceStorage>::MakeRoot(config);
+  reader_registry = Ptr<TraceReaderRegistry>::MakeRoot();
+  global_args_tracker = Ptr<GlobalArgsTracker>::MakeRoot(storage.get());
+  trace_file_tracker = Ptr<TraceFileTracker>::MakeRoot(this);
+  descriptor_pool_ = Ptr<DescriptorPool>::MakeRoot();
 
   // Root state.
-  multi_machine_context = std::make_unique<MultiMachineContext>();
-  clock_converter = std::make_unique<ClockConverter>(this);
+  multi_machine_context = Ptr<MultiMachineContext>::MakeRoot();
+  clock_converter = Ptr<ClockConverter>::MakeRoot(this);
 
   // Global state (per-trace).
-  metadata_tracker = std::make_unique<MetadataTracker>(storage.get());
+  metadata_tracker = Ptr<MetadataTracker>::MakeRoot(storage.get());
 
   InitPerMachineState(this, 0);
 }
@@ -117,19 +119,20 @@ TraceProcessorContext* TraceProcessorContext::GetOrCreateContextForMachine(
 
     // Global state.
     context->config = config;
-    context->storage = storage;
-    context->sorter = sorter;
-    context->reader_registry = reader_registry;
-    context->global_args_tracker = global_args_tracker;
-    context->trace_file_tracker = trace_file_tracker;
-    context->descriptor_pool_ = descriptor_pool_;
+    context->storage = storage.Fork();
+    context->sorter = sorter.Fork();
+    context->reader_registry = reader_registry.Fork();
+    context->global_args_tracker = global_args_tracker.Fork();
+    context->trace_file_tracker = trace_file_tracker.Fork();
+    context->descriptor_pool_ = descriptor_pool_.Fork();
 
     context->register_additional_proto_modules =
         register_additional_proto_modules;
 
     // Global state (per-trace).
-    context->metadata_tracker = metadata_tracker;
-    context->content_analyzer = content_analyzer;
+    context->metadata_tracker = metadata_tracker.Fork();
+    context->content_analyzer = content_analyzer.Fork();
+    context->heap_graph_tracker = heap_graph_tracker.Fork();
     context->uuid_found_in_trace = uuid_found_in_trace;
 
     InitPerMachineState(context.get(), raw_machine_id);
