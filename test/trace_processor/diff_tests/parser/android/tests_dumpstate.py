@@ -40,6 +40,25 @@ EXAMPLE_CHECKIN = """9,0,i,vers,36,214,AP1A.240305.019.A1,AP2A.240805.005.S4
 
 class AndroidDumpstate(TestSuite):
 
+  def test_dumpstate_trivial_trace(self):
+    return DiffTestBlueprint(
+        trace=RawText(
+            "========================================================\n"
+            "== dumpstate: 2021-08-24 23:35:40\n"
+            "========================================================\n"),
+        query="""
+        SELECT
+          section, service, line
+        FROM android_dumpstate
+        ORDER BY id
+        """,
+        out=Csv("""
+        "section","service","line"
+        "[NULL]","[NULL]","========================================================"
+        "[NULL]","[NULL]","== dumpstate: 2021-08-24 23:35:40"
+        "[NULL]","[NULL]","========================================================"
+        """))
+
   def test_android_dumpstate_standalone_battery_stats_checkin(self):
     return DiffTestBlueprint(
         trace=RawText(EXAMPLE_CHECKIN),
