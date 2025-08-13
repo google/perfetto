@@ -21,6 +21,7 @@ interface StackAttrs extends HTMLAttrs {
   readonly fillHeight?: boolean;
   readonly spacing?: Spacing;
   readonly wrap?: boolean;
+  readonly inline?: boolean;
 }
 
 export class Stack implements m.ClassComponent<StackAttrs> {
@@ -31,6 +32,7 @@ export class Stack implements m.ClassComponent<StackAttrs> {
       spacing = 'medium',
       className,
       wrap,
+      inline,
       ...htmlAttrs
     } = attrs;
     return m(
@@ -41,6 +43,7 @@ export class Stack implements m.ClassComponent<StackAttrs> {
           fillHeight && 'pf-stack--fill-height',
           classForSpacing(spacing),
           wrap && 'pf-stack--wrap',
+          inline && 'pf-stack--inline',
           className,
         ),
         ...htmlAttrs,

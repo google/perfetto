@@ -131,7 +131,7 @@ const tasks = [];
 let tasksTot = 0;
 let tasksRan = 0;
 const httpWatches = [];
-const tStart = Date.now();
+const tStart = performance.now();
 const subprocesses = [];
 
 async function main() {
@@ -305,9 +305,9 @@ async function main() {
     console.log('In case of execution error, re-run without --no-build.');
   }
   if (!args.no_build) {
-    const tStart = Date.now();
+    const tStart = performance.now();
     while (!isDistComplete()) {
-      const secs = Math.ceil((Date.now() - tStart) / 1000);
+      const secs = Math.ceil((performance.now() - tStart) / 1000);
       process.stdout.write(
           `\t\tWaiting for first build to complete... ${secs} s\r`);
       await new Promise((r) => setTimeout(r, 500));
@@ -737,8 +737,8 @@ function runTasks() {
     const DIM = '\u001b[2m';
     const BRT = '\u001b[37m';
     const RST = '\u001b[0m';
-    const ms = (new Date(Date.now() - tStart)).toISOString().slice(17, -1);
-    const ts = `[${DIM}${ms}${RST}]`;
+    const ms = (performance.now() - tStart) / 1000;;
+    const ts = `[${DIM}${ms.toFixed(3)}${RST}]`;
     const descr = task.description.substr(0, 80);
     console.log(`${ts} ${BRT}${++tasksRan}/${tasksTot}${RST}\t${descr}`);
     task.func.apply(/* this=*/ undefined, task.args);

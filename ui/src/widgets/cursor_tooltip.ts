@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Portal} from './portal';
+import {MountOptions, Portal} from './portal';
 import {bindEventListener} from '../base/dom_utils';
 import {DisposableStack} from '../base/disposable_stack';
 import {HTMLAttrs} from './common';
@@ -64,6 +64,13 @@ export class CursorTooltip implements m.ClassComponent<CursorTooltipAttrs> {
       {
         ...rest,
         className: classNames('pf-cursor-tooltip', className),
+        onBeforeContentMount: (dom: Element): MountOptions => {
+          const closestModal = dom.closest('.pf-overlay-container');
+          if (closestModal) {
+            return {container: closestModal};
+          }
+          return {container: undefined};
+        },
         onContentMount: (portal) => {
           this.virtualElement.setPosition(globalMousePos);
           this.popper = createPopper(this.virtualElement, portal, {

@@ -111,7 +111,8 @@ TEST_F(ProtoTraceReaderTest, RemoteClockSync_Valid) {
   clock->set_timestamp(135000);
 
   ASSERT_TRUE(Tokenize().ok());
-  ASSERT_EQ(1u, context_.clock_tracker->clock_offsets_for_testing().size());
+  ASSERT_EQ(1u,
+            context_.clock_tracker->remote_clock_offsets_for_testing().size());
 }
 
 TEST_F(ProtoTraceReaderTest, RemoteClockSync_Incomplete) {
@@ -147,7 +148,8 @@ TEST_F(ProtoTraceReaderTest, RemoteClockSync_Incomplete) {
 
   ASSERT_TRUE(Tokenize().ok());
   // No valid clock offset.
-  ASSERT_EQ(0u, context_.clock_tracker->clock_offsets_for_testing().size());
+  ASSERT_EQ(0u,
+            context_.clock_tracker->remote_clock_offsets_for_testing().size());
 }
 
 TEST_F(ProtoTraceReaderTest, CalculateClockOffset) {

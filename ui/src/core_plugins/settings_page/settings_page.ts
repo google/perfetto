@@ -28,6 +28,7 @@ import {Intent} from '../../widgets/common';
 import {EmptyState} from '../../widgets/empty_state';
 import {classNames} from '../../base/classnames';
 import {Stack, StackAuto} from '../../widgets/stack';
+import {FuzzyFinder} from '../../base/fuzzy';
 
 export class SettingsPage implements m.ClassComponent {
   private filterText = '';
@@ -40,18 +41,12 @@ export class SettingsPage implements m.ClassComponent {
 
     // Filter settings based on the search text
     const isFiltering = this.filterText.trim() !== '';
+    const finder = new FuzzyFinder(allSettings, (s) => {
+      return `${s.name} ${s.description ?? ''}`;
+    });
     const filteredSettings = isFiltering
-      ? allSettings.filter(
-          (setting) =>
-            setting.name
-              .toLowerCase()
-              .includes(this.filterText.toLowerCase()) ||
-            (setting.description &&
-              setting.description
-                .toLowerCase()
-                .includes(this.filterText.toLowerCase())),
-        )
-      : allSettings;
+      ? finder.find(this.filterText)
+      : allSettings.map((item) => ({item, segments: []}));
     return m(
       SettingsShell,
       {
@@ -75,7 +70,7 @@ export class SettingsPage implements m.ClassComponent {
             }),
           m(StackAuto),
           m(TextInput, {
-            placeholder: 'Filter settings...',
+            placeholder: 'Search...',
             value: this.filterText,
             leftIcon: 'search',
             oninput: (e: Event) => {
@@ -91,8 +86,8 @@ export class SettingsPage implements m.ClassComponent {
           ? this.renderEmptyState(isFiltering)
           : m(
               CardStack,
-              filteredSettings.map((setting) => {
-                return this.renderSettingCard(setting);
+              filteredSettings.map(({item}) => {
+                return this.renderSettingCard(item);
               }),
             ),
       ),

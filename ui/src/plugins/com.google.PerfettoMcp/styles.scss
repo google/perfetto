@@ -38,21 +38,25 @@
       }
 
       &--ai {
-        background-color: #e1e1e1;
+        background-color: var(--pf-color-background-secondary);
         align-self: flex-start;
       }
 
       &--user {
-        background-color: #007bff;
-        color: white;
+        background-color: var(--pf-color-primary);
+        color: var(--pf-color-text-on-primary);
         align-self: flex-end;
         margin-left: auto;
       }
 
       &--error {
-        background-color: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
+        background-color: color-mix(
+          in srgb,
+          var(--pf-color-danger),
+          50% transparent
+        );
+        color: var(--pf-color-danger);
+        border: 1px solid var(--pf-color-danger);
       }
 
       &--thought {
@@ -69,8 +73,8 @@
     display: flex;
     align-items: center;
     padding: 1rem 1rem;
-    border-top: 1px solid #ddd;
-    background-color: #ffffff;
+    border-top: 1px solid var(--pf-color-border);
+    background-color: var(--pf-color-background-secondary);
     box-sizing: border-box;
     gap: 4px;
 

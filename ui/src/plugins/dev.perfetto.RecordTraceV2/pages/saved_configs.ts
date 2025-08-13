@@ -20,6 +20,8 @@ import {assertExists} from '../../../base/logging';
 import {shareRecordConfig} from '../config/config_sharing';
 import {Button, ButtonBar, ButtonVariant} from '../../../widgets/button';
 import {Icons} from '../../../base/semantic_icons';
+import {TextInput} from '../../../widgets/text_input';
+import {Intent} from '../../../widgets/common';
 
 export function savedConfigsPage(recMgr: RecordingManager): RecordSubpage {
   const savedConfigs = new Array<SavedSessionSchema>();
@@ -65,7 +67,7 @@ class SavedConfigsPage implements m.ClassComponent<RecMgrAttrs> {
     return [
       m('header', 'Save and load configurations'),
       m('.input-config', [
-        m('input', {
+        m(TextInput, {
           value: this.newConfigName,
           placeholder: 'Title for config',
           oninput: (e: Event) => {
@@ -128,6 +130,7 @@ class SavedConfigsPage implements m.ClassComponent<RecMgrAttrs> {
         m(Button, {
           className: 'config-button',
           title: 'Remove configuration',
+          intent: Intent.Danger,
           onclick: () => {
             const idx = this.savedConfigs.findIndex(
               (s) => s.name === item.name,
