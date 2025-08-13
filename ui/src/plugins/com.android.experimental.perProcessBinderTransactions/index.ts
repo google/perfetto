@@ -18,11 +18,11 @@ import {createQuerySliceTrack} from '../../components/tracks/query_slice_track';
 import {TrackNode} from '../../public/workspace';
 
 export default class implements PerfettoPlugin {
-  static readonly id = 'com.android.BinderFinder';
+  static readonly id = 'com.android.experimental.PerProcessBinderTransactions';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
     ctx.commands.registerCommand({
-      id: 'com.android.BinderFinder#ShowBindings',
+      id: 'com.android.experimental.PerProcessBinderTransactions#ShowProcessBinderTransactions',
       name: 'Add track: show binder server slices for a client PID (ex system_server, SurfaceFlinger)',
       callback: async (pid) => {
         if (pid === undefined) {
