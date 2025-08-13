@@ -484,7 +484,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     await this.maybeRequestData(rawCountersKey);
   }
 
-  render({ctx, size, timescale}: TrackRenderContext): void {
+  render({ctx, size, timescale, theme}: TrackRenderContext): void {
     // In any case, draw whatever we have (which might be stale/incomplete).
     const limits = this.limits;
     const data = this.counters;
@@ -524,8 +524,8 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     const expCapped = Math.min(exp - 3, 9);
     const hue = (180 - Math.floor(expCapped * (180 / 6)) + 360) % 360;
 
-    ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
-    ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
+    ctx.fillStyle = `hsla(${hue}, 45%, 50%, 0.6)`;
+    ctx.strokeStyle = `hsl(${hue}, 45%, 50%)`;
 
     const calculateX = (ts: time) => {
       return Math.floor(timescale.timeToPx(ts));
@@ -629,12 +629,12 @@ export abstract class BaseCounterTrack implements TrackRenderer {
     }
 
     // Write the Y scale on the top left corner.
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.fillRect(0, 0, 42, 13);
-    ctx.fillStyle = '#666';
-    ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText(`${yLabel}`, 5, 11);
+    ctx.fillStyle = theme.COLOR_BACKGROUND;
+    ctx.fillRect(0, 0, 42, 18);
+    ctx.fillStyle = theme.COLOR_TEXT;
+    ctx.textAlign = 'left';
+    ctx.fillText(`${yLabel}`, 4, 14);
 
     // TODO(hjd): Refactor this into checkerboardExcept
     {
