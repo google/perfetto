@@ -161,7 +161,7 @@ packet {
     }
     name: "p1"
     child_ordering: 3
-    chrome_process {
+    [perfetto.protos.ChromeTrackDescriptor.chrome_process] {
       host_app_package_name: "host_app"
     }
   }

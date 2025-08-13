@@ -52,7 +52,7 @@ packet {
       pid: 5
       process_name: "p1"
     }
-    chrome_process {
+    [perfetto.protos.ChromeTrackDescriptor.chrome_process] {
       host_app_package_name: "host_app"
     }
     description: "Chrome process: p1"
