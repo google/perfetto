@@ -38,8 +38,6 @@ function do_restore_cache() {
     declare -a tar_args
     # '--keep-old-files' flag causes 'tar' to fail instead of overwriting files.
     tar_args=("--extract" "--preserve-permissions" "--keep-old-files")
-    # TODO(ktimofeev): explain why we need this.
-    tar_args+=("--no-overwrite-dir")
     # '--exclude-from' is used to not overwrite files that already exists in the output directory.
     if [[ -n "$INPUT_EXCLUDE_FILES_PATH" ]]; then
       tar_args+=("--exclude-from=$INPUT_EXCLUDE_FILES_PATH")
