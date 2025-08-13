@@ -165,7 +165,9 @@ export class LynxNativeModuleTrack extends LynxBaseTrack<NativeModuleItem[]> {
         const terminateFlowId = Number(it.intValue);
         const startJSBTraceId = flowIdToTraceIdMap.get(terminateFlowId);
         const startJSB = traceIdToJSBMap.get(startJSBTraceId);
-        startJSB.dur = it.ts + it.dur - startJSB.ts;
+        if (startJSB !== undefined) {
+          startJSB.dur = it.ts + it.dur - startJSB.ts;
+        }
       }
 
       if (isNativeModuleCall(it.name) && it.key === 'debug.arg0') {
