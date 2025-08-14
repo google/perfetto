@@ -93,8 +93,11 @@ PerfTracker::CreateAuxDataTokenizer(AuxtraceInfoRecord info) {
     return std::unique_ptr<AuxDataTokenizer>(
         new DummyAuxDataTokenizer(context_));
   }
-  return (*it)(context_, static_cast<etm::EtmTracker*>(etm_tracker_.get()),
-               std::move(info));
+  etm::EtmTracker* etm_tracker = nullptr;
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
+  etm_tracker = static_cast<etm::EtmTracker*>(etm_tracker_.get());
+#endif
+  return (*it)(context_, etm_tracker, std::move(info));
 }
 
 void PerfTracker::AddSimpleperfFile2(const FileFeature::Decoder& file) {
