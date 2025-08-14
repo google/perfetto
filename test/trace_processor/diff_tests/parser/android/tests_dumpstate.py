@@ -15,6 +15,7 @@
 
 from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import RawText
 from python.generators.diff_tests.testing import TestSuite
 
 EXAMPLE_CHECKIN = """9,0,i,vers,36,214,AP1A.240305.019.A1,AP2A.240805.005.S4
@@ -39,9 +40,35 @@ EXAMPLE_CHECKIN = """9,0,i,vers,36,214,AP1A.240305.019.A1,AP2A.240805.005.S4
 
 class AndroidDumpstate(TestSuite):
 
+  def test_dumpstate_trivial_trace(self):
+    return DiffTestBlueprint(
+        trace=RawText(
+            "========================================================\n"
+            "== dumpstate: 2021-08-24 23:35:40\n"
+            "========================================================\n"
+            "\n"
+            "Build: crosshatch-userdebug 12 SPB5.210812.002 7671067 dev-keys\n"
+            "Build fingerprint: 'google/crosshatch/crosshatch:12/SPB5.210812.002/7671067:userdebug/dev-keys'\n"
+        ),
+        query="""
+        SELECT
+          section, service, line
+        FROM android_dumpstate
+        ORDER BY id
+        """,
+        out=Csv("""
+        "section","service","line"
+        "[NULL]","[NULL]","========================================================"
+        "[NULL]","[NULL]","== dumpstate: 2021-08-24 23:35:40"
+        "[NULL]","[NULL]","========================================================"
+        "[NULL]","[NULL]",""
+        "[NULL]","[NULL]","Build: crosshatch-userdebug 12 SPB5.210812.002 7671067 dev-keys"
+        "[NULL]","[NULL]","Build fingerprint: 'google/crosshatch/crosshatch:12/SPB5.210812.002/7671067:userdebug/dev-keys'"
+        """))
+
   def test_android_dumpstate_standalone_battery_stats_checkin(self):
     return DiffTestBlueprint(
-        trace=Csv(EXAMPLE_CHECKIN),
+        trace=RawText(EXAMPLE_CHECKIN),
         query="""
         SELECT
           name, ts, value
@@ -58,7 +85,7 @@ class AndroidDumpstate(TestSuite):
 
   def test_standalone_battery_stats_checkin_wakelocks(self):
     return DiffTestBlueprint(
-        trace=Csv(EXAMPLE_CHECKIN),
+        trace=RawText(EXAMPLE_CHECKIN),
         query="""
         SELECT
           ts, slice.name, dur
