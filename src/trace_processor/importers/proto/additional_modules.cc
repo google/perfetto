@@ -34,7 +34,6 @@
 #include "src/trace_processor/importers/proto/graphics_event_module.h"
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
 #include "src/trace_processor/importers/proto/metadata_module.h"
-#include "src/trace_processor/importers/proto/multi_machine_trace_manager.h"
 #include "src/trace_processor/importers/proto/network_trace_module.h"
 #include "src/trace_processor/importers/proto/pixel_modem_module.h"
 #include "src/trace_processor/importers/proto/profile_module.h"
@@ -43,6 +42,7 @@
 #include "src/trace_processor/importers/proto/trace.descriptor.h"
 #include "src/trace_processor/importers/proto/translation_table_module.h"
 #include "src/trace_processor/importers/proto/v8_module.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_WINSCOPE)
 #include "src/trace_processor/importers/proto/winscope/winscope_module.h"

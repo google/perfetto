@@ -1677,7 +1677,7 @@ void FtraceParser::ParseTypedFtraceToRaw(
 
   ProtoDecoder decoder(blob);
   if (ftrace_id >= GetDescriptorsSize()) {
-    PERFETTO_DLOG("Event with id: %d does not exist and cannot be parsed.",
+    PERFETTO_DLOG("Event with id: %u does not exist and cannot be parsed.",
                   ftrace_id);
     return;
   }
@@ -2928,7 +2928,7 @@ void FtraceParser::ParseSoftIrqEntry(uint32_t cpu,
                                      protozero::ConstBytes blob) {
   protos::pbzero::SoftirqEntryFtraceEvent::Decoder evt(blob);
   if (evt.vec() >= base::ArraySize(kActionNames)) {
-    PERFETTO_DFATAL("No action name at index %d for softirq event.", evt.vec());
+    PERFETTO_DFATAL("No action name at index %u for softirq event.", evt.vec());
     return;
   }
 

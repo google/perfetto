@@ -109,8 +109,8 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   }
   PERFETTO_DLOG("%s trace detected", TraceTypeToString(trace_type_));
   UpdateSorterForTraceType(trace_type_);
-  ASSIGN_OR_RETURN(reader_,
-                   context_->reader_registry->CreateTraceReader(trace_type_));
+  ASSIGN_OR_RETURN(reader_, context_->reader_registry->CreateTraceReader(
+                                trace_type_, context_));
   context_->trace_file_tracker->StartParsing(file_id_, trace_type_);
 
   // TODO(b/334978369) Make sure kProtoTraceType and kSystraceTraceType are
