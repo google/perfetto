@@ -103,6 +103,7 @@ jobs:
           profile: Pixel 9 Pro
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
+            env
             buildtools/android_sdk/platform-tools/adb devices
             buildtools/android_sdk/platform-tools/adb shell getprop | grep 'ro.build'
 
