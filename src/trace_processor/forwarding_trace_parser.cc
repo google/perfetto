@@ -148,7 +148,7 @@ void ForwardingTraceParser::UpdateSorterForTraceType(TraceType trace_type) {
         event_handling = TraceSorter::EventHandling::kSortAndDrop;
       }
     }
-    context_->sorter = std::make_shared<TraceSorter>(
+    context_->sorter = std::make_unique<TraceSorter>(
         context_, *minimum_sorting_mode, event_handling);
   }
 

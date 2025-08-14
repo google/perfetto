@@ -33,7 +33,7 @@ namespace {
 
 std::unique_ptr<TraceProcessorContext> CreateTraceProcessorContext() {
   auto ctx = std::make_unique<TraceProcessorContext>();
-  ctx->storage = std::make_shared<TraceStorage>();
+  ctx->storage = std::make_unique<TraceStorage>();
   return ctx;
 }
 

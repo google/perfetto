@@ -25,6 +25,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/destructible.h"
+#include "src/trace_processor/types/trace_processor_context_ptr.h"
 
 namespace perfetto::trace_processor {
 
@@ -60,13 +61,13 @@ using MachineId = tables::MachineTable::Id;
 class TraceProcessorContext {
  public:
   template <typename T>
-  using GlobalPtr = std::shared_ptr<T>;
+  using GlobalPtr = TraceProcessorContextPtr<T>;
 
   template <typename T>
-  using RootPtr = std::unique_ptr<T>;
+  using RootPtr = TraceProcessorContextPtr<T>;
 
   template <typename T>
-  using PerMachinePtr = std::unique_ptr<T>;
+  using PerMachinePtr = TraceProcessorContextPtr<T>;
 
   class MultiMachineContext;
 
@@ -124,6 +125,7 @@ class TraceProcessorContext {
 
   GlobalPtr<MetadataTracker> metadata_tracker;
   GlobalPtr<Destructible> content_analyzer;
+  GlobalPtr<Destructible> heap_graph_tracker;  // HeapGraphTracker
 
   // Marks whether the uuid was read from the trace.
   // If the uuid was NOT read, the uuid will be made from the hash of the first
@@ -168,7 +170,6 @@ class TraceProcessorContext {
   // the GetOrCreate() method on their subclass type, e.g.
   // SyscallTracker::GetOrCreate(context)
   PerMachinePtr<Destructible> binder_tracker;        // BinderTracker
-  PerMachinePtr<Destructible> heap_graph_tracker;    // HeapGraphTracker
   PerMachinePtr<Destructible> syscall_tracker;       // SyscallTracker
   PerMachinePtr<Destructible> system_info_tracker;   // SystemInfoTracker
   PerMachinePtr<Destructible> systrace_parser;       // SystraceParser
