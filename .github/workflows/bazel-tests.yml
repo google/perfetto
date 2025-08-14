@@ -69,7 +69,7 @@ jobs:
         shell: bash
         run: |
           echo "absolute path:"
-          buildtools/android_sdk/platform-tools/adb --version
+          buildtools/android_sdk/platform-tools/adb version
 
 #      - name: Build Bazel
 #        shell: bash
