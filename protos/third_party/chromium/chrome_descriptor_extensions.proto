@@ -13,6 +13,7 @@ package perfetto.protos;
 // These extensions were migrated from inline fields of existing messages, so
 // their field numbers must not change. New extensions should be added to
 // chrome_track_event.proto instead.
+
 message ChromeProcessDescriptorExtensions {
   extend ChromeProcessDescriptor {
     optional chrome_enums.ProcessType process_type = 1;

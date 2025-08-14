@@ -62,7 +62,8 @@ namespace {
 
 namespace chrome_enums = protos::chrome_enums::pbzero;
 using BoundInserter = ArgsTracker::BoundInserter;
-using protos::pbzero::ChromeThreadDescriptor;
+using protos::pbzero::ChromeProcessDescriptorExtensions;
+using protos::pbzero::ChromeThreadDescriptorExtensions;
 using protos::pbzero::TrackEvent;
 using LegacyEvent = TrackEvent::LegacyEvent;
 using protozero::ConstBytes;
@@ -295,7 +296,8 @@ void TrackEventParser::ParseTrackDescriptor(
 
   if (decoder.has_thread()) {
     if (decoder.has_chrome_thread()) {
-      ChromeThreadDescriptor::Decoder chrome_decoder(decoder.chrome_thread());
+      protos::pbzero::ChromeThreadDescriptor::Decoder chrome_decoder(
+          decoder.chrome_thread());
       bool is_sandboxed = chrome_decoder.has_is_sandboxed_tid() &&
                           chrome_decoder.is_sandboxed_tid();
       UniqueTid utid = ParseThreadDescriptor(decoder.thread(), is_sandboxed);
@@ -352,11 +354,9 @@ UniquePid TrackEventParser::ParseProcessDescriptor(
 void TrackEventParser::ParseChromeProcessDescriptor(
     UniquePid upid,
     protozero::ConstBytes chrome_process_descriptor) {
-  protos::pbzero::ChromeProcessDescriptor::Decoder decoder(
-      chrome_process_descriptor);
+  ChromeProcessDescriptorExtensions::Decoder decoder(chrome_process_descriptor);
   const protozero::Field& type_field =
-      decoder.at<protos::pbzero::ChromeProcessDescriptorExtensions::
-                     kProcessTypeFieldNumber>();
+      decoder.at<ChromeProcessDescriptorExtensions::kProcessTypeFieldNumber>();
   StringId name_id = chrome_string_lookup_.GetProcessName(
       type_field.valid() ? type_field.as_int32()
                          : chrome_enums::PROCESS_UNSPECIFIED);
@@ -406,10 +406,9 @@ UniqueTid TrackEventParser::ParseThreadDescriptor(
 void TrackEventParser::ParseChromeThreadDescriptor(
     UniqueTid utid,
     protozero::ConstBytes chrome_thread_descriptor) {
-  ChromeThreadDescriptor::Decoder decoder(chrome_thread_descriptor);
+  ChromeThreadDescriptorExtensions::Decoder decoder(chrome_thread_descriptor);
   const protozero::Field& type_field =
-      decoder.at<protos::pbzero::ChromeThreadDescriptorExtensions::
-                     kThreadTypeFieldNumber>();
+      decoder.at<ChromeThreadDescriptorExtensions::kThreadTypeFieldNumber>();
   if (!type_field.valid())
     return;
 
