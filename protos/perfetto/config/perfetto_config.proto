@@ -2048,7 +2048,7 @@ message PerfEventConfig {
   optional uint32 max_daemon_memory_kb = 13;
 
   //
-  // Uncommon options:
+  // Niche options:
   //
 
   // Timeout for the remote /proc/<pid>/{maps,mem} file descriptors for a
@@ -2061,10 +2061,17 @@ message PerfEventConfig {
   // If unset, an implementation-defined default is used.
   optional uint32 remote_descriptor_timeout_ms = 9;
 
-  // Optional period for clearing state cached by the unwinder. This is a heavy
-  // operation that is only necessary for traces that target a wide set of
-  // processes, and require the memory footprint to be reset periodically.
-  // If unset, the cached state will not be cleared.
+  // Optional period for clearing state cached by the userspace unwinder. This
+  // is a heavy operation that is only necessary for traces that target a wide
+  // set of processes, and require the memory footprint to be reset
+  // periodically. To effectively disable the cache clearing, set to a value
+  // greater than your trace duration.
+  //
+  // Relevant only if |callstack_sampling.user_frames| is set to UNWIND_DWARF.
+  //
+  // If zero or unset:
+  // * before perfetto v52: no cache clearing.
+  // * perfetto v52+: implementation chooses an infrequent default.
   optional uint32 unwind_state_clear_period_ms = 10;
 
   // If set, only profile target if it was installed by a package with one of
