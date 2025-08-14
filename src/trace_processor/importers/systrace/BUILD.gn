@@ -57,6 +57,8 @@ source_set("full") {
     "../../types",
     "../common",
     "../ftrace:full",
+    "../../util:regex",
+    "../../util:trace_type",
   ]
 }
 
