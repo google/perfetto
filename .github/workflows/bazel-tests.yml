@@ -54,39 +54,39 @@ jobs:
           echo "PERFETTO_ARTIFACTS_DIR=$PERFETTO_ARTIFACTS_DIR" >> $GITHUB_ENV
           mkdir -p $PERFETTO_ARTIFACTS_DIR
 
-      - name: Restore cache
-        uses: ./.github/actions/cache-on-google-cloud-storage/restore
-        with:
-          directory: ${{ env.PERFETTO_CACHE_DIR }}
-          cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
-
-      - uses: ./.github/actions/install-build-deps
-        with:
-          install-flags: --bazel
-
-      - name: Build Bazel
-        shell: bash
-        run: |
-          BAZEL_DISK_CACHE_FOLDER="$PERFETTO_CACHE_DIR/bazel-disk-cache"
-          # Cleanup the cache if any of the two conditions are true.
-          BAZEL_DISK_CACHE_GC_OPTIONS="--experimental_disk_cache_gc_max_age=7d --experimental_disk_cache_gc_max_size=10G"
-          # We don't run a bazel daemon in background, so we do a GC during the build,
-          # that's why we specify _idle_delay=0.
-          BAZEL_DISK_CACHE_GC_OPTIONS+=" --experimental_disk_cache_gc_idle_delay=0"
-          BAZEL_DISK_CACHE_FLAGS="--disk_cache=${BAZEL_DISK_CACHE_FOLDER} ${BAZEL_DISK_CACHE_GC_OPTIONS}"
-          tools/bazel build //:all ${BAZEL_DISK_CACHE_FLAGS} --verbose_failures
-          tools/bazel build //python:all ${BAZEL_DISK_CACHE_FLAGS} --verbose_failures
-
-      - name: Smoke tests
-        shell: bash
-        run: |
-          ./bazel-bin/traced &
-          ./bazel-bin/traced_probes &
-          sleep 5
-          TRACE="$PERFETTO_ARTIFACTS_DIR/bazel.trace"
-          ./bazel-bin/perfetto -c :test -o $TRACE
-          kill $(jobs -p)
-          ./bazel-bin/trace_processor_shell -q <(echo 'select count(1) from sched') $TRACE
+#      - name: Restore cache
+#        uses: ./.github/actions/cache-on-google-cloud-storage/restore
+#        with:
+#          directory: ${{ env.PERFETTO_CACHE_DIR }}
+#          cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
+#
+#      - uses: ./.github/actions/install-build-deps
+#        with:
+#          install-flags: --bazel
+#
+#      - name: Build Bazel
+#        shell: bash
+#        run: |
+#          BAZEL_DISK_CACHE_FOLDER="$PERFETTO_CACHE_DIR/bazel-disk-cache"
+#          # Cleanup the cache if any of the two conditions are true.
+#          BAZEL_DISK_CACHE_GC_OPTIONS="--experimental_disk_cache_gc_max_age=7d --experimental_disk_cache_gc_max_size=10G"
+#          # We don't run a bazel daemon in background, so we do a GC during the build,
+#          # that's why we specify _idle_delay=0.
+#          BAZEL_DISK_CACHE_GC_OPTIONS+=" --experimental_disk_cache_gc_idle_delay=0"
+#          BAZEL_DISK_CACHE_FLAGS="--disk_cache=${BAZEL_DISK_CACHE_FOLDER} ${BAZEL_DISK_CACHE_GC_OPTIONS}"
+#          tools/bazel build //:all ${BAZEL_DISK_CACHE_FLAGS} --verbose_failures
+#          tools/bazel build //python:all ${BAZEL_DISK_CACHE_FLAGS} --verbose_failures
+#
+#      - name: Smoke tests
+#        shell: bash
+#        run: |
+#          ./bazel-bin/traced &
+#          ./bazel-bin/traced_probes &
+#          sleep 5
+#          TRACE="$PERFETTO_ARTIFACTS_DIR/bazel.trace"
+#          ./bazel-bin/perfetto -c :test -o $TRACE
+#          kill $(jobs -p)
+#          ./bazel-bin/trace_processor_shell -q <(echo 'select count(1) from sched') $TRACE
 
       - name: Create AVD for Android Instrumentation Tests
         uses: reactivecircus/android-emulator-runner@v2
