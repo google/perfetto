@@ -34,6 +34,69 @@ JOIN _wattson_device AS device
 JOIN _dev_cpu_policy_map AS cp
   ON dc.policy = cp.policy;
 
+-- Gets the active curve value dependency of the minimum frequency/voltage vote
+CREATE PERFETTO TABLE _min_active_curve_value_for_dependency AS
+SELECT
+  active AS min_dependency
+FROM _filtered_curves_1d_raw
+ORDER BY
+  freq_khz ASC
+LIMIT 1;
+
+CREATE PERFETTO TABLE _cpus_with_no_dependency AS
+SELECT DISTINCT
+  cpu
+FROM _dev_cpu_policy_map
+JOIN _filtered_curves_1d_raw
+  USING (policy);
+
+CREATE PERFETTO TABLE _cpus_with_dependency AS
+WITH
+  base AS (
+    SELECT DISTINCT
+      cpu
+    FROM _dev_cpu_policy_map
+    WHERE
+      NOT cpu IN (
+        SELECT
+          cpu
+        FROM _cpus_with_no_dependency
+      )
+  )
+SELECT
+  cpu
+FROM base
+UNION ALL
+-- If no CPUs at all with 2D dependency, then the remaining CPUs (e.g. all CPUs
+-- with no dependency) need to accounted for in static power calculations
+SELECT
+  cpu
+FROM _cpus_with_no_dependency
+WHERE
+  NOT EXISTS(
+    SELECT
+      1
+    FROM base
+  );
+
+-- Find the exemplar CPU for the policy with no freq/voltage dependency. The CPU
+-- managing the policy is the first CPU that comes online for a given policy.
+-- This is usually the min(CPU #) since Linux initializes CPUs in ascending
+-- order (e.g. CPU4 for policy4).
+CREATE PERFETTO TABLE _cpu_for_1d_static AS
+SELECT
+  min(cpu) AS cpu
+FROM _cpus_with_no_dependency;
+
+-- Find the exemplar CPU for the policy with a freq/voltage dependency. The CPU
+-- managing the policy is the first CPU that comes online for a given policy.
+-- This is usually the min(CPU #) since Linux initializes CPUs in ascending
+-- order (e.g. CPU0 for policy0).
+CREATE PERFETTO TABLE _cpu_for_2d_static AS
+SELECT
+  min(cpu) AS cpu
+FROM _cpus_with_dependency;
+
 CREATE PERFETTO TABLE _filtered_curves_1d AS
 SELECT
   policy,
@@ -168,68 +231,3 @@ SELECT
 FROM _gpu_filtered_curves_raw;
 
 CREATE PERFETTO INDEX gpu_freq ON _gpu_filtered_curves(freq_khz, idle);
-
--- Gets the active curve value dependency of the minimum frequency/voltage vote
-CREATE PERFETTO TABLE _min_active_curve_value_for_dependency AS
-SELECT
-  curve_value AS min_dependency
-FROM _filtered_curves_1d
-WHERE
-  idle = -1
-ORDER BY
-  freq_khz ASC
-LIMIT 1;
-
-CREATE PERFETTO TABLE _cpus_with_no_dependency AS
-SELECT DISTINCT
-  cpu
-FROM _dev_cpu_policy_map
-JOIN _filtered_curves_1d
-  USING (policy);
-
-CREATE PERFETTO TABLE _cpus_with_dependency AS
-WITH
-  base AS (
-    SELECT DISTINCT
-      cpu
-    FROM _dev_cpu_policy_map
-    WHERE
-      NOT cpu IN (
-        SELECT
-          cpu
-        FROM _cpus_with_no_dependency
-      )
-  )
-SELECT
-  cpu
-FROM base
-UNION ALL
--- If no CPUs at all with 2D dependency, then the remaining CPUs (e.g. all CPUs
--- with no dependency) need to accounted for in static power calculations
-SELECT
-  cpu
-FROM _cpus_with_no_dependency
-WHERE
-  NOT EXISTS(
-    SELECT
-      1
-    FROM base
-  );
-
--- Find the exemplar CPU for the policy with no freq/voltage dependency. The CPU
--- managing the policy is the first CPU that comes online for a given policy.
--- This is usually the min(CPU #) since Linux initializes CPUs in ascending
--- order (e.g. CPU4 for policy4).
-CREATE PERFETTO TABLE _cpu_for_1d_static AS
-SELECT
-  min(cpu) AS cpu
-FROM _cpus_with_no_dependency;
-
--- Find the exemplar CPU for the policy with a freq/voltage dependency. The CPU
--- managing the policy is the first CPU that comes online for a given policy.
--- This is usually the min(CPU #) since Linux initializes CPUs in ascending
--- order (e.g. CPU0 for policy0).
-CREATE PERFETTO TABLE _cpu_for_2d_static AS
-SELECT
-  min(cpu) AS cpu
-FROM _cpus_with_dependency;
