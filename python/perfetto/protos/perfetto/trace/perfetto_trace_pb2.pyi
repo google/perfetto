@@ -5045,18 +5045,20 @@ class EtwConfig(_message.Message):
     def __init__(self, kernel_flags: _Optional[_Iterable[_Union[EtwConfig.KernelFlag, str]]] = ..., scheduler_provider_events: _Optional[_Iterable[str]] = ..., memory_provider_events: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class EtwTraceEvent(_message.Message):
-    __slots__ = ["c_switch", "cpu", "ready_thread", "thread_id", "timestamp"]
+    __slots__ = ["c_switch", "cpu", "mem_info", "ready_thread", "thread_id", "timestamp"]
     CPU_FIELD_NUMBER: _ClassVar[int]
     C_SWITCH_FIELD_NUMBER: _ClassVar[int]
+    MEM_INFO_FIELD_NUMBER: _ClassVar[int]
     READY_THREAD_FIELD_NUMBER: _ClassVar[int]
     THREAD_ID_FIELD_NUMBER: _ClassVar[int]
     TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
     c_switch: CSwitchEtwEvent
     cpu: int
+    mem_info: MemInfoEtwEvent
     ready_thread: ReadyThreadEtwEvent
     thread_id: int
     timestamp: int
-    def __init__(self, timestamp: _Optional[int] = ..., cpu: _Optional[int] = ..., thread_id: _Optional[int] = ..., c_switch: _Optional[_Union[CSwitchEtwEvent, _Mapping]] = ..., ready_thread: _Optional[_Union[ReadyThreadEtwEvent, _Mapping]] = ...) -> None: ...
+    def __init__(self, timestamp: _Optional[int] = ..., cpu: _Optional[int] = ..., thread_id: _Optional[int] = ..., c_switch: _Optional[_Union[CSwitchEtwEvent, _Mapping]] = ..., ready_thread: _Optional[_Union[ReadyThreadEtwEvent, _Mapping]] = ..., mem_info: _Optional[_Union[MemInfoEtwEvent, _Mapping]] = ...) -> None: ...
 
 class EtwTraceEventBundle(_message.Message):
     __slots__ = ["cpu", "event"]
@@ -12067,6 +12069,36 @@ class MdpVideoUnderrunDoneFtraceEvent(_message.Message):
     ctl_num: int
     underrun_cnt: int
     def __init__(self, ctl_num: _Optional[int] = ..., underrun_cnt: _Optional[int] = ...) -> None: ...
+
+class MemInfoEtwEvent(_message.Message):
+    __slots__ = ["bad_page_count", "commit_page_count", "free_page_count", "mdl_page_count", "modified_no_write_page_count", "modified_page_count", "modified_page_count_page_file", "non_paged_pool_page_count", "paged_pool_page_count", "priority_levels", "repurposed_page_counts", "standby_page_counts", "zero_page_count"]
+    BAD_PAGE_COUNT_FIELD_NUMBER: _ClassVar[int]
+    COMMIT_PAGE_COUNT_FIELD_NUMBER: _ClassVar[int]
+    FREE_PAGE_COUNT_FIELD_NUMBER: _ClassVar[int]
+    MDL_PAGE_COUNT_FIELD_NUMBER: _ClassVar[int]
+    MODIFIED_NO_WRITE_PAGE_COUNT_FIELD_NUMBER: _ClassVar[int]
+    MODIFIED_PAGE_COUNT_FIELD_NUMBER: _ClassVar[int]
+    MODIFIED_PAGE_COUNT_PAGE_FILE_FIELD_NUMBER: _ClassVar[int]
+    NON_PAGED_POOL_PAGE_COUNT_FIELD_NUMBER: _ClassVar[int]
+    PAGED_POOL_PAGE_COUNT_FIELD_NUMBER: _ClassVar[int]
+    PRIORITY_LEVELS_FIELD_NUMBER: _ClassVar[int]
+    REPURPOSED_PAGE_COUNTS_FIELD_NUMBER: _ClassVar[int]
+    STANDBY_PAGE_COUNTS_FIELD_NUMBER: _ClassVar[int]
+    ZERO_PAGE_COUNT_FIELD_NUMBER: _ClassVar[int]
+    bad_page_count: int
+    commit_page_count: int
+    free_page_count: int
+    mdl_page_count: int
+    modified_no_write_page_count: int
+    modified_page_count: int
+    modified_page_count_page_file: int
+    non_paged_pool_page_count: int
+    paged_pool_page_count: int
+    priority_levels: int
+    repurposed_page_counts: _containers.RepeatedScalarFieldContainer[int]
+    standby_page_counts: _containers.RepeatedScalarFieldContainer[int]
+    zero_page_count: int
+    def __init__(self, priority_levels: _Optional[int] = ..., zero_page_count: _Optional[int] = ..., free_page_count: _Optional[int] = ..., modified_page_count: _Optional[int] = ..., modified_no_write_page_count: _Optional[int] = ..., bad_page_count: _Optional[int] = ..., standby_page_counts: _Optional[_Iterable[int]] = ..., repurposed_page_counts: _Optional[_Iterable[int]] = ..., modified_page_count_page_file: _Optional[int] = ..., paged_pool_page_count: _Optional[int] = ..., non_paged_pool_page_count: _Optional[int] = ..., mdl_page_count: _Optional[int] = ..., commit_page_count: _Optional[int] = ...) -> None: ...
 
 class MemoryTrackerSnapshot(_message.Message):
     __slots__ = ["global_dump_id", "level_of_detail", "process_memory_dumps"]
