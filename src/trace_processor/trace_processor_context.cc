@@ -109,11 +109,35 @@ void CopyTraceState(const TraceProcessorContext* source,
   dest->content_analyzer = source->content_analyzer.Fork();
 }
 
+Ptr<TraceSorter> CreateSorter(TraceProcessorContext* context,
+                              const Config& config) {
+  TraceSorter::EventHandling event_handling;
+  switch (config.parsing_mode) {
+    case ParsingMode::kDefault:
+      event_handling = TraceSorter::EventHandling::kSortAndPush;
+      break;
+    case ParsingMode::kTokenizeOnly:
+      event_handling = TraceSorter::EventHandling::kDrop;
+      break;
+    case ParsingMode::kTokenizeAndSort:
+      event_handling = TraceSorter::EventHandling::kSortAndDrop;
+      break;
+  }
+  if (config.enable_dev_features) {
+    auto it = config.dev_flags.find("drop-after-sort");
+    if (it != config.dev_flags.end() && it->second == "true") {
+      event_handling = TraceSorter::EventHandling::kSortAndDrop;
+    }
+  }
+  return Ptr<TraceSorter>::MakeRoot(context, TraceSorter::SortingMode::kDefault,
+                                    event_handling);
+}
+
 void InitGlobalState(TraceProcessorContext* context, const Config& config) {
   // Global state.
   context->config = config;
   context->storage = Ptr<TraceStorage>::MakeRoot(config);
-  context->sorter = nullptr;
+  context->sorter = CreateSorter(context, config);
   context->reader_registry = Ptr<TraceReaderRegistry>::MakeRoot();
   context->global_args_tracker =
       Ptr<GlobalArgsTracker>::MakeRoot(context->storage.get());
@@ -121,10 +145,8 @@ void InitGlobalState(TraceProcessorContext* context, const Config& config) {
   context->descriptor_pool_ = Ptr<DescriptorPool>::MakeRoot();
   context->forked_context_state =
       Ptr<TraceProcessorContext::ForkedContextState>::MakeRoot();
-  context->register_additional_proto_modules = nullptr;
-
-  // Root state.
   context->clock_converter = Ptr<ClockConverter>::MakeRoot(context);
+  context->register_additional_proto_modules = nullptr;
 
   // Per-Trace State (Miscategorized).
   context->metadata_tracker =
@@ -146,17 +168,15 @@ void CopyGlobalState(const TraceProcessorContext* source,
   dest->trace_file_tracker = source->trace_file_tracker.Fork();
   dest->descriptor_pool_ = source->descriptor_pool_.Fork();
   dest->forked_context_state = source->forked_context_state.Fork();
+  dest->clock_converter = source->clock_converter.Fork();
   dest->register_additional_proto_modules =
       source->register_additional_proto_modules;
-
-  // Intentionally do *not* copy the root state. It should only exist on the
-  // root context.
 
   // Per-Trace State (Miscategorized).
   dest->metadata_tracker = source->metadata_tracker.Fork();
   dest->registered_file_tracker = source->registered_file_tracker.Fork();
-  dest->heap_graph_tracker = source->heap_graph_tracker.Fork();
   dest->uuid_state = source->uuid_state.Fork();
+  dest->heap_graph_tracker = source->heap_graph_tracker.Fork();
 }
 
 }  // namespace
@@ -183,7 +203,6 @@ TraceProcessorContext* TraceProcessorContext::ForkContextForTrace(
                                                       context.get());
     if (trace_inserted) {
       InitPerTraceState(context.get(), raw_trace_id);
-      *trace_it = context.get();
     } else {
       CopyTraceState(*trace_it, context.get());
     }
@@ -194,7 +213,6 @@ TraceProcessorContext* TraceProcessorContext::ForkContextForTrace(
                                                         context.get());
     if (machine_inserted) {
       InitPerMachineState(context.get(), default_raw_machine_id);
-      *machine_it = context.get();
     } else {
       CopyPerMachineState(*machine_it, context.get());
     }
@@ -224,9 +242,6 @@ std::optional<MachineId> TraceProcessorContext::machine_id() const {
 }
 
 void TraceProcessorContext::DestroyParsingState() {
-  // This should only be called on the root context.
-  PERFETTO_CHECK(forked_context_state);
-
   auto _storage = std::move(storage);
 
   // TODO(b/309623584): Decouple from storage and remove from here. This

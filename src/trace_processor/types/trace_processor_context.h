@@ -137,6 +137,7 @@ class TraceProcessorContext {
   GlobalPtr<TraceFileTracker> trace_file_tracker;
   GlobalPtr<DescriptorPool> descriptor_pool_;
   GlobalPtr<ForkedContextState> forked_context_state;
+  GlobalPtr<ClockConverter> clock_converter;
 
   // The registration function for additional proto modules.
   // This is populated by TraceProcessorImpl to allow for late registration of
@@ -158,12 +159,6 @@ class TraceProcessorContext {
   GlobalPtr<RegisteredFileTracker> registered_file_tracker;
   GlobalPtr<UuidState> uuid_state;
   GlobalPtr<Destructible> heap_graph_tracker;  // HeapGraphTracker
-
-  // Root state
-  // ============
-  //
-  // Only exists on the root TraceProcessorContext.
-  RootPtr<ClockConverter> clock_converter;
 
   // Per-Trace State
   // ==========================

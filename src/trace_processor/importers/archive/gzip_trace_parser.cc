@@ -61,8 +61,8 @@ base::Status GzipTraceParser::ParseUnowned(const uint8_t* data, size_t size) {
 
   if (!inner_) {
     PERFETTO_CHECK(context_);
-    inner_ = std::make_unique<ForwardingTraceParser>(
-        context_, context_->trace_file_tracker->AddFile());
+    inner_.reset(new ForwardingTraceParser(
+        context_, context_->trace_file_tracker->AddFile("")));
   }
 
   if (!first_chunk_parsed_) {
