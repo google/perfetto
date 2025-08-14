@@ -42,6 +42,14 @@ WITH
       ("Tensor G4", 5, 110000),
       ("Tensor G4", 6, 110000),
       ("Tensor G4", 7, 400000),
+      ("Tensor G5", 0, 0),
+      ("Tensor G5", 1, 0),
+      ("Tensor G5", 2, 0),
+      ("Tensor G5", 3, 0),
+      ("Tensor G5", 4, 0),
+      ("Tensor G5", 5, 0),
+      ("Tensor G5", 6, 0),
+      ("Tensor G5", 7, 0),
       ("neo", 0, 100000),
       ("neo", 1, 100000),
       ("neo", 2, 100000),
@@ -139,6 +147,14 @@ WITH
       ("Tensor G4", 5, 4),
       ("Tensor G4", 6, 4),
       ("Tensor G4", 7, 7),
+      ("Tensor G5", 0, 0),
+      ("Tensor G5", 1, 0),
+      ("Tensor G5", 2, 2),
+      ("Tensor G5", 3, 2),
+      ("Tensor G5", 4, 2),
+      ("Tensor G5", 5, 5),
+      ("Tensor G5", 6, 5),
+      ("Tensor G5", 7, 7),
       ("neo", 0, 0),
       ("neo", 1, 0),
       ("neo", 2, 0),
@@ -178,7 +194,8 @@ WITH
     SELECT
       *
     FROM (VALUES
-      ("Tensor G4")) AS _values
+      ("Tensor G4"),
+      ("Tensor G5")) AS _values
   )
 SELECT
   *

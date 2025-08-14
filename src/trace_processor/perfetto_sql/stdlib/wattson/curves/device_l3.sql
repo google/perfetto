@@ -12,6 +12,7 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
+INCLUDE PERFETTO MODULE wattson.curves.tg5_l3;
 
 CREATE PERFETTO TABLE _device_curves_l3 AS
 WITH
@@ -422,4 +423,8 @@ WITH
   )
 SELECT
   *
-FROM data;
+FROM data
+UNION ALL
+SELECT
+  *
+FROM _tg5_l3_lut;
