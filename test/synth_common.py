@@ -537,7 +537,7 @@ class Trace(object):
       process_type=None,
       host_app_package_name="org.chromium.chrome"):
     if process_type is None:
-      process_type = self.prototypes.ChromeProcessDescriptor \
+      process_type = self.prototypes.ChromeEnums \
         .ProcessType \
         .PROCESS_RENDERER
 
@@ -873,6 +873,11 @@ def create_trace():
         setattr(res, desc.name, desc.number)
       return res
 
+  ChromeEnums = namedtuple('ChromeEnums', [
+      'ProcessType',
+      'ThreadType',
+  ])
+
   ChromeLatencyInfo = namedtuple('ChromeLatencyInfo', [
       'ComponentType',
       'Step',
@@ -880,6 +885,7 @@ def create_trace():
 
   Prototypes = namedtuple('Prototypes', [
       'TrackEvent',
+      'ChromeEnums',
       'ChromeRAILMode',
       'ChromeLatencyInfo',
       'ChromeProcessDescriptor',
@@ -899,6 +905,14 @@ def create_trace():
   prototypes = Prototypes(
       TrackEvent=get_message_class(
           pool, pool.FindMessageTypeByName('perfetto.protos.TrackEvent')),
+      ChromeEnums=ChromeEnums(
+          ProcessType=EnumPrototype.from_descriptor(
+              pool.FindEnumTypeByName(
+                  'perfetto.protos.chrome_enums.ProcessType')),
+          ThreadType=EnumPrototype.from_descriptor(
+              pool.FindEnumTypeByName(
+                  'perfetto.protos.chrome_enums.ThreadType')),
+      ),
       ChromeRAILMode=EnumPrototype.from_descriptor(
           pool.FindEnumTypeByName('perfetto.protos.ChromeRAILMode')),
       ChromeLatencyInfo=chrome_latency_info_prototypes,
