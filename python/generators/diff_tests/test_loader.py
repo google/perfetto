@@ -36,7 +36,7 @@ class TestLoader:
     self.warning_tests: List[Tuple[str, str]] = []
 
   def discover_and_load_tests(self, name_filter: str,
-                              modules: Set[str]) -> List[TestCase]:
+                              current_modules: Set[str]) -> List[TestCase]:
     self.skipped_tests = []
     self.warning_tests = []
     # Import the index file to discover all the tests.
@@ -51,7 +51,7 @@ class TestLoader:
     tests = []
     for name, blueprint in all_tests_data:
       should_run, reason, is_warning = self._validate_test(
-          name, name_filter, blueprint, modules)
+          name, name_filter, blueprint, current_modules)
       if not should_run:
         if reason:
           if is_warning:
@@ -74,14 +74,14 @@ class TestLoader:
 
   def _validate_test(self, name: str, name_filter: str,
                      blueprint: DiffTestBlueprint,
-                     modules: Set[str]) -> Tuple[bool, Optional[str], bool]:
+                     current_modules: Set[str]) -> Tuple[bool, Optional[str], bool]:
     query_metric_pattern = re.compile(name_filter)
     if not query_metric_pattern.match(os.path.basename(name)):
       return False, None, False
 
-    if blueprint.modules:
-      for module in blueprint.modules:
-        if module not in modules:
+    if blueprint.module_dependencies:
+      for module in blueprint.module_dependencies:
+        if module not in current_modules:
           return False, f"module '{module}' not found", False
 
     return True, None, False

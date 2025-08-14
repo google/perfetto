@@ -88,18 +88,18 @@ class DiffTestsRunner:
   def __init__(self, config: Config):
     self.config = config
     self.test_loader = TestLoader(os.path.abspath(self.config.test_dir))
-    self.modules = self._get_build_config()
+    self.current_modules = self._get_build_config()
 
   def run(self) -> TestResults:
     # Discover all tests first to get the total count.
-    all_tests = self.test_loader.discover_and_load_tests('.*', self.modules)
+    all_tests = self.test_loader.discover_and_load_tests('.*', self.current_modules)
     total_tests_to_run_no_filter = len(all_tests)
     skipped_no_filter = len(self.test_loader.skipped_tests)
     warning_no_filter = len(self.test_loader.warning_tests)
 
     # Now filter the tests to get the ones that will actually run.
     tests = self.test_loader.discover_and_load_tests(self.config.name_filter,
-                                                     self.modules)
+                                                     self.current_modules)
     total_tests_to_run_filter = len(tests)
 
     sys.stderr.write(

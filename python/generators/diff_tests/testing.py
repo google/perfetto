@@ -139,8 +139,8 @@ class DiffTestBlueprint:
   out: Union[Path, DataPath, Json, Csv, TextProto, BinaryProto]
   trace_modifier: Union[TraceInjector, None] = None
   register_files_dir: Optional[DataPath] = None
-  # If set, this test will only be run if all of these modules are enabled.
-  modules: Optional[List[str]] = None
+  # If set, this test will only be run if all of these module_dependencies are enabled.
+  module_dependencies: Optional[List[str]] = None
   index_dir: str = ''
   test_data_dir: str = ''
 

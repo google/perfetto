@@ -25,7 +25,7 @@ class Symbolize(TestSuite):
     return DiffTestBlueprint(
         register_files_dir=DataPath('simpleperf/bin'),
         trace=DataPath('simpleperf/cs_etm_u.perf'),
-        modules=['llvm_symbolizer'],
+        module_dependencies=['llvm_symbolizer'],
         query="""
         INCLUDE PERFETTO MODULE callstacks.symbolize;
         INCLUDE PERFETTO MODULE linux.perf.etm;
@@ -66,7 +66,7 @@ class Symbolize(TestSuite):
     return DiffTestBlueprint(
         register_files_dir=DataPath('simpleperf/bin'),
         trace=DataPath('simpleperf/cs_etm_u.perf'),
-        modules=['llvm_symbolizer'],
+        module_dependencies=['llvm_symbolizer'],
         query="""
         INCLUDE PERFETTO MODULE callstacks.symbolize;
 
