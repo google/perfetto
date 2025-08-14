@@ -30,6 +30,7 @@ namespace perfetto::trace_processor {
 
 class SymbolTracker {
  public:
+  // DSO = Dynamic Shared Object.
   struct Dso {
     uint64_t load_bias;
     AddressRangeMap<std::string> symbols;
