@@ -28,7 +28,7 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 45
     env:
-      PERFETTO_CI_BUILD_CACHE_KEY: build-cache-bazel
+      PERFETTO_CI_BUILD_CACHE_KEY: build-cache-bazel-debug-branch-deps
       PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-bazel
     steps:
       - uses: actions/checkout@v4
@@ -75,7 +75,7 @@ jobs:
           ./bazel-bin/trace_processor_shell -q <(echo 'select count(1) from sched') $TRACE
 
       - name: Update cache (if on main)
-        if: github.ref == 'refs/heads/main'
+        if: github.ref != ''
         uses: ./.github/actions/cache-on-google-cloud-storage/save
         with:
           directory: ${{ env.PERFETTO_CACHE_DIR }}
