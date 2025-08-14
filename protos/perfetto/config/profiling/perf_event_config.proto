@@ -100,7 +100,7 @@ message PerfEventConfig {
   // If unset, an implementation-defined default is used.
   optional uint32 remote_descriptor_timeout_ms = 9;
 
-  // Optional period for clearing state cached by the userpsace unwinder. This
+  // Optional period for clearing state cached by the userspace unwinder. This
   // is a heavy operation that is only necessary for traces that target a wide
   // set of processes, and require the memory footprint to be reset
   // periodically.
