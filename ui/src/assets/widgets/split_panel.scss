@@ -1,4 +1,4 @@
-// Copyright (C) 2024 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@import "../theme";
+
 .pf-split-panel {
-  height: 100%; // Fill parent container
+  height: 100%;
   display: flex;
   flex-direction: column;
 
@@ -28,26 +30,70 @@
   }
 
   &__handle {
+    gap: 4px;
     background-color: var(--pf-color-background-secondary);
     border-top: 1px solid var(--pf-color-border);
     cursor: row-resize;
-    // Disable user selection since this handle is draggable to resize the
-    // bottom panels.
-    user-select: none;
     display: flex;
-    font-size: 22px;
     align-items: baseline;
     padding-inline: 2px;
+    align-items: center;
+    border-bottom: 1px solid var(--pf-color-border);
   }
 
-  &__handle-content {
-    flex: 1; // Expand to fill the remaining space
+  &__tabs {
+    display: flex;
     overflow: hidden;
+    flex: 1;
+    align-self: flex-end;
+    margin-bottom: -1px;
+  }
+
+  &__tab {
+    font-family: var(--pf-font-compact);
+    padding: 5px;
+    margin-top: 2px;
+    align-items: center;
+    cursor: pointer;
+    font-size: 14px;
+    border-radius: 3px 3px 0 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    border-color: var(--pf-color-border-secondary);
+    border-width: 1px 1px 0 1px;
+    border-style: solid;
+
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+
+    &:not(:first-child) {
+      margin-left: -1px;
+    }
+
+    &:hover {
+      background: color_hover(transparent);
+    }
+
+    &.pf-split-panel__tab--active {
+      background-color: var(--pf-color-background);
+      cursor: default;
+      box-shadow: var(--pf-color-box-shadow) 0px 0px 4px;
+      border-color: var(--pf-color-border);
+      z-index: 1;
+    }
+  }
+
+  &__tab-title {
+    margin: 0px 4px;
+    overflow: hidden;
+    user-select: none;
   }
 
   &__drawer {
     flex-shrink: 0;
     overflow: auto;
-    box-shadow: var(--pf-color-box-shadow) 0px 0px 3px 1px;
+    box-shadow: var(--pf-color-box-shadow) 0px 0px 4px;
   }
 }
