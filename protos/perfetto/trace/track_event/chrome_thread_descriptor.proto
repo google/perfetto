@@ -24,6 +24,9 @@ package perfetto.protos;
 //
 // Next id: 3.
 message ChromeThreadDescriptor {
+  // Chrome `thread_type` field converted to an extension in
+  // https://source.chromium.org/chromium/chromium/src/+/main:base/tracing/protos/chrome_descriptor_extensions.proto.
+  // New extensions should go in track_event.proto instead.
   extensions 1;
 
   // To support old UI. New UI should determine default sorting by thread_type.
