@@ -74,6 +74,24 @@ jobs:
           kill $(jobs -p)
           ./bazel-bin/trace_processor_shell -q <(echo 'select count(1) from sched') $TRACE
 
+      - name: Create AVD for Android Instrumentation Tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          arch: x86_64
+          profile: Pixel 9 Pro
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            adb devices
+            adb shell getprop | grep 'ro.build'
+
+      - name: Bazel Android Instrumentation Tests
+        shell: bash
+        run: |
+          echo "Fake running tests..."
+          adb devices
+          adb shell getprop | grep 'ro.build'
+
       - name: Update cache (if on main)
         if: github.ref == 'refs/heads/main'
         uses: ./.github/actions/cache-on-google-cloud-storage/save
