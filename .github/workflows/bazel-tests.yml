@@ -37,6 +37,7 @@ jobs:
     env:
       PERFETTO_CI_BUILD_CACHE_KEY: build-cache-bazel
       PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-bazel
+      ANDROID_HOME: buildtools/android_sdk
     steps:
       - uses: actions/checkout@v4
         with:
@@ -60,10 +61,18 @@ jobs:
 #          directory: ${{ env.PERFETTO_CACHE_DIR }}
 #          cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
 #
-#      - uses: ./.github/actions/install-build-deps
-#        with:
-#          install-flags: --bazel
-#
+      - uses: ./.github/actions/install-build-deps
+        with:
+          install-flags: --bazel
+
+      - name: Run ADB from buildtools
+        shell: bash
+        run: |
+          echo "absolute path:"
+          buildtools/android_sdk/platform-tools/adb --version
+          echo "relative path:"
+          adb --version
+
 #      - name: Build Bazel
 #        shell: bash
 #        run: |
