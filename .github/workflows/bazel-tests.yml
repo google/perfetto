@@ -37,7 +37,7 @@ jobs:
     env:
       PERFETTO_CI_BUILD_CACHE_KEY: build-cache-bazel
       PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-bazel
-      ANDROID_HOME: buildtools/android_sdk
+#      ANDROID_HOME: buildtools/android_sdk
     steps:
       - uses: actions/checkout@v4
         with:
