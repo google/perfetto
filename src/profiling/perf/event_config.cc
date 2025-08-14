@@ -39,16 +39,17 @@ constexpr uint64_t kDefaultSamplingFrequencyHz = 10;
 constexpr uint32_t kDefaultDataPagesPerRingBuffer = 256;  // 1 MB: 256x 4k pages
 constexpr uint32_t kDefaultReadTickPeriodMs = 100;
 constexpr uint32_t kDefaultRemoteDescriptorTimeoutMs = 100;
+constexpr uint32_t kDefaultUnwindStateClearPeriodMs = 300000;  // 5 mins
 
 // Acceptable forms: "sched/sched_switch" or "sched:sched_switch".
 std::pair<std::string, std::string> SplitTracepointString(
     const std::string& input) {
-  auto slash_pos = input.find("/");
+  auto slash_pos = input.find('/');
   if (slash_pos != std::string::npos)
     return std::make_pair(input.substr(0, slash_pos),
                           input.substr(slash_pos + 1));
 
-  auto colon_pos = input.find(":");
+  auto colon_pos = input.find(':');
   if (colon_pos != std::string::npos)
     return std::make_pair(input.substr(0, colon_pos),
                           input.substr(colon_pos + 1));
@@ -60,7 +61,7 @@ std::pair<std::string, std::string> SplitTracepointString(
 std::optional<uint32_t> ParseTracepointAndResolveId(
     const protos::gen::PerfEvents::Tracepoint& tracepoint,
     const EventConfig::tracepoint_id_fn_t& tracepoint_id_lookup) {
-  std::string full_name = tracepoint.name();
+  const std::string& full_name = tracepoint.name();
   std::string tp_group;
   std::string tp_name;
   std::tie(tp_group, tp_name) = SplitTracepointString(full_name);
@@ -439,8 +440,8 @@ std::optional<EventConfig> EventConfig::CreatePolling(
       /*unwind_mode=*/protos::gen::PerfEventConfig::UNWIND_SKIP,
       /*target_filter=*/{}, /*ring_buffer_pages=*/0, poll_period_ms,
       /*samples_per_tick_limit=*/1, /*remote_descriptor_timeout_ms=*/0,
-      /*unwind_state_clear_period_ms=*/0, /*max_enqueued_footprint_bytes=*/0,
-      /*target_installed_by=*/{});
+      /*unwind_state_clear_period_ms=*/0,
+      /*max_enqueued_footprint_bytes=*/0, /*target_installed_by=*/{});
 }
 
 // static
@@ -534,11 +535,16 @@ std::optional<EventConfig> EventConfig::CreateSampling(
   uint64_t max_enqueued_footprint_bytes =
       pb_config.max_enqueued_footprint_kb() * 1024;
 
-  // Android-specific options.
+  // Android-specific option.
   uint32_t remote_descriptor_timeout_ms =
       pb_config.remote_descriptor_timeout_ms()
           ? pb_config.remote_descriptor_timeout_ms()
           : kDefaultRemoteDescriptorTimeoutMs;
+
+  uint32_t unwind_state_clear_period_ms =
+      pb_config.unwind_state_clear_period_ms()
+          ? pb_config.unwind_state_clear_period_ms()
+          : kDefaultUnwindStateClearPeriodMs;
 
   // Build the underlying syscall config struct.
   perf_event_attr pe = {};
@@ -609,7 +615,7 @@ std::optional<EventConfig> EventConfig::CreateSampling(
       std::move(followers), RecordingMode::kSampling, kernel_frames,
       unwind_mode, std::move(target_filter), ring_buffer_pages.value(),
       read_tick_period_ms, samples_per_tick_limit, remote_descriptor_timeout_ms,
-      pb_config.unwind_state_clear_period_ms(), max_enqueued_footprint_bytes,
+      unwind_state_clear_period_ms, max_enqueued_footprint_bytes,
       pb_config.target_installed_by());
 }
 
