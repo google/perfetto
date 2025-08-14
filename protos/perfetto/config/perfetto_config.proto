@@ -2064,7 +2064,8 @@ message PerfEventConfig {
   // Optional period for clearing state cached by the userspace unwinder. This
   // is a heavy operation that is only necessary for traces that target a wide
   // set of processes, and require the memory footprint to be reset
-  // periodically.
+  // periodically. To effectively disable the cache clearing, set to a value
+  // greater than your trace duration.
   //
   // Relevant only if |callstack_sampling.user_frames| is set to UNWIND_DWARF.
   //
