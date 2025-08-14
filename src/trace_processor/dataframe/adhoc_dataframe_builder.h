@@ -100,16 +100,6 @@ class AdhocDataframeBuilder {
     kDouble,
     kString,
   };
-  struct IntegerColumnSummary {
-    uint32_t count = 0;
-    bool is_id_sorted = true;
-    bool is_setid_sorted = true;
-    bool is_sorted = true;
-    int64_t min = 0;
-    int64_t max = 0;
-    bool has_duplicates = false;
-    bool is_nullable = false;
-  };
 
   // Constructs a AdhocDataframeBuilder.
   //
@@ -268,7 +258,6 @@ class AdhocDataframeBuilder {
           summary.has_duplicates =
               data.empty() ? false : CheckDuplicate(data[0], data.size());
           summary.is_nullable = state.null_overlay.has_value();
-          summary.count = static_cast<uint32_t>(data.size());
           for (uint32_t j = 1; j < data.size(); ++j) {
             summary.is_id_sorted = summary.is_id_sorted && (data[j] == j);
             summary.is_setid_sorted = summary.is_setid_sorted &&
@@ -374,23 +363,6 @@ class AdhocDataframeBuilder {
   //                        an error occurred during a previous `AddRow` call.
   const base::Status& status() const { return current_status_; }
 
-  // Exposed for unit-testing.
-  static impl::SpecializedStorage BuildSmallValueEqForTesting(
-      const impl::FlexVector<uint32_t>& data,
-      const IntegerColumnSummary& summary) {
-    return BuildSmallValueEq(data, summary);
-  }
-  static impl::SpecializedStorage BuildSmallValueEqNoDupForTesting(
-      const impl::FlexVector<uint32_t>& data,
-      const IntegerColumnSummary& summary) {
-    return BuildSmallValueEqNoDup(data, summary);
-  }
-  static impl::SpecializedStorage BuildSmallValueEqSortedNoDupForTesting(
-      const impl::FlexVector<uint32_t>& data,
-      const IntegerColumnSummary& summary) {
-    return BuildSmallValueEqSortedNoDup(data, summary);
-  }
-
  private:
   struct Null {};
   using DataVariant = std::variant<std::nullopt_t,
@@ -400,6 +372,15 @@ class AdhocDataframeBuilder {
   struct ColumnState {
     DataVariant data = std::nullopt;
     std::optional<impl::BitVector> null_overlay;
+  };
+  struct IntegerColumnSummary {
+    bool is_id_sorted = true;
+    bool is_setid_sorted = true;
+    bool is_sorted = true;
+    int64_t min = 0;
+    int64_t max = 0;
+    bool has_duplicates = false;
+    bool is_nullable = false;
   };
 
   static constexpr bool IsPerfectlyRepresentableAsDouble(int64_t res) {
@@ -571,109 +552,38 @@ class AdhocDataframeBuilder {
       const impl::Storage& storage,
       const IntegerColumnSummary& summary) {
     // If we're already sorted or setid_sorted, we don't need specialized
-    // storage of any sorted.
+    // storage.
     if (summary.is_id_sorted || summary.is_setid_sorted) {
-      return {};
+      return impl::SpecializedStorage{};
     }
 
     // Check if we meet the hard conditions for small value eq.
-    //
-    // For memory reasons, we only use small value eq if the ratio between
-    // the maximum value and the number of values is "small enough".
-    if (storage.type().Is<Uint32>() && !summary.is_nullable &&
-        summary.count > 0 &&
-        static_cast<uint32_t>(summary.max) < 16 * summary.count) {
+    if (storage.type().Is<Uint32>() && summary.is_sorted &&
+        !summary.is_nullable && !summary.has_duplicates) {
       const auto& vec = storage.unchecked_get<Uint32>();
 
-      // Most optimized: if we are sorted and no-duplicates, we can use a
-      // Bitvector based approach.
-      if (summary.is_sorted && !summary.has_duplicates) {
-        return BuildSmallValueEqSortedNoDup(vec, summary);
+      // For memory reasons, we only use small value eq if the ratio between
+      // the maximum value and the number of values is "small enough".
+      if (static_cast<uint32_t>(summary.max) < 16 * vec.size()) {
+        return BuildSmallValueEq(vec);
       }
-      // Still optimized: if no-duplicates, we can use a single index vector.
-      if (!summary.has_duplicates) {
-        return BuildSmallValueEqNoDup(vec, summary);
-      }
-      // Otherwise, we need a dual index vector approach.
-      return BuildSmallValueEq(vec, summary);
     }
-    return {};
+    // Otherwise, we cannot use specialized storage.
+    return impl::SpecializedStorage{};
   }
 
-  // Builds a specialized storage for a column which is sorted, has no
-  // duplicates and has a small range of values.
-  PERFETTO_NO_INLINE static impl::SpecializedStorage
-  BuildSmallValueEqSortedNoDup(const impl::FlexVector<uint32_t>& data,
-                               const IntegerColumnSummary& summary) {
-    impl::SpecializedStorage::SmallValueEqSortedNoDup offset_bv{
-        impl::BitVector::CreateWithSize(static_cast<uint32_t>(summary.max) + 1),
+  PERFETTO_NO_INLINE static impl::SpecializedStorage::SmallValueEq
+  BuildSmallValueEq(const impl::FlexVector<uint32_t>& data) {
+    impl::SpecializedStorage::SmallValueEq offset_bv{
+        impl::BitVector::CreateWithSize(data.empty() ? 0 : data.back() + 1,
+                                        false),
         {},
     };
     for (uint32_t i : data) {
       offset_bv.bit_vector.set(i);
     }
     offset_bv.prefix_popcount = offset_bv.bit_vector.PrefixPopcount();
-    return std::move(offset_bv);
-  }
-
-  // Builds a specialized storage for a column which is not-sorted, has no
-  // duplicates and has a small range of values.
-  PERFETTO_NO_INLINE static impl::SpecializedStorage BuildSmallValueEqNoDup(
-      const impl::FlexVector<uint32_t>& data,
-      const IntegerColumnSummary& summary) {
-    auto value_to_index = impl::FlexVector<uint32_t>::CreateWithSize(
-        static_cast<uint32_t>(summary.max) + 1);
-    memset(value_to_index.data(), 0xFF,
-           value_to_index.size() * sizeof(uint32_t));
-    for (uint32_t i = 0; i < data.size(); ++i) {
-      value_to_index[data[i]] = i;
-    }
-    return impl::SpecializedStorage::SmallValueEqNoDup{
-        std::move(value_to_index)};
-  }
-
-  // Builds a specialized storage for a column which is not-sorted, has
-  // duplicates and has a small range of values.
-  //
-  // This function works by performing a modified counting sort. Instead of
-  // sorting the values themselves, we sort the *indices* of the values and
-  // create an "inverted index" which maps each value to the rows it appears
-  // in.
-  PERFETTO_NO_INLINE static impl::SpecializedStorage BuildSmallValueEq(
-      const impl::FlexVector<uint32_t>& data,
-      const IntegerColumnSummary& summary) {
-    auto value_to_indices_start = impl::FlexVector<uint32_t>::CreateWithSize(
-        static_cast<uint32_t>(summary.max) + 2);
-    memset(value_to_indices_start.data(), 0,
-           value_to_indices_start.size() * sizeof(uint32_t));
-
-    // Count the occurrences of each value.
-    for (uint32_t x : data) {
-      ++value_to_indices_start[x];
-    }
-
-    // Calculate the prefix sum of the counts. This gives us the start of the
-    // range of indices for each value.
-    uint32_t sum = 0;
-    for (uint32_t& count : value_to_indices_start) {
-      uint32_t current_count = count;
-      count = sum;
-      sum += current_count;
-    }
-
-    auto indices = impl::FlexVector<uint32_t>::CreateWithSize(data.size());
-    // Use a copy of value_to_indices_start to keep track of the next available
-    // slot.
-    std::vector<uint32_t> next_indices(value_to_indices_start.begin(),
-                                       value_to_indices_start.end());
-    for (uint32_t i = 0; i < data.size(); ++i) {
-      uint32_t val = data[i];
-      uint32_t& index = next_indices[val];
-      indices[index] = i;
-      index++;
-    }
-    return impl::SpecializedStorage(impl::SpecializedStorage::SmallValueEq{
-        std::move(value_to_indices_start), std::move(indices)});
+    return offset_bv;
   }
 
   PERFETTO_NO_INLINE static void EnsureNullOverlayExists(ColumnState& state) {
