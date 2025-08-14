@@ -28,7 +28,7 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 45
     env:
-      PERFETTO_CI_BUILD_CACHE_KEY: build-cache-ui
+      PERFETTO_CI_BUILD_CACHE_KEY: build-cache-ui-debug-branch
       PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-ui
       CI: 1
     steps:
@@ -61,6 +61,10 @@ jobs:
       - name: Setup ccache
         uses: ./.github/actions/setup-ccache
 
+      - name: Print ccache version
+        shell: bash
+        run: ccache --version
+
       - name: Build Perfetto UI
         shell: bash
         run: |
@@ -69,8 +73,7 @@ jobs:
 
       - name: Print ccache stats
         shell: bash
-        run: ccache --show-stats
-
+        run: ccache --show-stats --verbose
 
       - name: UI unittests
         shell: bash
@@ -122,7 +125,7 @@ jobs:
           echo "https://storage.googleapis.com/perfetto-ci-artifacts/$PERFETTO_CI_JOB_ID/ui/index.html"
 
       - name: Update cache (if on main)
-        if: github.ref == 'refs/heads/main'
+        if: github.ref != ''
         uses: ./.github/actions/cache-on-google-cloud-storage/save
         with:
           directory: ${{ env.PERFETTO_CACHE_DIR }}
