@@ -133,6 +133,18 @@ void EventTracker::FlushPendingEvents() {
         }
         break;
       }
+      case base::variant_index<ProcessCounterForThread, DmabufRssStat>(): {
+        if (upid.has_value()) {
+          track_id = context_->track_tracker->InternTrack(
+              tracks::kProcessMemoryBlueprint,
+              tracks::Dimensions(*upid, "dmabuf_rss"));
+        } else {
+          track_id = context_->track_tracker->InternTrack(
+              tracks::kProcessMemoryThreadFallbackBlueprint,
+              tracks::Dimensions(utid, "dmabuf_rss"));
+        }
+        break;
+      }
     }
     auto& counter = *context_->storage->mutable_counter_table();
     counter[pending_counter.row].set_track_id(track_id);
