@@ -341,8 +341,11 @@ function fromString(text: string, sourceCols: ColumnInfo[]): UIFilter {
     .join('|');
 
   // A regex to capture the column, operator and value.
-  // The value is optional to support operators like "IS NULL".
-  const regex = new RegExp(`^(\\S+)\\s+(${opRegex})(?:\\s+(.*))?$`, 'i');
+  // The value can be a quoted string or a single word.
+  const regex = new RegExp(
+    `^(\\S+)\\s+(${opRegex})(?:\\s+(".*?"|'.*?'|\\S+))?$`,
+    'i',
+  );
   const match = text.trim().match(regex);
 
   if (!match) {
@@ -432,6 +435,14 @@ function isValueRequired(op?: FilterOp): boolean {
 function parseFilterValue(text: string): SqlValue | undefined {
   const value = text.trim();
   if (value === '') return undefined;
+
+  // If the value is quoted, remove the quotes.
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
 
   if (value !== '' && !isNaN(Number(value))) {
     return Number(value);
