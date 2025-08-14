@@ -390,13 +390,6 @@ BUILD_DEPS_ANDROID = [
 
 # Dependencies required to run Android tests.
 TEST_DEPS_ANDROID = [
-    # Android emulator images.
-    Dependency(
-        'buildtools/aosp-arm.zip',
-        'https://storage.googleapis.com/perfetto/aosp-02022018-arm.zip',
-        'f5c7a3a22ad7aa0bd14ba467e8697e1e917d306699bd25622aa4419a413b9b67',
-        'all', 'all'),
-
     # platform-tools.zip contains adb binaries.
     Dependency(
         'buildtools/android_sdk/platform-tools.zip',
@@ -408,7 +401,16 @@ TEST_DEPS_ANDROID = [
         'https://dl.google.com/android/repository/platform-tools_r26.0.0-linux.zip',
         '90208207521d85abf0d46e3374aa4e04b7aff74e4f355c792ac334de7a77e50b',
         'linux', 'x64'),
+]
 
+# Emulators required to run Android tests.
+EMULATOR_DEPS_ANDROID = [
+    # Android emulator images.
+    Dependency(
+        'buildtools/aosp-arm.zip',
+        'https://storage.googleapis.com/perfetto/aosp-02022018-arm.zip',
+        'f5c7a3a22ad7aa0bd14ba467e8697e1e917d306699bd25622aa4419a413b9b67',
+        'all', 'all'),
     # Android emulator binaries.
     Dependency(
         'buildtools/emulator',
@@ -505,7 +507,8 @@ BUILD_DEPS_LINUX_CROSS_SYSROOTS = [
 
 ALL_DEPS = (
     BUILD_DEPS_HOST + BUILD_DEPS_BAZEL + BUILD_DEPS_ANDROID +
-    BUILD_DEPS_LINUX_CROSS_SYSROOTS + TEST_DEPS_ANDROID + UI_DEPS)
+    BUILD_DEPS_LINUX_CROSS_SYSROOTS + TEST_DEPS_ANDROID +
+    EMULATOR_DEPS_ANDROID + UI_DEPS)
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 UI_DIR = os.path.join(ROOT_DIR, 'ui')
@@ -799,9 +802,11 @@ def Main():
   if args.bazel:
     # We build Android Java SDK using Bazel, so we need Android build and test
     # deps to do build ":all" targets and run tests.
+    # We don't run Bazel Android tests on the prebuilt emulator, so we don't
+    # need emulator deps.
     deps += BUILD_DEPS_BAZEL + BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID
   if args.android:
-    deps += BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID
+    deps += BUILD_DEPS_ANDROID + TEST_DEPS_ANDROID + EMULATOR_DEPS_ANDROID
   if args.linux_arm:
     deps += BUILD_DEPS_LINUX_CROSS_SYSROOTS
   if args.ui:
