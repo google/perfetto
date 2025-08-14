@@ -25,12 +25,16 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/create_mapping_params.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
+#include "src/trace_processor/importers/common/registered_file_tracker.h"
+#include "src/trace_processor/importers/common/symbol_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/perf/aux_data_tokenizer.h"
 #include "src/trace_processor/importers/perf/auxtrace_info_record.h"
@@ -40,8 +44,11 @@
 #include "src/trace_processor/tables/perf_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 
+#include "protos/third_party/simpleperf/record_file.pbzero.h"
+
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-#include "src/trace_processor/importers/etm/elf_tracker.h"
+#include "src/trace_processor/importers/etm/etm_tracker.h"
+#include "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h"
 #endif
 
 namespace perfetto::trace_processor::perf_importer {
@@ -70,13 +77,14 @@ bool IsBpfMapping(const CreateMappingParams& params) {
 
 }  // namespace
 
-PerfTracker::PerfTracker(TraceProcessorContext* context)
-    : context_(context),
-      mapping_table_(context->storage->stack_profile_mapping_table()) {
+PerfTracker::PerfTracker(TraceProcessorContext* context) : context_(context) {
   RegisterAuxTokenizer(PERF_AUXTRACE_ARM_SPE, &SpeTokenizer::Create);
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
+  etm_tracker_ = std::make_unique<etm::EtmTracker>(context);
+  RegisterAuxTokenizer(PERF_AUXTRACE_CS_ETM,
+                       etm::CreateEtmV4StreamDemultiplexer);
+#endif
 }
-
-PerfTracker::~PerfTracker() = default;
 
 base::StatusOr<std::unique_ptr<AuxDataTokenizer>>
 PerfTracker::CreateAuxDataTokenizer(AuxtraceInfoRecord info) {
@@ -85,14 +93,18 @@ PerfTracker::CreateAuxDataTokenizer(AuxtraceInfoRecord info) {
     return std::unique_ptr<AuxDataTokenizer>(
         new DummyAuxDataTokenizer(context_));
   }
-  return (*it)(context_, std::move(info));
+  etm::EtmTracker* etm_tracker = nullptr;
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
+  etm_tracker = static_cast<etm::EtmTracker*>(etm_tracker_.get());
+#endif
+  return (*it)(context_, etm_tracker, std::move(info));
 }
 
 void PerfTracker::AddSimpleperfFile2(const FileFeature::Decoder& file) {
-  Dso dso;
+  SymbolTracker::Dso dso;
   switch (file.type()) {
     case DsoType::DSO_KERNEL:
-      InsertSymbols(file, kernel_symbols_);
+      InsertSymbols(file, context_->symbol_tracker->kernel_symbols());
       return;
 
     case DsoType::DSO_ELF_FILE: {
@@ -115,58 +127,8 @@ void PerfTracker::AddSimpleperfFile2(const FileFeature::Decoder& file) {
   }
 
   InsertSymbols(file, dso.symbols);
-  files_.Insert(context_->storage->InternString(file.path()), std::move(dso));
-}
-
-void PerfTracker::SymbolizeFrames() {
-  const StringId kEmptyString = context_->storage->InternString("");
-  for (auto frame = context_->storage->mutable_stack_profile_frame_table()
-                        ->IterateRows();
-       frame; ++frame) {
-    if (frame.name() != kNullStringId && frame.name() != kEmptyString) {
-      continue;
-    }
-
-    if (!TrySymbolizeFrame(frame.ToRowReference())) {
-      SymbolizeKernelFrame(frame.ToRowReference());
-    }
-  }
-}
-
-void PerfTracker::SymbolizeKernelFrame(
-    tables::StackProfileFrameTable::RowReference frame) {
-  const auto mapping = *mapping_table_.FindById(frame.mapping());
-  uint64_t address = static_cast<uint64_t>(frame.rel_pc()) +
-                     static_cast<uint64_t>(mapping.start());
-  auto symbol = kernel_symbols_.Find(address);
-  if (symbol == kernel_symbols_.end()) {
-    return;
-  }
-  frame.set_name(
-      context_->storage->InternString(base::StringView(symbol->second)));
-}
-
-bool PerfTracker::TrySymbolizeFrame(
-    tables::StackProfileFrameTable::RowReference frame) {
-  const auto mapping = *mapping_table_.FindById(frame.mapping());
-  auto* file = files_.Find(mapping.name());
-  if (!file) {
-    return false;
-  }
-
-  // Load bias is something we can only determine by looking at the actual elf
-  // file. Thus PERF_RECORD_MMAP{2} events do not record it. So we need to
-  // potentially do an adjustment here if the load_bias tracked in the mapping
-  // table and the one reported by the file are mismatched.
-  uint64_t adj = file->load_bias - static_cast<uint64_t>(mapping.load_bias());
-
-  auto symbol = file->symbols.Find(static_cast<uint64_t>(frame.rel_pc()) + adj);
-  if (symbol == file->symbols.end()) {
-    return false;
-  }
-  frame.set_name(
-      context_->storage->InternString(base::StringView(symbol->second)));
-  return true;
+  context_->symbol_tracker->dsos().Insert(
+      context_->storage->InternString(file.path()), std::move(dso));
 }
 
 void PerfTracker::CreateKernelMemoryMapping(int64_t trace_ts,
@@ -196,21 +158,23 @@ void PerfTracker::AddMapping(int64_t trace_ts,
   row.ts = trace_ts;
   row.upid = upid;
   row.mapping_id = mapping.mapping_id();
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
   if (mapping.build_id()) {
-    if (auto id = etm::ElfTracker::GetOrCreate(context_)->FindBuildId(
-            *mapping.build_id());
+    if (auto id =
+            context_->registered_file_tracker->FindBuildId(*mapping.build_id());
         id) {
       row.file_id =
           context_->storage->elf_file_table().FindById(*id)->file_id();
     }
   }
-#endif
   context_->storage->mutable_mmap_record_table()->Insert(row);
 }
 
-void PerfTracker::NotifyEndOfFile() {
-  SymbolizeFrames();
+base::Status PerfTracker::NotifyEndOfFile() {
+#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
+  RETURN_IF_ERROR(
+      static_cast<etm::EtmTracker*>(etm_tracker_.get())->Finalize());
+#endif
+  return base::OkStatus();
 }
 
 void PerfTracker::RegisterAuxTokenizer(uint32_t type,

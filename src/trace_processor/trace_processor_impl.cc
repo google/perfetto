@@ -57,6 +57,7 @@
 #include "src/trace_processor/importers/art_hprof/art_hprof_parser.h"
 #include "src/trace_processor/importers/art_method/art_method_tokenizer.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/registered_file_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/importers/gecko/gecko_trace_tokenizer.h"
@@ -64,8 +65,6 @@
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/ninja/ninja_log_parser.h"
 #include "src/trace_processor/importers/perf/perf_data_tokenizer.h"
-#include "src/trace_processor/importers/perf/perf_event.h"
-#include "src/trace_processor/importers/perf/perf_tracker.h"
 #include "src/trace_processor/importers/perf/record_parser.h"
 #include "src/trace_processor/importers/perf/spe_record_parser.h"
 #include "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.h"
@@ -150,9 +149,8 @@
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-#include "src/trace_processor/importers/etm/etm_tracker.h"
+#include "src/trace_processor/importers/common/registered_file_tracker.h"
 #include "src/trace_processor/importers/etm/etm_v4_stream_demultiplexer.h"
-#include "src/trace_processor/importers/etm/file_tracker.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_decode_trace_vtable.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/etm_iterate_range_vtable.h"
 #endif
@@ -525,11 +523,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   context()->reader_registry->RegisterTraceReader<TarTraceReader>(
       kTarTraceType);
 
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-  perf_importer::PerfTracker::GetOrCreate(context())->RegisterAuxTokenizer(
-      PERF_AUXTRACE_CS_ETM, etm::CreateEtmV4StreamDemultiplexer);
-#endif
-
   const std::vector<std::string> sanitized_extension_paths =
       SanitizeMetricMountPaths(config_.skip_builtin_metric_paths);
   std::vector<std::string> skip_prefixes;
@@ -628,16 +621,6 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
   FlushInternal(false);
 
   RETURN_IF_ERROR(TraceProcessorStorageImpl::NotifyEndOfFile());
-  if (context()->perf_tracker) {
-    perf_importer::PerfTracker::GetOrCreate(context())->NotifyEndOfFile();
-  }
-
-  // TODO(lalitm): move EtmTracker finalize out after multi-trace handling
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-  if (context()->etm_tracker) {
-    RETURN_IF_ERROR(etm::EtmTracker::GetOrCreate(context())->Finalize());
-  }
-#endif
 
   // Rebuild the bounds table once everything has been completed: we do this
   // so that if any data was added to tables in
@@ -847,15 +830,9 @@ void TraceProcessorImpl::SetCurrentTraceName(const std::string& name) {
   current_trace_name_ = name;
 }
 
-base::Status TraceProcessorImpl::RegisterFileContent(
-    [[maybe_unused]] const std::string& path,
-    [[maybe_unused]] TraceBlobView content) {
-#if PERFETTO_BUILDFLAG(PERFETTO_ENABLE_ETM_IMPORTER)
-  return etm::FileTracker::GetOrCreate(context())->AddFile(path,
-                                                           std::move(content));
-#else
-  return base::OkStatus();
-#endif
+base::Status TraceProcessorImpl::RegisterFileContent(const std::string& path,
+                                                     TraceBlobView content) {
+  return context_.registered_file_tracker->AddFile(path, std::move(content));
 }
 
 void TraceProcessorImpl::InterruptQuery() {

@@ -44,10 +44,12 @@ class MetadataTracker;
 class ProcessTracker;
 class ProcessTrackTranslationTable;
 class ProtoTraceReader;
+class RegisteredFileTracker;
 class SchedEventTracker;
 class SliceTracker;
 class SliceTranslationTable;
 class StackProfileTracker;
+class SymbolTracker;
 class TraceFileTracker;
 class TraceReaderRegistry;
 class TraceSorter;
@@ -124,6 +126,7 @@ class TraceProcessorContext {
   // moved to a "per-trace" category.
 
   GlobalPtr<MetadataTracker> metadata_tracker;
+  GlobalPtr<RegisteredFileTracker> registered_file_tracker;
   GlobalPtr<Destructible> content_analyzer;
   GlobalPtr<Destructible> heap_graph_tracker;  // HeapGraphTracker
 
@@ -138,6 +141,7 @@ class TraceProcessorContext {
   // This state is unique to each machine in a trace.
   // It is initialized when a new machine is discovered in the trace.
 
+  PerMachinePtr<SymbolTracker> symbol_tracker;
   PerMachinePtr<ProcessTracker> process_tracker;
   PerMachinePtr<ClockTracker> clock_tracker;
   PerMachinePtr<MappingTracker> mapping_tracker;
@@ -175,10 +179,6 @@ class TraceProcessorContext {
   PerMachinePtr<Destructible> systrace_parser;       // SystraceParser
   PerMachinePtr<Destructible> thread_state_tracker;  // ThreadStateTracker
   PerMachinePtr<Destructible> ftrace_sched_tracker;  // FtraceSchedEventTracker
-  PerMachinePtr<Destructible> perf_tracker;          // PerfTracker
-  PerMachinePtr<Destructible> etm_tracker;           // EtmTracker
-  PerMachinePtr<Destructible> elf_tracker;           // ElfTracker
-  PerMachinePtr<Destructible> file_tracker;          // FileTracker
 
   std::optional<MachineId> machine_id() const;
 
