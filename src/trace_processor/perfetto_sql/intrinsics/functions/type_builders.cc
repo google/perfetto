@@ -17,6 +17,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/type_builders.h"
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -34,6 +35,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/ext/base/status_macros.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/interval_intersector.h"
@@ -328,8 +330,13 @@ struct IntervalTreeIntervalsAgg
             ctx, "Interval intersect only accepts positive `ts` values.");
         return;
       }
-      sqlite::result::Error(
-          ctx, "Interval intersect requires intervals to be sorted by ts.");
+      base::StackString<1024> err_msg(
+          "Interval intersect requires intervals to be sorted by ts. "
+          "Current interval(id %u) start %" PRId64
+          " is less than the last interval start %" PRIu64 ".",
+          interval.id, sqlite::value::Int64(argv[1]),
+          agg_ctx.last_interval_start);
+      sqlite::result::Error(ctx, err_msg.c_str());
       return;
     }
     int64_t dur = sqlite::value::Int64(argv[2]);

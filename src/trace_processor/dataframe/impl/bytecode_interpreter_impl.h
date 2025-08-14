@@ -31,7 +31,6 @@
 #include <unordered_set>
 #include <utility>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/endian.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -130,8 +129,7 @@ template <typename T>
 PERFETTO_ALWAYS_INLINE bool HandleInvalidCastFilterValueResult(
     const CastFilterValueResult::Validity& validity,
     T& update) {
-  static_assert(std::is_same_v<T, Range> || std::is_same_v<T, Span<uint32_t>> ||
-                std::is_same_v<T, Span<const uint32_t>>);
+  static_assert(std::is_same_v<T, Range> || std::is_same_v<T, Span<uint32_t>>);
   if (PERFETTO_UNLIKELY(validity != CastFilterValueResult::kValid)) {
     if (validity == CastFilterValueResult::kNoneMatch) {
       update.e = update.b;
@@ -588,9 +586,9 @@ class InterpreterImpl {
     update.e = static_cast<uint32_t>(it - storage);
   }
 
-  PERFETTO_ALWAYS_INLINE void SmallValueEqSortedNoDup(
-      const bytecode::SmallValueEqSortedNoDup& bytecode) {
-    using B = bytecode::SmallValueEqSortedNoDup;
+  PERFETTO_ALWAYS_INLINE void SpecializedStorageSmallValueEq(
+      const bytecode::SpecializedStorageSmallValueEq& bytecode) {
+    using B = bytecode::SpecializedStorageSmallValueEq;
 
     const CastFilterValueResult& cast_result =
         ReadFromRegister(bytecode.arg<B::val_register>());
@@ -602,8 +600,9 @@ class InterpreterImpl {
         StorageType::VariantTypeAtIndex<Uint32, CastFilterValueResult::Value>;
     auto val = base::unchecked_get<ValueType>(cast_result.value);
     const auto& col = GetColumn(bytecode.arg<B::col>());
-    const auto& storage = col.specialized_storage.template unchecked_get<
-        SpecializedStorage::SmallValueEqSortedNoDup>();
+    const auto& storage =
+        col.specialized_storage
+            .template unchecked_get<SpecializedStorage::SmallValueEq>();
 
     uint32_t k =
         val < storage.bit_vector.size() && storage.bit_vector.is_set(val)
@@ -614,73 +613,6 @@ class InterpreterImpl {
     bool in_bounds = update.b <= k && k < update.e;
     update.b = in_bounds ? k : update.e;
     update.e = in_bounds ? k + 1 : update.b;
-  }
-
-  PERFETTO_ALWAYS_INLINE void SmallValueEqNoDup(
-      const bytecode::SmallValueEqNoDup& bytecode) {
-    using B = bytecode::SmallValueEqNoDup;
-
-    const CastFilterValueResult& cast_result =
-        ReadFromRegister(bytecode.arg<B::val_register>());
-    auto& update = ReadFromRegister(bytecode.arg<B::update_register>());
-    if (!HandleInvalidCastFilterValueResult(cast_result.validity, update)) {
-      return;
-    }
-    using ValueType =
-        StorageType::VariantTypeAtIndex<Uint32, CastFilterValueResult::Value>;
-    auto val = base::unchecked_get<ValueType>(cast_result.value);
-    const auto& col = GetColumn(bytecode.arg<B::col>());
-    const auto& storage =
-        col.specialized_storage
-            .template unchecked_get<SpecializedStorage::SmallValueEqNoDup>();
-
-    // If `val` is outside the bounds of the `value_to_index` map, or if the
-    // value is not present in the column (indicated by the sentinel
-    // `0xffffffff`), `k` is set to `0xffffffff`. This value will always fail
-    // the `k < update.e` check, correctly resulting in an empty range.
-    uint32_t k = val < storage.value_to_index.size()
-                     ? storage.value_to_index[val]
-                     : 0xffffffff;
-
-    bool match_in_bounds = update.b <= k && k < update.e;
-    update.b = match_in_bounds ? k : update.e;
-    update.e = match_in_bounds ? k + 1 : update.b;
-  }
-
-  PERFETTO_ALWAYS_INLINE void SmallValueEq(
-      const bytecode::SmallValueEq& bytecode) {
-    using B = bytecode::SmallValueEq;
-
-    const auto& col = GetColumn(bytecode.arg<B::col>());
-    const auto& storage =
-        col.specialized_storage
-            .template unchecked_get<SpecializedStorage::SmallValueEq>();
-
-    const uint32_t* start_ptr = storage.indices.data();
-    const uint32_t* end_ptr = storage.indices.data();
-
-    // Impossible to have all match for equality.
-    const CastFilterValueResult& cast_result =
-        ReadFromRegister(bytecode.arg<B::val_register>());
-    PERFETTO_DCHECK(cast_result.validity != CastFilterValueResult::kAllMatch);
-    if (PERFETTO_UNLIKELY(cast_result.validity ==
-                          CastFilterValueResult::kNoneMatch)) {
-      WriteToRegister(bytecode.arg<B::write_register>(),
-                      Span<const uint32_t>{start_ptr, end_ptr});
-      return;
-    }
-
-    using ValueType =
-        StorageType::VariantTypeAtIndex<Uint32, CastFilterValueResult::Value>;
-    auto val = base::unchecked_get<ValueType>(cast_result.value);
-    if (PERFETTO_LIKELY(val + 1 < storage.value_to_indices_start.size())) {
-      uint32_t start_idx = storage.value_to_indices_start[val];
-      uint32_t end_idx = storage.value_to_indices_start[val + 1];
-      start_ptr = storage.indices.data() + start_idx;
-      end_ptr = storage.indices.data() + end_idx;
-    }
-    WriteToRegister(bytecode.arg<B::write_register>(),
-                    Span<const uint32_t>{start_ptr, end_ptr});
   }
 
   template <typename T, typename Op>
@@ -997,11 +929,10 @@ class InterpreterImpl {
       const bytecode::IndexPermutationVectorToSpan& bytecode) {
     using B = bytecode::IndexPermutationVectorToSpan;
     const dataframe::Index& index = state_.indexes[bytecode.arg<B::index>()];
-    WriteToRegister(
-        bytecode.arg<B::write_register>(),
-        Span<const uint32_t>(index.permutation_vector()->data(),
-                             index.permutation_vector()->data() +
-                                 index.permutation_vector()->size()));
+    WriteToRegister(bytecode.arg<B::write_register>(),
+                    Span<uint32_t>(index.permutation_vector()->data(),
+                                   index.permutation_vector()->data() +
+                                       index.permutation_vector()->size()));
   }
 
   template <typename T, typename N>

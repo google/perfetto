@@ -40,8 +40,8 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
-#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
@@ -207,13 +207,20 @@ base::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   // When the trace packet is emitted from a remote machine: parse the packet
   // using a different ProtoTraceReader instance. The packet will be parsed
   // in the context of the remote machine.
-  if (PERFETTO_UNLIKELY(decoder.has_machine_id())) {
+  if (PERFETTO_UNLIKELY(decoder.machine_id())) {
     if (!context_->machine_id()) {
-      // Default context: switch to another reader instance to parse the packet.
-      PERFETTO_DCHECK(context_->multi_machine_trace_manager);
-      auto* reader = context_->multi_machine_trace_manager->GetOrCreateReader(
-          decoder.machine_id());
-      return reader->ParsePacket(std::move(packet));
+      auto [it, inserted] =
+          machine_to_proto_readers_.Insert(decoder.machine_id(), nullptr);
+      if (PERFETTO_UNLIKELY(inserted)) {
+        auto* machine_context =
+            context_->ForkContextForMachineInCurrentTrace(decoder.machine_id());
+        *it = std::make_unique<ProtoTraceReader>(machine_context);
+
+        // TODO(lalitm): this doesn't seem the right place for this but I cannot
+        // think of a much better place either.
+        machine_context->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
+      }
+      return it->get()->ParsePacket(std::move(packet));
     }
   }
   // Assert that the packet is parsed using the right instance of reader.

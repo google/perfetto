@@ -409,6 +409,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_elf_elf",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
@@ -1846,6 +1847,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/process_track_translation_table.h",
         "src/trace_processor/importers/common/process_tracker.cc",
         "src/trace_processor/importers/common/process_tracker.h",
+        "src/trace_processor/importers/common/registered_file_tracker.cc",
+        "src/trace_processor/importers/common/registered_file_tracker.h",
         "src/trace_processor/importers/common/sched_event_state.h",
         "src/trace_processor/importers/common/sched_event_tracker.cc",
         "src/trace_processor/importers/common/sched_event_tracker.h",
@@ -1855,6 +1858,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/slice_translation_table.h",
         "src/trace_processor/importers/common/stack_profile_tracker.cc",
         "src/trace_processor/importers/common/stack_profile_tracker.h",
+        "src/trace_processor/importers/common/symbol_tracker.cc",
+        "src/trace_processor/importers/common/symbol_tracker.h",
         "src/trace_processor/importers/common/system_info_tracker.cc",
         "src/trace_processor/importers/common/system_info_tracker.h",
         "src/trace_processor/importers/common/thread_state_tracker.cc",
@@ -2369,8 +2374,6 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/memory_tracker_snapshot_parser.h",
         "src/trace_processor/importers/proto/metadata_minimal_module.cc",
         "src/trace_processor/importers/proto/metadata_minimal_module.h",
-        "src/trace_processor/importers/proto/multi_machine_trace_manager.cc",
-        "src/trace_processor/importers/proto/multi_machine_trace_manager.h",
         "src/trace_processor/importers/proto/network_trace_module.cc",
         "src/trace_processor/importers/proto/network_trace_module.h",
         "src/trace_processor/importers/proto/packet_analyzer.cc",
@@ -3639,8 +3642,19 @@ perfetto_filegroup(
         "src/trace_processor/types/task_state.h",
         "src/trace_processor/types/tcp_state.h",
         "src/trace_processor/types/trace_processor_context.h",
+        "src/trace_processor/types/trace_processor_context_ptr.h",
         "src/trace_processor/types/variadic.h",
         "src/trace_processor/types/version_number.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util/elf:elf
+perfetto_filegroup(
+    name = "src_trace_processor_util_elf_elf",
+    srcs = [
+        "src/trace_processor/util/elf/binary_info.cc",
+        "src/trace_processor/util/elf/binary_info.h",
+        "src/trace_processor/util/elf/elf.h",
     ],
 )
 
@@ -7396,6 +7410,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_elf_elf",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
@@ -7605,6 +7620,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_elf_elf",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",
@@ -7800,6 +7816,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_build_id",
         ":src_trace_processor_util_bump_allocator",
         ":src_trace_processor_util_descriptors",
+        ":src_trace_processor_util_elf_elf",
         ":src_trace_processor_util_glob",
         ":src_trace_processor_util_gzip",
         ":src_trace_processor_util_interned_message_view",

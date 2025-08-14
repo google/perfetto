@@ -988,3 +988,67 @@ class IntervalsIntersect(TestSuite):
         70807039447,65261,141,139,145
         70807104708,50572,141,139,146
         """))
+
+  def test_unsorted_intervals(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        #      0 1 2 3 4 5 6 7 8
+        # A:   _ - _ _ - - _ _ .
+        # B:   - - _ - _ _ - - -
+        # res: _ - _ _ - _ - _ .
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (1, 4, 3),
+            (2, 8, 0),
+            (0, 1, 2)
+          )
+          SELECT * FROM data;
+
+        CREATE PERFETTO TABLE B AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (11, 3, 2),
+            (12, 6, 3),
+            (10, 0, 2)
+          )
+          SELECT * FROM data;
+
+        SELECT ts, dur, id_0, id_1
+        FROM _interval_intersect!((A, B), ())
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","id_0","id_1"
+        1,1,0,10
+        4,1,1,11
+        6,1,1,12
+        8,0,2,12
+        """))
+
+  def test_one_table_empty(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (0, 1, 6)
+          )
+          SELECT * FROM data;
+
+        CREATE PERFETTO TABLE B AS
+        SELECT * FROM A LIMIT 0;
+
+        SELECT ts, dur, id_0, id_1
+        FROM _interval_intersect!((A, B), ())
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","id_0","id_1"
+        """))

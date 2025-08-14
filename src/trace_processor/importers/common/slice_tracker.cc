@@ -43,7 +43,9 @@ SliceTracker::SliceTracker(TraceProcessorContext* context)
           context->storage->InternString("legacy_unnestable_last_begin_ts")),
       context_(context) {}
 
-SliceTracker::~SliceTracker() = default;
+SliceTracker::~SliceTracker() {
+  FlushPendingSlices();
+}
 
 std::optional<SliceId> SliceTracker::Begin(int64_t timestamp,
                                            TrackId track_id,

@@ -52,7 +52,7 @@ class ProtoTraceReaderTest : public ::testing::Test {
     context_.machine_tracker =
         std::make_unique<MachineTracker>(&context_, 0x1001);
     context_.clock_tracker = std::make_unique<ClockTracker>(&context_);
-    context_.sorter = std::make_shared<TraceSorter>(
+    context_.sorter = std::make_unique<TraceSorter>(
         &context_, TraceSorter::SortingMode::kDefault);
     context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
     context_.register_additional_proto_modules = &RegisterAdditionalModules;

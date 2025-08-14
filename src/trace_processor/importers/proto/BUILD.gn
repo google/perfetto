@@ -36,8 +36,6 @@ source_set("minimal") {
     "memory_tracker_snapshot_parser.h",
     "metadata_minimal_module.cc",
     "metadata_minimal_module.h",
-    "multi_machine_trace_manager.cc",
-    "multi_machine_trace_manager.h",
     "network_trace_module.cc",
     "network_trace_module.h",
     "packet_analyzer.cc",
