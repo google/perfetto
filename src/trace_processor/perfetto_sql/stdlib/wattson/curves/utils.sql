@@ -124,7 +124,9 @@ SELECT
   freq_khz,
   255,
   static
-FROM _filtered_curves_1d_raw;
+FROM _filtered_curves_1d_raw AS c
+JOIN _cpu_for_1d_static AS s
+  ON s.cpu = c.policy;
 
 CREATE PERFETTO INDEX freq_1d ON _filtered_curves_1d(policy, freq_khz, idle);
 
