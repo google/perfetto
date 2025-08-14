@@ -14,28 +14,28 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/etm/file_tracker.h"
+#include "src/trace_processor/importers/common/registered_file_tracker.h"
 
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-
-#include "src/trace_processor/importers/etm/elf_tracker.h"
+#include "src/trace_processor/util/elf/binary_info.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/etm_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/build_id.h"
 
-namespace perfetto::trace_processor::etm {
+namespace perfetto::trace_processor {
 
-FileTracker::~FileTracker() = default;
-
-base::Status FileTracker::AddFile(const std::string& name, TraceBlobView data) {
+base::Status RegisteredFileTracker::AddFile(const std::string& name,
+                                            TraceBlobView data) {
   StringId name_id = context_->storage->InternString(name);
-  auto it = files_by_path_.Find(name_id);
+  auto* it = files_by_path_.Find(name_id);
   if (it) {
     return base::ErrStatus("Duplicate file: %s", name.c_str());
   }
@@ -47,16 +47,30 @@ base::Status FileTracker::AddFile(const std::string& name, TraceBlobView data) {
   PERFETTO_CHECK(file_content_.size() == file_id.value);
   file_content_.push_back(std::move(data));
 
-  IndexFileType(file_id, file_content_.back());
+  const auto& content = file_content_.back();
+  auto bin_info = elf::GetBinaryInfo(content.data(), content.size());
+  if (!bin_info) {
+    return base::OkStatus();
+  }
+  std::optional<BuildId> build_id;
+  if (bin_info->build_id) {
+    build_id = BuildId::FromRaw(*bin_info->build_id);
+  }
 
+  tables::ElfFileTable::Row row;
+  row.file_id = file_id;
+  row.load_bias = static_cast<int64_t>(bin_info->load_bias);
+
+  if (build_id) {
+    row.build_id = context_->storage->InternString(
+        BuildId::FromRaw(*bin_info->build_id).ToHex());
+  }
+
+  auto id = context_->storage->mutable_elf_file_table()->Insert(row).id;
+  if (build_id) {
+    files_by_build_id_.Insert(*build_id, id);
+  }
   return base::OkStatus();
 }
 
-void FileTracker::IndexFileType(tables::FileTable::Id file_id,
-                                const TraceBlobView& content) {
-  if (ElfTracker::GetOrCreate(context_)->ProcessFile(file_id, content)) {
-    return;
-  }
-}
-
-}  // namespace perfetto::trace_processor::etm
+}  // namespace perfetto::trace_processor

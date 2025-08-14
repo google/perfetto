@@ -18,7 +18,10 @@
 
 #include <cstdint>
 #include <memory>
+#include <utility>
+#include <vector>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -31,8 +34,6 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::etm {
-
-// static
 
 EtmTracker::EtmTracker(TraceProcessorContext* context) : context_(context) {}
 EtmTracker::~EtmTracker() = default;

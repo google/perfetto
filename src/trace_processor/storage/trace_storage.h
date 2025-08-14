@@ -243,6 +243,8 @@ class TraceStorage {
   }
 
   // Example usage: SetStats(stats::android_log_num_failed, 42);
+  // TODO(lalitm): make these correctly work across machines and across
+  // traces.
   void SetStats(size_t key, int64_t value) {
     PERFETTO_DCHECK(key < stats::kNumKeys);
     PERFETTO_DCHECK(stats::kTypes[key] == stats::kSingle);
@@ -250,6 +252,8 @@ class TraceStorage {
   }
 
   // Example usage: IncrementStats(stats::android_log_num_failed, -1);
+  // TODO(lalitm): make these correctly work across machines and across
+  // traces.
   void IncrementStats(size_t key, int64_t increment = 1) {
     PERFETTO_DCHECK(key < stats::kNumKeys);
     PERFETTO_DCHECK(stats::kTypes[key] == stats::kSingle);
@@ -257,6 +261,8 @@ class TraceStorage {
   }
 
   // Example usage: IncrementIndexedStats(stats::cpu_failure, 1);
+  // TODO(lalitm): make these correctly work across machines and across
+  // traces.
   void IncrementIndexedStats(size_t key, int index, int64_t increment = 1) {
     PERFETTO_DCHECK(key < stats::kNumKeys);
     PERFETTO_DCHECK(stats::kTypes[key] == stats::kIndexed);
@@ -264,6 +270,8 @@ class TraceStorage {
   }
 
   // Example usage: SetIndexedStats(stats::cpu_failure, 1, 42);
+  // TODO(lalitm): make these correctly work across machines and across
+  // traces.
   void SetIndexedStats(size_t key, int index, int64_t value) {
     PERFETTO_DCHECK(key < stats::kNumKeys);
     PERFETTO_DCHECK(stats::kTypes[key] == stats::kIndexed);
@@ -271,6 +279,8 @@ class TraceStorage {
   }
 
   // Example usage: opt_cpu_failure = GetIndexedStats(stats::cpu_failure, 1);
+  // TODO(lalitm): make these correctly work across machines and across
+  // traces.
   std::optional<int64_t> GetIndexedStats(size_t key, int index) {
     PERFETTO_DCHECK(key < stats::kNumKeys);
     PERFETTO_DCHECK(stats::kTypes[key] == stats::kIndexed);
@@ -281,6 +291,8 @@ class TraceStorage {
     return std::nullopt;
   }
 
+  // TODO(lalitm): make these correctly work across machines and across
+  // traces.
   int64_t GetStats(size_t key) {
     PERFETTO_DCHECK(key < stats::kNumKeys);
     PERFETTO_DCHECK(stats::kTypes[key] == stats::kSingle);

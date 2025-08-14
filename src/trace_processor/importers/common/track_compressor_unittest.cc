@@ -44,9 +44,9 @@ constexpr auto kUnnestable = TrackCompressor::SliceBlueprint(
 class TrackCompressorUnittest : public testing::Test {
  public:
   TrackCompressorUnittest() {
-    context_.storage = std::make_shared<TraceStorage>();
+    context_.storage = std::make_unique<TraceStorage>();
     context_.global_args_tracker =
-        std::make_shared<GlobalArgsTracker>(context_.storage.get());
+        std::make_unique<GlobalArgsTracker>(context_.storage.get());
     context_.args_tracker = std::make_unique<ArgsTracker>(&context_);
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.track_compressor = std::make_unique<TrackCompressor>(&context_);

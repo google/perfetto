@@ -27,7 +27,7 @@
   }
 
   &.query-error {
-    color: red;
+    color: var(--pf-color-danger);
   }
 
   .total-values {

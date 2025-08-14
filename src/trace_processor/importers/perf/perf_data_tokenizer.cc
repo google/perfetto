@@ -28,6 +28,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -121,9 +122,10 @@ bool ReadTime(const Record& record, std::optional<uint64_t>& time) {
 
 PerfDataTokenizer::PerfDataTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
-      stream_(
-          ctx->sorter->CreateStream(std::make_unique<RecordParser>(context_))),
-      aux_manager_(ctx) {}
+      perf_tracker_(ctx),
+      stream_(ctx->sorter->CreateStream(
+          std::make_unique<RecordParser>(context_, &perf_tracker_))),
+      aux_manager_(ctx, &perf_tracker_) {}
 
 PerfDataTokenizer::~PerfDataTokenizer() = default;
 
@@ -481,7 +483,7 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
           std::move(data), [&](TraceBlobView blob) {
             third_party::simpleperf::proto::pbzero::FileFeature::Decoder file(
                 blob.data(), blob.length());
-            PerfTracker::GetOrCreate(context_)->AddSimpleperfFile2(file);
+            perf_tracker_.AddSimpleperfFile2(file);
           }));
 
       break;
@@ -550,6 +552,7 @@ base::Status PerfDataTokenizer::NotifyEndOfFile() {
   if (parsing_state_ != ParsingState::kDone) {
     return base::ErrStatus("Premature end of perf file.");
   }
+  RETURN_IF_ERROR(perf_tracker_.NotifyEndOfFile());
   return base::OkStatus();
 }
 

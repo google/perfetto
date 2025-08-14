@@ -17,15 +17,19 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ETM_ETM_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ETM_ETM_TRACKER_H_
 
+#include <cstdint>
+#include <memory>
+#include <vector>
+
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/tables/etm_tables_py.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto::trace_processor {
-namespace etm {
+namespace perfetto::trace_processor::etm {
 
 class Configuration;
 
@@ -34,13 +38,7 @@ using PerCpuConfiguration =
 
 class EtmTracker : public Destructible {
  public:
-  static EtmTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->etm_tracker) {
-      context->etm_tracker.reset(new EtmTracker(context));
-    }
-    return static_cast<EtmTracker*>(context->etm_tracker.get());
-  }
-
+  explicit EtmTracker(TraceProcessorContext* context);
   ~EtmTracker() override;
 
   base::Status Finalize();
@@ -52,12 +50,9 @@ class EtmTracker : public Destructible {
       PerCpuConfiguration per_cpu_configs);
 
  private:
-  explicit EtmTracker(TraceProcessorContext* context);
-
   TraceProcessorContext* context_;
 };
 
-}  // namespace etm
-}  // namespace perfetto::trace_processor
+}  // namespace perfetto::trace_processor::etm
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ETM_ETM_TRACKER_H_

@@ -30,8 +30,8 @@
   max-height: 50vh;
   overflow-y: auto;
   padding: 1rem;
-  border: 1px solid $pf-minimal-border;
+  border: 1px solid var(--pf-color-border);
   border-radius: 0.5rem;
-  background-color: $pf-primary-foreground;
+  background-color: var(--pf-color-background);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }

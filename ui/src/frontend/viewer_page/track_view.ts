@@ -40,13 +40,23 @@ import {Button} from '../../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu} from '../../widgets/menu';
 import {TrackShell} from '../../widgets/track_shell';
 import {Tree, TreeNode} from '../../widgets/tree';
-import {SELECTION_FILL_COLOR} from '../css_constants';
+import {
+  COLOR_ACCENT,
+  COLOR_BACKGROUND,
+  COLOR_BACKGROUND_SECONDARY,
+  COLOR_BORDER,
+  COLOR_BORDER_SECONDARY,
+  COLOR_NEUTRAL,
+  COLOR_TEXT,
+  COLOR_TEXT_MUTED,
+} from '../css_constants';
 import {calculateResolution} from './resolution';
 import {Trace} from '../../public/trace';
 import {Anchor} from '../../widgets/anchor';
 import {showModal} from '../../widgets/modal';
 import {copyToClipboard} from '../../base/clipboard';
 import {Popup} from '../../widgets/popup';
+import {Theme} from '../../public/theme';
 
 const TRACK_HEIGHT_MIN_PX = 18;
 const TRACK_HEIGHT_DEFAULT_PX = 30;
@@ -290,6 +300,17 @@ export class TrackView {
       return;
     }
 
+    const theme: Theme = {
+      COLOR_BORDER,
+      COLOR_BORDER_SECONDARY,
+      COLOR_BACKGROUND_SECONDARY,
+      COLOR_ACCENT,
+      COLOR_BACKGROUND,
+      COLOR_NEUTRAL,
+      COLOR_TEXT,
+      COLOR_TEXT_MUTED,
+    };
+
     const start = performance.now();
     node.uri &&
       renderer?.render({
@@ -299,6 +320,7 @@ export class TrackView {
         resolution: maybeNewResolution.value,
         ctx,
         timescale,
+        theme,
       });
 
     this.highlightIfTrackInAreaSelection(ctx, timescale, trackRect);
@@ -509,13 +531,15 @@ export class TrackView {
 
     if (selected) {
       const selectedAreaDuration = selection.end - selection.start;
-      ctx.fillStyle = SELECTION_FILL_COLOR;
+      ctx.globalAlpha = 0.3;
+      ctx.fillStyle = COLOR_ACCENT;
       ctx.fillRect(
         timescale.timeToPx(selection.start),
         0,
         timescale.durationToPx(selectedAreaDuration),
         size.height,
       );
+      ctx.globalAlpha = 1.0;
     }
   }
 

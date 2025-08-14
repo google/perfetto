@@ -1,4 +1,4 @@
-# Copyright (C) 2019 The Android Open Source Project
+# Copyright (C) 2025 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,10 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Script to wrap protoc execution.
+"""Runs a binary.
 
-This script exists to work-around the bad depfile generation by protoc when
-generating descriptors."""
+This script exists because GN action only works with python scripts."""
 
 import sys
 import subprocess

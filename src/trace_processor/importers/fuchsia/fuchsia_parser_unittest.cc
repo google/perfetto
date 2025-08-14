@@ -177,11 +177,11 @@ class MockEventTracker : public EventTracker {
 class FuchsiaTraceParserTest : public ::testing::Test {
  public:
   FuchsiaTraceParserTest() {
-    context_.storage = std::make_shared<TraceStorage>();
+    context_.storage = std::make_unique<TraceStorage>();
     storage_ = context_.storage.get();
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.global_args_tracker =
-        std::make_shared<GlobalArgsTracker>(context_.storage.get());
+        std::make_unique<GlobalArgsTracker>(context_.storage.get());
     context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
     context_.args_tracker = std::make_unique<ArgsTracker>(&context_);
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
@@ -203,7 +203,7 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     context_.clock_tracker = std::make_unique<ClockTracker>(&context_);
     clock_ = context_.clock_tracker.get();
     context_.flow_tracker = std::make_unique<FlowTracker>(&context_);
-    context_.sorter = std::make_shared<TraceSorter>(
+    context_.sorter = std::make_unique<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
     context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
     context_.register_additional_proto_modules = &RegisterAdditionalModules;

@@ -237,13 +237,7 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
 void SystemProbesParser::ParseDiskStats(int64_t ts, ConstBytes blob) {
   protos::pbzero::SysStats::DiskStat::Decoder ds(blob);
 
-  // TODO(https://github.com/google/perfetto/issues/2427): this constant assumes
-  // that the disk's logical sector size is 512 bytes. This is very commonly
-  // true but enterprise SSDs can have a logical size of 4KB.
-  //
-  // Unfortunately the only way we could figure this out is by pollling
-  // `/sys/block/<device_name>/queue/logical_block_size` on device which
-  // requires changing the recording code.
+  // /proc/diskstats always uses 512 byte sector sizes.
   static constexpr double SECTORS_PER_MB = 2048.0;
   static constexpr double MS_PER_SEC = 1000.0;
 

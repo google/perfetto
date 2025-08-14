@@ -16,10 +16,10 @@
 
 .pf-stdlib-table-node {
   .pf-details-box {
-    border: 1px solid $pf-minimal-border;
+    border: 1px solid var(--pf-color-border);
     border-radius: 0.5rem;
     padding: 1rem;
-    background-color: $pf-primary-foreground;
+    background-color: var(--pf-color-background);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     margin-bottom: 1rem;
   }
@@ -31,13 +31,13 @@
 
   th,
   td {
-    border: 1px solid $pf-minimal-border;
+    border: 1px solid var(--pf-color-border);
     padding: 0.5rem;
     text-align: left;
   }
 
   th {
-    background-color: $pf-minimal-background-hover;
+    background-color: color_hover(transparent);
     font-weight: 500;
   }
 }

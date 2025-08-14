@@ -34,8 +34,7 @@ class TraceProcessorContext;
 // `TraceType`.
 class TraceReaderRegistry {
  public:
-  explicit TraceReaderRegistry(TraceProcessorContext* context)
-      : context_(context) {}
+  TraceReaderRegistry() = default;
 
   // Registers a mapping from `TraceType` value to `ChunkedTraceReader`
   // subclass. Only one such mapping can be registered per `TraceType` value.
@@ -49,14 +48,14 @@ class TraceReaderRegistry {
   // Creates a new `ChunkedTraceReader` instance for the given `type`. Returns
   // an error if no mapping has been previously registered.
   base::StatusOr<std::unique_ptr<ChunkedTraceReader>> CreateTraceReader(
-      TraceType type);
+      TraceType type,
+      TraceProcessorContext* context);
 
  private:
   using Factory = std::function<std::unique_ptr<ChunkedTraceReader>(
       TraceProcessorContext*)>;
   void RegisterFactory(TraceType trace_type, Factory factory);
 
-  TraceProcessorContext* const context_;
   base::FlatHashMap<TraceType,
                     std::function<std::unique_ptr<ChunkedTraceReader>(
                         TraceProcessorContext*)>>

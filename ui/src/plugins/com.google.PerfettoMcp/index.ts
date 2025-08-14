@@ -29,6 +29,8 @@ import {z} from 'zod';
 import {Setting} from 'src/public/settings';
 import {ChatPage} from './chat_page';
 import m from 'mithril';
+import {registerUiTools} from './uitools';
+
 export default class PerfettoMcpPlugin implements PerfettoPlugin {
   static readonly id = 'com.google.PerfettoMcp';
   static readonly description = `
@@ -127,6 +129,7 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
     });
 
     registerTraceTools(mcpServer, trace.engine);
+    registerUiTools(mcpServer, trace);
 
     const client = new Client({
       name: 'PerfettoMcpClient',

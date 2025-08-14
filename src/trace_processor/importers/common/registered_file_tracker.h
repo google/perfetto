@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ETM_FILE_TRACKER_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_ETM_FILE_TRACKER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_REGISTERED_FILE_TRACKER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_REGISTERED_FILE_TRACKER_H_
 
 #include <optional>
 #include <string>
@@ -27,21 +27,15 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/etm_tables_py.h"
-#include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/build_id.h"
 
-namespace perfetto::trace_processor::etm {
+namespace perfetto::trace_processor {
 
-class FileTracker : public Destructible {
+class RegisteredFileTracker {
  public:
-  static FileTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->file_tracker) {
-      context->file_tracker.reset(new FileTracker(context));
-    }
-    return static_cast<FileTracker*>(context->file_tracker.get());
-  }
-
-  ~FileTracker() override;
+  explicit RegisteredFileTracker(TraceProcessorContext* context)
+      : context_(context) {}
 
   base::Status AddFile(const std::string& name, TraceBlobView data);
   TraceBlobView GetContent(tables::FileTable::Id id) const {
@@ -49,17 +43,25 @@ class FileTracker : public Destructible {
     return file_content_[id.value].copy();
   }
 
+  std::optional<tables::ElfFileTable::Id> FindBuildId(
+      const BuildId& build_id) const {
+    auto* it = files_by_build_id_.Find(build_id);
+    return it ? std::make_optional(*it) : std::nullopt;
+  }
+
  private:
-  explicit FileTracker(TraceProcessorContext* context) : context_(context) {}
   void IndexFileType(tables::FileTable::Id file_id,
                      const TraceBlobView& content);
-  TraceProcessorContext* const context_;
+
+  TraceProcessorContext* context_;
+  base::FlatHashMap<BuildId, tables::ElfFileTable::Id> files_by_build_id_;
+
   // Indexed by `tables::FileTable::Id`
   std::vector<TraceBlobView> file_content_;
 
   base::FlatHashMap<StringId, tables::FileTable::Id> files_by_path_;
 };
 
-}  // namespace perfetto::trace_processor::etm
+}  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ETM_FILE_TRACKER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_REGISTERED_FILE_TRACKER_H_
