@@ -25,6 +25,7 @@ class Symbolize(TestSuite):
     return DiffTestBlueprint(
         register_files_dir=DataPath('simpleperf/bin'),
         trace=DataPath('simpleperf/cs_etm_u.perf'),
+        modules=['llvm_symbolizer'],
         query="""
         INCLUDE PERFETTO MODULE callstacks.symbolize;
         INCLUDE PERFETTO MODULE linux.perf.etm;
@@ -65,6 +66,7 @@ class Symbolize(TestSuite):
     return DiffTestBlueprint(
         register_files_dir=DataPath('simpleperf/bin'),
         trace=DataPath('simpleperf/cs_etm_u.perf'),
+        modules=['llvm_symbolizer'],
         query="""
         INCLUDE PERFETTO MODULE callstacks.symbolize;
 
@@ -78,13 +80,13 @@ class Symbolize(TestSuite):
             SELECT
             __intrinsic_file.name AS file_name,
             __intrinsic_etm_iterate_instruction_range.address - stack_profile_mapping.start + stack_profile_mapping.exact_offset + __intrinsic_elf_file.load_bias AS rel_pc,
-            __intrinsic_etm_decode_trace.mapping_id AS mapping_id,
+            __intrinsic_etm_decode_chunk.mapping_id AS mapping_id,
             __intrinsic_etm_iterate_instruction_range.address AS address
-            FROM __intrinsic_etm_decode_trace(0)
+            FROM __intrinsic_etm_decode_chunk(0)
             JOIN __intrinsic_etm_iterate_instruction_range
-              ON __intrinsic_etm_decode_trace.instruction_range = __intrinsic_etm_iterate_instruction_range.instruction_range
+              ON __intrinsic_etm_decode_chunk.instruction_range = __intrinsic_etm_iterate_instruction_range.instruction_range
             JOIN stack_profile_mapping
-              ON __intrinsic_etm_decode_trace.mapping_id = stack_profile_mapping.id
+              ON __intrinsic_etm_decode_chunk.mapping_id = stack_profile_mapping.id
             JOIN __intrinsic_elf_file
               ON stack_profile_mapping.build_id = __intrinsic_elf_file.build_id
             JOIN __intrinsic_file
