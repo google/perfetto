@@ -32,7 +32,6 @@ struct TraceProcessorContextPtr {
       : owned_(std::move(owned)), ptr_(owned_.get()) {}
   explicit TraceProcessorContextPtr(T* _ptr) : ptr_(_ptr) {}
 
-  // Makes the
   template <class... Args>
   static TraceProcessorContextPtr<T> MakeRoot(Args&&... args) {
     return TraceProcessorContextPtr<T>(
