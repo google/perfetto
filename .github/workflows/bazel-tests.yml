@@ -70,8 +70,6 @@ jobs:
         run: |
           echo "absolute path:"
           buildtools/android_sdk/platform-tools/adb --version
-          echo "relative path:"
-          adb --version
 
 #      - name: Build Bazel
 #        shell: bash
@@ -105,15 +103,15 @@ jobs:
           profile: Pixel 9 Pro
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
-            adb devices
-            adb shell getprop | grep 'ro.build'
+            buildtools/android_sdk/platform-tools/adb devices
+            buildtools/android_sdk/platform-tools/adb shell getprop | grep 'ro.build'
 
       - name: Bazel Android Instrumentation Tests
         shell: bash
         run: |
           echo "Fake running tests..."
-          adb devices
-          adb shell getprop | grep 'ro.build'
+          buildtools/android_sdk/platform-tools/adb devices
+          buildtools/android_sdk/platform-tools/adb shell getprop | grep 'ro.build'
 
       - name: Update cache (if on main)
         if: github.ref == 'refs/heads/main'
