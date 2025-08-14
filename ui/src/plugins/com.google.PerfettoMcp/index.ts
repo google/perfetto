@@ -41,6 +41,7 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
   static tokenSetting: Setting<string>;
   static promptSetting: Setting<string>;
   static thoughtsSetting: Setting<boolean>;
+  static showTokensSetting: Setting<boolean>;
   static modelNameSetting: Setting<string>;
 
   static onActivate(app: App): void {
@@ -57,6 +58,14 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
       id: `${app.pluginId}#ThoughtsSetting`,
       name: 'Show Thoughts and Tool Calls',
       description: 'Show thoughts and tool calls in the chat.',
+      schema: z.boolean(),
+      defaultValue: true,
+    });
+
+    PerfettoMcpPlugin.showTokensSetting = app.settings.register({
+      id: `${app.pluginId}#ShowTokensSetting`,
+      name: 'Show Token Usage',
+      description: 'Show detailed token usage.',
       schema: z.boolean(),
       defaultValue: true,
     });
@@ -150,10 +159,10 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
         },
         thinkingConfig: {
           includeThoughts: true,
-          thinkingBudget: -1,
+          thinkingBudget: -1, // Automatic
         },
         automaticFunctionCalling: {
-          maximumRemoteCalls: 100,
+          maximumRemoteCalls: 20,
         },
       },
     });
@@ -165,6 +174,7 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
           trace,
           chat,
           showThoughts: PerfettoMcpPlugin.thoughtsSetting.get(),
+          showTokens: PerfettoMcpPlugin.showTokensSetting.get(),
         });
       },
     });

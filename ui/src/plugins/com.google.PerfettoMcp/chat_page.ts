@@ -13,7 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Chat, GenerateContentResponse} from '@google/genai';
+import {
+  Chat,
+  GenerateContentResponse,
+  GenerateContentResponseUsageMetadata,
+} from '@google/genai';
 import {Trace} from '../../public/trace';
 import {TextInput} from '../../widgets/text_input';
 import markdownit from 'markdown-it';
@@ -21,6 +25,7 @@ import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
 
 // Interface for a single message in the chat display
+
 interface ChatMessage {
   role: 'ai' | 'user' | 'error' | 'thought' | 'toolcall' | 'spacer';
   text: string;
@@ -31,20 +36,23 @@ export interface ChatPageAttrs {
   readonly trace: Trace;
   readonly chat: Chat;
   readonly showThoughts: boolean;
+  readonly showTokens: boolean;
 }
 
 export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
   private messages: ChatMessage[];
   private userInput: string;
   private isLoading: boolean;
-  private useStream: boolean = true;
   private showThoughts: boolean;
+  private showTokens: boolean;
   private readonly chat: Chat;
   private md: markdownit;
+  private usage?: GenerateContentResponseUsageMetadata;
 
   constructor({attrs}: m.CVnode<ChatPageAttrs>) {
     this.chat = attrs.chat;
     this.showThoughts = attrs.showThoughts;
+    this.showTokens = attrs.showTokens;
     this.md = markdownit();
     this.userInput = '';
     this.isLoading = false;
@@ -80,6 +88,8 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
       this.updateAiResponse(response.text);
     }
 
+    this.usage = response.usageMetadata;
+
     m.redraw();
   }
 
@@ -105,20 +115,12 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
     m.redraw();
 
     try {
-      if (this.useStream) {
-        const responseStream = await this.chat.sendMessageStream({
-          message: trimmedInput,
-        });
+      const responseStream = await this.chat.sendMessageStream({
+        message: trimmedInput,
+      });
 
-        for await (const part of responseStream) {
-          this.processResponse(part);
-        }
-      } else {
-        const response = await this.chat.sendMessage({
-          message: trimmedInput,
-        });
-
-        this.processResponse(response);
+      for await (const part of responseStream) {
+        this.processResponse(part);
       }
 
       this.messages.push({role: 'spacer', text: ''});
@@ -202,6 +204,19 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
             : 'Ask me about your trace...',
           disabled: this.isLoading,
         }),
+
+        this.showTokens
+          ? [
+              m(
+                'footer.pf-ai-chat-panel__tokens',
+              m(
+                'Tokens',
+                m('br'),
+                (this.usage?.totalTokenCount ?? '--'),
+              )
+              ),
+            ]
+          : [],
 
         m(Button, {
           icon: 'arrow_forward',
