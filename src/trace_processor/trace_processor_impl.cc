@@ -69,6 +69,7 @@
 #include "src/trace_processor/importers/perf/spe_record_parser.h"
 #include "src/trace_processor/importers/perf_text/perf_text_trace_tokenizer.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
+#include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
@@ -522,6 +523,13 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
           kPerfTextTraceType);
   context()->reader_registry->RegisterTraceReader<TarTraceReader>(
       kTarTraceType);
+
+  // Force initialization of heap graph tracker.
+  //
+  // TODO(lalitm): remove heap graph tracker from global context and get rid
+  // of this.
+  context()->heap_graph_tracker =
+      std::make_unique<HeapGraphTracker>(context()->storage.get());
 
   const std::vector<std::string> sanitized_extension_paths =
       SanitizeMetricMountPaths(config_.skip_builtin_metric_paths);

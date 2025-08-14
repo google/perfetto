@@ -77,7 +77,8 @@ base::Status TraceProcessorStorageImpl::Parse(TraceBlobView blob) {
   auto scoped_trace = context()->storage->TraceExecutionTimeIntoStats(
       stats::parse_trace_duration_ns);
 
-  if (hash_input_size_remaining_ > 0 && !context()->uuid_found_in_trace) {
+  if (hash_input_size_remaining_ > 0 &&
+      !context()->uuid_state->uuid_found_in_trace) {
     const size_t hash_size = std::min(hash_input_size_remaining_, blob.size());
     hash_input_size_remaining_ -= hash_size;
 
@@ -95,12 +96,16 @@ base::Status TraceProcessorStorageImpl::Parse(TraceBlobView blob) {
 }
 
 void TraceProcessorStorageImpl::Flush() {
-  if (unrecoverable_parse_error_)
+  if (unrecoverable_parse_error_) {
     return;
-
-  if (context()->sorter)
+  }
+  if (context()->sorter) {
     context()->sorter->ExtractEventsForced();
-  context()->args_tracker->Flush();
+  }
+  auto& all = context()->forked_context_state->trace_and_machine_to_context;
+  for (auto it = all.GetIterator(); it; ++it) {
+    it.value()->args_tracker->Flush();
+  }
 }
 
 base::Status TraceProcessorStorageImpl::NotifyEndOfFile() {
@@ -115,19 +120,25 @@ base::Status TraceProcessorStorageImpl::NotifyEndOfFile() {
   RETURN_IF_ERROR(parser_->NotifyEndOfFile());
   // NotifyEndOfFile might have pushed packets to the sorter.
   Flush();
-  if (context()->content_analyzer) {
-    PacketAnalyzer::Get(&context_)->NotifyEndOfFile();
-  }
 
-  context()->event_tracker->FlushPendingEvents();
-  context()->slice_tracker->FlushPendingSlices();
-  context()->args_tracker->Flush();
-  context()->process_tracker->NotifyEndOfFile();
+  auto& traces = context()->forked_context_state->trace_to_context;
+  for (auto it = traces.GetIterator(); it; ++it) {
+    if (it.value()->content_analyzer) {
+      PacketAnalyzer::Get(it.value())->NotifyEndOfFile();
+    }
+  }
+  auto& all = context()->forked_context_state->trace_and_machine_to_context;
+  for (auto it = all.GetIterator(); it; ++it) {
+    it.value()->event_tracker->FlushPendingEvents();
+    it.value()->slice_tracker->FlushPendingSlices();
+    it.value()->args_tracker->Flush();
+    it.value()->process_tracker->NotifyEndOfFile();
+  }
   return base::OkStatus();
 }
 
 void TraceProcessorStorageImpl::DestroyContext() {
-  context_.DestroyNonEssential();
+  context_.DestroyParsingState();
   parser_.reset();
 }
 

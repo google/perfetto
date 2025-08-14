@@ -53,6 +53,7 @@
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
+#include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/importers/proto/trace.descriptor.h"
@@ -63,6 +64,7 @@
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
@@ -260,6 +262,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.sorter = std::make_unique<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
     context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
+    context_.uuid_state = std::make_unique<TraceProcessorContext::UuidState>();
+    context_.heap_graph_tracker = std::make_unique<HeapGraphTracker>(storage_);
 
     context_.track_compressor.reset(new TrackCompressor(&context_));
 
@@ -2914,7 +2918,7 @@ TEST_F(ProtoTraceParserTest, ConfigUuid) {
   SqlValue value =
       context_.metadata_tracker->GetMetadata(metadata::trace_uuid).value();
   EXPECT_STREQ(value.string_value, "00000000-0000-0002-0000-000000000001");
-  ASSERT_TRUE(context_.uuid_found_in_trace);
+  ASSERT_TRUE(context_.uuid_state->uuid_found_in_trace);
 }
 
 TEST_F(ProtoTraceParserTest, PacketUuid) {
@@ -2928,7 +2932,7 @@ TEST_F(ProtoTraceParserTest, PacketUuid) {
   SqlValue value =
       context_.metadata_tracker->GetMetadata(metadata::trace_uuid).value();
   EXPECT_STREQ(value.string_value, "00000000-0000-0002-0000-000000000001");
-  ASSERT_TRUE(context_.uuid_found_in_trace);
+  ASSERT_TRUE(context_.uuid_state->uuid_found_in_trace);
 }
 
 // If both the TraceConfig and TracePacket.trace_uuid are present, the latter
@@ -2948,7 +2952,7 @@ TEST_F(ProtoTraceParserTest, PacketAndConfigUuid) {
   SqlValue value =
       context_.metadata_tracker->GetMetadata(metadata::trace_uuid).value();
   EXPECT_STREQ(value.string_value, "00000000-0000-0002-0000-000000000001");
-  ASSERT_TRUE(context_.uuid_found_in_trace);
+  ASSERT_TRUE(context_.uuid_state->uuid_found_in_trace);
 }
 
 TEST_F(ProtoTraceParserTest, ConfigPbtxt) {
