@@ -95,8 +95,7 @@ export class NativeModuleDetailsPanel implements TrackEventDetailsPanel {
 
     const flows = await querySliceRelatedFlows(this.ctx.engine, eventId);
     const startTs = Number(flows[0].begin.sliceStartTs);
-    const endTs = Number(flows[flows.length - 1].end.sliceEndTs);
-    this.nativeModuleSections = this.assembleSections(flows, startTs, endTs);
+    this.nativeModuleSections = this.assembleSections(flows, startTs);
     NativeModuleDataManager.setNativeModuleSections(
       eventId,
       this.nativeModuleSections,
@@ -113,10 +112,9 @@ export class NativeModuleDetailsPanel implements TrackEventDetailsPanel {
    * Organizes flow events into logical execution stages
    * @param flows - Array of flow events
    * @param beginTs - Start timestamp
-   * @param endTs - End timestamp
    * @returns Array of categorized execution stages
    */
-  private assembleSections(flows: Flow[], beginTs: number, endTs: number) {
+  private assembleSections(flows: Flow[], beginTs: number) {
     const sections: NativeModuleSection[] = [];
     const inputParamsEnd = this.findSectionTs(
       NATIVEMODULE_CONVERT_PARAMS_END,
