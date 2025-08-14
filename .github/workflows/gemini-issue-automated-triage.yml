@@ -31,14 +31,14 @@ permissions:
 
 jobs:
   triage-issue:
-    if: >
+    if: |-
       github.event_name == 'issues' ||
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'issue_comment' &&
-       contains(github.event.comment.body, '@gemini-cli /triage') &&
-       (github.event.comment.author_association == 'OWNER' ||
-        github.event.comment.author_association == 'MEMBER' ||
-        github.event.comment.author_association == 'COLLABORATOR'))
+      (
+        github.event_name == 'issue_comment' &&
+        contains(github.event.comment.body, '@gemini-cli /triage') &&
+        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+      )
     timeout-minutes: 5
     runs-on: 'ubuntu-latest'
 
@@ -77,6 +77,7 @@ jobs:
             {
               "maxSessionTurns": 25,
               "coreTools": [
+                "run_shell_command(echo)",
                 "run_shell_command(gh label list)",
                 "run_shell_command(gh issue edit)"
               ],
@@ -98,9 +99,9 @@ jobs:
             1. Run: `gh label list` to get all available labels.
             2. Review the issue title and body provided in the environment
                variables: "${ISSUE_TITLE}" and "${ISSUE_BODY}".
-            3. Select the most relevant labels from the existing labels. If
-               available, set labels that follow the `kind/*`, `area/*`, and
-               `priority/*` patterns.
+            3. Classify issues by their kind (bug, enhancement, documentation,
+               cleanup, etc) and their priority (p0, p1, p2, p3). Set the
+               labels accoridng to the format `kind/*` and `priority/*` patterns.
             4. Apply the selected labels to this issue using:
                `gh issue edit "${ISSUE_NUMBER}" --add-label "label1,label2"`
             5. If the "status/needs-triage" label is present, remove it using:
