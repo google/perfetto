@@ -105,7 +105,7 @@ class RangeSharer {
 
     const tag = `${options.yRangeSharingKey}-${options.yMode}-${
       options.yDisplay
-    }-${!!options.enlarge}`;
+    }-${options.chartHeightSize}`;
     const cachedRange = this.tagToRange.get(tag);
     if (cachedRange === undefined) {
       this.tagToRange.set(tag, [min, max]);
@@ -141,6 +141,16 @@ interface CounterTooltipState {
   tsEnd?: time;
 }
 
+type ChartHeightSize = 1 | 4 | 8 | 16 | 32;
+
+const CHART_HEIGHT_LABELS: [string, ChartHeightSize][] = [
+  ['Small (1x)', 1],
+  ['Medium (4x)', 4],
+  ['Large (8x)', 8],
+  ['XLarge (16x)', 16],
+  ['XXLarge (32x)', 32],
+];
+
 export interface CounterOptions {
   // Mode for computing the y value. Options are:
   // value = v[t] directly the value of the counter at time t
@@ -163,6 +173,9 @@ export interface CounterOptions {
   // readable value.
   yRangeRounding: 'strict' | 'human_readable';
 
+  // Scales the height of the chart.
+  chartHeightSize: ChartHeightSize;
+
   // Allows *extending* the range of the y-axis counter increasing
   // the maximum (via yOverrideMaximum) or decreasing the minimum
   // (via yOverrideMinimum). This is useful for percentage counters
@@ -173,9 +186,6 @@ export interface CounterOptions {
 
   // If set all counters with the same key share a range.
   yRangeSharingKey?: string;
-
-  // Show the chart as 4x the height.
-  enlarge?: boolean;
 
   // unit for the counter. This is displayed in the tooltip and
   // legend.
@@ -268,6 +278,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
       yRangeRounding: 'human_readable',
       yMode: 'value',
       yDisplay: 'zero',
+      chartHeightSize: 1,
     };
   }
 
@@ -281,7 +292,7 @@ export abstract class BaseCounterTrack implements TrackRenderer {
 
   getHeight() {
     const height = 40;
-    return this.getCounterOptions().enlarge ? height * 4 : height;
+    return height * this.getCounterOptions().chartHeightSize;
   }
 
   // A method to render menu items for switching the defualt
@@ -334,6 +345,26 @@ export abstract class BaseCounterTrack implements TrackRenderer {
         }),
       ),
 
+      m(
+        MenuItem,
+        {
+          label: `Enlarge (currently: ${options.chartHeightSize}x)`,
+        },
+        CHART_HEIGHT_LABELS.map(([label, size]) =>
+          m(MenuItem, {
+            label,
+            icon:
+              options.chartHeightSize === size
+                ? 'radio_button_checked'
+                : 'radio_button_unchecked',
+            onclick: () => {
+              options.chartHeightSize = size;
+              this.invalidate();
+            },
+          }),
+        ),
+      ),
+
       m(MenuItem, {
         label: 'Zoom on scroll',
         icon:
@@ -342,15 +373,6 @@ export abstract class BaseCounterTrack implements TrackRenderer {
             : 'check_box_outline_blank',
         onclick: () => {
           options.yRange = options.yRange === 'viewport' ? 'all' : 'viewport';
-          this.invalidate();
-        },
-      }),
-
-      m(MenuItem, {
-        label: `Enlarge`,
-        icon: options.enlarge ? 'check_box' : 'check_box_outline_blank',
-        onclick: () => {
-          options.enlarge = !options.enlarge;
           this.invalidate();
         },
       }),
