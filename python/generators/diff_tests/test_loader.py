@@ -16,7 +16,7 @@
 import os
 import re
 import sys
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Union
 
 from python.generators.diff_tests.testing import (BinaryProto, Csv, DataPath,
                                                   DiffTestBlueprint, Json, Path,
@@ -32,8 +32,13 @@ class TestLoader:
 
   def __init__(self, root_dir: os.PathLike):
     self.root_dir = root_dir
+    self.skipped_tests: List[Tuple[str, str]] = []
+    self.warning_tests: List[Tuple[str, str]] = []
 
-  def discover_and_load_tests(self, name_filter: str) -> List[TestCase]:
+  def discover_and_load_tests(self, name_filter: str,
+                              modules: Set[str]) -> List[TestCase]:
+    self.skipped_tests = []
+    self.warning_tests = []
     # Import the index file to discover all the tests.
     include_path = os.path.join(self.root_dir, 'test', 'trace_processor',
                                 'diff_tests')
@@ -45,7 +50,14 @@ class TestLoader:
 
     tests = []
     for name, blueprint in all_tests_data:
-      if not self._validate_test(name, name_filter):
+      should_run, reason, is_warning = self._validate_test(
+          name, name_filter, blueprint, modules)
+      if not should_run:
+        if reason:
+          if is_warning:
+            self.warning_tests.append((name, reason))
+          else:
+            self.skipped_tests.append((name, reason))
         continue
 
       query_path = self._get_query_path(name, blueprint)
@@ -60,9 +72,19 @@ class TestLoader:
                    expected_str, register_files_dir, test_type))
     return tests
 
-  def _validate_test(self, name: str, name_filter: str) -> bool:
+  def _validate_test(self, name: str, name_filter: str,
+                     blueprint: DiffTestBlueprint,
+                     modules: Set[str]) -> Tuple[bool, Optional[str], bool]:
     query_metric_pattern = re.compile(name_filter)
-    return bool(query_metric_pattern.match(os.path.basename(name)))
+    if not query_metric_pattern.match(os.path.basename(name)):
+      return False, None, False
+
+    if blueprint.modules:
+      for module in blueprint.modules:
+        if module not in modules:
+          return False, f"module '{module}' not found", False
+
+    return True, None, False
 
   def _get_test_type(self, blueprint: DiffTestBlueprint) -> TestType:
     if blueprint.is_metric():
