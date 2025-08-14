@@ -65,7 +65,6 @@ class NetworkTraceModuleTest : public testing::Test {
     storage_ = context_.storage.get();
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
-    context_.args_tracker = std::make_unique<ArgsTracker>(&context_);
     context_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(storage_);
     context_.slice_translation_table =
@@ -90,7 +89,6 @@ class NetworkTraceModuleTest : public testing::Test {
         reader->Parse(TraceBlobView(TraceBlob::CopyFrom(v.data(), v.size())));
     context_.sorter->ExtractEventsForced();
     context_.slice_tracker->FlushPendingSlices();
-    context_.args_tracker->Flush();
     return status;
   }
 

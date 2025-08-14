@@ -42,7 +42,8 @@ void ViewCaptureParser::Parse(int64_t timestamp,
   auto snapshot_id =
       context_->storage->mutable_viewcapture_table()->Insert(row).id;
 
-  auto inserter = context_->args_tracker->AddArgsTo(snapshot_id);
+  ArgsTracker args_tracker(context_);
+  auto inserter = args_tracker.AddArgsTo(snapshot_id);
   ViewCaptureArgsParser writer(timestamp, inserter, *context_->storage,
                                seq_state);
   const auto table_name = tables::ViewCaptureTable::Name();

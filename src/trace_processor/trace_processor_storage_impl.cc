@@ -102,10 +102,6 @@ void TraceProcessorStorageImpl::Flush() {
   if (context()->sorter) {
     context()->sorter->ExtractEventsForced();
   }
-  auto& all = context()->forked_context_state->trace_and_machine_to_context;
-  for (auto it = all.GetIterator(); it; ++it) {
-    it.value()->args_tracker->Flush();
-  }
 }
 
 base::Status TraceProcessorStorageImpl::NotifyEndOfFile() {
@@ -131,7 +127,6 @@ base::Status TraceProcessorStorageImpl::NotifyEndOfFile() {
   for (auto it = all.GetIterator(); it; ++it) {
     it.value()->event_tracker->FlushPendingEvents();
     it.value()->slice_tracker->FlushPendingSlices();
-    it.value()->args_tracker->Flush();
     it.value()->process_tracker->NotifyEndOfFile();
   }
   return base::OkStatus();
