@@ -38,9 +38,10 @@ import {
   NATIVEMODULE_CALL,
   NATIVEMODULE_FUNC_CALL_START,
   NATIVEMODULE_NETWORK_REQUEST,
-  NATIVEMODULE_TIMING_FLUSH,
   DEPRECATED_NATIVEMODULE_CALL,
   SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
+  NATIVEMODULE_PLATFORM_METHOD_END,
+  NATIVEMODULE_CALLBACK_INVOKE_END,
 } from '../../lynx_perf/constants';
 import {TrackEventDetailsPanel} from '../../public/details_panel';
 import {NativeModuleDetailsPanel} from './details';
@@ -108,7 +109,7 @@ export class LynxNativeModuleTrack extends LynxBaseTrack<NativeModuleItem[]> {
       from slice 
       inner join args on args.arg_set_id = slice.arg_set_id
       where (slice.name='${NATIVEMODULE_FUNC_CALL_START}' or slice.name='${NATIVEMODULE_CALL}' or slice.name='${DEPRECATED_NATIVEMODULE_CALL}' or slice.name='${NATIVEMODULE_NETWORK_REQUEST}' 
-      or slice.name='${NATIVEMODULE_TIMING_FLUSH}') order by ts ASC
+      or slice.name='${NATIVEMODULE_PLATFORM_METHOD_END}' or slice.name='${NATIVEMODULE_CALLBACK_INVOKE_END}') order by ts ASC
       `,
     );
     const it = queryRes.iter({
@@ -128,6 +129,7 @@ export class LynxNativeModuleTrack extends LynxBaseTrack<NativeModuleItem[]> {
     const flowIdToTraceIdMap = new Map();
 
     let nativeModuleBeginTs = -1;
+    let nativeModuleEndTs = -1;
     for (; it.valid(); it.next()) {
       if (it.name === NATIVEMODULE_FUNC_CALL_START) {
         nativeModuleBeginTs = it.ts;
@@ -161,12 +163,20 @@ export class LynxNativeModuleTrack extends LynxBaseTrack<NativeModuleItem[]> {
         flowIdToTraceIdMap.set(flowId, it.id);
         const startJSB = traceIdToJSBMap.get(it.id);
         startJSB.flowId = flowId;
-      } else if (it.key === 'debug.terminateFlowId' && it.intValue != null) {
+      }
+
+      // In certain cases, "JSBTiming::Flush" may not exist. Here, we change the endpoint to the maximum of 'JSBTiming::jsb_func_platform_method_end' or 'JSBTiming::jsb_callback_call_end'.
+      if (
+        it.key === 'debug.flowId' &&
+        (it.name === NATIVEMODULE_PLATFORM_METHOD_END ||
+          it.name === NATIVEMODULE_CALLBACK_INVOKE_END)
+      ) {
+        nativeModuleEndTs = it.ts;
         const terminateFlowId = Number(it.intValue);
         const startJSBTraceId = flowIdToTraceIdMap.get(terminateFlowId);
         const startJSB = traceIdToJSBMap.get(startJSBTraceId);
         if (startJSB !== undefined) {
-          startJSB.dur = it.ts + it.dur - startJSB.ts;
+          startJSB.dur = nativeModuleEndTs - startJSB.ts;
         }
       }
 

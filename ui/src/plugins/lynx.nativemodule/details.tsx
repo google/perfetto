@@ -130,6 +130,14 @@ export class NativeModuleDetailsPanel implements TrackEventDetailsPanel {
       NATIVEMODULE_CALLBACK_CONVERT_PARAMS_END,
       flows,
     );
+    const callbackInvokeEnd = this.findSectionTs(
+      NATIVEMODULE_CALLBACK_INVOKE_END,
+      flows,
+    );
+    const platformMethodEnd = this.findSectionTs(
+      NATIVEMODULE_PLATFORM_METHOD_END,
+      flows,
+    );
     if (isSyncNativeModule(flows)) {
       const invokecCallbackEnd = this.findSectionTs(
         NATIVEMODULE_CALLBACK_INVOKE_END,
@@ -139,7 +147,8 @@ export class NativeModuleDetailsPanel implements TrackEventDetailsPanel {
         inputParamsEnd != undefined &&
         platformImplEnd != undefined &&
         outputParamsEnd != undefined &&
-        invokecCallbackEnd != undefined
+        invokecCallbackEnd != undefined && 
+        platformMethodEnd != undefined
       ) {
         sections.push({
           beginTs: beginTs,
@@ -171,17 +180,13 @@ export class NativeModuleDetailsPanel implements TrackEventDetailsPanel {
         });
         sections.push({
           beginTs: Number(invokecCallbackEnd.sliceEndTs),
-          endTs: endTs,
+          endTs: Number(platformMethodEnd.sliceEndTs),
           name: STAGE_FINISH_PLATFORM_IMPLEMENTATION,
           description: STAGE_DESCRIPTION_FINISH_PLATFORM_IMPLEMENTATION,
           thread: invokecCallbackEnd.threadName,
         });
       }
     } else {
-      const jsPlatformImplEnd = this.findSectionTs(
-        NATIVEMODULE_PLATFORM_METHOD_END,
-        flows,
-      );
       const threadSwitchingEnd = this.findSectionTs(
         NATIVEMODULE_THREAD_SWITCH_END,
         flows,
@@ -191,7 +196,8 @@ export class NativeModuleDetailsPanel implements TrackEventDetailsPanel {
         platformImplEnd != undefined &&
         outputParamsEnd != undefined &&
         threadSwitchingEnd != undefined &&
-        jsPlatformImplEnd != undefined
+        platformMethodEnd != undefined &&
+        callbackInvokeEnd != undefined
       ) {
         sections.push({
           beginTs: beginTs,
@@ -207,7 +213,7 @@ export class NativeModuleDetailsPanel implements TrackEventDetailsPanel {
           description: STAGE_DESCRIPTION_PLATFORM_IMPLEMENTATION,
           thread: this.getRunningThreadInfo(
             inputParamsEnd,
-            jsPlatformImplEnd,
+            platformMethodEnd,
             platformImplEnd,
           ),
         });
@@ -227,7 +233,7 @@ export class NativeModuleDetailsPanel implements TrackEventDetailsPanel {
         });
         sections.push({
           beginTs: Number(outputParamsEnd.sliceEndTs),
-          endTs: endTs,
+          endTs: Number(callbackInvokeEnd.sliceEndTs),
           name: STAGE_INVOKE_CALLBACK,
           description: STAGE_DESCRIPTION_INVOKE_CALLBACK,
           thread: outputParamsEnd.threadName,
