@@ -30,7 +30,7 @@ runs:
       run: |
         # Create buildtools cache key.
         flags="${INSTALL_FLAGS:-default}"
-        echo "key=buildtools-$flags" >> "$GITHUB_OUTPUT"
+        echo "key=buildtools-debug-branch-$flags" >> "$GITHUB_OUTPUT"
 
     # When restoring the buildtools cache, we don't want to overwrite files or
     # folders that are stored in git.
@@ -94,7 +94,7 @@ runs:
 
     - name: Save buildtools cache (only on main)
       if: |
-        github.ref == 'refs/heads/main' &&
+        github.ref != '' &&
         steps.check_if_need_update.outputs.update_cache == 'true'
       uses: ./.github/actions/cache-on-google-cloud-storage/save
       with:
