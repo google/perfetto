@@ -17,6 +17,7 @@ import {defer} from '../base/deferred';
 import {Icon} from './icon';
 import {Button, ButtonVariant} from './button';
 import {Intent} from './common';
+import {OverlayContainer} from './overlay_container';
 
 // This module deals with modal dialogs. Unlike most components, here we want to
 // render the DOM elements outside of the corresponding vdom tree. For instance
@@ -154,24 +155,28 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
         onkeydown: this.onBackdropKeydown.bind(this, attrs),
         tabIndex: 0,
       },
-      m(
-        `.pf-modal-dialog${align}${customClass}${aria}`,
+      // Create a new overlay context container to ensure popups and tooltips et
+      // al within this modal can be seen.
+      m(OverlayContainer, {fillParent: true}, [
         m(
-          'header',
+          `.pf-modal-dialog${align}${customClass}${aria}`,
           m(
-            '.modal-title',
-            attrs.icon && m(Icon, {icon: attrs.icon}),
-            m('h2', {id: 'mm-title'}, attrs.title),
+            'header',
+            m(
+              '.modal-title',
+              attrs.icon && m(Icon, {icon: attrs.icon}),
+              m('h2', {id: 'mm-title'}, attrs.title),
+            ),
+            m(
+              'button[aria-label=Close Modal]',
+              {onclick: () => closeModal(attrs.key)},
+              m(Icon, {icon: 'close'}),
+            ),
           ),
-          m(
-            'button[aria-label=Close Modal]',
-            {onclick: () => closeModal(attrs.key)},
-            m(Icon, {icon: 'close'}),
-          ),
+          m('main', vnode.children),
+          buttons.length > 0 ? m('footer', buttons) : null,
         ),
-        m('main', vnode.children),
-        buttons.length > 0 ? m('footer', buttons) : null,
-      ),
+      ]),
     );
   }
 
@@ -200,7 +205,7 @@ let generationCounter = 0;
 // This should be called only by app.ts and nothing else.
 // This generates the modal dialog at the root of the DOM, so it can overlay
 // on top of everything else.
-export function maybeRenderFullscreenModalDialog() {
+export function renderModalOverlay() {
   // We use the generation counter as key to distinguish between: (1) two render
   // passes for the same dialog vs (2) rendering a new dialog that has been
   // created invoking showModal() while another modal dialog was already being

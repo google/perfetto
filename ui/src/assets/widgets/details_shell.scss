@@ -20,7 +20,7 @@
   font-family: var(--pf-font-compact);
 
   .pf-header-bar {
-    z-index: 1;
+    z-index: 1; // Ensure drop shadow is above page content
 
     display: flex;
     flex-direction: row;

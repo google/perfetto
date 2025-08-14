@@ -18,7 +18,6 @@
   --sidebar-padding-bottom: 40px;
   --sidebar-timing: 0.15s;
   grid-area: sidebar;
-  z-index: 4;
   background-color: #262f3c;
   overflow: hidden;
   width: var(--sidebar-width);
@@ -48,9 +47,6 @@
       height: 36px;
       margin-top: 4px;
     }
-    &::before {
-      z-index: 10;
-    }
     &.pf-sidebar__channel--canary::before,
     &.pf-sidebar__channel--autopush::before {
       display: block;
@@ -72,7 +68,7 @@
   }
   .pf-sidebar-button {
     position: fixed;
-    z-index: 5;
+    z-index: 2; // Needs to show above the topbar which has z-index: 1.
     background-color: #262f3c;
     height: var(--topbar-height);
     left: calc(var(--sidebar-width) - 50px);
@@ -338,7 +334,6 @@ body.testing .pf-sidebar__footer {
   top: 20px;
   transform: rotate(-45deg);
   width: 200px;
-  z-index: 5;
 
   a {
     color: white;

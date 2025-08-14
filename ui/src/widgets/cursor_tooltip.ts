@@ -65,9 +65,9 @@ export class CursorTooltip implements m.ClassComponent<CursorTooltipAttrs> {
         ...rest,
         className: classNames('pf-cursor-tooltip', className),
         onBeforeContentMount: (dom: Element): MountOptions => {
-          const closestModal = dom.closest('.pf-overlay-container');
-          if (closestModal) {
-            return {container: closestModal};
+          const closestContainer = dom.closest('.pf-overlay-container');
+          if (closestContainer) {
+            return {container: closestContainer};
           }
           return {container: undefined};
         },

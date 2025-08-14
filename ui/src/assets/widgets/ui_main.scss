@@ -13,6 +13,7 @@
 // limitations under the License.
 
 .pf-ui-main {
+  isolation: isolate; // Create a new stacking context to avoid z-index issues.
   display: grid;
   grid-template-areas:
     "sidebar topbar"
@@ -33,6 +34,7 @@
   }
 
   &__page-container {
+    isolation: isolate; // Create a new stacking context to avoid z-index issues.
     grid-area: page;
     overflow: auto;
   }

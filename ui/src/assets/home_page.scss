@@ -84,7 +84,6 @@
         width: calc(var(--chan-width) * var(--chan-num));
         height: 40px;
         line-height: 40px;
-        z-index: 0;
         user-select: none;
       }
 
@@ -95,7 +94,7 @@
         width: var(--chan-width);
         height: 100%;
         color: white;
-        z-index: 2;
+        z-index: 1;
         text-transform: uppercase;
         font-size: 16px;
         font-family: var(--pf-font-compact);
@@ -112,7 +111,6 @@
         );
         top: 0;
         left: 0;
-        z-index: 1;
         border-radius: inherit;
         @include transition(0.2s);
       }

@@ -386,7 +386,6 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
           this._redrawWhileAnimating.stop();
         },
       },
-      shouldShowHiringBanner() ? m(HiringBanner) : null,
       m(
         `header.pf-sidebar__channel--${getCurrentChannel()}`,
         m(`img[src=${assetSrc('assets/brand.png')}].pf-sidebar__brand`),
@@ -406,6 +405,7 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
           m(SidebarFooter, attrs),
         ),
       ),
+      shouldShowHiringBanner() && m(HiringBanner),
     );
   }
 

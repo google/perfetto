@@ -21,7 +21,7 @@ import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {Command} from '../public/command';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
-import {maybeRenderFullscreenModalDialog, showModal} from '../widgets/modal';
+import {showModal} from '../widgets/modal';
 import {CookieConsent} from '../core/cookie_consent';
 import {toggleHelp} from './help_modal';
 import {Omnibox, OmniboxOption} from './omnibox';
@@ -775,7 +775,6 @@ export class UiMainPerTrace implements m.ClassComponent {
         }),
         m('.pf-ui-main__page-container', app.pages.renderPageForCurrentRoute()),
         m(CookieConsent),
-        maybeRenderFullscreenModalDialog(),
         showStatusBarFlag.get() && renderStatusBar(app.trace),
         app.perfDebugging.renderPerfStats(),
       ),

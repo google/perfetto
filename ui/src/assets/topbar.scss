@@ -14,13 +14,10 @@
 
 @import "theme";
 
-@mixin omnibox-width() {
-}
-
 .pf-topbar {
   grid-area: topbar;
   position: relative;
-  z-index: 3;
+  z-index: 1; // Topbar shadow should show above page content.
   overflow: visible;
   background-color: var(--pf-color-background-secondary);
   box-shadow: $box-shadow-1;

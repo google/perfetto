@@ -16,7 +16,6 @@
 
 .pf-popup-portal {
   position: absolute;
-  z-index: 10; // Hack to show popups over certain other elements
 
   // When width = 0 it can cause layout issues in popup content, so we give this
   // element some width manually

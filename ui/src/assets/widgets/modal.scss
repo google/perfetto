@@ -40,7 +40,6 @@
 
 .pf-modal-backdrop {
   position: absolute;
-  z-index: 99;
   background-color: rgba(0, 0, 0, 0.6);
   top: 0;
   left: 0;
@@ -58,7 +57,6 @@
 
 .pf-modal-dialog {
   position: absolute;
-  z-index: 100;
   background-color: var(--pf-color-background);
   margin: auto;
   min-width: 25vw;
