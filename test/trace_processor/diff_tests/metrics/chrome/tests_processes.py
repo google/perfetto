@@ -71,7 +71,7 @@ class ChromeProcesses(TestSuite):
               process_name: "Browser"
             }
             chrome_process {
-              process_type: PROCESS_BROWSER
+              [perfetto.protos.ChromeProcessDescriptorExtensions.process_type]: PROCESS_BROWSER
             }
           }
           trusted_packet_sequence_id: 5

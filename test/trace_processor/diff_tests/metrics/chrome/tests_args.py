@@ -80,7 +80,7 @@ class ChromeArgs(TestSuite):
             }
             parent_uuid: 0
             chrome_thread {
-              thread_type: THREAD_POOL_FG_WORKER
+              [perfetto.protos.ChromeThreadDescriptorExtensions.thread_type]: THREAD_POOL_FG_WORKER
             }
           }
         }

@@ -1,0 +1,26 @@
+// Copyright 2025 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+syntax = "proto2";
+
+import public "protos/perfetto/trace/track_event/chrome_process_descriptor.proto";
+import public "protos/perfetto/trace/track_event/chrome_thread_descriptor.proto";
+import public "protos/third_party/chromium/chrome_enums.proto";
+
+package perfetto.protos;
+
+// These extensions were migrated from inline fields of existing messages, so
+// their field numbers must not change. New extensions should be added to
+// chrome_track_event.proto instead.
+message ChromeProcessDescriptorExtensions {
+  extend ChromeProcessDescriptor {
+    optional chrome_enums.ProcessType process_type = 1;
+  }
+}
+
+message ChromeThreadDescriptorExtensions {
+  extend ChromeThreadDescriptor {
+    optional chrome_enums.ThreadType thread_type = 1;
+  }
+}

@@ -11982,6 +11982,7 @@ genrule {
         "protos/perfetto/trace/track_event/thread_descriptor.proto",
         "protos/perfetto/trace/track_event/track_descriptor.proto",
         "protos/perfetto/trace/track_event/track_event.proto",
+        "protos/third_party/chromium/chrome_descriptor_extensions.proto",
         "protos/third_party/chromium/chrome_enums.proto",
         "protos/third_party/chromium/chrome_track_event.proto",
         "protos/third_party/chromium/chrome_track_event_import_wrapper.proto",
@@ -11999,6 +12000,7 @@ genrule {
 filegroup {
     name: "perfetto_protos_third_party_chromium_zero",
     srcs: [
+        "protos/third_party/chromium/chrome_descriptor_extensions.proto",
         "protos/third_party/chromium/chrome_enums.proto",
         "protos/third_party/chromium/chrome_track_event.proto",
     ],
@@ -12017,6 +12019,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_third_party_chromium_zero)",
     out: [
+        "external/perfetto/protos/third_party/chromium/chrome_descriptor_extensions.pbzero.cc",
         "external/perfetto/protos/third_party/chromium/chrome_enums.pbzero.cc",
         "external/perfetto/protos/third_party/chromium/chrome_track_event.pbzero.cc",
     ],
@@ -12035,6 +12038,7 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_third_party_chromium_zero)",
     out: [
+        "external/perfetto/protos/third_party/chromium/chrome_descriptor_extensions.pbzero.h",
         "external/perfetto/protos/third_party/chromium/chrome_enums.pbzero.h",
         "external/perfetto/protos/third_party/chromium/chrome_track_event.pbzero.h",
     ],

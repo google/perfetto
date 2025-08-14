@@ -3422,62 +3422,17 @@ class ChromePerformanceMarkTranslationTable(_message.Message):
     def __init__(self, site_hash_to_name: _Optional[_Mapping[int, str]] = ..., mark_hash_to_name: _Optional[_Mapping[int, str]] = ...) -> None: ...
 
 class ChromeProcessDescriptor(_message.Message):
-    __slots__ = ["crash_trace_id", "host_app_package_name", "legacy_sort_index", "process_priority", "process_type"]
-    class ProcessType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+    __slots__ = ["crash_trace_id", "host_app_package_name", "legacy_sort_index", "process_priority"]
     CRASH_TRACE_ID_FIELD_NUMBER: _ClassVar[int]
+    Extensions: _python_message._ExtensionDict
     HOST_APP_PACKAGE_NAME_FIELD_NUMBER: _ClassVar[int]
     LEGACY_SORT_INDEX_FIELD_NUMBER: _ClassVar[int]
-    PROCESS_BROWSER: ChromeProcessDescriptor.ProcessType
-    PROCESS_GPU: ChromeProcessDescriptor.ProcessType
-    PROCESS_PPAPI_BROKER: ChromeProcessDescriptor.ProcessType
-    PROCESS_PPAPI_PLUGIN: ChromeProcessDescriptor.ProcessType
     PROCESS_PRIORITY_FIELD_NUMBER: _ClassVar[int]
-    PROCESS_RENDERER: ChromeProcessDescriptor.ProcessType
-    PROCESS_RENDERER_EXTENSION: ChromeProcessDescriptor.ProcessType
-    PROCESS_SANDBOX_HELPER: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_AUDIO: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_CDM: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_CROS_ASSISTANT_AUDIO_DECODER: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_CROS_LOCALSEARCH: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_DATA_DECODER: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_FILEPATCHER: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_FILEUTIL: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_IME: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_LANGUAGEDETECTION: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_MEDIAPARSER: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_MEDIA_FOUNDATION: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_MIRRORING: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_NETWORK: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_PAINTPREVIEW: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_PRINTCOMPOSITOR: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_PRINTING: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_PROFILEIMPORT: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_PROXY_RESOLVER: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_QRCODEGENERATOR: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_QUARANTINE: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_READICON: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_RECORDING: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_SHAPEDETECTION: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_SHARING: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_SPEECHRECOGNITION: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_STORAGE: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_TRACING: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_TTS: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_UNZIPPER: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_UTIL_WIN: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_VIDEO_CAPTURE: ChromeProcessDescriptor.ProcessType
-    PROCESS_SERVICE_XRDEVICE: ChromeProcessDescriptor.ProcessType
-    PROCESS_TYPE_FIELD_NUMBER: _ClassVar[int]
-    PROCESS_UNSPECIFIED: ChromeProcessDescriptor.ProcessType
-    PROCESS_UTILITY: ChromeProcessDescriptor.ProcessType
-    PROCESS_ZYGOTE: ChromeProcessDescriptor.ProcessType
     crash_trace_id: int
     host_app_package_name: str
     legacy_sort_index: int
     process_priority: int
-    process_type: ChromeProcessDescriptor.ProcessType
-    def __init__(self, process_type: _Optional[_Union[ChromeProcessDescriptor.ProcessType, str]] = ..., process_priority: _Optional[int] = ..., legacy_sort_index: _Optional[int] = ..., host_app_package_name: _Optional[str] = ..., crash_trace_id: _Optional[int] = ...) -> None: ...
+    def __init__(self, process_priority: _Optional[int] = ..., legacy_sort_index: _Optional[int] = ..., host_app_package_name: _Optional[str] = ..., crash_trace_id: _Optional[int] = ...) -> None: ...
 
 class ChromeRendererSchedulerState(_message.Message):
     __slots__ = ["is_backgrounded", "is_hidden", "rail_mode"]
@@ -3511,61 +3466,13 @@ class ChromeStudyTranslationTable(_message.Message):
     def __init__(self, hash_to_name: _Optional[_Mapping[int, str]] = ...) -> None: ...
 
 class ChromeThreadDescriptor(_message.Message):
-    __slots__ = ["is_sandboxed_tid", "legacy_sort_index", "thread_type"]
-    class ThreadType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = []
+    __slots__ = ["is_sandboxed_tid", "legacy_sort_index"]
+    Extensions: _python_message._ExtensionDict
     IS_SANDBOXED_TID_FIELD_NUMBER: _ClassVar[int]
     LEGACY_SORT_INDEX_FIELD_NUMBER: _ClassVar[int]
-    THREAD_AUDIO_INPUTDEVICE: ChromeThreadDescriptor.ThreadType
-    THREAD_AUDIO_OUTPUTDEVICE: ChromeThreadDescriptor.ThreadType
-    THREAD_BROWSER_IO: ChromeThreadDescriptor.ThreadType
-    THREAD_BROWSER_MAIN: ChromeThreadDescriptor.ThreadType
-    THREAD_BROWSER_WATCHDOG: ChromeThreadDescriptor.ThreadType
-    THREAD_CACHE_BLOCKFILE: ChromeThreadDescriptor.ThreadType
-    THREAD_CHILD_IO: ChromeThreadDescriptor.ThreadType
-    THREAD_COMPOSITOR: ChromeThreadDescriptor.ThreadType
-    THREAD_COMPOSITOR_GPU: ChromeThreadDescriptor.ThreadType
-    THREAD_COMPOSITOR_WORKER: ChromeThreadDescriptor.ThreadType
-    THREAD_DATABASE: ChromeThreadDescriptor.ThreadType
-    THREAD_DEVTOOLSADB: ChromeThreadDescriptor.ThreadType
-    THREAD_DXA_VIDEODECODER: ChromeThreadDescriptor.ThreadType
-    THREAD_GAMEPAD_POLLING: ChromeThreadDescriptor.ThreadType
-    THREAD_GPU_MAIN: ChromeThreadDescriptor.ThreadType
-    THREAD_GPU_MEMORY: ChromeThreadDescriptor.ThreadType
-    THREAD_GPU_VSYNC: ChromeThreadDescriptor.ThreadType
-    THREAD_GPU_WATCHDOG: ChromeThreadDescriptor.ThreadType
-    THREAD_IO: ChromeThreadDescriptor.ThreadType
-    THREAD_LOADER_LOCK_SAMPLER: ChromeThreadDescriptor.ThreadType
-    THREAD_MAIN: ChromeThreadDescriptor.ThreadType
-    THREAD_MEDIA: ChromeThreadDescriptor.ThreadType
-    THREAD_MEMORY_INFRA: ChromeThreadDescriptor.ThreadType
-    THREAD_NETWORKCONFIGWATCHER: ChromeThreadDescriptor.ThreadType
-    THREAD_NETWORK_SERVICE: ChromeThreadDescriptor.ThreadType
-    THREAD_POOL_BG_BLOCKING: ChromeThreadDescriptor.ThreadType
-    THREAD_POOL_BG_WORKER: ChromeThreadDescriptor.ThreadType
-    THREAD_POOL_FG_BLOCKING: ChromeThreadDescriptor.ThreadType
-    THREAD_POOL_FG_WORKER: ChromeThreadDescriptor.ThreadType
-    THREAD_POOL_SERVICE: ChromeThreadDescriptor.ThreadType
-    THREAD_PPAPI_MAIN: ChromeThreadDescriptor.ThreadType
-    THREAD_PROXYRESOLVER: ChromeThreadDescriptor.ThreadType
-    THREAD_RENDERER_MAIN: ChromeThreadDescriptor.ThreadType
-    THREAD_SAMPLING_PROFILER: ChromeThreadDescriptor.ThreadType
-    THREAD_SERVICE_WORKER: ChromeThreadDescriptor.ThreadType
-    THREAD_SWAPPER: ChromeThreadDescriptor.ThreadType
-    THREAD_TYPE_FIELD_NUMBER: _ClassVar[int]
-    THREAD_UNSPECIFIED: ChromeThreadDescriptor.ThreadType
-    THREAD_UTILITY_MAIN: ChromeThreadDescriptor.ThreadType
-    THREAD_VIZ_COMPOSITOR: ChromeThreadDescriptor.ThreadType
-    THREAD_WASAPI_RENDER: ChromeThreadDescriptor.ThreadType
-    THREAD_WEBCRYPTO: ChromeThreadDescriptor.ThreadType
-    THREAD_WEBRTC_NETWORK: ChromeThreadDescriptor.ThreadType
-    THREAD_WEBRTC_SIGNALING: ChromeThreadDescriptor.ThreadType
-    THREAD_WEBRTC_WORKER: ChromeThreadDescriptor.ThreadType
-    THREAD_WINDOW_OWNER: ChromeThreadDescriptor.ThreadType
     is_sandboxed_tid: bool
     legacy_sort_index: int
-    thread_type: ChromeThreadDescriptor.ThreadType
-    def __init__(self, thread_type: _Optional[_Union[ChromeThreadDescriptor.ThreadType, str]] = ..., legacy_sort_index: _Optional[int] = ..., is_sandboxed_tid: bool = ...) -> None: ...
+    def __init__(self, legacy_sort_index: _Optional[int] = ..., is_sandboxed_tid: bool = ...) -> None: ...
 
 class ChromeTraceEvent(_message.Message):
     __slots__ = ["args", "bind_id", "category_group_name", "category_group_name_index", "duration", "flags", "id", "name", "name_index", "phase", "process_id", "scope", "thread_duration", "thread_id", "thread_timestamp", "timestamp"]

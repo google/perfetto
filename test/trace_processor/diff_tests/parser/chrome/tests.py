@@ -36,7 +36,7 @@ class ChromeParser(TestSuite):
             }
             parent_uuid: 0
             chrome_thread {
-              thread_type: THREAD_POOL_FG_WORKER
+              [perfetto.protos.ChromeThreadDescriptorExtensions.thread_type]: THREAD_POOL_FG_WORKER
             }
           }
         }
@@ -93,7 +93,7 @@ class ChromeParser(TestSuite):
             }
             parent_uuid: 0
             chrome_thread {
-              thread_type: THREAD_POOL_FG_WORKER
+              [perfetto.protos.ChromeThreadDescriptorExtensions.thread_type]: THREAD_POOL_FG_WORKER
             }
           }
         }
@@ -149,7 +149,7 @@ class ChromeParser(TestSuite):
             }
             parent_uuid: 0
             chrome_thread {
-              thread_type: THREAD_POOL_FG_WORKER
+              [perfetto.protos.ChromeThreadDescriptorExtensions.thread_type]: THREAD_POOL_FG_WORKER
             }
           }
         }
@@ -217,7 +217,7 @@ class ChromeParser(TestSuite):
               process_name: "process1"
             }
             chrome_process {
-              process_type: PROCESS_SERVICE_TRACING
+              [perfetto.protos.ChromeProcessDescriptorExtensions.process_type]: PROCESS_SERVICE_TRACING
             }
           }
           trusted_uid: 0
