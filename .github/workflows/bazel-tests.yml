@@ -94,6 +94,8 @@ jobs:
 #          ./bazel-bin/perfetto -c :test -o $TRACE
 #          kill $(jobs -p)
 #          ./bazel-bin/trace_processor_shell -q <(echo 'select count(1) from sched') $TRACE
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
       - name: Create AVD for Android Instrumentation Tests
         uses: reactivecircus/android-emulator-runner@v2
