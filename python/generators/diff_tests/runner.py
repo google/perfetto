@@ -45,22 +45,19 @@ class TestResults:
   test_time_ms: int
   skipped_tests_filter: List[Tuple[str, str]]
   warning_tests_filter: List[Tuple[str, str]]
-
-  total_tests_to_run_no_filter: int
-  number_of_skipped_no_filter: int
-  number_of_warning_no_filter: int
-  total_tests_to_run_filter: int
+  total_tests_to_run: int
+  tests_skipped_by_name: int
 
   def str(self, no_colors: bool) -> str:
     c = ColorFormatter(no_colors)
-    tests_ran = self.total_tests_to_run_filter
-    passed_tests = tests_ran - len(self.test_failures)
-    tests_in_filter = self.total_tests_to_run_filter + len(
+    total_tests = self.total_tests_to_run + self.tests_skipped_by_name + len(
         self.skipped_tests_filter) + len(self.warning_tests_filter)
-    all_tests = self.total_tests_to_run_no_filter + self.number_of_skipped_no_filter + self.number_of_warning_no_filter
+    tests_in_filter = self.total_tests_to_run + len(
+        self.skipped_tests_filter) + len(self.warning_tests_filter)
+    passed_tests = self.total_tests_to_run - len(self.test_failures)
     res = (
-        f"[==========] Name filter selected {tests_in_filter} tests out of {all_tests}.\n"
-        f"[==========] {tests_ran} tests ran out of {tests_in_filter} total. ({self.test_time_ms} ms total)\n"
+        f"[==========] Name filter selected {tests_in_filter} tests out of {total_tests}.\n"
+        f"[==========] {self.total_tests_to_run} tests ran out of {tests_in_filter} total. ({self.test_time_ms} ms total)\n"
         f"{c.green('[  PASSED  ]')} "
         f"{passed_tests} tests.\n")
     if len(self.skipped_tests_filter) > 0:
@@ -91,19 +88,14 @@ class DiffTestsRunner:
     self.current_modules = self._get_build_config()
 
   def run(self) -> TestResults:
-    # Discover all tests first to get the total count.
-    all_tests = self.test_loader.discover_and_load_tests('.*', self.current_modules)
-    total_tests_to_run_no_filter = len(all_tests)
-    skipped_no_filter = len(self.test_loader.skipped_tests)
-    warning_no_filter = len(self.test_loader.warning_tests)
+    # Discover and filter tests.
+    db = self.test_loader.discover_and_load_tests(self.config.name_filter,
+                                                  self.current_modules)
+    tests = db.runnable
+    total_tests_to_run = len(tests)
+    tests_skipped_by_name = len(db.skipped_name_filter)
 
-    # Now filter the tests to get the ones that will actually run.
-    tests = self.test_loader.discover_and_load_tests(self.config.name_filter,
-                                                     self.current_modules)
-    total_tests_to_run_filter = len(tests)
-
-    sys.stderr.write(
-        f'[==========] Running {total_tests_to_run_filter} tests.\n')
+    sys.stderr.write(f'[==========] Running {total_tests_to_run} tests.\n')
 
     trace_descriptor_path = get_trace_descriptor_path(
         os.path.dirname(self.config.trace_processor_path),
@@ -151,11 +143,8 @@ class DiffTestsRunner:
         (datetime.datetime.now() - test_run_start).total_seconds() * 1000)
     if self.config.quiet:
       sys.stderr.write(f"\r")
-    return TestResults(failures, perf_results, test_time_ms,
-                       self.test_loader.skipped_tests,
-                       self.test_loader.warning_tests,
-                       total_tests_to_run_no_filter, skipped_no_filter,
-                       warning_no_filter, total_tests_to_run_filter)
+    return TestResults(failures, perf_results, test_time_ms, db.skipped_other,
+                       db.warnings, total_tests_to_run, tests_skipped_by_name)
 
   def _run_test(self, test: TestCase,
                 trace_descriptor_path: str) -> Tuple[str, str, TestResult]:

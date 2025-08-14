@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Union
 from python.generators.diff_tests.testing import (BinaryProto, Csv, DataPath,
                                                   DiffTestBlueprint, Json, Path,
                                                   Systrace, TextProto)
-from python.generators.diff_tests.models import TestCase, TestType
+from python.generators.diff_tests.models import DiscoveredDb, TestCase, TestType
 
 if TYPE_CHECKING:
   from python.generators.diff_tests.testing import TestSuite
@@ -36,9 +36,7 @@ class TestLoader:
     self.warning_tests: List[Tuple[str, str]] = []
 
   def discover_and_load_tests(self, name_filter: str,
-                              current_modules: Set[str]) -> List[TestCase]:
-    self.skipped_tests = []
-    self.warning_tests = []
+                              current_modules: Set[str]) -> DiscoveredDb:
     # Import the index file to discover all the tests.
     include_path = os.path.join(self.root_dir, 'test', 'trace_processor',
                                 'diff_tests')
@@ -48,16 +46,25 @@ class TestLoader:
 
     all_tests_data = fetch_all_diff_tests(include_path)
 
-    tests = []
+    runnable: List[TestCase] = []
+    skipped_name_filter: List[str] = []
+    skipped_other: List[Tuple[str, str]] = []
+    warnings: List[Tuple[str, str]] = []
+
+    query_metric_pattern = re.compile(name_filter)
     for name, blueprint in all_tests_data:
+      if not query_metric_pattern.match(os.path.basename(name)):
+        skipped_name_filter.append(name)
+        continue
+
       should_run, reason, is_warning = self._validate_test(
-          name, name_filter, blueprint, current_modules)
+          name, blueprint, current_modules)
       if not should_run:
         if reason:
           if is_warning:
-            self.warning_tests.append((name, reason))
+            warnings.append((name, reason))
           else:
-            self.skipped_tests.append((name, reason))
+            skipped_other.append((name, reason))
         continue
 
       query_path = self._get_query_path(name, blueprint)
@@ -67,23 +74,18 @@ class TestLoader:
       register_files_dir = self._get_register_files_dir(name, blueprint)
       test_type = self._get_test_type(blueprint)
 
-      tests.append(
+      runnable.append(
           TestCase(name, blueprint, query_path, trace_path, expected_path,
                    expected_str, register_files_dir, test_type))
-    return tests
+    return DiscoveredDb(runnable, skipped_name_filter, skipped_other, warnings)
 
-  def _validate_test(self, name: str, name_filter: str,
-                     blueprint: DiffTestBlueprint,
-                     current_modules: Set[str]) -> Tuple[bool, Optional[str], bool]:
-    query_metric_pattern = re.compile(name_filter)
-    if not query_metric_pattern.match(os.path.basename(name)):
-      return False, None, False
-
+  def _validate_test(
+      self, name: str, blueprint: DiffTestBlueprint,
+      current_modules: Set[str]) -> Tuple[bool, Optional[str], bool]:
     if blueprint.module_dependencies:
       for module in blueprint.module_dependencies:
         if module not in current_modules:
           return False, f"module '{module}' not found", False
-
     return True, None, False
 
   def _get_test_type(self, blueprint: DiffTestBlueprint) -> TestType:
