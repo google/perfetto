@@ -209,11 +209,7 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
           ? [
               m(
                 'footer.pf-ai-chat-panel__tokens',
-              m(
-                'Tokens',
-                m('br'),
-                (this.usage?.totalTokenCount ?? '--'),
-              )
+                m('Tokens', m('br'), this.usage?.totalTokenCount ?? '--'),
               ),
             ]
           : [],
