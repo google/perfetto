@@ -28,7 +28,6 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/dataframe/impl/bit_vector.h"
 #include "src/trace_processor/dataframe/impl/flex_vector.h"
-#include "src/trace_processor/dataframe/impl/slab.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/type_set.h"
 
@@ -352,44 +351,6 @@ class NullStorage {
 struct SpecializedStorage {
  public:
   // Special data structure capable of giving very fast results for equality
-  // constraints on columns with not-too large values.
-  //
-  // Usable in situations where the column has all the following properties:
-  //  1) It's non-null.
-  //  2) The max(value) is "reasonably small".
-  //     - as the the memory used will be O(max(value)) *not* O(size(column)).
-  struct SmallValueEq {
-    // Forms an "inverted index" from the value to the indices of rows matching
-    // the value.
-    //
-    // Example:
-    // Column values: [0, 1, 0, 2, 1]
-    // value_to_indices_start: [0, 2, 4, 5]
-    // indices: [0, 2, 1, 4, 3]
-    //
-    // To find all rows with value 1:
-    //  1. Get start index from value_to_indices_start[1] -> 2
-    //  2. Get end index from value_to_indices_start[2] -> 4
-    //  3. The indices are in indices[2:4] -> [1, 4]
-    FlexVector<uint32_t> value_to_indices_start;
-    FlexVector<uint32_t> indices;
-  };
-
-  // Special data structure capable of giving very fast results for equality
-  // constraints on non-duplicate columns with not-too large values.
-  //
-  // Usable in situations where the column has all the following properties:
-  //  1) It's non-null.
-  //  2) It has no duplicate values.
-  //  3) The max(value) is "reasonably small".
-  //     - as the the memory used will be O(max(value)) *not* O(size(column)).
-  struct SmallValueEqNoDup {
-    // A map from the value in the column to the index of that value in the
-    // column.
-    FlexVector<uint32_t> value_to_index;
-  };
-
-  // Special data structure capable of giving very fast results for equality
   // constraints on sorted, non-duplicate columns with not-too large values.
   // This is very common when joining two tables together by id.
   //
@@ -399,7 +360,7 @@ struct SpecializedStorage {
   //  3) It has no duplicate values.
   //  4) The max(value) is "reasonably small".
   //     - as the the memory used will be O(max(value)) *not* O(size(column)).
-  struct SmallValueEqSortedNoDup {
+  struct SmallValueEq {
     // BitVector with 1s representing the presence of a value in the
     // column. The value is the index of the value in the column.
     //
@@ -415,8 +376,6 @@ struct SpecializedStorage {
   };
 
   SpecializedStorage() = default;
-  SpecializedStorage(SmallValueEqSortedNoDup data) : data_(std::move(data)) {}
-  SpecializedStorage(SmallValueEqNoDup data) : data_(std::move(data)) {}
   SpecializedStorage(SmallValueEq data) : data_(std::move(data)) {}
 
   template <typename T>
@@ -431,10 +390,7 @@ struct SpecializedStorage {
   }
 
  private:
-  using Variant = std::variant<std::monostate,
-                               SmallValueEq,
-                               SmallValueEqNoDup,
-                               SmallValueEqSortedNoDup>;
+  using Variant = std::variant<std::monostate, SmallValueEq>;
   Variant data_;
 };
 
