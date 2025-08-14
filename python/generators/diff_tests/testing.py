@@ -59,6 +59,12 @@ class Csv:
 
 
 @dataclass
+class RawText:
+  """Represents a raw text string."""
+  contents: str
+
+
+@dataclass
 class TextProto:
   """Represents a textproto string."""
   contents: str
@@ -128,7 +134,7 @@ class DiffTestBlueprint:
   a DiffTestBlueprint.
   """
 
-  trace: Union[Path, DataPath, Json, Systrace, TextProto]
+  trace: Union[Path, DataPath, Json, Systrace, TextProto, RawText]
   query: Union[str, Path, DataPath, Metric, MetricV2SpecTextproto]
   out: Union[Path, DataPath, Json, Csv, TextProto, BinaryProto]
   trace_modifier: Union[TraceInjector, None] = None
@@ -147,6 +153,9 @@ class DiffTestBlueprint:
 
   def is_trace_systrace(self):
     return isinstance(self.trace, Systrace)
+
+  def is_trace_rawtext(self):
+    return isinstance(self.trace, RawText)
 
   def is_query_file(self):
     return isinstance(self.query, Path)

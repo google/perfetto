@@ -306,7 +306,7 @@ class PERFETTO_EXPORT_COMPONENT NamedTrack : public Track {
       sibling_merge_behavior_{perfetto::protos::gen::TrackDescriptor::
                                   SIBLING_MERGE_BEHAVIOR_UNSPECIFIED};
   const char* sibling_merge_key_{nullptr};
-  std::optional<uint64_t> sibling_merge_key_int_ = 0;
+  std::optional<uint64_t> sibling_merge_key_int_ = std::nullopt;
 };
 
 // A track for recording counter values with the TRACE_COUNTER macro. Counter
