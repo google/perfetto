@@ -17,6 +17,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/type_builders.h"
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -331,8 +332,8 @@ struct IntervalTreeIntervalsAgg
       }
       base::StackString<1024> err_msg(
           "Interval intersect requires intervals to be sorted by ts. "
-          "Current interval(id %d) start %ld is less than the last interval "
-          "start %ld.",
+          "Current interval(id %u) start %" PRId64
+          " is less than the last interval start %" PRIu64 ".",
           interval.id, sqlite::value::Int64(argv[1]),
           agg_ctx.last_interval_start);
       sqlite::result::Error(ctx, err_msg.c_str());
