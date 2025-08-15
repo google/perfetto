@@ -45,7 +45,6 @@ export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.LinuxPerf';
   static readonly dependencies = [
     ProcessThreadGroupsPlugin,
-    StandardGroupsPlugin,
     TraceProcessorTrackPlugin,
   ];
 
@@ -208,10 +207,7 @@ export default class implements PerfettoPlugin {
     }
 
     if (perfCountersGroup.hasChildren) {
-      const hardwareGroup = trace.plugins
-        .getPlugin(StandardGroupsPlugin)
-        .getOrCreateStandardGroup(trace.workspace, 'HARDWARE');
-      hardwareGroup.addChildInOrder(perfCountersGroup);
+      trace.workspace.addChildInOrder(perfCountersGroup);
     }
 
     trace.selection.registerAreaSelectionTab(createAreaSelectionTab(trace));
