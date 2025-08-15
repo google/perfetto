@@ -780,10 +780,7 @@ SELECT
   extract_arg(ct.source_arg_set_id, 'is_timebase') AS is_timebase
 FROM counter_track AS ct
 WHERE
-  ct.type IN (
-    'perf_cpu_counter',
-    'perf_global_counter'
-  );
+  ct.type IN ('perf_cpu_counter', 'perf_global_counter');
 
 -- Alias of the `counter` table.
 CREATE PERFETTO VIEW counters (
