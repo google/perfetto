@@ -425,3 +425,37 @@ class Simpleperf(TestSuite):
         "task-clock:ppp",1211974642654928,2250000.000000
         "task-clock:ppp",1211974642904128,2500000.000000
         """))
+
+  def test_apk_symbolization(self):
+    return DiffTestBlueprint(
+        trace=DataPath('simpleperf/perf_with_jit_and_apk.data'),
+        query='''
+        select spf.rel_pc, spf.name, spm.name, start, end
+        from stack_profile_frame spf
+        join stack_profile_mapping spm on spf.mapping = spm.id
+        where spm.name glob '*apk*'
+        limit 20
+        ''',
+        out=Csv('''
+        "rel_pc","name","name","start","end"
+        1223152,"ew.onStart","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1152622,"bx.onStart","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        2327862,"boa.P","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1170302,"co.ak","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1152654,"bx.onStart","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1168868,"co.C","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1168962,"co.D","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1175796,"co.K","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1182724,"ct.d","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        2536682,"bxq.m","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1935740,"ahh.h","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        2412604,"com.android.deskclock.DeskClock.onResume","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1152530,"bx.onResume","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1223096,"ew.onPostResume","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1152424,"bx.onPostResume","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1152460,"bx.onPostResume","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1168824,"co.B","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        1182520,"ct.d","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        2409280,"bri.ac","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        2409764,"bri.x","/data/app/~~ZOaGUP2pmFbfL5N1tXwzQg==/com.google.android.deskclock-0_l2Nfy2tWQAnavJSkNABA==/base.apk",525645717504,525651664896
+        '''))
