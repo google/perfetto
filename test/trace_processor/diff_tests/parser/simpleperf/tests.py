@@ -246,6 +246,75 @@ class Simpleperf(TestSuite):
         "main,E"
         '''))
 
+  def test_jit_symbolization(self):
+    return DiffTestBlueprint(
+        trace=DataPath('simpleperf/perf_with_jit_and_apk.data'),
+        query='''
+        SELECT
+          frame.name as frame_name
+        FROM stack_profile_frame frame
+        JOIN stack_profile_mapping mapping ON frame.mapping = mapping.id
+        WHERE
+          mapping.name GLOB '*jit*'
+          AND frame.name IS NOT NULL
+        ORDER BY frame.name;
+        ''',
+        out=Csv('''
+        "frame_name"
+        "abh.a"
+        "android.support.v7.widget.GridLayoutManager.layoutChunk"
+        "android.support.v7.widget.SwitchCompat.draw"
+        "android.support.v7.widget.SwitchCompat.draw"
+        "android.support.v7.widget.SwitchCompat.draw"
+        "androidx.constraintlayout.widget.ConstraintLayout.L"
+        "androidx.constraintlayout.widget.ConstraintLayout.L"
+        "androidx.constraintlayout.widget.ConstraintLayout.onMeasure"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "cht.B"
+        "cht.L"
+        "cht.L"
+        "frj.b"
+        "frj.draw"
+        "frj.draw"
+        "frj.draw"
+        "frj.draw"
+        "frj.i"
+        "frn.B"
+        "frr.b"
+        "frr.b"
+        "frr.b"
+        "frr.b"
+        "frr.c"
+        "frr.c"
+        "frz.c"
+        "hf.a"
+        "hvx.S"
+        "hvx.T"
+        "mt.k"
+        "pi.a"
+        "pi.a"
+        "rp.g"
+        "wg.k"
+        "xi.Y"
+        "xi.Y"
+        "xi.Y"
+        "xi.ae"
+        "xx.a"
+        "xx.b"
+        "xx.b"
+        "xx.b"
+        '''))
+
   def test_spe_operation(self):
     return DiffTestBlueprint(
         trace=DataPath('simpleperf/spe.trace.zip'),
