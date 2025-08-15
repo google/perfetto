@@ -29,7 +29,6 @@ import {TrackNode} from '../../public/workspace';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {Flamegraph} from '../../widgets/flamegraph';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
-import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {
@@ -45,7 +44,6 @@ export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.LinuxPerf';
   static readonly dependencies = [
     ProcessThreadGroupsPlugin,
-    StandardGroupsPlugin,
     TraceProcessorTrackPlugin,
   ];
 
@@ -208,10 +206,7 @@ export default class implements PerfettoPlugin {
     }
 
     if (perfCountersGroup.hasChildren) {
-      const hardwareGroup = trace.plugins
-        .getPlugin(StandardGroupsPlugin)
-        .getOrCreateStandardGroup(trace.workspace, 'HARDWARE');
-      hardwareGroup.addChildInOrder(perfCountersGroup);
+      trace.workspace.addChildInOrder(perfCountersGroup);
     }
 
     trace.selection.registerAreaSelectionTab(createAreaSelectionTab(trace));
