@@ -760,7 +760,8 @@ CREATE PERFETTO TABLE perf_counter_track (
   description STRING,
   -- The id of the perf session this counter was captured on.
   perf_session_id LONG,
-  -- The CPU the counter is associated with.
+  -- The CPU the counter is associated with. Can be null if the counter is not
+  -- associated with any CPU.
   cpu LONG,
   -- Whether this counter is the sampling timebase for the session.
   is_timebase BOOL
@@ -779,7 +780,10 @@ SELECT
   extract_arg(ct.source_arg_set_id, 'is_timebase') AS is_timebase
 FROM counter_track AS ct
 WHERE
-  ct.type = 'perf_counter';
+  ct.type IN (
+    'perf_cpu_counter',
+    'perf_global_counter'
+  );
 
 -- Alias of the `counter` table.
 CREATE PERFETTO VIEW counters (

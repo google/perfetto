@@ -191,7 +191,7 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
 
   base::StringView name = context_->storage->GetString(name_id);
   TrackId timebase_track_id = context_->track_tracker->InternTrack(
-      tracks::kPerfCounterBlueprint,
+      tracks::kPerfCpuCounterBlueprint,
       tracks::Dimensions(cpu, session_id.value, name),
       tracks::DynamicName(name_id),
       [this](ArgsTracker::BoundInserter& inserter) {
@@ -206,7 +206,7 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
       base::StringView follower_name =
           context_->storage->GetString(follower_name_id);
       follower_track_ids.push_back(context_->track_tracker->InternTrack(
-          tracks::kPerfCounterBlueprint,
+          tracks::kPerfCpuCounterBlueprint,
           tracks::Dimensions(cpu, session_id.value, follower_name),
           tracks::DynamicName(follower_name_id),
           [this](ArgsTracker::BoundInserter& inserter) {
