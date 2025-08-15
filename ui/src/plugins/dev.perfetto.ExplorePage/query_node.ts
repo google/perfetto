@@ -141,7 +141,7 @@ function getStructuredQueries(
     if (curNode.prevNode && !curNode.prevNode.validate()) {
       return;
     }
-    curNode = curNode.nextNode;
+    curNode = curNode.prevNode;
   }
   return revStructuredQueries.reverse();
 }
