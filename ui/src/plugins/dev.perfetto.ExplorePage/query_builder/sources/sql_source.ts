@@ -24,10 +24,7 @@ import protos from '../../../../protos';
 import {Editor} from '../../../../widgets/editor';
 import {Icon} from '../../../../widgets/icon';
 import {Icons} from '../../../../base/semantic_icons';
-import {
-  createFiltersProto,
-  createGroupByProto,
-} from '../operations/operation_component';
+import {createFiltersProto} from '../operations/operation_component';
 import {
   QueryHistoryComponent,
   queryHistoryStorage,
@@ -48,6 +45,7 @@ export class SqlSourceNode extends SourceNode {
   constructor(attrs: SqlSourceState) {
     super(attrs);
     this.state = attrs;
+    this.nextNodes = [];
   }
 
   get type() {
@@ -68,9 +66,7 @@ export class SqlSourceNode extends SourceNode {
       sql: this.state.sql,
       onExecute: this.state.onExecute,
       sourceCols: newColumnInfoList(this.sourceCols),
-      groupByColumns: [],
       filters: [],
-      aggregations: [],
       customTitle: this.state.customTitle,
       trace: this.state.trace,
     };
@@ -99,11 +95,6 @@ export class SqlSourceNode extends SourceNode {
       this.sourceCols,
     );
     if (filtersProto) sq.filters = filtersProto;
-    const groupByProto = createGroupByProto(
-      this.state.groupByColumns,
-      this.state.aggregations,
-    );
-    if (groupByProto) sq.groupBy = groupByProto;
 
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) sq.selectColumns = selectedColumns;

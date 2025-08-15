@@ -22,17 +22,14 @@ import {
   QueryNode,
   QueryNodeState,
 } from '../query_node';
-import {
-  createFiltersProto,
-  createGroupByProto,
-} from './operations/operation_component';
+import {createFiltersProto} from './operations/operation_component';
 import {ColumnInfo, newColumnInfoList} from './column_info';
 
 export class SubQueryNode implements QueryNode {
   readonly nodeId: string;
   readonly type = NodeType.kSubQuery;
   readonly prevNode?: QueryNode;
-  readonly nextNode?: QueryNode;
+  nextNodes: QueryNode[];
   readonly sourceCols: ColumnInfo[];
   readonly finalCols: ColumnInfo[];
   readonly state: QueryNodeState;
@@ -43,6 +40,7 @@ export class SubQueryNode implements QueryNode {
     this.prevNode = state.prevNode;
     this.sourceCols = this.prevNode!.finalCols;
     this.finalCols = createFinalColumns(this);
+    this.nextNodes = [];
   }
 
   validate(): boolean {
@@ -61,9 +59,7 @@ export class SubQueryNode implements QueryNode {
     const stateCopy: QueryNodeState = {
       prevNode: this.state.prevNode,
       sourceCols: newColumnInfoList(this.sourceCols),
-      groupByColumns: newColumnInfoList(this.state.groupByColumns),
       filters: this.state.filters.map((f) => ({...f})),
-      aggregations: this.state.aggregations.map((a) => ({...a})),
       customTitle: this.state.customTitle,
       onchange: this.state.onchange,
     };
@@ -82,11 +78,6 @@ export class SubQueryNode implements QueryNode {
       this.sourceCols,
     );
     if (filtersProto) sq.filters = filtersProto;
-    const groupByProto = createGroupByProto(
-      this.state.groupByColumns,
-      this.state.aggregations,
-    );
-    if (groupByProto) sq.groupBy = groupByProto;
 
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) sq.selectColumns = selectedColumns;
