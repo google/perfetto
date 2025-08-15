@@ -63,7 +63,8 @@ std::optional<CounterId> EventTracker::PushCounter(
     const SetArgsCallback& args_callback) {
   auto maybe_counter_id = PushCounter(timestamp, value, track_id);
   if (maybe_counter_id) {
-    auto inserter = context_->args_tracker->AddArgsTo(*maybe_counter_id);
+    ArgsTracker args_tracker(context_);
+    auto inserter = args_tracker.AddArgsTo(*maybe_counter_id);
     args_callback(&inserter);
   }
   return maybe_counter_id;
