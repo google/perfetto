@@ -176,8 +176,8 @@ export default class PerfettoMcpPlugin implements PerfettoPlugin {
         return m(ChatPage, {
           trace,
           chat,
-          showThoughts: PerfettoMcpPlugin.thoughtsSetting.get(),
-          showTokens: PerfettoMcpPlugin.showTokensSetting.get(),
+          showThoughts: PerfettoMcpPlugin.thoughtsSetting,
+          showTokens: PerfettoMcpPlugin.showTokensSetting,
         });
       },
     });

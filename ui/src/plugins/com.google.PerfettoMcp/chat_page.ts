@@ -23,6 +23,7 @@ import {TextInput} from '../../widgets/text_input';
 import markdownit from 'markdown-it';
 import {Button, ButtonVariant} from '../../widgets/button';
 import {Intent} from '../../widgets/common';
+import {Setting} from '../../public/settings';
 
 // Interface for a single message in the chat display
 
@@ -35,16 +36,16 @@ interface ChatMessage {
 export interface ChatPageAttrs {
   readonly trace: Trace;
   readonly chat: Chat;
-  readonly showThoughts: boolean;
-  readonly showTokens: boolean;
+  readonly showThoughts: Setting<boolean>;
+  readonly showTokens: Setting<boolean>;
 }
 
 export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
   private messages: ChatMessage[];
   private userInput: string;
   private isLoading: boolean;
-  private showThoughts: boolean;
-  private showTokens: boolean;
+  private showThoughts: Setting<boolean>;
+  private showTokens: Setting<boolean>;
   private readonly chat: Chat;
   private md: markdownit;
   private usage?: GenerateContentResponseUsageMetadata;
@@ -65,7 +66,7 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
   }
 
   async processResponse(response: GenerateContentResponse) {
-    if (this.showThoughts) {
+    if (this.showThoughts.get()) {
       const candidateParts = response.candidates?.[0]?.content?.parts;
       if (candidateParts !== undefined) {
         candidateParts.forEach((part) => {
@@ -88,7 +89,9 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
       this.updateAiResponse(response.text);
     }
 
-    this.usage = response.usageMetadata;
+    if (response.usageMetadata) {
+      this.usage = response.usageMetadata;
+    }
 
     m.redraw();
   }
@@ -205,12 +208,15 @@ export class ChatPage implements m.ClassComponent<ChatPageAttrs> {
           disabled: this.isLoading,
         }),
 
-        this.showTokens
+        this.showTokens.get()
           ? [
-              m(
-                'footer.pf-ai-chat-panel__tokens',
-                m('Tokens', m('br'), this.usage?.totalTokenCount ?? '--'),
-              ),
+              m('.pf-ai-chat-panel__tokens', [
+                m('div.pf-ai-chat-panel__tokens__label', 'Tokens'),
+                m(
+                  'div.pf-ai-chat-panel__tokens__count',
+                  this.usage?.totalTokenCount ?? '--',
+                ),
+              ]),
             ]
           : [],
 
