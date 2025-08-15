@@ -43,7 +43,6 @@ class EventTrackerTest : public ::testing::Test {
     context.storage = std::make_unique<TraceStorage>();
     context.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context.storage.get());
-    context.args_tracker = std::make_unique<ArgsTracker>(&context);
     context.process_tracker = std::make_unique<ProcessTracker>(&context);
     context.event_tracker = std::make_unique<EventTracker>(&context);
     context.track_tracker = std::make_unique<TrackTracker>(&context);

@@ -128,8 +128,8 @@ const SnapshotId SurfaceFlingerLayersParser::ParseSnapshot(
           ->Insert(snapshot)
           .id;
 
-  auto inserter =
-      context_->trace_processor_context_->args_tracker->AddArgsTo(snapshot_id);
+  ArgsTracker args_tracker(context_->trace_processor_context_);
+  auto inserter = args_tracker.AddArgsTo(snapshot_id);
   ArgsParser writer(timestamp, inserter, *storage);
   const auto table_name = tables::SurfaceFlingerLayersSnapshotTable::Name();
   auto allowed_fields =

@@ -1072,7 +1072,8 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
     }
 
     if (auto* id = std::get_if<ArmCpuIdentifier>(&cpu_info.identifier)) {
-      context_->args_tracker->AddArgsTo(ucpu)
+      ArgsTracker args_tracker(context_);
+      args_tracker.AddArgsTo(ucpu)
           .AddArg(arm_cpu_implementer,
                   Variadic::UnsignedInteger(id->implementer))
           .AddArg(arm_cpu_architecture,
