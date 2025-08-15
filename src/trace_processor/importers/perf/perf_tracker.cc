@@ -29,6 +29,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/create_mapping_params.h"
@@ -126,6 +127,11 @@ void PerfTracker::AddSimpleperfFile2(const FileFeature::Decoder& file) {
       return;
   }
 
+  // JIT functions use absolute addresses for their symbols instead of relative
+  // ones.
+  dso.symbols_are_absolute =
+      base::StringView(file.path())
+          .StartsWith("/data/local/tmp/perf.data_jit_app_cache");
   InsertSymbols(file, dso.symbols);
   context_->symbol_tracker->dsos().Insert(
       context_->storage->InternString(file.path()), std::move(dso));
