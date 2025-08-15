@@ -51,33 +51,20 @@ namespace {
 // Lower scores are applied first for better efficiency.
 uint32_t FilterPreference(const FilterSpec& fs, const impl::Column& col) {
   enum AbsolutePreference : uint8_t {
-    kIdEq,                     // Most efficient: id equality check.
-    kSmallValueEqSortedNoDup,  // Fast O(1) bitvector lookup.
-    kSmallValueEqNoDup,        // Fast O(1) map lookup.
-    kSetIdSortedEq,            // Fast linear scan over a small range.
-    kIdInequality,             // Id inequality check.
-    kNumericSortedEq,          // Numeric sorted equality check.
-    kStringSortedEq,           // String sorted equality check.
-    kNumericSortedInequality,  // Numeric inequality check.
-    kStringSortedInequality,   // String inequality check.
-    kSmallValueEq,             // Fast inverted index lookup (produces a span).
-    kLeastPreferred,           // Least preferred.
+    kIdEq,                     // Most efficient: id equality check
+    kSetIdSortedEq,            // Set id sorted equality check
+    kIdInequality,             // Id inequality check
+    kNumericSortedEq,          // Numeric sorted equality check
+    kNumericSortedInequality,  // Numeric inequality check
+    kStringSortedEq,           // String sorted equality check
+    kStringSortedInequality,   // String inequality check
+    kLeastPreferred,           // Least preferred
   };
   const auto& op = fs.op;
   const auto& ct = col.storage.type();
   const auto& n = col.null_storage.nullability();
   if (n.Is<NonNull>() && ct.Is<Id>() && op.Is<Eq>()) {
     return kIdEq;
-  }
-  if (n.Is<NonNull>() && op.Is<Eq>() &&
-      col.specialized_storage
-          .Is<impl::SpecializedStorage::SmallValueEqSortedNoDup>()) {
-    return kSmallValueEqSortedNoDup;
-  }
-  if (n.Is<NonNull>() && op.Is<Eq>() &&
-      col.specialized_storage
-          .Is<impl::SpecializedStorage::SmallValueEqNoDup>()) {
-    return kSmallValueEqNoDup;
   }
   if (n.Is<NonNull>() && ct.Is<Uint32>() && col.sort_state.Is<SetIdSorted>() &&
       op.Is<Eq>()) {
@@ -90,21 +77,17 @@ uint32_t FilterPreference(const FilterSpec& fs, const impl::Column& col) {
       ct.IsAnyOf<IntegerOrDoubleType>() && op.Is<Eq>()) {
     return kNumericSortedEq;
   }
-  if (n.Is<NonNull>() && col.sort_state.Is<Sorted>() && ct.Is<String>() &&
-      op.Is<Eq>()) {
-    return kStringSortedEq;
-  }
   if (n.Is<NonNull>() && col.sort_state.Is<Sorted>() &&
       ct.IsAnyOf<IntegerOrDoubleType>() && op.IsAnyOf<InequalityOp>()) {
     return kNumericSortedInequality;
   }
   if (n.Is<NonNull>() && col.sort_state.Is<Sorted>() && ct.Is<String>() &&
+      op.Is<Eq>()) {
+    return kStringSortedEq;
+  }
+  if (n.Is<NonNull>() && col.sort_state.Is<Sorted>() && ct.Is<String>() &&
       op.IsAnyOf<InequalityOp>()) {
     return kStringSortedInequality;
-  }
-  if (n.Is<NonNull>() && op.Is<Eq>() &&
-      col.specialized_storage.Is<impl::SpecializedStorage::SmallValueEq>()) {
-    return kSmallValueEq;
   }
   return kLeastPreferred;
 }
@@ -264,21 +247,11 @@ base::Status QueryPlanBuilder::Filter(std::vector<FilterSpec>& specs) {
   }
 
   // Phase 2: Handle constraints which can use an index.
-  //
-  // It's possible if a `SmallValueEq` constraint was chosen in
-  // `TrySortedConstraint` above that this will be false and that we cannot
-  // use an index.
-  //
-  // TODO(lalitm): see the comment on `SmallValueEq` in `TrySortedConstraint`
-  // to see if we should do something better to decide whether we should use
-  // an index instead of unconditionally using `SmallValueEq`.
-  if (std::holds_alternative<bytecode::reg::RwHandle<Range>>(indices_reg_)) {
-    std::optional<BestIndex> best_index = GetBestIndexForFilterSpecs(
-        plan_.params, specs, specs_handled, indexes_);
-    if (best_index) {
-      IndexConstraints(specs, specs_handled, best_index->best_index_idx,
-                       best_index->best_index_specs);
-    }
+  std::optional<BestIndex> best_index =
+      GetBestIndexForFilterSpecs(plan_.params, specs, specs_handled, indexes_);
+  if (best_index) {
+    IndexConstraints(specs, specs_handled, best_index->best_index_idx,
+                     best_index->best_index_specs);
   }
 
   // Phase 3: Handle all remaining constraints.
@@ -742,8 +715,7 @@ void QueryPlanBuilder::IndexConstraints(
     std::vector<uint8_t>& specs_handled,
     uint32_t index_idx,
     const std::vector<uint32_t>& filter_specs) {
-  bytecode::reg::RwHandle<Span<const uint32_t>> reg{
-      plan_.params.register_count++};
+  bytecode::reg::RwHandle<Span<uint32_t>> reg{plan_.params.register_count++};
   {
     using B = bytecode::IndexPermutationVectorToSpan;
     auto& bc_alloc = AddOpcode<B>(UnchangedRowCount{});
@@ -822,13 +794,10 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
     return false;
   }
 
-  // The first `SmallValueEq` bytecode makes this false for everything else
-  // afterwards.
-  // TODO(lalitm): consider turning this back into a DCHECK if we pull out
-  // `SmallValueEq` into its own pass.
-  if (!std::holds_alternative<bytecode::reg::RwHandle<Range>>(indices_reg_)) {
-    return false;
-  }
+  // We should have ordered the constraints such that we only reach this
+  // point with range indices.
+  PERFETTO_CHECK(
+      std::holds_alternative<bytecode::reg::RwHandle<Range>>(indices_reg_));
   const auto& reg =
       base::unchecked_get<bytecode::reg::RwHandle<Range>>(indices_reg_);
 
@@ -845,71 +814,15 @@ bool QueryPlanBuilder::TrySortedConstraint(FilterSpec& fs,
     return true;
   }
 
-  // We can only specialized storage if it's an eq constraint.
-  if (op.Is<Eq>()) {
-    if (col.specialized_storage
-            .Is<impl::SpecializedStorage::SmallValueEqSortedNoDup>()) {
-      using B = bytecode::SmallValueEqSortedNoDup;
-      auto& bc = AddOpcode<B>(
-          RowCountModifier{EqualityFilterRowCount{col.duplicate_state}});
-      bc.arg<B::col>() = fs.col;
-      bc.arg<B::val_register>() = value_reg;
-      bc.arg<B::update_register>() = reg;
-      return true;
-    }
-    if (col.specialized_storage
-            .Is<impl::SpecializedStorage::SmallValueEqNoDup>()) {
-      using B = bytecode::SmallValueEqNoDup;
-      auto& bc = AddOpcode<B>(
-          RowCountModifier{EqualityFilterRowCount{col.duplicate_state}});
-      bc.arg<B::col>() = fs.col;
-      bc.arg<B::val_register>() = value_reg;
-      bc.arg<B::update_register>() = reg;
-      return true;
-    }
-    // SmallValueEq if we're already not filtered down to a single element.
-    // Just doing a "linear filter" will be faster otherwise likely.
-    //
-    // TODO(lalitm): consider the tradeoff between using this vs using an index.
-    // Both of those are mutually exclusive due to the reliance of ranges as
-    // input. Today we prioritise `SmallValueEq` unconditionally but
-    // it's possible that it's better to sometimes skip this and use an index
-    // if available. We might need to break this out into its own pass and
-    // then compare against the best available index to see which is better
-    // to use based on estimated cost and estimated rows at end.
-    if (col.specialized_storage.Is<impl::SpecializedStorage::SmallValueEq>() &&
-        plan_.params.max_row_count > 1) {
-      bytecode::reg::RwHandle<Span<const uint32_t>> write_reg{
-          plan_.params.register_count++};
-      {
-        using B = bytecode::SmallValueEq;
-        auto& bc = AddOpcode<B>(
-            RowCountModifier{EqualityFilterRowCount{col.duplicate_state}});
-        bc.arg<B::col>() = fs.col;
-        bc.arg<B::val_register>() = value_reg;
-        bc.arg<B::write_register>() = write_reg;
-      }
-      bytecode::reg::RwHandle<Slab<uint32_t>> output_slab_reg{
-          plan_.params.register_count++};
-      bytecode::reg::RwHandle<Span<uint32_t>> output_span_reg{
-          plan_.params.register_count++};
-      {
-        using B = bytecode::AllocateIndices;
-        auto& bc = AddOpcode<B>(UnchangedRowCount{});
-        bc.arg<B::size>() = plan_.params.max_row_count;
-        bc.arg<B::dest_slab_register>() = output_slab_reg;
-        bc.arg<B::dest_span_register>() = output_span_reg;
-      }
-      {
-        using B = bytecode::CopySpanIntersectingRange;
-        auto& bc = AddOpcode<B>(UnchangedRowCount{});
-        bc.arg<B::source_register>() = write_reg;
-        bc.arg<B::source_range_register>() = reg;
-        bc.arg<B::update_register>() = output_span_reg;
-      }
-      indices_reg_ = output_span_reg;
-      return true;
-    }
+  if (col.specialized_storage.Is<SpecializedStorage::SmallValueEq>() &&
+      op.Is<Eq>()) {
+    using B = bytecode::SpecializedStorageSmallValueEq;
+    auto& bc = AddOpcode<B>(
+        RowCountModifier{EqualityFilterRowCount{col.duplicate_state}});
+    bc.arg<B::col>() = fs.col;
+    bc.arg<B::val_register>() = value_reg;
+    bc.arg<B::update_register>() = reg;
+    return true;
   }
 
   const auto& [bound, erlbub] = GetSortedFilterArgs(*range_op);
