@@ -44,16 +44,14 @@ class TestResults:
   perf_data: List[PerfResult]
   test_time_ms: int
   skipped_tests_filter: List[Tuple[str, str]]
-  warning_tests_filter: List[Tuple[str, str]]
   total_tests_to_run: int
   tests_skipped_by_name: int
 
   def str(self, no_colors: bool) -> str:
     c = ColorFormatter(no_colors)
     total_tests = self.total_tests_to_run + self.tests_skipped_by_name + len(
-        self.skipped_tests_filter) + len(self.warning_tests_filter)
-    tests_in_filter = self.total_tests_to_run + len(
-        self.skipped_tests_filter) + len(self.warning_tests_filter)
+        self.skipped_tests_filter)
+    tests_in_filter = self.total_tests_to_run + len(self.skipped_tests_filter)
     passed_tests = self.total_tests_to_run - len(self.test_failures)
     res = (
         f"[==========] Name filter selected {tests_in_filter} tests out of {total_tests}.\n"
@@ -65,11 +63,6 @@ class TestResults:
               f"{len(self.skipped_tests_filter)} tests.\n")
       for name, reason in self.skipped_tests_filter:
         res += f"{c.yellow('[ SKIPPED  ]')} {name} (reason: {reason})\n"
-    if len(self.warning_tests_filter) > 0:
-      res += (f"{c.yellow('[ WARNING  ]')} "
-              f"{len(self.warning_tests_filter)} tests.\n")
-      for name, reason in self.warning_tests_filter:
-        res += f"{c.yellow('[ WARNING  ]')} {name} (reason: {reason})\n"
     if len(self.test_failures) > 0:
       res += (f"{c.red('[  FAILED  ]')} "
               f"{len(self.test_failures)} tests.\n")
@@ -85,12 +78,12 @@ class DiffTestsRunner:
   def __init__(self, config: Config):
     self.config = config
     self.test_loader = TestLoader(os.path.abspath(self.config.test_dir))
-    self.current_modules = self._get_build_config()
+    self.enabled_modules = self._get_build_config()
 
   def run(self) -> TestResults:
     # Discover and filter tests.
     db = self.test_loader.discover_and_load_tests(self.config.name_filter,
-                                                  self.current_modules)
+                                                  self.enabled_modules)
     tests = db.runnable
     total_tests_to_run = len(tests)
     tests_skipped_by_name = len(db.skipped_name_filter)
@@ -143,8 +136,9 @@ class DiffTestsRunner:
         (datetime.datetime.now() - test_run_start).total_seconds() * 1000)
     if self.config.quiet:
       sys.stderr.write(f"\r")
-    return TestResults(failures, perf_results, test_time_ms, db.skipped_other,
-                       db.warnings, total_tests_to_run, tests_skipped_by_name)
+    return TestResults(failures, perf_results, test_time_ms,
+                       db.skipped_module_missing, total_tests_to_run,
+                       tests_skipped_by_name)
 
   def _run_test(self, test: TestCase,
                 trace_descriptor_path: str) -> Tuple[str, str, TestResult]:

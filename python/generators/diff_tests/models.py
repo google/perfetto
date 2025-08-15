@@ -25,7 +25,7 @@ TestName = str
 
 
 @dataclass
-class DiscoveredDb:
+class DiscoveredTests:
   """In-memory database of all discovered tests."""
   # All tests which match the given name filter and module constraints.
   runnable: List['TestCase']
@@ -33,11 +33,8 @@ class DiscoveredDb:
   # All tests which are skipped because they don't match the name filter.
   skipped_name_filter: List[str]
 
-  # All tests which are skipped for other reasons (module constraints).
-  skipped_other: List[Tuple[str, str]]
-
-  # All tests which are warnings.
-  warnings: List[Tuple[str, str]]
+  # All tests which are skipped due to a missing module.
+  skipped_module_missing: List[Tuple[str, str]]
 
 
 @dataclass
