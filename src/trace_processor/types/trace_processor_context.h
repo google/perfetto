@@ -32,7 +32,6 @@
 
 namespace perfetto::trace_processor {
 
-class ArgsTracker;
 class ArgsTranslationTable;
 class ClockConverter;
 class ClockTracker;
@@ -192,7 +191,6 @@ class TraceProcessorContext {
   PerTraceAndMachinePtr<ProcessTrackTranslationTable>
       process_track_translation_table;
   PerTraceAndMachinePtr<SliceTranslationTable> slice_translation_table;
-  PerTraceAndMachinePtr<ArgsTracker> args_tracker;
   PerTraceAndMachinePtr<TrackTracker> track_tracker;
   PerTraceAndMachinePtr<TrackCompressor> track_compressor;
   PerTraceAndMachinePtr<SliceTracker> slice_tracker;

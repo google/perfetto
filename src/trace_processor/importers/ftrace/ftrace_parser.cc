@@ -1459,6 +1459,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseHrtimerExpireExit(cpu, ts, fld_bytes);
         break;
       }
+      case FtraceEvent::kDmabufRssStatFieldNumber: {
+        ParseDmabufRssStat(ts, pid, fld_bytes);
+        break;
+      }
       default:
         break;
     }
@@ -1594,7 +1598,8 @@ void FtraceParser::ParseLegacyGenericFtrace(int64_t ts,
       context_->storage->mutable_ftrace_event_table()
           ->Insert({ts, event_id, utid, {}, {}, ucpu})
           .id;
-  auto inserter = context_->args_tracker->AddArgsTo(id);
+  ArgsTracker args_tracker(context_);
+  auto inserter = args_tracker.AddArgsTo(id);
 
   for (auto it = evt.field(); it; ++it) {
     protos::pbzero::GenericFtraceEvent::Field::Decoder fld(*it);
@@ -1645,7 +1650,8 @@ void FtraceParser::ParseGenericFtrace(uint32_t event_proto_id,
       context_->storage->mutable_ftrace_event_table()
           ->Insert({ts, descriptor->name, utid, {}, {}, ucpu})
           .id;
-  auto inserter = context_->args_tracker->AddArgsTo(id);
+  ArgsTracker args_tracker(context_);
+  auto inserter = args_tracker.AddArgsTo(id);
 
   // Insert fields into |args|.
   for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
@@ -1691,7 +1697,8 @@ void FtraceParser::ParseTypedFtraceToRaw(
           ->Insert(
               {timestamp, message_strings.message_name_id, utid, {}, {}, ucpu})
           .id;
-  auto inserter = context_->args_tracker->AddArgsTo(id);
+  ArgsTracker args_tracker(context_);
+  auto inserter = args_tracker.AddArgsTo(id);
 
   for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
     uint32_t field_id = fld.id();
@@ -2503,8 +2510,9 @@ void FtraceParser::ParseTaskRename(ConstBytes blob) {
   protos::pbzero::TaskRenameFtraceEvent::Decoder evt(blob);
   uint32_t tid = static_cast<uint32_t>(evt.pid());
   StringId comm = context_->storage->InternString(evt.newcomm());
+  auto utid = context_->process_tracker->GetOrCreateThread(tid);
   context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
-      tid, comm, ThreadNamePriority::kFtrace);
+      utid, comm, ThreadNamePriority::kFtrace);
 }
 
 void FtraceParser::ParseBinderTransaction(int64_t timestamp,
@@ -4333,4 +4341,14 @@ void FtraceParser::ParseMaliGpuPowerState(int64_t ts,
       context_->track_tracker->InternTrack(kMaliGpuPowerStateBlueprint);
   context_->event_tracker->PushCounter(ts, event.to_state(), track);
 }
+
+void FtraceParser::ParseDmabufRssStat(int64_t ts,
+                                      uint32_t pid,
+                                      ConstBytes blob) {
+  protos::pbzero::DmabufRssStatFtraceEvent::Decoder evt(blob);
+  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+  context_->event_tracker->PushProcessCounterForThread(
+      EventTracker::DmabufRssStat(), ts, static_cast<double>(evt.rss()), utid);
+}
+
 }  // namespace perfetto::trace_processor

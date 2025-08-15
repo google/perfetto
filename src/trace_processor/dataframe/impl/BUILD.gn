@@ -48,7 +48,6 @@ source_set("bytecode_interpreter_test_utils") {
     "..:specs",
     "../../../../gn:default_deps",
     "../../../base",
-    "../../containers",
   ]
 }
 

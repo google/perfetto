@@ -397,13 +397,12 @@ void ProcessTracker::SetStartTsIfUnset(UniquePid upid,
 }
 
 void ProcessTracker::UpdateThreadNameAndMaybeProcessName(
-    int64_t tid,
+    UniqueTid utid,
     StringId thread_name,
     ThreadNamePriority priority) {
   auto& tt = *context_->storage->mutable_thread_table();
   auto& pt = *context_->storage->mutable_process_table();
 
-  auto utid = GetOrCreateThread(tid);
   UpdateThreadName(utid, thread_name, priority);
   auto trr = tt[utid];
   std::optional<UniquePid> opt_upid = trr.upid();
@@ -411,7 +410,7 @@ void ProcessTracker::UpdateThreadNameAndMaybeProcessName(
     return;
   }
   auto prr = pt[*opt_upid];
-  if (prr.pid() == tid) {
+  if (prr.pid() == trr.tid()) {
     PERFETTO_DCHECK(trr.is_main_thread());
     prr.set_name(thread_name);
   }

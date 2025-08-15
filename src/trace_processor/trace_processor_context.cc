@@ -57,7 +57,6 @@ using Ptr = TraceProcessorContextPtr<T>;
 
 void InitPerTraceAndMachineState(TraceProcessorContext* context) {
   // Per-machine state (legacy).
-  context->args_tracker = Ptr<ArgsTracker>::MakeRoot(context);
   context->track_tracker = Ptr<TrackTracker>::MakeRoot(context);
   context->track_compressor = Ptr<TrackCompressor>::MakeRoot(context);
   context->slice_tracker = Ptr<SliceTracker>::MakeRoot(context);

@@ -17,28 +17,14 @@
 #ifndef SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_BYTECODE_INTERPRETER_TEST_UTILS_H_
 #define SRC_TRACE_PROCESSOR_DATAFRAME_IMPL_BYTECODE_INTERPRETER_TEST_UTILS_H_
 
-#include <algorithm>
-#include <array>
-#include <cstddef>
 #include <cstdint>
-#include <cstring>
-#include <initializer_list>
-#include <optional>
-#include <string>
-#include <string_view>
-#include <utility>
 #include <variant>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/variant.h"
-#include "perfetto/public/compiler.h"
-#include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/dataframe/impl/bit_vector.h"
-#include "src/trace_processor/dataframe/impl/bytecode_core.h"
 #include "src/trace_processor/dataframe/impl/bytecode_instructions.h"
-#include "src/trace_processor/dataframe/impl/flex_vector.h"
 #include "src/trace_processor/dataframe/impl/types.h"
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/value_fetcher.h"
@@ -175,11 +161,6 @@ inline std::string ResultToString(const CastFilterValueResult& res) {
 template <typename T>
 inline Span<T> GetSpan(std::vector<T>& vec) {
   return Span<T>{vec.data(), vec.data() + vec.size()};
-}
-
-template <typename T>
-inline Span<const T> GetSpanConst(std::vector<T>& vec) {
-  return Span<const T>{vec.data(), vec.data() + vec.size()};
 }
 
 inline Bytecode ParseBytecode(const std::string& bytecode_str) {

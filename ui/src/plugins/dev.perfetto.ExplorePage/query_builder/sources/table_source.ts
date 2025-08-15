@@ -19,11 +19,9 @@ import {
 } from '../../../dev.perfetto.SqlModules/sql_modules';
 import {
   QueryNode,
-  NodeType,
   createSelectColumnsProto,
   QueryNodeState,
-  createFinalColumns,
-  nextNodeId,
+  NodeType,
 } from '../../query_node';
 import {
   ColumnInfo,
@@ -41,6 +39,7 @@ import {
 import {closeModal, showModal} from '../../../../widgets/modal';
 import {TableList} from '../table_list';
 import {redrawModal} from '../../../../widgets/modal';
+import {SourceNode} from '../source_node';
 
 export interface TableSourceState extends QueryNodeState {
   readonly trace: Trace;
@@ -96,31 +95,23 @@ export function modalForTableSelection(
   });
 }
 
-export class TableSourceNode implements QueryNode {
-  readonly nodeId: string;
-  readonly graphTableName: string;
-  readonly type: NodeType = NodeType.kTable;
-  readonly prevNode = undefined;
-  nextNode?: QueryNode;
-
-  readonly sourceCols: ColumnInfo[];
-  readonly finalCols: ColumnInfo[];
+export class TableSourceNode extends SourceNode {
   readonly state: TableSourceState;
-
   showColumns: boolean = false;
 
   constructor(attrs: TableSourceState) {
-    this.nodeId = nextNodeId();
-    this.graphTableName = `exp_${this.nodeId}`;
+    super(attrs);
     this.state = attrs;
     this.state.onchange = attrs.onchange;
 
-    this.sourceCols = attrs.sourceCols ?? [];
     this.state.filters = attrs.filters ?? [];
     this.state.groupByColumns =
       attrs.groupByColumns ?? newColumnInfoList(this.sourceCols, false);
     this.state.aggregations = attrs.aggregations ?? [];
-    this.finalCols = createFinalColumns(this);
+  }
+
+  get type() {
+    return NodeType.kTable;
   }
 
   clone(): QueryNode {

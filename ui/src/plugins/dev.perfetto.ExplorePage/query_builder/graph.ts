@@ -107,7 +107,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     const x = event.clientX - rect.left - w / 2;
     const y = event.clientY - rect.top - h / 2;
 
-    const newLayout: NodeBoxLayout = {
+    const initialLayout: NodeBoxLayout = {
       ...dragNodeLayout,
       x: Math.max(0, Math.min(x, rect.width - w)),
       y: Math.max(0, Math.min(y, rect.height - h)),
@@ -126,37 +126,13 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
 
     const allLayouts = [...otherLayouts, buttonsReservedArea];
 
-    for (const layout of allLayouts) {
-      if (isOverlapping(newLayout, layout, PADDING)) {
-        const layoutW = layout.width ?? DEFAULT_NODE_WIDTH;
-        const layoutH = layout.height ?? NODE_HEIGHT;
-
-        const right = layout.x + layoutW + PADDING;
-        const left = layout.x - w - PADDING;
-        const bottom = layout.y + layoutH + PADDING;
-        const top = layout.y - h - PADDING;
-
-        const distRight = Math.abs(newLayout.x - right);
-        const distLeft = Math.abs(newLayout.x - left);
-        const distBottom = Math.abs(newLayout.y - bottom);
-        const distTop = Math.abs(newLayout.y - top);
-
-        const minDist = Math.min(distRight, distLeft, distBottom, distTop);
-
-        if (minDist === distRight) {
-          newLayout.x = right;
-        } else if (minDist === distLeft) {
-          newLayout.x = left;
-        } else if (minDist === distBottom) {
-          newLayout.y = bottom;
-        } else {
-          newLayout.y = top;
-        }
-      }
-    }
-
-    newLayout.x = Math.max(0, Math.min(newLayout.x, rect.width - w));
-    newLayout.y = Math.max(0, Math.min(newLayout.y, rect.height - h));
+    const newLayout = findNonOverlappingLayout(
+      initialLayout,
+      allLayouts,
+      w,
+      h,
+      rect,
+    );
 
     this.nodeLayouts.set(this.dragNode, newLayout);
     m.redraw();
@@ -338,6 +314,50 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       children,
     );
   }
+}
+
+function findNonOverlappingLayout(
+  initialLayout: NodeBoxLayout,
+  otherLayouts: NodeBoxLayout[],
+  w: number,
+  h: number,
+  rect: DOMRect,
+): NodeBoxLayout {
+  const newLayout = {...initialLayout};
+
+  for (const layout of otherLayouts) {
+    if (isOverlapping(newLayout, layout, PADDING)) {
+      const layoutW = layout.width ?? DEFAULT_NODE_WIDTH;
+      const layoutH = layout.height ?? NODE_HEIGHT;
+
+      const right = layout.x + layoutW + PADDING;
+      const left = layout.x - w - PADDING;
+      const bottom = layout.y + layoutH + PADDING;
+      const top = layout.y - h - PADDING;
+
+      const distRight = Math.abs(newLayout.x - right);
+      const distLeft = Math.abs(newLayout.x - left);
+      const distBottom = Math.abs(newLayout.y - bottom);
+      const distTop = Math.abs(newLayout.y - top);
+
+      const minDist = Math.min(distRight, distLeft, distBottom, distTop);
+
+      if (minDist === distRight) {
+        newLayout.x = right;
+      } else if (minDist === distLeft) {
+        newLayout.x = left;
+      } else if (minDist === distBottom) {
+        newLayout.y = bottom;
+      } else {
+        newLayout.y = top;
+      }
+    }
+  }
+
+  newLayout.x = Math.max(0, Math.min(newLayout.x, rect.width - w));
+  newLayout.y = Math.max(0, Math.min(newLayout.y, rect.height - h));
+
+  return newLayout;
 }
 
 function isOverlapping(

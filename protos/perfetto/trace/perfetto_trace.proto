@@ -2048,7 +2048,7 @@ message PerfEventConfig {
   optional uint32 max_daemon_memory_kb = 13;
 
   //
-  // Uncommon options:
+  // Niche options:
   //
 
   // Timeout for the remote /proc/<pid>/{maps,mem} file descriptors for a
@@ -2061,10 +2061,17 @@ message PerfEventConfig {
   // If unset, an implementation-defined default is used.
   optional uint32 remote_descriptor_timeout_ms = 9;
 
-  // Optional period for clearing state cached by the unwinder. This is a heavy
-  // operation that is only necessary for traces that target a wide set of
-  // processes, and require the memory footprint to be reset periodically.
-  // If unset, the cached state will not be cleared.
+  // Optional period for clearing state cached by the userspace unwinder. This
+  // is a heavy operation that is only necessary for traces that target a wide
+  // set of processes, and require the memory footprint to be reset
+  // periodically. To effectively disable the cache clearing, set to a value
+  // greater than your trace duration.
+  //
+  // Relevant only if |callstack_sampling.user_frames| is set to UNWIND_DWARF.
+  //
+  // If zero or unset:
+  // * before perfetto v52: no cache clearing.
+  // * perfetto v52+: implementation chooses an infrequent default.
   optional uint32 unwind_state_clear_period_ms = 10;
 
   // If set, only profile target if it was installed by a package with one of
@@ -6326,6 +6333,9 @@ message LayerProto {
 
   // Corner radius explicity set as drawn by client
   optional CornerRadiiProto client_drawn_corner_radii = 63;
+
+  // Priority value of the layer set by the system.
+  optional int32 system_content_priority = 64;
 }
 
 message PositionProto {
@@ -6524,6 +6534,7 @@ message LayerState {
     eTrustedOverlayChanged = 0x4000;
     eDropInputModeChanged = 0x8000;
     eClientDrawnCornerRadiusChanged = 0x00010000;
+    eSystemContentPriorityChanged = 0x00020000;
   };
   optional uint64 what = 2;
   optional float x = 3;
@@ -6664,6 +6675,8 @@ message LayerState {
   optional CornerRadii corner_radii = 45;
 
   optional CornerRadii client_drawn_corner_radii = 46;
+
+  optional int32 system_content_priority = 47;
 }
 
 message DisplayState {
