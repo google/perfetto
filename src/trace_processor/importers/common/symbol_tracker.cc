@@ -18,6 +18,7 @@
 
 #include <cstdint>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
