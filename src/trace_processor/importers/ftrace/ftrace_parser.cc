@@ -2507,8 +2507,9 @@ void FtraceParser::ParseTaskRename(ConstBytes blob) {
   protos::pbzero::TaskRenameFtraceEvent::Decoder evt(blob);
   uint32_t tid = static_cast<uint32_t>(evt.pid());
   StringId comm = context_->storage->InternString(evt.newcomm());
+  auto utid = context_->process_tracker->GetOrCreateThread(tid);
   context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
-      tid, comm, ThreadNamePriority::kFtrace);
+      utid, comm, ThreadNamePriority::kFtrace);
 }
 
 void FtraceParser::ParseBinderTransaction(int64_t timestamp,
