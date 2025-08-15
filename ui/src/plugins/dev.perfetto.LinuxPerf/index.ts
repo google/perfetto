@@ -29,7 +29,6 @@ import {TrackNode} from '../../public/workspace';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {Flamegraph} from '../../widgets/flamegraph';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
-import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {
