@@ -53,11 +53,17 @@
 #include "protos/perfetto/trace/track_event/thread_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_descriptor.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
+#include "protos/third_party/chromium/chrome_descriptor_extensions.pbzero.h"
+#include "protos/third_party/chromium/chrome_enums.pbzero.h"
 
 namespace perfetto::trace_processor {
 
 namespace {
+
+namespace chrome_enums = protos::chrome_enums::pbzero;
 using BoundInserter = ArgsTracker::BoundInserter;
+using protos::pbzero::ChromeProcessDescriptorExtensions;
+using protos::pbzero::ChromeThreadDescriptorExtensions;
 using protos::pbzero::TrackEvent;
 using LegacyEvent = TrackEvent::LegacyEvent;
 using protozero::ConstBytes;
@@ -348,11 +354,12 @@ UniquePid TrackEventParser::ParseProcessDescriptor(
 void TrackEventParser::ParseChromeProcessDescriptor(
     UniquePid upid,
     protozero::ConstBytes chrome_process_descriptor) {
-  protos::pbzero::ChromeProcessDescriptor::Decoder decoder(
-      chrome_process_descriptor);
-
-  StringId name_id =
-      chrome_string_lookup_.GetProcessName(decoder.process_type());
+  ChromeProcessDescriptorExtensions::Decoder decoder(chrome_process_descriptor);
+  const protozero::Field& type_field =
+      decoder.at<ChromeProcessDescriptorExtensions::kProcessTypeFieldNumber>();
+  StringId name_id = chrome_string_lookup_.GetProcessName(
+      type_field.valid() ? type_field.as_int32()
+                         : chrome_enums::PROCESS_UNSPECIFIED);
   // Don't override system-provided names.
   context_->process_tracker->SetProcessNameIfUnset(upid, name_id);
 
@@ -399,12 +406,13 @@ UniqueTid TrackEventParser::ParseThreadDescriptor(
 void TrackEventParser::ParseChromeThreadDescriptor(
     UniqueTid utid,
     protozero::ConstBytes chrome_thread_descriptor) {
-  protos::pbzero::ChromeThreadDescriptor::Decoder decoder(
-      chrome_thread_descriptor);
-  if (!decoder.has_thread_type())
+  ChromeThreadDescriptorExtensions::Decoder decoder(chrome_thread_descriptor);
+  const protozero::Field& type_field =
+      decoder.at<ChromeThreadDescriptorExtensions::kThreadTypeFieldNumber>();
+  if (!type_field.valid())
     return;
 
-  StringId name_id = chrome_string_lookup_.GetThreadName(decoder.thread_type());
+  StringId name_id = chrome_string_lookup_.GetThreadName(type_field.as_int32());
   context_->process_tracker->UpdateThreadName(
       utid, name_id, ThreadNamePriority::kTrackDescriptorThreadType);
 }

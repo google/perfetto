@@ -18,22 +18,15 @@
 
 #include "perfetto/ext/base/utils.h"
 #include "protos/perfetto/trace/track_event/chrome_legacy_ipc.pbzero.h"
-#include "protos/perfetto/trace/track_event/chrome_thread_descriptor.pbzero.h"
 #include "protos/third_party/chromium/chrome_enums.pbzero.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace chrome_enums = ::perfetto::protos::chrome_enums::pbzero;
-using ::perfetto::protos::pbzero::ChromeThreadDescriptor;
 
 namespace perfetto {
 namespace trace_processor {
 
 namespace {
-
-constexpr auto kThreadTypeMin =
-    ::perfetto::protos::pbzero::ChromeThreadDescriptor_ThreadType_MIN;
-constexpr auto kThreadTypeMax =
-    ::perfetto::protos::pbzero::ChromeThreadDescriptor_ThreadType_MAX;
 
 // Add Chrome process and thread names to these two functions to get
 // friendly-formatted names in field traces. If an entry is added to
@@ -45,12 +38,11 @@ constexpr auto kThreadTypeMax =
 // complaining that every enum value isn't handled explicitly.
 
 // Returns a name, which may be null, for `process_type`.
-const char* GetProcessNameString(
-    int32_t process_type,
-    bool ignore_predefined_thread_types_for_testing) {
+const char* GetProcessNameString(int32_t process_type,
+                                 bool ignore_predefined_names_for_testing) {
   PERFETTO_DCHECK(process_type >= chrome_enums::ProcessType_MIN);
   PERFETTO_DCHECK(process_type <= chrome_enums::ProcessType_MAX);
-  if (!ignore_predefined_thread_types_for_testing) {
+  if (!ignore_predefined_names_for_testing) {
     switch (process_type) {
       case chrome_enums::PROCESS_UNSPECIFIED:
         return nullptr;
@@ -145,110 +137,109 @@ const char* GetProcessNameString(
 }
 
 // Returns a name, which may be null, for `thread_type`.
-const char* GetThreadNameString(
-    int32_t thread_type,
-    bool ignore_predefined_thread_types_for_testing) {
-  PERFETTO_DCHECK(thread_type >= kThreadTypeMin);
-  PERFETTO_DCHECK(thread_type <= kThreadTypeMax);
-  if (!ignore_predefined_thread_types_for_testing) {
+const char* GetThreadNameString(int32_t thread_type,
+                                bool ignore_predefined_names_for_testing) {
+  PERFETTO_DCHECK(thread_type >= chrome_enums::ThreadType_MIN);
+  PERFETTO_DCHECK(thread_type <= chrome_enums::ThreadType_MAX);
+  if (!ignore_predefined_names_for_testing) {
     switch (thread_type) {
-      case ChromeThreadDescriptor::THREAD_UNSPECIFIED:
+      case chrome_enums::THREAD_UNSPECIFIED:
         return nullptr;
-      case ChromeThreadDescriptor::THREAD_MAIN:
+      case chrome_enums::THREAD_MAIN:
         return "CrProcessMain";
-      case ChromeThreadDescriptor::THREAD_IO:
+      case chrome_enums::THREAD_IO:
         return "ChromeIOThread";
-      case ChromeThreadDescriptor::THREAD_NETWORK_SERVICE:
+      case chrome_enums::THREAD_NETWORK_SERVICE:
         return "NetworkService";
-      case ChromeThreadDescriptor::THREAD_POOL_BG_WORKER:
+      case chrome_enums::THREAD_POOL_BG_WORKER:
         return "ThreadPoolBackgroundWorker&";
-      case ChromeThreadDescriptor::THREAD_POOL_FG_WORKER:
+      case chrome_enums::THREAD_POOL_FG_WORKER:
         return "ThreadPoolForegroundWorker&";
-      case ChromeThreadDescriptor::THREAD_POOL_BG_BLOCKING:
+      case chrome_enums::THREAD_POOL_BG_BLOCKING:
         return "ThreadPoolSingleThreadBackgroundBlocking&";
-      case ChromeThreadDescriptor::THREAD_POOL_FG_BLOCKING:
+      case chrome_enums::THREAD_POOL_FG_BLOCKING:
         return "ThreadPoolSingleThreadForegroundBlocking&";
-      case ChromeThreadDescriptor::THREAD_POOL_SERVICE:
+      case chrome_enums::THREAD_POOL_SERVICE:
         return "ThreadPoolService";
-      case ChromeThreadDescriptor::THREAD_COMPOSITOR:
+      case chrome_enums::THREAD_COMPOSITOR:
         return "Compositor";
-      case ChromeThreadDescriptor::THREAD_VIZ_COMPOSITOR:
+      case chrome_enums::THREAD_VIZ_COMPOSITOR:
         return "VizCompositorThread";
-      case ChromeThreadDescriptor::THREAD_COMPOSITOR_WORKER:
+      case chrome_enums::THREAD_COMPOSITOR_WORKER:
         return "CompositorTileWorker&";
-      case ChromeThreadDescriptor::THREAD_SERVICE_WORKER:
+      case chrome_enums::THREAD_SERVICE_WORKER:
         return "ServiceWorkerThread&";
-      case ChromeThreadDescriptor::THREAD_MEMORY_INFRA:
+      case chrome_enums::THREAD_MEMORY_INFRA:
         return "MemoryInfra";
-      case ChromeThreadDescriptor::THREAD_SAMPLING_PROFILER:
+      case chrome_enums::THREAD_SAMPLING_PROFILER:
         return "StackSamplingProfiler";
-      case ChromeThreadDescriptor::THREAD_BROWSER_MAIN:
+      case chrome_enums::THREAD_BROWSER_MAIN:
         return "CrBrowserMain";
-      case ChromeThreadDescriptor::THREAD_RENDERER_MAIN:
+      case chrome_enums::THREAD_RENDERER_MAIN:
         return "CrRendererMain";
-      case ChromeThreadDescriptor::THREAD_CHILD_IO:
+      case chrome_enums::THREAD_CHILD_IO:
         return "Chrome_ChildIOThread";
-      case ChromeThreadDescriptor::THREAD_BROWSER_IO:
+      case chrome_enums::THREAD_BROWSER_IO:
         return "Chrome_IOThread";
-      case ChromeThreadDescriptor::THREAD_UTILITY_MAIN:
+      case chrome_enums::THREAD_UTILITY_MAIN:
         return "CrUtilityMain";
-      case ChromeThreadDescriptor::THREAD_GPU_MAIN:
+      case chrome_enums::THREAD_GPU_MAIN:
         return "CrGpuMain";
-      case ChromeThreadDescriptor::THREAD_CACHE_BLOCKFILE:
+      case chrome_enums::THREAD_CACHE_BLOCKFILE:
         return "CacheThread_BlockFile";
-      case ChromeThreadDescriptor::ChromeThreadDescriptor::THREAD_MEDIA:
+      case chrome_enums::THREAD_MEDIA:
         return "Media";
-      case ChromeThreadDescriptor::THREAD_AUDIO_OUTPUTDEVICE:
+      case chrome_enums::THREAD_AUDIO_OUTPUTDEVICE:
         return "AudioOutputDevice";
-      case ChromeThreadDescriptor::THREAD_GPU_MEMORY:
+      case chrome_enums::THREAD_GPU_MEMORY:
         return "GpuMemoryThread";
-      case ChromeThreadDescriptor::THREAD_GPU_VSYNC:
+      case chrome_enums::THREAD_GPU_VSYNC:
         return "GpuVSyncThread";
-      case ChromeThreadDescriptor::THREAD_DXA_VIDEODECODER:
+      case chrome_enums::THREAD_DXA_VIDEODECODER:
         return "DXVAVideoDecoderThread";
-      case ChromeThreadDescriptor::THREAD_BROWSER_WATCHDOG:
+      case chrome_enums::THREAD_BROWSER_WATCHDOG:
         return "BrowserWatchdog";
-      case ChromeThreadDescriptor::THREAD_WEBRTC_NETWORK:
+      case chrome_enums::THREAD_WEBRTC_NETWORK:
         return "WebRTC_Network";
-      case ChromeThreadDescriptor::THREAD_WINDOW_OWNER:
+      case chrome_enums::THREAD_WINDOW_OWNER:
         return "Window owner thread";
-      case ChromeThreadDescriptor::THREAD_WEBRTC_SIGNALING:
+      case chrome_enums::THREAD_WEBRTC_SIGNALING:
         return "WebRTC_Signaling";
-      case ChromeThreadDescriptor::THREAD_PPAPI_MAIN:
+      case chrome_enums::THREAD_PPAPI_MAIN:
         return "CrPPAPIMain";
-      case ChromeThreadDescriptor::THREAD_GPU_WATCHDOG:
+      case chrome_enums::THREAD_GPU_WATCHDOG:
         return "GpuWatchdog";
-      case ChromeThreadDescriptor::THREAD_SWAPPER:
+      case chrome_enums::THREAD_SWAPPER:
         return "swapper";
-      case ChromeThreadDescriptor::THREAD_GAMEPAD_POLLING:
+      case chrome_enums::THREAD_GAMEPAD_POLLING:
         return "Gamepad polling thread";
-      case ChromeThreadDescriptor::THREAD_AUDIO_INPUTDEVICE:
+      case chrome_enums::THREAD_AUDIO_INPUTDEVICE:
         return "AudioInputDevice";
-      case ChromeThreadDescriptor::THREAD_WEBRTC_WORKER:
+      case chrome_enums::THREAD_WEBRTC_WORKER:
         return "WebRTC_Worker";
-      case ChromeThreadDescriptor::THREAD_WEBCRYPTO:
+      case chrome_enums::THREAD_WEBCRYPTO:
         return "WebCrypto";
-      case ChromeThreadDescriptor::THREAD_DATABASE:
+      case chrome_enums::THREAD_DATABASE:
         return "Database thread";
-      case ChromeThreadDescriptor::THREAD_PROXYRESOLVER:
+      case chrome_enums::THREAD_PROXYRESOLVER:
         return "Proxy Resolver";
-      case ChromeThreadDescriptor::THREAD_DEVTOOLSADB:
+      case chrome_enums::THREAD_DEVTOOLSADB:
         return "Chrome_DevToolsADBThread";
-      case ChromeThreadDescriptor::THREAD_NETWORKCONFIGWATCHER:
+      case chrome_enums::THREAD_NETWORKCONFIGWATCHER:
         return "NetworkConfigWatcher";
-      case ChromeThreadDescriptor::THREAD_WASAPI_RENDER:
+      case chrome_enums::THREAD_WASAPI_RENDER:
         return "wasapi_render_thread";
-      case ChromeThreadDescriptor::THREAD_LOADER_LOCK_SAMPLER:
+      case chrome_enums::THREAD_LOADER_LOCK_SAMPLER:
         return "LoaderLockSampler";
-      case ChromeThreadDescriptor::THREAD_COMPOSITOR_GPU:
+      case chrome_enums::THREAD_COMPOSITOR_GPU:
         return "CompositorGpuThread";
       default:
         // Fall through to the generated name.
         break;
     }
   }
-  return ChromeThreadDescriptor::ThreadType_Name(
-      static_cast<ChromeThreadDescriptor::ThreadType>(thread_type));
+  return chrome_enums::ThreadType_Name(
+      static_cast<chrome_enums::ThreadType>(thread_type));
 }
 
 }  // namespace
@@ -264,7 +255,8 @@ ChromeStringLookup::ChromeStringLookup(
         name ? storage->InternString(name) : kNullStringId;
   }
 
-  for (int32_t i = kThreadTypeMin; i <= kThreadTypeMax; ++i) {
+  for (int32_t i = chrome_enums::ThreadType_MIN;
+       i <= chrome_enums::ThreadType_MAX; ++i) {
     const char* name =
         GetThreadNameString(i, ignore_predefined_names_for_testing);
     chrome_thread_name_ids_[i] =
