@@ -64,13 +64,22 @@ bool SymbolTracker::TrySymbolizeFrame(
     return false;
   }
 
+  int64_t pc = frame.rel_pc();
+
   // Load bias is something we can only determine by looking at the actual elf
   // file. Thus PERF_RECORD_MMAP{2} events do not record it. So we need to
   // potentially do an adjustment here if the load_bias tracked in the mapping
   // table and the one reported by the file are mismatched.
-  uint64_t adj = file->load_bias - static_cast<uint64_t>(mapping.load_bias());
+  pc += static_cast<int64_t>(file->load_bias) - mapping.load_bias();
 
-  auto symbol = file->symbols.Find(static_cast<uint64_t>(frame.rel_pc()) + adj);
+  // If the symbols in the map are absolute, then we need to relativize against
+  // the exact offset and then add to the start of the mapping.
+  if (file->symbols_are_absolute) {
+    pc -= mapping.exact_offset();
+    pc += mapping.start();
+  }
+
+  auto symbol = file->symbols.Find(static_cast<uint64_t>(pc));
   if (symbol == file->symbols.end()) {
     return false;
   }

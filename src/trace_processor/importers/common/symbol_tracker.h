@@ -34,6 +34,7 @@ class SymbolTracker {
   struct Dso {
     uint64_t load_bias;
     AddressRangeMap<std::string> symbols;
+    bool symbols_are_absolute = false;
   };
 
   explicit SymbolTracker(TraceProcessorContext* context);
