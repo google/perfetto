@@ -37,6 +37,7 @@ import {PivotTable} from '../widgets/sql/pivot_table/pivot_table';
 import {pivotId} from '../widgets/sql/pivot_table/ids';
 import {SqlBarChart, SqlBarChartState} from '../widgets/charts/sql_bar_chart';
 import {sqlColumnId} from '../widgets/sql/table/sql_column';
+import {Box} from '../../widgets/box';
 
 export interface AddSqlTableTabParams {
   table: SqlTableDescription;
@@ -207,8 +208,10 @@ class LegacySqlTableTab implements Tab {
         title: 'Table',
         description: this.getDisplayName(),
         buttons: this.getTableButtons(),
+        fillParent: true,
       },
-      m('div', renderFilters(this.state.filters)),
+      this.state.filters.get().length > 0 &&
+        m(Box, renderFilters(this.state.filters)),
       showViewButtons &&
         m(
           ButtonBar,

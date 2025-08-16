@@ -24,11 +24,13 @@ import {
 } from '../../components/sql_utils/slice';
 import {asSliceSqlId, SliceSqlId} from '../../components/sql_utils/core_types';
 import {
-  ColumnDescriptor,
-  Table,
-  TableData,
-  widgetColumn,
-} from '../../widgets/table';
+  Grid,
+  GridBody,
+  GridDataCell,
+  GridHeader,
+  GridHeaderCell,
+  GridRow,
+} from '../../widgets/grid';
 import {TreeTable, TreeTableAttrs} from '../../components/widgets/treetable';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
@@ -322,50 +324,50 @@ export class EventLatencySliceDetailsPanel implements TrackEventDetailsPanel {
     const childWidgets: m.Child[] = [];
     childWidgets.push(m(TextParagraph, {text: stageDetails.description}));
 
-    interface RelevantThreadRow {
-      description: string;
-      tracks: EventLatencyCauseThreadTracks;
-      ts: time;
-      dur: duration;
-    }
-
-    const columns: ColumnDescriptor<RelevantThreadRow>[] = [
-      widgetColumn<RelevantThreadRow>('Relevant Thread', (x) =>
-        getCauseLink(this.trace, x.tracks, this.tracksByTrackId, x.ts, x.dur),
-      ),
-      widgetColumn<RelevantThreadRow>('Description', (x) => {
-        if (x.description === '') {
-          return x.description;
-        } else {
-          return m(TextParagraph, {text: x.description});
-        }
-      }),
-    ];
-
-    const trackLinks: RelevantThreadRow[] = [];
-
-    for (let i = 0; i < this.relevantThreadTracks.length; i++) {
-      const track = this.relevantThreadTracks[i];
-      let description = '';
-      if (i == 0 || track.thread != this.relevantThreadTracks[i - 1].thread) {
-        description = track.causeDescription;
-      }
-      trackLinks.push({
-        description: description,
-        tracks: this.relevantThreadTracks[i],
-        ts: ts,
-        dur: dur,
-      });
-    }
-
-    const tableData = new TableData(trackLinks);
-
-    if (trackLinks.length > 0) {
+    if (this.relevantThreadTracks.length > 0) {
       childWidgets.push(
-        m(Table, {
-          data: tableData,
-          columns: columns,
-        }),
+        m(
+          Grid,
+          m(
+            GridHeader,
+            m(
+              GridRow,
+              m(GridHeaderCell, 'Relevant Thread'),
+              m(GridHeaderCell, 'Description'),
+            ),
+          ),
+          m(
+            GridBody,
+            this.relevantThreadTracks.map((track, i) => {
+              let description = '';
+              if (
+                i == 0 ||
+                track.thread != this.relevantThreadTracks[i - 1].thread
+              ) {
+                description = track.causeDescription;
+              }
+              return m(
+                GridRow,
+                m(
+                  GridDataCell,
+                  getCauseLink(
+                    this.trace,
+                    track,
+                    this.tracksByTrackId,
+                    ts,
+                    dur,
+                  ),
+                ),
+                m(
+                  GridDataCell,
+                  description === ''
+                    ? description
+                    : m(TextParagraph, {text: description}),
+                ),
+              );
+            }),
+          ),
+        ),
       );
     }
 

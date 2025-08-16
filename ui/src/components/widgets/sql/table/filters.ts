@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Button, ButtonBar, ButtonVariant} from '../../../../widgets/button';
-import {Intent} from '../../../../widgets/common';
+import {ButtonBar} from '../../../../widgets/button';
 import {isSqlColumnEqual, SqlColumn, sqlColumnId} from './sql_column';
 import {sqlValueToSqliteString} from '../../../../trace_processor/sql_utils';
 import {SqlValue} from '../../../../trace_processor/query_result';
+import {Chip} from '../../../../widgets/chip';
 
 // A filter which can be applied to the table.
 export interface Filter {
@@ -114,12 +114,10 @@ export function renderFilters(filters: Filters): m.Children {
   return m(
     ButtonBar,
     filters.get().map((filter) =>
-      m(Button, {
+      m(Chip, {
         label: filterTitle(filter),
-        icon: 'close',
-        intent: Intent.Primary,
-        variant: ButtonVariant.Filled,
-        onclick: () => filters.removeFilter(filter),
+        removable: true,
+        onRemove: () => filters.removeFilter(filter),
       }),
     ),
   );
