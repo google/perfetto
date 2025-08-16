@@ -32,7 +32,7 @@ class SymbolTracker {
  public:
   // DSO = Dynamic Shared Object.
   struct Dso {
-    uint64_t load_bias;
+    uint64_t load_bias = 0;
     AddressRangeMap<std::string> symbols;
     bool symbols_are_absolute = false;
   };
