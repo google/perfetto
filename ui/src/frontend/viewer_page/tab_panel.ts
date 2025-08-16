@@ -16,9 +16,10 @@ import m from 'mithril';
 import {TraceImpl} from '../../core/trace_impl';
 import {Button} from '../../widgets/button';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
-import {Tab, TabbedSplitPanel} from '../../widgets/tabbed_split_panel';
+import {Tab, SplitPanel} from '../../widgets/split_panel';
 import {DEFAULT_DETAILS_CONTENT_HEIGHT} from '../css_constants';
 import {CurrentSelectionTab} from './current_selection_tab';
+import {Gate} from '../../base/mithril_utils';
 
 export interface TabPanelAttrs {
   readonly trace: TraceImpl;
@@ -30,20 +31,19 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
     attrs,
     children,
   }: m.Vnode<TabPanelAttrs, this>): m.Children | null | void {
-    const tabs = this.gatherTabs(attrs.trace);
+    const {tabs, drawerContent} = this.gatherTabs(attrs.trace);
 
     return m(
-      TabbedSplitPanel,
+      SplitPanel,
       {
         className: attrs.className,
         startingHeight: DEFAULT_DETAILS_CONTENT_HEIGHT,
         leftHandleContent: this.renderDropdownMenu(attrs.trace),
         tabs,
+        drawerContent,
         visibility: attrs.trace.tabs.tabPanelVisibility,
         onVisibilityChange: (visibility) =>
           attrs.trace.tabs.setTabPanelVisibility(visibility),
-        onTabChange: (key) => attrs.trace.tabs.showTab(key),
-        currentTabKey: attrs.trace.tabs.currentTabUri,
       },
       children,
     );
@@ -53,36 +53,58 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
     const tabMan = trace.tabs;
     const tabList = trace.tabs.openTabsUri;
     const resolvedTabs = tabMan.resolveTabs(tabList);
+    const currentTabUri = trace.tabs.currentTabUri;
 
-    const tabs = resolvedTabs.map(({uri, tab: tabDesc}): Tab => {
+    const drawerContent: m.Child[] = [];
+
+    const tabs = resolvedTabs.map(({uri, tab: tabDesc}) => {
+      const active = uri === currentTabUri;
       if (tabDesc) {
-        return {
-          key: uri,
-          hasCloseButton: true,
-          title: tabDesc.content.getTitle(),
-          content: tabDesc.content.render(),
-          onClose: () => {
-            trace.tabs.hideTab(uri);
+        drawerContent.push(m(Gate, {open: active}, tabDesc.content.render()));
+        return m(
+          Tab,
+          {
+            active,
+            onclick: () => trace.tabs.showTab(uri),
+            hasCloseButton: true,
+            onClose: () => {
+              trace.tabs.hideTab(uri);
+            },
           },
-        };
+          tabDesc.content.getTitle(),
+        );
       } else {
-        return {
-          key: uri,
-          hasCloseButton: true,
-          title: 'Tab does not exist',
-          content: undefined,
-        };
+        return m(
+          Tab,
+          {
+            active,
+            onclick: () => trace.tabs.showTab(uri),
+          },
+          'Tab does not exist',
+        );
       }
     });
 
     // Add the permanent current selection tab to the front of the list of tabs
-    tabs.unshift({
-      key: 'current_selection',
-      title: 'Current Selection',
-      content: m(CurrentSelectionTab, {trace}),
-    });
+    const active = currentTabUri === 'current_selection';
+    if (active) {
+      drawerContent.push(
+        m(Gate, {open: active}, m(CurrentSelectionTab, {trace})),
+      );
+    }
 
-    return tabs;
+    tabs.unshift(
+      m(
+        Tab,
+        {
+          active,
+          onclick: () => trace.tabs.showTab('current_selection'),
+        },
+        'Current Selection',
+      ),
+    );
+
+    return {tabs, drawerContent};
   }
 
   private renderDropdownMenu(trace: TraceImpl): m.Child {
@@ -101,7 +123,6 @@ export class TabPanel implements m.ClassComponent<TabPanelAttrs> {
       PopupMenu,
       {
         trigger: m(Button, {
-          compact: true,
           icon: 'more_vert',
           disabled: entries.length === 0,
           title: 'More Tabs',
