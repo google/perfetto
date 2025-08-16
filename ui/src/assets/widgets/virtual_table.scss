@@ -74,15 +74,19 @@
             padding-inline: 4px;
 
             &:nth-child(odd) {
-              background-color: var(--pf-color-background-secondary);
+              background: var(--pf-color-background-secondary);
             }
 
             &:nth-child(even) {
-              background-color: var(--pf-color-background);
+              background: var(--pf-color-background);
             }
 
             &:hover {
-              background-color: color_hover(transparent);
+              background: color-mix(
+                in srgb,
+                var(--pf-color-interactive-base) 20%,
+                var(--pf-color-background)
+              );
             }
           }
         }

@@ -254,7 +254,13 @@ export class CpuFreqTrack implements TrackRenderer {
     return text;
   }
 
-  render({ctx, size, timescale, visibleWindow}: TrackRenderContext): void {
+  render({
+    ctx,
+    size,
+    timescale,
+    visibleWindow,
+    theme,
+  }: TrackRenderContext): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const data = this.fetcher.data;
 
@@ -288,8 +294,10 @@ export class CpuFreqTrack implements TrackRenderer {
       saturation = 0;
     }
 
-    ctx.fillStyle = color.setHSL({s: saturation, l: 70}).cssString;
-    ctx.strokeStyle = color.setHSL({s: saturation, l: 55}).cssString;
+    ctx.fillStyle = color
+      .setHSL({s: saturation, l: 50})
+      .setAlpha(0.6).cssString;
+    ctx.strokeStyle = color.setHSL({s: saturation, l: 50}).cssString;
 
     const calculateX = (timestamp: time) => {
       return Math.floor(timescale.timeToPx(timestamp));
@@ -402,9 +410,11 @@ export class CpuFreqTrack implements TrackRenderer {
 
     // Write the Y scale on the top left corner.
     ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.fillStyle = theme.COLOR_BACKGROUND;
+    ctx.globalAlpha = 0.6;
     ctx.fillRect(0, 0, 42, 18);
-    ctx.fillStyle = '#666';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = theme.COLOR_TEXT;
     ctx.textAlign = 'left';
     ctx.fillText(`${yLabel}`, 4, 14);
 

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ELF_ELF_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_ELF_ELF_H_
+#ifndef SRC_TRACE_PROCESSOR_UTIL_ELF_ELF_H_
+#define SRC_TRACE_PROCESSOR_UTIL_ELF_ELF_H_
 
 #include <stddef.h>
 #include <cinttypes>
@@ -173,4 +173,4 @@ const typename E::Phdr* GetPhdr(const void* mem,
 
 }  // namespace perfetto::trace_processor::elf
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_ELF_ELF_H_
+#endif  // SRC_TRACE_PROCESSOR_UTIL_ELF_ELF_H_

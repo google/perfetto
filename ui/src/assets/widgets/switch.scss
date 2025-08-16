@@ -57,7 +57,7 @@
     height: 16px;
     width: 32px;
     border-radius: 8px;
-    transition: background $pf-anim-timing;
+    transition: background $anim-timing;
     background: var(--pf-color-neutral);
     vertical-align: middle;
 
@@ -76,7 +76,7 @@
       background: white;
       box-sizing: border-box;
       border-radius: 50%;
-      transition: left $pf-anim-timing;
+      transition: left $anim-timing;
     }
   }
 
@@ -85,7 +85,7 @@
   }
 
   input:checked ~ .pf-switch-visual {
-    background: var(--pf-color-accent);
+    background: var(--pf-color-primary);
   }
 
   input:checked ~ .pf-switch-visual:after {

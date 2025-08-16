@@ -20,6 +20,8 @@
 #include <memory>
 
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/importers/etm/etm_tracker.h"
+
 namespace perfetto::trace_processor {
 class TraceProcessorContext;
 namespace perf_importer {
@@ -30,6 +32,7 @@ namespace etm {
 
 base::StatusOr<std::unique_ptr<perf_importer::AuxDataTokenizer>>
 CreateEtmV4StreamDemultiplexer(TraceProcessorContext* context,
+                               EtmTracker* etm_tracker,
                                perf_importer::AuxtraceInfoRecord info);
 
 }  // namespace etm

@@ -139,7 +139,7 @@ class ProcessTracker {
 
   // Called on a task rename event to set the thread name and possibly process
   // name (if the tid provided is the main thread of the process).
-  void UpdateThreadNameAndMaybeProcessName(int64_t tid,
+  void UpdateThreadNameAndMaybeProcessName(UniqueTid utid,
                                            StringId thread_name,
                                            ThreadNamePriority priority);
 

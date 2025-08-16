@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/elf/binary_info.h"
+#include "src/trace_processor/util/elf/binary_info.h"
 
 #include <fcntl.h>
 
@@ -26,7 +26,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_mmap.h"
-#include "src/trace_processor/importers/elf/elf.h"
+#include "src/trace_processor/util/elf/elf.h"
 
 namespace perfetto::trace_processor::elf {
 namespace {

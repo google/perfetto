@@ -68,9 +68,10 @@ void TraceReaderRegistry::RegisterFactory(TraceType trace_type,
 }
 
 base::StatusOr<std::unique_ptr<ChunkedTraceReader>>
-TraceReaderRegistry::CreateTraceReader(TraceType type) {
+TraceReaderRegistry::CreateTraceReader(TraceType type,
+                                       TraceProcessorContext* context) {
   if (auto* it = factories_.Find(type); it) {
-    return (*it)(context_);
+    return (*it)(context);
   }
 
   if (RequiresZlibSupport(type) && !util::IsGzipSupported()) {

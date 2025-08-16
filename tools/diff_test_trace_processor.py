@@ -98,11 +98,8 @@ def main():
       keep_input=args.keep_input,
       print_slowest_tests=args.print_slowest_tests)
   test_runner = DiffTestsRunner(config)
-  tests = test_runner.test_loader.discover_and_load_tests(
-      ROOT_DIR, config.name_filter)
-  sys.stderr.write(f"[==========] Running {len(tests)} tests.\n")
   results = test_runner.run()
-  sys.stderr.write(results.str(args.no_colors, len(tests)))
+  sys.stderr.write(results.str(args.no_colors))
 
   if args.print_slowest_tests:
     sys.stderr.write('\n--- Slowest tests ---\n')

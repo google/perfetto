@@ -12,38 +12,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@function log-level-color($color, $mix) {
+  @return color-mix(in srgb, $color, var(--pf-color-text) $mix);
+}
+
 .pf-logs-panel {
   height: 100%;
   font-size: 11px;
-  font-family: var(--monospace-font);
+  font-family: var(--pf-font-monospace);
 
   &__row {
     &--debug {
-      color: hsl(122, 20%, 40%);
+      color: log-level-color(hsl(155, 79%, 51%), 30%);
     }
 
     &--verbose {
-      color: hsl(122, 20%, 30%);
+      color: log-level-color(hsl(88, 81%, 48%), 30%);
     }
 
     &--info {
-      color: hsl(0, 0%, 20%);
+      color: var(--pf-color-text);
     }
 
     &--warn {
-      color: hsl(45, 60%, 45%);
+      color: log-level-color(hsl(45, 73%, 50%), 20%);
     }
 
     &--error {
-      color: hsl(4, 90%, 58%);
+      color: log-level-color(hsl(4, 100%, 50%), 20%);
     }
 
     &--fatal {
-      color: hsl(291, 64%, 42%);
+      color: log-level-color(hsl(291, 100%, 50%), 20%);
     }
 
     &--highlighted {
-      background: #d2efe0;
+      background: var(--pf-color-highlight);
     }
   }
 }

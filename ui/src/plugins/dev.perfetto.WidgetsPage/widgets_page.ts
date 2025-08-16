@@ -1459,7 +1459,19 @@ export class WidgetsPage implements m.ClassComponent<{app: App}> {
               showModal({
                 title: 'Attention',
                 icon: Icons.Help,
-                content: () => 'This is a modal dialog',
+                content: () => [
+                  m('', 'This is a modal dialog'),
+                  m(
+                    Popup,
+                    {
+                      trigger: m(Button, {
+                        variant: ButtonVariant.Filled,
+                        label: 'Open Popup',
+                      }),
+                    },
+                    'Popup content',
+                  ),
+                ],
                 buttons: [
                   {
                     text: 'Cancel',

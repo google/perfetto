@@ -72,6 +72,7 @@ export const defaultPlugins = [
   'dev.perfetto.TraceMetadata',
   'dev.perfetto.TraceProcessorTrack',
   'dev.perfetto.TrackEvent',
+  'dev.perfetto.KernelTrackEvent',
   'org.Chromium.OpenTableCommands',
   'org.kernel.LinuxKernelSubsystems',
   'org.kernel.SuspendResumeLatency',

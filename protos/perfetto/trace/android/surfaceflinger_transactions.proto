@@ -179,6 +179,7 @@ message LayerState {
     eTrustedOverlayChanged = 0x4000;
     eDropInputModeChanged = 0x8000;
     eClientDrawnCornerRadiusChanged = 0x00010000;
+    eSystemContentPriorityChanged = 0x00020000;
   };
   optional uint64 what = 2;
   optional float x = 3;
@@ -319,6 +320,8 @@ message LayerState {
   optional CornerRadii corner_radii = 45;
 
   optional CornerRadii client_drawn_corner_radii = 46;
+
+  optional int32 system_content_priority = 47;
 }
 
 message DisplayState {

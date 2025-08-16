@@ -24,12 +24,12 @@
   border-bottom: solid 1px var(--pf-color-border); // Thin underline
   background: none;
   transition:
-    border $pf-anim-timing,
-    box-shadow $pf-anim-timing,
-    background $pf-anim-timing;
+    border $anim-timing,
+    box-shadow $anim-timing,
+    background $anim-timing;
 
   // Round only the top corners to avoid rounding the edges of the underline
-  border-radius: $pf-border-radius $pf-border-radius 0 0;
+  border-radius: $border-radius $border-radius 0 0;
 
   input {
     outline: none;
@@ -45,15 +45,6 @@
     cursor: pointer;
     font-size: smaller;
     margin-left: 2px;
-  }
-
-  &__tag {
-    border-radius: $pf-border-radius;
-    background: var(--pf-color-accent);
-    color: var(--pf-color-text-inverse);
-    margin-right: 2px;
-    padding-inline: 4px;
-    white-space: nowrap;
   }
 
   &__popup {
@@ -84,11 +75,11 @@
 
   &:focus-within {
     background: color_hover(transparent);
-    border-bottom: solid 1px var(--pf-color-accent);
+    border-bottom: solid 1px var(--pf-color-primary);
 
     // The box-shadow thickens the bottom border, without adding to the height.
     // This is the same technique used by materializecss:
     // See https://materializecss.com/text-inputs.html
-    box-shadow: 0 1px 0 var(--pf-color-accent);
+    box-shadow: 0 1px 0 var(--pf-color-primary);
   }
 }

@@ -16,11 +16,12 @@
 
 .pf-anchor {
   display: inline-block;
-  color: var(--pf-color-accent);
-  border-radius: $pf-border-radius;
+  color: var(--pf-color-primary);
+  border-radius: $border-radius;
   cursor: pointer;
   text-decoration: underline;
-  text-decoration-color: rgba($pf-primary-background, 0.5);
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--pf-color-primary);
 
   & > .pf-icon {
     margin-left: 1px;

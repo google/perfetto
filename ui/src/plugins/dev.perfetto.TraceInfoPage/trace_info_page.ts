@@ -18,6 +18,7 @@ import {QueryResult, UNKNOWN} from '../../trace_processor/query_result';
 import {assertExists} from '../../base/logging';
 import {Trace, TraceAttrs} from '../../public/trace';
 import {Icon} from '../../widgets/icon';
+import {Tooltip} from '../../widgets/tooltip';
 
 /**
  * Extracts and copies fields from a source object based on the keys present in
@@ -114,16 +115,22 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
       const help = [];
       if (Boolean(row.description)) {
         help.push(
-          m(Icon, {
-            icon: 'help_outline',
-            className: 'pf-trace-info-page__help-icon',
-          }),
+          m(
+            Tooltip,
+            {
+              trigger: m(Icon, {
+                icon: 'help_outline',
+                className: 'pf-trace-info-page__help-icon',
+              }),
+            },
+            `${row.description}`,
+          ),
         );
       }
       const idx = row.idx !== '' ? `[${row.idx}]` : '';
       return m(
         'tr',
-        m('td.name', {title: row.description}, `${row.name}${idx}`, help),
+        m('td.name', `${row.name}${idx}`, help),
         m('td', `${row.value}`),
         m('td', `${row.severity} (${row.source})`),
       );
