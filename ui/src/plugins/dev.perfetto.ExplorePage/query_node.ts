@@ -36,6 +36,9 @@ export enum NodeType {
   kTable,
   kSimpleSlices,
   kSqlSource,
+
+  // Single node operations
+  kSubQuery,
 }
 
 // All information required to create a new node.

@@ -79,7 +79,7 @@ export class SlicesSourceNode extends SourceNode {
     if (!this.validate()) return;
 
     const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = `simple_slices_source`;
+    sq.id = this.nodeId;
     const ss = new protos.PerfettoSqlStructuredQuery.SimpleSlices();
 
     if (this.state.slice_name) ss.sliceNameGlob = this.state.slice_name;

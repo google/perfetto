@@ -27,6 +27,7 @@ import {
   slicesSourceNodeColumns,
 } from './query_builder/sources/slices_source';
 import {SqlSourceNode} from './query_builder/sources/sql_source';
+import {SubQueryNode} from './query_builder/sub_query_node';
 import {Trace} from '../../public/trace';
 import {VisViewSource} from './data_visualiser/view_source';
 
@@ -131,6 +132,17 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
     }
   }
 
+  handleAddSubQuery(state: ExplorePageState, node: QueryNode) {
+    const newNode = new SubQueryNode({
+      prevNode: node,
+      sourceCols: node.finalCols,
+      filters: [],
+      groupByColumns: [],
+      aggregations: [],
+    });
+    this.addNode(state, newNode);
+  }
+
   private handleKeyDown(event: KeyboardEvent, attrs: ExplorePageAttrs) {
     const {state} = attrs;
     if (state.selectedNode !== undefined) {
@@ -195,6 +207,7 @@ export class ExplorePage implements m.ClassComponent<ExplorePageAttrs> {
           onClearAllNodes: () => this.handleClearAllNodes(state),
           onDuplicateNode: (node) => this.handleDuplicateNode(state, node),
           onDeleteNode: (node) => this.handleDeleteNode(state, node),
+          onAddSubQueryNode: (node) => this.handleAddSubQuery(state, node),
         }),
       state.mode === ExplorePageModes.DATA_VISUALISER &&
         state.rootNodes.length !== 0 &&

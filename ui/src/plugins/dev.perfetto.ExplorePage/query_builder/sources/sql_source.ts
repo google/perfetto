@@ -87,7 +87,7 @@ export class SqlSourceNode extends SourceNode {
 
   getStructuredQuery(): protos.PerfettoSqlStructuredQuery | undefined {
     const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = `sql_source`;
+    sq.id = this.nodeId;
     const sqlProto = new protos.PerfettoSqlStructuredQuery.Sql();
 
     if (this.state.sql) sqlProto.sql = this.state.sql;
