@@ -446,7 +446,7 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
       return feature::EventDescription::Parse(
           std::move(data), [&](feature::EventDescription desc) {
             for (auto id : desc.ids) {
-              perf_session_->SetEventName(id, std::move(desc.event_string));
+              perf_session_->SetEventName(id, desc.event_string);
             }
             return base::OkStatus();
           });

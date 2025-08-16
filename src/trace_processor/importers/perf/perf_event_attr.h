@@ -20,6 +20,7 @@
 #include <sys/types.h>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -95,7 +96,7 @@ class PerfEventAttr : public RefCounted {
 
   size_t sample_id_size() const { return sample_id_size_; }
 
-  PerfCounter& GetOrCreateCounter(uint32_t cpu);
+  PerfCounter& GetOrCreateCounter(std::optional<uint32_t> cpu);
 
   ClockTracker::ClockId clock_id() const { return clock_id_; }
 
@@ -117,6 +118,7 @@ class PerfEventAttr : public RefCounted {
   std::optional<size_t> id_offset_from_start_;
   std::optional<size_t> id_offset_from_end_;
   size_t sample_id_size_;
+  std::unique_ptr<PerfCounter> global_counter_;
   std::unordered_map<uint32_t, PerfCounter> counters_;
   std::string event_name_;
 };

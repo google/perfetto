@@ -236,8 +236,16 @@ inline constexpr auto kMmEventThreadFallbackBlueprint =
             tracks::StringDimensionBlueprint("mm_event_metric")),
         kMmEventFnNameBlueprint);
 
-inline constexpr auto kPerfCounterBlueprint = tracks::CounterBlueprint(
-    "perf_counter",
+inline constexpr auto kPerfGlobalCounterBlueprint = tracks::CounterBlueprint(
+    "perf_global_counter",
+    tracks::UnknownUnitBlueprint(),
+    tracks::DimensionBlueprints(
+        tracks::UintDimensionBlueprint("perf_session_id"),
+        tracks::kNameFromTraceDimensionBlueprint),
+    tracks::DynamicNameBlueprint());
+
+inline constexpr auto kPerfCpuCounterBlueprint = tracks::CounterBlueprint(
+    "perf_cpu_counter",
     tracks::UnknownUnitBlueprint(),
     tracks::DimensionBlueprints(
         tracks::kCpuDimensionBlueprint,
