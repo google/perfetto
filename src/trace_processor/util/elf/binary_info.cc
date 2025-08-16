@@ -38,19 +38,22 @@ bool InRange(const void* base,
   return ptr >= base && static_cast<const char*>(ptr) + size <=
                             static_cast<const char*>(base) + total_size;
 }
-
+// TODO(rasikanavarange): ETM registers files with large sizes causing size in
+// TraceBlobView to become truncated. This means we can not trust any of the
+// below checks for large files. So a solution is needed that is not too
+// expensive memory wise. b/438916722
 template <typename E>
 std::optional<uint64_t> GetElfLoadBias(const void* mem, size_t size) {
   const typename E::Ehdr* ehdr = static_cast<const typename E::Ehdr*>(mem);
   if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
-    PERFETTO_ELOG("Corrupted ELF.");
-    return std::nullopt;
+    PERFETTO_LOG("Potentially Corrupted ELF.");
+    // return std::nullopt;
   }
   for (size_t i = 0; i < ehdr->e_phnum; ++i) {
     const typename E::Phdr* phdr = GetPhdr<E>(mem, ehdr, i);
     if (!InRange(mem, size, phdr, sizeof(typename E::Phdr))) {
-      PERFETTO_ELOG("Corrupted ELF.");
-      return std::nullopt;
+      PERFETTO_LOG("Potentially Corrupted ELF.");
+      // return std::nullopt;
     }
     if (phdr->p_type == PT_LOAD && phdr->p_flags & PF_X) {
       return phdr->p_vaddr - phdr->p_offset;
@@ -63,14 +66,14 @@ template <typename E>
 std::optional<std::string> GetElfBuildId(const void* mem, size_t size) {
   const typename E::Ehdr* ehdr = static_cast<const typename E::Ehdr*>(mem);
   if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
-    PERFETTO_ELOG("Corrupted ELF.");
-    return std::nullopt;
+    PERFETTO_LOG("Potentially Corrupted ELF.");
+    // return std::nullopt;
   }
   for (size_t i = 0; i < ehdr->e_shnum; ++i) {
     const typename E::Shdr* shdr = GetShdr<E>(mem, ehdr, i);
     if (!InRange(mem, size, shdr, sizeof(typename E::Shdr))) {
-      PERFETTO_ELOG("Corrupted ELF.");
-      return std::nullopt;
+      PERFETTO_LOG("Potentially Corrupted ELF.");
+      // return std::nullopt;
     }
 
     if (shdr->sh_type != SHT_NOTE)
@@ -82,22 +85,22 @@ std::optional<std::string> GetElfBuildId(const void* mem, size_t size) {
           static_cast<const char*>(mem) + offset);
 
       if (!InRange(mem, size, nhdr, sizeof(typename E::Nhdr))) {
-        PERFETTO_ELOG("Corrupted ELF.");
-        return std::nullopt;
+        PERFETTO_LOG("Potentially Corrupted ELF.");
+        // return std::nullopt;
       }
       if (nhdr->n_type == NT_GNU_BUILD_ID && nhdr->n_namesz == 4) {
         const char* name = reinterpret_cast<const char*>(nhdr) + sizeof(*nhdr);
         if (!InRange(mem, size, name, 4)) {
-          PERFETTO_ELOG("Corrupted ELF.");
-          return std::nullopt;
+          PERFETTO_LOG("Potentially Corrupted ELF.");
+          // return std::nullopt;
         }
         if (memcmp(name, "GNU", 3) == 0) {
           const char* value = reinterpret_cast<const char*>(nhdr) +
                               sizeof(*nhdr) + base::AlignUp<4>(nhdr->n_namesz);
 
           if (!InRange(mem, size, value, nhdr->n_descsz)) {
-            PERFETTO_ELOG("Corrupted ELF.");
-            return std::nullopt;
+            PERFETTO_LOG("Potentially Corrupted ELF.");
+            // return std::nullopt;
           }
           return std::string(value, nhdr->n_descsz);
         }
