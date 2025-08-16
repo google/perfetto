@@ -13,16 +13,30 @@
 // limitations under the License.
 
 import {TrackNode} from '../../public/workspace';
+import {App} from '../../public/app';
 import {Trace} from '../../public/trace';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Track} from '../../public/track';
 import {z} from 'zod';
 import {assertIsInstance} from '../../base/logging';
 
-const PLUGIN_ID = 'dev.perfetto.RestorePinnedTrack';
+const PLUGIN_ID = 'dev.perfetto.AutoPinAndExpandTracks';
 const SAVED_TRACKS_KEY = `${PLUGIN_ID}#savedPerfettoTracks`;
 
 const RESTORE_COMMAND_ID = `${PLUGIN_ID}#restore`;
+
+const URL_PARAM_EXPAND_TRACKS = 'expand_tracks_with_name_on_startup';
+const URL_PARAM_PINNED_TRACKS = 'pin_tracks_with_name_on_startup';
+
+// Parse the plugin parameters values, which are split by -- and wrapped by ()
+// Examples: (value1--value2)
+function getParamValues(pluginParams: string): string[] {
+  const match = pluginParams.match(/^\((.*)\)$/);
+  if (match) {
+    return match[1].split('--').map((v) => v.trim());
+  }
+  return [];
+}
 
 /**
  * Fuzzy save and restore of pinned tracks.
@@ -31,11 +45,13 @@ const RESTORE_COMMAND_ID = `${PLUGIN_ID}#restore`;
  * and group name. When no match is found for a saved track, it tries again
  * without numbers.
  */
-export default class implements PerfettoPlugin {
+export default class AutoPinAndExpandTracks implements PerfettoPlugin {
   static readonly id = PLUGIN_ID;
   private ctx!: Trace;
+  private static expandTracks: string[] = [];
+  private static pinTracks: string[] = [];
 
-  static onActivate() {
+  static onActivate(app: App) {
     const input = document.createElement('input');
     input.classList.add('pinned_tracks_import_selector');
     input.setAttribute('type', 'file');
@@ -62,6 +78,13 @@ export default class implements PerfettoPlugin {
       addOrReplaceNamedPinnedTracks(parsed.data);
     });
     document.body.appendChild(input);
+    const pluginParams = app.initialPluginRouteArgs ?? {};
+    AutoPinAndExpandTracks.expandTracks = getParamValues(
+      String(pluginParams[URL_PARAM_EXPAND_TRACKS]),
+    );
+    AutoPinAndExpandTracks.pinTracks = getParamValues(
+      String(pluginParams[URL_PARAM_PINNED_TRACKS]),
+    );
   }
 
   async onTraceLoad(ctx: Trace): Promise<void> {
@@ -161,6 +184,33 @@ export default class implements PerfettoPlugin {
         assertIsInstance<HTMLInputElement>(files, HTMLInputElement).click();
       },
     });
+
+    // Process URL parameters for auto-expanding groups and pinning tracks
+    this.processUrlParameters();
+  }
+
+  private processUrlParameters(): void {
+    const localTracks = this.ctx.workspace.flatTracks;
+    if (AutoPinAndExpandTracks.expandTracks.length > 0) {
+      const expandRegexes = AutoPinAndExpandTracks.expandTracks.map(
+        (prefix) => new RegExp('^' + prefix),
+      );
+      localTracks
+        .filter((t) => expandRegexes.some((regex) => regex.test(t.name)))
+        .forEach((t) => t.expand());
+    }
+    if (AutoPinAndExpandTracks.pinTracks.length > 0) {
+      const pinRegexes = AutoPinAndExpandTracks.pinTracks.map(
+        (prefix) => new RegExp('^' + prefix),
+      );
+      localTracks
+        .filter((t) => pinRegexes.some((regex) => regex.test(t.name)))
+        .forEach((t) => t.pin());
+    }
+
+    // Once the expand or pin traces have been processed, we don’t want to do it again.
+    AutoPinAndExpandTracks.expandTracks = [];
+    AutoPinAndExpandTracks.pinTracks = [];
   }
 
   private restoreTracks(tracks: ReadonlyArray<SavedPinnedTrack>) {
