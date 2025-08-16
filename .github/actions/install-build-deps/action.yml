@@ -30,7 +30,7 @@ runs:
       run: |
         # Create buildtools cache key.
         flags="${INSTALL_FLAGS:-default}"
-        echo "key=buildtools-$flags" >> "$GITHUB_OUTPUT"
+        echo "key=buildtools-debug-cache-branch-$flags" >> "$GITHUB_OUTPUT"
 
     # When restoring the buildtools cache, we don't want to overwrite files or
     # folders that are stored in git.
@@ -42,7 +42,8 @@ runs:
       run: |
         # Generate list of files in 'buildtools/' stored in git.
         FILES_TO_IGNORE_PATH=$(mktemp /tmp/files-to-ignore-XXXXX.txt)
-        git ls-tree HEAD:buildtools --name-only > "$FILES_TO_IGNORE_PATH"
+        # We use "-r" to list files, not the directories where they are placed.
+        git ls-tree HEAD:buildtools --name-only -r > "$FILES_TO_IGNORE_PATH"
         echo "file_path=$FILES_TO_IGNORE_PATH" >> "$GITHUB_OUTPUT"
 
     - name: Save local buildtools hash
@@ -92,9 +93,10 @@ runs:
       # correct deps if the restored cache is too old or too new.
       run: tools/install-build-deps ${{ inputs.install-flags }}
 
+    # for testing trigger on each branch.
     - name: Save buildtools cache (only on main)
       if: |
-        github.ref == 'refs/heads/main' &&
+        github.ref != '' &&
         steps.check_if_need_update.outputs.update_cache == 'true'
       uses: ./.github/actions/cache-on-google-cloud-storage/save
       with:

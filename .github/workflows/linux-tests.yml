@@ -50,7 +50,7 @@ jobs:
             PERFETTO_TEST_GN_ARGS: 'is_debug=false is_clang=false enable_perfetto_grpc=true cc=\"gcc-8\" cxx=\"g++-8\" cc_wrapper=\"ccache\" enable_perfetto_llvm_symbolizer=true'
             PERFETTO_INSTALL_BUILD_DEPS_ARGS: '--grpc'
     env:
-      PERFETTO_CI_BUILD_CACHE_KEY: build-cache-${{ matrix.config.name }}
+      PERFETTO_CI_BUILD_CACHE_KEY: build-cache-debug-cache-branch-${{ matrix.config.name }}
       PERFETTO_CI_JOB_ID: gh-${{ github.run_id }}-${{ matrix.config.name }}
     steps:
       - uses: actions/checkout@v4
@@ -158,7 +158,7 @@ jobs:
           gcloud storage cp --recursive "$PERFETTO_ARTIFACTS_DIR" "$GCS_PATH/$PERFETTO_CI_JOB_ID"
 
       - name: Update cache (if on main)
-        if: github.ref == 'refs/heads/main'
+        if: github.ref != ''
         uses: ./.github/actions/cache-on-google-cloud-storage/save
         with:
           directory: ${{ env.PERFETTO_CACHE_DIR }}

@@ -37,6 +37,26 @@ jobs:
         with:
           install-flags: --android
 
+      - name: Check for KVM Acceleration
+        shell: bash
+        run: |
+          echo "Check for KVM Acceleration"
+          
+          if [ -e /dev/kvm ]; then
+            echo "✅ Found KVM device at /dev/kvm."
+            if [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
+              echo "✅ User has read/write access to /dev/kvm."
+              echo "🚀 KVM acceleration is fully available!"
+            else
+              echo "❌ ERROR: Found /dev/kvm, but your user does not have read/write permissions."
+              echo "Ask your system administrator to add the user '$(whoami)' to the 'kvm' group."
+              exit 1
+            fi
+          else
+            echo "❌ ERROR: KVM device at /dev/kvm not found."
+            exit 1
+          fi   
+
       - name: Restore cache
         uses: ./.github/actions/cache-on-google-cloud-storage/restore
         with:
