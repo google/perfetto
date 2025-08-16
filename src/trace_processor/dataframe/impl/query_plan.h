@@ -203,7 +203,12 @@ class QueryPlanBuilder {
   // Indicates that the bytecode is a equality filter with given duplicate
   // state.
   struct EqualityFilterRowCount {
+    explicit EqualityFilterRowCount(const Column& c)
+        : duplicate_state(c.duplicate_state),
+          estimated_unique_non_null_count(c.estimated_unique_non_null_count) {}
+
     DuplicateState duplicate_state;
+    std::optional<double> estimated_unique_non_null_count;
   };
 
   // Indicates that the bytecode produces *exactly* one row and the estimated

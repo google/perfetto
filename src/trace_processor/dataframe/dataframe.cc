@@ -33,6 +33,7 @@
 #include "src/trace_processor/dataframe/specs.h"
 #include "src/trace_processor/dataframe/typed_cursor.h"
 #include "src/trace_processor/dataframe/types.h"
+#include "src/trace_processor/util/hyper_log_log.h"
 
 namespace perfetto::trace_processor::dataframe {
 
@@ -166,28 +167,56 @@ void Dataframe::Finalize() {
     return;
   }
   finalized_ = true;
+  util::HyperLogLog log;
   for (const auto& c : columns_) {
+    log.Reset();
     switch (c->storage.type().index()) {
-      case StorageType::GetTypeIndex<Uint32>():
-        c->storage.unchecked_get<Uint32>().shrink_to_fit();
+      case StorageType::GetTypeIndex<Uint32>(): {
+        auto& storage = c->storage.unchecked_get<Uint32>();
+        storage.shrink_to_fit();
+        for (uint32_t r : storage) {
+          log.Add(r);
+        }
         break;
-      case StorageType::GetTypeIndex<Int32>():
-        c->storage.unchecked_get<Int32>().shrink_to_fit();
+      }
+      case StorageType::GetTypeIndex<Int32>(): {
+        auto& storage = c->storage.unchecked_get<Int32>();
+        storage.shrink_to_fit();
+        for (int32_t r : storage) {
+          log.Add(r);
+        }
         break;
-      case StorageType::GetTypeIndex<Int64>():
-        c->storage.unchecked_get<Int64>().shrink_to_fit();
+      }
+      case StorageType::GetTypeIndex<Int64>(): {
+        auto& storage = c->storage.unchecked_get<Int64>();
+        storage.shrink_to_fit();
+        for (int64_t r : storage) {
+          log.Add(r);
+        }
         break;
-      case StorageType::GetTypeIndex<Double>():
-        c->storage.unchecked_get<Double>().shrink_to_fit();
+      }
+      case StorageType::GetTypeIndex<Double>(): {
+        auto& storage = c->storage.unchecked_get<Double>();
+        storage.shrink_to_fit();
+        for (double r : storage) {
+          log.Add(r);
+        }
         break;
-      case StorageType::GetTypeIndex<String>():
-        c->storage.unchecked_get<String>().shrink_to_fit();
+      }
+      case StorageType::GetTypeIndex<String>(): {
+        auto& storage = c->storage.unchecked_get<String>();
+        storage.shrink_to_fit();
+        for (StringPool::Id r : storage) {
+          log.Add(r.raw_id());
+        }
         break;
+      }
       case StorageType::GetTypeIndex<Id>():
         break;
       default:
         PERFETTO_FATAL("Invalid storage type");
     }
+    c->estimated_unique_non_null_count = log.Estimate();
     switch (c->null_storage.nullability().index()) {
       case Nullability::GetTypeIndex<NonNull>():
         break;
@@ -280,6 +309,8 @@ std::vector<std::shared_ptr<impl::Column>> Dataframe::CreateColumnVector(
         make_null_storage(column_specs[i]),
         column_specs[i].sort_state,
         column_specs[i].duplicate_state,
+        impl::SpecializedStorage{},
+        std::nullopt,
     }));
   }
   return columns;
