@@ -23,28 +23,34 @@ export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.AndroidBinderVizPlugin';
 
   async onTraceLoad(ctx: Trace): Promise<void> {
+    await this.createBinderTransactionTrack(ctx, 'server', 'client');
+    await this.createBinderTransactionTrack(ctx, 'client', 'server');
+  }
+
+  async createBinderTransactionTrack(ctx: Trace, perspective: string, opposite_perspective: string) {
+
     const binderCounterBreakdowns = new BreakdownTracks({
       trace: ctx,
-      trackTitle: 'Binder Transaction Counts',
+      trackTitle: `Binder ${perspective} Transaction Counts`,
       modules: ['android.binder', 'android.binder_breakdown'],
       aggregationType: BreakdownTrackAggType.COUNT,
       aggregation: {
         columns: [
-          'server_process',
-          '(IFNULL(interface, "unknown"))',
-          '(IFNULL(method_name, "unknown"))',
-          '(client_process || ":" || client_upid)',
-          '(client_thread || ":" ||  client_utid)',
+          `${perspective}_process`,
+          `(IFNULL(interface, "unknown interface"))`,
+          `(IFNULL(method_name, "unknown method"))`,
+          `(${opposite_perspective}_process || ":" || ${opposite_perspective}_upid)`,
+          `(${opposite_perspective}_thread || ":" ||  ${opposite_perspective}_utid)`,
         ],
-        tsCol: 'client_ts',
-        durCol: 'client_dur',
+        tsCol: `${opposite_perspective}_ts`,
+        durCol: `${opposite_perspective}_dur`,
         tableName: 'android_binder_txns',
       },
       slice: {
         columns: ['aidl_name'],
         tableName: 'android_binder_txns',
-        tsCol: 'client_ts',
-        durCol: 'client_dur',
+        tsCol: `${opposite_perspective}_ts`,
+        durCol: `${opposite_perspective}_dur`,
       },
       pivots: {
         columns: ['reason_type', 'reason'],
@@ -62,4 +68,6 @@ export default class implements PerfettoPlugin {
 
     ctx.workspace.addChildInOrder(await binderCounterBreakdowns.createTracks());
   }
+
+
 }
