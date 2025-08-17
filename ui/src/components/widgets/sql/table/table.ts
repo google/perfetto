@@ -342,9 +342,10 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
                     },
                     menuItems,
                     reorderable: {handle: 'column'},
-                    onReorder: (from, to) => {
+                    onReorder: (from, to, position) => {
                       if (typeof from === 'number' && typeof to === 'number') {
-                        this.state.moveColumn(from, to);
+                        const toIndex = position === 'before' ? to : to + 1;
+                        this.state.moveColumn(from, toIndex);
                       }
                     },
                   },

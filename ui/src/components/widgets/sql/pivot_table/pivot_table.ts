@@ -58,13 +58,16 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
           {
             key: `pivot-${pivotId(pivot)}`,
             reorderable: {handle: 'pivot'},
-            onReorder: (from, to) => {
+            onReorder: (from, to, position) => {
               const fromIndex = pivots.findIndex(
                 (p) => `pivot-${pivotId(p)}` === from,
               );
-              const toIndex = pivots.findIndex(
+              let toIndex = pivots.findIndex(
                 (p) => `pivot-${pivotId(p)}` === to,
               );
+              if (position === 'after') {
+                toIndex++;
+              }
               state.movePivot(fromIndex, toIndex);
             },
             sort: sorted,
@@ -81,13 +84,16 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
           {
             key: `agg-${aggregationId(agg)}`,
             reorderable: {handle: 'aggregation'},
-            onReorder: (from, to) => {
+            onReorder: (from, to, position) => {
               const fromIndex = aggregations.findIndex(
                 (a) => `agg-${aggregationId(a)}` === from,
               );
-              const toIndex = aggregations.findIndex(
+              let toIndex = aggregations.findIndex(
                 (a) => `agg-${aggregationId(a)}` === to,
               );
+              if (position === 'after') {
+                toIndex++;
+              }
               state.moveAggregation(fromIndex, toIndex);
             },
             sort: state.isSortedByAggregation(agg),

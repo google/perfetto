@@ -66,6 +66,8 @@ export type SortDirection = 'ASC' | 'DESC';
 
 export type CellAlignment = 'left' | 'center' | 'right';
 
+export type ReorderPosition = 'before' | 'after';
+
 export interface GridHeaderCellAttrs extends m.Attributes {
   // The current sort direction, if any.
   readonly sort?: SortDirection;
@@ -90,6 +92,7 @@ export interface GridHeaderCellAttrs extends m.Attributes {
   readonly onReorder?: (
     from: string | number | undefined,
     to: string | number | undefined,
+    position: ReorderPosition,
   ) => void;
   // If true, the cell will have a thick right border, useful for separating
   // groups of columns.
@@ -98,7 +101,10 @@ export interface GridHeaderCellAttrs extends m.Attributes {
 
 // Renders a `<th>` element, for use inside a `GridRow` within a `GridHeader`.
 export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
-  private isDragOver = 0;
+  private dragOverState: {count: number; position: ReorderPosition} = {
+    count: 0,
+    position: 'after',
+  };
 
   view({attrs, children}: m.Vnode<GridHeaderCellAttrs>) {
     const {
@@ -164,7 +170,9 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
         ...rest,
         draggable: reorderable !== undefined,
         className: classNames(
-          this.isDragOver > 0 && 'pf-drag-over',
+          this.dragOverState.count > 0 && 'pf-drag-over',
+          this.dragOverState.count > 0 &&
+            `pf-drag-over--${this.dragOverState.position}`,
           thickRightBorder && 'pf-grid-cell--thick-right-border',
         ),
         ondragstart: (e: MithrilEvent<DragEvent>) => {
@@ -178,32 +186,39 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
         },
         ondragenter: (e: MithrilEvent<DragEvent>) => {
           if (reorderHandle && e.dataTransfer!.types.includes(reorderHandle)) {
-            ++this.isDragOver;
+            ++this.dragOverState.count;
           }
         },
         ondragleave: (e: MithrilEvent<DragEvent>) => {
           if (reorderHandle && e.dataTransfer!.types.includes(reorderHandle)) {
-            --this.isDragOver;
+            --this.dragOverState.count;
           }
         },
         ondragover: (e: MithrilEvent<DragEvent>) => {
-          e.redraw = false;
           e.preventDefault();
           if (reorderHandle && e.dataTransfer!.types.includes(reorderHandle)) {
             e.dataTransfer!.dropEffect = 'move';
+            const target = e.currentTarget as HTMLElement;
+            const rect = target.getBoundingClientRect();
+            this.dragOverState.position =
+              e.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
           } else {
             e.dataTransfer!.dropEffect = 'none';
           }
         },
         ondrop: (e: MithrilEvent<DragEvent>) => {
-          this.isDragOver = 0;
+          this.dragOverState.count = 0;
           if (reorderHandle) {
             const data = e.dataTransfer!.getData(reorderHandle);
             if (data) {
               e.preventDefault();
               const {key: from} = JSON.parse(data);
               const to = attrs.key as string | number | undefined;
-              onReorder?.(from, to);
+              const target = e.currentTarget as HTMLElement;
+              const rect = target.getBoundingClientRect();
+              const position =
+                e.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+              onReorder?.(from, to, position);
             }
           }
         },

@@ -110,8 +110,24 @@ $border-3: 2px solid var(--pf-color-border);
   }
 
   th.pf-drag-over {
-    box-shadow: inset 2px 0 0 0 var(--pf-color-accent);
-    background-color: color_hover(transparent);
+    position: relative;
+
+    &::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background-color: var(--pf-color-accent);
+    }
+
+    &--before::after {
+      left: -2px;
+    }
+
+    &--after::after {
+      right: -2px;
+    }
   }
 
   tr {
