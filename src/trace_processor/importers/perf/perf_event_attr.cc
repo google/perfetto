@@ -153,28 +153,31 @@ PerfEventAttr::~PerfEventAttr() = default;
 PerfCounter& PerfEventAttr::GetOrCreateCounter(std::optional<uint32_t> cpu) {
   if (!cpu) {
     if (!global_counter_) {
-      base::StringView name(event_name_);
-      TrackId track_id = context_->track_tracker->InternTrack(
-          tracks::kPerfGlobalCounterBlueprint,
-          tracks::Dimensions(perf_session_id_.value, name),
-          tracks::DynamicName(context_->storage->InternString(name)),
-          [this](ArgsTracker::BoundInserter& inserter) {
-            inserter.AddArg(context_->storage->InternString("is_timebase"),
-                            Variadic::Boolean(is_timebase()));
-          });
-      global_counter_ = std::make_unique<PerfCounter>(PerfCounter{
-          context_->storage->mutable_counter_table(), track_id, is_timebase()});
+      global_counter_ = std::make_unique<PerfCounter>(CreateGlobalCounter());
     }
     return *global_counter_;
   }
   auto it = counters_.find(*cpu);
   if (it == counters_.end()) {
-    it = counters_.emplace(*cpu, CreateCounter(*cpu)).first;
+    it = counters_.emplace(*cpu, CreateCpuCounter(*cpu)).first;
   }
   return it->second;
 }
 
-PerfCounter PerfEventAttr::CreateCounter(uint32_t cpu) const {
+PerfCounter PerfEventAttr::CreateGlobalCounter() const {
+  base::StringView name(event_name_);
+  TrackId track_id = context_->track_tracker->InternTrack(
+      tracks::kPerfGlobalCounterBlueprint,
+      tracks::Dimensions(perf_session_id_.value, name),
+      tracks::DynamicName(context_->storage->InternString(name)),
+      [this](ArgsTracker::BoundInserter& inserter) {
+        inserter.AddArg(context_->storage->InternString("is_timebase"),
+                        Variadic::Boolean(is_timebase()));
+      });
+  return {context_->storage->mutable_counter_table(), track_id, is_timebase()};
+}
+
+PerfCounter PerfEventAttr::CreateCpuCounter(uint32_t cpu) const {
   base::StringView name(event_name_);
   TrackId track_id = context_->track_tracker->InternTrack(
       tracks::kPerfCpuCounterBlueprint,

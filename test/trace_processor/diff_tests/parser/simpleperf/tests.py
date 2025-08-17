@@ -382,6 +382,10 @@ class Simpleperf(TestSuite):
 
   def test_global_counters(self):
     return DiffTestBlueprint(
+        # Interesting side-note is that the "perf record" implementation still
+        # decided to open a separate counter on each CPU (and then mapped all of
+        # them into a single buffer with ioctls) [1]. It may have had something
+        # to do with inherit complexity.
         trace=DataPath('perf_counter.data'),
         query="""
         SELECT

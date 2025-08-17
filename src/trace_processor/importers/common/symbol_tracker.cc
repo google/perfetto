@@ -74,6 +74,9 @@ bool SymbolTracker::TrySymbolizeFrame(
 
   // If the symbols in the map are absolute, then we need to relativize against
   // the exact offset and then add to the start of the mapping.
+  //
+  // TODO(rsavitski): double check if this is confusing "exact_offset for the
+  // purposes of llvm RO ELF header mappings" with "pgoff of the mapping"
   if (file->symbols_are_absolute) {
     pc -= mapping.exact_offset();
     pc += mapping.start();
