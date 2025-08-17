@@ -129,8 +129,9 @@ void PerfTracker::AddSimpleperfFile2(const FileFeature::Decoder& file) {
 
   // JIT functions use absolute addresses for their symbols instead of relative
   // ones.
-  dso.symbols_are_absolute =
-      base::Contains(file.path().ToStdString(), "jit_app_cache");
+  std::string path = file.path().ToStdString();
+  dso.symbols_are_absolute = base::Contains(path, "jit_app_cache") ||
+                             base::Contains(path, "jit_zygote_cache");
   InsertSymbols(file, dso.symbols);
   context_->symbol_tracker->dsos().Insert(
       context_->storage->InternString(file.path()), std::move(dso));
