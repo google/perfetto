@@ -20,6 +20,7 @@ import {utf8Decode} from '../base/string_utils';
 import {time} from '../base/time';
 import {AppImpl} from '../core/app_impl';
 import {Trace} from '../public/trace';
+import {TraceConverter} from '../public/trace_converter';
 
 type Args =
   | UpdateStatusArgs
@@ -59,7 +60,7 @@ type OpenTraceInLegacyCallback = (
   size: number,
 ) => void;
 
-export class TraceConverter {
+export class TraceConverterImpl implements TraceConverter {
   constructor(
     private readonly app: AppImpl,
     private readonly trace: Trace,

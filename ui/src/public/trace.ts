@@ -28,7 +28,7 @@ import {Evt} from '../base/events';
 import {StatusbarManager} from './statusbar';
 import {MinimapManager} from './minimap';
 import {SearchManager} from './search';
-import {TraceConverter} from '../frontend/trace_converter';
+import {TraceConverter} from './trace_converter';
 
 // Lists all the possible event listeners using the key as the event name and
 // the type as the type of the callback.

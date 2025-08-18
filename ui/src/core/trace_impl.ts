@@ -55,7 +55,7 @@ import {StatusbarManagerImpl} from './statusbar_manager';
 import {Setting, SettingDescriptor, SettingsManager} from '../public/settings';
 import {SettingsManagerImpl} from './settings_manager';
 import {MinimapManagerImpl} from './minimap_manager';
-import {TraceConverter} from '../frontend/trace_converter';
+import {TraceConverterImpl} from '../frontend/trace_converter';
 
 /**
  * Handles the per-trace state of the UI
@@ -196,7 +196,7 @@ export class TraceImpl implements Trace {
   private readonly sidebarProxy: SidebarManagerImpl;
   private readonly pageMgrProxy: PageManagerImpl;
   private readonly settingsProxy: SettingsManagerImpl;
-  readonly traceConverter: TraceConverter;
+  readonly traceConverter: TraceConverterImpl;
 
   // This is called by TraceController when loading a new trace, soon after the
   // engine has been set up. It obtains a new TraceImpl for the core. From that
@@ -222,7 +222,7 @@ export class TraceImpl implements Trace {
     this.traceCtx = ctx;
     const traceUnloadTrash = ctx.trash;
 
-    this.traceConverter = new TraceConverter(appImpl, this);
+    this.traceConverter = new TraceConverterImpl(appImpl, this);
 
     // Invalidate all the engine proxies when the TraceContext is destroyed.
     this.engineProxy = ctx.engine.getProxy(pluginId);
