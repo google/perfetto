@@ -61,6 +61,7 @@ import MeminfoCounters = protos.perfetto.protos.MeminfoCounters;
 import MetatraceCategories = protos.perfetto.protos.MetatraceCategories;
 import NativeContinuousDumpConfig = protos.perfetto.protos.HeapprofdConfig.ContinuousDumpConfig;
 import NetworkPacketTraceConfig = protos.perfetto.protos.NetworkPacketTraceConfig;
+import ParseFromStoredFileArgs = protos.perfetto.protos.ParseFromStoredFileArgs;
 import PerfEventConfig = protos.perfetto.protos.PerfEventConfig;
 import PerfEvents = protos.perfetto.protos.PerfEvents;
 import PerfettoMetatrace = protos.perfetto.protos.PerfettoMetatrace;
@@ -128,6 +129,7 @@ export {
   MetatraceCategories,
   NativeContinuousDumpConfig,
   NetworkPacketTraceConfig,
+  ParseFromStoredFileArgs,
   PerfettoMetatrace,
   PerfEventConfig,
   PerfEvents,

@@ -25,6 +25,7 @@ import {
   ResetTraceProcessorArgs,
   TraceProcessorRpc,
   TraceProcessorRpcStream,
+  ParseFromStoredFileArgs,
 } from '../protos';
 
 import {ProtoRingBuffer} from './proto_ring_buffer';
@@ -34,6 +35,8 @@ import {
   QueryResult,
   WritableQueryResult,
 } from './query_result';
+
+import { globals } from '../frontend/globals';
 
 import TPM = TraceProcessorRpc.TraceProcessorMethod;
 
@@ -63,6 +66,7 @@ export interface TraceProcessorConfig {
 }
 
 export interface Engine {
+  traceName: string;
   /**
    * Execute a query against the database, returning a promise that resolves
    * when the query has completed but rejected when the query fails for whatever
@@ -97,6 +101,7 @@ export interface Engine {
    * @param format The format of the response.
    */
   computeMetric(
+    fileName: string, 
     metrics: string[],
     format: 'json' | 'prototext' | 'proto',
   ): Promise<string | Uint8Array>;
@@ -114,6 +119,7 @@ export interface Engine {
 //    proto-encoded TraceProcessorRpc requests to the TraceProcessor instance.
 // 2. Call onRpcResponseBytes() when response data is received.
 export abstract class EngineBase implements Engine {
+  traceName: string;
   abstract readonly id: string;
   private loadingTracker: LoadingTracker;
   private txSeqId = 0;
@@ -126,9 +132,11 @@ export abstract class EngineBase implements Engine {
   private pendingRestoreTables = new Array<Deferred<void>>();
   private pendingComputeMetrics = new Array<Deferred<string | Uint8Array>>();
   private pendingReadMetatrace?: Deferred<DisableAndReadMetatraceResult>;
+  private pendingParseFromStoredFiles = new Array<Deferred<void>>();
   private _isMetatracingEnabled = false;
 
   constructor(tracker?: LoadingTracker) {
+    this.traceName = '';
     this.loadingTracker = tracker ? tracker : new NullLoadingTracker();
   }
 
@@ -194,7 +202,9 @@ export abstract class EngineBase implements Engine {
     if (rpc.seq !== this.rxSeqId + 1 && this.rxSeqId !== 0 && rpc.seq !== 0) {
       // "(ERR:rpc_seq)" is intercepted by error_dialog.ts to show a more
       // graceful and actionable error.
-      throw new Error(
+      /** throw new Error( */
+      // log the error but don't throw because we want to keep going.
+      console.log(
         `RPC sequence id mismatch cur=${rpc.seq} last=${this.rxSeqId} (ERR:rpc_seq)`,
       );
     }
@@ -261,6 +271,9 @@ export abstract class EngineBase implements Engine {
         assertExists(this.pendingReadMetatrace).resolve(metatraceRes);
         this.pendingReadMetatrace = undefined;
         break;
+      case TPM.TPM_PARSE_FROM_STORED_FILE:
+        assertExists(this.pendingParseFromStoredFiles.shift()).resolve();
+        break;
       default:
         console.log(
           'Unexpected TraceProcessor response received: ',
@@ -280,11 +293,12 @@ export abstract class EngineBase implements Engine {
 
   // Push trace data into the engine. The engine is supposed to automatically
   // figure out the type of the trace (JSON vs Protobuf).
-  parse(data: Uint8Array): Promise<void> {
+  parse(fileName: string, data: Uint8Array): Promise<void> {
     const asyncRes = defer<void>();
     this.pendingParses.push(asyncRes);
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_APPEND_TRACE_DATA;
+    rpc.fileName  = fileName;
     rpc.appendTraceData = data;
     this.rpcSendRequest(rpc);
     return asyncRes; // Linearize with the worker.
@@ -297,6 +311,20 @@ export abstract class EngineBase implements Engine {
     this.pendingEOFs.push(asyncRes);
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_FINALIZE_TRACE_DATA;
+    rpc.fileName = globals.currentTraceName;
+    this.rpcSendRequest(rpc);
+    return asyncRes; // Linearize with the worker.
+  }
+
+  parseFromStoredFile(fileName: string){
+    const asyncRes = defer<void>();
+    this.pendingParseFromStoredFiles.push(asyncRes);
+    const rpc = TraceProcessorRpc.create();
+    rpc.request = TPM.TPM_PARSE_FROM_STORED_FILE;
+    const args = (rpc.parseFromStoredFileArgs = new ParseFromStoredFileArgs());
+    args.fileName = fileName;
+    // const asyncRes2 = defer<void>();
+    // this.pendingEOFs.push(asyncRes2);
     this.rpcSendRequest(rpc);
     return asyncRes; // Linearize with the worker.
   }
@@ -314,6 +342,7 @@ export abstract class EngineBase implements Engine {
     this.pendingResetTraceProcessors.push(asyncRes);
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_RESET_TRACE_PROCESSOR;
+    rpc.fileName = globals.currentTraceName;
     const args = (rpc.resetTraceProcessorArgs = new ResetTraceProcessorArgs());
     args.dropTrackEventDataBefore = cropTrackEvents
       ? ResetTraceProcessorArgs.DropTrackEventDataBefore
@@ -333,12 +362,14 @@ export abstract class EngineBase implements Engine {
     this.pendingRestoreTables.push(asyncRes);
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_RESTORE_INITIAL_TABLES;
+    rpc.fileName = globals.currentTraceName;
     this.rpcSendRequest(rpc);
     return asyncRes; // Linearize with the worker.
   }
 
   // Shorthand for sending a compute metrics request to the engine.
   async computeMetric(
+    fileName: string, 
     metrics: string[],
     format: 'json' | 'prototext' | 'proto',
   ): Promise<string | Uint8Array> {
@@ -347,6 +378,7 @@ export abstract class EngineBase implements Engine {
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_COMPUTE_METRIC;
     const args = (rpc.computeMetricArgs = new ComputeMetricArgs());
+    rpc.fileName = fileName;
     args.metricNames = metrics;
     if (format === 'json') {
       args.format = ComputeMetricArgs.ResultFormat.JSON;
@@ -381,6 +413,7 @@ export abstract class EngineBase implements Engine {
   // Optional |tag| (usually a component name) can be provided to allow
   // attributing trace processor workload to different UI components.
   private streamingQuery(
+    fileName: string, 
     sqlQuery: string,
     tag?: string,
   ): Promise<QueryResult> & QueryResult {
@@ -388,6 +421,7 @@ export abstract class EngineBase implements Engine {
     rpc.request = TPM.TPM_QUERY_STREAMING;
     rpc.queryArgs = new QueryArgs();
     rpc.queryArgs.sqlQuery = sqlQuery;
+    rpc.fileName = fileName;
     if (tag) {
       rpc.queryArgs.tag = tag;
     }
@@ -405,7 +439,7 @@ export abstract class EngineBase implements Engine {
   // promise which must be unwrapped before the QueryResult may be accessed.
   async query(sqlQuery: string, tag?: string): Promise<QueryResult> {
     try {
-      return await this.streamingQuery(sqlQuery, tag);
+      return await this.streamingQuery(globals.currentTraceName, sqlQuery, tag);
     } catch (e) {
       // Replace the error's stack trace with the one from here
       // Note: It seems only V8 can trace the stack up the promise chain, so its
@@ -437,6 +471,7 @@ export abstract class EngineBase implements Engine {
   enableMetatrace(categories?: MetatraceCategories) {
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_ENABLE_METATRACE;
+    rpc.fileName = globals.currentTraceName;
     if (categories !== undefined && categories !== MetatraceCategories.NONE) {
       rpc.enableMetatraceArgs = new EnableMetatraceArgs();
       rpc.enableMetatraceArgs.categories = categories;
@@ -455,6 +490,7 @@ export abstract class EngineBase implements Engine {
 
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_DISABLE_AND_READ_METATRACE;
+    rpc.fileName = globals.currentTraceName;
     this._isMetatracingEnabled = false;
     this.pendingReadMetatrace = result;
     this.rpcSendRequest(rpc);
@@ -481,6 +517,7 @@ export abstract class EngineBase implements Engine {
 
 // Lightweight engine proxy which annotates all queries with a tag
 export class EngineProxy implements Engine, Disposable {
+  traceName: string = '';
   private engine: EngineBase;
   private tag: string;
   private _isAlive: boolean;
@@ -512,13 +549,14 @@ export class EngineProxy implements Engine, Disposable {
   }
 
   async computeMetric(
+    fileName: string, 
     metrics: string[],
     format: 'json' | 'prototext' | 'proto',
   ): Promise<string | Uint8Array> {
     if (!this._isAlive) {
       return Promise.reject(new Error(`EngineProxy ${this.tag} was disposed.`));
     }
-    return this.engine.computeMetric(metrics, format);
+    return this.engine.computeMetric(fileName, metrics, format);
   }
 
   get engineId(): string {

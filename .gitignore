@@ -35,3 +35,4 @@ GRTAGS
 GTAGS
 perf.data*
 TAGS
+/storage*

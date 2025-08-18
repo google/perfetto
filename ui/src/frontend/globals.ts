@@ -238,6 +238,7 @@ class Globals implements AppContext {
   showTraceErrorPopup = true;
 
   traceContext = defaultTraceContext;
+  currentTraceName = '';
 
   readonly sidebarMenuItems = new Registry<SidebarMenuItem>((m) => m.commandId);
 

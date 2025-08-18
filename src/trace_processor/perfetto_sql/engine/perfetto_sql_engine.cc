@@ -244,7 +244,7 @@ void PerfettoSqlEngine::RegisterStaticTable(Table* table,
 
   base::StackString<1024> sql(
       R"(
-        CREATE VIRTUAL TABLE %s USING static_table;
+        CREATE VIRTUAL TABLE IF NOT EXISTS %s USING static_table;
         INSERT INTO perfetto_tables(name) VALUES('%s');
       )",
       table_name.c_str(), table_name.c_str());
@@ -268,7 +268,7 @@ void PerfettoSqlEngine::RegisterStaticTableFunction(
       std::make_unique<DbSqliteModule::State>(std::move(fn));
 
   base::StackString<1024> sql(
-      "CREATE VIRTUAL TABLE %s USING static_table_function;", name.c_str());
+      "CREATE VIRTUAL TABLE IF NOT EXISTS %s USING static_table_function;", name.c_str());
   auto status =
       Execute(SqlSource::FromTraceProcessorImplementation(sql.ToStdString()));
   if (!status.ok()) {
@@ -600,7 +600,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
     RETURN_IF_ERROR(drop_res.status());
   }
 
-  base::StackString<1024> create("CREATE VIRTUAL TABLE %s USING runtime_table",
+  base::StackString<1024> create("CREATE VIRTUAL TABLE IF NOT EXISTS %s USING runtime_table",
                                  create_table.name.c_str());
 
   // Make sure we didn't accidentally leak a state from a previous function
@@ -896,7 +896,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateFunction(
   }
 
   base::StackString<1024> create(
-      "CREATE VIRTUAL TABLE %s USING runtime_table_function",
+      "CREATE VIRTUAL TABLE IF NOT EXISTS %s USING runtime_table_function",
       state->prototype.function_name.c_str());
 
   // Make sure we didn't accidentally leak a state from a previous function

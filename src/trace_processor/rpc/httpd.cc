@@ -22,6 +22,10 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <fstream>
+#include <iostream>
+#include <sys/stat.h>
+#include <filesystem>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -41,6 +45,8 @@ namespace {
 
 constexpr int kBindPort = 9001;
 
+constexpr char kStorageDir[] = "./storage";
+
 // Sets the Access-Control-Allow-Origin: $origin on the following origins.
 // This affects only browser clients that use CORS. Other HTTP clients (e.g. the
 // python API) don't look at CORS headers.
@@ -48,29 +54,8 @@ const char* kAllowedCORSOrigins[] = {
     "https://ui.perfetto.dev",
     "http://localhost:10000",
     "http://127.0.0.1:10000",
+    "http://0.0.0.0:10000",
 };
-
-class Httpd : public base::HttpRequestHandler {
- public:
-  explicit Httpd(std::unique_ptr<TraceProcessor>);
-  ~Httpd() override;
-  void Run(int port);
-
- private:
-  // HttpRequestHandler implementation.
-  void OnHttpRequest(const base::HttpRequest&) override;
-  void OnWebsocketMessage(const base::WebsocketMessage&) override;
-
-  static void ServeHelpPage(const base::HttpRequest&);
-
-  Rpc global_trace_processor_rpc_;
-  base::UnixTaskRunner task_runner_;
-  base::HttpServer http_srv_;
-};
-
-base::StringView Vec2Sv(const std::vector<uint8_t>& v) {
-  return {reinterpret_cast<const char*>(v.data()), v.size()};
-}
 
 // Used both by websockets and /rpc chunked HTTP endpoints.
 void SendRpcChunk(base::HttpServerConnection* conn,
@@ -93,13 +78,117 @@ void SendRpcChunk(base::HttpServerConnection* conn,
   }
 }
 
-Httpd::Httpd(std::unique_ptr<TraceProcessor> preloaded_instance)
+class WebSocketRpcThread {
+ public:
+  explicit WebSocketRpcThread(base::HttpServerConnection* conn) : conn_(conn) {
+    rpc_thread_ = std::thread([this]() {
+      // Create task runner and RPC instance in worker thread context
+      base::UnixTaskRunner task_runner;
+      Rpc rpc;
+      
+      // Set up the response function for this connection
+      rpc.SetRpcResponseFunction([this](const void* data, uint32_t len) {
+        SendRpcChunk(conn_, data, len);
+      });
+      
+      // Signal that initialization is complete
+      {
+        std::lock_guard<std::mutex> lock(init_mutex_);
+        task_runner_ = &task_runner;
+        rpc_ = &rpc;
+        initialized_ = true;
+        init_cv_.notify_one();
+      }
+      
+      // Run the event loop
+      task_runner.Run();
+    });
+  }
+  
+  ~WebSocketRpcThread() {
+    {
+      std::lock_guard<std::mutex> lock(init_mutex_);
+      if (initialized_ && task_runner_) {
+        task_runner_->Quit();
+      }
+    }
+    if (rpc_thread_.joinable()) {
+      rpc_thread_.join();
+    }
+  }
+  
+  void OnWebsocketMessage(const base::WebsocketMessage& msg) {
+    // Queue the message to be processed on the worker thread
+    std::unique_lock<std::mutex> lock(init_mutex_);
+    init_cv_.wait(lock, [this] { return initialized_; });
+    
+    if (task_runner_ && rpc_) {
+      task_runner_->PostTask([this, data = std::vector<uint8_t>(msg.data.begin(), msg.data.end())]() {
+        rpc_->OnRpcRequest(data.data(), static_cast<uint32_t>(data.size()));
+      });
+    }
+  }
+  Rpc* rpc_ = nullptr;
+  
+ private:
+  std::thread rpc_thread_;            // Dedicated thread
+  base::HttpServerConnection* conn_;  // WebSocket connection
+  
+  // These are valid only in the worker thread context
+  base::UnixTaskRunner* task_runner_ = nullptr;
+  
+  // Synchronization
+  std::mutex init_mutex_;
+  std::condition_variable init_cv_;
+  bool initialized_ = false;
+};
+
+class Httpd : public base::HttpRequestHandler {
+ public:
+  explicit Httpd(std::unique_ptr<TraceProcessor>, int timeout_seconds);
+  ~Httpd() override;
+  void Run(const std::string& host, int port);
+
+ private:
+  // HttpRequestHandler implementation.
+  void HandleFileUpload(const base::HttpRequest& req);  
+  void OnHttpRequest(const base::HttpRequest&) override;
+  void OnWebsocketMessage(const base::WebsocketMessage&) override;
+
+  void cleanUpInactiveInstances();
+  static void ServeHelpPage(const base::HttpRequest&);
+
+  Rpc global_trace_processor_rpc_;
+  std::unordered_map<base::HttpServerConnection*, std::unique_ptr<WebSocketRpcThread>> websocket_rpc_threads_;
+
+  int timeout_seconds_;
+  base::UnixTaskRunner task_runner_;
+  base::HttpServer http_srv_;
+  std::mutex websocket_rpc_mutex_;
+
+  void OnHttpConnectionClosed(base::HttpServerConnection* conn) override {
+    std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
+    auto it = websocket_rpc_threads_.find(conn);
+    if (it != websocket_rpc_threads_.end()) {
+      websocket_rpc_threads_.erase(it);
+    }
+  }
+};
+
+base::StringView Vec2Sv(const std::vector<uint8_t>& v) {
+  return {reinterpret_cast<const char*>(v.data()), v.size()};
+}
+
+
+Httpd::Httpd(std::unique_ptr<TraceProcessor> preloaded_instance, int timeout_seconds)
     : global_trace_processor_rpc_(std::move(preloaded_instance)),
+      timeout_seconds_(timeout_seconds),
       http_srv_(&task_runner_, this) {}
 Httpd::~Httpd() = default;
 
-void Httpd::Run(int port) {
-  PERFETTO_ILOG("[HTTP] Starting RPC server on localhost:%d", port);
+
+void Httpd::Run(const std::string& host, int port) {
+  PERFETTO_ILOG("[HTTP] Starting RPC server on %s:%d", host.c_str(), port);
   PERFETTO_LOG(
       "[HTTP] This server can be used by reloading https://ui.perfetto.dev and "
       "clicking on YES on the \"Trace Processor native acceleration\" dialog "
@@ -109,7 +198,17 @@ void Httpd::Run(int port) {
   for (const auto& kAllowedCORSOrigin : kAllowedCORSOrigins) {
     http_srv_.AddAllowedOrigin(kAllowedCORSOrigin);
   }
-  http_srv_.Start(port);
+  http_srv_.Start(host, port);
+  // Declare as std::function first
+  std::function<void()> cleanup_task;
+  cleanup_task = [this, &cleanup_task]() {
+    cleanUpInactiveInstances();
+    task_runner_.PostDelayedTask(cleanup_task, static_cast<uint32_t>(timeout_seconds_ * 1000));
+  };
+  
+  // Initial scheduling
+  task_runner_.PostDelayedTask(cleanup_task, static_cast<uint32_t>(timeout_seconds_ * 1000));
+
   task_runner_.Run();
 }
 
@@ -141,6 +240,38 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
       "Content-Type: application/x-protobuf",  //
       "Transfer-Encoding: chunked",            //
   };
+
+  if (req.uri == "/getFileList") {
+    std::vector<uint8_t> file_names;
+    
+    // Check if storage directory exists
+    if (std::filesystem::exists(kStorageDir) && 
+        std::filesystem::is_directory(kStorageDir)) {
+      std::error_code ec;
+      for (const auto& entry : std::filesystem::directory_iterator(kStorageDir, ec)) {
+        if (!ec && entry.is_regular_file()) {
+          std::string filename = entry.path().filename().string();
+          file_names.insert(file_names.end(), filename.begin(), filename.end());
+          file_names.push_back('\n');
+        }
+      }
+      if (ec) {
+        PERFETTO_PLOG("Error reading storage directory: %s", ec.message().c_str());
+      }
+      // Remove trailing newline if any files were found
+      if (!file_names.empty()) {
+        file_names.pop_back();
+      }
+    }
+    
+    // Return empty list if directory doesn't exist or is empty
+    return conn.SendResponse("200 OK", default_headers, Vec2Sv(file_names));
+  }
+
+  if(req.uri == "/upload"){
+    HandleFileUpload(req);
+    return;
+  }
 
   if (req.uri == "/status") {
     auto status = global_trace_processor_rpc_.GetStatus();
@@ -248,24 +379,79 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
   return conn.SendResponseAndClose("404 Not Found", default_headers);
 }
 
+void Httpd::HandleFileUpload(const base::HttpRequest& req) {
+  // Create storage directory if it doesn't exist
+  if (mkdir(kStorageDir, 0755) && errno != EEXIST) {
+    PERFETTO_PLOG("Failed to create storage directory");
+    return req.conn->SendResponseAndClose("500 Internal Server Error");
+  }
+
+  // Get filename from custom header
+  base::StringView filename_hdr = req.GetHeader("x-filename").value();
+  if (filename_hdr.empty()) {
+    return req.conn->SendResponseAndClose("400 Bad Request", {}, 
+        "Missing X-Filename header");
+  }
+  std::string filename = filename_hdr.ToStdString();
+
+  // Write raw body to file
+  std::string filepath = std::string(kStorageDir) + "/" + filename;
+  std::ofstream out(filepath, std::ios::binary);
+  if (!out) {
+    PERFETTO_PLOG("Failed to create %s", filepath.c_str());
+    return req.conn->SendResponseAndClose("500 Internal Server Error");
+  }
+
+ out.write(req.body.data(), static_cast<std::streamsize>(req.body.size()));
+  if (!out) {
+    PERFETTO_PLOG("Failed to write to %s", filepath.c_str());
+    return req.conn->SendResponseAndClose("500 Internal Server Error");
+  }
+
+  // Send success response
+  req.conn->SendResponse("200 OK", {
+      "Content-Type: application/json"
+  }, base::StringView("{\"status\":\"success\",\"path\":\"" + filepath + "\"}"));
+}
+
 void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
-  global_trace_processor_rpc_.SetRpcResponseFunction(
-      [&](const void* data, uint32_t len) {
-        SendRpcChunk(msg.conn, data, len);
-      });
-  // OnRpcRequest() will call SendRpcChunk() one or more times.
-  global_trace_processor_rpc_.OnRpcRequest(msg.data.data(), msg.data.size());
-  global_trace_processor_rpc_.SetRpcResponseFunction(nullptr);
+    // Check if this connection already has a dedicated thread
+    std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
+    
+    auto it = websocket_rpc_threads_.find(msg.conn);
+    if (it == websocket_rpc_threads_.end()) {
+        // Create new thread for this connection
+        auto new_thread = std::make_unique<WebSocketRpcThread>(msg.conn);
+        auto result = websocket_rpc_threads_.emplace(msg.conn, std::move(new_thread));
+        it = result.first;
+    }
+    
+    // Dispatch to the dedicated thread
+    it->second->OnWebsocketMessage(msg);
 }
 
 }  // namespace
 
 void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance,
-                      const std::string& port_number) {
-  Httpd srv(std::move(preloaded_instance));
+                      const std::string& host_address, const std::string& port_number, int timeout_seconds) {
+  Httpd srv(std::move(preloaded_instance), timeout_seconds);
   std::optional<int> port_opt = base::StringToInt32(port_number);
   int port = port_opt.has_value() ? *port_opt : kBindPort;
-  srv.Run(port);
+  srv.Run(host_address, port);
+}
+
+void Httpd::cleanUpInactiveInstances() {
+  uint64_t kInactivityNs = static_cast<uint64_t>(timeout_seconds_) * 1000000000ULL;
+  uint64_t now = static_cast<uint64_t>(base::GetWallTimeNs().count());
+  auto it = websocket_rpc_threads_.begin();
+  while (it != websocket_rpc_threads_.end()) {
+    if (it->first && now - it->second->rpc_->last_accessed_ns > kInactivityNs) {
+      it = websocket_rpc_threads_.erase(it);
+      PERFETTO_ILOG("Cleaned up inactive websocket connection");
+      } else {
+      it++;
+    }
+  }
 }
 
 void Httpd::ServeHelpPage(const base::HttpRequest& req) {
