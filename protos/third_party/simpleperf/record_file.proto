@@ -59,6 +59,8 @@ message FileFeature {
   repeated Symbol symbol = 4;
 
   message DexFile {
+    // "dex_file_offset" is the offset of the dex /within/ its containing file
+    // (since they're ususally stored with zero compression inside apks/jars).
     repeated uint64 dex_file_offset = 1;
   }
   message ElfFile {
