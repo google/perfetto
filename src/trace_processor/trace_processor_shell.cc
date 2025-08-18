@@ -672,6 +672,8 @@ struct CommandLineOptions {
   std::string metric_output;
   std::string trace_file_path;
   std::string port_number;
+  std::string host_address = "0.0.0.0";
+  int timeout_seconds = 600;
   std::string override_stdlib_path;
   std::vector<std::string> override_sql_module_paths;
   std::vector<std::string> raw_metric_extensions;
@@ -720,6 +722,10 @@ Options:
                                       the metrics output is suppressed.
  -D, --httpd                          Enables the HTTP RPC server.
  --http-port PORT                     Specify what port to run HTTP RPC server.
+ --http-host HOST                     Specify what host to run HTTP RPC server.
+                                      (Default is 0.0.0.0.)
+ --timeout SECONDS                    Timeout for inactive threads in seconds 
+                                      (default: 600)
  --stdiod                             Enables the stdio RPC server.
  -i, --interactive                    Starts interactive mode even after a query
                                       file is specified with -q or
@@ -803,6 +809,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_METRICS_OUTPUT,
     OPT_FORCE_FULL_SORT,
     OPT_HTTP_PORT,
+    OPT_HTTP_HOST,
     OPT_ADD_SQL_MODULE,
     OPT_METRIC_EXTENSION,
     OPT_DEV,
@@ -816,6 +823,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_CROP_TRACK_EVENTS,
     OPT_DEV_FLAG,
     OPT_STDIOD,
+    OPT_TIMEOUT,
   };
 
   static const option long_options[] = {
@@ -827,6 +835,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"query-string", required_argument, nullptr, 'Q'},
       {"httpd", no_argument, nullptr, 'D'},
       {"http-port", required_argument, nullptr, OPT_HTTP_PORT},
+      {"http-host", required_argument, nullptr, OPT_HTTP_HOST},
       {"stdiod", no_argument, nullptr, OPT_STDIOD},
       {"interactive", no_argument, nullptr, 'i'},
       {"export", required_argument, nullptr, 'e'},
@@ -851,6 +860,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"metrics-output", required_argument, nullptr, OPT_METRICS_OUTPUT},
       {"metric-extension", required_argument, nullptr, OPT_METRIC_EXTENSION},
       {"dev-flag", required_argument, nullptr, OPT_DEV_FLAG},
+      {"timeout", required_argument, nullptr, OPT_TIMEOUT},
       {nullptr, 0, nullptr, 0}};
 
   bool explicit_interactive = false;
@@ -899,6 +909,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_HTTP_PORT) {
       command_line_options.port_number = optarg;
+      continue;
+    }
+
+    if (option == OPT_HTTP_HOST) {
+      command_line_options.host_address = optarg;
       continue;
     }
 
@@ -1001,6 +1016,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_DEV_FLAG) {
       command_line_options.dev_flags.push_back(optarg);
+      continue;
+    }
+
+    if (option == OPT_TIMEOUT) {
+      command_line_options.timeout_seconds = atoi(optarg);
       continue;
     }
 
@@ -1721,7 +1741,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
-    RunHttpRPCServer(std::move(tp), options.port_number);
+    RunHttpRPCServer(std::move(tp), options.host_address, options.port_number, options.timeout_seconds);
     PERFETTO_FATAL("Should never return");
 #else
     PERFETTO_FATAL("HTTP not available");

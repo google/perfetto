@@ -101,6 +101,7 @@ message TraceProcessorRpc {
     TPM_DISABLE_AND_READ_METATRACE = 9;
     TPM_GET_STATUS = 10;
     TPM_RESET_TRACE_PROCESSOR = 11;
+    TPM_PARSE_FROM_STORED_FILE = 12;
   }
 
   oneof type {
@@ -122,6 +123,7 @@ message TraceProcessorRpc {
   oneof args {
     // TraceProcessorMethod request args.
 
+    string file_name = 100;
     // For TPM_APPEND_TRACE_DATA.
     bytes append_trace_data = 101;
     // For TPM_QUERY_STREAMING.
@@ -146,6 +148,8 @@ message TraceProcessorRpc {
     DisableAndReadMetatraceResult metatrace = 209;
     // For TPM_GET_STATUS.
     StatusResult status = 210;
+    //For TPM_PARSE_FROM_STORED_FILE
+    ParseFromStoredFileArgs parse_from_stored_file_args = 211;
   }
 
   // Previously: RawQueryArgs for TPM_QUERY_RAW_DEPRECATED
@@ -327,4 +331,8 @@ message ResetTraceProcessorArgs {
   optional bool ingest_ftrace_in_raw_table = 2;
   optional bool analyze_trace_proto_content = 3;
   optional bool ftrace_drop_until_all_cpus_valid = 4;
+}
+
+message ParseFromStoredFileArgs{
+  optional string file_name = 1;
 }

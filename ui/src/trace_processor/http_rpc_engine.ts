@@ -33,13 +33,17 @@ export class HttpRpcEngine extends EngineBase {
   private connected = false;
 
   // Can be changed by frontend/index.ts when passing ?rpc_port=1234 .
-  static rpcPort = '9001';
+  static rpcHostPort = window.location.hostname + ":9001";
 
   constructor(id: string, loadingTracker?: LoadingTracker) {
     super(loadingTracker);
     this.id = id;
   }
 
+  rpcSendFileName(fileName: string): void {
+    this.rpcSendRequestBytes(new TextEncoder().encode(fileName));
+  }
+  
   rpcSendRequestBytes(data: Uint8Array): void {
     if (this.websocket === undefined) {
       const wsUrl = `ws://${HttpRpcEngine.hostAndPort}/websocket`;
@@ -118,6 +122,6 @@ export class HttpRpcEngine extends EngineBase {
   }
 
   static get hostAndPort() {
-    return `127.0.0.1:${HttpRpcEngine.rpcPort}`;
+    return `${HttpRpcEngine.rpcHostPort}`;
   }
 }

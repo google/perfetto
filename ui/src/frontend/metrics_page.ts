@@ -60,7 +60,7 @@ async function getMetric(
   metric: string,
   format: Format,
 ): Promise<string> {
-  const result = await engine.computeMetric([metric], format);
+  const result = await engine.computeMetric(globals.currentTraceName, [metric], format);
   if (result instanceof Uint8Array) {
     return `Uint8Array<len=${result.length}>`;
   } else {

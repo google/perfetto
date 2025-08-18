@@ -28,6 +28,7 @@ import {
   EngineMode,
   PendingDeeplinkState,
   ProfileType,
+  ServerStoredFileSource,
 } from '../common/state';
 import {featureFlags, Flag} from '../core/feature_flags';
 import {globals, QuantizedLoad, ThreadDesc} from '../frontend/globals';
@@ -200,22 +201,35 @@ function showJsonWarning() {
 // TODO(stevegolton): Move this into some global "SQL extensions" file and
 // ensure it's only run once.
 async function defineMaxLayoutDepthSqlFunction(engine: Engine): Promise<void> {
-  await engine.query(`
-    create perfetto function __max_layout_depth(track_count INT, track_ids STRING)
-    returns INT AS
-    select iif(
-      $track_count = 1,
-      (
-        select max_depth
-        from _slice_track_summary
-        where id = cast($track_ids AS int)
-      ),
-      (
-        select max(layout_depth)
-        from experimental_slice_layout($track_ids)
-      )
-    );
-  `);
+  // Query to check if the function already exists
+  const checkQuery = `
+    SELECT COUNT(*) as count
+    FROM pragma_function_list
+    WHERE name = '__max_layout_depth'
+  `;
+  const checkResult = await engine.query(checkQuery);
+  const row = checkResult.firstRow({ count: NUM });
+  const functionExists = row.count > 0;
+
+  // Create the function only if it doesn't exist
+  if (!functionExists) {
+    await engine.query(`
+      create perfetto function __max_layout_depth(track_count INT, track_ids STRING)
+      returns INT AS
+      select iif(
+        $track_count = 1,
+        (
+          select max_depth
+          from _slice_track_summary
+          where id = cast($track_ids AS int)
+        ),
+        (
+          select max(layout_depth)
+          from experimental_slice_layout($track_ids)
+        )
+      );
+    `);
+  }
 }
 
 // TraceController handles handshakes with the frontend for everything that
@@ -400,8 +414,10 @@ export class TraceController extends Controller<States> {
     // HTTP RPC mode (i.e. trace_processor_shell -D).
     let engineMode: EngineMode;
     let useRpc = false;
+    let rpcState;
     if (globals.state.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE') {
-      useRpc = (await HttpRpcEngine.checkConnection()).connected;
+      rpcState = await HttpRpcEngine.checkConnection();
+      useRpc = rpcState.connected;
     }
     let engine;
     if (useRpc) {
@@ -451,11 +467,20 @@ export class TraceController extends Controller<States> {
     let traceStream: TraceStream | undefined;
     if (engineCfg.source.type === 'FILE') {
       traceStream = new TraceFileStream(engineCfg.source.file);
+      globals.currentTraceName = engineCfg.source.file.name;
+      engine.traceName = engineCfg.source.file.name;
+      try {
+        console.log('Uploading trace to server');
+        await this.uploadTraceFile(engineCfg.source.file, 'upload');//apio/upload
+        console.log('Upload complete!');
+      } catch (err) {
+        console.log('Upload failed - using local trace');
+      }
     } else if (engineCfg.source.type === 'ARRAY_BUFFER') {
       traceStream = new TraceBufferStream(engineCfg.source.buffer);
     } else if (engineCfg.source.type === 'URL') {
       traceStream = new TraceHttpStream(engineCfg.source.url);
-    } else if (engineCfg.source.type === 'HTTP_RPC') {
+    } else if (engineCfg.source.type === 'HTTP_RPC' || engineCfg.source.type === 'STORED_FILE') {
       traceStream = undefined;
     } else {
       throw new Error(`Unknown source: ${JSON.stringify(engineCfg.source)}`);
@@ -470,7 +495,7 @@ export class TraceController extends Controller<States> {
       const tStart = performance.now();
       for (;;) {
         const res = await traceStream.readChunk();
-        await this.engine.parse(res.data);
+        await this.engine.parse(globals.currentTraceName, res.data);
         const elapsed = (performance.now() - tStart) / 1000;
         let status = 'Loading trace ';
         if (res.bytesTotal > 0) {
@@ -484,8 +509,22 @@ export class TraceController extends Controller<States> {
         if (res.eof) break;
       }
       await this.engine.notifyEof();
-    } else {
+    } else if (engineCfg.source.type === 'HTTP_RPC'){
       assertTrue(this.engine instanceof HttpRpcEngine);
+      globals.currentTraceName = rpcState?.status?.loadedTraceName ?? ''
+      let currentTraceName = rpcState?.status?.loadedTraceName ?? ''
+      const firstSpaceIndex = currentTraceName.indexOf(' ');
+      currentTraceName = firstSpaceIndex === -1 ? currentTraceName : currentTraceName.substring(0, firstSpaceIndex);
+      engine.traceName = currentTraceName;
+      await this.engine.restoreInitialTables();
+    }
+    else{
+      await this.engine.parseFromStoredFile((engineCfg.source as ServerStoredFileSource).fileName);
+      assertTrue(this.engine instanceof HttpRpcEngine);
+      let currentTraceName = rpcState?.status?.loadedTraceName ?? ''
+      const firstSpaceIndex = currentTraceName.indexOf(' ');
+      currentTraceName = firstSpaceIndex === -1 ? currentTraceName : currentTraceName.substring(0, firstSpaceIndex);
+      engine.traceName = currentTraceName;
       await this.engine.restoreInitialTables();
     }
 
@@ -537,7 +576,7 @@ export class TraceController extends Controller<States> {
     globals.timeline.updateVisibleTime(visibleTimeSpan);
 
     globals.dispatchMultiple(actions);
-    Router.navigate(`#!/viewer?local_cache_key=${traceUuid}`);
+    Router.navigate(`#!/viewer?storage=${globals.currentTraceName}`);
 
     // Make sure the helper views are available before we start adding tracks.
     await this.initialiseHelperViews();
@@ -554,11 +593,9 @@ export class TraceController extends Controller<States> {
     });
 
     {
-      // When we reload from a permalink don't create extra tracks:
-      const {pinnedTracks, tracks} = globals.state;
-      if (!pinnedTracks.length && !Object.keys(tracks).length) {
-        await this.listTracks();
-      }
+      // Always clear existing tracks and load new ones for new trace files
+      globals.dispatch(Actions.clearAllTracks({}));
+      await this.listTracks();
     }
 
     this.decideTabs();
@@ -634,6 +671,27 @@ export class TraceController extends Controller<States> {
     }
 
     return engineMode;
+  }
+
+  private async uploadTraceFile(file: File, uploadUrl: string) {
+    const RPC_URL = `http://${HttpRpcEngine.hostAndPort}/`;
+    const FULL_URL = RPC_URL + uploadUrl;
+    
+    try {
+      const headers = new Headers();
+      headers.append('X-Filename', file.name);
+
+      const response = await fetch(FULL_URL, {
+        method: 'POST',
+        body: file,  // Send file directly
+        headers,
+      });
+      if (!response.ok) throw new Error(`Upload failed: ${response.statusText}`);
+      return await response.json();
+    } catch (err) {
+      console.error('Upload error:', err);
+      throw err;
+    }
   }
 
   private async selectPerfSample(traceTime: {start: time; end: time}) {
@@ -897,7 +955,7 @@ export class TraceController extends Controller<States> {
     // Create the helper tables for all the annotations related data.
     // NULL in min/max means "figure it out per track in the usual way".
     await engine.query(`
-      CREATE TABLE annotation_counter_track(
+      CREATE TABLE IF NOT EXISTS annotation_counter_track(
         id INTEGER PRIMARY KEY,
         name STRING,
         __metric_name STRING,
@@ -908,7 +966,7 @@ export class TraceController extends Controller<States> {
     `);
     this.updateStatus('Creating annotation slice track table');
     await engine.query(`
-      CREATE TABLE annotation_slice_track(
+      CREATE TABLE IF NOT EXISTS annotation_slice_track(
         id INTEGER PRIMARY KEY,
         name STRING,
         __metric_name STRING,
@@ -919,7 +977,7 @@ export class TraceController extends Controller<States> {
 
     this.updateStatus('Creating annotation counter table');
     await engine.query(`
-      CREATE TABLE annotation_counter(
+      CREATE TABLE IF NOT EXISTS annotation_counter(
         id BIGINT,
         track_id INT,
         ts BIGINT,
@@ -929,7 +987,7 @@ export class TraceController extends Controller<States> {
     `);
     this.updateStatus('Creating annotation slice table');
     await engine.query(`
-      CREATE TABLE annotation_slice(
+      CREATE TABLE IF NOT EXISTS annotation_slice(
         id INTEGER PRIMARY KEY,
         track_id INT,
         ts BIGINT,
@@ -958,7 +1016,7 @@ export class TraceController extends Controller<States> {
       try {
         // We don't care about the actual result of metric here as we are just
         // interested in the annotation tracks.
-        await engine.computeMetric([metric], 'proto');
+        await engine.computeMetric(globals.currentTraceName, [metric], 'proto');
       } catch (e) {
         if (e instanceof QueryError) {
           publishMetricError('MetricError: ' + e.message);
@@ -991,7 +1049,10 @@ export class TraceController extends Controller<States> {
         const groupNameColumn = hasGroupName
           ? 'group_name'
           : 'NULL AS group_name';
-        if (hasSliceName && hasDur) {
+        const numAnnotationSliceTracks = (await engine.query(`
+          SELECT COUNT(*) as count FROM annotation_slice_track`))
+          .firstRow({count:NUM}).count;
+        if (hasSliceName && hasDur && numAnnotationSliceTracks == 0) {
           await engine.query(`
             INSERT INTO annotation_slice_track(
               name, __metric_name, upid, group_name)
@@ -1004,7 +1065,7 @@ export class TraceController extends Controller<States> {
             WHERE track_type = 'slice'
           `);
           await engine.query(`
-            INSERT INTO annotation_slice(
+            INSERT OR IGNORE INTO annotation_slice(
               track_id, ts, dur, thread_dur, depth, cat, name
             )
             SELECT

@@ -121,7 +121,7 @@ export class CrashButton implements m.ClassComponent<CrashButtonAttrs> {
   private renderErrorMessage(error: Error): m.Children {
     return m(
       '',
-      'This track has crashed',
+      'This track has crashed (possibly due to a long period of inactivity), consider reloading the page',
       m(Button, {
         label: 'Re-raise exception',
         intent: Intent.Primary,

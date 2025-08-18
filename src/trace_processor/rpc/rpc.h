@@ -24,10 +24,17 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <map>
+#include <thread>
+#include <mutex>
+#include <queue>
+#include <condition_variable>
 
+#include "perfetto/trace_processor/trace_processor.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/ext/base/unix_task_runner.h"
 
 namespace perfetto {
 
@@ -106,10 +113,12 @@ class Rpc {
   base::Status NotifyEndOfFile();
   void ResetTraceProcessor(const uint8_t*, size_t);
   std::string GetCurrentTraceName();
+  void SetCurrentTraceName(const std::string& name);
   std::vector<uint8_t> ComputeMetric(const uint8_t*, size_t);
   void EnableMetatrace(const uint8_t*, size_t);
   std::vector<uint8_t> DisableAndReadMetatrace();
   std::vector<uint8_t> GetStatus();
+  base::Status ParseFromFile(const uint8_t*, size_t);
 
   // Creates a new RPC session by deleting all tables and views that have been
   // created (by the UI or user) after the trace was loaded; built-in
@@ -127,8 +136,19 @@ class Rpc {
   using QueryResultBatchCallback = std::function<
       void(const uint8_t* /*buf*/, size_t /*len*/, bool /*has_more*/)>;
   void Query(const uint8_t*, size_t, const QueryResultBatchCallback&);
+  uint64_t last_accessed_ns = 0;
 
  private:
+   struct TraceProcessorInfo {
+    std::unique_ptr<TraceProcessor> instance;
+    bool eof_ = false;
+
+    TraceProcessorInfo(std::unique_ptr<TraceProcessor> traceprocessor) 
+        : instance(std::move(traceprocessor)) {}
+
+    ~TraceProcessorInfo() {}
+  };
+
   void ParseRpcRequest(const uint8_t*, size_t);
   void ResetTraceProcessorInternal(const Config&);
   void MaybePrintProgress();
@@ -140,12 +160,11 @@ class Rpc {
       protos::pbzero::DisableAndReadMetatraceResult*);
 
   Config trace_processor_config_;
-  std::unique_ptr<TraceProcessor> trace_processor_;
+  std::unique_ptr<TraceProcessorInfo> processor;
   RpcResponseFunction rpc_response_fn_;
   protozero::ProtoRingBuffer rxbuf_;
   int64_t tx_seq_id_ = 0;
   int64_t rx_seq_id_ = 0;
-  bool eof_ = false;
   int64_t t_parse_started_ = 0;
   size_t bytes_last_progress_ = 0;
   size_t bytes_parsed_ = 0;

@@ -60,6 +60,7 @@ import {VizPage} from './viz_page';
 import {WidgetsPage} from './widgets_page';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
+import {FilesPage} from './files_page';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 
@@ -113,6 +114,15 @@ function setupContentSecurityPolicy() {
       ];
     }
   }
+  if (CSP_WS_PERMISSIVE_PORT.get()) {
+    const route = Router.parseUrl(window.location.href);
+    if (route.args.rpc_host_port !== undefined) {
+      rpcPolicy = [
+        `http://${route.args.rpc_host_port}`,
+        `ws://${route.args.rpc_host_port}`,
+      ];
+    }
+  }
   const policy = {
     'default-src': [
       `'self'`,
@@ -133,8 +143,10 @@ function setupContentSecurityPolicy() {
     'connect-src': [
       `'self'`,
       'ws://127.0.0.1:8037', // For the adb websocket server.
+      'ws://'+ window.location.hostname +':9001',
       'https://*.google-analytics.com',
       'https://*.googleapis.com', // For Google Cloud Storage fetches.
+      'http://'+ window.location.hostname +':9001',
       'blob:',
       'data:',
     ].concat(rpcPolicy),
@@ -147,7 +159,6 @@ function setupContentSecurityPolicy() {
       'https://*.googleapis.com',
     ],
     'style-src': [`'self'`, `'unsafe-inline'`],
-    'navigate-to': ['https://*.perfetto.dev', 'self'],
   };
   const meta = document.createElement('meta');
   meta.httpEquiv = 'Content-Security-Policy';
@@ -284,6 +295,7 @@ function onCssLoaded() {
     '/widgets': WidgetsPage,
     '/viz': VizPage,
     '/plugins': PluginsPage,
+    '/files': FilesPage,
   });
   router.onRouteChanged = routeChange;
 
@@ -366,7 +378,7 @@ function onCssLoaded() {
 // user what to do in this case.
 function maybeChangeRpcPortFromFragment() {
   const route = Router.parseUrl(window.location.href);
-  if (route.args.rpc_port !== undefined) {
+  if (route.args.rpc_port !== undefined || route.args.rpc_host_port !== undefined) {
     if (!CSP_WS_PERMISSIVE_PORT.get()) {
       showModal({
         title: 'Using a different port requires a flag change',
@@ -388,7 +400,12 @@ function maybeChangeRpcPortFromFragment() {
         ],
       });
     } else {
-      HttpRpcEngine.rpcPort = route.args.rpc_port;
+      if (route.args.rpc_port !== undefined ) {
+        HttpRpcEngine.rpcHostPort = `127.0.0.1:${route.args.rpc_port}`;
+      }
+      if (route.args.rpc_host_port !== undefined) {
+        HttpRpcEngine.rpcHostPort = route.args.rpc_host_port;
+      }
     }
   }
 }

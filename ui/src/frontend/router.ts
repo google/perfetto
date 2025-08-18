@@ -54,6 +54,9 @@ const ROUTE_SCHEMA = z
     // For permalink hash.
     s: z.string().optional().catch(undefined),
 
+    //For opening a file stored in the backend.
+    storage: z.string().optional().catch(undefined),
+
     // DEPRECATED: for #!/record?p=cpu subpages (b/191255021).
     p: z.string().optional().catch(undefined),
 
@@ -65,7 +68,7 @@ const ROUTE_SCHEMA = z
     // non-standard port. This requires the CSP_WS_PERMISSIVE_PORT flag to relax
     // the Content Security Policy.
     rpc_port: z.string().regex(/\d+/).optional().catch(undefined),
-
+    rpc_host_port: z.string().optional().catch(undefined),
     // Override the referrer. Useful for scripts such as
     // record_android_trace to record where the trace is coming from.
     referrer: z.string().optional().catch(undefined),

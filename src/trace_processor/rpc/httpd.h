@@ -29,7 +29,7 @@ class TraceProcessor;
 // The unique_ptr argument is optional. If non-null, the HTTP server will adopt
 // an existing instance with a pre-loaded trace. If null, it will create a new
 // instance when pushing data into the /parse endpoint.
-void RunHttpRPCServer(std::unique_ptr<TraceProcessor>, const std::string&);
+void RunHttpRPCServer(std::unique_ptr<TraceProcessor>, const std::string&, const std::string&, int timeout_seconds = 600);
 
 }  // namespace perfetto::trace_processor
 

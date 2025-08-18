@@ -29,8 +29,8 @@ namespace perfetto {
 namespace base {
 
 namespace {
-constexpr size_t kMaxPayloadSize = 64 * 1024 * 1024;
-constexpr size_t kMaxRequestSize = kMaxPayloadSize + 4096;
+// constexpr size_t kMaxPayloadSize = SIZE_MAX;
+constexpr size_t kMaxRequestSize = 1024 * 1024 * 1024 + 4096;
 
 enum WebsocketOpcode : uint8_t {
   kOpcodeContinuation = 0x0,
@@ -52,9 +52,12 @@ HttpServer::HttpServer(TaskRunner* task_runner, HttpRequestHandler* req_handler)
     : task_runner_(task_runner), req_handler_(req_handler) {}
 HttpServer::~HttpServer() = default;
 
-void HttpServer::Start(int port) {
-  std::string ipv4_addr = "127.0.0.1:" + std::to_string(port);
+void HttpServer::Start(const std::string& host, int port) {
+  // std::string ipv4_addr = "127.0.0.1:" + std::to_string(port);
+  // std::string ipv6_addr = "[::1]:" + std::to_string(port);
+  std::string ipv4_addr = host + ":" + std::to_string(port);
   std::string ipv6_addr = "[::1]:" + std::to_string(port);
+  AddAllowedOrigin("http://" + host + ":10000");
 
   sock4_ = UnixSocket::Listen(ipv4_addr, this, task_runner_, SockFamily::kInet,
                               SockType::kStream);
@@ -211,11 +214,13 @@ size_t HttpServer::ParseOneHttpRequest(HttpServerConnection* conn) {
   PERFETTO_CHECK(buf_view.size() <= conn->rxbuf_used);
   const size_t headers_size = conn->rxbuf_used - buf_view.size();
 
+  /**
   if (body_size + headers_size >= kMaxRequestSize ||
       body_size > kMaxPayloadSize) {
     conn->SendResponseAndClose("413 Payload Too Large");
     return 0;
   }
+  */
 
   // If we can't read the full request return and try again next time with more
   // data.
@@ -382,12 +387,14 @@ size_t HttpServer::ParseOneWebsocketFrame(HttpServerConnection* conn) {
     }
   }
 
+  /**
   if (payload_len_u64 >= kMaxPayloadSize) {
     PERFETTO_ELOG("[HTTP] Websocket payload too big (%" PRIu64 " > %zu)",
                   payload_len_u64, kMaxPayloadSize);
     conn->Close();
     return 0;
   }
+  */
   const size_t payload_len = static_cast<size_t>(payload_len_u64);
 
   if (!has_mask) {
