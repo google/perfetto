@@ -39,7 +39,8 @@ enum BinaryType : uint8_t {
 
 struct FoundBinary {
   std::string file_name;
-  uint64_t load_bias;
+  uint64_t vaddr;
+  uint64_t poffset;
   BinaryType type;
 };
 
@@ -71,14 +72,6 @@ class LocalBinaryFinder : public BinaryFinder {
                                         const std::string& build_id) override;
 
   ~LocalBinaryFinder() override;
-
- private:
-  std::optional<FoundBinary> IsCorrectFile(const std::string& symbol_file,
-                                           const std::string& build_id);
-
-  std::optional<FoundBinary> FindBinaryInRoot(const std::string& root_str,
-                                              const std::string& abspath,
-                                              const std::string& build_id);
 
  private:
   std::vector<std::string> roots_;
