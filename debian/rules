@@ -5,7 +5,7 @@ DPKG_EXPORT_BUILDFLAGS = 1
 include /usr/share/dpkg/buildflags.mk
 
 # Filter out C flags incompatible with C++.
-FILTERED_CFLAGS := $(filter-out -Werror=implicit-function-declaration,$(CFLAGS))
+FILTERED_CFLAGS := $(filter-out -Werror=implicit-function-declaration,${CFLAGS})
 
 %:
 	dh $@
