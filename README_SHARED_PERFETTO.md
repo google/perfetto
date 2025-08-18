@@ -35,7 +35,7 @@ Open: http://0.0.0.0:10000/
 To open a stored file that has been uploaded to the server:
 http://0.0.0.0:10000/#!/viewer?storage=fileName
 
-Or open the "Upl0oaded Files" page in the sidebar.
+Or open the "Uploaded Files" page in the sidebar.
 
 To build a docker image: 
 docker build -f Docker/Dockerfile .
