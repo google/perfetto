@@ -126,7 +126,9 @@ struct SimpleperfMetaInfo {
 base::Status ParseSimpleperfFile2(TraceBlobView,
                                   std::function<void(TraceBlobView)> cb);
 
-base::StatusOr<std::vector<std::string>> ParseCmdline(TraceBlobView blob);
+base::StatusOr<std::vector<std::string>> ParseCmdline(TraceBlobView);
+
+base::StatusOr<std::string> ParseOsRelease(TraceBlobView);
 
 }  // namespace perf_importer::feature
 

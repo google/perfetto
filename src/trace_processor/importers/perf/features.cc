@@ -297,4 +297,13 @@ base::StatusOr<std::vector<std::string>> ParseCmdline(TraceBlobView bytes) {
   return std::move(args);
 }
 
+base::StatusOr<std::string> ParseOsRelease(TraceBlobView bytes) {
+  Reader reader(std::move(bytes));
+  std::string str;
+  if (!ParseString(reader, str)) {
+    return base::ErrStatus("Failed to parse string for OS_RELEASE");
+  }
+  return str;
+}
+
 }  // namespace perfetto::trace_processor::perf_importer::feature
