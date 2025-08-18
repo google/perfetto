@@ -16,32 +16,52 @@
 
 #include "src/profiling/symbolizer/symbolize_database.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <functional>
 #include <map>
+#include <optional>
+#include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_processor.h"
 
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/profiling/symbolizer/symbolizer.h"
 #include "src/trace_processor/util/build_id.h"
 
-namespace perfetto {
-namespace profiling {
+namespace perfetto::profiling {
 
 namespace {
 using trace_processor::Iterator;
 
 constexpr const char* kQueryUnsymbolized =
-    "select spm.name, spm.build_id, spf.rel_pc, spm.load_bias "
-    "from stack_profile_frame spf "
-    "join stack_profile_mapping spm "
-    "on spf.mapping = spm.id "
-    "where spm.build_id != '' and spf.symbol_set_id IS NULL";
+    R"(
+      select
+        spm.name,
+        spm.build_id,
+        spf.rel_pc,
+        spm.load_bias
+      from stack_profile_frame spf
+      join stack_profile_mapping spm on spf.mapping = spm.id
+
+      where (
+          spm.build_id != ''
+          -- The [[] is *not* a typo: that's how you escape [ inside a glob.
+          or spm.name GLOB '[[]kernel.kallsyms]*'
+        )
+        and spf.symbol_set_id IS NULL
+    )";
 
 using NameAndBuildIdPair = std::pair<std::string, std::string>;
 
@@ -76,6 +96,16 @@ std::map<UnsymbolizedMapping, std::vector<uint64_t>> GetUnsymbolizedFrames(
   }
   return res;
 }
+
+std::optional<std::string> GetOsRelease(trace_processor::TraceProcessor* tp) {
+  Iterator it = tp->ExecuteQuery(
+      "select str_value from metadata where name = 'system_release'");
+  if (it.Next()) {
+    return it.Get(0).AsString();
+  }
+  return std::nullopt;
+}
+
 }  // namespace
 
 void SymbolizeDatabase(trace_processor::TraceProcessor* tp,
@@ -83,14 +113,16 @@ void SymbolizeDatabase(trace_processor::TraceProcessor* tp,
                        std::function<void(const std::string&)> callback) {
   PERFETTO_CHECK(symbolizer);
   auto unsymbolized = GetUnsymbolizedFrames(tp);
-  for (auto it = unsymbolized.cbegin(); it != unsymbolized.cend(); ++it) {
-    const auto& unsymbolized_mapping = it->first;
-    const std::vector<uint64_t>& rel_pcs = it->second;
-    auto res = symbolizer->Symbolize(unsymbolized_mapping.name,
+  Symbolizer::Environment env = {GetOsRelease(tp)};
+  for (const auto& it : unsymbolized) {
+    const auto& unsymbolized_mapping = it.first;
+    const std::vector<uint64_t>& rel_pcs = it.second;
+    auto res = symbolizer->Symbolize(env, unsymbolized_mapping.name,
                                      unsymbolized_mapping.build_id,
                                      unsymbolized_mapping.load_bias, rel_pcs);
-    if (res.empty())
+    if (res.empty()) {
       continue;
+    }
 
     protozero::HeapBuffered<perfetto::protos::pbzero::Trace> trace;
     auto* packet = trace->add_packet();
@@ -125,5 +157,4 @@ std::vector<std::string> GetPerfettoBinaryPath() {
   return {};
 }
 
-}  // namespace profiling
-}  // namespace perfetto
+}  // namespace perfetto::profiling

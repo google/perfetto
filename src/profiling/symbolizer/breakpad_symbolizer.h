@@ -40,6 +40,7 @@ class BreakpadSymbolizer : public Symbolizer {
   BreakpadSymbolizer& operator=(BreakpadSymbolizer&& other) = default;
 
   std::vector<std::vector<SymbolizedFrame>> Symbolize(
+      const Environment&,
       const std::string&,
       const std::string& build_id,
       uint64_t,
