@@ -118,13 +118,18 @@ class ProcessTracker {
                             StringId main_thread_name,
                             ThreadNamePriority priority);
 
-  // Called when a process is seen in a process tree. Retrieves the UniquePid
-  // for that pid or assigns a new one.
+  // Updates a process' parent. If the upid was previously associated with
+  // a different parent process, then the upid process is considered reused
+  // and a new upid for a new process is returned. If no new process is
+  // created, the same upid is returned.
   // Virtual for testing.
-  virtual UniquePid SetProcessMetadata(UniquePid upid,
-                                       std::optional<UniquePid> pupid,
-                                       base::StringView name,
-                                       base::StringView cmdline);
+  virtual UniquePid UpdateProcessWithParent(UniquePid upid, UniquePid pupid);
+
+  // Set the process metadata. Called when a process is seen in a process tree.
+  // Virtual for testing.
+  virtual void SetProcessMetadata(UniquePid upid,
+                                  base::StringView name,
+                                  base::StringView cmdline);
 
   // Sets the process user id.
   void SetProcessUid(UniquePid upid, uint32_t uid);

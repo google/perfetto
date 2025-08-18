@@ -337,31 +337,33 @@ UniquePid ProcessTracker::StartNewProcess(std::optional<int64_t> timestamp,
   return upid;
 }
 
-UniquePid ProcessTracker::SetProcessMetadata(UniquePid upid,
-                                             std::optional<UniquePid> pupid,
-                                             base::StringView name,
-                                             base::StringView cmdline) {
+UniquePid ProcessTracker::UpdateProcessWithParent(UniquePid upid,
+                                                  UniquePid pupid) {
   auto& process_table = *context_->storage->mutable_process_table();
 
-  // If we know both the previous and current parent pid and the two are not
-  // matching, we must have died and restarted: create a new process.
-  if (pupid) {
-    auto prr = process_table[upid];
-    std::optional<UniquePid> prev_parent_upid = prr.parent_upid();
-    if (prev_parent_upid && prev_parent_upid != pupid) {
-      auto parent_prr = process_table[*pupid];
-      upid = StartNewProcess(std::nullopt, parent_prr.pid(), prr.pid(),
-                             kNullStringId, ThreadNamePriority::kOther);
-    } else if (!prev_parent_upid) {
-      prr.set_parent_upid(*pupid);
-    }
-  }
+  auto prr = process_table[upid];
 
+  // If the previous and new parent pid don't match, the process must have
+  // died and the pid reused. Create a new process.
+  std::optional<UniquePid> prev_parent_upid = prr.parent_upid();
+  if (prev_parent_upid && *prev_parent_upid != pupid) {
+    auto parent_prr = process_table[pupid];
+    upid = StartNewProcess(std::nullopt, parent_prr.pid(), prr.pid(),
+                           kNullStringId, ThreadNamePriority::kOther);
+  } else {
+    prr.set_parent_upid(pupid);
+  }
+  return upid;
+}
+
+void ProcessTracker::SetProcessMetadata(UniquePid upid,
+                                        base::StringView name,
+                                        base::StringView cmdline) {
+  auto& process_table = *context_->storage->mutable_process_table();
   auto prr = process_table[upid];
   StringId proc_name_id = context_->storage->InternString(name);
   prr.set_name(proc_name_id);
   prr.set_cmdline(context_->storage->InternString(cmdline));
-  return upid;
 }
 
 void ProcessTracker::SetProcessUid(UniquePid upid, uint32_t uid) {

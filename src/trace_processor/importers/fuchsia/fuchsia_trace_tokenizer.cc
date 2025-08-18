@@ -493,7 +493,7 @@ void FuchsiaTraceTokenizer::ParseRecord(TraceBlobView tbv) {
           // things such as virtual threads.
           UniquePid upid = context_->process_tracker->GetOrCreateProcess(
               static_cast<uint32_t>(obj_id));
-          procs->SetProcessMetadata(upid, std::optional<uint32_t>(),
+          procs->SetProcessMetadata(upid,
                                     base::StringView(storage->GetString(name)),
                                     base::StringView());
           break;
