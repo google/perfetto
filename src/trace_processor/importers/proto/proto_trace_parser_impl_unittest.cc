@@ -186,8 +186,8 @@ class MockProcessTracker : public ProcessTracker {
 
   MOCK_METHOD(UniquePid,
               SetProcessMetadata,
-              (int64_t pid,
-               std::optional<int64_t> ppid,
+              (UniquePid upid,
+               std::optional<UniquePid> pupid,
                base::StringView process_name,
                base::StringView cmdline),
               (override));
@@ -758,8 +758,10 @@ TEST_F(ProtoTraceParserTest, LoadProcessPacket) {
   process->set_pid(1);
   process->set_ppid(3);
 
+  EXPECT_CALL(*process_, GetOrCreateProcess(3)).WillOnce(testing::Return(2u));
+  EXPECT_CALL(*process_, GetOrCreateProcess(1)).WillOnce(testing::Return(4u));
   EXPECT_CALL(*process_,
-              SetProcessMetadata(1, Eq(3u), base::StringView(kProcName1),
+              SetProcessMetadata(4u, Eq(2u), base::StringView(kProcName1),
                                  base::StringView(kProcName1)));
   Tokenize();
   context_.sorter->ExtractEventsForced();
@@ -776,8 +778,10 @@ TEST_F(ProtoTraceParserTest, LoadProcessPacket_FirstCmdline) {
   process->set_pid(1);
   process->set_ppid(3);
 
+  EXPECT_CALL(*process_, GetOrCreateProcess(3)).WillOnce(testing::Return(2u));
+  EXPECT_CALL(*process_, GetOrCreateProcess(1)).WillOnce(testing::Return(4u));
   EXPECT_CALL(*process_,
-              SetProcessMetadata(1, Eq(3u), base::StringView(kProcName1),
+              SetProcessMetadata(4u, Eq(2u), base::StringView(kProcName1),
                                  base::StringView("proc1 proc2")));
   Tokenize();
   context_.sorter->ExtractEventsForced();

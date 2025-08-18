@@ -660,8 +660,11 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
       }
       joined_cmdline = base::StringView(cmdline_str);
     }
-    UniquePid upid = context_->process_tracker->SetProcessMetadata(
-        pid, ppid, argv0, joined_cmdline);
+
+    UniquePid pupid = context_->process_tracker->GetOrCreateProcess(ppid);
+    UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
+    upid = context_->process_tracker->SetProcessMetadata(upid, pupid, argv0,
+                                                         joined_cmdline);
 
     if (proc.has_uid()) {
       context_->process_tracker->SetProcessUid(
