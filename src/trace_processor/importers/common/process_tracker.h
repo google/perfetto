@@ -121,8 +121,8 @@ class ProcessTracker {
   // Called when a process is seen in a process tree. Retrieves the UniquePid
   // for that pid or assigns a new one.
   // Virtual for testing.
-  virtual UniquePid SetProcessMetadata(int64_t pid,
-                                       std::optional<int64_t> ppid,
+  virtual UniquePid SetProcessMetadata(UniquePid upid,
+                                       std::optional<UniquePid> pupid,
                                        base::StringView name,
                                        base::StringView cmdline);
 

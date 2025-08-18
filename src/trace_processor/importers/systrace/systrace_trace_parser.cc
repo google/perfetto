@@ -183,7 +183,11 @@ base::Status SystraceTraceParser::Parse(TraceBlobView blob) {
             PERFETTO_ELOG("Could not parse line '%s'", buffer.c_str());
             return base::ErrStatus("Could not parse PROCESS DUMP line");
           }
-          ctx_->process_tracker->SetProcessMetadata(pid.value(), ppid, name,
+          UniquePid pupid =
+              ctx_->process_tracker->GetOrCreateProcess(ppid.value());
+          UniquePid upid =
+              ctx_->process_tracker->GetOrCreateProcess(pid.value());
+          ctx_->process_tracker->SetProcessMetadata(upid, pupid, name,
                                                     base::StringView());
         } else if (state_ == ParseState::kProcessDumpShort &&
                    tokens.size() >= 4) {

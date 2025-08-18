@@ -110,8 +110,8 @@ class MockProcessTracker : public ProcessTracker {
 
   MOCK_METHOD(UniquePid,
               SetProcessMetadata,
-              (int64_t pid,
-               std::optional<int64_t> ppid,
+              (UniquePid upid,
+               std::optional<UniquePid> pupid,
                base::StringView process_name,
                base::StringView cmdline),
               (override));
