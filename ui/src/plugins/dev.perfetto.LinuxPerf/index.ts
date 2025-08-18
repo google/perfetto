@@ -29,7 +29,6 @@ import {TrackNode} from '../../public/workspace';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 import {Flamegraph} from '../../widgets/flamegraph';
 import ProcessThreadGroupsPlugin from '../dev.perfetto.ProcessThreadGroups';
-import StandardGroupsPlugin from '../dev.perfetto.StandardGroups';
 import TraceProcessorTrackPlugin from '../dev.perfetto.TraceProcessorTrack';
 import {TraceProcessorCounterTrack} from '../dev.perfetto.TraceProcessorTrack/trace_processor_counter_track';
 import {
@@ -45,7 +44,6 @@ export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.LinuxPerf';
   static readonly dependencies = [
     ProcessThreadGroupsPlugin,
-    StandardGroupsPlugin,
     TraceProcessorTrackPlugin,
   ];
 
@@ -165,9 +163,8 @@ export default class implements PerfettoPlugin {
         id,
         name,
         unit,
-        extract_arg(dimension_arg_set_id, 'cpu') as cpu
-      from counter_track
-      where type = 'perf_counter'
+        cpu
+      from perf_counter_track
       order by name, cpu
     `);
 
@@ -175,20 +172,20 @@ export default class implements PerfettoPlugin {
       id: NUM,
       name: STR_NULL,
       unit: STR_NULL,
-      cpu: NUM, // Perf counters always have a cpu dimension
+      cpu: NUM_NULL,
     });
 
     for (; it.valid(); it.next()) {
       const {id: trackId, name, unit, cpu} = it;
       const uri = `/counter_${trackId}`;
-      const title = `Cpu ${cpu} ${name}`;
 
+      const title = cpu === null ? `${name}` : `Cpu ${cpu} ${name}`;
       trace.tracks.registerTrack({
         uri,
         tags: {
           kind: COUNTER_TRACK_KIND,
           trackIds: [trackId],
-          cpu,
+          cpu: cpu ?? undefined,
         },
         renderer: new TraceProcessorCounterTrack(
           trace,
@@ -209,10 +206,7 @@ export default class implements PerfettoPlugin {
     }
 
     if (perfCountersGroup.hasChildren) {
-      const hardwareGroup = trace.plugins
-        .getPlugin(StandardGroupsPlugin)
-        .getOrCreateStandardGroup(trace.workspace, 'HARDWARE');
-      hardwareGroup.addChildInOrder(perfCountersGroup);
+      trace.workspace.addChildInOrder(perfCountersGroup);
     }
 
     trace.selection.registerAreaSelectionTab(createAreaSelectionTab(trace));
