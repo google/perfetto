@@ -18,12 +18,11 @@ import {GcsUploader} from '../base/gcs_uploader';
 import {raf} from '../core/raf_scheduler';
 import {VERSION} from '../gen/perfetto_version';
 import {getCurrentModalKey, showModal} from '../widgets/modal';
-import {globals} from './globals';
-import {AppImpl} from '../core/app_impl';
 import {Router} from '../core/router';
 import {Button, ButtonVariant} from '../widgets/button';
 import {Intent} from '../widgets/common';
 import {Checkbox} from '../widgets/checkbox';
+import {AppImpl} from '../core/app_impl';
 
 const MODAL_KEY = 'crash_modal';
 
@@ -31,7 +30,7 @@ const MODAL_KEY = 'crash_modal';
 const MIN_REPORT_PERIOD_MS = 10000;
 let timeLastReport = 0;
 
-export function maybeShowErrorDialog(err: ErrorDetails) {
+export function maybeShowErrorDialog(app: AppImpl, err: ErrorDetails) {
   const now = performance.now();
 
   // Here we rely on the exception message from onCannotGrowMemory function
@@ -102,11 +101,18 @@ export function maybeShowErrorDialog(err: ErrorDetails) {
   showModal({
     key: MODAL_KEY,
     title: 'Oops, something went wrong. Please file a bug.',
-    content: () => m(ErrorDialogComponent, err),
+    content: () => m(ErrorDialogComponent, {app, errorDetails: err}),
   });
 }
 
-class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
+interface ErrorDialogComponentAttrs {
+  readonly app: AppImpl;
+  readonly errorDetails: ErrorDetails;
+}
+
+class ErrorDialogComponent
+  implements m.ClassComponent<ErrorDialogComponentAttrs>
+{
   private traceState:
     | 'NOT_AVAILABLE'
     | 'NOT_UPLOADED'
@@ -121,9 +127,9 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
   private errorMessage = '';
   private uploader?: GcsUploader;
 
-  constructor() {
+  constructor({attrs}: m.CVnode<ErrorDialogComponentAttrs>) {
     this.traceState = 'NOT_AVAILABLE';
-    const traceSource = AppImpl.instance.trace?.traceInfo.source;
+    const traceSource = attrs.app.trace?.traceInfo.source;
     if (traceSource === undefined) return;
     this.traceType = traceSource.type;
     // If the trace is either already uploaded, or comes from a postmessage+url
@@ -138,7 +144,7 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
     }
 
     // If the user is not a googler, don't even offer the option to upload it.
-    if (!globals.isInternalUser) return;
+    if (!attrs.app.isInternalUser) return;
 
     if (traceSource.type === 'FILE') {
       this.traceState = 'NOT_UPLOADED';
@@ -153,8 +159,8 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
     this.traceState = 'NOT_UPLOADED';
   }
 
-  view(vnode: m.Vnode<ErrorDetails>) {
-    const err = vnode.attrs;
+  view(vnode: m.Vnode<ErrorDialogComponentAttrs>) {
+    const err = vnode.attrs.errorDetails;
     let msg = `UI: ${location.protocol}//${location.host}/${VERSION}\n\n`;
 
     // Append the trace stack.

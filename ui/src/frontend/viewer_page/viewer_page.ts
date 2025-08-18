@@ -35,9 +35,9 @@ const OVERVIEW_PANEL_FLAG = featureFlags.register({
   defaultValue: true,
 });
 
-export function renderViewerPage() {
+export function renderViewerPage(app: AppImpl) {
   // Only render if a trace is loaded
-  const trace = AppImpl.instance.trace;
+  const trace = app.trace;
   if (trace) {
     return m(ViewerPage, {trace});
   } else {
@@ -74,7 +74,7 @@ class ViewerPage implements m.ClassComponent<ViewerPageAttrs> {
           onTimelineBoundsChange: (rect) => (this.timelineBounds = rect),
         }),
         // Hide tracks while the trace is loading to prevent thrashing.
-        !AppImpl.instance.isLoadingTrace && [
+        !trace.isLoadingTrace && [
           // Don't render pinned tracks if we have none.
           trace.workspace.pinnedTracks.length > 0 &&
             m(TrackTreeView, {

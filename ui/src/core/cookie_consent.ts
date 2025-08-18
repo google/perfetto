@@ -17,13 +17,17 @@ import {AppImpl} from './app_impl';
 
 const COOKIE_ACK_KEY = 'cookieAck';
 
-export class CookieConsent implements m.ClassComponent {
+export interface CookieConsentAttrs {
+  readonly app: AppImpl;
+}
+
+export class CookieConsent implements m.ClassComponent<CookieConsentAttrs> {
   private showCookieConsent = true;
 
-  oninit() {
+  oninit({attrs}: m.CVnode<CookieConsentAttrs>) {
     this.showCookieConsent = true;
     if (
-      !AppImpl.instance.analytics.isEnabled() ||
+      !attrs.app.analytics.isEnabled() ||
       localStorage.getItem(COOKIE_ACK_KEY) === 'true'
     ) {
       this.showCookieConsent = false;

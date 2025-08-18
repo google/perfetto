@@ -26,11 +26,11 @@ import {
 import {KeyMapping} from './viewer_page/wasd_navigation_handler';
 import {raf} from '../core/raf_scheduler';
 
-export function toggleHelp() {
-  AppImpl.instance.analytics.logEvent('User Actions', 'Show help');
+export function toggleHelp(app: AppImpl) {
+  app.analytics.logEvent('User Actions', 'Show help');
   showModal({
     title: 'Perfetto Help',
-    content: () => m(KeyMappingsHelp),
+    content: () => m(KeyMappingsHelp, {app}),
   });
 }
 
@@ -47,7 +47,11 @@ class EnglishQwertyKeyboardLayoutMap implements KeyboardLayoutMap {
   }
 }
 
-class KeyMappingsHelp implements m.ClassComponent {
+interface KeyMappingsHelpAttrs {
+  readonly app: AppImpl;
+}
+
+class KeyMappingsHelp implements m.ClassComponent<KeyMappingsHelpAttrs> {
   private keyMap?: KeyboardLayoutMap;
 
   oninit() {
@@ -78,7 +82,7 @@ class KeyMappingsHelp implements m.ClassComponent {
       });
   }
 
-  view(): m.Children {
+  view({attrs}: m.CVnode<KeyMappingsHelpAttrs>): m.Children {
     return m(
       '.pf-help-modal',
       m('h2', 'Navigation'),
@@ -158,7 +162,7 @@ class KeyMappingsHelp implements m.ClassComponent {
       m('h2', 'Command Hotkeys'),
       m(
         'table',
-        AppImpl.instance.commands.commands
+        attrs.app.commands.commands
           .filter(({defaultHotkey}) => defaultHotkey)
           .sort((a, b) => a.name.localeCompare(b.name))
           .map(({defaultHotkey, name}) => {

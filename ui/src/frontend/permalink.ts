@@ -63,11 +63,13 @@ type PermalinkState = z.infer<typeof PERMALINK_SCHEMA>;
  * it will be uploaded to GCS, but if it was originally loaded from a URL, we
  * just return that URL.
  *
+ * @param app The application instance.
  * @param trace The trace to upload.
  * @returns The trace URL if the upload was successful, or undefined if the
  *          trace was already uploaded (i.e. the source type is 'URL').
  */
 export async function uploadTraceBlob(
+  app: AppImpl,
   trace: TraceImpl,
 ): Promise<string | undefined> {
   // Check if we need to upload the trace file, before serializing the app
@@ -93,10 +95,10 @@ export async function uploadTraceBlob(
   if (alreadyUploadedUrl) {
     return alreadyUploadedUrl;
   } else if (dataToUpload !== undefined) {
-    updateStatus(`Uploading ${traceName}`);
+    updateStatus(app, `Uploading ${traceName}`);
     const uploader = new GcsUploader(dataToUpload, {
       mimeType: MIME_BINARY,
-      onProgress: () => reportUpdateProgress(uploader),
+      onProgress: () => reportUpdateProgress(app, uploader),
     });
     await uploader.waitForCompletion();
     return uploader.uploadedUrl;
@@ -109,6 +111,7 @@ export async function uploadTraceBlob(
  * Serializes the UI state for a given trace object and uploads it to GCS,
  * with an optional trace URL.
  *
+ * @param app The application instance.
  * @param trace The trace object to serialize and upload.
  * @param traceUrl The URL of the trace file, if available. If undefined, only
  * the app state will be uploaded.
@@ -116,10 +119,11 @@ export async function uploadTraceBlob(
  * permalink.
  */
 export async function createPermalink(
+  app: AppImpl,
   trace: TraceImpl,
   traceUrl: string | undefined,
 ): Promise<string> {
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Create permalink');
+  trace.analytics.logEvent('Trace Actions', 'Create permalink');
 
   const permalinkData: PermalinkState = {
     traceUrl,
@@ -127,11 +131,11 @@ export async function createPermalink(
   };
 
   // Serialize the permalink with the app state (or recording state) and upload.
-  updateStatus(`Creating permalink...`);
+  updateStatus(app, `Creating permalink...`);
   const permalinkJson = JsonSerialize(permalinkData);
   const uploader = new GcsUploader(permalinkJson, {
     mimeType: MIME_JSON,
-    onProgress: () => reportUpdateProgress(uploader),
+    onProgress: () => reportUpdateProgress(app, uploader),
   });
   await uploader.waitForCompletion();
 
@@ -141,11 +145,16 @@ export async function createPermalink(
 /**
  * Loads a permalink from Google Cloud Storage.
  * This is invoked when passing !#?s=fileName to URL.
+ *
+ * @param app The application instance.
  * @param gcsFileName the file name of the cloud storage object. This is
  * expected to be a JSON file that respects the schema defined by
  * PERMALINK_SCHEMA.
  */
-export async function loadPermalink(gcsFileName: string): Promise<void> {
+export async function loadPermalink(
+  app: AppImpl,
+  gcsFileName: string,
+): Promise<void> {
   // Otherwise, this is a request to load the permalink.
   const url = `https://storage.googleapis.com/${BUCKET_NAME}/${gcsFileName}`;
   const response = await fetch(url);
@@ -184,7 +193,7 @@ export async function loadPermalink(gcsFileName: string): Promise<void> {
     }
   }
   if (permalink.traceUrl) {
-    AppImpl.instance.openTraceFromUrl(permalink.traceUrl, serializedAppState);
+    app.openTraceFromUrl(permalink.traceUrl, serializedAppState);
   }
 
   if (error) {
@@ -246,20 +255,20 @@ function tryLoadLegacyPermalink(data: unknown): PermalinkState | undefined {
   } as PermalinkState;
 }
 
-function reportUpdateProgress(uploader: GcsUploader) {
+function reportUpdateProgress(app: AppImpl, uploader: GcsUploader) {
   switch (uploader.state) {
     case 'UPLOADING':
       const statusTxt = `Uploading ${uploader.getEtaString()}`;
-      updateStatus(statusTxt);
+      updateStatus(app, statusTxt);
       break;
     case 'ERROR':
-      updateStatus(`Upload failed ${uploader.error}`);
+      updateStatus(app, `Upload failed ${uploader.error}`);
       break;
     default:
       break;
   } // switch (state)
 }
 
-function updateStatus(msg: string): void {
-  AppImpl.instance.omnibox.showStatusMessage(msg);
+function updateStatus(app: AppImpl, msg: string): void {
+  app.omnibox.showStatusMessage(msg);
 }

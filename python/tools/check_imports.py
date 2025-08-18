@@ -124,7 +124,6 @@ DEPS_ALLOWLIST = [
     # TODO(primiano): misc tech debt.
     ('/public/lib/extensions', '/frontend/*'),
     ('/bigtrace/index', ['/core/live_reload', '/core/raf_scheduler']),
-    ('/plugins/dev.perfetto.HeapProfile/*', '/frontend/trace_converter'),
 ]
 
 

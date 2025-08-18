@@ -61,6 +61,11 @@ export interface App {
   readonly trace?: Trace;
 
   /**
+   * Returns true if a trace is currently being loaded.
+   */
+  readonly isLoadingTrace: boolean;
+
+  /**
    * Used to schedule things.
    */
   readonly raf: Raf;

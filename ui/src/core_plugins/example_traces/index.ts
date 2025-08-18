@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AppImpl} from '../../core/app_impl';
 import {App} from '../../public/app';
 import {PerfettoPlugin} from '../../public/plugin';
 
@@ -24,7 +23,7 @@ const EXAMPLE_CHROME_TRACE_URL =
 
 function openTraceUrl(app: App, url: string): void {
   app.analytics.logEvent('Trace Actions', 'Open example trace');
-  AppImpl.instance.openTraceFromUrl(url);
+  app.openTraceFromUrl(url);
 }
 
 export default class implements PerfettoPlugin {

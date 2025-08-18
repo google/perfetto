@@ -28,6 +28,7 @@ import {Evt} from '../base/events';
 import {StatusbarManager} from './statusbar';
 import {MinimapManager} from './minimap';
 import {SearchManager} from './search';
+import {TraceConverter} from '../frontend/trace_converter';
 
 // Lists all the possible event listeners using the key as the event name and
 // the type as the type of the callback.
@@ -56,6 +57,7 @@ export interface Trace extends App {
   readonly statusbar: StatusbarManager;
   readonly minimap: MinimapManager;
   readonly search: SearchManager;
+  readonly traceConverter: TraceConverter;
 
   // Events.
   onTraceReady: Evt<void>;

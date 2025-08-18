@@ -122,13 +122,25 @@ function shouldGracefullyIgnoreMessage(messageEvent: MessageEvent) {
   return messageEvent.data.perfettoIgnore === true;
 }
 
+export function initializePostMessageHandler(app: AppImpl) {
+  const callback = (e: MessageEvent) =>
+    postMessageHandler(app, e, () => {
+      window.removeEventListener('message', callback);
+    });
+  window.addEventListener('message', callback, {passive: true});
+}
+
 // The message handler supports loading traces from an ArrayBuffer.
 // There is no other requirement than sending the ArrayBuffer as the |data|
 // property. However, since this will happen across different origins, it is not
 // possible for the source website to inspect whether the message handler is
 // ready, so the message handler always replies to a 'PING' message with 'PONG',
 // which indicates it is ready to receive a trace.
-export function postMessageHandler(messageEvent: MessageEvent) {
+function postMessageHandler(
+  app: AppImpl,
+  messageEvent: MessageEvent,
+  onRemoveHandler: () => void,
+) {
   if (shouldGracefullyIgnoreMessage(messageEvent)) {
     // This message should not be handled in this handler,
     // because it will be handled elsewhere.
@@ -183,7 +195,7 @@ export function postMessageHandler(messageEvent: MessageEvent) {
   }
 
   if (messageEvent.data === 'SHOW-HELP') {
-    toggleHelp();
+    toggleHelp(app);
     return;
   }
 
@@ -195,7 +207,7 @@ export function postMessageHandler(messageEvent: MessageEvent) {
   let postedScrollToRange: PostedScrollToRange;
   if (isPostedScrollToRange(messageEvent.data)) {
     postedScrollToRange = messageEvent.data.perfetto;
-    scrollToTimeRange(postedScrollToRange);
+    scrollToTimeRange(app, postedScrollToRange);
     return;
   }
 
@@ -229,7 +241,7 @@ export function postMessageHandler(messageEvent: MessageEvent) {
      * 'PONG' messages and accidentally post the trace multiple times. This was
      * part of the cause of b/182502595.
      */
-    window.removeEventListener('message', postMessageHandler);
+    onRemoveHandler();
   }
 
   const openTrace = async () => {
@@ -250,7 +262,7 @@ export function postMessageHandler(messageEvent: MessageEvent) {
         appState = parsedState.value;
       }
     }
-    AppImpl.instance.openTraceFromBuffer(postedTrace, appState);
+    app.openTraceFromBuffer(postedTrace, appState);
   };
 
   const trustAndOpenTrace = () => {
@@ -318,10 +330,10 @@ function sanitizeString(str: string): string {
 
 const _maxScrollToRangeAttempts = 20;
 async function scrollToTimeRange(
+  app: AppImpl,
   postedScrollToRange: PostedScrollToRange,
   maxAttempts?: number,
 ) {
-  const app = AppImpl.instance;
   const trace = app.trace;
   if (trace && !app.isLoadingTrace) {
     const start = Time.fromSeconds(postedScrollToRange.timeStart);

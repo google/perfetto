@@ -15,13 +15,14 @@
 import z from 'zod';
 import {Time} from '../base/time';
 import {EngineBase} from '../trace_processor/engine';
-import {AppImpl} from './app_impl';
+import {AppImpl, createApp} from './app_impl';
 import {InMemoryStorage} from './in_memory_storage';
 import {SettingsManagerImpl} from './settings_manager';
 import {TraceImpl} from './trace_impl';
 import {TraceInfoImpl} from './trace_info_impl';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {commandInvocationArraySchema} from './command_manager';
+import {ErrorDetails} from '../base/logging';
 
 export interface FakeTraceImplArgs {
   // If true suppresses exceptions when trying to issue a query. This is to
@@ -30,59 +31,55 @@ export interface FakeTraceImplArgs {
   allowQueries?: boolean;
 }
 
-let appImplInitialized = false;
-
 export function initializeAppImplForTesting(): AppImpl {
-  if (!appImplInitialized) {
-    appImplInitialized = true;
-
-    const settingsManager = new SettingsManagerImpl(new InMemoryStorage());
-    AppImpl.initialize({
-      initialRouteArgs: {},
-      settingsManager,
-      timestampFormatSetting: settingsManager.register({
-        id: 'timestampFormat',
-        name: 'Timestamp Format',
-        description: '',
-        defaultValue: TimestampFormat.Timecode,
-        schema: z.nativeEnum(TimestampFormat),
-      }),
-      durationPrecisionSetting: settingsManager.register({
-        id: 'durationPrecision',
-        name: 'Duration Precision',
-        description: '',
-        defaultValue: DurationPrecision.Full,
-        schema: z.nativeEnum(DurationPrecision),
-      }),
-      timezoneOverrideSetting: settingsManager.register({
-        id: 'timezoneOverride',
-        name: 'Timezone Override',
-        description: 'What timezone to use for displaying timestamps.',
-        schema: z.enum(['dummy']),
-        defaultValue: 'dummy',
-      }),
-      analyticsSetting: settingsManager.register({
-        id: 'analyticsEnable',
-        name: 'Enable UI Telemetry',
-        description: '',
-        schema: z.boolean(),
-        defaultValue: true,
-      }),
-      startupCommandsSetting: settingsManager.register({
-        id: 'startupCommands',
-        name: 'Startup Commands',
-        description: '',
-        schema: commandInvocationArraySchema,
-        defaultValue: [],
-      }),
-    });
-  }
-  return AppImpl.instance;
+  const settingsManager = new SettingsManagerImpl(new InMemoryStorage());
+  return createApp({
+    initialRouteArgs: {},
+    settingsManager,
+    timestampFormatSetting: settingsManager.register({
+      id: 'timestampFormat',
+      name: 'Timestamp Format',
+      description: '',
+      defaultValue: TimestampFormat.Timecode,
+      schema: z.nativeEnum(TimestampFormat),
+    }),
+    durationPrecisionSetting: settingsManager.register({
+      id: 'durationPrecision',
+      name: 'Duration Precision',
+      description: '',
+      defaultValue: DurationPrecision.Full,
+      schema: z.nativeEnum(DurationPrecision),
+    }),
+    timezoneOverrideSetting: settingsManager.register({
+      id: 'timezoneOverride',
+      name: 'Timezone Override',
+      description: 'What timezone to use for displaying timestamps.',
+      schema: z.enum(['dummy']),
+      defaultValue: 'dummy',
+    }),
+    analyticsSetting: settingsManager.register({
+      id: 'analyticsEnable',
+      name: 'Enable UI Telemetry',
+      description: '',
+      schema: z.boolean(),
+      defaultValue: true,
+    }),
+    startupCommandsSetting: settingsManager.register({
+      id: 'startupCommands',
+      name: 'Startup Commands',
+      description: '',
+      schema: commandInvocationArraySchema,
+      defaultValue: [],
+    }),
+    maybeShowErrorDialog: (error: ErrorDetails) => {
+      console.error(error);
+    },
+  });
 }
 
 // For testing purposes only.
 export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
-  initializeAppImplForTesting();
+  const app = initializeAppImplForTesting();
   const fakeTraceInfo: TraceInfoImpl = {
     source: {type: 'URL', url: ''},
     traceTitle: '',
@@ -99,13 +96,13 @@ export function createFakeTraceImpl(args: FakeTraceImplArgs = {}) {
     cached: false,
     downloadable: false,
   };
-  AppImpl.instance.closeCurrentTrace();
+  app.closeCurrentTrace();
   const trace = TraceImpl.createInstanceForCore(
-    AppImpl.instance,
+    app,
     new FakeEngine(args.allowQueries ?? false),
     fakeTraceInfo,
   );
-  AppImpl.instance.setActiveTrace(trace);
+  app.setActiveTrace(trace);
   return trace;
 }
 

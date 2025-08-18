@@ -148,9 +148,9 @@ Trace processor RPC API: ${tpStatus.apiVersion}
 // trying to load a new trace. We do this ahead of time just to have a
 // consistent UX (i.e. so that the user can tell if the RPC is working without
 // having to open a trace).
-export async function checkHttpRpcConnection(): Promise<void> {
+export async function checkHttpRpcConnection(app: AppImpl): Promise<void> {
   const state = await HttpRpcEngine.checkConnection();
-  AppImpl.instance.httpRpc.httpRpcAvailable = state.connected;
+  app.httpRpc.httpRpcAvailable = state.connected;
   if (!state.connected) {
     // No RPC = exit immediately to the WASM UI.
     return;
@@ -158,7 +158,7 @@ export async function checkHttpRpcConnection(): Promise<void> {
   const tpStatus = assertExists(state.status);
 
   function forceWasm() {
-    AppImpl.instance.httpRpc.newEngineMode = 'FORCE_BUILTIN_WASM';
+    app.httpRpc.newEngineMode = 'FORCE_BUILTIN_WASM';
   }
 
   // Check short version:
@@ -210,7 +210,7 @@ export async function checkHttpRpcConnection(): Promise<void> {
     switch (result) {
       case PreloadedDialogResult.Dismissed:
       case PreloadedDialogResult.UseRpcWithPreloadedTrace:
-        AppImpl.instance.openTraceFromHttpRpc();
+        app.openTraceFromHttpRpc();
         return;
       case PreloadedDialogResult.UseRpc:
         // Resetting state is the default.

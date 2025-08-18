@@ -21,25 +21,20 @@ import {
   getEnabledMetatracingCategories,
   isMetatracingEnabled,
 } from '../core/metatracing';
-import {Engine, EngineMode} from '../trace_processor/engine';
+import {EngineMode} from '../trace_processor/engine';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
 import {showModal} from '../widgets/modal';
 import {Animation} from './animation';
 import {download, downloadUrl} from '../base/download_utils';
-import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {shareTrace} from './trace_share_utils';
-import {
-  convertTraceToJsonAndDownload,
-  convertTraceToSystraceAndDownload,
-} from './trace_converter';
 import {openInOldUIWithSizeCheck} from './legacy_trace_viewer';
 import {SIDEBAR_SECTIONS, SidebarSections} from '../public/sidebar';
 import {AppImpl} from '../core/app_impl';
 import {Trace} from '../public/trace';
-import {OptionalTraceImplAttrs, TraceImpl} from '../core/trace_impl';
+import {TraceImpl} from '../core/trace_impl';
 import {Command} from '../public/command';
 import {SidebarMenuItemInternal} from '../core/sidebar_manager';
 import {exists, getOrCreate} from '../base/utils';
@@ -53,8 +48,8 @@ import {Button} from '../widgets/button';
 
 const GITILES_URL = 'https://github.com/google/perfetto';
 
-function getBugReportUrl(): string {
-  if (globals.isInternalUser) {
+function getBugReportUrl(app: AppImpl): string {
+  if (app.isInternalUser) {
     return 'https://goto.google.com/perfetto-ui-bug';
   } else {
     return 'https://github.com/google/perfetto/issues/new';
@@ -68,34 +63,32 @@ const HIRING_BANNER_FLAG = featureFlags.register({
   defaultValue: false,
 });
 
-function shouldShowHiringBanner(): boolean {
-  return globals.isInternalUser && HIRING_BANNER_FLAG.get();
+function shouldShowHiringBanner(app: AppImpl): boolean {
+  return app.isInternalUser && HIRING_BANNER_FLAG.get();
 }
 
-async function openCurrentTraceWithOldUI(trace: Trace): Promise<void> {
-  AppImpl.instance.analytics.logEvent(
-    'Trace Actions',
-    'Open current trace in legacy UI',
-  );
+async function openCurrentTraceWithOldUI(
+  app: AppImpl,
+  trace: Trace,
+): Promise<void> {
+  trace.analytics.logEvent('Trace Actions', 'Open current trace in legacy UI');
   const file = await trace.getTraceFile();
-  await openInOldUIWithSizeCheck(file);
+  await openInOldUIWithSizeCheck(app, file);
 }
 
 async function convertTraceToSystrace(trace: Trace): Promise<void> {
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Convert to .systrace');
-  const file = await trace.getTraceFile();
-  await convertTraceToSystraceAndDownload(file);
+  trace.analytics.logEvent('Trace Actions', 'Convert to .systrace');
+  await trace.traceConverter.convertTraceToSystraceAndDownload();
 }
 
 async function convertTraceToJson(trace: Trace): Promise<void> {
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Convert to .json');
-  const file = await trace.getTraceFile();
-  await convertTraceToJsonAndDownload(file);
+  trace.analytics.logEvent('Trace Actions', 'Convert to .json');
+  await trace.traceConverter.convertTraceToJsonAndDownload();
 }
 
 function downloadTrace(trace: TraceImpl) {
   if (!trace.traceInfo.downloadable) return;
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Download trace');
+  trace.analytics.logEvent('Trace Actions', 'Download trace');
 
   const src = trace.traceInfo.source;
   const filePickerAcceptTypes = [
@@ -130,11 +123,11 @@ function downloadTrace(trace: TraceImpl) {
   }
 }
 
-function recordMetatrace(engine: Engine) {
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Record metatrace');
+function recordMetatrace(trace: Trace) {
+  trace.analytics.logEvent('Trace Actions', 'Record metatrace');
 
   const highPrecisionTimersAvailable =
-    window.crossOriginIsolated || engine.mode === 'HTTP_RPC';
+    window.crossOriginIsolated || trace.engine.mode === 'HTTP_RPC';
   if (!highPrecisionTimersAvailable) {
     const PROMPT = `High-precision timers are not available to WASM trace processor yet.
 
@@ -156,7 +149,7 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
           primary: true,
           action: () => {
             enableMetatracing();
-            engine.enableMetatrace(
+            trace.engine.enableMetatrace(
               assertExists(getEnabledMetatracingCategories()),
             );
           },
@@ -168,20 +161,24 @@ Alternatively, connect to a trace_processor_shell --httpd instance.
     });
   } else {
     enableMetatracing();
-    engine.enableMetatrace(assertExists(getEnabledMetatracingCategories()));
+    trace.engine.enableMetatrace(
+      assertExists(getEnabledMetatracingCategories()),
+    );
   }
 }
 
-async function toggleMetatrace(e: Engine) {
-  return isMetatracingEnabled() ? finaliseMetatrace(e) : recordMetatrace(e);
+async function toggleMetatrace(trace: Trace) {
+  return isMetatracingEnabled()
+    ? finaliseMetatrace(trace)
+    : recordMetatrace(trace);
 }
 
-async function finaliseMetatrace(engine: Engine) {
-  AppImpl.instance.analytics.logEvent('Trace Actions', 'Finalise metatrace');
+async function finaliseMetatrace(trace: Trace) {
+  trace.analytics.logEvent('Trace Actions', 'Finalise metatrace');
 
   const jsEvents = disableMetatracingAndGetTrace();
 
-  const result = await engine.stopAndGetMetatrace();
+  const result = await trace.engine.stopAndGetMetatrace();
   if (result.error.length !== 0) {
     throw new Error(`Failed to read metatrace: ${result.error}`);
   }
@@ -192,155 +189,149 @@ async function finaliseMetatrace(engine: Engine) {
   });
 }
 
-class EngineRPCWidget implements m.ClassComponent<OptionalTraceImplAttrs> {
-  view({attrs}: m.CVnode<OptionalTraceImplAttrs>) {
-    let cssClass = '';
-    let title = 'Number of pending SQL queries';
-    let label: string;
-    let failed = false;
-    let mode: EngineMode | undefined;
+function renderEngineRPCWidget(app: AppImpl) {
+  let cssClass = '';
+  let title = 'Number of pending SQL queries';
+  let label: string;
+  let failed = false;
+  let mode: EngineMode | undefined;
 
-    const engine = attrs.trace?.engine;
-    if (engine !== undefined) {
-      mode = engine.mode;
-      if (engine.failed !== undefined) {
-        cssClass += '.pf-sidebar__dbg-info-square--red';
-        title = 'Query engine crashed\n' + engine.failed;
-        failed = true;
-      }
+  const engine = app.trace?.engine;
+  if (engine !== undefined) {
+    mode = engine.mode;
+    if (engine.failed !== undefined) {
+      cssClass += '.pf-sidebar__dbg-info-square--red';
+      title = 'Query engine crashed\n' + engine.failed;
+      failed = true;
     }
-
-    // If we don't have an engine yet, guess what will be the mode that will
-    // be used next time we'll create one. Even if we guess it wrong (somehow
-    // trace_controller.ts takes a different decision later, e.g. because the
-    // RPC server is shut down after we load the UI and cached httpRpcState)
-    // this will eventually become  consistent once the engine is created.
-    if (mode === undefined) {
-      if (
-        AppImpl.instance.httpRpc.httpRpcAvailable &&
-        AppImpl.instance.httpRpc.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE'
-      ) {
-        mode = 'HTTP_RPC';
-      } else {
-        mode = 'WASM';
-      }
-    }
-
-    if (mode === 'HTTP_RPC') {
-      cssClass += '.pf-sidebar__dbg-info-square--green';
-      label = 'RPC';
-      title += '\n(Query engine: native accelerator over HTTP+RPC)';
-    } else {
-      label = 'WSM';
-      title += '\n(Query engine: built-in WASM)';
-    }
-
-    const numReqs = attrs.trace?.engine.numRequestsPending ?? 0;
-    return m(
-      `.pf-sidebar__dbg-info-square${cssClass}`,
-      {title},
-      m('div', label),
-      m('div', `${failed ? 'FAIL' : numReqs}`),
-    );
   }
+
+  // If we don't have an engine yet, guess what will be the mode that will
+  // be used next time we'll create one. Even if we guess it wrong (somehow
+  // trace_controller.ts takes a different decision later, e.g. because the
+  // RPC server is shut down after we load the UI and cached httpRpcState)
+  // this will eventually become  consistent once the engine is created.
+  if (mode === undefined) {
+    if (
+      app.httpRpc.httpRpcAvailable &&
+      app.httpRpc.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE'
+    ) {
+      mode = 'HTTP_RPC';
+    } else {
+      mode = 'WASM';
+    }
+  }
+
+  if (mode === 'HTTP_RPC') {
+    cssClass += '.pf-sidebar__dbg-info-square--green';
+    label = 'RPC';
+    title += '\n(Query engine: native accelerator over HTTP+RPC)';
+  } else {
+    label = 'WSM';
+    title += '\n(Query engine: built-in WASM)';
+  }
+
+  const numReqs = app.trace?.engine.numRequestsPending ?? 0;
+  return m(
+    `.pf-sidebar__dbg-info-square${cssClass}`,
+    {title},
+    m('div', label),
+    m('div', `${failed ? 'FAIL' : numReqs}`),
+  );
 }
 
-const ServiceWorkerWidget: m.Component = {
-  view() {
-    let cssClass = '';
-    let title = 'Service Worker: ';
-    let label = 'N/A';
-    const ctl = AppImpl.instance.serviceWorkerController;
-    if (!('serviceWorker' in navigator)) {
-      label = 'N/A';
-      title += 'not supported by the browser (requires HTTPS)';
-    } else if (ctl.bypassed) {
-      label = 'OFF';
-      cssClass = '.pf-sidebar__dbg-info-square--red';
-      title += 'Bypassed, using live network. Double-click to re-enable';
-    } else if (ctl.installing) {
-      label = 'UPD';
-      cssClass = '.pf-sidebar__dbg-info-square--amber';
-      title += 'Installing / updating ...';
-    } else if (!navigator.serviceWorker.controller) {
-      label = 'N/A';
-      title += 'Not available, using network';
-    } else {
-      label = 'ON';
-      cssClass = '.pf-sidebar__dbg-info-square--green';
-      title += 'Serving from cache. Ready for offline use';
+function renderServiceWorkerWidget(app: AppImpl) {
+  let cssClass = '';
+  let title = 'Service Worker: ';
+  let label = 'N/A';
+  const ctl = app.serviceWorkerController;
+  if (!('serviceWorker' in navigator)) {
+    label = 'N/A';
+    title += 'not supported by the browser (requires HTTPS)';
+  } else if (ctl.bypassed) {
+    label = 'OFF';
+    cssClass = '.pf-sidebar__dbg-info-square--red';
+    title += 'Bypassed, using live network. Double-click to re-enable';
+  } else if (ctl.installing) {
+    label = 'UPD';
+    cssClass = '.pf-sidebar__dbg-info-square--amber';
+    title += 'Installing / updating ...';
+  } else if (!navigator.serviceWorker.controller) {
+    label = 'N/A';
+    title += 'Not available, using network';
+  } else {
+    label = 'ON';
+    cssClass = '.pf-sidebar__dbg-info-square--green';
+    title += 'Serving from cache. Ready for offline use';
+  }
+
+  const toggle = async () => {
+    if (ctl.bypassed) {
+      ctl.setBypass(false);
+      return;
     }
-
-    const toggle = async () => {
-      if (ctl.bypassed) {
-        ctl.setBypass(false);
-        return;
-      }
-      showModal({
-        title: 'Disable service worker?',
-        content: m(
-          'div',
-          m(
-            'p',
-            `If you continue the service worker will be disabled until
-                      manually re-enabled.`,
-          ),
-          m(
-            'p',
-            `All future requests will be served from the network and the
-                    UI won't be available offline.`,
-          ),
-          m(
-            'p',
-            `You should do this only if you are debugging the UI
-                    or if you are experiencing caching-related problems.`,
-          ),
-          m(
-            'p',
-            `Disabling will cause a refresh of the UI, the current state
-                    will be lost.`,
-          ),
-        ),
-        buttons: [
-          {
-            text: 'Disable and reload',
-            primary: true,
-            action: () => ctl.setBypass(true).then(() => location.reload()),
-          },
-          {text: 'Cancel'},
-        ],
-      });
-    };
-
-    return m(
-      `.pf-sidebar__dbg-info-square${cssClass}`,
-      {title, ondblclick: toggle},
-      m('div', 'SW'),
-      m('div', label),
-    );
-  },
-};
-
-class SidebarFooter implements m.ClassComponent<OptionalTraceImplAttrs> {
-  view({attrs}: m.CVnode<OptionalTraceImplAttrs>) {
-    return m(
-      '.pf-sidebar__footer',
-      m(EngineRPCWidget, attrs),
-      m(ServiceWorkerWidget),
-      m(
-        '.pf-sidebar__version',
+    showModal({
+      title: 'Disable service worker?',
+      content: m(
+        'div',
         m(
-          'a',
-          {
-            href: `${GITILES_URL}/tree/${SCM_REVISION}/ui`,
-            title: `Channel: ${getCurrentChannel()}`,
-            target: '_blank',
-          },
-          VERSION,
+          'p',
+          `If you continue the service worker will be disabled until
+                      manually re-enabled.`,
+        ),
+        m(
+          'p',
+          `All future requests will be served from the network and the
+                    UI won't be available offline.`,
+        ),
+        m(
+          'p',
+          `You should do this only if you are debugging the UI
+                    or if you are experiencing caching-related problems.`,
+        ),
+        m(
+          'p',
+          `Disabling will cause a refresh of the UI, the current state
+                    will be lost.`,
         ),
       ),
-    );
-  }
+      buttons: [
+        {
+          text: 'Disable and reload',
+          primary: true,
+          action: () => ctl.setBypass(true).then(() => location.reload()),
+        },
+        {text: 'Cancel'},
+      ],
+    });
+  };
+
+  return m(
+    `.pf-sidebar__dbg-info-square${cssClass}`,
+    {title, ondblclick: toggle},
+    m('div', 'SW'),
+    m('div', label),
+  );
+}
+
+function renderFooter(app: AppImpl) {
+  return m(
+    '.pf-sidebar__footer',
+    renderEngineRPCWidget(app),
+    renderServiceWorkerWidget(app),
+    m(
+      '.pf-sidebar__version',
+      m(
+        'a',
+        {
+          href: `${GITILES_URL}/tree/${SCM_REVISION}/ui`,
+          title: `Channel: ${getCurrentChannel()}`,
+          target: '_blank',
+        },
+        VERSION,
+      ),
+    ),
+  );
 }
 
 class HiringBanner implements m.ClassComponent {
@@ -359,17 +350,22 @@ class HiringBanner implements m.ClassComponent {
   }
 }
 
-export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
+export interface SidebarAttrs {
+  readonly app: AppImpl;
+}
+
+export class Sidebar implements m.ClassComponent<SidebarAttrs> {
   private _redrawWhileAnimating = new Animation(() => raf.scheduleFullRedraw());
   private _asyncJobPending = new Set<string>();
   private _sectionExpanded = new Map<string, boolean>();
 
-  constructor({attrs}: m.CVnode<OptionalTraceImplAttrs>) {
-    registerMenuItems(attrs.trace);
+  constructor({attrs}: m.CVnode<SidebarAttrs>) {
+    registerMenuItems(attrs.app);
   }
 
-  view({attrs}: m.CVnode<OptionalTraceImplAttrs>) {
-    const sidebar = AppImpl.instance.sidebar;
+  view({attrs}: m.CVnode<SidebarAttrs>) {
+    const app = attrs.app;
+    const sidebar = app.sidebar;
     if (!sidebar.enabled) return null;
     return m(
       'nav.pf-sidebar',
@@ -386,7 +382,7 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
           this._redrawWhileAnimating.stop();
         },
       },
-      shouldShowHiringBanner() ? m(HiringBanner) : null,
+      shouldShowHiringBanner(app) ? m(HiringBanner) : null,
       m(
         `header.pf-sidebar__channel--${getCurrentChannel()}`,
         m(`img[src=${assetSrc('assets/brand.png')}].pf-sidebar__brand`),
@@ -401,21 +397,21 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
         m(
           '.pf-sidebar__scroll-container',
           ...(Object.keys(SIDEBAR_SECTIONS) as SidebarSections[]).map((s) =>
-            this.renderSection(s),
+            this.renderSection(app, s),
           ),
-          m(SidebarFooter, attrs),
+          renderFooter(app),
         ),
       ),
     );
   }
 
-  private renderSection(sectionId: SidebarSections) {
+  private renderSection(app: AppImpl, sectionId: SidebarSections) {
     const section = SIDEBAR_SECTIONS[sectionId];
-    const menuItems = AppImpl.instance.sidebar.menuItems
+    const menuItems = app.sidebar.menuItems
       .valuesAsArray()
       .filter((item) => item.section === sectionId)
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-      .map((item) => this.renderItem(item));
+      .map((item) => this.renderItem(app, item));
 
     // Don't render empty sections.
     if (menuItems.length === 0) return undefined;
@@ -437,7 +433,7 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
     );
   }
 
-  private renderItem(item: SidebarMenuItemInternal): m.Child {
+  private renderItem(app: AppImpl, item: SidebarMenuItemInternal): m.Child {
     let href = '#';
     let disabled = false;
     let target = null;
@@ -457,7 +453,7 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
     } else if (action !== undefined) {
       onclick = action;
     } else if (commandId !== undefined) {
-      const cmdMgr = AppImpl.instance.commands;
+      const cmdMgr = app.commands;
       command = cmdMgr.hasCommand(commandId ?? '')
         ? cmdMgr.getCommand(commandId)
         : undefined;
@@ -539,25 +535,24 @@ export class Sidebar implements m.ClassComponent<OptionalTraceImplAttrs> {
 let globalItemsRegistered = false;
 const traceItemsRegistered = new WeakSet<TraceImpl>();
 
-function registerMenuItems(trace: TraceImpl | undefined) {
+function registerMenuItems(app: AppImpl) {
   if (!globalItemsRegistered) {
     globalItemsRegistered = true;
-    registerGlobalSidebarEntries();
+    registerGlobalSidebarEntries(app);
   }
-  if (trace !== undefined && !traceItemsRegistered.has(trace)) {
-    traceItemsRegistered.add(trace);
-    registerTraceMenuItems(trace);
+  if (app.trace !== undefined && !traceItemsRegistered.has(app.trace)) {
+    traceItemsRegistered.add(app.trace);
+    registerTraceMenuItems(app, app.trace);
   }
 }
 
-function registerGlobalSidebarEntries() {
-  const app = AppImpl.instance;
+function registerGlobalSidebarEntries(app: AppImpl) {
   // TODO(primiano): The Open file / Open with legacy entries are registered by
   // the 'perfetto.CoreCommands' plugins. Make things consistent.
   app.sidebar.addMenuItem({
     section: 'support',
     text: 'Keyboard shortcuts',
-    action: toggleHelp,
+    action: () => toggleHelp(app),
     icon: 'help',
   });
   app.sidebar.addMenuItem({
@@ -570,12 +565,12 @@ function registerGlobalSidebarEntries() {
     section: 'support',
     sortOrder: 4,
     text: 'Report a bug',
-    href: getBugReportUrl(),
+    href: getBugReportUrl(app),
     icon: 'bug_report',
   });
 }
 
-function registerTraceMenuItems(trace: TraceImpl) {
+function registerTraceMenuItems(app: AppImpl, trace: TraceImpl) {
   const downloadDisabled = trace.traceInfo.downloadable
     ? false
     : 'Cannot download external trace';
@@ -596,11 +591,11 @@ function registerTraceMenuItems(trace: TraceImpl) {
     href: '#!/viewer',
     icon: 'line_style',
   });
-  globals.isInternalUser &&
+  app.isInternalUser &&
     trace.sidebar.addMenuItem({
       section: 'current_trace',
       text: 'Share',
-      action: async () => await shareTrace(trace),
+      action: async () => await shareTrace(app, trace),
       icon: 'share',
     });
   trace.sidebar.addMenuItem({
@@ -613,7 +608,7 @@ function registerTraceMenuItems(trace: TraceImpl) {
   trace.sidebar.addMenuItem({
     section: 'convert_trace',
     text: 'Switch to legacy UI',
-    action: async () => await openCurrentTraceWithOldUI(trace),
+    action: async () => await openCurrentTraceWithOldUI(app, trace),
     icon: 'filter_none',
     disabled: downloadDisabled,
   });
@@ -637,7 +632,7 @@ function registerTraceMenuItems(trace: TraceImpl) {
     sortOrder: 5,
     text: () =>
       isMetatracingEnabled() ? 'Finalize metatrace' : 'Record metatrace',
-    action: () => toggleMetatrace(trace.engine),
+    action: () => toggleMetatrace(trace),
     icon: () => (isMetatracingEnabled() ? 'download' : 'fiber_smart_record'),
   });
 }

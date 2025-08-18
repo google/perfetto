@@ -31,6 +31,8 @@ export class IdleDetector {
   private idleSince?: number;
   private idleHysteresisMs = IDLE_HYSTERESIS_MS;
 
+  constructor(private readonly app: AppImpl) {}
+
   waitForPerfettoIdle(idleHysteresisMs = IDLE_HYSTERESIS_MS): Promise<void> {
     this.idleSince = undefined;
     this.idleHysteresisMs = idleHysteresisMs;
@@ -69,9 +71,9 @@ export class IdleDetector {
   }
 
   private idleIndicators() {
-    const reqsPending = AppImpl.instance.trace?.engine.numRequestsPending ?? 0;
+    const reqsPending = this.app.trace?.engine.numRequestsPending ?? 0;
     return [
-      !AppImpl.instance.isLoadingTrace,
+      !this.app.isLoadingTrace,
       reqsPending === 0,
       !raf.hasPendingRedraws,
       !taskTracker.hasPendingTasks(),

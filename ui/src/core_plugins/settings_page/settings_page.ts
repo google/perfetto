@@ -30,11 +30,15 @@ import {classNames} from '../../base/classnames';
 import {Stack, StackAuto} from '../../widgets/stack';
 import {FuzzyFinder} from '../../base/fuzzy';
 
-export class SettingsPage implements m.ClassComponent {
+export interface SettingsPageAttrs {
+  readonly app: AppImpl;
+}
+
+export class SettingsPage implements m.ClassComponent<SettingsPageAttrs> {
   private filterText = '';
 
-  view() {
-    const app = AppImpl.instance;
+  view({attrs}: m.CVnode<SettingsPageAttrs>): m.Children {
+    const app = attrs.app;
     const settingsManager = app.settings as SettingsManagerImpl;
     const allSettings = settingsManager.getAllSettings();
     const reloadRequired = settingsManager.isReloadRequired();

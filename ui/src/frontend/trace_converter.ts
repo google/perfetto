@@ -19,7 +19,7 @@ import {ErrorDetails} from '../base/logging';
 import {utf8Decode} from '../base/string_utils';
 import {time} from '../base/time';
 import {AppImpl} from '../core/app_impl';
-import {maybeShowErrorDialog} from './error_dialog';
+import {Trace} from '../public/trace';
 
 type Args =
   | UpdateStatusArgs
@@ -59,16 +59,69 @@ type OpenTraceInLegacyCallback = (
   size: number,
 ) => void;
 
+export class TraceConverter {
+  constructor(
+    private readonly app: AppImpl,
+    private readonly trace: Trace,
+  ) {}
+
+  async convertTraceToJsonAndDownload(): Promise<void> {
+    const rawTrace = await this.trace.getTraceFile();
+    return await makeWorkerAndPost(this.app, {
+      kind: 'ConvertTraceAndDownload',
+      trace: rawTrace,
+      format: 'json',
+    });
+  }
+
+  async convertTraceToSystraceAndDownload(): Promise<void> {
+    const rawTrace = await this.trace.getTraceFile();
+    return makeWorkerAndPost(this.app, {
+      kind: 'ConvertTraceAndDownload',
+      trace: rawTrace,
+      format: 'systrace',
+    });
+  }
+
+  async convertTraceToPprofAndDownload(pid: number, ts: time): Promise<void> {
+    const rawTrace = await this.trace.getTraceFile();
+    return makeWorkerAndPost(this.app, {
+      kind: 'ConvertTraceToPprof',
+      trace: rawTrace,
+      pid,
+      ts,
+    });
+  }
+}
+
+export function convertToJson(
+  app: AppImpl,
+  trace: Blob,
+  openTraceInLegacy: OpenTraceInLegacyCallback,
+  truncate?: 'start' | 'end',
+): Promise<void> {
+  return makeWorkerAndPost(
+    app,
+    {
+      kind: 'ConvertTraceAndOpenInLegacy',
+      trace,
+      truncate,
+    },
+    openTraceInLegacy,
+  );
+}
+
 async function makeWorkerAndPost(
+  app: AppImpl,
   msg: unknown,
   openTraceInLegacy?: OpenTraceInLegacyCallback,
 ) {
   const promise = defer<void>();
 
-  function handleOnMessage(msg: MessageEvent): void {
+  const handleOnMessage = (msg: MessageEvent) => {
     const args: Args = msg.data;
     if (args.kind === 'updateStatus') {
-      AppImpl.instance.omnibox.showStatusMessage(args.status);
+      app.omnibox.showStatusMessage(args.status);
     } else if (args.kind === 'jobCompleted') {
       promise.resolve();
     } else if (args.kind === 'downloadFile') {
@@ -80,58 +133,14 @@ async function makeWorkerAndPost(
       const str = utf8Decode(args.buffer);
       openTraceInLegacy?.('trace.json', str, 0);
     } else if (args.kind === 'error') {
-      maybeShowErrorDialog(args.error);
+      app.maybeShowErrorDialog(args.error);
     } else {
       throw new Error(`Unhandled message ${JSON.stringify(args)}`);
     }
-  }
+  };
 
   const worker = new Worker(assetSrc('traceconv_bundle.js'));
   worker.onmessage = handleOnMessage;
   worker.postMessage(msg);
   return promise;
-}
-
-export function convertTraceToJsonAndDownload(trace: Blob): Promise<void> {
-  return makeWorkerAndPost({
-    kind: 'ConvertTraceAndDownload',
-    trace,
-    format: 'json',
-  });
-}
-
-export function convertTraceToSystraceAndDownload(trace: Blob): Promise<void> {
-  return makeWorkerAndPost({
-    kind: 'ConvertTraceAndDownload',
-    trace,
-    format: 'systrace',
-  });
-}
-
-export function convertToJson(
-  trace: Blob,
-  openTraceInLegacy: OpenTraceInLegacyCallback,
-  truncate?: 'start' | 'end',
-): Promise<void> {
-  return makeWorkerAndPost(
-    {
-      kind: 'ConvertTraceAndOpenInLegacy',
-      trace,
-      truncate,
-    },
-    openTraceInLegacy,
-  );
-}
-
-export function convertTraceToPprofAndDownload(
-  trace: Blob,
-  pid: number,
-  ts: time,
-): Promise<void> {
-  return makeWorkerAndPost({
-    kind: 'ConvertTraceToPprof',
-    trace,
-    pid,
-    ts,
-  });
 }

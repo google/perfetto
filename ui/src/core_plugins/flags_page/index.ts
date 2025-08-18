@@ -38,7 +38,7 @@ export default class implements PerfettoPlugin {
     // Plugins page
     app.pages.registerPage({
       route: '/plugins',
-      render: () => m(PluginsPage),
+      render: () => m(PluginsPage, {app}),
     });
     app.sidebar.addMenuItem({
       section: 'support',

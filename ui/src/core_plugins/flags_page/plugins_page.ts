@@ -78,11 +78,15 @@ function sortText(sortOrder: SortOrder) {
   }
 }
 
-export class PluginsPage implements m.ClassComponent {
+export interface PluginsPageAttrs {
+  readonly app: AppImpl;
+}
+
+export class PluginsPage implements m.ClassComponent<PluginsPageAttrs> {
   private filterText: string = '';
 
-  view() {
-    const pluginManager = AppImpl.instance.plugins;
+  view({attrs}: m.CVnode<PluginsPageAttrs>) {
+    const pluginManager = attrs.app.plugins;
     const registeredPlugins = pluginManager.getAllPlugins();
     const needsRestart = registeredPlugins.some((p) => {
       return p.enableFlag.get() !== p.enabled;

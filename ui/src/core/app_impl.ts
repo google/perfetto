@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {AsyncLimiter} from '../base/async_limiter';
-import {assertExists, assertTrue} from '../base/logging';
+import {ErrorDetails} from '../base/logging';
 import {createProxy, getOrCreate} from '../base/utils';
 import {ServiceWorkerController} from '../frontend/service_worker_controller';
 import {App} from '../public/app';
@@ -56,6 +56,15 @@ export interface AppInitArgs {
   readonly timezoneOverrideSetting: Setting<string>;
   readonly analyticsSetting: Setting<boolean>;
   readonly startupCommandsSetting: Setting<CommandInvocation[]>;
+  readonly maybeShowErrorDialog: (error: ErrorDetails) => void;
+}
+
+export function createApp(initArgs: AppInitArgs): AppImpl {
+  // This is the entry point for the core plugin, which is the only one that
+  // can be initialized before any trace is loaded.
+  const appCtx = new AppContext(initArgs);
+  const appImpl = new AppImpl(appCtx, CORE_PLUGIN_ID);
+  return appImpl;
 }
 
 /**
@@ -96,25 +105,18 @@ export class AppContext {
   // The currently open trace.
   currentTrace?: TraceContext;
 
-  private static _instance: AppContext;
-
-  static initialize(initArgs: AppInitArgs): AppContext {
-    assertTrue(AppContext._instance === undefined);
-    return (AppContext._instance = new AppContext(initArgs));
-  }
-
-  static get instance(): AppContext {
-    return assertExists(AppContext._instance);
-  }
-
   readonly timestampFormat: Setting<TimestampFormat>;
   readonly durationPrecision: Setting<DurationPrecision>;
   readonly timezoneOverride: Setting<string>;
   readonly startupCommandsSetting: Setting<CommandInvocation[]>;
 
+  readonly maybeShowErrorDialog: (error: ErrorDetails) => void;
+
+  private _isInternalUser?: boolean;
+
   // This constructor is invoked only once, when frontend/index.ts invokes
   // AppMainImpl.initialize().
-  private constructor(initArgs: AppInitArgs) {
+  constructor(initArgs: AppInitArgs) {
     this.timestampFormat = initArgs.timestampFormatSetting;
     this.durationPrecision = initArgs.durationPrecisionSetting;
     this.timezoneOverride = initArgs.timezoneOverrideSetting;
@@ -139,9 +141,10 @@ export class AppContext {
     this.pluginMgr = new PluginManagerImpl({
       forkForPlugin: (pluginId) => this.forPlugin(pluginId),
       get trace() {
-        return AppImpl.instance.trace;
+        return this.trace;
       },
     });
+    this.maybeShowErrorDialog = initArgs.maybeShowErrorDialog;
   }
 
   // Gets or creates an instance of AppImpl backed by the current AppContext
@@ -172,6 +175,19 @@ export class AppContext {
     this.closeCurrentTrace();
     this.currentTrace = traceCtx;
   }
+
+  get isInternalUser() {
+    if (this._isInternalUser === undefined) {
+      this._isInternalUser = localStorage.getItem('isInternalUser') === '1';
+    }
+    return this._isInternalUser;
+  }
+
+  set isInternalUser(value: boolean) {
+    localStorage.setItem('isInternalUser', value ? '1' : '0');
+    this._isInternalUser = value;
+    raf.scheduleFullRedraw();
+  }
 }
 
 /*
@@ -188,18 +204,6 @@ export class AppImpl implements App {
   };
   private readonly appCtx: AppContext;
   private readonly pageMgrProxy: PageManagerImpl;
-
-  // Invoked by frontend/index.ts.
-  static initialize(args: AppInitArgs) {
-    AppContext.initialize(args).forPlugin(CORE_PLUGIN_ID);
-  }
-
-  // Gets access to the one instance that the core can use. Note that this is
-  // NOT the only instance, as other AppImpl instance will be created for each
-  // plugin.
-  static get instance(): AppImpl {
-    return AppContext.instance.forPlugin(CORE_PLUGIN_ID);
-  }
 
   // Only called by AppContext.forPlugin().
   constructor(appCtx: AppContext, pluginId: string) {
@@ -310,6 +314,10 @@ export class AppImpl implements App {
     this.openTrace({type: 'HTTP_RPC'});
   }
 
+  maybeShowErrorDialog(error: ErrorDetails): void {
+    this.appCtx.maybeShowErrorDialog(error);
+  }
+
   private async openTrace(src: TraceSource) {
     if (src.type === 'ARRAY_BUFFER' && src.buffer instanceof Uint8Array) {
       // Even though the type of `buffer` is ArrayBuffer, it's possible to
@@ -402,5 +410,13 @@ export class AppImpl implements App {
 
   navigate(newHash: string): void {
     Router.navigate(newHash);
+  }
+
+  get isInternalUser() {
+    return this.appCtx.isInternalUser;
+  }
+
+  set isInternalUser(value: boolean) {
+    this.appCtx.isInternalUser = value;
   }
 }

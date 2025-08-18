@@ -15,7 +15,6 @@
 import {produce} from 'immer';
 import m from 'mithril';
 import {raf} from '../core/raf_scheduler';
-import {globals} from './globals';
 import {App} from '../public/app';
 import {AppImpl} from '../core/app_impl';
 
@@ -23,16 +22,14 @@ declare global {
   interface Window {
     m: typeof m;
     app: App;
-    globals: typeof globals;
     produce: typeof produce;
     raf: typeof raf;
   }
 }
 
-export function registerDebugGlobals() {
+export function registerDebugGlobals(app: AppImpl) {
   window.m = m;
-  window.app = AppImpl.instance;
-  window.globals = globals;
+  window.app = app;
   window.produce = produce;
   window.raf = raf;
 }

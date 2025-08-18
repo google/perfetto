@@ -16,7 +16,7 @@ import {AppImpl} from '../core/app_impl';
 
 let lastDragTarget: EventTarget | null = null;
 
-export function installFileDropHandler() {
+export function installFileDropHandler(app: AppImpl) {
   window.ondragenter = (evt: DragEvent) => {
     evt.preventDefault();
     evt.stopPropagation();
@@ -42,7 +42,7 @@ export function installFileDropHandler() {
       const file = evt.dataTransfer.files[0];
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (file) {
-        AppImpl.instance.openTraceFromFile(file);
+        app.openTraceFromFile(file);
       }
     }
     evt.preventDefault();

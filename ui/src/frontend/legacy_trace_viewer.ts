@@ -18,8 +18,9 @@ import {assertTrue} from '../base/logging';
 import {isString} from '../base/object_utils';
 import {showModal} from '../widgets/modal';
 import {utf8Decode} from '../base/string_utils';
-import {convertToJson} from './trace_converter';
 import {assetSrc} from '../base/assets';
+import {AppImpl} from '../core/app_impl';
+import {convertToJson} from './trace_converter';
 
 const CTRACE_HEADER = 'TRACE:\n';
 
@@ -172,10 +173,13 @@ function openBufferWithLegacyTraceViewer(
   });
 }
 
-export async function openInOldUIWithSizeCheck(trace: Blob): Promise<void> {
+export async function openInOldUIWithSizeCheck(
+  app: AppImpl,
+  trace: Blob,
+): Promise<void> {
   // Perfetto traces smaller than 50mb can be safely opened in the legacy UI.
   if (trace.size < 1024 * 1024 * 50) {
-    return await convertToJson(trace, openBufferWithLegacyTraceViewer);
+    return await convertToJson(app, trace, openBufferWithLegacyTraceViewer);
   }
 
   // Give the user the option to truncate larger perfetto traces.
@@ -212,13 +216,16 @@ export async function openInOldUIWithSizeCheck(trace: Blob): Promise<void> {
       {
         text: 'Open full trace (not recommended)',
         action: () =>
-          setNextPromise(convertToJson(trace, openBufferWithLegacyTraceViewer)),
+          setNextPromise(
+            convertToJson(app, trace, openBufferWithLegacyTraceViewer),
+          ),
       },
       {
         text: 'Open beginning of trace',
         action: () =>
           setNextPromise(
             convertToJson(
+              app,
               trace,
               openBufferWithLegacyTraceViewer,
               /* truncate*/ 'start',
@@ -231,6 +238,7 @@ export async function openInOldUIWithSizeCheck(trace: Blob): Promise<void> {
         action: () =>
           setNextPromise(
             convertToJson(
+              app,
               trace,
               openBufferWithLegacyTraceViewer,
               /* truncate*/ 'end',

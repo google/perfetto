@@ -24,7 +24,6 @@ import {
   QueryFlamegraphMetric,
   metricsFromTableOrSubquery,
 } from '../../components/query_flamegraph';
-import {convertTraceToPprofAndDownload} from '../../frontend/trace_converter';
 import {Timestamp} from '../../components/widgets/timestamp';
 import {
   TrackEventDetailsPanel,
@@ -493,8 +492,10 @@ async function downloadPprof(trace: Trace, upid: number, ts: time) {
     });
     return;
   }
-  const blob = await trace.getTraceFile();
-  convertTraceToPprofAndDownload(blob, pid.firstRow({pid: NUM}).pid, ts);
+  trace.traceConverter.convertTraceToPprofAndDownload(
+    pid.firstRow({pid: NUM}).pid,
+    ts,
+  );
 }
 
 function getHeapGraphObjectReferencesView(

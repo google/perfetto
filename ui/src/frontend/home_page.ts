@@ -21,9 +21,47 @@ import {Stack} from '../widgets/stack';
 import {Switch} from '../widgets/switch';
 import {AppImpl} from '../core/app_impl';
 
-export class Hints implements m.ClassComponent {
-  view() {
-    const themeSetting = AppImpl.instance.settings.get<string>('theme');
+export interface HomePageAttrs {
+  readonly app: AppImpl;
+}
+
+export class HomePage implements m.ClassComponent<HomePageAttrs> {
+  view({attrs}: m.CVnode<HomePageAttrs>) {
+    return m(
+      '.pf-home-page',
+      m(
+        '.pf-home-page__center',
+        m(
+          '.pf-home-page__title',
+          m(`img.logo[src=${assetSrc('assets/logo-3d.png')}]`),
+          'Perfetto',
+        ),
+        this.renderHints(attrs.app),
+        m(
+          '.pf-home-page__channel-select',
+          m('', 'Feeling adventurous? Try our bleeding edge Canary version'),
+          m(
+            'fieldset',
+            this.mkChan('stable'),
+            this.mkChan('canary'),
+            m('.pf-home-page__highlight'),
+          ),
+          m(
+            `.pf-home-page__reload${channelChanged() ? '.show' : ''}`,
+            'You need to reload the page for the changes to have effect',
+          ),
+        ),
+      ),
+      m(
+        'a.pf-privacy',
+        {href: 'https://policies.google.com/privacy', target: '_blank'},
+        'Privacy policy',
+      ),
+    );
+  }
+
+  private renderHints(app: AppImpl): m.Children {
+    const themeSetting = app.settings.get<string>('theme');
     const isDarkMode = themeSetting?.get() === 'dark';
 
     return m(
@@ -83,52 +121,16 @@ export class Hints implements m.ClassComponent {
       ),
     );
   }
-}
 
-export class HomePage implements m.ClassComponent {
-  view() {
-    return m(
-      '.pf-home-page',
-      m(
-        '.pf-home-page__center',
-        m(
-          '.pf-home-page__title',
-          m(`img.logo[src=${assetSrc('assets/logo-3d.png')}]`),
-          'Perfetto',
-        ),
-        m(Hints),
-        m(
-          '.pf-home-page__channel-select',
-          m('', 'Feeling adventurous? Try our bleeding edge Canary version'),
-          m(
-            'fieldset',
-            mkChan('stable'),
-            mkChan('canary'),
-            m('.pf-home-page__highlight'),
-          ),
-          m(
-            `.pf-home-page__reload${channelChanged() ? '.show' : ''}`,
-            'You need to reload the page for the changes to have effect',
-          ),
-        ),
-      ),
-      m(
-        'a.pf-privacy',
-        {href: 'https://policies.google.com/privacy', target: '_blank'},
-        'Privacy policy',
-      ),
-    );
+  private mkChan(chan: string): m.Children {
+    const checked = getNextChannel() === chan ? '[checked=true]' : '';
+    return [
+      m(`input[type=radio][name=chan][id=chan_${chan}]${checked}`, {
+        onchange: () => {
+          setChannel(chan);
+        },
+      }),
+      m(`label[for=chan_${chan}]`, chan),
+    ];
   }
-}
-
-function mkChan(chan: string) {
-  const checked = getNextChannel() === chan ? '[checked=true]' : '';
-  return [
-    m(`input[type=radio][name=chan][id=chan_${chan}]${checked}`, {
-      onchange: () => {
-        setChannel(chan);
-      },
-    }),
-    m(`label[for=chan_${chan}]`, chan),
-  ];
 }

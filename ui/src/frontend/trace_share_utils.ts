@@ -16,14 +16,9 @@ import m from 'mithril';
 import {TraceUrlSource} from '../core/trace_source';
 import {createPermalink, uploadTraceBlob} from './permalink';
 import {showModal} from '../widgets/modal';
-import {globals} from './globals';
-import {Trace} from '../public/trace';
 import {TraceImpl} from '../core/trace_impl';
 import {CopyableLink} from '../widgets/copyable_link';
-
-export function isShareable(trace: Trace) {
-  return globals.isInternalUser && trace.traceInfo.downloadable;
-}
+import {AppImpl} from '../core/app_impl';
 
 const STATE_HASH_PLACEHOLDER = 'perfettoStateHashPlaceholder';
 
@@ -31,12 +26,12 @@ function urlHasPlaceholder(url: string): boolean {
   return url.includes(STATE_HASH_PLACEHOLDER);
 }
 
-export async function shareTrace(trace: TraceImpl) {
+export async function shareTrace(app: AppImpl, trace: TraceImpl) {
   const traceSource = trace.traceInfo.source;
   const traceUrl = (traceSource as TraceUrlSource).url ?? '';
   const hasPlaceholder = urlHasPlaceholder(traceUrl);
 
-  if (isShareable(trace)) {
+  if (app.isInternalUser && trace.traceInfo.downloadable) {
     // Just upload the trace and create a permalink.
     const result = confirm(
       `Upload UI state and generate a permalink? ` +
@@ -44,8 +39,8 @@ export async function shareTrace(trace: TraceImpl) {
     );
 
     if (result) {
-      const traceUrl = await uploadTraceBlob(trace);
-      const hash = await createPermalink(trace, traceUrl);
+      const traceUrl = await uploadTraceBlob(app, trace);
+      const hash = await createPermalink(app, trace, traceUrl);
       showModal({
         title: 'Permalink',
         content: m(CopyableLink, {
@@ -66,7 +61,7 @@ export async function shareTrace(trace: TraceImpl) {
         );
 
         if (result) {
-          const hash = await createPermalink(trace, undefined);
+          const hash = await createPermalink(app, trace, undefined);
           const urlWithHash = traceUrl.replace(STATE_HASH_PLACEHOLDER, hash);
           showModal({
             title: 'Permalink',
