@@ -175,24 +175,6 @@ class Simpleperf(TestSuite):
         289003,"trace_processor"
         '''))
 
-  # Counters are not updated for samples with no CPU (b/352257666)
-  def test_perf_with_no_cpu_in_sample_no_counters(self):
-    return DiffTestBlueprint(
-        trace=DataPath('simpleperf/perf_with_synthetic_events.data'),
-        query='''
-        SELECT
-          (
-            SELECT value AS sample_count
-            FROM stats
-            WHERE name = 'perf_counter_skipped_because_no_cpu'
-          ) AS counter_skipped,
-          (SELECT COUNT(*) FROM perf_sample) AS sample_count
-        ''',
-        out=Csv('''
-        "counter_skipped","sample_count"
-        9126,9126
-        '''))
-
   def test_perf_with_no_cpu_in_sample(self):
     return DiffTestBlueprint(
         trace=DataPath('simpleperf/perf_with_synthetic_events.data'),
@@ -244,6 +226,75 @@ class Simpleperf(TestSuite):
         "main,D"
         "main,D,E"
         "main,E"
+        '''))
+
+  def test_jit_symbolization(self):
+    return DiffTestBlueprint(
+        trace=DataPath('simpleperf/perf_with_jit_and_apk.data'),
+        query='''
+        SELECT
+          frame.name as frame_name
+        FROM stack_profile_frame frame
+        JOIN stack_profile_mapping mapping ON frame.mapping = mapping.id
+        WHERE
+          mapping.name GLOB '*jit*'
+          AND frame.name IS NOT NULL
+        ORDER BY frame.name;
+        ''',
+        out=Csv('''
+        "frame_name"
+        "abh.a"
+        "android.support.v7.widget.GridLayoutManager.layoutChunk"
+        "android.support.v7.widget.SwitchCompat.draw"
+        "android.support.v7.widget.SwitchCompat.draw"
+        "android.support.v7.widget.SwitchCompat.draw"
+        "androidx.constraintlayout.widget.ConstraintLayout.L"
+        "androidx.constraintlayout.widget.ConstraintLayout.L"
+        "androidx.constraintlayout.widget.ConstraintLayout.onMeasure"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "ccs.<init>"
+        "cht.B"
+        "cht.L"
+        "cht.L"
+        "frj.b"
+        "frj.draw"
+        "frj.draw"
+        "frj.draw"
+        "frj.draw"
+        "frj.i"
+        "frn.B"
+        "frr.b"
+        "frr.b"
+        "frr.b"
+        "frr.b"
+        "frr.c"
+        "frr.c"
+        "frz.c"
+        "hf.a"
+        "hvx.S"
+        "hvx.T"
+        "mt.k"
+        "pi.a"
+        "pi.a"
+        "rp.g"
+        "wg.k"
+        "xi.Y"
+        "xi.Y"
+        "xi.Y"
+        "xi.ae"
+        "xx.a"
+        "xx.b"
+        "xx.b"
+        "xx.b"
         '''))
 
   def test_spe_operation(self):
@@ -328,3 +379,35 @@ class Simpleperf(TestSuite):
           8,"[NULL]","","/t1","[NULL]","[NULL]",87,87
           9,"[NULL]","","/elf","[NULL]","[NULL]",64,64
         '''))
+
+  def test_global_counters(self):
+    return DiffTestBlueprint(
+        # Interesting side-note is that the "perf record" implementation still
+        # decided to open a separate counter on each CPU (and then mapped all of
+        # them into a single buffer with ioctls) [1]. It may have had something
+        # to do with inherit complexity.
+        trace=DataPath('perf_counter.data'),
+        query="""
+        SELECT
+          t.name AS track_name,
+          c.ts,
+          c.value
+        FROM counter c
+        JOIN perf_counter_track t
+          ON c.track_id = t.id
+        ORDER BY t.name, c.ts
+        LIMIT 10;
+        """,
+        out=Csv("""
+        "track_name","ts","value"
+        "task-clock:ppp",1211974640655330,250000.000000
+        "task-clock:ppp",1211974640904003,500000.000000
+        "task-clock:ppp",1211974641154649,750000.000000
+        "task-clock:ppp",1211974641405037,1000000.000000
+        "task-clock:ppp",1211974641654472,1250000.000000
+        "task-clock:ppp",1211974641903904,1500000.000000
+        "task-clock:ppp",1211974642154097,1750000.000000
+        "task-clock:ppp",1211974642404623,2000000.000000
+        "task-clock:ppp",1211974642654928,2250000.000000
+        "task-clock:ppp",1211974642904128,2500000.000000
+        """))

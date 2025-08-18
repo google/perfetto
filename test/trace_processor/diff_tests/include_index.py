@@ -69,6 +69,7 @@ from diff_tests.parser.chrome.tests import ChromeParser
 from diff_tests.parser.chrome.tests_memory_snapshots import ChromeMemorySnapshots
 from diff_tests.parser.chrome.tests_v8 import ChromeV8Parser
 from diff_tests.parser.cros.tests import Cros
+from diff_tests.parser.etm.tests import Etm
 from diff_tests.parser.fs.tests import Fs
 from diff_tests.parser.ftrace.block_io_tests import BlockIo
 from diff_tests.parser.ftrace.ftrace_crop_tests import FtraceCrop
@@ -154,6 +155,7 @@ from diff_tests.stdlib.span_join.tests_left_join import SpanJoinLeftJoin
 from diff_tests.stdlib.span_join.tests_outer_join import SpanJoinOuterJoin
 from diff_tests.stdlib.span_join.tests_regression import SpanJoinRegression
 from diff_tests.stdlib.span_join.tests_smoke import SpanJoinSmoke
+from diff_tests.stdlib.symbolize.tests import Symbolize
 from diff_tests.stdlib.tests import StdlibSmoke
 from diff_tests.stdlib.timestamps.tests import Timestamps
 from diff_tests.stdlib.traced.stats import TracedStats
@@ -190,6 +192,7 @@ def fetch_all_diff_tests(
       ChromeV8Parser,
       Cros,
       Deobfuscation,
+      Etm,
       Fs,
       Fuchsia,
       GenericFtrace,
@@ -219,6 +222,7 @@ def fetch_all_diff_tests(
       SmokeComputeMetrics,
       SmokeJson,
       SmokeSchedEvents,
+      Symbolize,
       InputMethodClients,
       InputMethodManagerService,
       InputMethodService,

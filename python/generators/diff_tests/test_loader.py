@@ -16,12 +16,12 @@
 import os
 import re
 import sys
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Union
 
 from python.generators.diff_tests.testing import (BinaryProto, Csv, DataPath,
                                                   DiffTestBlueprint, Json, Path,
                                                   Systrace, TextProto)
-from python.generators.diff_tests.models import TestCase, TestType
+from python.generators.diff_tests.models import DiscoveredTests, TestCase, TestType
 
 if TYPE_CHECKING:
   from python.generators.diff_tests.testing import TestSuite
@@ -33,7 +33,8 @@ class TestLoader:
   def __init__(self, root_dir: os.PathLike):
     self.root_dir = root_dir
 
-  def discover_and_load_tests(self, name_filter: str) -> List[TestCase]:
+  def discover_and_load_tests(self, name_filter: str,
+                              enabled_modules: Set[str]) -> DiscoveredTests:
     # Import the index file to discover all the tests.
     include_path = os.path.join(self.root_dir, 'test', 'trace_processor',
                                 'diff_tests')
@@ -43,9 +44,20 @@ class TestLoader:
 
     all_tests_data = fetch_all_diff_tests(include_path)
 
-    tests = []
+    runnable: List[TestCase] = []
+    skipped_name_filter: List[str] = []
+    skipped_module_missing: List[Tuple[str, str]] = []
+
+    query_metric_pattern = re.compile(name_filter)
     for name, blueprint in all_tests_data:
-      if not self._validate_test(name, name_filter):
+      if not query_metric_pattern.match(os.path.basename(name)):
+        skipped_name_filter.append(name)
+        continue
+
+      should_run, reason = self._validate_test(blueprint, enabled_modules)
+      if not should_run:
+        if reason:
+          skipped_module_missing.append((name, reason))
         continue
 
       query_path = self._get_query_path(name, blueprint)
@@ -55,14 +67,21 @@ class TestLoader:
       register_files_dir = self._get_register_files_dir(name, blueprint)
       test_type = self._get_test_type(blueprint)
 
-      tests.append(
+      runnable.append(
           TestCase(name, blueprint, query_path, trace_path, expected_path,
                    expected_str, register_files_dir, test_type))
-    return tests
+    return DiscoveredTests(runnable, skipped_name_filter,
+                           skipped_module_missing)
 
-  def _validate_test(self, name: str, name_filter: str) -> bool:
-    query_metric_pattern = re.compile(name_filter)
-    return bool(query_metric_pattern.match(os.path.basename(name)))
+  # Returns a bool that is true if and only if the test should run, and a string
+  # describing the reason the test did not run
+  def _validate_test(self, blueprint: DiffTestBlueprint,
+                     enabled_modules: Set[str]) -> Tuple[bool, Optional[str]]:
+    if blueprint.module_dependencies:
+      for module in blueprint.module_dependencies:
+        if module not in enabled_modules:
+          return False, f"module '{module}' not found"
+    return True, None
 
   def _get_test_type(self, blueprint: DiffTestBlueprint) -> TestType:
     if blueprint.is_metric():

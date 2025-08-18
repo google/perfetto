@@ -59,7 +59,6 @@ import {Popup} from '../../widgets/popup';
 import {Theme} from '../../public/theme';
 
 const TRACK_HEIGHT_MIN_PX = 18;
-const TRACK_HEIGHT_DEFAULT_PX = 30;
 
 function getTrackHeight(node: TrackNode, track?: TrackRenderer) {
   // Headless tracks have an effective height of 0.
@@ -67,10 +66,10 @@ function getTrackHeight(node: TrackNode, track?: TrackRenderer) {
 
   // Expanded summary tracks don't show any data, so make them a little more
   // compact to save space.
-  if (node.isSummary && node.expanded) return TRACK_HEIGHT_DEFAULT_PX;
+  if (node.isSummary && node.expanded) return TRACK_HEIGHT_MIN_PX;
 
   const trackHeight = track?.getHeight?.();
-  if (trackHeight === undefined) return TRACK_HEIGHT_DEFAULT_PX;
+  if (trackHeight === undefined) return TRACK_HEIGHT_MIN_PX;
 
   // Limit the minimum height of a track, and also round up to the nearest
   // integer, as sub-integer DOM alignment can cause issues e.g. with sticky
