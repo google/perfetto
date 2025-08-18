@@ -185,6 +185,10 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
         if (closestModal) {
           return {container: closestModal};
         }
+        const closestContainer = dom.closest('.pf-overlay-container');
+        if (closestContainer) {
+          return {container: closestContainer};
+        }
         return {container: undefined};
       },
       onContentMount: (dom: HTMLElement) => {

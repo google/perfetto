@@ -14,7 +14,6 @@
 
 .pf-error {
   padding: 20px 10px;
-  color: hsl(-10, 50%, 50%);
-  font-family: $pf-font;
+  color: var(--pf-color-danger);
   font-weight: 300;
 }

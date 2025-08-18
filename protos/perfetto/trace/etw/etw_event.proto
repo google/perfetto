@@ -27,5 +27,6 @@ message EtwTraceEvent {
   oneof event {
     CSwitchEtwEvent c_switch = 2;
     ReadyThreadEtwEvent ready_thread = 3;
+    MemInfoEtwEvent mem_info = 6;
   }
 }

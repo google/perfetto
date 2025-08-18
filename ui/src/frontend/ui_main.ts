@@ -51,6 +51,7 @@ import {formatTimezone, timezoneOffsetMap} from '../base/time';
 import {LinearProgress} from '../widgets/linear_progress';
 import {taskTracker} from './task_tracker';
 import {Button} from '../widgets/button';
+import {initCssConstants} from './css_constants';
 
 const showStatusBarFlag = featureFlags.register({
   id: 'Enable status bar',
@@ -64,6 +65,9 @@ const OMNIBOX_INPUT_REF = 'omnibox';
 // This wrapper creates a new instance of UiMainPerTrace for each new trace
 // loaded (including the case of no trace at the beginning).
 export class UiMain implements m.ClassComponent {
+  oncreate({dom}: m.CVnodeDOM) {
+    initCssConstants(dom);
+  }
   view() {
     const currentTraceId = AppImpl.instance.trace?.engine.engineId ?? '';
     return [m(UiMainPerTrace, {key: currentTraceId})];

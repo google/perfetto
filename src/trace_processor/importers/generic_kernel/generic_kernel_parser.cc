@@ -272,8 +272,10 @@ void GenericKernelParser::ParseGenericTaskRenameEvent(
     protozero::ConstBytes data) {
   protos::pbzero::GenericKernelTaskRenameEvent::Decoder task_rename_event(data);
   StringId comm = context_->storage->InternString(task_rename_event.comm());
+  auto utid =
+      context_->process_tracker->GetOrCreateThread(task_rename_event.tid());
   context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
-      task_rename_event.tid(), comm, ThreadNamePriority::kGenericKernelTask);
+      utid, comm, ThreadNamePriority::kGenericKernelTask);
 }
 
 void GenericKernelParser::ParseGenericCpuFrequencyEvent(

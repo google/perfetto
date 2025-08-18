@@ -46,6 +46,10 @@
   &--wrap {
     flex-wrap: wrap;
   }
+
+  &--inline {
+    display: inline-flex;
+  }
 }
 
 .pf-stack-fixed {

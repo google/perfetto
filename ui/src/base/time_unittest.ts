@@ -38,10 +38,10 @@ test('Duration.format', () => {
   expect(Duration.format(200_000_000_030n)).toEqual('3m 20s 30ns');
   expect(Duration.format(3_600_000_000_000n)).toEqual('1h');
   expect(Duration.format(3_600_000_000_001n)).toEqual('1h 1ns');
-  expect(Duration.format(86_400_000_000_000n)).toEqual('24h');
-  expect(Duration.format(86_400_000_000_001n)).toEqual('24h 1ns');
-  expect(Duration.format(31_536_000_000_000_000n)).toEqual('8,760h');
-  expect(Duration.format(31_536_000_000_000_001n)).toEqual('8,760h 1ns');
+  expect(Duration.format(86_400_000_000_000n)).toEqual('1d');
+  expect(Duration.format(86_400_000_000_001n)).toEqual('1d 1ns');
+  expect(Duration.format(31_536_000_000_000_000n)).toEqual('1y');
+  expect(Duration.format(31_536_000_000_000_001n)).toEqual('1y 1ns');
 });
 
 test('Duration.humanise', () => {

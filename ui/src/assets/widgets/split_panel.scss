@@ -28,9 +28,8 @@
   }
 
   &__handle {
-    background-color: hsl(215, 1%, 95%);
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-bottom: none;
+    background-color: var(--pf-color-background-secondary);
+    border-top: 1px solid var(--pf-color-border);
     cursor: row-resize;
     // Disable user selection since this handle is draggable to resize the
     // bottom panels.
@@ -49,6 +48,6 @@
   &__drawer {
     flex-shrink: 0;
     overflow: auto;
-    box-shadow: #0000003b 0px 0px 3px 1px;
+    box-shadow: var(--pf-color-box-shadow) 0px 0px 3px 1px;
   }
 }

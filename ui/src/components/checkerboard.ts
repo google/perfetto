@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {
+  COLOR_BACKGROUND_SECONDARY,
+  COLOR_TEXT_MUTED,
+} from '../frontend/css_constants';
+
 const LOADING_TEXT = 'Loading...';
 let LOADING_TEXT_WIDTH = 0;
 
@@ -24,9 +29,9 @@ export function checkerboard(
 ): void {
   const widthPx = rightPx - leftPx;
   ctx.font = '12px Roboto Condensed';
-  ctx.fillStyle = '#eee';
+  ctx.fillStyle = COLOR_BACKGROUND_SECONDARY;
   ctx.fillRect(leftPx, 0, widthPx, heightPx);
-  ctx.fillStyle = '#666';
+  ctx.fillStyle = COLOR_TEXT_MUTED;
   const oldBaseline = ctx.textBaseline;
   ctx.textBaseline = 'middle';
   if (LOADING_TEXT_WIDTH === 0) {

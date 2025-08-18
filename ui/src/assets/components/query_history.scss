@@ -18,21 +18,19 @@
     top: 0;
     display: flex;
     align-content: baseline;
-    background-color: hsl(213, 22%, 82%);
-    color: hsl(213, 22%, 20%);
-    font-family: "Roboto Condensed", sans-serif;
+    background-color: var(--pf-color-background-secondary);
     font-size: 15px;
     font-weight: 400;
     padding: 4px 10px;
     vertical-align: middle;
-    border-color: hsl(213, 22%, 75%);
+    border-color: var(--pf-color-border);
     border-style: solid;
     border-width: 1px 0;
     z-index: 1;
   }
 
   &__item {
-    border-bottom: 1px solid hsl(213, 22%, 75%);
+    border-bottom: 1px solid var(--pf-color-border-secondary);
     padding: 0.25em 0.5em;
     max-height: 150px;
     overflow-y: auto;
@@ -50,7 +48,7 @@
       &:hover::after {
         content: "Doubleclick to re-run";
         font-size: 12px;
-        color: rgba(0, 0, 0, 20%);
+        color: var(--pf-color-text-hint);
         position: absolute;
         top: 0;
         margin: auto;
@@ -59,7 +57,7 @@
     }
 
     &:hover {
-      background-color: hsl(213, 22%, 94%);
+      background-color: color_hover(transparent);
       .pf-query-history__item-buttons {
         visibility: visible;
       }

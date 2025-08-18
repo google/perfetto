@@ -42,7 +42,7 @@ void PerfTextTraceParser::Parse(int64_t ts, PerfTextEvent evt) {
                  : context_->process_tracker->GetOrCreateThread(evt.tid);
   if (evt.comm) {
     context_->process_tracker->UpdateThreadNameAndMaybeProcessName(
-        evt.tid, *evt.comm, ThreadNamePriority::kOther);
+        row.utid, *evt.comm, ThreadNamePriority::kOther);
   }
   ss->Insert(row);
 }

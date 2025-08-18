@@ -15,13 +15,11 @@
 @import "../theme";
 
 .pf-empty-state {
-  font-family: $pf-font;
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 10px;
   user-select: none;
-  color: $pf-minimal-foreground;
   margin: auto;
   justify-content: center;
 

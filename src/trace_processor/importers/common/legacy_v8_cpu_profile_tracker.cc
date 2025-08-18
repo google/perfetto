@@ -52,7 +52,6 @@ void LegacyV8CpuProfileTracker::Parse(int64_t ts,
     context_->storage->IncrementStats(
         stats::legacy_v8_cpu_profile_invalid_sample);
   }
-  context_->args_tracker->Flush();
 }
 
 void LegacyV8CpuProfileTracker::SetStartTsForSessionAndPid(uint64_t session_id,

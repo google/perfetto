@@ -122,6 +122,25 @@ TEST(EventConfigTest, RemotePeriodTimeoutDefaultedIfUnset) {
   }
 }
 
+TEST(EventConfigTest, UnwindStateClearPeriodDefaultedIfUnset) {
+  {  // if unset, a default is used
+    protos::gen::PerfEventConfig cfg;
+    std::optional<EventConfig> event_config = CreateEventConfig(cfg);
+
+    ASSERT_TRUE(event_config.has_value());
+    ASSERT_GT(event_config->unwind_state_clear_period_ms(), 0u);
+  }
+  {  // otherwise, given value used
+    uint32_t period_ms = 300;
+    protos::gen::PerfEventConfig cfg;
+    cfg.set_unwind_state_clear_period_ms(period_ms);
+    std::optional<EventConfig> event_config = CreateEventConfig(cfg);
+
+    ASSERT_TRUE(event_config.has_value());
+    ASSERT_EQ(event_config->unwind_state_clear_period_ms(), period_ms);
+  }
+}
+
 TEST(EventConfigTest, SelectSamplingInterval) {
   {  // period:
     protos::gen::PerfEventConfig cfg;

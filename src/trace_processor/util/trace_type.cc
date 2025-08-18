@@ -257,6 +257,12 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
     return kProtoTraceType;
 
   if (base::StartsWith(start, "9,0,i,vers,")) {
+    return kAndroidDumpstateTraceType;  // BatteryStats Checkin format.
+  }
+
+  if (base::StartsWith(start,
+                       "======================================================="
+                       "=\n== dumpstate: ")) {
     return kAndroidDumpstateTraceType;
   }
 

@@ -41,9 +41,10 @@ base::StatusOr<bool> FrameDecoder::TraceDataIn(const ocsd_datapath_op_t op,
   return error_logger_.ToErrorOrKeepGoing(resp);
 }
 
-base::Status FrameDecoder::Attach(uint8_t cs_trace_id, ITrcDataIn* data_in) {
+base::Status FrameDecoder::Attach(uint8_t cs_trace_stream_id,
+                                  ITrcDataIn* data_in) {
   return error_logger_.ToStatus(
-      frame_decoder_.getIDStreamAttachPt(cs_trace_id)->attach(data_in));
+      frame_decoder_.getIDStreamAttachPt(cs_trace_stream_id)->attach(data_in));
 }
 
 }  // namespace perfetto::trace_processor::etm

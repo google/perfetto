@@ -18,7 +18,10 @@
 
 #include <cstdint>
 #include <memory>
+#include <utility>
+#include <vector>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -32,21 +35,19 @@
 
 namespace perfetto::trace_processor::etm {
 
-// static
-
 EtmTracker::EtmTracker(TraceProcessorContext* context) : context_(context) {}
 EtmTracker::~EtmTracker() = default;
 
 void EtmTracker::AddSessionData(tables::EtmV4SessionTable::Id session_id,
-                                std::vector<TraceBlobView> traces) {
-  uint32_t trace_set_id = context_->storage->etm_v4_trace_table().row_count();
+                                std::vector<TraceBlobView> chunks) {
+  uint32_t chunk_set_id = context_->storage->etm_v4_chunk_table().row_count();
 
-  for (auto& trace : traces) {
-    auto trace_id = context_->storage->mutable_etm_v4_trace_table()
-                        ->Insert({session_id, trace_set_id,
-                                  static_cast<int64_t>(trace.size())})
+  for (auto& chunk : chunks) {
+    auto chunk_id = context_->storage->mutable_etm_v4_chunk_table()
+                        ->Insert({session_id, chunk_set_id,
+                                  static_cast<int64_t>(chunk.size())})
                         .id;
-    StorageHandle(context_).StoreTrace(trace_id, std::move(trace));
+    StorageHandle(context_).StoreChunk(chunk_id, std::move(chunk));
   }
 }
 
@@ -62,7 +63,7 @@ EtmTracker::InsertEtmV4Config(PerCpuConfiguration per_cpu_configs) {
     row.set_id = set_id;
 
     row.cpu = cpu;
-    row.cs_trace_id = etm_v4_config.getTraceID();
+    row.cs_trace_stream_id = etm_v4_config.getTraceID();
     row.core_profile =
         context_->storage->InternString(ToString(etm_v4_config.coreProfile()));
     row.arch_version =

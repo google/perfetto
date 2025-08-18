@@ -18,13 +18,14 @@ import {
   FilterValue,
 } from '../../../../components/widgets/data_grid/common';
 import {Button} from '../../../../widgets/button';
-import {Chip, ChipBar} from '../../../../widgets/chip';
+import {Chip} from '../../../../widgets/chip';
 import {Intent} from '../../../../widgets/common';
 import {Select} from '../../../../widgets/select';
 import {TextInput} from '../../../../widgets/text_input';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {ColumnInfo} from '../column_info';
 import protos from '../../../../protos';
+import {Stack} from '../../../../widgets/stack';
 
 // Partial representation of FilterDefinition used in the UI.
 export interface UIFilter {
@@ -138,7 +139,8 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
         ),
         this.error && m('.pf-exp-error-message', this.error),
         m(
-          ChipBar,
+          Stack,
+          {orientation: 'horizontal'},
           this.uiFilters.map((filter) => {
             const isComplete = isFilterDefinitionValid(filter);
             const label = isComplete
@@ -161,7 +163,7 @@ export class FilterOperation implements m.ClassComponent<FilterAttrs> {
               },
             });
           }),
-          m(Chip, {
+          m(Button, {
             icon: 'add',
             rounded: true,
             intent: Intent.Primary,
@@ -339,8 +341,11 @@ function fromString(text: string, sourceCols: ColumnInfo[]): UIFilter {
     .join('|');
 
   // A regex to capture the column, operator and value.
-  // The value is optional to support operators like "IS NULL".
-  const regex = new RegExp(`^(\\S+)\\s+(${opRegex})(?:\\s+(.*))?$`, 'i');
+  // The value can be a quoted string or a single word.
+  const regex = new RegExp(
+    `^(\\S+)\\s+(${opRegex})(?:\\s+(".*?"|'.*?'|\\S+))?$`,
+    'i',
+  );
   const match = text.trim().match(regex);
 
   if (!match) {
@@ -430,6 +435,14 @@ function isValueRequired(op?: FilterOp): boolean {
 function parseFilterValue(text: string): SqlValue | undefined {
   const value = text.trim();
   if (value === '') return undefined;
+
+  // If the value is quoted, remove the quotes.
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
 
   if (value !== '' && !isNaN(Number(value))) {
     return Number(value);

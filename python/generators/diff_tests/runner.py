@@ -16,9 +16,11 @@
 import concurrent.futures
 import datetime
 import os
+import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import Dict, List, Set, Tuple
 
 from python.generators.diff_tests.models import (TestCase, TestResult, TestType,
                                                  PerfResult, Config)
@@ -31,27 +33,36 @@ from python.generators.diff_tests.test_executor import (QueryTestExecutor,
                                                         MetricV2TestExecutor)
 from python.generators.diff_tests.test_loader import TestLoader
 
-ROOT_DIR = os.path.dirname(
-    os.path.dirname(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
 
 @dataclass
 class TestResults:
   """Results of running the test suite.
-  
+
   Mostly used for printing aggregated results.
   """
   test_failures: List[str]
   perf_data: List[PerfResult]
   test_time_ms: int
+  skipped_tests_filter: List[Tuple[str, str]]
+  total_tests_to_run: int
+  tests_skipped_by_name: int
 
-  def str(self, no_colors: bool, tests_no: int) -> str:
+  def str(self, no_colors: bool) -> str:
     c = ColorFormatter(no_colors)
+    total_tests = self.total_tests_to_run + self.tests_skipped_by_name + len(
+        self.skipped_tests_filter)
+    tests_in_filter = self.total_tests_to_run + len(self.skipped_tests_filter)
+    passed_tests = self.total_tests_to_run - len(self.test_failures)
     res = (
-        f"[==========] {tests_no} tests ran. ({self.test_time_ms} ms total)\n"
+        f"[==========] Name filter selected {tests_in_filter} tests out of {total_tests}.\n"
+        f"[==========] {self.total_tests_to_run} tests ran out of {tests_in_filter} total. ({self.test_time_ms} ms total)\n"
         f"{c.green('[  PASSED  ]')} "
-        f"{tests_no - len(self.test_failures)} tests.\n")
+        f"{passed_tests} tests.\n")
+    if len(self.skipped_tests_filter) > 0:
+      res += (f"{c.yellow('[ SKIPPED  ]')} "
+              f"{len(self.skipped_tests_filter)} tests.\n")
+      for name, reason in self.skipped_tests_filter:
+        res += f"{c.yellow('[ SKIPPED  ]')} {name} (reason: {reason})\n"
     if len(self.test_failures) > 0:
       res += (f"{c.red('[  FAILED  ]')} "
               f"{len(self.test_failures)} tests.\n")
@@ -66,12 +77,18 @@ class DiffTestsRunner:
 
   def __init__(self, config: Config):
     self.config = config
-    self.test_loader = TestLoader(
-        os.path.abspath(os.path.join(__file__, '../../../../test/data')))
+    self.test_loader = TestLoader(os.path.abspath(self.config.test_dir))
+    self.enabled_modules = self._get_build_config()
 
   def run(self) -> TestResults:
-    tests = self.test_loader.discover_and_load_tests(ROOT_DIR,
-                                                     self.config.name_filter)
+    # Discover and filter tests.
+    db = self.test_loader.discover_and_load_tests(self.config.name_filter,
+                                                  self.enabled_modules)
+    tests = db.runnable
+    total_tests_to_run = len(tests)
+    tests_skipped_by_name = len(db.skipped_name_filter)
+
+    sys.stderr.write(f'[==========] Running {total_tests_to_run} tests.\n')
 
     trace_descriptor_path = get_trace_descriptor_path(
         os.path.dirname(self.config.trace_processor_path),
@@ -119,7 +136,9 @@ class DiffTestsRunner:
         (datetime.datetime.now() - test_run_start).total_seconds() * 1000)
     if self.config.quiet:
       sys.stderr.write(f"\r")
-    return TestResults(failures, perf_results, test_time_ms)
+    return TestResults(failures, perf_results, test_time_ms,
+                       db.skipped_module_missing, total_tests_to_run,
+                       tests_skipped_by_name)
 
   def _run_test(self, test: TestCase,
                 trace_descriptor_path: str) -> Tuple[str, str, TestResult]:
@@ -184,12 +203,15 @@ class DiffTestsRunner:
         res += 'tools/serialize_test_trace.py '
         assert result.test.trace_path
         res += '--descriptor {} {} {} > {}\n'.format(
-            os.path.relpath(trace_descriptor_path, ROOT_DIR), " ".join([
-                "--extension-descriptor {}".format(
-                    os.path.relpath(p, ROOT_DIR))
-                for p in extension_descriptor_paths
-            ]), os.path.relpath(result.test.trace_path, ROOT_DIR),
-            os.path.relpath(trace_path, ROOT_DIR), extension_descriptor_paths)
+            os.path.relpath(trace_descriptor_path,
+                            self.config.test_dir), " ".join([
+                                "--extension-descriptor {}".format(
+                                    os.path.relpath(p, self.config.test_dir))
+                                for p in extension_descriptor_paths
+                            ]),
+            os.path.relpath(result.test.trace_path, self.config.test_dir),
+            os.path.relpath(trace_path, self.config.test_dir),
+            extension_descriptor_paths)
       res += f"Command line:\n{' '.join(result.cmd)}\n"
       return res
 
@@ -213,3 +235,22 @@ class DiffTestsRunner:
           f"(ingest: {result.perf_result.ingest_time_ns / 1000000:.2f} ms "
           f"query: {result.perf_result.real_time_ns / 1000000:.2f} ms)\n")
     return run_str
+
+  def _get_build_config(self) -> Set[str]:
+    """Returns the modules from trace processor."""
+    with tempfile.NamedTemporaryFile(
+        mode='w', suffix='.textproto') as empty_trace:
+      empty_trace.write('')
+      empty_trace.flush()
+      args = [
+          self.config.trace_processor_path,
+          empty_trace.name,
+          '--query-string',
+          'select name from __intrinsic_modules',
+      ]
+      modules_str = subprocess.check_output(args, stderr=subprocess.PIPE)
+      modules = set(
+          line.strip('"')
+          for line in modules_str.decode('utf-8').splitlines()
+          if line and not line.startswith('name'))
+      return modules

@@ -173,7 +173,7 @@ export const SLICE_TRACK_SCHEMAS: ReadonlyArray<SliceTrackTypeSchema> = [
   },
   {
     type: 'pkvm_hypervisor',
-    topLevelGroup: 'SYSTEM',
+    topLevelGroup: 'HYPERVISOR',
     group: undefined,
   },
   {

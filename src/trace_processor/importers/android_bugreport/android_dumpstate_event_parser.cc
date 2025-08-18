@@ -210,7 +210,7 @@ base::StatusOr<int64_t> StringToStatusOrInt64(base::StringView str) {
 AndroidDumpstateEventParser::~AndroidDumpstateEventParser() = default;
 
 void AndroidDumpstateEventParser::Parse(int64_t ts,
-                                            AndroidDumpstateEvent event) {
+                                        AndroidDumpstateEvent event) {
   switch (event.type) {
     case AndroidDumpstateEvent::EventType::kBatteryStatsHistoryEvent:
       ProcessBatteryStatsHistoryItem(ts, event.raw_event);
@@ -271,13 +271,11 @@ AndroidDumpstateEventParser::ProcessBatteryStatsHistoryEvent(
   if (!item.key.StartsWith("E")) {
     return false;
   }
-  AndroidBatteryStatsHistoryStringTracker* history_string_tracker =
-      AndroidBatteryStatsHistoryStringTracker::GetOrCreate(context_);
   // Process a history event
   ASSIGN_OR_RETURN(std::string item_name, GetEventFromShortName(item.key));
   ASSIGN_OR_RETURN(int64_t hsp_index, StringToStatusOrInt64(item.value));
-  const int32_t uid = history_string_tracker->GetUid(hsp_index);
-  const std::string& event_str = history_string_tracker->GetString(hsp_index);
+  const int32_t uid = history_string_tracker_->GetUid(hsp_index);
+  const std::string& event_str = history_string_tracker_->GetString(hsp_index);
 
   static constexpr auto kBlueprint = tracks::SliceBlueprint(
       "battery_stats",
@@ -451,13 +449,11 @@ AndroidDumpstateEventParser::ProcessBatteryStatsHistoryWakeLocks(
   if (item.prefix.empty() || item.key != "w" || item.value.empty()) {
     return false;
   }
-  AndroidBatteryStatsHistoryStringTracker* history_string_tracker =
-      AndroidBatteryStatsHistoryStringTracker::GetOrCreate(context_);
   // We can only support wakeup parsing on battery stats ver 36+ since on
   // older versions the "-w" event does not have a history string
   // associated with it. This history sting is needed, since we use the
   // HSP index as the "cookie" to disambiguate overlapping wakelocks.
-  if (history_string_tracker->battery_stats_version() < 36) {
+  if (history_string_tracker_->battery_stats_version() < 36) {
     return base::ErrStatus("Wakelocks unsupported on batterystats ver < 36");
   }
 
@@ -468,7 +464,7 @@ AndroidDumpstateEventParser::ProcessBatteryStatsHistoryWakeLocks(
   ASSIGN_OR_RETURN(int64_t hsp_index, StringToStatusOrInt64(item.value));
   if (item.prefix == "+") {
     StringId name_id = context_->storage->InternString(
-        history_string_tracker->GetString(hsp_index));
+        history_string_tracker_->GetString(hsp_index));
     TrackId id = context_->track_compressor->InternBegin(
         kBlueprint, tracks::Dimensions(), static_cast<int64_t>(hsp_index));
     context_->slice_tracker->Begin(item.ts, id, kNullStringId, name_id);

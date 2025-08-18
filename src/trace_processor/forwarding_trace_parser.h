@@ -44,11 +44,12 @@ class ForwardingTraceParser : public ChunkedTraceReader {
 
  private:
   base::Status Init(const TraceBlobView&);
-  void UpdateSorterForTraceType(TraceType trace_type);
 
-  TraceProcessorContext* const context_;
+  TraceProcessorContext* const input_context_;
+
   tables::TraceFileTable::Id file_id_;
   size_t trace_size_ = 0;
+  TraceProcessorContext* trace_context_;
   std::unique_ptr<ChunkedTraceReader> reader_;
   TraceType trace_type_ = kUnknownTraceType;
 };

@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import m from 'mithril';
-import protos from '../../../protos';
 import {
   RecordSubpage,
   RecordProbe,
@@ -98,13 +97,11 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
       };
       const privacyFilteringEnabled = settings.privacy.enabled;
       const chromeConfig = {
-        clientPriority: protos.ChromeConfig.ClientPriority.USER_INITIATED,
         privacyFilteringEnabled,
         traceConfig: JSON.stringify(jsonStruct),
       };
 
       const trackEvent = tc.addDataSource('track_event');
-      trackEvent.chromeConfig = chromeConfig;
       const trackEvtCfg = (trackEvent.trackEventConfig ??= {});
       trackEvtCfg.disabledCategories ??= ['*'];
       trackEvtCfg.enabledCategories ??= [];
@@ -115,8 +112,11 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
       trackEvtCfg.filterDynamicEventNames = privacyFilteringEnabled;
       trackEvtCfg.filterDebugAnnotations = privacyFilteringEnabled;
 
-      tc.addDataSource('org.chromium.trace_metadata').chromeConfig =
-        chromeConfig;
+      tc.addBuffer('metadata', 256, 'DISCARD');
+      tc.addDataSource(
+        'org.chromium.trace_metadata2',
+        'metadata',
+      ).chromeConfig = {privacyFilteringEnabled};
 
       if (memoryInfra) {
         tc.addDataSource('org.chromium.memory_instrumentation').chromeConfig =
@@ -129,12 +129,12 @@ function chromeProbe(chromeCategoryGetter: ChromeCatFunction): RecordProbe {
         cats.has('disabled-by-default-cpu_profiler') ||
         cats.has('disabled-by-default-cpu_profiler.debug')
       ) {
-        tc.addDataSource('org.chromium.sampler_profiler').chromeConfig =
-          chromeConfig;
+        tc.addDataSource('org.chromium.sampler_profiler').chromeConfig = {
+          privacyFilteringEnabled,
+        };
       }
       if (cats.has('disabled-by-default-system_metrics')) {
-        tc.addDataSource('org.chromium.system_metrics').chromeConfig =
-          chromeConfig;
+        tc.addDataSource('org.chromium.system_metrics');
       }
       if (cats.has('disabled-by-default-histogram_samples')) {
         const histogram = tc.addDataSource('org.chromium.histogram_sample');

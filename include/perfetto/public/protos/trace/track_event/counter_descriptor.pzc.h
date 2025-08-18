@@ -76,5 +76,10 @@ PERFETTO_PB_FIELD(perfetto_protos_CounterDescriptor,
                   bool,
                   is_incremental,
                   5);
+PERFETTO_PB_FIELD(perfetto_protos_CounterDescriptor,
+                  STRING,
+                  const char*,
+                  y_axis_share_key,
+                  7);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_TRACK_EVENT_COUNTER_DESCRIPTOR_PZC_H_

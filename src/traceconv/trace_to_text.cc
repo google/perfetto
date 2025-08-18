@@ -200,7 +200,8 @@ bool TraceToText(std::istream* input, std::ostream* output) {
         return false;
     } while (input_reader.Read(buffer.get(), &buffer_len, kMaxMsgSize));
     return input_reader.ok();
-  } else if (type == TraceType::kProtoTraceType) {
+  } else if (type == TraceType::kProtoTraceType ||
+             type == trace_processor::kSymbolsTraceType) {
     do {
       online_trace_to_text.Feed(buffer.get(), buffer_len);
       if (!online_trace_to_text.ok())
@@ -208,7 +209,7 @@ bool TraceToText(std::istream* input, std::ostream* output) {
     } while (input_reader.Read(buffer.get(), &buffer_len, kMaxMsgSize));
     return input_reader.ok();
   } else {
-    PERFETTO_ELOG("Unrecognised file.");
+    PERFETTO_ELOG("Unrecognised file (type: %d).", type);
     return false;
   }
 }

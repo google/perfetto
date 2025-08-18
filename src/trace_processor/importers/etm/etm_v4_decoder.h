@@ -31,8 +31,9 @@ namespace perfetto::trace_processor::etm {
 class MappingVersion;
 class TargetMemoryReader;
 
-// Wrapper around the open_csd packet processor. This class will take ETM traces
+// Wrapper around the open_csd packet processor. This class will take ETM chunks
 // as input and output a stream of ETM elements.
+// Be aware the in the OSCD namespace an ETM chunk is an ETM trace.
 class EtmV4Decoder : private ITrcGenElemIn {
  public:
   class Delegate {

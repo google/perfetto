@@ -20,6 +20,7 @@ import {exists} from '../../../base/utils';
 import {classNames} from '../../../base/classnames';
 import {Anchor} from '../../../widgets/anchor';
 import {Icons} from '../../../base/semantic_icons';
+import {Switch} from '../../../widgets/switch';
 
 export interface ProbeAttrs {
   cfgMgr: ConfigManager;
@@ -42,7 +43,7 @@ export class Probe implements m.ClassComponent<ProbeAttrs> {
       !exists(probe.image) &&
       (probe.settings ?? []).length === 0;
     return m(
-      '.probe',
+      '.pf-probe',
       {
         className: classNames(enabled && 'enabled', compact && 'compact'),
       },
@@ -51,35 +52,34 @@ export class Probe implements m.ClassComponent<ProbeAttrs> {
           src: assetSrc(`assets/${probe.image}`),
           onclick: () => onToggle(!enabled),
         }),
-      m(
-        'label',
-        m(`input[type=checkbox]`, {
-          checked: enabled,
-          disabled: forceEnabledDeps.length > 0,
-          title:
-            forceEnabledDeps.length > 0
-              ? 'Force-enabled due to ' + forceEnabledDeps.join(',')
-              : '',
-          oninput: (e: InputEvent) => {
-            onToggle((e.target as HTMLInputElement).checked);
-          },
-        }),
-        m('span', probe.title),
-      ),
+      m(Switch, {
+        className: 'pf-probe__switch',
+        checked: enabled,
+        disabled: forceEnabledDeps.length > 0,
+        title:
+          forceEnabledDeps.length > 0
+            ? 'Force-enabled due to ' + forceEnabledDeps.join(',')
+            : '',
+        oninput: (e: InputEvent) => {
+          onToggle((e.target as HTMLInputElement).checked);
+        },
+        label: probe.title,
+      }),
       compact
         ? ''
         : m(
             `div${probe.image ? '' : '.extended-desc'}`,
-            m(
-              'div',
-              formatDescription(probe.description),
-              probe.docsLink &&
-                m(
-                  Anchor,
-                  {icon: Icons.ExternalLink, href: probe.docsLink},
-                  'Docs',
-                ),
-            ),
+            probe.description &&
+              m(
+                '.pf-probe__descr',
+                formatDescription(probe.description),
+                probe.docsLink &&
+                  m(
+                    Anchor,
+                    {icon: Icons.ExternalLink, href: probe.docsLink},
+                    'Docs',
+                  ),
+              ),
             m(
               '.probe-config',
               Object.values(attrs.probe.settings ?? {}).map((widget) =>

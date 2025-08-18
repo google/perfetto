@@ -89,7 +89,7 @@ class V8Module : public ProtoImporterModule {
   std::optional<uint32_t> GetDefaultTid(
       PacketSequenceStateGeneration& generation) const;
   TraceProcessorContext* const context_;
-  V8Tracker* const v8_tracker_;
+  std::unique_ptr<V8Tracker> v8_tracker_;
   // Caches isolate to pid associations. Used to compute the utid for code
   // events.
   base::FlatHashMap<tables::V8IsolateTable::Id, uint32_t> isolate_to_pid_;

@@ -55,6 +55,8 @@ source_set("full") {
     "../../sorter",
     "../../storage",
     "../../types",
+    "../../util:regex",
+    "../../util:trace_type",
     "../common",
     "../ftrace:full",
   ]

@@ -25,7 +25,12 @@ import {colorForCpu} from '../../components/colorizer';
 import {TraceImpl} from '../../core/trace_impl';
 import {TimestampFormat} from '../../public/timeline';
 import {VirtualOverlayCanvas} from '../../widgets/virtual_overlay_canvas';
-import {OVERVIEW_TIMELINE_NON_VISIBLE_COLOR} from '../css_constants';
+import {
+  COLOR_TEXT_MUTED,
+  FONT_COMPACT,
+  COLOR_BORDER,
+  COLOR_NEUTRAL,
+} from '../css_constants';
 import {
   generateTicks,
   getMaxMajorTicks,
@@ -97,9 +102,9 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
       const tickGen = generateTicks(traceContext, maxMajorTicks, offset);
 
       // Draw time labels
-      ctx.font = '10px Roboto Condensed';
-      ctx.fillStyle = '#999';
+      ctx.font = `10px ${FONT_COMPACT}`;
       for (const {type, time} of tickGen) {
+        ctx.fillStyle = COLOR_BORDER;
         const xPos = Math.floor(timescale.timeToPx(time));
         if (xPos <= 0) continue;
         if (xPos > size.width) break;
@@ -133,9 +138,9 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
           const x = Math.floor(timescale.timeToPx(cell.ts));
           const width = Math.ceil(timescale.durationToPx(cell.dur));
           const yOff = Math.floor(headerHeight + y * trackHeight);
-          const lightness = Math.ceil((1 - cell.load * 0.7) * 100);
-          const color = colorForCpu(y).setHSL({s: 50, l: lightness});
+          const color = colorForCpu(y).setHSL({s: 50}).setAlpha(cell.load);
           ctx.fillStyle = color.cssString;
+          ctx.clearRect(x, yOff, width, Math.ceil(trackHeight));
           ctx.fillRect(x, yOff, width, Math.ceil(trackHeight));
         }
         y++;
@@ -143,7 +148,7 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
     }
 
     // Draw bottom border.
-    ctx.fillStyle = '#dadada';
+    // ctx.fillStyle = '#dadada';
     ctx.fillRect(0, size.height - 1, size.width, 1);
 
     // Draw semi-opaque rects that occlude the non-visible time range.
@@ -154,12 +159,14 @@ export class Minimap implements m.ClassComponent<MinimapAttrs> {
     const vizStartPx = Math.floor(left);
     const vizEndPx = Math.ceil(right);
 
-    ctx.fillStyle = OVERVIEW_TIMELINE_NON_VISIBLE_COLOR;
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = COLOR_NEUTRAL;
     ctx.fillRect(0, headerHeight, vizStartPx, tracksHeight);
     ctx.fillRect(vizEndPx, headerHeight, size.width - vizEndPx, tracksHeight);
+    ctx.globalAlpha = 1.0;
 
     // Draw brushes.
-    ctx.fillStyle = '#999';
+    ctx.fillStyle = COLOR_BORDER;
     ctx.fillRect(vizStartPx - 1, headerHeight, 1, tracksHeight);
     ctx.fillRect(vizEndPx, headerHeight, 1, tracksHeight);
 
@@ -263,6 +270,7 @@ function renderTimestamp(
   y: number,
   minWidth: number,
 ): void {
+  ctx.fillStyle = COLOR_TEXT_MUTED;
   const fmt = trace.timeline.timestampFormat;
   switch (fmt) {
     case TimestampFormat.UTC:

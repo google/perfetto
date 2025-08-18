@@ -29,10 +29,8 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/common/clock_converter.h"  // IWYU pragma: keep
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
-#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
@@ -45,17 +43,17 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_reader_registry.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/util/descriptors.h"  // IWYU pragma: keep
 #include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto::trace_processor {
 
 TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg)
-    : context_({cfg, std::make_shared<TraceStorage>(cfg)}) {
-  context_.reader_registry->RegisterTraceReader<ProtoTraceReader>(
+    : context_(TraceProcessorContext::CreateRootContext(cfg)) {
+  context()->reader_registry->RegisterTraceReader<ProtoTraceReader>(
       kProtoTraceType);
-  context_.reader_registry->RegisterTraceReader<ProtoTraceReader>(
+  context()->reader_registry->RegisterTraceReader<ProtoTraceReader>(
       kSymbolsTraceType);
 }
 
@@ -73,22 +71,23 @@ base::Status TraceProcessorStorageImpl::Parse(TraceBlobView blob) {
 
   if (!parser_) {
     parser_ = std::make_unique<ForwardingTraceParser>(
-        &context_, context_.trace_file_tracker->AddFile());
+        &context_, context()->trace_file_tracker->AddFile());
   }
 
-  auto scoped_trace = context_.storage->TraceExecutionTimeIntoStats(
+  auto scoped_trace = context()->storage->TraceExecutionTimeIntoStats(
       stats::parse_trace_duration_ns);
 
-  if (hash_input_size_remaining_ > 0 && !context_.uuid_found_in_trace) {
+  if (hash_input_size_remaining_ > 0 &&
+      !context()->uuid_state->uuid_found_in_trace) {
     const size_t hash_size = std::min(hash_input_size_remaining_, blob.size());
     hash_input_size_remaining_ -= hash_size;
 
     trace_hash_.Update(reinterpret_cast<const char*>(blob.data()), hash_size);
     base::Uuid uuid(static_cast<int64_t>(trace_hash_.digest()), 0);
-    const StringId id_for_uuid =
-        context_.storage->InternString(base::StringView(uuid.ToPrettyString()));
-    context_.metadata_tracker->SetMetadata(metadata::trace_uuid,
-                                           Variadic::String(id_for_uuid));
+    const StringId id_for_uuid = context()->storage->InternString(
+        base::StringView(uuid.ToPrettyString()));
+    context()->metadata_tracker->SetMetadata(metadata::trace_uuid,
+                                             Variadic::String(id_for_uuid));
   }
 
   base::Status status = parser_->Parse(std::move(blob));
@@ -97,12 +96,12 @@ base::Status TraceProcessorStorageImpl::Parse(TraceBlobView blob) {
 }
 
 void TraceProcessorStorageImpl::Flush() {
-  if (unrecoverable_parse_error_)
+  if (unrecoverable_parse_error_) {
     return;
-
-  if (context_.sorter)
-    context_.sorter->ExtractEventsForced();
-  context_.args_tracker->Flush();
+  }
+  if (context()->sorter) {
+    context()->sorter->ExtractEventsForced();
+  }
 }
 
 base::Status TraceProcessorStorageImpl::NotifyEndOfFile() {
@@ -117,40 +116,25 @@ base::Status TraceProcessorStorageImpl::NotifyEndOfFile() {
   RETURN_IF_ERROR(parser_->NotifyEndOfFile());
   // NotifyEndOfFile might have pushed packets to the sorter.
   Flush();
-  if (context_.content_analyzer) {
-    PacketAnalyzer::Get(&context_)->NotifyEndOfFile();
-  }
 
-  context_.event_tracker->FlushPendingEvents();
-  context_.slice_tracker->FlushPendingSlices();
-  context_.args_tracker->Flush();
-  context_.process_tracker->NotifyEndOfFile();
+  auto& traces = context()->forked_context_state->trace_to_context;
+  for (auto it = traces.GetIterator(); it; ++it) {
+    if (it.value()->content_analyzer) {
+      PacketAnalyzer::Get(it.value())->NotifyEndOfFile();
+    }
+  }
+  auto& all = context()->forked_context_state->trace_and_machine_to_context;
+  for (auto it = all.GetIterator(); it; ++it) {
+    it.value()->event_tracker->FlushPendingEvents();
+    it.value()->slice_tracker->FlushPendingSlices();
+    it.value()->process_tracker->NotifyEndOfFile();
+  }
   return base::OkStatus();
 }
 
 void TraceProcessorStorageImpl::DestroyContext() {
-  TraceProcessorContext context;
-  context.storage = std::move(context_.storage);
-
-  // TODO(b/309623584): Decouple from storage and remove from here. This
-  // function should only move storage and delete everything else.
-  context.heap_graph_tracker = std::move(context_.heap_graph_tracker);
-  context.clock_converter = std::move(context_.clock_converter);
-  // "to_ftrace" textual converter of the "raw" table requires remembering the
-  // kernel version (inside system_info_tracker) to know how to textualise
-  // sched_switch.prev_state bitflags.
-  context.system_info_tracker = std::move(context_.system_info_tracker);
-
-  // "__intrinsic_winscope_proto_to_args_with_defaults" and trace summarization
-  // both require the descriptor pool to be alive.
-  context.descriptor_pool_ = std::move(context_.descriptor_pool_);
-
-  context_ = std::move(context);
-
-  // This is now a dangling pointer, reset it.
-  parser_ = nullptr;
-
-  // TODO(chinglinyu): also need to destroy secondary contextes.
+  context_.DestroyParsingState();
+  parser_.reset();
 }
 
 }  // namespace perfetto::trace_processor

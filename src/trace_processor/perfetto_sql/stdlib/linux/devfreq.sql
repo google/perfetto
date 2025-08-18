@@ -62,4 +62,11 @@ SELECT
   ts,
   dur,
   freq AS dsu_freq
-FROM _get_devfreq_counters("*devfreq_dsu");
+FROM _get_devfreq_counters('*devfreq_dsu')
+UNION ALL
+SELECT
+  id,
+  ts,
+  dur,
+  freq AS dsu_freq
+FROM _get_devfreq_counters('*dsufreq');

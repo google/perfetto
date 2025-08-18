@@ -295,6 +295,8 @@ export class Duration {
     let result = '';
     if (duration < 1) return '0s';
     const unitAndValue: [string, bigint][] = [
+      ['y', 31_536_000_000_000_000n],
+      ['d', 86_400_000_000_000n],
       ['h', 3_600_000_000_000n],
       ['m', 60_000_000_000n],
       ['s', 1_000_000_000n],

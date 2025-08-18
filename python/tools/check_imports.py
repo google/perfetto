@@ -270,12 +270,14 @@ def get_node_modules(graph):
   """Infers the dependencies onto NPM packages (node_modules)
 
   An import is guessed to be a node module if doesn't contain any . or .. in the
-  path, and optionally starts with @.
+  path, and optionally starts with @. Allow upper case in module paths as
+  upstream libraries may use. Also if module does not directly support commonjs,
+  support the .js suffix.
   """
   node_modules = set()
   for _, imports in graph.items():
     for dst in imports:
-      if re.match(r'^[@a-z][a-z0-9-_/]+$', dst):
+      if re.match(r'^[@a-z][a-zA-Z0-9-_/]+(?:.js)?$', dst):
         node_modules.add(dst)
   return node_modules
 

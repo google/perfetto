@@ -29,12 +29,13 @@ namespace trace_processor {
 
 class ChromeStringLookup {
  public:
-  explicit ChromeStringLookup(TraceStorage* storage);
+  explicit ChromeStringLookup(TraceStorage* storage,
+                              bool ignore_predefined_names_for_testing = false);
 
   StringId GetProcessName(int32_t process_type) const;
   StringId GetThreadName(int32_t thread_type) const;
 
- public:
+ private:
   std::map<int32_t /* ChromeProcessDescriptor::ProcessType */, StringId>
       chrome_process_name_ids_;
   std::map<int32_t /* ChromeThreadDescriptor::ThreadType */, StringId>

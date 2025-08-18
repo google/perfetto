@@ -128,6 +128,7 @@
 
     - [Linux](#)
 
+      - [Kernel track events](reference/kernel-track-event.md)
       - [Tracing across reboots](data-sources/previous-boot-trace.md)
 
     - [Command Line Reference](#)
@@ -166,6 +167,7 @@
   - [Team documentation](#)
 
     - [SDK release process](contributing/sdk-releasing.md)
+    - [Python release process](contributing/python-releasing.md)
     - [UI release process](visualization/perfetto-ui-release-process.md)
     - [Chrome branches](contributing/chrome-branches.md)
 

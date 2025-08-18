@@ -15,7 +15,7 @@
 .pf-query-log-table {
   tr:nth-child(even) {
     border-collapse: collapse;
-    background-color: #f0f0f0;
+    background-color: var(--pf-color-background-secondary);
   }
 
   td:first-child {

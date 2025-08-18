@@ -34,6 +34,7 @@
 #include "src/trace_processor/importers/perf/auxtrace_record.h"
 #include "src/trace_processor/importers/perf/itrace_start_record.h"
 #include "src/trace_processor/importers/perf/perf_session.h"
+#include "src/trace_processor/importers/perf/perf_tracker.h"
 #include "src/trace_processor/importers/perf/time_conv_record.h"
 #include "src/trace_processor/storage/stats.h"
 
@@ -117,8 +118,9 @@ class AuxStream {
 // Keeps track of all aux streams in a perf file.
 class AuxStreamManager {
  public:
-  explicit AuxStreamManager(TraceProcessorContext* context)
-      : context_(context) {}
+  explicit AuxStreamManager(TraceProcessorContext* context,
+                            PerfTracker* perf_tracker)
+      : context_(context), perf_tracker_(perf_tracker) {}
   base::Status OnAuxtraceInfoRecord(AuxtraceInfoRecord info);
   base::Status OnAuxRecord(AuxRecord aux);
   base::Status OnAuxtraceRecord(AuxtraceRecord auxtrace, TraceBlobView data);
@@ -147,6 +149,8 @@ class AuxStreamManager {
       uint32_t cpu);
 
   TraceProcessorContext* const context_;
+  PerfTracker* const perf_tracker_;
+
   std::unique_ptr<AuxDataTokenizer> tokenizer_;
   base::FlatHashMap<uint32_t, std::unique_ptr<AuxStream>>
       auxdata_streams_by_cpu_;

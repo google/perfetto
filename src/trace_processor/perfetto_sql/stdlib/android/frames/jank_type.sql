@@ -38,3 +38,16 @@ CREATE PERFETTO FUNCTION android_is_app_jank_type(
 RETURNS BOOL AS
 SELECT
   $jank_type GLOB '*App Deadline Missed*';
+
+-- Categorizes whether the jank was caused by the sf, app or "Dropped Frame"
+CREATE PERFETTO FUNCTION android_is_missed_frame_type(
+    -- the jank type
+    -- from args.display_value with key = "Jank type"
+    jank_type STRING
+)
+-- True if jank_type represents missed frame jank
+RETURNS BOOL AS
+SELECT
+  android_is_sf_jank_type($jank_type)
+  OR android_is_app_jank_type($jank_type)
+  OR $jank_type GLOB '*Dropped Frame*';

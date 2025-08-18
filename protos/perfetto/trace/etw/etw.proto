@@ -166,3 +166,44 @@ message ReadyThreadEtwEvent {
     int32 flag_int = 6;
   }
 }
+
+// Proto definition based on the type of MemInfoArgs_V1, found here and observed
+// on local traces using tracerpt:
+// https://github.com/repnz/etw-providers-docs/blob/master/Manifests-Win10-17134/Microsoft-Windows-Kernel-Memory.xml
+message MemInfoEtwEvent {
+  // Number of memory priorities on the system.
+  optional uint32 priority_levels = 1;
+
+  // Number of pages in the zero list.
+  optional uint64 zero_page_count = 2;
+
+  // Number of pages in the free list.
+  optional uint64 free_page_count = 3;
+
+  // Number of pages in the modified list.
+  optional uint64 modified_page_count = 4;
+
+  // Number of modified non-paged pool pages.
+  optional uint64 modified_no_write_page_count = 5;
+
+  // Number of bad pages.
+  optional uint64 bad_page_count = 6;
+
+  // Number of standby pages by memory priority.
+  repeated uint64 standby_page_counts = 7;
+
+  // Number of repurposed pages by memory priority.
+  repeated uint64 repurposed_page_counts = 8;
+
+  // Modified paged pages.
+  optional uint64 modified_page_count_page_file = 9;
+  // Pool page counts.
+  optional uint64 paged_pool_page_count = 10;
+  optional uint64 non_paged_pool_page_count = 11;
+
+  // Memory Descriptor List page count.
+  optional uint64 mdl_page_count = 12;
+
+  // Commit weight.
+  optional uint64 commit_page_count = 13;
+}

@@ -25,6 +25,10 @@ import {Intent} from '../../widgets/common';
 import {MenuItem, PopupMenu} from '../../widgets/menu';
 import {SettingsShell} from '../../widgets/settings_shell';
 import {Switch} from '../../widgets/switch';
+import {FuzzyFinder} from '../../base/fuzzy';
+import {Stack, StackAuto} from '../../widgets/stack';
+import {TextInput} from '../../widgets/text_input';
+import {EmptyState} from '../../widgets/empty_state';
 
 enum SortOrder {
   Name = 'name',
@@ -75,6 +79,8 @@ function sortText(sortOrder: SortOrder) {
 }
 
 export class PluginsPage implements m.ClassComponent {
+  private filterText: string = '';
+
   view() {
     const pluginManager = AppImpl.instance.plugins;
     const registeredPlugins = pluginManager.getAllPlugins();
@@ -85,12 +91,25 @@ export class PluginsPage implements m.ClassComponent {
       return p.enableFlag.isOverridden();
     });
     const sorted = sortPlugins(registeredPlugins);
+
+    const isFiltering = this.filterText !== '';
+    const finder = new FuzzyFinder(sorted, (p) => {
+      return `${p.desc.id} ${p.desc.description ?? ''}`;
+    });
+    const filteredPlugins = isFiltering
+      ? finder.find(this.filterText)
+      : sorted.map((item) => ({item, segments: []}));
+
     return m(
       SettingsShell,
       {
         title: 'Plugins',
         stickyHeaderContent: m(
-          '.pf-plugins-page__topbar',
+          Stack,
+          {
+            className: 'pf-plugins-page__topbar',
+            orientation: 'horizontal',
+          },
           m(
             ButtonBar,
             m(Button, {
@@ -108,6 +127,7 @@ export class PluginsPage implements m.ClassComponent {
             }),
             needsRestart && reloadButton(),
           ),
+          m(StackAuto),
           m(
             PopupMenu,
             {
@@ -124,16 +144,53 @@ export class PluginsPage implements m.ClassComponent {
               });
             }),
           ),
+          m(TextInput, {
+            placeholder: 'Search...',
+            value: this.filterText,
+            leftIcon: 'search',
+            oninput: (e: Event) => {
+              const target = e.target as HTMLInputElement;
+              this.filterText = target.value;
+            },
+          }),
         ),
       },
       m(
         '.pf-plugins-page',
-        m(
-          CardStack,
-          sorted.map((plugin) => this.renderPluginCard(plugin)),
-        ),
+        filteredPlugins.length > 0
+          ? m(
+              CardStack,
+              filteredPlugins.map(({item}) => this.renderPluginCard(item)),
+            )
+          : this.renderEmptyState(isFiltering),
       ),
     );
+  }
+
+  private renderEmptyState(isFiltering: boolean) {
+    if (isFiltering) {
+      return m(
+        EmptyState,
+        {
+          icon: 'filter_alt_off',
+          title: 'No plugins match your search criteria',
+        },
+        m(Button, {
+          label: 'Clear filter',
+          icon: 'clear',
+          variant: ButtonVariant.Filled,
+          intent: Intent.Primary,
+          onclick: () => {
+            this.filterText = '';
+          },
+        }),
+      );
+    } else {
+      return m(EmptyState, {
+        icon: 'search_off',
+        title: 'No plugins found',
+      });
+    }
   }
 
   private renderPluginCard(plugin: PluginWrapper): m.Children {

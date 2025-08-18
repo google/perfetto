@@ -196,6 +196,7 @@ export async function createIITable<
     (col) => col !== 'dur' && col !== 'ts',
   );
 
+  await engine.query(`INCLUDE PERFETTO MODULE intervals.intersect`);
   return await createPerfettoTable({
     engine,
     as: `

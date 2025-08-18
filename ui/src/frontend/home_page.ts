@@ -17,6 +17,7 @@ import {channelChanged, getNextChannel, setChannel} from '../core/channels';
 import {Anchor} from '../widgets/anchor';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {assetSrc} from '../base/assets';
+import {Stack} from '../widgets/stack';
 
 export class Hints implements m.ClassComponent {
   view() {
@@ -27,23 +28,23 @@ export class Hints implements m.ClassComponent {
         'ul',
         m(
           'li',
-          'New updated ',
-          m(
-            Anchor,
-            {
-              href: 'https://perfetto.dev/docs/visualization/perfetto-ui#tabs-v2',
-            },
-            'tabs',
-          ),
-          ' are extensible and user friendly.',
+          'Press ',
+          m(HotkeyGlyphs, {hotkey: 'Mod+P'}),
+          ' to quickly find tracks with fuzzy search.',
         ),
         m(
           'li',
           'Use ',
-          m(HotkeyGlyphs, {hotkey: 'W'}),
-          m(HotkeyGlyphs, {hotkey: 'A'}),
-          m(HotkeyGlyphs, {hotkey: 'S'}),
-          m(HotkeyGlyphs, {hotkey: 'D'}),
+          m(
+            Stack,
+            {inline: true, spacing: 'small', orientation: 'horizontal'},
+            [
+              m(HotkeyGlyphs, {hotkey: 'W'}),
+              m(HotkeyGlyphs, {hotkey: 'A'}),
+              m(HotkeyGlyphs, {hotkey: 'S'}),
+              m(HotkeyGlyphs, {hotkey: 'D'}),
+            ],
+          ),
           ' to navigate the trace.',
         ),
         m(

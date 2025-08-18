@@ -1139,7 +1139,8 @@ class TrackEventEventImporter {
             ->Insert({ts_, parser_->raw_legacy_event_id_, *utid_, 0})
             .id;
 
-    auto inserter = context_->args_tracker->AddArgsTo(id);
+    ArgsTracker args_tracker(context_);
+    auto inserter = args_tracker.AddArgsTo(id);
     inserter
         .AddArg(parser_->legacy_event_category_key_id_,
                 Variadic::String(category_id_))

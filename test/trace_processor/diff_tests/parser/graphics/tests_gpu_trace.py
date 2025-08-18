@@ -3,7 +3,7 @@
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
+# You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
 #
@@ -124,7 +124,7 @@ class GraphicsGpuTrace(TestSuite):
           "queue 0","queue desc 0",110,5,"stage 0",0,"[NULL]","[NULL]",42,16,"[NULL]",16,"render_pass",16,"command_buffer",0,0,"[NULL]"
           "queue 0","queue desc 0",120,5,"stage 0",0,"[NULL]","[NULL]",42,16,"framebuffer",16,"render_pass",16,"command_buffer",0,0,"[NULL]"
           "queue 0","queue desc 0",130,5,"stage 0",0,"[NULL]","[NULL]",42,16,"renamed_buffer",0,"[NULL]",0,"[NULL]",0,0,"[NULL]"
-          "Unknown GPU Queue ","[NULL]",140,5,"render stage(18446744073709551615)",0,"[NULL]","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,1024,"[NULL]"
+          "Unknown GPU Queue 4294967295","[NULL]",140,5,"render stage(18446744073709551615)",0,"[NULL]","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,4294967295,"[NULL]"
           "queue 0","queue desc 0",150,5,"stage 0",0,"[NULL]","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0,"0"
           "queue 0","queue desc 0",160,5,"stage 0",0,"[NULL]","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0,"63,64"
           "queue 0","queue desc 0",170,5,"stage 0",0,"[NULL]","[NULL]",42,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,0,"64"
@@ -179,7 +179,7 @@ class GraphicsGpuTrace(TestSuite):
           "track_name","track_desc","ts","dur","slice_name","depth","flat_key","string_value","context_id","render_target","render_target_name","render_pass","render_pass_name","command_buffer","command_buffer_name","submission_id","hw_queue_id","render_subpasses"
           "vertex","vertex queue",100,10,"binning",0,"description","binning graphics",0,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,1,"[NULL]"
           "fragment","fragment queue",200,10,"render",0,"description","render graphics",0,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,2,"[NULL]"
-          "queue2","queue2 description",300,10,"render",0,"description","render graphics",0,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,1,"[NULL]"
+          "vertex","vertex queue",300,10,"render",0,"description","render graphics",0,0,"[NULL]",0,"[NULL]",0,"[NULL]",0,1,"[NULL]"
         '''))
 
   def test_vulkan_api_events(self):
@@ -235,3 +235,23 @@ class GraphicsGpuTrace(TestSuite):
         "gpu_log","GPU Log",5,0,"VERBOSE","message","message5"
         "gpu_log","GPU Log",5,0,"VERBOSE","tag","tag1"
         """))
+
+  def test_gpu_render_stages_overlapping(self):
+    return DiffTestBlueprint(
+        trace=Path('gpu_render_stages_overlapping.py'),
+        query='''
+          SELECT
+            g.name AS track_name,
+            ts,
+            dur,
+            s.name AS slice_name,
+            depth
+          FROM gpu_track g
+          JOIN gpu_slice s ON g.id = s.track_id
+          ORDER BY ts;
+        ''',
+        out=Csv('''
+          "track_name","ts","dur","slice_name","depth"
+          "queue 1",100,10,"stage 1",0
+          "queue 1",105,10,"stage 1",0
+        '''))

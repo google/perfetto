@@ -130,5 +130,10 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
                   const char*,
                   sibling_merge_key,
                   16);
+PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
+                  VARINT,
+                  uint64_t,
+                  sibling_merge_key_int,
+                  17);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_TRACK_EVENT_TRACK_DESCRIPTOR_PZC_H_

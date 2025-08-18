@@ -19,12 +19,12 @@
   background: $intent-color;
 
   &:hover {
-    background: lighten($intent-color, 5%);
+    background: color_hover($intent-color);
   }
 
   &:active,
   &.pf-active {
-    background: darken($intent-color, 5%);
+    background: color_active($intent-color);
   }
 
   &[disabled] {
@@ -33,19 +33,23 @@
     }
 
     &.pf-active {
-      background: darken($intent-color, 5%);
+      background: color_active($intent-color);
     }
   }
 }
 
 .pf-button {
-  font-family: $pf-font;
+  font-family: var(--pf-font-compact);
   line-height: 1;
   user-select: none;
-  border-radius: $pf-border-radius;
+  border-radius: $border-radius;
   padding: 4px 8px;
   white-space: nowrap;
   min-width: max-content;
+
+  &--rounded {
+    border-radius: 100px;
+  }
 
   & > .pf-left-icon {
     margin-right: 6px; // Make some room between the icon and label
@@ -89,75 +93,107 @@
     cursor: not-allowed;
   }
 
-  // From here on in we just describe the colours
+  // From here on in we just describe the colors
   &--filled {
-    background: rgba(gray, 20%);
+    background: color-mix(
+      in srgb,
+      transparent,
+      var(--pf-color-interactive-base) 10%
+    );
 
     &:hover {
-      background: rgba(gray, 30%);
+      background: color-mix(
+        in srgb,
+        transparent,
+        var(--pf-color-interactive-base) 15%
+      );
     }
 
     &.pf-active,
     &:active {
-      background: rgba(gray, 40%);
+      background: color-mix(
+        in srgb,
+        transparent,
+        var(--pf-color-interactive-base) 20%
+      );
     }
 
     &[disabled] {
       &:hover {
-        background: rgba(gray, 20%); // Reset to the default background
+        background: color-mix(
+          in srgb,
+          transparent,
+          var(--pf-color-interactive-base) 10%
+        ); // Reset to the default background
       }
 
       &.pf-active {
-        background: rgba(gray, 40%);
+        background: color-mix(
+          in srgb,
+          transparent,
+          var(--pf-color-interactive-base) 40%
+        );
       }
     }
 
     &.pf-intent-primary {
-      @include filled-color-scheme($color-primary, white);
+      @include filled-color-scheme(
+        var(--pf-color-primary),
+        var(--pf-color-text-on-primary)
+      );
     }
 
     &.pf-intent-success {
-      @include filled-color-scheme($color-success, white);
+      @include filled-color-scheme(
+        var(--pf-color-success),
+        var(--pf-color-text-on-success)
+      );
     }
 
     &.pf-intent-danger {
-      @include filled-color-scheme($color-danger, white);
+      @include filled-color-scheme(
+        var(--pf-color-danger),
+        var(--pf-color-text-on-danger)
+      );
     }
 
     &.pf-intent-warning {
-      @include filled-color-scheme($color-warning, black);
+      @include filled-color-scheme(
+        var(--pf-color-warning),
+        var(--pf-color-text-on-warning)
+      );
     }
   }
 
   &--outlined {
-    border: 1px solid color-mix(in srgb, currentColor 50%, transparent);
+    border: solid 1px var(--pf-color-border);
   }
 
   &--minimal,
   &--outlined {
     &:hover {
-      background: color-mix(in srgb, currentColor 10%, transparent);
+      background: color_hover(transparent);
     }
 
     &:active,
     &.pf-active {
-      background: color-mix(in srgb, currentColor 20%, transparent);
+      background: color_active(transparent);
     }
 
     &.pf-intent-primary {
-      color: $pf-primary-background;
+      color: var(--pf-color-primary);
     }
 
     &.pf-intent-success {
-      color: $color-success;
+      color: var(--pf-color-success);
     }
 
     &.pf-intent-danger {
-      color: $color-danger;
+      color: var(--pf-color-danger);
     }
 
     &.pf-intent-warning {
-      color: $color-warning;
+      color: var(--pf-color-warning);
     }
 
     &[disabled] {
@@ -166,7 +202,7 @@
       }
 
       &.pf-active {
-        background: color-mix(in srgb, currentColor 20%, transparent);
+        background: color_active(transparent);
       }
     }
   }

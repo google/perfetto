@@ -12,12 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
 import {PerfettoPlugin} from '../../public/plugin';
 import {Trace} from '../../public/trace';
 import {CPU_FREQ_TRACK_KIND} from '../../public/track_kinds';
 import {TrackNode} from '../../public/workspace';
 import {NUM, NUM_NULL} from '../../trace_processor/query_result';
 import {CpuFreqTrack} from './cpu_freq_track';
+import {Anchor} from '../../widgets/anchor';
+import {Icons} from '../../base/semantic_icons';
 
 export default class implements PerfettoPlugin {
   static readonly id = 'dev.perfetto.CpuFreq';
@@ -51,6 +54,12 @@ export default class implements PerfettoPlugin {
     `);
     const maxCpuFreq = maxCpuFreqResult.firstRow({freq: NUM}).freq;
 
+    const group = new TrackNode({
+      name: 'CPU Frequency',
+      sortOrder: -40,
+      isSummary: true,
+      collapsed: false,
+    });
     for (const cpu of cpus) {
       // Only add a cpu freq track if we have cpu freq data.
       const cpuFreqIdleResult = await engine.query(`
@@ -94,14 +103,31 @@ export default class implements PerfettoPlugin {
             cpu: cpu.ucpu,
           },
           renderer: new CpuFreqTrack(config, ctx),
+          description: () => {
+            return m('', [
+              `Shows the CPU frequency ${cpu.toString()} over time.`,
+              m('br'),
+              m(
+                Anchor,
+                {
+                  href: 'https://perfetto.dev/docs/data-sources/cpu-freq',
+                  target: '_blank',
+                  icon: Icons.ExternalLink,
+                },
+                'Documentation',
+              ),
+            ]);
+          },
         });
         const trackNode = new TrackNode({
           uri,
-          name: `Cpu ${cpu.toString()} Frequency`,
-          sortOrder: -40,
+          name: `CPU ${cpu.toString()} Frequency`,
         });
-        ctx.workspace.addChildInOrder(trackNode);
+        group.addChildInOrder(trackNode);
       }
+    }
+    if (group.children.length > 0) {
+      ctx.workspace.addChildInOrder(group);
     }
   }
 }

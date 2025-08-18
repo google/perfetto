@@ -190,9 +190,12 @@ JOIN _wattson_device AS device
 CREATE PERFETTO TABLE _skip_devfreq_for_calc AS
 SELECT
   FALSE AS devfreq_necessary
-FROM _use_devfreq AS d
-JOIN _wattson_device AS device
-  ON d.device != device.name;
+WHERE
+  NOT EXISTS(
+    SELECT
+      *
+    FROM _use_devfreq_for_calc
+  );
 
 -- Devices that require idle state mapping
 CREATE PERFETTO TABLE _idle_state_map AS

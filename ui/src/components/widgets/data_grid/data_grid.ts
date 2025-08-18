@@ -375,10 +375,9 @@ export class DataGrid implements m.ClassComponent<DataGridAttrs> {
             m(Stack, {orientation: 'horizontal', wrap: true}, [
               filters.map((filter) =>
                 m(Chip, {
-                  className: 'pf-data-grid__filter-chip',
-                  title: 'Remove filter',
                   label: this.formatFilter(filter),
-                  onclick: () => {
+                  removable: true,
+                  onRemove: () => {
                     const newFilters = filters.filter((f) => f !== filter);
                     this.filters = newFilters;
                     onFiltersChanged(newFilters);

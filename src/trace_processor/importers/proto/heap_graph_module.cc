@@ -93,7 +93,7 @@ void HeapGraphModule::ParseTracePacketData(
 void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
                                      int64_t ts,
                                      protozero::ConstBytes blob) {
-  auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
+  auto* heap_graph_tracker = HeapGraphTracker::Get(context_);
   protos::pbzero::HeapGraph::Decoder heap_graph(blob.data, blob.size);
   UniquePid upid = context_->process_tracker->GetOrCreateProcess(
       static_cast<uint32_t>(heap_graph.pid()));
@@ -250,7 +250,7 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
 }
 
 void HeapGraphModule::NotifyEndOfFile() {
-  auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
+  auto* heap_graph_tracker = HeapGraphTracker::Get(context_);
   heap_graph_tracker->FinalizeAllProfiles();
 }
 

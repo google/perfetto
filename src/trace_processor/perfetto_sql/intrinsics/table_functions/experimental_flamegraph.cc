@@ -336,9 +336,8 @@ bool ExperimentalFlamegraph::Cursor::Run(
             "experimental_flamegraph: ts and upid must be present for heap "
             "graph"));
       }
-      constructed_table =
-          HeapGraphTracker::GetOrCreate(context_)->BuildFlamegraph(
-              *values.ts, *values.upid);
+      constructed_table = HeapGraphTracker::Get(context_)->BuildFlamegraph(
+          *values.ts, *values.upid);
       break;
     }
     case ProfileType::kHeapProfile: {

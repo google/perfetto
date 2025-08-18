@@ -55,10 +55,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup ccache
-        shell: bash
-        run: bash .github/workflows/ccache_env.sh | tee -a $GITHUB_ENV
-
       - name: Setup artifacts
         shell: bash
         run: |
@@ -71,6 +67,9 @@ jobs:
         with:
           directory: ${{ env.PERFETTO_CACHE_DIR }}
           cache_key: ${{ env.PERFETTO_CI_BUILD_CACHE_KEY }}
+
+      - name: Setup ccache
+        uses: ./.github/actions/setup-ccache
 
       - uses: ./.github/actions/install-build-deps
         with:
@@ -152,9 +151,11 @@ jobs:
 
       - name: Upload artifacts to GCS
         if: ${{ always() }}
+        env:
+          GCS_PATH: gs://perfetto-ci-artifacts
         shell: bash
         run: |
-          /opt/ci/artifacts_uploader.py --rm ${{ env.PERFETTO_ARTIFACTS_ROOT }}
+          gcloud storage cp --recursive "$PERFETTO_ARTIFACTS_DIR" "$GCS_PATH/$PERFETTO_CI_JOB_ID"
 
       - name: Update cache (if on main)
         if: github.ref == 'refs/heads/main'

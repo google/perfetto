@@ -17,26 +17,32 @@ import {classNames} from '../base/classnames';
 import {HTMLAttrs, Intent, classForIntent} from './common';
 import {Icon} from './icon';
 import {Spinner} from './spinner';
+import {Button} from './button';
 
 interface CommonAttrs extends HTMLAttrs {
   // Use minimal padding, reducing the overall size of the chip by a few px.
   // Defaults to false.
-  compact?: boolean;
+  readonly compact?: boolean;
   // Optional right icon.
-  rightIcon?: string;
+  readonly rightIcon?: string;
   // List of space separated class names forwarded to the icon.
-  className?: string;
+  readonly className?: string;
   // Show loading spinner instead of icon.
   // Defaults to false.
-  loading?: boolean;
+  readonly loading?: boolean;
   // Whether to use a filled icon
   // Defaults to false;
-  iconFilled?: boolean;
+  readonly iconFilled?: boolean;
   // Indicate chip colouring by intent.
   // Defaults to undefined aka "None"
-  intent?: Intent;
+  readonly intent?: Intent;
   // Turns the chip into a pill shape.
-  rounded?: boolean;
+  readonly rounded?: boolean;
+  // If true, shows a little cross on the right hand side.
+  readonly removable?: boolean;
+  // Called when the little cross is pressed (only applicable when removable is
+  // true).
+  readonly onRemove?: () => void;
 }
 
 interface IconChipAttrs extends CommonAttrs {
@@ -63,6 +69,8 @@ export class Chip implements m.ClassComponent<ChipAttrs> {
       iconFilled,
       intent = Intent.None,
       rounded,
+      removable,
+      onRemove,
       ...htmlAttrs
     } = attrs;
 
@@ -73,7 +81,7 @@ export class Chip implements m.ClassComponent<ChipAttrs> {
       classForIntent(intent),
       icon && !label && 'pf-icon-only',
       className,
-      rounded && 'pf-rounded',
+      rounded && 'pf-chip--rounded',
     );
 
     return m(
@@ -90,6 +98,13 @@ export class Chip implements m.ClassComponent<ChipAttrs> {
           filled: iconFilled,
         }),
       label || '\u200B', // Zero width space keeps chip in-flow
+      removable &&
+        m(Button, {
+          compact: true,
+          rounded,
+          icon: 'close',
+          onclick: () => onRemove?.(),
+        }),
     );
   }
 
@@ -103,14 +118,5 @@ export class Chip implements m.ClassComponent<ChipAttrs> {
     } else {
       return undefined;
     }
-  }
-}
-
-/**
- * Space chips out with a little gap between each one.
- */
-export class ChipBar implements m.ClassComponent<HTMLAttrs> {
-  view({attrs, children}: m.CVnode<HTMLAttrs>): m.Children {
-    return m('.pf-chip-bar', attrs, children);
   }
 }

@@ -22,6 +22,7 @@ import {TrackEventDetailsPanel} from './details_panel';
 import {TrackEventDetails, TrackEventSelection} from './selection';
 import {SourceDataset} from '../trace_processor/dataset';
 import {TrackNode} from './workspace';
+import {Theme} from './theme';
 
 export interface TrackFilterCriteria {
   readonly name: string;
@@ -107,6 +108,8 @@ export interface TrackRenderContext extends TrackContext {
    * A time scale used for translating between pixels and time.
    */
   readonly timescale: TimeScale;
+
+  readonly theme: Theme;
 }
 
 // A definition of a track, including a renderer implementation and metadata.

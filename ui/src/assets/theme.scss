@@ -12,45 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Standard theme settings for widgets
+$border-radius: 2px;
+$border-radius-large: 4px;
+$anim-timing: 150ms cubic-bezier(0.4, 0, 0.2, 1);
 
-$pf-font: "Roboto Condensed", sans-serif;
-$pf-border-radius: 2px;
-$pf-anim-timing: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+$box-shadow-1: 0px 2px 6px var(--pf-color-box-shadow);
+$box-shadow-2: 0px 4px 12px var(--pf-color-box-shadow);
+$box-shadow-3: 0px 8px 16px var(--pf-color-box-shadow);
 
-// Here we describe two colour schemes: primary and minimal
-// It is assumed widgets exist on a light background
-// Primary is to be used for things like buttons and checkboxes
-// Minimal is to be used for things like inputs and labels
-// Some controls (i.e. checkboxes) may mix and match both in the same widget.
-// Other controls might use the primary scheme by default, but have a minimal
-// configuration which makes them use the minimal colour scheme.
+@function color_hover($base) {
+  @return color-mix(in srgb, $base, var(--pf-color-interactive-base) 8%);
+}
 
-$pf-primary-foreground: #fff;
-$pf-primary-foreground-disabled: #aaa;
-$pf-primary-border: #31466f;
-$pf-primary-background: #3d5688;
-$pf-primary-background-hover: #4966a2;
-$pf-primary-background-active: #243e71;
-$pf-primary-background-disabled: #666;
-
-$pf-minimal-foreground: #19212b;
-$pf-minimal-foreground-disabled: #aaa;
-$pf-minimal-border: #aaa;
-$pf-minimal-background: none;
-$pf-minimal-background-hover: #0001;
-$pf-minimal-background-active: #0002;
-$pf-minimal-background-disabled: none;
-
-$color-primary: #3d5688;
-$color-danger: #912929;
-$color-success: #3c832b;
-$color-warning: #dca612;
-
-$pf-colour-thin-border: #aaa;
-$table-hover-color: hsl(214, 22%, 90%);
-$table-border-color: rgba(60, 76, 92, 0.4);
+@function color_active($base) {
+  @return color-mix(in srgb, $base, var(--pf-color-interactive-base) 16%);
+}
 
 @mixin focus {
-  outline: 2px auto #64b5f6;
+  outline: 2px auto var(--pf-color-accent);
 }

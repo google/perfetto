@@ -19,9 +19,9 @@
   height: 100%;
   overflow: auto;
   padding: 0.625rem;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--pf-color-border);
   border-radius: 8px;
-  background-color: #fafafa;
+  background-color: var(--pf-color-background);
 }
 
 .pf-node-graph-add-button-container {
@@ -62,7 +62,7 @@
 
   .hero-subtitle {
     font-size: 1.1em;
-    color: $pf-minimal-foreground-disabled;
+    color: var(--pf-color-text-muted);
   }
 }
 
@@ -74,9 +74,10 @@
   border-radius: 0.5rem;
   width: 200px;
   text-align: center;
+  cursor: pointer;
 
   &:hover {
-    background-color: lighten($pf-minimal-background-active, 70%);
+    background-color: color_hover(transparent);
   }
 
   .pf-icon {
@@ -91,6 +92,6 @@
   p {
     font-size: 0.9rem;
     flex-grow: 1;
-    color: $pf-minimal-foreground-disabled;
+    color: var(--pf-color-text-muted);
   }
 }

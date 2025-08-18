@@ -96,9 +96,8 @@ source_set("perf") {
     "../common:common",
     "../proto:minimal",
   ]
-
   if (enable_perfetto_etm_importer) {
-    deps += [ "../etm:file_tracker" ]
+    deps += [ "../etm:etm_header" ]
   }
 }
 

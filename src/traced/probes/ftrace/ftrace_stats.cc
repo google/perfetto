@@ -38,6 +38,9 @@ void FtraceStats::Write(protos::pbzero::FtraceStats* writer) const {
     kprobe_stats_pb->set_hits(kprobe_stats.hits);
     kprobe_stats_pb->set_misses(kprobe_stats.misses);
   }
+
+  writer->set_cpu_buffer_size_pages(cpu_buffer_size_pages);
+  writer->set_cached_cpu_buffer_size_pages(cached_cpu_buffer_size_pages);
 }
 
 void FtraceCpuStats::Write(protos::pbzero::FtraceCpuStats* writer) const {

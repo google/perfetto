@@ -15,14 +15,18 @@
  */
 
 #include "src/trace_processor/importers/proto/winscope/shell_transitions_parser.h"
+
 #include <optional>
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/android/shell_transition.pbzero.h"
-#include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/winscope/shell_transitions_tracker.h"
 #include "src/trace_processor/importers/proto/winscope/winscope_context.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -39,7 +43,7 @@ ShellTransitionsParser::ShellTransitionsParser(
 void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   protos::pbzero::ShellTransition::Decoder transition(blob);
 
-  auto storage = context_->trace_processor_context_->storage;
+  auto* storage = context_->trace_processor_context_->storage.get();
 
   // Store the raw proto and its ID in a separate table to handle
   // transitions received over multiple packets for Winscope trace search.
@@ -55,7 +59,7 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   winscope::ShellTransitionsTracker& transition_tracker =
       context_->shell_transitions_tracker_;
   auto inserter = transition_tracker.AddArgsTo(transition.id());
-  ArgsParser writer(/*timestamp=*/0, inserter, *storage.get());
+  ArgsParser writer(/*timestamp=*/0, inserter, *storage);
   base::Status status = args_parser_.ParseMessage(
       blob,
       *util::winscope_proto_mapping::GetProtoName(
@@ -158,7 +162,7 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
 }
 
 void ShellTransitionsParser::ParseHandlerMappings(protozero::ConstBytes blob) {
-  auto storage = context_->trace_processor_context_->storage;
+  auto* storage = context_->trace_processor_context_->storage.get();
 
   auto* shell_handlers_table =
       storage->mutable_window_manager_shell_transition_handlers_table();

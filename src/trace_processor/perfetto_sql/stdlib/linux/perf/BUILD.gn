@@ -16,8 +16,11 @@ import("../../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("perf") {
   sources = [
-    "etm.sql",
     "samples.sql",
     "spe.sql",
   ]
+
+  if (enable_perfetto_etm_importer) {
+    sources += [ "etm.sql" ]
+  }
 }

@@ -289,7 +289,7 @@ class TraceSorter {
   // forced extractionn at the end of the trace.
   SortingMode sorting_mode_ = SortingMode::kDefault;
 
-  std::shared_ptr<TraceStorage> storage_;
+  TraceStorage* storage_;
 
   // Buffer for storing tokenized objects while the corresponding events are
   // being sorted.

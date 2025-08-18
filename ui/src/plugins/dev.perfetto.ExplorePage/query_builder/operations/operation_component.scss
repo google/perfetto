@@ -23,16 +23,14 @@
 
   .pf-exp-section {
     padding: 1rem;
-    border: 1px solid $pf-minimal-border;
+    border: 1px solid var(--pf-color-border);
     border-radius: 0.5rem;
-    background-color: $pf-primary-foreground;
+    background-color: var(--pf-color-background);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 
     h2 {
       margin-top: 0;
       margin-bottom: 1rem;
-      color: $pf-minimal-foreground;
-      font-family: "Roboto", sans-serif;
       font-size: 1.2em;
       font-weight: 500;
     }
@@ -57,9 +55,9 @@
   }
 
   .pf-exp-delete-button {
-    color: $pf-minimal-foreground-disabled;
+    color: var(--pf-color-text-muted);
     &:hover {
-      color: $color-danger;
+      color: var(--pf-color-danger);
     }
   }
 }

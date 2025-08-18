@@ -15,15 +15,30 @@
  */
 
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.h"
+
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/field.h"
+#include "protos/perfetto/trace/android/surfaceflinger_layers.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_extractor.h"
+#include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_rect_computation.h"
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_utils.h"
+#include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_visibility_computation.h"
+#include "src/trace_processor/importers/proto/winscope/winscope_context.h"
+#include "src/trace_processor/importers/proto/winscope/winscope_geometry.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/proto_to_args_parser.h"
 #include "src/trace_processor/util/winscope_proto_mapping.h"
 
 namespace perfetto::trace_processor::winscope {
@@ -98,7 +113,7 @@ const SnapshotId SurfaceFlingerLayersParser::ParseSnapshot(
     int64_t timestamp,
     protozero::ConstBytes blob,
     std::optional<uint32_t> sequence_id) {
-  auto storage = context_->trace_processor_context_->storage;
+  auto* storage = context_->trace_processor_context_->storage.get();
   tables::SurfaceFlingerLayersSnapshotTable::Row snapshot;
   snapshot.ts = timestamp;
   snapshot.base64_proto_id = storage->mutable_string_pool()
@@ -113,8 +128,8 @@ const SnapshotId SurfaceFlingerLayersParser::ParseSnapshot(
           ->Insert(snapshot)
           .id;
 
-  auto inserter =
-      context_->trace_processor_context_->args_tracker->AddArgsTo(snapshot_id);
+  ArgsTracker args_tracker(context_->trace_processor_context_);
+  auto inserter = args_tracker.AddArgsTo(snapshot_id);
   ArgsParser writer(timestamp, inserter, *storage);
   const auto table_name = tables::SurfaceFlingerLayersSnapshotTable::Name();
   auto allowed_fields =
@@ -136,7 +151,7 @@ void SurfaceFlingerLayersParser::ParseLayer(
         visibility,
     const std::unordered_map<int32_t, LayerDecoder>& layers_by_id,
     const surfaceflinger_layers::SurfaceFlingerRects& rects) {
-  auto storage = context_->trace_processor_context_->storage;
+  auto* storage = context_->trace_processor_context_->storage.get();
   ArgsTracker tracker(context_->trace_processor_context_);
   auto row_id =
       InsertLayerRow(blob, snapshot_id, visibility, layers_by_id, rects);

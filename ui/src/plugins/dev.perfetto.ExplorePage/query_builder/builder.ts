@@ -16,15 +16,23 @@ import m from 'mithril';
 import {classNames} from '../../../base/classnames';
 
 import {SqlModules} from '../../dev.perfetto.SqlModules/sql_modules';
-import {QueryNode, NodeType, Query, isAQuery} from '../query_node';
+import {QueryNode, Query, isAQuery, queryToRun} from '../query_node';
 import {ExplorePageHelp} from './help';
 import {NodeExplorer} from './node_explorer';
 import {Graph} from './graph';
 import {Trace} from 'src/public/trace';
 import {DataExplorer} from './data_explorer';
+import {
+  DataGridDataSource,
+  DataGridModel,
+} from '../../../components/widgets/data_grid/common';
+import {InMemoryDataSource} from '../../../components/widgets/data_grid/in_memory_data_source';
+import {QueryResponse} from '../../../components/query_table/queries';
 import {columnInfoFromSqlColumn, newColumnInfoList} from './column_info';
 import {TableSourceNode} from './sources/table_source';
 import {SqlSourceNode} from './sources/sql_source';
+import {QueryService} from './query_service';
+import {findErrors, findWarnings} from './query_builder_utils';
 
 export interface BuilderAttrs {
   readonly trace: Trace;
@@ -45,11 +53,18 @@ export interface BuilderAttrs {
 }
 
 export class Builder implements m.ClassComponent<BuilderAttrs> {
+  private queryService: QueryService;
   private query?: Query | Error;
   private queryExecuted: boolean = false;
   private tablePosition: 'left' | 'right' | 'bottom' = 'bottom';
   private previousSelectedNode?: QueryNode;
   private isNodeDataViewerFullScreen: boolean = false;
+  private response?: QueryResponse;
+  private dataSource?: DataGridDataSource;
+
+  constructor({attrs}: m.Vnode<BuilderAttrs>) {
+    this.queryService = new QueryService(attrs.trace.engine);
+  }
 
   view({attrs}: m.CVnode<BuilderAttrs>) {
     const {
@@ -65,11 +80,12 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
     } = attrs;
 
     if (selectedNode && selectedNode !== this.previousSelectedNode) {
-      if (selectedNode.type === NodeType.kSqlSource) {
+      if (selectedNode instanceof SqlSourceNode) {
         this.tablePosition = 'left';
       } else {
         this.tablePosition = 'bottom';
       }
+      this.runQuery(selectedNode);
     }
     this.previousSelectedNode = selectedNode;
 
@@ -93,14 +109,17 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
             this.query = query;
             if (isAQuery(this.query) && reexecute) {
               this.queryExecuted = false;
+              this.runQuery(selectedNode);
             }
           },
           onExecute: () => {
             this.queryExecuted = false;
+            this.runQuery(selectedNode);
             m.redraw();
           },
           onchange: () => {
             this.queryExecuted = false;
+            this.runQuery(selectedNode);
             m.redraw();
           },
         })
@@ -145,7 +164,11 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           onClearAllNodes,
           onDuplicateNode: attrs.onDuplicateNode,
           onDeleteNode: (node: QueryNode) => {
-            if (node.state.isExecuted && node.graphTableName) {
+            if (
+              node.state.isExecuted &&
+              'graphTableName' in node &&
+              node.graphTableName
+            ) {
               trace.engine.query(`DROP TABLE IF EXISTS ${node.graphTableName}`);
             }
             attrs.onDeleteNode(node);
@@ -157,10 +180,12 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
         m(
           '.pf-qb-viewer',
           m(DataExplorer, {
-            trace,
+            queryService: this.queryService,
             query: this.query,
             node: selectedNode,
             executeQuery: !this.queryExecuted,
+            response: this.response,
+            dataSource: this.dataSource,
             onchange: () => {
               this.query = undefined;
               this.queryExecuted = false;
@@ -184,7 +209,7 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
               selectedNode.state.dataError = noDataWarning;
 
               if (selectedNode instanceof SqlSourceNode) {
-                selectedNode.setSourceColumns(columns);
+                selectedNode.onQueryExecuted(columns);
               }
             },
             onPositionChange: (pos: 'left' | 'right' | 'bottom') => {
@@ -198,5 +223,51 @@ export class Builder implements m.ClassComponent<BuilderAttrs> {
           }),
         ),
     );
+  }
+
+  private runQuery(node: QueryNode) {
+    if (
+      this.query === undefined ||
+      this.query instanceof Error ||
+      this.queryExecuted
+    ) {
+      return;
+    }
+
+    this.queryService.runQuery(queryToRun(this.query)).then((response) => {
+      this.response = response;
+      const ds = new InMemoryDataSource(this.response.rows);
+      this.dataSource = {
+        get rows() {
+          return ds.rows;
+        },
+        notifyUpdate(model: DataGridModel) {
+          // We override the notifyUpdate method to ignore filters, as the data is
+          // assumed to be pre-filtered. We still apply sorting and aggregations.
+          const newModel: DataGridModel = {
+            ...model,
+            filters: [], // Always pass an empty array of filters.
+          };
+          ds.notifyUpdate(newModel);
+        },
+      };
+
+      const error = findErrors(this.query, this.response);
+      const warning = findWarnings(this.response, node);
+      const noDataWarning =
+        this.response?.totalRowCount === 0
+          ? new Error('Query returned no rows')
+          : undefined;
+
+      this.queryExecuted = true;
+      node.state.queryError = error;
+      node.state.responseError = warning;
+      node.state.dataError = noDataWarning;
+
+      if (node instanceof SqlSourceNode) {
+        node.onQueryExecuted(this.response.columns);
+      }
+      m.redraw();
+    });
   }
 }

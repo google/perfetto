@@ -78,7 +78,7 @@ void DeobfuscationModule::DeobfuscateHeapGraphClass(
     const protos::pbzero::ObfuscatedClass::Decoder& cls) {
   using ClassTable = tables::HeapGraphClassTable;
 
-  auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
+  auto* heap_graph_tracker = HeapGraphTracker::Get(context_);
   const std::vector<ClassTable::RowNumber>* cls_objects =
       heap_graph_tracker->RowsForType(package_name_id,
                                       obfuscated_class_name_id);
@@ -316,7 +316,7 @@ void DeobfuscationModule::GuessPackages() {
 }
 
 void DeobfuscationModule::NotifyEndOfFile() {
-  auto* heap_graph_tracker = HeapGraphTracker::GetOrCreate(context_);
+  auto* heap_graph_tracker = HeapGraphTracker::Get(context_);
   heap_graph_tracker->FinalizeAllProfiles();
 
   if (context_->stack_profile_tracker->HasFramesWithoutKnownPackage()) {

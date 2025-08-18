@@ -47,12 +47,11 @@ namespace {
 class PerfSampleTrackerTest : public ::testing::Test {
  public:
   PerfSampleTrackerTest() {
-    context.storage = std::make_shared<TraceStorage>();
+    context.storage = std::make_unique<TraceStorage>();
     context.machine_tracker = std::make_unique<MachineTracker>(&context, 0);
     context.cpu_tracker = std::make_unique<CpuTracker>(&context);
     context.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(context.storage.get());
-    context.args_tracker = std::make_unique<ArgsTracker>(&context);
     context.track_tracker = std::make_unique<TrackTracker>(&context);
     perf_sample_tracker = std::make_unique<PerfSampleTracker>(&context);
   }

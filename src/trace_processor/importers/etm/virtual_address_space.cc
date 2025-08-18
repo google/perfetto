@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/etm/virtual_address_space.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -26,7 +27,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
-#include "src/trace_processor/importers/etm/file_tracker.h"
+#include "src/trace_processor/importers/common/registered_file_tracker.h"
 #include "src/trace_processor/importers/etm/mapping_version.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/perf_tables_py.h"
@@ -34,6 +35,7 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::etm {
+
 void VirtualAddressSpace::Builder::AddMapping(
     tables::MmapRecordTable::ConstRowReference mmap) {
   const auto mapping =
@@ -49,7 +51,7 @@ void VirtualAddressSpace::Builder::AddMapping(
 
   std::optional<TraceBlobView> content;
   if (mmap.file_id()) {
-    content = FileTracker::GetOrCreate(context_)->GetContent(*mmap.file_id());
+    content = context_->registered_file_tracker->GetContent(*mmap.file_id());
     auto file_range = AddressRange::FromStartAndSize(0, content->size());
     auto required_file_range = AddressRange::FromStartAndSize(
         static_cast<uint64_t>(mapping.exact_offset()), range.size());

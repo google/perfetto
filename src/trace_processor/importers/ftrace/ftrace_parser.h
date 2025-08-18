@@ -345,6 +345,7 @@ class FtraceParser {
                               int64_t timestamp,
                               protozero::ConstBytes blob);
   void ParseMaliGpuPowerState(int64_t ts, protozero::ConstBytes blob);
+  void ParseDmabufRssStat(int64_t ts, uint32_t pid, protozero::ConstBytes blob);
 
   TraceProcessorContext* context_;
   GenericFtraceTracker* generic_tracker_;

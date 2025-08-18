@@ -39,7 +39,9 @@
 namespace perfetto::trace_processor {
 
 ZipTraceReader::ZipTraceReader(TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context),
+      android_bugreport_reader_(
+          std::make_unique<AndroidBugreportReader>(context)) {}
 ZipTraceReader::~ZipTraceReader() = default;
 
 base::Status ZipTraceReader::Parse(TraceBlobView blob) {
@@ -51,8 +53,8 @@ base::Status ZipTraceReader::NotifyEndOfFile() {
 
   // Android bug reports are ZIP files and its files do not get handled
   // separately.
-  if (AndroidBugreportReader::IsAndroidBugReport(files)) {
-    return AndroidBugreportReader::Parse(context_, std::move(files));
+  if (android_bugreport_reader_->IsAndroidBugReport(files)) {
+    return android_bugreport_reader_->Parse(std::move(files));
   }
 
   // TODO(carlscab): There is a lot of unnecessary copying going on here.

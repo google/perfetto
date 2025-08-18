@@ -16,11 +16,12 @@
 
 .pf-anchor {
   display: inline-block;
-  color: $pf-primary-background;
-  border-radius: $pf-border-radius;
+  color: var(--pf-color-primary);
+  border-radius: $border-radius;
   cursor: pointer;
   text-decoration: underline;
-  text-decoration-color: rgba($pf-primary-background, 0.5);
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--pf-color-primary);
 
   & > .pf-icon {
     margin-left: 1px;
@@ -28,7 +29,7 @@
 
   &:hover {
     // Gently darken the background and thicken the underline.
-    background: $pf-minimal-background-hover;
+    background: color_hover(transparent);
     text-decoration-color: unset;
     text-decoration-thickness: 2px;
   }

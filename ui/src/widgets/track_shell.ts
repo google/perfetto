@@ -22,10 +22,11 @@ import {clamp} from '../base/math_utils';
 import {hasChildren, MithrilEvent} from '../base/mithril_utils';
 import {Icons} from '../base/semantic_icons';
 import {Button, ButtonBar, ButtonVariant} from './button';
-import {Chip, ChipBar} from './chip';
+import {Chip} from './chip';
 import {HTMLAttrs, Intent} from './common';
 import {MiddleEllipsis} from './middle_ellipsis';
 import {Popup} from './popup';
+import {Stack} from './stack';
 
 /**
  * This component defines the look and style of the DOM parts of a track (mainly
@@ -328,8 +329,12 @@ export class TrackShell implements m.ClassComponent<TrackShellAttrs> {
             m(TrackTitle, {title: attrs.title}),
             chips &&
               m(
-                ChipBar,
-                {className: 'pf-track__chips'},
+                Stack,
+                {
+                  className: 'pf-track__chips',
+                  spacing: 'small',
+                  orientation: 'horizontal',
+                },
                 chips.map((chip) =>
                   m(Chip, {label: chip, compact: true, rounded: true}),
                 ),

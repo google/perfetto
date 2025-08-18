@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 import {ProbeSetting} from '../../config/config_interfaces';
+import {Switch} from '../../../../widgets/switch';
 
 export interface ToggleAttrs {
   title: string;
@@ -50,6 +51,18 @@ export class Toggle implements ProbeSetting {
   }
 
   render() {
+    return m('.pf-toggle', {className: this.attrs.cssClass}, [
+      m(Switch, {
+        className: 'pf-toggle__switch',
+        checked: this._enabled,
+        oninput: (e: InputEvent) => {
+          this.setEnabled((e.target as HTMLInputElement).checked);
+          this.attrs.onChange?.(this._enabled);
+        },
+        label: this.attrs.title,
+      }),
+      m('.pf-toggle__desc', this.attrs.descr),
+    ]);
     return m(
       `.toggle${this._enabled ? '.enabled' : ''}${this.attrs.cssClass ?? ''}`,
       m(

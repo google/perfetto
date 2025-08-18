@@ -20,7 +20,7 @@ import {
 } from '../interfaces/connection_check';
 import {Spinner} from '../../../widgets/spinner';
 import {Icon} from '../../../widgets/icon';
-import {linkify} from '../../../base/mithril_utils';
+import {linkify} from '../../../widgets/anchor';
 
 type PreflightCheckWithResult = PreflightCheck & {
   result?: PreflightCheckResult;

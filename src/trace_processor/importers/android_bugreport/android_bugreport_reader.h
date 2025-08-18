@@ -36,14 +36,16 @@ class ZipReader;
 }
 
 class TraceProcessorContext;
+class AndroidDumpstateReader;
 
 // Trace importer for Android bugreport.zip archives.
 class AndroidBugreportReader {
  public:
-  static bool IsAndroidBugReport(
-      const std::vector<util::ZipFile>& zip_file_entries);
-  static base::Status Parse(TraceProcessorContext* context,
-                            std::vector<util::ZipFile> zip_file_entries);
+  AndroidBugreportReader(TraceProcessorContext* context);
+  ~AndroidBugreportReader();
+
+  bool IsAndroidBugReport(const std::vector<util::ZipFile>& zip_file_entries);
+  base::Status Parse(std::vector<util::ZipFile> zip_file_entries);
 
  private:
   struct BugReportFile {
@@ -63,23 +65,14 @@ class AndroidBugreportReader {
     }
   };
 
-  static std::optional<BugReportFile> ExtractBugReportFile(
-      std::vector<util::ZipFile>& vector);
-
-  AndroidBugreportReader(TraceProcessorContext* context,
-                         BugReportFile bug_report,
-                         std::set<LogFile> ordered_log_files);
-  ~AndroidBugreportReader();
-  base::Status ParseImpl();
-
-  base::StatusOr<std::vector<TimestampedAndroidLogEvent>> ParseDumpstateTxt();
-  base::Status ParsePersistentLogcat(std::vector<TimestampedAndroidLogEvent>);
+  base::StatusOr<std::vector<TimestampedAndroidLogEvent>> ParseDumpstateTxt(
+      const BugReportFile&);
+  base::Status ParsePersistentLogcat(const BugReportFile&,
+                                     const std::set<LogFile>&,
+                                     std::vector<TimestampedAndroidLogEvent>);
 
   TraceProcessorContext* const context_;
-  BugReportFile bug_report_;
-  // Log files conveniently sorted by their file timestamp (see operator< in
-  // LogFile)
-  std::set<LogFile> ordered_log_files_;
+  std::unique_ptr<AndroidDumpstateReader> dumpstate_reader_;
 };
 
 }  // namespace perfetto::trace_processor

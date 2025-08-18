@@ -51,7 +51,8 @@ void SurfaceFlingerTransactionsParser::Parse(int64_t timestamp,
           ->Insert(row)
           .id;
 
-  auto inserter = context_->args_tracker->AddArgsTo(snapshot_id);
+  ArgsTracker args_tracker(context_);
+  auto inserter = args_tracker.AddArgsTo(snapshot_id);
   ArgsParser writer(timestamp, inserter, *context_->storage);
   base::Status status = args_parser_.ParseMessage(
       blob,

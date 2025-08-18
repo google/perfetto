@@ -15,13 +15,12 @@
 @import "../theme";
 
 .pf-generic-table {
-  font-family: "Roboto Condensed", sans-serif;
   font-weight: 300;
-  color: #3c4b5d;
   font-size: 14px;
   line-height: 18px;
   width: 100%;
   border-collapse: collapse;
+  font-family: var(--pf-font-compact);
 
   thead {
     font-weight: normal;
@@ -36,7 +35,7 @@
       &.highlight-left {
         background: linear-gradient(
           90deg,
-          $table-border-color,
+          var(--pf-color-border-secondary),
           transparent 20%
         );
       }
@@ -44,7 +43,7 @@
       &.highlight-right {
         background: linear-gradient(
           270deg,
-          $table-border-color,
+          var(--pf-color-border-secondary),
           transparent 20%
         );
       }
@@ -52,11 +51,11 @@
   }
 
   tr:hover td {
-    background-color: $table-hover-color;
+    background-color: color_hover(transparent);
   }
 
   tr.header {
-    border-bottom: 1px solid $table-border-color;
+    border-bottom: 1px solid var(--pf-color-border-secondary);
     text-align: center;
   }
 

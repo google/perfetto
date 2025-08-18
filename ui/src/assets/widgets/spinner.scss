@@ -28,8 +28,8 @@
   display: inline-block;
   width: 1em;
   height: 1em;
-  border: solid 0.1em lightgray;
-  border-top: solid 0.1em $pf-primary-background;
+  border: solid 0.1em var(--pf-color-border);
+  border-top: solid 0.1em var(--pf-color-primary);
   border-radius: 50%;
   animation: pf-spinner-rotation 1s infinite linear;
 

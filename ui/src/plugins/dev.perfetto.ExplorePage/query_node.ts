@@ -195,9 +195,9 @@ export async function analyzeNode(
   let finalSql = lastRes.sql;
   if (node.type !== NodeType.kSqlSource) {
     const createTableSql = `CREATE OR REPLACE PERFETTO TABLE ${
-      node.graphTableName ?? ''
+      node.graphTableName ?? `exp_${node.nodeId}`
     } AS \n${lastRes.sql}`;
-    const selectSql = `SELECT * FROM ${node.graphTableName ?? ''}`;
+    const selectSql = `SELECT * FROM ${node.graphTableName ?? `exp_${node.nodeId}`}`;
     finalSql = `${createTableSql};\n${selectSql}`;
   }
 

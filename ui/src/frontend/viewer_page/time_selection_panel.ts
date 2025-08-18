@@ -22,9 +22,12 @@ import {formatDuration} from '../../components/time_utils';
 import {TraceImpl} from '../../core/trace_impl';
 import {TimestampFormat} from '../../public/timeline';
 import {
-  BACKGROUND_COLOR,
-  FOREGROUND_COLOR,
+  COLOR_BACKGROUND,
+  FONT_COMPACT,
+  COLOR_TEXT_MUTED,
+  COLOR_BORDER,
   TRACK_SHELL_WIDTH,
+  COLOR_TEXT,
 } from '../css_constants';
 import {generateTicks, getMaxMajorTicks, TickType} from './gridline_helper';
 
@@ -47,7 +50,7 @@ function drawHBar(
   bounds: BBox,
   label: string,
 ) {
-  ctx.fillStyle = FOREGROUND_COLOR;
+  ctx.fillStyle = COLOR_TEXT_MUTED;
 
   const xLeft = Math.floor(target.x);
   const xRight = Math.floor(target.x + target.width);
@@ -92,12 +95,12 @@ function drawHBar(
     }
   }
 
-  ctx.fillStyle = BACKGROUND_COLOR;
+  ctx.fillStyle = COLOR_BACKGROUND;
   ctx.fillRect(labelXLeft - 1, 0, labelWidth + 1, target.height);
 
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = FOREGROUND_COLOR;
-  ctx.font = '10px Roboto Condensed';
+  ctx.fillStyle = COLOR_TEXT_MUTED;
+  ctx.font = `10px ${FONT_COMPACT}`;
   ctx.fillText(label, labelXLeft, yMid);
 }
 
@@ -109,7 +112,7 @@ function drawIBar(
 ) {
   if (xPos < bounds.x) return;
 
-  ctx.fillStyle = FOREGROUND_COLOR;
+  ctx.fillStyle = COLOR_TEXT_MUTED;
   ctx.fillRect(xPos, 0, 1, bounds.width);
 
   const yMid = Math.floor(bounds.height / 2 + bounds.y);
@@ -125,12 +128,12 @@ function drawIBar(
     ctx.textAlign = 'left';
   }
 
-  ctx.fillStyle = BACKGROUND_COLOR;
+  ctx.fillStyle = COLOR_BACKGROUND;
   ctx.fillRect(xPosLabel - 1, 0, labelWidth + 2, bounds.height);
 
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = FOREGROUND_COLOR;
-  ctx.font = '10px Roboto Condensed';
+  ctx.fillStyle = COLOR_TEXT_MUTED;
+  ctx.font = `10px ${FONT_COMPACT}`;
   ctx.fillText(label, xPosLabel, yMid);
 }
 
@@ -139,7 +142,7 @@ function drawMarker(ctx: CanvasRenderingContext2D, target: BBox, bounds: BBox) {
   const xPos = Math.floor(target.x);
   if (xPos < bounds.x || xPos > bounds.x + bounds.width) return;
 
-  ctx.fillStyle = FOREGROUND_COLOR;
+  ctx.fillStyle = COLOR_TEXT;
   const yMid = Math.floor(target.height / 2 + target.y);
   const size = 4;
 
@@ -168,7 +171,7 @@ export class TimeSelectionPanel {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: Size2D) {
-    ctx.fillStyle = '#999';
+    ctx.fillStyle = COLOR_BORDER;
     ctx.fillRect(TRACK_SHELL_WIDTH - 1, 0, 1, size.height);
 
     const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
@@ -264,7 +267,7 @@ export class TimeSelectionPanel {
     }
 
     ctx.save();
-    ctx.font = '10px Roboto Condensed';
+    ctx.font = `10px ${FONT_COMPACT}`;
     ctx.textBaseline = 'middle';
 
     const yMid = Math.floor(bounds.height / 2);
@@ -291,9 +294,9 @@ export class TimeSelectionPanel {
       }
     })();
 
-    ctx.fillStyle = BACKGROUND_COLOR;
+    ctx.fillStyle = COLOR_BACKGROUND;
     ctx.fillRect(textX - 1, 0, labelWidth + 2, bounds.height);
-    ctx.fillStyle = FOREGROUND_COLOR;
+    ctx.fillStyle = COLOR_TEXT;
     ctx.fillText(label, textX, yMid);
     ctx.restore();
   }

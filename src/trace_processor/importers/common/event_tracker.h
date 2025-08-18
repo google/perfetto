@@ -45,8 +45,9 @@ class EventTracker {
   struct JsonCounter {
     StringId counter_name_id;
   };
+  struct DmabufRssStat {};
   using ProcessCounterForThread =
-      std::variant<OomScoreAdj, MmEvent, RssStat, JsonCounter>;
+      std::variant<OomScoreAdj, MmEvent, RssStat, JsonCounter, DmabufRssStat>;
 
   using SetArgsCallback = std::function<void(ArgsTracker::BoundInserter*)>;
 

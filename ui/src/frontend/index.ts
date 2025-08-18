@@ -26,7 +26,6 @@ import {initLiveReload} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
 import {initWasm} from '../trace_processor/wasm_engine_proxy';
 import {UiMain} from './ui_main';
-import {initCssConstants} from './css_constants';
 import {registerDebugGlobals} from './debug';
 import {maybeShowErrorDialog} from './error_dialog';
 import {installFileDropHandler} from './file_drop_handler';
@@ -58,6 +57,8 @@ import {
 import {LocalStorage} from '../core/local_storage';
 import {DurationPrecision, TimestampFormat} from '../public/timeline';
 import {timezoneOffsetMap} from '../base/time';
+import {ThemeProvider} from './theme_provider';
+import {OverlayContainer} from '../widgets/overlay_container';
 
 const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   id: 'cspAllowAnyWebsocketPort',
@@ -254,7 +255,6 @@ function main() {
 }
 
 function onCssLoaded() {
-  initCssConstants();
   // Clear all the contents of the initial page (e.g. the <pre> error message)
   // And replace it with the root <main> element which will be used by mithril.
   document.body.innerHTML = '';
@@ -265,8 +265,33 @@ function onCssLoaded() {
   const router = new Router();
   router.onRouteChanged = routeChange;
 
+  const themeSetting = AppImpl.instance.settings.register({
+    id: 'theme',
+    name: '[Experimental] UI Theme',
+    description: 'Warning: Dark mode is not fully supported yet.',
+    schema: z.enum(['dark', 'light']),
+    defaultValue: 'light',
+  });
+
+  // Add command to toggle the theme.
+  AppImpl.instance.commands.registerCommand({
+    id: 'toggleTheme',
+    name: '[Experimental] Toggle UI Theme',
+    callback: () => {
+      const currentTheme = themeSetting.get();
+      themeSetting.set(currentTheme === 'dark' ? 'light' : 'dark');
+    },
+  });
+
   // Mount the main mithril component. This also forces a sync render pass.
-  raf.mount(document.body, UiMain);
+  raf.mount(document.body, {
+    view: () =>
+      m(ThemeProvider, {theme: themeSetting.get() as 'dark' | 'light'}, [
+        m(OverlayContainer, {fillParent: true}, [
+          m(UiMain, {key: themeSetting.get()}),
+        ]),
+      ]),
+  });
 
   if (
     (location.origin.startsWith('http://localhost:') ||

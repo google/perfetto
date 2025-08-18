@@ -800,9 +800,46 @@ TRACE_FILE_TABLE = Table(
                 '''In which order where the files were processed.''',
         }))
 
+BUILD_FLAGS_TABLE = Table(
+    python_module=__file__,
+    class_name='BuildFlagsTable',
+    sql_name='__intrinsic_build_flags',
+    columns=[
+        C('name', CppString()),
+        C('enabled', CppUint32()),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+            Contains all the build flags used in the project.
+        ''',
+        group='Misc',
+        columns={
+            'name':
+                '''Name of the build flag.''',
+            'enabled':
+                '''Whether the build flag is enabled (1) or disabled (0).''',
+        }))
+
+MODULES_TABLE = Table(
+    python_module=__file__,
+    class_name='ModulesTable',
+    sql_name='__intrinsic_modules',
+    columns=[
+        C('name', CppString()),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+            Contains all the modules enabled.
+        ''',
+        group='Misc',
+        columns={
+            'name': '''Name of the enabled module.''',
+        }))
+
 # Keep this list sorted.
 ALL_TABLES = [
     ARG_TABLE,
+    BUILD_FLAGS_TABLE,
     CHROME_RAW_TABLE,
     CLOCK_SNAPSHOT_TABLE,
     CPU_FREQ_TABLE,
@@ -812,6 +849,7 @@ ALL_TABLES = [
     FTRACE_EVENT_TABLE,
     MACHINE_TABLE,
     METADATA_TABLE,
+    MODULES_TABLE,
     PROCESS_TABLE,
     THREAD_TABLE,
     TRACE_FILE_TABLE,

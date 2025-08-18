@@ -35,7 +35,7 @@
   margin-top: 1rem;
   border-radius: 6px;
   background-color: transparent;
-  border: 1px solid $pf-minimal-border;
+  border: 1px solid var(--pf-color-border);
 }
 
 .pf-exp-filter-editor {

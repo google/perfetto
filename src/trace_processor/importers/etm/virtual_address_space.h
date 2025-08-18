@@ -18,11 +18,11 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ETM_VIRTUAL_ADDRESS_SPACE_H_
 
 #include <cstdint>
-#include <optional>
+#include <set>
+#include <utility>
 #include <vector>
 
 #include "src/trace_processor/importers/etm/mapping_version.h"
-#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/perf_tables_py.h"
 
 namespace perfetto::trace_processor {
@@ -92,7 +92,7 @@ namespace etm {
 
 class VirtualAddressSpace {
  public:
-  VirtualAddressSpace() {}
+  VirtualAddressSpace() = default;
   class Builder {
    public:
     explicit Builder(TraceProcessorContext* context) : context_(context) {}
@@ -160,9 +160,9 @@ class VirtualAddressSpace {
     }
   };
 
- private:
   explicit VirtualAddressSpace(std::vector<MappingVersion> mappings)
       : mappings_(std::move(mappings)) {}
+
   std::vector<MappingVersion> mappings_;
 };
 

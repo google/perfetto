@@ -347,7 +347,7 @@ TEST_F(ClockTrackerTest, ClockOffset) {
       std::make_unique<MachineTracker>(&context_, 0x1001);
 
   // Client-to-host BOOTTIME offset is -10000 ns.
-  ct_.SetClockOffset(BOOTTIME, -10000);
+  ct_.SetRemoteClockOffset(BOOTTIME, -10000);
 
   ct_.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
   ct_.AddSnapshot({{REALTIME, 20}, {BOOTTIME, 20220}});
@@ -427,8 +427,8 @@ TEST_F(ClockTrackerTest, NonDefaultTraceTimeClock) {
       std::make_unique<MachineTracker>(&context_, 0x1001);
 
   ct_.SetTraceTimeClock(MONOTONIC);
-  ct_.SetClockOffset(MONOTONIC, -2000);
-  ct_.SetClockOffset(BOOTTIME, -10000);  // This doesn't take effect.
+  ct_.SetRemoteClockOffset(MONOTONIC, -2000);
+  ct_.SetRemoteClockOffset(BOOTTIME, -10000);  // This doesn't take effect.
 
   ct_.AddSnapshot({{REALTIME, 10}, {BOOTTIME, 10010}});
   ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
