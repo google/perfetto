@@ -4,6 +4,9 @@ export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 DPKG_EXPORT_BUILDFLAGS = 1
 include /usr/share/dpkg/buildflags.mk
 
+# Filter out C flags incompatible with C++.
+FILTERED_CFLAGS := $(filter-out -Werror=implicit-function-declaration,$(CFLAGS))
+
 %:
 	dh $@
 
@@ -28,12 +31,12 @@ override_dh_auto_configure:
 	  skip_buildtools_check=true enable_perfetto_integration_tests=false\
 	  enable_perfetto_unittests=false perfetto_use_system_protobuf=true\
 	  perfetto_use_system_zlib=true perfetto_enable_git_rev_version_header=false\
-	  extra_cflags=\"${CFLAGS}\" extra_cxxflags=\"${CXXFLAGS}\"\
+	  extra_cflags=\"${FILTERED_CFLAGS}\" extra_cxxflags=\"${CXXFLAGS}\"\
 	  extra_ldflags=\"${LDFLAGS}\" cc=\"${CC}\" cxx=\"${CXX}\"\
 	  ${MAYBE_HOST_CPU}"
 
 override_dh_auto_build:
-	ninja -C out/release perfetto traced traced_probes
+	ninja -C out/release perfetto tracebox traced traced_probes
 	pandoc docs/reference/perfetto-cli.md -s -t man --shift-heading-level-by=-1 >\
 	 debian/perfetto.1
 
