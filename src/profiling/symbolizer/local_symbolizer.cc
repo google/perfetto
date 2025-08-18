@@ -653,6 +653,43 @@ std::optional<FoundBinary> FindBinaryInRoot(const std::string& root_str,
   return std::nullopt;
 }
 
+std::optional<FoundBinary> FindKernelBinaryAtPath(const char* path) {
+  return IsCorrectFile(path, std::nullopt);
+}
+
+std::optional<FoundBinary> FindKernelBinary(const std::string& os_release) {
+  base::StackString<1024> path("/boot/vmlinux-%s", os_release.c_str());
+  std::optional<FoundBinary> binary = FindKernelBinaryAtPath(path.c_str());
+  if (binary) {
+    return binary;
+  }
+  path = base::StackString<1024>("/usr/lib/debug/boot/vmlinux-%s",
+                                 os_release.c_str());
+  binary = FindKernelBinaryAtPath(path.c_str());
+  if (binary) {
+    return binary;
+  }
+  path = base::StackString<1024>("/lib/modules/%s/build/vmlinux",
+                                 os_release.c_str());
+  binary = FindKernelBinaryAtPath(path.c_str());
+  if (binary) {
+    return binary;
+  }
+  path = base::StackString<1024>("/usr/lib/debug/lib/modules/%s/vmlinux",
+                                 os_release.c_str());
+  binary = FindKernelBinaryAtPath(path.c_str());
+  if (binary) {
+    return binary;
+  }
+  path = base::StackString<1024>("/usr/lib/debug/boot/vmlinux-%s.debug",
+                                 os_release.c_str());
+  binary = FindKernelBinaryAtPath(path.c_str());
+  if (binary) {
+    return binary;
+  }
+  return std::nullopt;
+}
+
 }  // namespace
 
 bool ParseLlvmSymbolizerJsonLine(const std::string& line,
@@ -801,21 +838,42 @@ std::vector<SymbolizedFrame> LLVMSymbolizerProcess::Symbolize(
 }
 
 std::vector<std::vector<SymbolizedFrame>> LocalSymbolizer::Symbolize(
-    const Environment&,
+    const Environment& env,
     const std::string& mapping_name,
     const std::string& build_id,
     uint64_t load_bias,
     const std::vector<uint64_t>& addresses) {
-  std::optional<FoundBinary> binary =
-      finder_->FindBinary(mapping_name, build_id);
-  if (!binary)
+  bool is_kernel = base::StartsWith(mapping_name, "[kernel.kallsyms]");
+  std::optional<FoundBinary> binary;
+  if (is_kernel) {
+    if (env.os_release) {
+      binary = FindKernelBinary(*env.os_release);
+    }
+  } else {
+    binary = finder_->FindBinary(mapping_name, build_id);
+  }
+  if (!binary) {
     return {};
+  }
+  uint64_t binary_load_bias = binary->vaddr - binary->poffset;
   uint64_t addr_correction = 0;
-  if ((binary->vaddr - binary->poffset) > load_bias) {
+  if (is_kernel) {
+    // We expect this branch to be hit when symbolizing kernel frames with Linux
+    // perf (*not* simpleperf). In that case, we need to add the vaddr
+    // because llvm-symbolizer expects that we provide absolute addresses unlike
+    // all other files where it expects relative addresses.
+    addr_correction = binary->vaddr;
+  } else if (binary->poffset > 0 && binary_load_bias > load_bias) {
     // On Android 10, there was a bug in libunwindstack that would incorrectly
     // calculate the load_bias, and thus the relative PC. This would end up in
     // frames that made no sense. We can fix this up after the fact if we
     // detect this situation.
+    //
+    // Note that the `binary->poffset > 0` check above accounts for perf.data
+    // files: in those, load_bias from the trace is always zero but we should
+    // *not* enter this codepath. Thankfully, in those cases `poffset` is zero
+    // while in cases where we need enter this branch to workaround
+    // libunwindstack, `poffset` should always be greater than zero.
     addr_correction = (binary->vaddr - binary->poffset) - load_bias;
     PERFETTO_LOG("Correcting load bias by %" PRIu64 " for %s", addr_correction,
                  mapping_name.c_str());
