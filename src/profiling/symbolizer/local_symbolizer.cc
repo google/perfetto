@@ -822,7 +822,7 @@ std::vector<SymbolizedFrame> LLVMSymbolizerProcess::Symbolize(
 }
 
 std::vector<std::vector<SymbolizedFrame>> LocalSymbolizer::Symbolize(
-    const Environment& env,
+    const Environment&,
     const std::string& mapping_name,
     const std::string& build_id,
     uint64_t load_bias,
