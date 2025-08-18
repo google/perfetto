@@ -29,6 +29,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_macros.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/create_mapping_params.h"
@@ -103,29 +104,34 @@ PerfTracker::CreateAuxDataTokenizer(AuxtraceInfoRecord info) {
 void PerfTracker::AddSimpleperfFile2(const FileFeature::Decoder& file) {
   SymbolTracker::Dso dso;
   switch (file.type()) {
-    case DsoType::DSO_KERNEL:
+    case DsoType::DSO_KERNEL: {
       InsertSymbols(file, context_->symbol_tracker->kernel_symbols());
       return;
-
+    }
     case DsoType::DSO_ELF_FILE: {
       ElfFile::Decoder elf(file.elf_file());
       dso.load_bias = file.min_vaddr() - elf.file_offset_of_min_vaddr();
       break;
     }
-
     case DsoType::DSO_KERNEL_MODULE: {
       KernelModule::Decoder module(file.kernel_module());
       dso.load_bias = file.min_vaddr() - module.memory_offset_of_min_vaddr();
       break;
     }
-
-    case DsoType::DSO_DEX_FILE:
+    case DsoType::DSO_DEX_FILE: {
+      break;
+    }
     case DsoType::DSO_SYMBOL_MAP_FILE:
     case DsoType::DSO_UNKNOWN_FILE:
     default:
       return;
   }
 
+  // JIT functions use absolute addresses for their symbols instead of relative
+  // ones.
+  std::string path = file.path().ToStdString();
+  dso.symbols_are_absolute = base::Contains(path, "jit_app_cache") ||
+                             base::Contains(path, "jit_zygote_cache");
   InsertSymbols(file, dso.symbols);
   context_->symbol_tracker->dsos().Insert(
       context_->storage->InternString(file.path()), std::move(dso));

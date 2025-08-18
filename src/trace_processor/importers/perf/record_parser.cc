@@ -322,30 +322,18 @@ base::Status RecordParser::UpdateCounters(const Sample& sample) {
     return UpdateCountersInReadGroups(sample);
   }
 
-  if (!sample.cpu.has_value()) {
-    context_->storage->IncrementStats(
-        stats::perf_counter_skipped_because_no_cpu);
-    return base::OkStatus();
-  }
-
   if (!sample.period.has_value() && !sample.attr->sample_period().has_value()) {
     return base::ErrStatus("No period for sample");
   }
 
   uint64_t period = sample.period.has_value() ? *sample.period
                                               : *sample.attr->sample_period();
-  sample.attr->GetOrCreateCounter(*sample.cpu)
+  sample.attr->GetOrCreateCounter(sample.cpu)
       .AddDelta(sample.trace_ts, static_cast<double>(period));
   return base::OkStatus();
 }
 
 base::Status RecordParser::UpdateCountersInReadGroups(const Sample& sample) {
-  if (!sample.cpu.has_value()) {
-    context_->storage->IncrementStats(
-        stats::perf_counter_skipped_because_no_cpu);
-    return base::OkStatus();
-  }
-
   for (const auto& entry : sample.read_groups) {
     RefPtr<PerfEventAttr> attr =
         sample.perf_session->FindAttrForEventId(*entry.event_id);
@@ -353,14 +341,14 @@ base::Status RecordParser::UpdateCountersInReadGroups(const Sample& sample) {
       return base::ErrStatus("No perf_event_attr for id %" PRIu64,
                              *entry.event_id);
     }
-    attr->GetOrCreateCounter(*sample.cpu)
+    attr->GetOrCreateCounter(sample.cpu)
         .AddCount(sample.trace_ts, static_cast<double>(entry.value));
   }
   return base::OkStatus();
 }
 
 DummyMemoryMapping* RecordParser::GetDummyMapping(UniquePid upid) {
-  if (auto it = dummy_mappings_.Find(upid); it) {
+  if (auto* it = dummy_mappings_.Find(upid); it) {
     return *it;
   }
 
