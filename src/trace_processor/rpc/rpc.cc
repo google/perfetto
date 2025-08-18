@@ -24,6 +24,10 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <unistd.h>
+#include <filesystem>
+#include <chrono>
+#include <future>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -41,6 +45,8 @@
 
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
+
+constexpr char kStorageDir[] = "./storage/";
 
 namespace perfetto::trace_processor {
 
@@ -96,10 +102,12 @@ void Response::Send(Rpc::RpcResponseFunction send_fn) {
 
 }  // namespace
 
-Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance)
-    : trace_processor_(std::move(preloaded_instance)) {
-  if (!trace_processor_)
-    ResetTraceProcessorInternal(Config());
+Rpc::Rpc(std::unique_ptr<TraceProcessor> preloaded_instance) {
+  if (!preloaded_instance) {
+    preloaded_instance = TraceProcessor::CreateInstance(trace_processor_config_);
+  }
+  processor = std::make_unique<TraceProcessorInfo>(std::move(preloaded_instance));
+  last_accessed_ns = static_cast<uint64_t>(base::GetWallTimeNs().count());
 }
 
 Rpc::Rpc() : Rpc(nullptr) {}
@@ -107,7 +115,7 @@ Rpc::~Rpc() = default;
 
 void Rpc::ResetTraceProcessorInternal(const Config& config) {
   trace_processor_config_ = config;
-  trace_processor_ = TraceProcessor::CreateInstance(config);
+  processor -> instance = TraceProcessor::CreateInstance(config);
   bytes_parsed_ = bytes_last_progress_ = 0;
   t_parse_started_ = base::GetWallTimeNs().count();
   // Deliberately not resetting the RPC channel state (rxbuf_, {tx,rx}_seq_id_).
@@ -171,6 +179,9 @@ TraceProcessor::MetatraceCategories MetatraceCategoriesToPublicEnum(
 void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
   RpcProto::Decoder req(data, len);
 
+  std::string current_trace_name_ = req.file_name().ToStdString();
+  last_accessed_ns = static_cast<uint64_t>(base::GetWallTimeNs().count());
+  /**
   // We allow restarting the sequence from 0. This happens when refreshing the
   // browser while using the external trace_processor_shell --httpd.
   if (req.seq() != 0 && rx_seq_id_ != 0 && req.seq() != rx_seq_id_ + 1) {
@@ -189,6 +200,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
     return;
   }
   rx_seq_id_ = req.seq();
+  */
 
   // The static cast is to prevent that the compiler breaks future proofness.
   const int req_type = static_cast<int>(req.request());
@@ -199,7 +211,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       auto* result = resp->set_append_result();
       if (!req.has_append_trace_data()) {
         result->set_error(kErrFieldNotSet);
-      } else {
+      } else if (!processor->eof_){
         protozero::ConstBytes byte_range = req.append_trace_data();
         base::Status res = Parse(byte_range.data, byte_range.size);
         if (!res.ok()) {
@@ -211,7 +223,9 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
     }
     case RpcProto::TPM_FINALIZE_TRACE_DATA: {
       Response resp(tx_seq_id_++, req_type);
-      NotifyEndOfFile();
+      if(!processor->eof_){
+        NotifyEndOfFile();
+      }
       resp.Send(rpc_response_fn_);
       break;
     }
@@ -271,14 +285,14 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
     }
     case RpcProto::TPM_GET_METRIC_DESCRIPTORS: {
       Response resp(tx_seq_id_++, req_type);
-      auto descriptor_set = trace_processor_->GetMetricDescriptors();
+      auto descriptor_set = processor -> instance->GetMetricDescriptors();
       auto* result = resp->set_metric_descriptors();
       result->AppendRawProtoBytes(descriptor_set.data(), descriptor_set.size());
       resp.Send(rpc_response_fn_);
       break;
     }
     case RpcProto::TPM_RESTORE_INITIAL_TABLES: {
-      trace_processor_->RestoreInitialTables();
+      processor->instance->RestoreInitialTables();
       Response resp(tx_seq_id_++, req_type);
       resp.Send(rpc_response_fn_);
       break;
@@ -312,6 +326,13 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
       resp.Send(rpc_response_fn_);
       break;
     }
+    case RpcProto::TPM_PARSE_FROM_STORED_FILE: {
+      Response resp(tx_seq_id_++, req_type);
+      protozero::ConstBytes args = req.parse_from_stored_file_args();
+      ParseFromFile(args.data, args.size);
+      resp.Send(rpc_response_fn_);
+      break;
+    }
     default: {
       // This can legitimately happen if the client is newer. We reply with a
       // generic "unkown request" response, so the client can do feature
@@ -330,13 +351,13 @@ base::Status Rpc::Parse(const uint8_t* data, size_t len) {
   PERFETTO_TP_TRACE(
       metatrace::Category::API_TIMELINE, "RPC_PARSE",
       [&](metatrace::Record* r) { r->AddArg("length", std::to_string(len)); });
-  if (eof_) {
+  if (processor->eof_) {
     // Reset the trace processor state if another trace has been previously
     // loaded. Use the same TraceProcessor Config.
     ResetTraceProcessorInternal(trace_processor_config_);
   }
 
-  eof_ = false;
+  processor->eof_ = false;
   bytes_parsed_ += len;
   MaybePrintProgress();
 
@@ -346,17 +367,52 @@ base::Status Rpc::Parse(const uint8_t* data, size_t len) {
   // TraceProcessor needs take ownership of the memory chunk.
   std::unique_ptr<uint8_t[]> data_copy(new uint8_t[len]);
   memcpy(data_copy.get(), data, len);
-  return trace_processor_->Parse(std::move(data_copy), len);
+  return processor->instance->Parse(std::move(data_copy), len);
 }
 
 base::Status Rpc::NotifyEndOfFile() {
   PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE,
                     "RPC_NOTIFY_END_OF_FILE");
 
-  eof_ = true;
-  RETURN_IF_ERROR(trace_processor_->NotifyEndOfFile());
+  processor->eof_ = true;
+  RETURN_IF_ERROR(processor->instance->NotifyEndOfFile());
   MaybePrintProgress();
   return base::OkStatus();
+}
+
+void Rpc::SetCurrentTraceName(const std::string& newName) {
+  return processor->instance->SetCurrentTraceName(newName);
+}
+
+base::Status Rpc::ParseFromFile(const uint8_t* args, size_t len) {
+  protos::pbzero::ParseFromStoredFileArgs::Decoder parse_from_stored_file_args(args, len);
+  std::string fileName = parse_from_stored_file_args.file_name().ToStdString();
+  std::string file_path = kStorageDir + fileName;
+  FILE* fd = fopen(file_path.c_str(), "rb");
+  if (!fd) {
+    return base::ErrStatus("Failed to open file %s", file_path.c_str());
+  }
+
+  constexpr size_t kBufferSize = 50 * 1024 * 1024; // 50MB chunks
+  std::unique_ptr<uint8_t[]> buffer(new uint8_t[kBufferSize]);
+
+  while (true) {
+    size_t bytes_read = fread(buffer.get(), 1, kBufferSize, fd);
+    if (bytes_read == 0) {
+      if (ferror(fd)) {
+        fclose(fd);
+        return base::ErrStatus("Error reading file %s", file_path.c_str());
+      }
+      break; // EOF
+    }
+    auto status = Parse(buffer.get(), bytes_read);
+    if (!status.ok()) {
+      fclose(fd);
+      return status;
+    }
+  }
+  fclose(fd);
+  return NotifyEndOfFile();
 }
 
 void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
@@ -389,7 +445,7 @@ void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
 }
 
 void Rpc::MaybePrintProgress() {
-  if (eof_ || bytes_parsed_ - bytes_last_progress_ > kProgressUpdateBytes) {
+  if (processor->eof_ || bytes_parsed_ - bytes_last_progress_ > kProgressUpdateBytes) {
     bytes_last_progress_ = bytes_parsed_;
     auto t_load_s =
         static_cast<double>(base::GetWallTimeNs().count() - t_parse_started_) /
@@ -397,7 +453,7 @@ void Rpc::MaybePrintProgress() {
     fprintf(stderr, "\rLoading trace %.2f MB (%.1f MB/s)%s",
             static_cast<double>(bytes_parsed_) / 1e6,
             static_cast<double>(bytes_parsed_) / 1e6 / t_load_s,
-            (eof_ ? "\n" : ""));
+            (processor->eof_ ? "\n" : ""));
     fflush(stderr);
   }
 }
@@ -427,11 +483,11 @@ Iterator Rpc::QueryInternal(const uint8_t* args, size_t len) {
                       }
                     });
 
-  return trace_processor_->ExecuteQuery(sql);
+  return processor->instance->ExecuteQuery(sql);
 }
 
 void Rpc::RestoreInitialTables() {
-  trace_processor_->RestoreInitialTables();
+  processor->instance->RestoreInitialTables();
 }
 
 std::vector<uint8_t> Rpc::ComputeMetric(const uint8_t* args, size_t len) {
@@ -464,7 +520,7 @@ void Rpc::ComputeMetricInternal(const uint8_t* data,
     case protos::pbzero::ComputeMetricArgs::BINARY_PROTOBUF: {
       std::vector<uint8_t> metrics_proto;
       base::Status status =
-          trace_processor_->ComputeMetric(metric_names, &metrics_proto);
+          processor->instance->ComputeMetric(metric_names, &metrics_proto);
       if (status.ok()) {
         result->set_metrics(metrics_proto.data(), metrics_proto.size());
       } else {
@@ -474,7 +530,7 @@ void Rpc::ComputeMetricInternal(const uint8_t* data,
     }
     case protos::pbzero::ComputeMetricArgs::TEXTPROTO: {
       std::string metrics_string;
-      base::Status status = trace_processor_->ComputeMetricText(
+      base::Status status = processor->instance->ComputeMetricText(
           metric_names, TraceProcessor::MetricResultFormat::kProtoText,
           &metrics_string);
       if (status.ok()) {
@@ -486,7 +542,7 @@ void Rpc::ComputeMetricInternal(const uint8_t* data,
     }
     case protos::pbzero::ComputeMetricArgs::JSON: {
       std::string metrics_string;
-      base::Status status = trace_processor_->ComputeMetricText(
+      base::Status status = processor->instance->ComputeMetricText(
           metric_names, TraceProcessor::MetricResultFormat::kJson,
           &metrics_string);
       if (status.ok()) {
@@ -505,7 +561,7 @@ void Rpc::EnableMetatrace(const uint8_t* data, size_t len) {
   protos::pbzero::EnableMetatraceArgs::Decoder args(data, len);
   config.categories = MetatraceCategoriesToPublicEnum(
       static_cast<MetatraceCategories>(args.categories()));
-  trace_processor_->EnableMetatrace(config);
+  processor->instance->EnableMetatrace(config);
 }
 
 std::vector<uint8_t> Rpc::DisableAndReadMetatrace() {
@@ -517,7 +573,7 @@ std::vector<uint8_t> Rpc::DisableAndReadMetatrace() {
 void Rpc::DisableAndReadMetatraceInternal(
     protos::pbzero::DisableAndReadMetatraceResult* result) {
   std::vector<uint8_t> trace_proto;
-  base::Status status = trace_processor_->DisableAndReadMetatrace(&trace_proto);
+  base::Status status = processor->instance->DisableAndReadMetatrace(&trace_proto);
   if (status.ok()) {
     result->set_metatrace(trace_proto.data(), trace_proto.size());
   } else {
@@ -527,7 +583,7 @@ void Rpc::DisableAndReadMetatraceInternal(
 
 std::vector<uint8_t> Rpc::GetStatus() {
   protozero::HeapBuffered<protos::pbzero::StatusResult> status;
-  status->set_loaded_trace_name(trace_processor_->GetCurrentTraceName());
+  status->set_loaded_trace_name(processor->instance->GetCurrentTraceName());
   status->set_human_readable_version(base::GetVersionString());
   if (const char* version_code = base::GetVersionCode(); version_code) {
     status->set_version_code(version_code);

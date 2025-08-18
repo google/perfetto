@@ -167,6 +167,7 @@ function getSections(): Section[] {
           i: 'extension',
           isVisible: () => PLUGINS_PAGE_IN_NAV_FLAG.get(),
         },
+        {t: 'Uploaded Files', a: navigateFiles, i: 'folder'},
       ],
     },
 
@@ -418,6 +419,12 @@ function navigateMetrics(e: Event) {
 function navigateInfo(e: Event) {
   e.preventDefault();
   Router.navigate('#!/info');
+}
+
+function navigateFiles(e: Event) {
+  e.preventDefault();
+  Router.navigate('#!/files');
+  window.location.reload();
 }
 
 function navigateViewer(e: Event) {

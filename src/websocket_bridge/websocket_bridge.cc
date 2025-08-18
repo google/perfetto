@@ -96,9 +96,10 @@ void WSBridge::Main(int, char**) {
   srv.AddAllowedOrigin("http://localhost:10000");
   srv.AddAllowedOrigin("http://127.0.0.1:10000");
   srv.AddAllowedOrigin("https://ui.perfetto.dev");
+  srv.AddAllowedOrigin("http://0.0.0.0:10000");
 
   srv.Start(kWebsocketPort);
-  PERFETTO_LOG("[WSBridge] Listening on 127.0.0.1:%d", kWebsocketPort);
+  PERFETTO_LOG("[WSBridge] Listening on 0.0.0.0:%d", kWebsocketPort);
   task_runner_.Run();
 }
 

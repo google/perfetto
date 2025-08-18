@@ -36,7 +36,7 @@ import {
   DropDirection,
   performReordering,
 } from './dragndrop_logic';
-import {createEmptyState} from './empty_state';
+//import {createEmptyState} from './empty_state';
 import {
   MetatraceTrackId,
   traceEventBegin,
@@ -100,6 +100,7 @@ export interface PostedScrollToRange {
   viewPercentage?: number;
 }
 
+/**
 function clearTraceState(state: StateDraft) {
   const nextId = state.nextId;
   const recordConfig = state.recordConfig;
@@ -120,6 +121,7 @@ function clearTraceState(state: StateDraft) {
   state.chromeCategories = chromeCategories;
   state.newEngineMode = newEngineMode;
 }
+*/
 
 function generateNextId(draft: StateDraft): string {
   const nextId = String(Number(draft.nextId) + 1);
@@ -157,7 +159,7 @@ let statusTraceEvent: TraceEventScope | undefined;
 
 export const StateActions = {
   openTraceFromFile(state: StateDraft, args: {file: File}): void {
-    clearTraceState(state);
+    // clearTraceState(state);
     const id = generateNextId(state);
     state.engine = {
       id,
@@ -167,7 +169,7 @@ export const StateActions = {
   },
 
   openTraceFromBuffer(state: StateDraft, args: PostedTrace): void {
-    clearTraceState(state);
+    // clearTraceState(state);
     const id = generateNextId(state);
     state.engine = {
       id,
@@ -177,7 +179,7 @@ export const StateActions = {
   },
 
   openTraceFromUrl(state: StateDraft, args: {url: string}): void {
-    clearTraceState(state);
+    // clearTraceState(state);
     const id = generateNextId(state);
     state.engine = {
       id,
@@ -186,8 +188,18 @@ export const StateActions = {
     };
   },
 
+  openTraceFromStoredFile(state: StateDraft, _args: {fileName: string}): void {
+    // clearTraceState(state);
+    const id = generateNextId(state);
+    state.engine = {
+      id,
+      ready: false,
+      source: {type: 'STORED_FILE', fileName: _args.fileName},
+    };
+  },
+
   openTraceFromHttpRpc(state: StateDraft, _args: {}): void {
-    clearTraceState(state);
+    // clearTraceState(state);
     const id = generateNextId(state);
     state.engine = {
       id,
@@ -874,6 +886,14 @@ export const StateActions = {
       const trackKey = pinnedTracks[index];
       this.toggleTrackPinned(state, {trackKey});
     }
+  },
+
+   clearAllTracks(state: StateDraft, _: {}) {
+    // Clear all tracks from the state
+    state.tracks = {};
+    state.trackGroups = {};
+    state.pinnedTracks = [];
+    state.scrollingTracks = [];
   },
 
   togglePivotTable(

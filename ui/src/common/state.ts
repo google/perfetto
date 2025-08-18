@@ -239,11 +239,17 @@ export interface TraceHttpRpcSource {
   type: 'HTTP_RPC';
 }
 
+export interface ServerStoredFileSource{
+  type: 'STORED_FILE';
+  fileName: string;
+}
+
 export type TraceSource =
   | TraceFileSource
   | TraceArrayBufferSource
   | TraceUrlSource
-  | TraceHttpRpcSource;
+  | TraceHttpRpcSource
+  | ServerStoredFileSource;
 
 export interface TrackState {
   uri: string;

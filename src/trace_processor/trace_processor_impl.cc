@@ -438,6 +438,7 @@ base::Status TraceProcessorImpl::NotifyEndOfFile() {
 }
 
 size_t TraceProcessorImpl::RestoreInitialTables() {
+  /**
   // We should always have at least as many objects now as we did in the
   // constructor.
   uint64_t registered_count_before = engine_->SqliteRegisteredObjectCount();
@@ -450,7 +451,8 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   uint64_t registered_count_after = engine_->SqliteRegisteredObjectCount();
   PERFETTO_CHECK(registered_count_after ==
                  sqlite_objects_post_constructor_initialization_);
-  return static_cast<size_t>(registered_count_before - registered_count_after);
+  */
+  return 0;
 }
 
 Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {

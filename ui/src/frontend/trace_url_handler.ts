@@ -39,6 +39,10 @@ export function maybeOpenTraceFromRoute(route: Route) {
     return;
   }
 
+  if(route.args.storage){
+    maybeLoadTraceFromStoredFile(route.args.storage);
+  }
+
   const url = route.args.url;
   if (url && url !== getCurrentTraceUrl()) {
     // /?url=https://commondatastorage.googleapis.com/bucket/trace
@@ -213,6 +217,14 @@ async function maybeOpenCachedTrace(traceUuid: string) {
     // action so this has effect even if the user clicks Esc or clicks outside
     // of the modal dialog and dismisses it.
     navigateToOldTraceUuid();
+  }
+}
+
+function maybeLoadTraceFromStoredFile(fileName: string){
+  // Only load the trace if no trace is currently active
+  if (globals.state.traceUuid === undefined) {
+    globals.currentTraceName = fileName;
+    globals.dispatch(Actions.openTraceFromStoredFile({fileName}));
   }
 }
 

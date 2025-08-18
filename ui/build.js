@@ -84,7 +84,7 @@ const cfg = {
   debug: false,
   bigtrace: false,
   startHttpServer: false,
-  httpServerListenHost: '127.0.0.1',
+  httpServerListenHost: '0.0.0.0',
   httpServerListenPort: 10000,
   wasmModules: ['trace_processor', 'traceconv'],
   crossOriginIsolation: false,
@@ -857,7 +857,12 @@ function mklink(src, dst) {
     if (fs.lstatSync(dst).isSymbolicLink() && fs.readlinkSync(dst) === src) {
       return;
     } else {
-      fs.unlinkSync(dst);
+      const stat = fs.lstatSync(dst);
+      if (stat.isDirectory()) {
+        fs.rmdirSync(dst, { recursive: true });
+      } else {
+        fs.unlinkSync(dst);
+      }
     }
   }
   fs.symlinkSync(src, dst);
