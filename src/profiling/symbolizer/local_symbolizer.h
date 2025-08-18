@@ -17,23 +17,21 @@
 #ifndef SRC_PROFILING_SYMBOLIZER_LOCAL_SYMBOLIZER_H_
 #define SRC_PROFILING_SYMBOLIZER_LOCAL_SYMBOLIZER_H_
 
-#include <functional>
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
-#include "perfetto/ext/base/scoped_file.h"
 #include "src/profiling/symbolizer/subprocess.h"
 #include "src/profiling/symbolizer/symbolizer.h"
 
-namespace perfetto {
-namespace profiling {
+namespace perfetto::profiling {
 
 bool ParseLlvmSymbolizerJsonLine(const std::string& line,
                                  std::vector<SymbolizedFrame>* result);
-enum BinaryType {
+enum BinaryType : uint8_t {
   kElf,
   kMachO,
   kMachODsym,
@@ -122,7 +120,6 @@ std::unique_ptr<Symbolizer> LocalSymbolizerOrDie(
     std::vector<std::string> binary_path,
     const char* mode);
 
-}  // namespace profiling
-}  // namespace perfetto
+}  // namespace perfetto::profiling
 
 #endif  // SRC_PROFILING_SYMBOLIZER_LOCAL_SYMBOLIZER_H_
