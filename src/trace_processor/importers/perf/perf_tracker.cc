@@ -144,6 +144,13 @@ void PerfTracker::CreateKernelMemoryMapping(int64_t trace_ts,
       params.memory_range.size() == std::numeric_limits<uint64_t>::max()) {
     return;
   }
+  // Linux perf synthesizes a kernel mapping which maps the kernel image close
+  // to uint64::max() but then *also* claims that the symbols are the same
+  // offset into the kernel ELF file. This does not make any sense. Just zero
+  // out the exact_offset as this is what is happening in practice.
+  if (params.exact_offset == params.memory_range.start()) {
+    params.exact_offset = 0;
+  }
   AddMapping(
       trace_ts, std::nullopt,
       context_->mapping_tracker->CreateKernelMemoryMapping(std::move(params)));
