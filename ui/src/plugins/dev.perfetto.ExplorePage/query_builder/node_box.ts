@@ -104,7 +104,6 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
     );
 
     const boxStyle = {
-      position: 'absolute',
       left: `${layout.x}px`,
       top: `${layout.y}px`,
       opacity: isDragging ? '0' : '1',

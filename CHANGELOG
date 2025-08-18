@@ -5,6 +5,10 @@ Unreleased:
       maintainers or users.
     * Deprecated: "linux.inode_file_map" data source that is not known to be
       used since 2017. The implementation is too unreliable and unmaintained.
+    * "linux.perf": fixed assumptions around cpu0 always being online.
+    * "linux.perf": when using libunwindstack for userspace unwinding
+      (default on Android), the implementation now chooses a default for
+      unwind_state_clear_period_ms.
   SQL Standard library:
     * Added `android.bitmaps` module with timeseries information about bitmap
       usage in Android.

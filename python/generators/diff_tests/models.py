@@ -17,11 +17,24 @@ import os
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from .testing import DiffTestBlueprint
 
 TestName = str
+
+
+@dataclass
+class DiscoveredTests:
+  """In-memory database of all discovered tests."""
+  # All tests which match the given name filter and module constraints.
+  runnable: List['TestCase']
+
+  # All tests which are skipped because they don't match the name filter.
+  skipped_name_filter: List[str]
+
+  # All tests which are skipped due to a missing module.
+  skipped_module_missing: List[Tuple[str, str]]
 
 
 @dataclass

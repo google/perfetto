@@ -14,18 +14,12 @@
 
 import m from 'mithril';
 import {
-  createFinalColumns,
   createSelectColumnsProto,
-  nextNodeId,
-  NodeType,
   QueryNode,
   QueryNodeState,
+  NodeType,
 } from '../../query_node';
-import {
-  ColumnInfo,
-  columnInfoFromName,
-  newColumnInfoList,
-} from '../column_info';
+import {columnInfoFromName, newColumnInfoList} from '../column_info';
 import protos from '../../../../protos';
 import {Editor} from '../../../../widgets/editor';
 import {Icon} from '../../../../widgets/icon';
@@ -39,6 +33,7 @@ import {
   queryHistoryStorage,
 } from '../../../../components/widgets/query_history';
 import {Trace} from '../../../../public/trace';
+import {SourceNode} from '../source_node';
 
 export interface SqlSourceState extends QueryNodeState {
   sql?: string;
@@ -47,27 +42,25 @@ export interface SqlSourceState extends QueryNodeState {
   trace: Trace;
 }
 
-export class SqlSourceNode implements QueryNode {
-  readonly nodeId: string;
-  readonly type: NodeType = NodeType.kSqlSource;
-  readonly prevNode = undefined;
-  nextNode?: QueryNode;
-
-  sourceCols: ColumnInfo[];
-  finalCols: ColumnInfo[];
-
+export class SqlSourceNode extends SourceNode {
   readonly state: SqlSourceState;
 
   constructor(attrs: SqlSourceState) {
-    this.nodeId = nextNodeId();
+    super(attrs);
     this.state = attrs;
-    this.sourceCols = attrs.sourceCols ?? [];
-    this.finalCols = createFinalColumns(this);
+  }
+
+  get type() {
+    return NodeType.kSqlSource;
   }
 
   setSourceColumns(columns: string[]) {
     this.state.sourceCols = columns.map((c) => columnInfoFromName(c));
     m.redraw();
+  }
+
+  onQueryExecuted(columns: string[]) {
+    this.setSourceColumns(columns);
   }
 
   clone(): QueryNode {

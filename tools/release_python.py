@@ -30,7 +30,7 @@ NC = '\033[0m'  # No Color
 
 # Constants for paths. Assumes the script is run from the repository root.
 SETUP_PY_PATH = 'python/setup.py'
-VENV_PYTHON = '.venv/bin/python'
+VENV_PYTHON = os.path.abspath('.venv/bin/python')
 
 
 def info(msg: str) -> None:

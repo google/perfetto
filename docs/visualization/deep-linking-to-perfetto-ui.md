@@ -71,8 +71,7 @@ When traces are opened via `postMessage`, Perfetto avoids storing the trace as
 doing so may violate the retention policy of the original trace source. That is
 to say the trace is not uploaded anywhere. Thus, you must provide a URL that
 provides a direct link to the same trace via your infrastructure, which should
-automatically re-open Perfetto perfetto and use postmessage to supply the same
-trace.
+automatically re-open Perfetto and use postmessage to supply the same trace.
 
 The `url` and `appStateHash` properties work together to allow users to share a
 link to a trace that, when opened, restores the trace and the UI to the same

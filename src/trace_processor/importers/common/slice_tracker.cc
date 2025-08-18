@@ -330,8 +330,8 @@ void SliceTracker::FlushPendingSlices() {
 
   // Translate and flush all pending args.
   for (const auto& translatable_arg : translatable_args_) {
-    auto bound_inserter =
-        context_->args_tracker->AddArgsTo(translatable_arg.slice_id);
+    ArgsTracker args_tracker(context_);
+    auto bound_inserter = args_tracker.AddArgsTo(translatable_arg.slice_id);
     context_->args_translation_table->TranslateArgs(
         translatable_arg.compact_arg_set, bound_inserter);
   }
