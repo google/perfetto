@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-#include <memory>
-
 #include "src/trace_processor/importers/common/track_compressor.h"
 
-#include "src/trace_processor/importers/common/args_tracker.h"
+#include <memory>
+
 #include "src/trace_processor/importers/common/global_args_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -51,6 +50,8 @@ class TrackCompressorUnittest : public testing::Test {
     context_.track_compressor = std::make_unique<TrackCompressor>(&context_);
     context_.process_track_translation_table =
         std::make_unique<ProcessTrackTranslationTable>(context_.storage.get());
+    context_.track_group_idx_state =
+        std::make_unique<TrackCompressorGroupIdxState>();
 
     storage_ = context_.storage.get();
     tracker_ = context_.track_compressor.get();
