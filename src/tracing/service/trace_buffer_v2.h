@@ -299,6 +299,27 @@ class BufIterator {
 
   bool data_loss_ = false;
 };
+
+// TODO rework comment.
+// Takes a chunk in input which is the chunk we want to visit.
+// Identifies the first chunk (<= input) in the sequence to start the visit,
+// and goes through all fragments in the chunk range.
+// It can also go beyond the input (end_) chunk, if the last fragment is a
+// fragmented packet that continues beyond.
+class ChunkIterator {
+ public:
+  ChunkIterator(TBChunk*, TraceBufferV2* buf);
+
+  // TODO should this extract packets or fragments?
+  std::optional<Frag> NextFragment();
+  NextPacket(); TODO
+
+
+ private:
+  TBChunk* begin_ = nullptr;
+  TBChunk* end_ = nullptr;
+  SequenceState* seq_ = nullptr;
+};
 }  // namespace internal
 
 class TraceBufferV2 {

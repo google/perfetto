@@ -156,6 +156,7 @@ bool BufIterator::NextChunkInBuffer() {
 
     SequenceState* seq = buf_->GetSeqForChunk(cur_chunk);
     PERFETTO_DCHECK(seq);  // A non-padding chunk must be part of a sequence.
+
     // `next_chunk` might not be logically contiguous with the last chunk
     // consumed for the sequence. However that does NOT imply that we are
     // missing the chunk. Giving up here would be premature.
@@ -167,8 +168,8 @@ bool BufIterator::NextChunkInBuffer() {
     // If not, we have a gap and we should skip this sequence for the current
     // read cycle.
     // However, if instead we have: C1 (last consumed), C4 (next_chunk), C3
-    // we should skip the sequence now and in future (until BeginRead() is
-    // called again).
+    // we should TODO here just mark data loss skip the sequence now and in
+    // future (until BeginRead() is called again).
 
     auto& chunk_list = seq->chunks;
     PERFETTO_CHECK(!chunk_list.empty());
@@ -177,6 +178,8 @@ bool BufIterator::NextChunkInBuffer() {
     TBChunk* first_chunk_of_seq = buf_->GetTBChunkAt(first_off);
     PERFETTO_DCHECK(!first_chunk_of_seq->is_padding());
 
+    // TODO this cannot fail because violates the expectations of
+    // // DeleteNextChunksFor(...)
     if (SetNextChunkIfContiguousAndValid(
             seq, /*prev_chunk_id=*/seq->last_chunk_id_consumed,
             /*next_chunk=*/first_chunk_of_seq, /*next_seq_idx=*/0)) {
@@ -356,6 +359,7 @@ bool BufIterator::EraseCurrentChunkAndMoveNext() {
   // forcefully clear the payload_avail.
   PERFETTO_DCHECK(chunk_->payload_avail == 0);
   if (!(chunk_->flags & kChunkComplete)) {
+    // TODO this doesn't work with EraseNextChunksFor
     seq_->skip_in_generation = buf_->read_generation_;  // TODO: why?
   } else if (!chunk_->is_padding()) {
     size_t chunk_off = buf_->OffsetOf(chunk_);
@@ -476,10 +480,13 @@ TraceBufferV2::ReadRes TraceBufferV2::ReadNextTracePacketInternal(
       return ReadRes::kFail;
 
     if (PERFETTO_UNLIKELY(read_policy == kNoOverwrite)) {
+      // kNoOverwrite is set by DeleteNextChunksFor() when the buffer is in
+      // DISCARD mode. If we end up hitting valid data we should bail.
       if (rd_iter_.chunk()->payload_avail > 0) {
         return ReadRes::kWouldOverwrite;
       }
     }
+
     // If the current chunk is a padding chunk, NextFragmentInChunk() will just
     // rerturn nullopt. no need of special casing it.
     std::optional<Frag> maybe_frag = rd_iter_.NextFragmentInChunk();
@@ -506,14 +513,13 @@ TraceBufferV2::ReadRes TraceBufferV2::ReadNextTracePacketInternal(
         // be relying on the fact that empty packets don't bloat the final trace
         // file size.
         ConsumeFragment(&frag);
-        if (frag.payload_size() > 0) {
-          out_packet->AddSlice(frag.begin(), frag.payload_size());
-          *sequence_properties = {frag.seq->producer_id,
-                                  frag.seq->client_identity,
-                                  frag.seq->writer_id};
-        } else {
-          continue;
+        if (frag.payload_size() == 0) {
+          break;
         }
+        out_packet->AddSlice(frag.begin(), frag.payload_size());
+        *sequence_properties = {frag.seq->producer_id,
+                                frag.seq->client_identity,
+                                frag.seq->writer_id};
         TRACE_BUFFER_DLOG("  ReadNextTracePacket -> true (whole packet)");
         return ReadRes::kOk;
 
@@ -522,9 +528,11 @@ TraceBufferV2::ReadRes TraceBufferV2::ReadNextTracePacketInternal(
         // We should never hit these cases while iterating in this loop.
         // In nominal conditions we should only see kFragBegin, and then we
         // should iterate over the Continue/End in ReassembleFragmentedPacket(),
-        // which performs the lookahead. If we hit this code path, instead, a
+        // which performs the lookahead. If we hit this code path, either a
         // producer emitted a chunk that looks like
         // [kWholePacket, kFragContinue] or [kWholePacket, kFragEnd].
+        // or, more realistically, we had a data losss and missed the chunk with
+        // the kFragBegin.
         rd_iter_.set_data_loss();  // TODO This is a bit weird.
         ConsumeFragment(&frag);
         break;
