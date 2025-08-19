@@ -294,7 +294,7 @@ std::optional<int64_t> ProcessTracker::ResolveNamespacedTid(
 }
 
 UniquePid ProcessTracker::StartNewProcess(std::optional<int64_t> timestamp,
-                                          std::optional<int64_t> parent_tid,
+                                          std::optional<UniquePid> parent_upid,
                                           int64_t pid,
                                           StringId main_thread_name,
                                           ThreadNamePriority priority) {
@@ -314,7 +314,6 @@ UniquePid ProcessTracker::StartNewProcess(std::optional<int64_t> timestamp,
   UniquePid upid = GetOrCreateProcess(pid);
 
   auto& process_table = *context_->storage->mutable_process_table();
-  auto& thread_table = *context_->storage->mutable_thread_table();
 
   auto prr = process_table[upid];
   PERFETTO_DCHECK(!prr.name().has_value());
@@ -325,16 +324,25 @@ UniquePid ProcessTracker::StartNewProcess(std::optional<int64_t> timestamp,
   }
   prr.set_name(main_thread_name);
 
-  if (parent_tid) {
-    UniqueTid parent_utid = GetOrCreateThread(*parent_tid);
-    auto opt_parent_upid = thread_table[parent_utid].upid();
-    if (opt_parent_upid.has_value()) {
-      prr.set_parent_upid(*opt_parent_upid);
-    } else {
-      pending_parent_assocs_.emplace_back(parent_utid, upid);
-    }
+  if (parent_upid) {
+    prr.set_parent_upid(*parent_upid);
   }
   return upid;
+}
+
+void ProcessTracker::AssociateProcessToParentUtid(UniquePid upid,
+                                                  UniqueTid parent_utid) {
+  auto& process_table = *context_->storage->mutable_process_table();
+  auto& thread_table = *context_->storage->mutable_thread_table();
+
+  auto prr = process_table[upid];
+
+  auto opt_parent_upid = thread_table[parent_utid].upid();
+  if (opt_parent_upid.has_value()) {
+    prr.set_parent_upid(*opt_parent_upid);
+  } else {
+    pending_parent_assocs_.emplace_back(parent_utid, upid);
+  }
 }
 
 UniquePid ProcessTracker::UpdateProcessWithParent(UniquePid upid,
@@ -347,9 +355,8 @@ UniquePid ProcessTracker::UpdateProcessWithParent(UniquePid upid,
   // died and the pid reused. Create a new process.
   std::optional<UniquePid> prev_parent_upid = prr.parent_upid();
   if (prev_parent_upid && *prev_parent_upid != pupid) {
-    auto parent_prr = process_table[pupid];
-    upid = StartNewProcess(std::nullopt, parent_prr.pid(), prr.pid(),
-                           kNullStringId, ThreadNamePriority::kOther);
+    upid = StartNewProcess(std::nullopt, pupid, prr.pid(), kNullStringId,
+                           ThreadNamePriority::kOther);
   } else {
     prr.set_parent_upid(pupid);
   }
