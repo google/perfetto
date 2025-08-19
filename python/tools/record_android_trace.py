@@ -110,6 +110,9 @@ def setup_arguments():
   help = 'The web address used to open trace files'
   parser.add_argument('--origin', default='https://ui.perfetto.dev', help=help)
 
+  help = 'The URL Params to pass to browser when open the trace file'
+  parser.add_argument('--url-params', nargs='+', default=None, help=help)
+
   help = 'Force the use of the sideloaded binaries rather than system daemons'
   parser.add_argument('--sideload', action='store_true', help=help)
 
@@ -420,7 +423,7 @@ def start_trace(args, print_log=True):
       prt('\n')
       prt('Opening the trace (%s) in the browser' % host_file)
     open_browser = not args.no_open_browser
-    open_trace_in_browser(host_file, open_browser, args.origin)
+    open_trace_in_browser(host_file, open_browser, args.origin, args.url_params)
 
   return host_file
 
@@ -455,7 +458,7 @@ def find_adb():
     sys.exit(1)
 
 
-def open_trace_in_browser(path, open_browser, origin):
+def open_trace_in_browser(path, open_browser, origin, url_params):
   # We reuse the HTTP+RPC port because it's the only one allowed by the CSP.
   PORT = 9001
   path = os.path.abspath(path)
@@ -464,6 +467,8 @@ def open_trace_in_browser(path, open_browser, origin):
   socketserver.TCPServer.allow_reuse_address = True
   with socketserver.TCPServer(('127.0.0.1', PORT), HttpHandler) as httpd:
     address = f'{origin}/#!/?url=http://127.0.0.1:{PORT}/{fname}&referrer=record_android_trace'
+    if url_params:
+      address += '&' + '&'.join(url_params)
     if open_browser:
       webbrowser.open_new_tab(address)
     else:
