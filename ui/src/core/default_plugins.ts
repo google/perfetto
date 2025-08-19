@@ -61,7 +61,6 @@ export const defaultPlugins = [
   'dev.perfetto.QueryLog',
   'dev.perfetto.QueryPage',
   'dev.perfetto.RecordTraceV2',
-  'dev.perfetto.RestorePinnedTrack',
   'dev.perfetto.Sched',
   'dev.perfetto.Screenshots',
   'dev.perfetto.SqlModules',
