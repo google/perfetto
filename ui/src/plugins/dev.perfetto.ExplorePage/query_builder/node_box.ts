@@ -18,7 +18,7 @@ import {classNames} from '../../../base/classnames';
 import {Icons} from '../../../base/semantic_icons';
 import {Button} from '../../../widgets/button';
 import {MenuItem, PopupMenu} from '../../../widgets/menu';
-import {QueryNode} from '../query_node';
+import {NodeType, QueryNode} from '../query_node';
 import {Icon} from '../../../widgets/icon';
 
 export const PADDING = 20;
@@ -41,6 +41,7 @@ export interface NodeBoxAttrs {
   readonly onNodeDragStart: (node: QueryNode, event: DragEvent) => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
+  readonly onAddSubQuery: (node: QueryNode) => void;
   readonly onNodeRendered: (node: QueryNode, element: HTMLElement) => void;
 }
 
@@ -59,7 +60,7 @@ function renderWarningIcon(node: QueryNode): m.Child {
 }
 
 function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
-  const {node, onDuplicateNode, onDeleteNode} = attrs;
+  const {node, onDuplicateNode, onDeleteNode, onAddSubQuery} = attrs;
   return m(
     PopupMenu,
     {
@@ -68,6 +69,11 @@ function renderContextMenu(attrs: NodeBoxAttrs): m.Child {
         icon: Icons.ContextMenuAlt,
       }),
     },
+    node.type !== NodeType.kSqlSource &&
+      m(MenuItem, {
+        label: 'Add sub-query',
+        onclick: () => onAddSubQuery(node),
+      }),
     m(MenuItem, {
       label: 'Duplicate',
       onclick: () => onDuplicateNode(node),
@@ -118,9 +124,11 @@ export const NodeBox: m.Component<NodeBoxAttrs> = {
         draggable: true,
         ondragstart: (event: DragEvent) => onNodeDragStart(node, event),
       },
+      node.prevNode && m('.pf-node-box-port.pf-node-box-port-top'),
       renderWarningIcon(node),
       m('span.pf-node-box__title', node.getTitle()),
       renderContextMenu(attrs),
+      node.nextNode && m('.pf-node-box-port.pf-node-box-port-bottom'),
     );
   },
 };

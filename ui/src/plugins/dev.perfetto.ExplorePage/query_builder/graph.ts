@@ -27,6 +27,7 @@ import {
   PADDING,
   DEFAULT_NODE_WIDTH,
 } from './node_box';
+import {Arrow} from './arrow';
 import {Icon} from '../../../widgets/icon';
 
 const BUTTONS_AREA_WIDTH = 300;
@@ -64,6 +65,7 @@ export interface GraphAttrs {
   readonly onAddStdlibTableSource: () => void;
   readonly onAddSlicesSource: () => void;
   readonly onAddSqlSource: () => void;
+  readonly onAddSubQuery: (node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
@@ -275,6 +277,13 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       children.push(this.renderEmptyNodeGraph(attrs));
     } else {
       for (const node of allNodes) {
+        if (node.prevNode) {
+          const prevLayout = this.nodeLayouts.get(node.prevNode);
+          const layout = this.nodeLayouts.get(node);
+          if (prevLayout && layout) {
+            children.push(m(Arrow, {from: prevLayout, to: layout}));
+          }
+        }
         let layout = this.nodeLayouts.get(node);
         if (!layout) {
           layout = findNextAvailablePosition(
@@ -294,6 +303,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             onNodeDragStart: this.onNodeDragStart,
             onDuplicateNode: attrs.onDuplicateNode,
             onDeleteNode: attrs.onDeleteNode,
+            onAddSubQuery: attrs.onAddSubQuery,
             onNodeRendered: this.onNodeRendered,
           }),
         );
