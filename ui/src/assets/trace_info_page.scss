@@ -25,7 +25,6 @@
   }
 
   &__errors {
-    color: var(--pf-color-danger);
     background: color-mix(in srgb, var(--pf-color-danger) 20%, transparent);
   }
 
@@ -69,7 +68,6 @@
       thead td {
         margin-bottom: 5px;
         padding-bottom: 5px;
-        border-bottom: 1px solid var(--pf-color-border);
         font-weight: 500;
       }
       tr td {
@@ -78,7 +76,7 @@
 
       tbody {
         tr:nth-child(2n + 1) td {
-          background-color: var(--pf-color-background-secondary);
+          background-color: color_hover(transparent);
         }
 
         td.name {
