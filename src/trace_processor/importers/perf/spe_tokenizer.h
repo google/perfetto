@@ -18,21 +18,26 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_SPE_TOKENIZER_H_
 
 #include <memory>
+#include <vector>
 
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/importers/perf/aux_data_tokenizer.h"
 #include "src/trace_processor/importers/perf/aux_stream_manager.h"
 #include "src/trace_processor/importers/perf/auxtrace_info_record.h"
 
-namespace perfetto ::trace_processor {
+namespace perfetto::trace_processor {
 class TraceProcessorContext;
-namespace perf_importer {
+}
+namespace perfetto::trace_processor::etm {
+class EtmTracker;
+}
+
+namespace perfetto::trace_processor::perf_importer {
 
 class SpeTokenizer : public AuxDataTokenizer {
  public:
-  static base::StatusOr<std::unique_ptr<AuxDataTokenizer>> Create(
-      TraceProcessorContext* context,
-      AuxtraceInfoRecord) {
+  static base::StatusOr<std::unique_ptr<AuxDataTokenizer>>
+  Create(TraceProcessorContext* context, etm::EtmTracker*, AuxtraceInfoRecord) {
     return std::unique_ptr<AuxDataTokenizer>(new SpeTokenizer(context));
   }
   ~SpeTokenizer() override;
@@ -45,7 +50,6 @@ class SpeTokenizer : public AuxDataTokenizer {
   std::vector<std::unique_ptr<AuxDataStream>> streams_;
 };
 
-}  // namespace perf_importer
-}  // namespace perfetto::trace_processor
+}  // namespace perfetto::trace_processor::perf_importer
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PERF_SPE_TOKENIZER_H_

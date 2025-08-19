@@ -60,12 +60,11 @@ class NetworkTraceModuleTest : public testing::Test {
  public:
   NetworkTraceModuleTest() {
     context_.register_additional_proto_modules = &RegisterAdditionalModules;
-    context_.storage = std::make_shared<TraceStorage>();
+    context_.storage = std::make_unique<TraceStorage>();
     storage_ = context_.storage.get();
     storage_ = context_.storage.get();
     context_.track_tracker = std::make_unique<TrackTracker>(&context_);
     context_.slice_tracker = std::make_unique<SliceTracker>(&context_);
-    context_.args_tracker = std::make_unique<ArgsTracker>(&context_);
     context_.global_args_tracker =
         std::make_unique<GlobalArgsTracker>(storage_);
     context_.slice_translation_table =
@@ -75,7 +74,7 @@ class NetworkTraceModuleTest : public testing::Test {
     context_.args_translation_table =
         std::make_unique<ArgsTranslationTable>(storage_);
     context_.track_compressor = std::make_unique<TrackCompressor>(&context_);
-    context_.sorter = std::make_shared<TraceSorter>(
+    context_.sorter = std::make_unique<TraceSorter>(
         &context_, TraceSorter::SortingMode::kFullSort);
     context_.descriptor_pool_ = std::make_unique<DescriptorPool>();
   }
@@ -90,7 +89,6 @@ class NetworkTraceModuleTest : public testing::Test {
         reader->Parse(TraceBlobView(TraceBlob::CopyFrom(v.data(), v.size())));
     context_.sorter->ExtractEventsForced();
     context_.slice_tracker->FlushPendingSlices();
-    context_.args_tracker->Flush();
     return status;
   }
 

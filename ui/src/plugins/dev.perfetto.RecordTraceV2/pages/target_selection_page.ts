@@ -29,7 +29,7 @@ import {download} from '../../../base/download_utils';
 import {RecordSubpage} from '../config/config_interfaces';
 import {RecordPluginSchema} from '../serialization_schema';
 import {Checkbox} from '../../../widgets/checkbox';
-import {linkify} from '../../../base/mithril_utils';
+import {linkify} from '../../../widgets/anchor';
 
 type RecMgrAttrs = {recMgr: RecordingManager};
 

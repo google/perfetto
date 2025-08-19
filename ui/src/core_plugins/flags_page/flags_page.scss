@@ -14,7 +14,7 @@
 
 .pf-flags-page {
   &__card--changed {
-    border-left: solid 3px rgb(0, 96, 155);
+    border-left: solid 3px var(--pf-color-primary);
   }
 
   &__description {

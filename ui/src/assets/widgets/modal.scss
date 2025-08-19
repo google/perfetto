@@ -59,20 +59,18 @@
 .pf-modal-dialog {
   position: absolute;
   z-index: 100;
-  background-color: #fff;
+  background-color: var(--pf-color-background);
   margin: auto;
   min-width: 25vw;
   min-height: 10vh;
   padding: 30px;
   max-width: 90vw;
   max-height: 90vh;
-  border-radius: $pf-border-radius;
+  border-radius: $border-radius;
   overflow-y: auto;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-family: Roboto, sans-serif;
-  font-weight: 300;
 
   &.pf-modal-dialog-valign-top {
     top: 1rem;
@@ -93,11 +91,9 @@
     h2 {
       margin-top: 0;
       margin-bottom: 0;
-      font-family: "Roboto", sans-serif;
       font-weight: 600;
       font-size: 1.25rem;
       line-height: 1.25;
-      color: #262f3c;
       box-sizing: border-box;
     }
 
@@ -111,7 +107,6 @@
     font-size: 1rem;
     margin-top: 2rem;
     line-height: 1.5;
-    color: rgba(0, 0, 0, 0.8);
 
     .small-font {
       font-size: 0.9rem;
@@ -134,10 +129,12 @@
 .pf-modal-logs,
 .pf-modal-bash {
   white-space: pre-wrap;
-  border: 1px solid #999;
-  background: #eee;
+  border: 1px solid var(--pf-color-border);
+  padding: 10px;
+  border-radius: 3px;
   font-size: 10px;
-  font-family: var(--monospace-font);
+  background: var(--pf-color-background-secondary);
+  font-family: var(--pf-font-monospace);
   margin-top: 10px;
   margin-bottom: 10px;
   min-height: 50px;
@@ -154,9 +151,13 @@
 
 .pf-modal-textarea {
   display: block;
+  padding: 10px;
+  border-radius: 3px;
   margin-top: 10px;
   margin-bottom: 10px;
   width: 100%;
+  background: inherit;
+  color: inherit;
 }
 
 .pf-modal-small {

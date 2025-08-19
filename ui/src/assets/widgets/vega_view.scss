@@ -15,15 +15,13 @@
 @import "../theme";
 
 .pf-vega-view {
-  border-radius: $pf-border-radius;
-  border: solid 1px $pf-colour-thin-border;
-  color: $pf-minimal-foreground;
+  border-radius: $border-radius;
+  border: solid 1px var(--pf-color-border);
   position: relative;
 }
 
 .pf-vega-view-status {
   backdrop-filter: grayscale(1) blur(6px);
-  background-color: $pf-minimal-background;
   height: 100%;
   width: 100%;
   padding: 1rem;

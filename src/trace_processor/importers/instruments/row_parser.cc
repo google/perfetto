@@ -39,8 +39,8 @@
 
 namespace perfetto::trace_processor::instruments_importer {
 
-RowParser::RowParser(TraceProcessorContext* context)
-    : context_(context), data_(RowDataTracker::GetOrCreate(context)) {}
+RowParser::RowParser(TraceProcessorContext* context, RowDataTracker& data)
+    : context_(context), data_(data) {}
 
 RowParser::~RowParser() = default;
 

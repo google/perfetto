@@ -1,4 +1,4 @@
-// Copyright (C) 2018 The Android Open Source Project
+// Copyright (C) 2025 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@
 .pf-record-page {
   position: relative;
   overflow-y: scroll;
-  background-color: #fefefe;
   padding: 40px 20px;
 }
 
@@ -35,26 +34,26 @@
   display: grid;
   grid-template-columns: 2fr 5fr;
   grid-template-areas: "sidebar section";
-
-  border-radius: $pf-border-radius;
-  box-shadow:
-    0 1px 2px 0 #aaa,
-    0 1px 3px 1px #eee;
-  background-color: #fff;
+  box-shadow: $box-shadow-2;
+  border-radius: $border-radius-large;
+  border: 1px solid var(--pf-color-border);
   overflow: hidden;
 }
 
 // The left-hand-side menu with 'Cpu', 'Memory' etc.
 .pf-record-page__menu {
   grid-area: sidebar;
+  background: var(--pf-color-background-secondary);
+  border-right: 1px solid var(--pf-color-border);
+  padding-bottom: 1em;
+
   .rec {
-    color: #ee3326;
+    color: var(--pf-color-danger);
   }
 
   .record-ctl {
     margin: 0.5em;
     padding: 0.5em;
-    background-color: #eee;
     display: grid;
     grid-template-columns: 24px auto 24px;
     box-sizing: content-box;
@@ -65,7 +64,7 @@
     }
     .record-target {
       font-size: 13px;
-      color: #666;
+      color: var(--pf-color-text-muted);
       overflow: hidden;
       text-overflow: ellipsis;
     }
@@ -76,12 +75,7 @@
     }
   }
 
-  background-color: #fcfcfc;
-  border-right: 1px solid #eee;
-  padding-bottom: 1em;
-
   header {
-    font-family: "Roboto", sans-serif;
     font-size: 14px;
     font-weight: 700;
     margin: 1em;
@@ -110,10 +104,8 @@
     height: 55px;
     padding: 0 1em;
     font-size: 15px;
-    letter-spacing: 0.5px;
-    font-family: "Roboto", sans-serif;
     font-weight: 600;
-    color: #666;
+    color: var(--pf-color-text);
     display: grid;
     grid-template-columns: 50px 1fr;
     grid-template-rows: 40px 1fr;
@@ -155,7 +147,7 @@
     }
 
     &:hover {
-      background-color: hsl(214, 0%, 90%);
+      background-color: color_hover(transparent);
       .title {
         line-height: 50px;
       }
@@ -172,11 +164,8 @@
     }
 
     &.active {
-      background-color: hsl(214, 80%, 70%);
-      .title,
-      .sub {
-        color: white;
-      }
+      background-color: var(--pf-color-primary);
+      color: var(--pf-color-text-on-primary);
     }
   } // li
 
@@ -188,10 +177,10 @@
 
 .pf-record-page__section {
   grid-area: section;
-  background: #fff;
   transition: opacity 0.25s ease;
   opacity: 0;
   display: none;
+  overflow: hidden;
 
   &:not(.active) {
     max-height: 0;
@@ -204,7 +193,7 @@
 
   .config {
     &:nth-of-type(2n) {
-      background-color: #e7e7e7;
+      background-color: var(--pf-color-background-secondary);
     }
 
     height: auto;
@@ -216,8 +205,8 @@
 
   .parsing-errors {
     padding: 1em;
-    border: 1px solid #dc143c;
-    color: #dc143c;
+    border: 1px solid var(--pf-color-danger);
+    color: var(--pf-color-danger);
   }
 
   .title-config {
@@ -227,75 +216,15 @@
     word-break: break-all;
   }
 
-  .config-button {
-    margin-right: 10px;
-
-    &:active:enabled {
-      background-color: hsl(0, 0%, 83%);
-    }
-
-    &:not(:enabled) {
-      background-color: hsl(0, 0%, 83%);
-      color: hsl(0, 0%, 50%);
-    }
-
-    &.load:enabled {
-      background-color: hsl(88, 50%, 67%);
-    }
-
-    &.delete {
-      background-color: hsl(0, 50%, 67%);
-    }
-
-    &.save {
-      &.long {
-        width: 160px;
-      }
-
-      &:enabled {
-        background-color: hsl(197, 50%, 67%);
-      }
-    }
-
-    &.reset {
-      width: 300px;
-      background-color: hsl(0, 50%, 67%);
-    }
-  }
-
-  .reset-wrapper {
-    padding: 1em;
-  }
-
   .input-config {
-    margin-top: 20px;
-    margin-bottom: 20px;
+    margin: 20px;
     display: flex;
     align-items: center;
-    padding: 0;
+    display: flex;
+    gap: 4px;
 
-    input {
-      border-radius: 20px;
-      border: 1px solid #eee;
-      line-height: 36px;
-      padding: 0 10px;
-      font-size: 18px;
-      font-family: "Roboto Condensed", sans-serif;
-      font-weight: 300;
-      color: #666;
+    .pf-text-input {
       flex-grow: 1;
-      margin-right: 10px;
-      margin-left: 10px;
-
-      background-color: transparent;
-      &:focus {
-        outline: none;
-      }
-      &::placeholder {
-        color: #b4b7ba;
-        font-family: "Roboto", sans-serif;
-        font-weight: 400;
-      }
     }
   }
 
@@ -315,11 +244,9 @@
 
   > header {
     text-align: center;
-    font-family: "Roboto", sans-serif;
     font-size: 20px;
     padding: 15px 10px;
-    color: #333;
-    letter-spacing: 0.5px;
+    color: var(--pf-color-text);
   }
 
   .hide {
@@ -327,7 +254,7 @@
     visibility: hidden;
   }
 
-  .probe {
+  .pf-probe {
     display: grid;
     grid-template-rows: 40px 1fr;
     grid-template-columns: 220px 1fr;
@@ -342,7 +269,7 @@
     }
 
     &:nth-of-type(2n) {
-      background-color: #f9f9f9;
+      background-color: var(--pf-color-background-secondary);
     }
 
     > img {
@@ -362,69 +289,21 @@
         opacity: 1;
       }
       > label {
-        color: #333;
+        color: var(--pf-color-text);
         input[type="checkbox"]::after {
-          background: hsl(207, 60%, 60%);
+          background: var(--pf-color-primary);
         }
       }
     } // :hover
 
-    > label {
+    .pf-probe__switch {
       grid-area: label;
-      cursor: pointer;
-      font-family: "Roboto", sans-serif;
       font-size: 20px;
       font-weight: 400;
-      color: #999;
-
-      // The per-probe on-off switch.
-      input[type="checkbox"] {
-        -moz-appearance: none;
-        -webkit-appearance: none;
-        cursor: pointer;
-        margin: 0 10px 0 3px;
-        position: relative;
-        display: inline-block;
-        height: 20px;
-        width: 44px;
-        background: #89898966;
-        border-radius: 100px;
-        transition: all 0.3s ease;
-        overflow: visible;
-        vertical-align: middle;
-
-        &:focus {
-          outline: none;
-        }
-
-        &::after {
-          position: absolute;
-          left: -2px;
-          top: -3px;
-          display: block;
-          width: 26px;
-          height: 26px;
-          border-radius: 100px;
-          background: #f5f5f5;
-          box-shadow: 0 3px 3px rgba(0, 0, 0, 0.15);
-          content: "";
-          transition: all 0.3s ease;
-        }
-        &:checked {
-          background: #8398b7;
-        }
-        &:focus::after {
-          background: hsl(207, 60%, 60%);
-        }
-        &:checked::after {
-          left: 20px;
-          background: #27303d;
-        }
-      } // checkbox
-    } // label
+    }
 
     // The content of the probe section.
-    > div {
+    .pf-probe__descr {
       grid-area: descr;
       font-size: 14px;
       font-weight: 200;
@@ -433,11 +312,11 @@
     }
 
     code {
-      background: #eee;
+      background: var(--pf-color-background-secondary);
       display: block;
       padding: 5px;
       margin: 5px 0;
-      border: 1px dotted #999;
+      border: 1px dotted var(--pf-color-text-hint);
       white-space: pre-wrap;
     }
 
@@ -461,7 +340,7 @@
         max-height: 10000px;
       }
       > label span {
-        color: #4e80b7;
+        color: var(--pf-color-primary);
       }
       > img {
         filter: saturate(1);
@@ -474,77 +353,38 @@
     padding-top: var(--record-section-padding);
   }
 
-  .toggle {
-    transition: color 0.2s ease;
+  .pf-toggle {
     padding-top: var(--record-section-padding);
+    display: flex;
+    flex-direction: column;
 
     &:hover {
       > img {
         opacity: 1;
       }
       > label {
-        color: #333;
+        color: var(--pf-color-text);
         input[type="checkbox"]::after {
-          background: hsl(207, 60%, 60%);
+          background: var(--pf-color-primary);
         }
       }
     } // :hover
 
+    &__desc {
+      color: var(--pf-color-text-muted);
+      font-size: 12px;
+    }
+
     > label {
       cursor: pointer;
       font-size: 14px;
-
-      // The per-probe on-off switch.
-      input[type="checkbox"] {
-        -moz-appearance: none;
-        -webkit-appearance: none;
-        cursor: pointer;
-        margin: 0 12px 0 2px;
-        position: relative;
-        display: inline-block;
-        height: 10px;
-        width: 22px;
-        background: #89898966;
-        border-radius: 100px;
-        transition: all 0.3s ease;
-        overflow: visible;
-        vertical-align: middle;
-
-        &:focus {
-          outline: none;
-        }
-
-        &::after {
-          position: absolute;
-          left: -5px;
-          top: -5px;
-          display: block;
-          width: 20px;
-          height: 20px;
-          border-radius: 100px;
-          background: #f5f5f5;
-          box-shadow: 0 3px 3px rgba(0, 0, 0, 0.15);
-          content: "";
-          transition: all 0.3s ease;
-        }
-        &:checked {
-          background: #8398b7;
-        }
-        &:focus::after {
-          background: hsl(207, 60%, 60%);
-        }
-        &:checked::after {
-          left: 12px;
-          background: #27303d;
-        }
-      } // checkbox
     } // label
 
     // The content of the toggle section.
     > div.descr {
       padding-left: 36px;
       font-size: 12px;
-      color: #666;
+      color: var(--pf-color-text-muted);
     }
   } // toggle
 
@@ -565,13 +405,12 @@
     > * {
       @include transition(0.2s);
       cursor: pointer;
-      border-radius: 4px;
-      box-shadow: 0 0 4px 0 #ccc;
+      border-radius: $border-radius-large;
+      box-shadow: 0 0 4px 0 var(--pf-color-border);
 
       margin: 5px;
       text-align: center;
-      background-color: #eee;
-      font-family: "Roboto", sans-serif;
+      background-color: var(--pf-color-background-secondary);
       font-size: 20px;
       @media (max-width: 1280px) {
         font-size: 1.6vw;
@@ -579,11 +418,12 @@
       padding-bottom: 10px;
 
       &:hover {
-        background-color: #c0def7;
+        background-color: color-hover(transparent);
       }
 
       &.selected {
-        background-color: #64b5f6;
+        background-color: var(--pf-color-primary);
+        color: var(--pf-color-text-on-primary);
       }
 
       img {
@@ -626,7 +466,7 @@
     > header {
       @include transition(0.3s);
       opacity: 0.6;
-      color: #333;
+      color: var(--pf-color-text);
       grid-area: hdr;
     }
 
@@ -638,7 +478,7 @@
     &.thin > header.descr {
       grid-area: descr;
       font-size: 12px;
-      color: #666;
+      color: var(--pf-color-text-muted);
       height: 20px;
       line-height: 20px;
     }
@@ -651,7 +491,7 @@
     > i {
       grid-area: icon;
       font-size: 32px;
-      color: #333;
+      color: var(--pf-color-text);
     }
 
     input[type="range"] {
@@ -669,8 +509,8 @@
         margin: 10px;
         width: 100%;
         height: 10px;
-        background-color: #ddd;
-        border-radius: 4px;
+        background-color: var(--pf-color-border);
+        border-radius: $border-radius-large;
       }
 
       &::-webkit-slider-thumb {
@@ -681,7 +521,7 @@
         border-radius: 3px;
         height: 20px;
         width: 40px;
-        background-color: rgb(33, 150, 243);
+        background-color: var(--pf-color-primary);
         margin-top: -5px;
         cursor: pointer;
         content: "";
@@ -689,7 +529,7 @@
 
       &:hover::-webkit-slider-thumb,
       &:focus::-webkit-slider-thumb {
-        box-shadow: 0 0 4px rgb(16, 81, 134);
+        box-shadow: 0 0 4px var(--pf-color-primary);
         transform: scale(1, 1.1);
       }
     }
@@ -706,12 +546,10 @@
     .spinner {
       @include transition();
       grid-area: label;
-      border: 1px solid #fafafa;
-      border-bottom: 2px solid #ddd;
+      border: 1px solid var(--pf-color-background);
+      border-bottom: 2px solid var(--pf-color-border);
       padding: 0 5px;
       border-radius: 2px;
-      background-color: rgba(255, 255, 255, 60%);
-      font-family: "Roboto", sans-serif;
       font-size: 16px;
       font-weight: 100;
       height: 35px;
@@ -726,13 +564,12 @@
 
       &:hover,
       &:focus {
-        border-bottom-color: hsl(207, 90%, 54%);
-        background-color: hsl(207, 50%, 97%);
+        border-bottom-color: var(--pf-color-primary);
+        background-color: color_hover(transparent);
       }
 
       &:invalid {
-        border-bottom-color: hsl(9, 90%, 54%);
-        background-color: hsl(9, 50%, 97%);
+        border-bottom-color: var(--pf-color-danger);
       }
     }
 
@@ -763,7 +600,7 @@
   }
 
   .dropdown {
-    border: 1px solid #eee;
+    border: 1px solid var(--pf-color-border-secondary);
     outline: none;
     -webkit-appearance: none;
 
@@ -778,9 +615,9 @@
 
     option {
       padding: 2.5px 5px;
-      border-bottom: 1px solid #eee;
+      border-bottom: 1px solid var(--pf-color-border-secondary);
       &:hover {
-        background-color: hsl(214, 80%, 90%);
+        background-color: var(--pf-color-interactive-base);
       }
       &::before {
         display: none;
@@ -817,8 +654,8 @@
       }
       option {
         &:nth-of-type(3n + 1) {
-          border-left: 1px solid #eee;
-          border-right: 1px solid #eee;
+          border-left: 1px solid var(--pf-color-border-secondary);
+          border-right: 1px solid var(--pf-color-border-secondary);
         }
         margin: 0;
       }
@@ -833,8 +670,8 @@
         }
         option {
           &:nth-of-type(2n + 1) {
-            border-left: 1px solid #eee;
-            border-right: 1px solid #eee;
+            border-left: 1px solid var(--pf-color-border-secondary);
+            border-right: 1px solid var(--pf-color-border-secondary);
           }
           margin: 0;
         }
@@ -853,13 +690,13 @@
   textarea.extra-input {
     width: 100%;
     height: 60px;
-    border: 1px solid #eee;
+    border: 1px solid var(--pf-color-border-secondary);
     resize: none;
     outline: none;
-    font-family: var(--monospace-font);
+    font-family: var(--pf-font-monospace);
 
     &::placeholder {
-      color: #aaa;
+      color: var(--pf-color-text-hint);
     }
   }
 
@@ -872,17 +709,15 @@
     label,
     select {
       font-weight: 100;
-      color: #333;
+      color: var(--pf-color-text);
       font-size: 16px;
-      font-family: "Roboto", sans-serif;
     }
 
     .note {
-      border: 1px dashed #ddd;
+      border: 1px dashed var(--pf-color-border);
       background: #f9eeba;
       margin: var(--record-section-padding);
       padding: 10px;
-      font-family: "Roboto", sans-serif;
       font-size: 14px;
       line-height: 20px;
     }
@@ -891,12 +726,12 @@
       @include transition();
       margin-left: 10px;
       border-radius: 0;
-      border: 1px solid #eee;
+      border: 1px solid var(--pf-color-border-secondary);
       outline: none;
 
       &:hover,
       &:active {
-        box-shadow: 0 0 6px #ccc;
+        box-shadow: 0 0 6px var(--pf-color-border);
       }
     }
     // Stop/cancel buttons
@@ -912,8 +747,7 @@
         border-radius: 10px;
         text-align: center;
         margin: 3px;
-        background-color: #eee;
-        font-family: "Roboto", sans-serif;
+        background-color: var(--pf-color-background-secondary);
         flex-grow: 1;
         font-size: 17px;
         @media (max-width: 1280px) {
@@ -922,13 +756,13 @@
         padding: 7px;
 
         &:hover {
-          background-color: hsl(88, 50%, 84%);
-          box-shadow: 0 0 4px 0 #999;
+          background-color: var(--pf-color-interactive-base);
+          box-shadow: 0 0 4px 0 var(--pf-color-text-hint);
         }
 
         &.selected {
-          background-color: hsl(88, 50%, 67%);
-          box-shadow: 0 0 4px 0 #999;
+          background-color: var(--pf-color-success);
+          box-shadow: 0 0 4px 0 var(--pf-color-text-hint);
         }
       }
     }
@@ -940,12 +774,11 @@
       border-radius: 10px;
       text-align: center;
       justify-items: center;
-      font-family: "Roboto", sans-serif;
       padding: 7px;
-      background-color: hsl(88, 50%, 67%);
+      background-color: var(--pf-color-success);
 
       &:hover {
-        box-shadow: 0 0 4px 0 #999;
+        box-shadow: 0 0 4px 0 var(--pf-color-text-hint);
       }
     }
 
@@ -958,60 +791,13 @@
       border-radius: 5px;
     }
     ::-webkit-progress-value {
-      background-color: hsl(88, 50%, 67%);
+      background-color: var(--pf-color-success);
     }
     ::-webkit-progress-bar {
-      background-color: #eee;
+      background-color: var(--pf-color-background-secondary);
     }
   }
 } // pf-record-page__section
-
-.pf-code-snippet {
-  display: grid;
-  position: relative;
-  padding: 0;
-  margin: 0 var(--record-section-padding);
-  background-color: #111;
-  border-radius: 4px;
-  box-shadow: 0 0 12px #999;
-
-  &::before {
-    height: 20px;
-    content: "";
-    display: block;
-    background-color: #598eca;
-  }
-
-  &.no-top-bar {
-    white-space: pre;
-    &::before {
-      height: 0;
-    }
-  }
-
-  > code {
-    display: block;
-    margin: 10px 5px 20px 20px;
-    color: #ccc;
-    font-family: var(--monospace-font);
-    font-size: 12px;
-    line-height: 20px;
-    overflow-y: auto;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-
-    // 510px and not 500px, so the overflowing line gets truncated, giving
-    // a clear indication that the code box scrolls.
-    max-height: 510px;
-  }
-
-  > button {
-    position: absolute;
-    top: 30px;
-    right: 20px;
-    color: white;
-  }
-} // pf-code-snippet
 
 // For RecordingV2
 
@@ -1025,16 +811,18 @@
   }
   .platform-selector button {
     min-height: 60px;
-    box-shadow: 2px 2px 4px #eee;
-    border: 1px solid #eee;
+    box-shadow: 2px 2px 4px var(--pf-color-box-shadow);
+    border: 1px solid var(--pf-color-border-secondary);
     font-size: 1.2rem;
     margin: 0 5px;
 
     &:hover {
-      background-color: #c0def7;
+      background-color: color_hover(transparent);
     }
     &.pf-active {
-      background-color: #64b5f6;
+      background-color: var(--pf-color-primary);
+      color: var(--pf-color-text-on-primary);
+      border-color: var(--pf-color-primary);
     }
   }
 
@@ -1044,12 +832,13 @@
 
   .record-transports {
     border: 0;
+
     input[type="radio"] + label {
       cursor: pointer;
-      border: 1px solid #eee;
+      border: 1px solid var(--pf-color-border-secondary);
       display: block;
       &:hover .pf-icon {
-        background-color: #c0def7;
+        background-color: color_hover(transparent);
       }
 
       display: grid;
@@ -1080,7 +869,8 @@
     }
     input[type="radio"]:checked + label {
       .pf-icon {
-        background-color: #64b5f6;
+        background-color: var(--pf-color-primary);
+        color: var(--pf-color-text-on-primary);
       }
     }
 
@@ -1104,33 +894,33 @@
 
   .preflight-checks-icon {
     .error {
-      color: hsl(-10, 50%, 50%);
+      color: var(--pf-color-danger);
     }
     .ok {
-      color: hsl(131, 50%, 50%);
+      color: var(--pf-color-success);
     }
   }
 
   .preflight-checks-table {
-    font-family: var(--monospace-font);
+    font-family: var(--pf-font-monospace);
     font-size: 0.8rem;
     display: block;
     border-collapse: collapse;
 
     td {
       padding: 5px 10px;
-      border-bottom: 1px solid #eee;
+      border-bottom: 1px solid var(--pf-color-border-secondary);
       white-space: pre-wrap;
     }
     .error {
-      color: hsl(-10, 50%, 50%);
+      color: var(--pf-color-danger);
       &::before {
         content: "❌";
         margin-right: 5px;
       }
     }
     .ok {
-      color: hsl(131, 50%, 50%);
+      color: var(--pf-color-success);
       &::before {
         content: "✅";
         margin-right: 5px;
@@ -1139,23 +929,25 @@
   }
 
   .session-status {
-    border: 1px solid #ddd;
+    border: 1px solid var(--pf-color-border-secondary);
     margin: 1em;
     padding: 1em;
     width: calc(100% - 2em);
-    background-color: #fafafa;
     font-size: 14px;
+
     td:first-of-type {
       font-weight: 500;
       width: 20%;
       vertical-align: top;
     }
+
     tr {
       margin: 10px 0;
     }
+
     .logs {
-      background-color: rgba(0, 0, 0, 0.02);
-      border: 1px solid #eee;
+      background-color: var(--pf-color-background-secondary);
+      border: 1px solid var(--pf-color-border-secondary);
       white-space: pre-wrap;
       margin: 0;
       font-size: 12px;

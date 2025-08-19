@@ -23,10 +23,18 @@ import sys
 import time
 from typing import List, Optional, Tuple, Iterable
 
-# The script can be executed as a git hook symlink which is why we also
-# do realpath.
-REPO_ROOT = os.path.dirname(
-    os.path.dirname(os.path.abspath(os.path.realpath(__file__))))
+# The script can be executed as a git hook symlink. Using `git` to find the
+# repo root is more resilient for worktree usage as a git hook.
+try:
+  REPO_ROOT = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'],
+                                      text=True,
+                                      stderr=subprocess.PIPE).strip()
+except (subprocess.CalledProcessError, FileNotFoundError) as e:
+  print(
+      f"Error: Could not determine repository root via git. {e}",
+      file=sys.stderr)
+  sys.exit(1)
+
 IS_WIN = sys.platform.startswith('win')
 
 
@@ -242,6 +250,7 @@ def CheckChangeHasNoTabs(changed_files: List[str]) -> List[str]:
           '*.jpg',
           '*/test/data/*',
           'Makefile',
+          'rules',
           '*.descriptor',
       ])
 

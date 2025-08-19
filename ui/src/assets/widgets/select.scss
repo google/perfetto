@@ -17,18 +17,19 @@
 // Select field styled to look similar to a text input with a thin underline.
 // Inspired by matherial design.
 .pf-select {
-  font-family: $pf-font;
+  font-family: var(--pf-font-compact);
   font-size: inherit;
   outline: none; // Disable the default outline
   border: none; // Disable the default border
-  border-bottom: solid 1px $pf-minimal-foreground; // Thin underline
+  border-bottom: solid 1px var(--pf-color-border); // Thin underline
   background: none;
+  color: inherit;
   transition:
-    border $pf-anim-timing,
-    box-shadow $pf-anim-timing,
-    background $pf-anim-timing;
+    border $anim-timing,
+    box-shadow $anim-timing,
+    background $anim-timing;
   // Round only the top corners to avoid rounding the edges of the underline
-  border-radius: $pf-border-radius $pf-border-radius 0 0;
+  border-radius: $border-radius $border-radius 0 0;
   cursor: pointer;
 
   // Very opinionated min width for a select input
@@ -36,23 +37,22 @@
   min-width: 80px;
 
   &:hover {
-    background: $pf-minimal-background-hover;
+    background: color_hover(transparent);
   }
 
   &:focus {
-    background: $pf-minimal-background-hover;
-    border-bottom: solid 1px $pf-primary-background;
+    background: color_hover(transparent);
+    border-bottom: solid 1px var(--pf-color-primary);
 
     // The box-shadow thickens the bottom border, without adding to the height.
     // This is the same technique used by materializecss:
     // See https://materializecss.com/text-inputs.html
-    box-shadow: 0 1px 0 $pf-primary-background;
+    box-shadow: 0 1px 0 var(--pf-color-primary);
   }
 
   &[disabled] {
-    border-bottom-color: $pf-minimal-foreground-disabled;
-    color: $pf-minimal-foreground-disabled;
-    background: $pf-minimal-background-disabled;
+    opacity: 0.5;
+    pointer-events: none;
     cursor: not-allowed;
   }
 }

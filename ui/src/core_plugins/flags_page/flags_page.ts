@@ -29,6 +29,7 @@ import {TextInput} from '../../widgets/text_input';
 import {FuzzyFinder} from '../../base/fuzzy';
 import {classNames} from '../../base/classnames';
 import {Intent} from '../../widgets/common';
+import {Anchor} from '../../widgets/anchor';
 
 const RELEASE_PROCESS_URL =
   'https://perfetto.dev/docs/visualization/perfetto-ui-release-process';
@@ -205,7 +206,7 @@ export class FlagsPage implements m.ClassComponent<FlagsPageAttrs> {
             description: [
               'Which release channel of the UI to use. See ',
               m(
-                'a',
+                Anchor,
                 {
                   href: RELEASE_PROCESS_URL,
                 },
