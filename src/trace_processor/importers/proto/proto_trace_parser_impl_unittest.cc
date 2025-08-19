@@ -269,6 +269,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.heap_graph_tracker = std::make_unique<HeapGraphTracker>(storage_);
 
     context_.track_compressor.reset(new TrackCompressor(&context_));
+    context_.track_group_idx_state =
+        std::make_unique<TrackCompressorGroupIdxState>();
 
     reader_ = std::make_unique<ProtoTraceReader>(&context_);
   }

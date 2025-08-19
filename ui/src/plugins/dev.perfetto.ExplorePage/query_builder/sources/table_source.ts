@@ -186,7 +186,7 @@ export class TableSourceNode extends SourceNode {
     if (!this.state.sqlTable) return;
 
     const sq = new protos.PerfettoSqlStructuredQuery();
-    sq.id = `table_source_${this.state.sqlTable?.name}`;
+    sq.id = this.nodeId;
     sq.table = new protos.PerfettoSqlStructuredQuery.Table();
     sq.table.tableName = this.state.sqlTable.name;
     sq.table.moduleName = this.state.sqlTable.includeKey
