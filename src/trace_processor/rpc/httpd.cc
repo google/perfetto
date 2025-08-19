@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
 #include <memory>
 #include <optional>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -50,6 +52,10 @@ const char* kDefaultAllowedCORSOrigins[] = {
     "http://127.0.0.1:10000",
 };
 
+void SendRpcChunk(base::HttpServerConnection* conn,
+                  const void* data,
+                  uint32_t len);
+
 class Httpd : public base::HttpRequestHandler {
  public:
   explicit Httpd(std::unique_ptr<TraceProcessor>, bool is_preloaded_eof);
@@ -62,12 +68,84 @@ class Httpd : public base::HttpRequestHandler {
   // HttpRequestHandler implementation.
   void OnHttpRequest(const base::HttpRequest&) override;
   void OnWebsocketMessage(const base::WebsocketMessage&) override;
+  void OnHttpConnectionClosed(base::HttpServerConnection* conn) override;
 
   static void ServeHelpPage(const base::HttpRequest&);
+
+  struct WebSocketRpcThread {
+   public:
+    explicit WebSocketRpcThread(base::HttpServerConnection* conn)
+        : conn_(conn) {
+      rpc_thread_ = std::thread([this]() {
+        // Create task runner and RPC instance in worker thread context
+        base::UnixTaskRunner task_runner;
+        Rpc rpc;
+
+        // Set up the response function for this connection
+        rpc.SetRpcResponseFunction([this](const void* data, uint32_t len) {
+          SendRpcChunk(conn_, data, len);
+        });
+
+        // Signal that initialization is complete
+        {
+          std::lock_guard<std::mutex> lock(init_mutex_);
+          task_runner_ = &task_runner;
+          rpc_ = &rpc;
+          initialized_ = true;
+          init_cv_.notify_one();
+        }
+
+        // Run the event loop
+        task_runner.Run();
+      });
+    }
+
+    ~WebSocketRpcThread() {
+      {
+        std::lock_guard<std::mutex> lock(init_mutex_);
+        if (initialized_ && task_runner_) {
+          task_runner_->Quit();
+        }
+      }
+      if (rpc_thread_.joinable()) {
+        rpc_thread_.join();
+      }
+    }
+
+    void OnWebsocketMessage(const base::WebsocketMessage& msg) {
+      // Queue the message to be processed on the worker thread
+      std::unique_lock<std::mutex> lock(init_mutex_);
+      init_cv_.wait(lock, [this] { return initialized_; });
+
+      if (task_runner_ && rpc_) {
+        task_runner_->PostTask([this, data = std::vector<uint8_t>(
+                                          msg.data.begin(), msg.data.end())]() {
+          rpc_->OnRpcRequest(data.data(), static_cast<uint32_t>(data.size()));
+        });
+      }
+    }
+    Rpc* rpc_ = nullptr;
+
+   private:
+    std::thread rpc_thread_;            // Dedicated thread
+    base::HttpServerConnection* conn_;  // WebSocket connection
+
+    // These are valid only in the worker thread context
+    base::UnixTaskRunner* task_runner_ = nullptr;
+
+    // Synchronization
+    std::mutex init_mutex_;
+    std::condition_variable init_cv_;
+    bool initialized_ = false;
+  };
 
   Rpc global_trace_processor_rpc_;
   base::UnixTaskRunner task_runner_;
   base::HttpServer http_srv_;
+  std::mutex websocket_rpc_mutex_;
+  std::unordered_map<base::HttpServerConnection*,
+                     std::unique_ptr<WebSocketRpcThread>>
+      websocket_rpc_threads_;
 };
 
 base::StringView Vec2Sv(const std::vector<uint8_t>& v) {
@@ -262,13 +340,28 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
 }
 
 void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
-  global_trace_processor_rpc_.SetRpcResponseFunction(
-      [&](const void* data, uint32_t len) {
-        SendRpcChunk(msg.conn, data, len);
-      });
-  // OnRpcRequest() will call SendRpcChunk() one or more times.
-  global_trace_processor_rpc_.OnRpcRequest(msg.data.data(), msg.data.size());
-  global_trace_processor_rpc_.SetRpcResponseFunction(nullptr);
+  // Check if this connection already has a dedicated thread
+  std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
+
+  auto it = websocket_rpc_threads_.find(msg.conn);
+  if (it == websocket_rpc_threads_.end()) {
+    // Create new thread for this connection
+    auto new_thread = std::make_unique<WebSocketRpcThread>(msg.conn);
+    auto result =
+        websocket_rpc_threads_.emplace(msg.conn, std::move(new_thread));
+    it = result.first;
+  }
+
+  // Dispatch to the dedicated thread
+  it->second->OnWebsocketMessage(msg);
+}
+
+void Httpd::OnHttpConnectionClosed(base::HttpServerConnection* conn) {
+  std::lock_guard<std::mutex> lock(websocket_rpc_mutex_);
+  auto it = websocket_rpc_threads_.find(conn);
+  if (it != websocket_rpc_threads_.end()) {
+    websocket_rpc_threads_.erase(it);
+  }
 }
 
 }  // namespace
