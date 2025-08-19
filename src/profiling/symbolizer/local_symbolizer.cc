@@ -85,8 +85,8 @@ bool InRange(const void* base,
 }
 
 template <typename E>
-std::optional<std::pair<uint64_t, uint64_t>> GetElfVaddrPOffset(void* mem,
-                                                                size_t size) {
+std::optional<std::pair<uint64_t, uint64_t>> GetElfPVAddrPOffset(void* mem,
+                                                                 size_t size) {
   const typename E::Ehdr* ehdr = static_cast<typename E::Ehdr*>(mem);
   if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
     PERFETTO_ELOG("Corrupted ELF.");
@@ -212,8 +212,8 @@ struct segment_64_command {
 
 struct BinaryInfo {
   std::string build_id;
-  uint64_t vaddr;
-  uint64_t poffset;
+  uint64_t p_vaddr;
+  uint64_t p_offset;
   BinaryType type;
 };
 
@@ -287,11 +287,11 @@ std::optional<BinaryInfo> GetBinaryInfo(const char* fname, size_t size) {
     switch (mem[EI_CLASS]) {
       case ELFCLASS32:
         build_id = GetElfBuildId<Elf32>(mem, size);
-        vaddr_and_poffset = GetElfVaddrPOffset<Elf32>(mem, size);
+        vaddr_and_poffset = GetElfPVAddrPOffset<Elf32>(mem, size);
         break;
       case ELFCLASS64:
         build_id = GetElfBuildId<Elf64>(mem, size);
-        vaddr_and_poffset = GetElfVaddrPOffset<Elf64>(mem, size);
+        vaddr_and_poffset = GetElfPVAddrPOffset<Elf64>(mem, size);
         break;
       default:
         return std::nullopt;
@@ -337,8 +337,8 @@ std::map<std::string, FoundBinary> BuildIdIndex(std::vector<std::string> dirs) {
     }
     auto it = result.emplace(binary_info->build_id, FoundBinary{
                                                         fname,
-                                                        binary_info->vaddr,
-                                                        binary_info->poffset,
+                                                        binary_info->p_vaddr,
+                                                        binary_info->p_offset,
                                                         binary_info->type,
                                                     });
 
@@ -351,8 +351,9 @@ std::map<std::string, FoundBinary> BuildIdIndex(std::vector<std::string> dirs) {
           binary_info->type == BinaryType::kMachODsym) {
         PERFETTO_LOG("Overwriting index entry for %s to %s.",
                      base::ToHex(binary_info->build_id).c_str(), fname);
-        it.first->second = FoundBinary{fname, binary_info->vaddr,
-                                       binary_info->poffset, binary_info->type};
+        it.first->second =
+            FoundBinary{fname, binary_info->p_vaddr, binary_info->p_offset,
+                        binary_info->type};
       } else {
         PERFETTO_DLOG("Ignoring %s, index entry for %s already exists.", fname,
                       base::ToHex(binary_info->build_id).c_str());
@@ -571,7 +572,7 @@ std::optional<FoundBinary> IsCorrectFile(
   if (build_id && binary_info->build_id != *build_id) {
     return std::nullopt;
   }
-  return FoundBinary{symbol_file, binary_info->vaddr, binary_info->poffset,
+  return FoundBinary{symbol_file, binary_info->p_vaddr, binary_info->p_offset,
                      binary_info->type};
 }
 
