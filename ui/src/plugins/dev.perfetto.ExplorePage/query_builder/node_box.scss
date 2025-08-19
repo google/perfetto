@@ -85,3 +85,26 @@
 .pf-node-box {
   position: absolute;
 }
+
+.pf-node-box-add-button {
+  position: absolute;
+  bottom: -0.5rem;
+  right: -0.5rem;
+  background-color: var(--pf-color-background);
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  border: 1px solid;
+  display: none;
+  align-items: center;
+  justify-content: center;
+
+  .pf-node-box:hover &,
+  .pf-node-box__selected & {
+    display: flex;
+  }
+}
+
+.pf-node-box-port {
+  z-index: 1;
+}
