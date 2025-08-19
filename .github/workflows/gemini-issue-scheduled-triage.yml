@@ -23,7 +23,6 @@ jobs:
   triage-issues:
     timeout-minutes: 5
     runs-on: 'ubuntu-latest'
-
     steps:
       - name: 'Checkout repository'
         uses: 'actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683' # ratchet:actions/checkout@v4
@@ -63,15 +62,31 @@ jobs:
           ISSUE_COUNT="$(echo "${ISSUES}" | jq 'length')"
           echo "✅ Found ${ISSUE_COUNT} issues to triage! 🎯"
 
-      - name: 'Run Gemini Issue Triage'
+      - name: 'Get Repository Labels'
+        id: 'get_labels'
+        uses: 'actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea'
+        with:
+          github-token: '${{ steps.generate_token.outputs.token || secrets.GITHUB_TOKEN }}'
+          script: |-
+            const { data: labels } = await github.rest.issues.listLabelsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            const labelNames = labels.map(label => label.name);
+            core.setOutput('available_labels', labelNames.join(','));
+            core.info(`Found ${labelNames.length} labels: ${labelNames.join(', ')}`);
+            return labelNames;
+
+      - name: 'Run Gemini Issue Analysis'
         if: |-
           ${{ steps.find_issues.outputs.issues_to_triage != '[]' }}
         uses: 'google-github-actions/run-gemini-cli@v0'
-        id: 'gemini_issue_triage'
+        id: 'gemini_issue_analysis'
         env:
-          GITHUB_TOKEN: '${{ steps.generate_token.outputs.token || secrets.GITHUB_TOKEN }}'
+          GITHUB_TOKEN: '' # Do not pass any auth token here since this runs on untrusted inputs
           ISSUES_TO_TRIAGE: '${{ steps.find_issues.outputs.issues_to_triage }}'
           REPOSITORY: '${{ github.repository }}'
+          AVAILABLE_LABELS: '${{ steps.get_labels.outputs.available_labels }}'
         with:
           gemini_cli_version: '${{ vars.GEMINI_CLI_VERSION }}'
           gcp_workload_identity_provider: '${{ vars.GCP_WIF_PROVIDER }}'
@@ -83,12 +98,10 @@ jobs:
           use_gemini_code_assist: '${{ vars.GOOGLE_GENAI_USE_GCA }}'
           settings: |-
             {
+              "debug": ${{ fromJSON(env.DEBUG || env.ACTIONS_STEP_DEBUG || false) }},
               "maxSessionTurns": 25,
               "coreTools": [
-                "run_shell_command(echo)",
-                "run_shell_command(gh label list)",
-                "run_shell_command(gh issue edit)",
-                "run_shell_command(gh issue list)"
+                "run_shell_command(echo)"
               ],
               "telemetry": {
                 "enabled": false,
@@ -98,26 +111,83 @@ jobs:
           prompt: |-
             ## Role
 
-            You are an issue triage assistant. Analyze issues and apply
-            appropriate labels. Use the available tools to gather information;
-            do not ask for information to be provided.
+            You are an issue triage assistant. Analyze the GitHub issues and
+            identify the most appropriate existing labels to apply.
 
             ## Steps
 
-            1. Run: `gh label list`
-            2. Check environment variable: "${ISSUES_TO_TRIAGE}" (JSON array
-               of issues)
-            3. For each issue, apply labels:
-               `gh issue edit "${ISSUE_NUMBER}" --add-label "label1,label2"`.
-               If available, set labels that follow the `kind/*`, `area/*`,
-               and `priority/*` patterns.
-            4. For each issue, if the `status/needs-triage` label is present,
-               remove it using:
-               `gh issue edit "${ISSUE_NUMBER}" --remove-label "status/needs-triage"`
+            1. Review the available labels in the environment variable: "${AVAILABLE_LABELS}".
+            2. Review the issues in the environment variable: "${ISSUES_TO_TRIAGE}".
+            3. For each issue, classify it by the appropriate labels from the available labels.
+            4. Output a JSON array of objects, each containing the issue number,
+               the labels to set, and a brief explanation. For example:
+               ```
+               [
+                 {
+                   "issue_number": 123,
+                   "labels_to_set": ["kind/bug", "priority/p2"],
+                   "explanation": "This is a bug report with high priority based on the error description"
+                 },
+                 {
+                   "issue_number": 456,
+                   "labels_to_set": ["kind/enhancement"],
+                   "explanation": "This is a feature request for improving the UI"
+                 }
+               ]
+               ```
+            5. If an issue cannot be classified, do not include it in the output array.
 
             ## Guidelines
 
-            - Only use existing repository labels
-            - Do not add comments
-            - Triage each issue independently
+            - Only use labels that already exist in the repository
+            - Assign all applicable labels based on the issue content
             - Reference all shell variables as "${VAR}" (with quotes and braces)
+            - Output only valid JSON format
+            - Do not include any explanation or additional text, just the JSON
+
+      - name: 'Apply Labels to Issues'
+        if: |-
+          ${{ steps.gemini_issue_analysis.outcome == 'success' &&
+              steps.gemini_issue_analysis.outputs.summary != '[]' }}
+        env:
+          REPOSITORY: '${{ github.repository }}'
+          LABELS_OUTPUT: '${{ steps.gemini_issue_analysis.outputs.summary }}'
+        uses: 'actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea'
+        with:
+          github-token: '${{ steps.generate_token.outputs.token || secrets.GITHUB_TOKEN }}'
+          script: |-
+            // Strip code block markers if present
+            const rawLabels = process.env.LABELS_OUTPUT;
+            core.info(`Raw labels JSON: ${rawLabels}`);
+            let parsedLabels;
+            try {
+              const trimmedLabels = rawLabels.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '').trim();
+              parsedLabels = JSON.parse(trimmedLabels);
+              core.info(`Parsed labels JSON: ${JSON.stringify(parsedLabels)}`);
+            } catch (err) {
+              core.setFailed(`Failed to parse labels JSON from Gemini output: ${err.message}\nRaw output: ${rawLabels}`);
+              return;
+            }
+
+            for (const entry of parsedLabels) {
+              const issueNumber = entry.issue_number;
+              if (!issueNumber) {
+                core.info(`Skipping entry with no issue number: ${JSON.stringify(entry)}`);
+                continue;
+              }
+
+              // Set labels based on triage result
+              if (entry.labels_to_set && entry.labels_to_set.length > 0) {
+                await github.rest.issues.setLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  labels: entry.labels_to_set
+                });
+                const explanation = entry.explanation ? ` - ${entry.explanation}` : '';
+                core.info(`Successfully set labels for #${issueNumber}: ${entry.labels_to_set.join(', ')}${explanation}`);
+              } else {
+                // If no labels to set, leave the issue as is
+                core.info(`No labels to set for #${issueNumber}, leaving as is`);
+              }
+            }
