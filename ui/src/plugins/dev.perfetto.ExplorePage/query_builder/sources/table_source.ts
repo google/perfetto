@@ -32,10 +32,7 @@ import protos from '../../../../protos';
 import {TextParagraph} from '../../../../widgets/text_paragraph';
 import {Button} from '../../../../widgets/button';
 import {Trace} from '../../../../public/trace';
-import {
-  createFiltersProto,
-  createGroupByProto,
-} from '../operations/operation_component';
+import {createFiltersProto} from '../operations/operation_component';
 import {closeModal, showModal} from '../../../../widgets/modal';
 import {TableList} from '../table_list';
 import {redrawModal} from '../../../../widgets/modal';
@@ -52,7 +49,6 @@ export interface TableSourceState extends QueryNodeState {
 interface TableSelectionResult {
   sqlTable: SqlTable;
   sourceCols: ColumnInfo[];
-  groupByColumns: ColumnInfo[];
 }
 
 export function modalForTableSelection(
@@ -77,8 +73,7 @@ export function modalForTableSelection(
               const sourceCols = sqlTable.columns.map((c) =>
                 columnInfoFromSqlColumn(c, true),
               );
-              const groupByColumns = newColumnInfoList(sourceCols, false);
-              resolve({sqlTable, sourceCols, groupByColumns});
+              resolve({sqlTable, sourceCols});
               closeModal();
             },
             searchQuery,
@@ -105,9 +100,6 @@ export class TableSourceNode extends SourceNode {
     this.state.onchange = attrs.onchange;
 
     this.state.filters = attrs.filters ?? [];
-    this.state.groupByColumns =
-      attrs.groupByColumns ?? newColumnInfoList(this.sourceCols, false);
-    this.state.aggregations = attrs.aggregations ?? [];
   }
 
   get type() {
@@ -120,9 +112,7 @@ export class TableSourceNode extends SourceNode {
       sqlModules: this.state.sqlModules,
       sqlTable: this.state.sqlTable,
       sourceCols: newColumnInfoList(this.sourceCols),
-      groupByColumns: newColumnInfoList(this.state.groupByColumns),
       filters: this.state.filters.map((f) => ({...f})),
-      aggregations: this.state.aggregations.map((a) => ({...a})),
       customTitle: this.state.customTitle,
       onchange: this.state.onchange,
     };
@@ -201,11 +191,6 @@ export class TableSourceNode extends SourceNode {
       this.sourceCols,
     );
     if (filtersProto) sq.filters = filtersProto;
-    const groupByProto = createGroupByProto(
-      this.state.groupByColumns,
-      this.state.aggregations,
-    );
-    if (groupByProto) sq.groupBy = groupByProto;
 
     const selectedColumns = createSelectColumnsProto(this);
     if (selectedColumns) sq.selectColumns = selectedColumns;

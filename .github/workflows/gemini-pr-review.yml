@@ -38,11 +38,17 @@ permissions:
 
 jobs:
   review-pr:
+    # This condition seeks to ensure the action is only run when it is triggered by a trusted user.
+    # For private repos, users who have access to the repo are considered trusted.
+    # For public repos, users who members, owners, or collaborators are considered trusted.
     if: |-
       github.event_name == 'workflow_dispatch' ||
       (
         github.event_name == 'pull_request' &&
-        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
+        (
+          github.event.repository.private == true ||
+          contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association)
+        )
       ) ||
       (
         (
@@ -53,16 +59,21 @@ jobs:
           github.event_name == 'pull_request_review_comment'
         ) &&
         contains(github.event.comment.body, '@gemini-cli /review') &&
-        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+        (
+          github.event.repository.private == true ||
+          contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association)
+        )
       ) ||
       (
         github.event_name == 'pull_request_review' &&
         contains(github.event.review.body, '@gemini-cli /review') &&
-        contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.review.author_association)
+        (
+          github.event.repository.private == true ||
+          contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.review.author_association)
+        )
       )
     timeout-minutes: 5
     runs-on: 'ubuntu-latest'
-
     steps:
       - name: 'Checkout PR code'
         uses: 'actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683' # ratchet:actions/checkout@v4
@@ -109,14 +120,14 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
 
-      - name: 'Get PR details (issue_comment)'
+      - name: 'Get PR details (issue_comment & reviews)'
         id: 'get_pr_comment'
         if: |-
-          ${{ github.event_name == 'issue_comment' }}
+          ${{ github.event_name == 'issue_comment' || github.event_name == 'pull_request_review' || github.event_name == 'pull_request_review_comment' }}
         env:
           GITHUB_TOKEN: '${{ steps.generate_token.outputs.token || secrets.GITHUB_TOKEN }}'
-          COMMENT_BODY: '${{ github.event.comment.body }}'
-          PR_NUMBER: '${{ github.event.issue.number }}'
+          COMMENT_BODY: '${{ github.event.comment.body || github.event.review.body }}'
+          PR_NUMBER: '${{ github.event.issue.number || github.event.pull_request.number }}'
         run: |-
           set -euo pipefail
 
@@ -161,6 +172,7 @@ jobs:
           use_gemini_code_assist: '${{ vars.GOOGLE_GENAI_USE_GCA }}'
           settings: |-
             {
+              "debug": ${{ fromJSON(env.DEBUG || env.ACTIONS_STEP_DEBUG || false) }},
               "maxSessionTurns": 20,
               "mcpServers": {
                 "github": {
