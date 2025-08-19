@@ -52,6 +52,15 @@ jobs:
         with:
           install-flags: --ui
 
+      # UI code formatting checks must be done here, rather than repo-checks,
+      # because they need UI tools (tools/install-build-deps --ui).
+      - name: Check UI code is formatted
+        # base_ref is "" in post-submit, skip the presubmit check in postsubmit
+        # as there is nothing do diff against.
+        if: ${{ github.base_ref != '' }}
+        shell: bash
+        run: ui/format-sources --check-only --upstream origin/${{ github.base_ref }}
+
       - name: Restore cache
         uses: ./.github/actions/cache-on-google-cloud-storage/restore
         with:
@@ -71,7 +80,6 @@ jobs:
         shell: bash
         run: ccache --show-stats
 
-
       - name: UI unittests
         shell: bash
         run: ui/run-unittests --out out/ui --no-build
@@ -88,15 +96,6 @@ jobs:
       - name: UI integrationtests
         shell: bash
         run: ui/run-integrationtests --out out/ui --no-build
-
-        # UI code formatting checks must be done here, rather than repo-checks,
-        # because they need a out/ui build.
-      - name: Check UI code is formatted
-        # base_ref is "" in post-submit, skip the presubmit check in postsubmit
-        # as there is nothing do diff against.
-        if: ${{ github.base_ref != '' }}
-        shell: bash
-        run: ui/format-sources --check-only --upstream origin/${{ github.base_ref }}
 
       - name: Upload artifacts to GCS
         if: ${{ always() }}
