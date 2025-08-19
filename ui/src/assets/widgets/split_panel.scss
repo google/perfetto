@@ -30,7 +30,7 @@
   }
 
   &__handle {
-    gap: 4px;
+    gap: 2px;
     background-color: var(--pf-color-background-secondary);
     border-top: 1px solid var(--pf-color-border);
     cursor: row-resize;
@@ -38,37 +38,42 @@
     align-items: baseline;
     padding-inline: 2px;
     align-items: center;
-    border-bottom: 1px solid var(--pf-color-border);
   }
 
   &__tabs {
+    padding-inline: 3px; // Leave some space for the drop shadow
     display: flex;
     overflow: hidden;
-    flex: 1;
+    flex: 1; // Expand to fill remaining space.
+
+    // Align tabs to the bottom of the handle & overlap the drawer border so
+    // that the active tab looks like it is part of the drawer.
     align-self: flex-end;
     margin-bottom: -1px;
   }
 
   &__tab {
-    font-family: var(--pf-font-compact);
-    padding: 5px;
-    margin-top: 2px;
-    align-items: center;
-    cursor: pointer;
-    font-size: 14px;
-    border-radius: 3px 3px 0 0;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    border-color: var(--pf-color-border-secondary);
-    border-width: 1px 1px 0 1px;
-    border-style: solid;
-
     display: flex;
     align-items: baseline;
     gap: 2px;
 
+    font-family: var(--pf-font-compact);
+    font-size: 14px;
+
+    padding: 5px; // Space around the tab content
+    margin-top: 2px; // Space between tab and top of handle
+    cursor: pointer; // Active tab is not clickable
+
+    border-radius: 3px 3px 0 0; // Rounded top corners only
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    border-style: solid;
+    border-color: var(--pf-color-border-secondary);
+    border-width: 1px 1px 0 1px;
+
     &:not(:first-child) {
+      // Merge borders
       margin-left: -1px;
     }
 
@@ -77,9 +82,9 @@
     }
 
     &.pf-split-panel__tab--active {
-      background-color: var(--pf-color-background);
       cursor: default;
-      box-shadow: var(--pf-color-box-shadow) 0px 0px 4px;
+      background-color: var(--pf-color-background);
+      box-shadow: var(--pf-color-box-shadow) 0px 0px 3px;
       border-color: var(--pf-color-border);
       z-index: 1;
     }
@@ -94,6 +99,7 @@
   &__drawer {
     flex-shrink: 0;
     overflow: auto;
-    box-shadow: var(--pf-color-box-shadow) 0px 0px 4px;
+    box-shadow: var(--pf-color-box-shadow) 0px 0px 3px;
+    border-top: 1px solid var(--pf-color-border);
   }
 }
