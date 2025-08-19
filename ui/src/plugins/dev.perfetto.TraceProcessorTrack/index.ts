@@ -577,6 +577,15 @@ function computeSliceFlamegraph(trace: Trace, currentSelection: AreaSelection) {
       },
     ],
     'include perfetto module viz.slices;',
+    undefined,
+    [
+      {
+        name: 'simple_count',
+        displayName: 'Slice Count',
+        mergeAggregation: 'SUM',
+        isVisible: true,
+      },
+    ],
   );
   return new QueryFlamegraph(trace, metrics, {
     state: Flamegraph.createDefaultState(metrics),
