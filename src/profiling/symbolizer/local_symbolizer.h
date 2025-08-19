@@ -104,7 +104,7 @@ class LocalSymbolizer : public Symbolizer {
   explicit LocalSymbolizer(std::unique_ptr<BinaryFinder> finder);
 
   std::vector<std::vector<SymbolizedFrame>> Symbolize(
-      const Environment&,
+      const Environment& env,
       const std::string& mapping_name,
       const std::string& build_id,
       uint64_t load_bias,
