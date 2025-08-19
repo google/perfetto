@@ -104,23 +104,23 @@ PerfTracker::CreateAuxDataTokenizer(AuxtraceInfoRecord info) {
 void PerfTracker::AddSimpleperfFile2(const FileFeature::Decoder& file) {
   SymbolTracker::Dso dso;
   switch (file.type()) {
-    case DsoType::DSO_KERNEL:
+    case DsoType::DSO_KERNEL: {
       InsertSymbols(file, context_->symbol_tracker->kernel_symbols());
       return;
-
+    }
     case DsoType::DSO_ELF_FILE: {
       ElfFile::Decoder elf(file.elf_file());
       dso.load_bias = file.min_vaddr() - elf.file_offset_of_min_vaddr();
       break;
     }
-
     case DsoType::DSO_KERNEL_MODULE: {
       KernelModule::Decoder module(file.kernel_module());
       dso.load_bias = file.min_vaddr() - module.memory_offset_of_min_vaddr();
       break;
     }
-
-    case DsoType::DSO_DEX_FILE:
+    case DsoType::DSO_DEX_FILE: {
+      break;
+    }
     case DsoType::DSO_SYMBOL_MAP_FILE:
     case DsoType::DSO_UNKNOWN_FILE:
     default:
