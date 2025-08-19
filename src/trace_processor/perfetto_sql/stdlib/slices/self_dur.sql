@@ -32,7 +32,7 @@ CREATE PERFETTO TABLE slice_self_dur (
   id ID(slice.id),
   -- The self duration for the slice: the time spent in the slice but not any
   -- child slices.
-  self_dur LONG
+  self_dur DURATION
 ) AS
 SELECT
   slice.id,
