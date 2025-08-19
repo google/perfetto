@@ -66,15 +66,26 @@ export interface GraphAttrs {
   readonly onAddSlicesSource: () => void;
   readonly onAddSqlSource: () => void;
   readonly onAddSubQuery: (node: QueryNode) => void;
+  readonly onAddAggregation: (node: QueryNode) => void;
   readonly onClearAllNodes: () => void;
   readonly onDuplicateNode: (node: QueryNode) => void;
   readonly onDeleteNode: (node: QueryNode) => void;
 }
 
 export class Graph implements m.ClassComponent<GraphAttrs> {
+  // The node currently being dragged. This is used to apply styles and
+  // transformations to the node while it is being moved.
   private dragNode?: QueryNode;
+  // A map from nodes to their layout information (position and size). This
+  // allows us to quickly look up the position of any node in the graph.
   private nodeLayouts: Map<QueryNode, NodeBoxLayout> = new Map();
+  // The width of the node graph area. This is used to constrain the nodes
+  // within the bounds of the graph.
   private nodeGraphWidth: number = 0;
+  // The offset of the mouse cursor from the top-left corner of the dragged
+  // node. This is used to prevent the node from jumping to the cursor's
+  // position when the drag starts.
+  private dragOffset?: {x: number; y: number};
 
   oncreate({dom}: m.VnodeDOM<GraphAttrs>) {
     const box = dom as HTMLElement;
@@ -82,6 +93,25 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
 
     box.ondragover = (event) => {
       event.preventDefault(); // Allow dropping
+      if (this.dragNode) {
+        const dragNodeLayout = this.nodeLayouts.get(this.dragNode);
+        if (dragNodeLayout && this.dragOffset) {
+          const rect = box.getBoundingClientRect();
+          const w = dragNodeLayout.width ?? DEFAULT_NODE_WIDTH;
+          const h = dragNodeLayout.height ?? NODE_HEIGHT;
+          // To provide real-time feedback to the user, we continuously update
+          // the node's position during the drag operation. This allows the
+          // connecting arrows to follow the node smoothly.
+          const x = event.clientX - rect.left - this.dragOffset.x;
+          const y = event.clientY - rect.top - this.dragOffset.y;
+          this.nodeLayouts.set(this.dragNode, {
+            ...dragNodeLayout,
+            x: Math.max(0, Math.min(x, rect.width - w)),
+            y: Math.max(0, Math.min(y, rect.height - h)),
+          });
+          m.redraw();
+        }
+      }
     };
 
     box.ondrop = (event) => {
@@ -91,6 +121,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     box.ondragend = () => {
       if (this.dragNode) {
         this.dragNode = undefined;
+        this.dragOffset = undefined;
         m.redraw();
       }
     };
@@ -106,15 +137,10 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     const w = dragNodeLayout.width ?? DEFAULT_NODE_WIDTH;
     const h = dragNodeLayout.height ?? NODE_HEIGHT;
 
-    const x = event.clientX - rect.left - w / 2;
-    const y = event.clientY - rect.top - h / 2;
-
-    const initialLayout: NodeBoxLayout = {
-      ...dragNodeLayout,
-      x: Math.max(0, Math.min(x, rect.width - w)),
-      y: Math.max(0, Math.min(y, rect.height - h)),
-    };
-
+    // The "Add Node" and "Clear All Nodes" buttons occupy a fixed area in the
+    // top-right corner of the graph. To prevent nodes from being dropped on
+    // top of these buttons, we define a reserved area that is treated as an
+    // obstacle.
     const buttonsReservedArea: NodeBoxLayout = {
       x: this.nodeGraphWidth - BUTTONS_AREA_WIDTH - PADDING,
       y: PADDING,
@@ -128,8 +154,12 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
 
     const allLayouts = [...otherLayouts, buttonsReservedArea];
 
+    // After the node is dropped, we need to find a final position for it that
+    // doesn't overlap with any other nodes. This is important because the
+    // user can drag the node over other nodes, and we want to ensure that
+    // the graph is still readable after the drag operation is complete.
     const newLayout = findNonOverlappingLayout(
-      initialLayout,
+      dragNodeLayout,
       allLayouts,
       w,
       h,
@@ -145,6 +175,10 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
     if (layout) {
       const newWidth = element.offsetWidth;
       const newHeight = element.offsetHeight;
+      // The dimensions of a node can change after it is rendered, for example
+      // if the user edits the node's title. To ensure that the layout is
+      // always accurate, we update the node's dimensions in the layout map
+      // whenever they change.
       if (layout.width !== newWidth || layout.height !== newHeight) {
         this.nodeLayouts.set(node, {
           ...layout,
@@ -167,6 +201,16 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       width: nodeElem.offsetWidth,
       height: nodeElem.offsetHeight,
     });
+
+    // To prevent the node from jumping to the cursor's position when a drag
+    // starts, we calculate the initial offset of the cursor from the
+    // top-left corner of the node. This offset is then used to maintain the
+    // node's position relative to the cursor throughout the drag operation.
+    const rect = nodeElem.getBoundingClientRect();
+    this.dragOffset = {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
 
     if (event.dataTransfer) {
       event.dataTransfer.setData('text/plain', node.getTitle());
@@ -254,10 +298,13 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
 
     const allNodes: QueryNode[] = [];
     for (const root of rootNodes) {
-      let curr: QueryNode | undefined = root;
-      while (curr) {
+      const queue: QueryNode[] = [root];
+      while (queue.length > 0) {
+        const curr = queue.shift()!;
         allNodes.push(curr);
-        curr = curr.nextNode;
+        for (const child of curr.nextNodes) {
+          queue.push(child);
+        }
       }
     }
 
@@ -277,18 +324,26 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
       children.push(this.renderEmptyNodeGraph(attrs));
     } else {
       for (const node of allNodes) {
-        if (node.prevNode) {
-          const prevLayout = this.nodeLayouts.get(node.prevNode);
-          const layout = this.nodeLayouts.get(node);
-          if (prevLayout && layout) {
-            children.push(m(Arrow, {from: prevLayout, to: layout}));
+        node.nextNodes.forEach((child, i) => {
+          const from = this.nodeLayouts.get(node);
+          const to = this.nodeLayouts.get(child);
+          if (from && to) {
+            children.push(
+              m(Arrow, {
+                from,
+                to,
+                portIndex: i,
+                portCount: node.nextNodes.length,
+              }),
+            );
           }
-        }
+        });
         let layout = this.nodeLayouts.get(node);
         if (!layout) {
           layout = findNextAvailablePosition(
             node,
             Array.from(this.nodeLayouts.values()),
+            this.nodeLayouts,
             this.nodeGraphWidth,
           );
           this.nodeLayouts.set(node, layout);
@@ -304,6 +359,7 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
             onDuplicateNode: attrs.onDuplicateNode,
             onDeleteNode: attrs.onDeleteNode,
             onAddSubQuery: attrs.onAddSubQuery,
+            onAddAggregation: attrs.onAddAggregation,
             onNodeRendered: this.onNodeRendered,
           }),
         );
@@ -326,6 +382,11 @@ export class Graph implements m.ClassComponent<GraphAttrs> {
   }
 }
 
+// When a node is dropped, it might overlap with other nodes. This function
+// resolves such overlaps by finding the nearest available position for the
+// node. It works by checking for collisions and then shifting the node just
+// enough to clear the obstacle. This process is repeated until no more
+// overlaps are detected.
 function findNonOverlappingLayout(
   initialLayout: NodeBoxLayout,
   otherLayouts: NodeBoxLayout[],
@@ -340,18 +401,29 @@ function findNonOverlappingLayout(
       const layoutW = layout.width ?? DEFAULT_NODE_WIDTH;
       const layoutH = layout.height ?? NODE_HEIGHT;
 
+      // To resolve an overlap, we can move the node in one of four
+      // directions: right, left, down, or up. We calculate the target
+      // position for each of these moves.
       const right = layout.x + layoutW + PADDING;
       const left = layout.x - w - PADDING;
       const bottom = layout.y + layoutH + PADDING;
       const top = layout.y - h - PADDING;
 
+      // We want to move the node by the smallest possible amount to resolve
+      // the overlap. To do this, we calculate the distance to each of the
+      // four possible positions.
       const distRight = Math.abs(newLayout.x - right);
       const distLeft = Math.abs(newLayout.x - left);
       const distBottom = Math.abs(newLayout.y - bottom);
       const distTop = Math.abs(newLayout.y - top);
 
+      // The shortest distance determines the direction in which the node will
+      // be moved.
       const minDist = Math.min(distRight, distLeft, distBottom, distTop);
 
+      // By moving the node to the closest non-overlapping position, we
+      // ensure that the layout remains as stable as possible after the drag
+      // operation is complete.
       if (minDist === distRight) {
         newLayout.x = right;
       } else if (minDist === distLeft) {
@@ -364,12 +436,17 @@ function findNonOverlappingLayout(
     }
   }
 
+  // Finally, we ensure that the new layout is still within the bounds of the
+  // graph. This prevents nodes from being moved outside of the visible area.
   newLayout.x = Math.max(0, Math.min(newLayout.x, rect.width - w));
   newLayout.y = Math.max(0, Math.min(newLayout.y, rect.height - h));
 
   return newLayout;
 }
 
+// This is a standard axis-aligned bounding box (AABB) collision detection
+// algorithm. It checks if two rectangles are overlapping by comparing their
+// positions and dimensions.
 function isOverlapping(
   layout1: NodeBoxLayout,
   layout2: NodeBoxLayout,
@@ -388,9 +465,15 @@ function isOverlapping(
   );
 }
 
+// When a new node is added to the graph, we need to find a suitable position
+// for it. This function implements a simple grid-based placement algorithm. It
+// iterates through the graph from top to bottom, left to right, and places the
+// new node in the first available slot that doesn't overlap with any existing
+// nodes.
 function findNextAvailablePosition(
   node: QueryNode,
   layouts: NodeBoxLayout[],
+  nodeLayouts: Map<QueryNode, NodeBoxLayout>,
   nodeGraphWidth: number,
 ): NodeBoxLayout {
   const w = Math.max(DEFAULT_NODE_WIDTH, node.getTitle().length * 8 + 60);
@@ -404,6 +487,38 @@ function findNextAvailablePosition(
   };
 
   const allLayouts = [...layouts, buttonsReservedArea];
+
+  // If the node is a nextNode (e.g., an aggregation or sub-query), it should
+  // be added below the previous node.
+  if (node.prevNode) {
+    const prevLayout = nodeLayouts.get(node.prevNode);
+    if (prevLayout) {
+      let x = prevLayout.x;
+      let y = prevLayout.y + (prevLayout.height ?? h) + PADDING * 2;
+      // Try to place the new node below the previous node, shifted by the
+      // number of siblings.
+      if (node.prevNode.nextNodes.length > 1) {
+        x +=
+          (node.prevNode.nextNodes.indexOf(node) -
+            (node.prevNode.nextNodes.length - 1) / 2) *
+          (w + PADDING);
+      }
+      while (true) {
+        const candidateLayout = {x, y, width: w, height: h};
+        let isInvalid = false;
+        for (const layout of allLayouts) {
+          if (isOverlapping(candidateLayout, layout, PADDING)) {
+            isInvalid = true;
+            y = layout.y + (layout.height ?? h) + PADDING;
+            break;
+          }
+        }
+        if (!isInvalid) {
+          return candidateLayout;
+        }
+      }
+    }
+  }
 
   let x = PADDING;
   let y = PADDING;

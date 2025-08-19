@@ -72,12 +72,16 @@
   height: 10px;
   background-color: var(--pf-color-border);
   border-radius: 50%;
-  left: 50%;
-  transform: translateX(-50%);
 }
 
 .pf-node-box-port-top {
   top: -5px;
+  left: 50%;
+  margin-left: -5px;
+}
+
+.pf-node-box-port-bottom {
+  bottom: -5px;
 }
 
 .pf-node-box-port-bottom {
