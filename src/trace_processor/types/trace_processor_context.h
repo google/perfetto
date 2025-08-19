@@ -53,12 +53,12 @@ class StackProfileTracker;
 class SymbolTracker;
 class TraceFileTracker;
 class TraceReaderRegistry;
-struct TrackCompressorGroupIdxState;
 class TraceSorter;
 class TraceStorage;
 class TrackCompressor;
 class TrackTracker;
 struct ProtoImporterModuleContext;
+struct TrackCompressorGroupIdxState;
 
 using MachineId = tables::MachineTable::Id;
 
