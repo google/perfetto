@@ -152,7 +152,14 @@ def publish(commit: str) -> None:
     run_cmd(VENV_PYTHON, '-m', 'build', cwd='python')
 
     confirm("Ready to upload to PyPI. This is not reversible. Continue?")
-    run_cmd(VENV_PYTHON, '-m', 'twine', 'upload', 'dist/*', cwd='python')
+    run_cmd(
+        VENV_PYTHON,
+        '-m',
+        'twine',
+        'upload',
+        'dist/*',
+        '--verbose',
+        cwd='python')
     info("Successfully published to PyPI.")
 
   finally:

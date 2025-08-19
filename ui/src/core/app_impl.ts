@@ -54,6 +54,7 @@ export interface AppInitArgs {
   readonly timestampFormatSetting: Setting<TimestampFormat>;
   readonly durationPrecisionSetting: Setting<DurationPrecision>;
   readonly timezoneOverrideSetting: Setting<string>;
+  readonly analyticsSetting: Setting<boolean>;
 }
 
 /**
@@ -127,7 +128,11 @@ export class AppContext {
       disabled: this.embeddedMode,
       hidden: this.initialRouteArgs.hideSidebar,
     });
-    this.analytics = initAnalytics(this.testingMode, this.embeddedMode);
+    this.analytics = initAnalytics(
+      this.testingMode,
+      this.embeddedMode,
+      initArgs.analyticsSetting.get(),
+    );
     this.pluginMgr = new PluginManagerImpl({
       forkForPlugin: (pluginId) => this.forPlugin(pluginId),
       get trace() {

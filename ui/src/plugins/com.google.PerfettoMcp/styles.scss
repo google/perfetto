@@ -68,6 +68,22 @@
     }
   }
 
+  &__tokens {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    &__label {
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    &__count {
+      font-size: 0.9em;
+      color: var(--pf-color-text-muted);
+    }
+  }
+
   &__input-area {
     flex-shrink: 0;
     display: flex;
