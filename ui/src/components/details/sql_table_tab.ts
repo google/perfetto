@@ -16,7 +16,7 @@ import m from 'mithril';
 import {copyToClipboard} from '../../base/clipboard';
 import {Icons} from '../../base/semantic_icons';
 import {exists} from '../../base/utils';
-import {Button, ButtonBar} from '../../widgets/button';
+import {Button} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Popup, PopupPosition} from '../../widgets/popup';
 import {AddDebugTrackMenu} from '../tracks/add_debug_track_menu';
@@ -37,7 +37,7 @@ import {PivotTable} from '../widgets/sql/pivot_table/pivot_table';
 import {pivotId} from '../widgets/sql/pivot_table/ids';
 import {SqlBarChart, SqlBarChartState} from '../widgets/charts/sql_bar_chart';
 import {sqlColumnId} from '../widgets/sql/table/sql_column';
-import {Box} from '../../widgets/box';
+import {Stack} from '../../widgets/stack';
 
 export interface AddSqlTableTabParams {
   table: SqlTableDescription;
@@ -202,6 +202,8 @@ class LegacySqlTableTab implements Tab {
   render() {
     const showViewButtons =
       this.pivots.length > 0 || this.bar_charts.length > 0;
+    const hasFilters = this.state.filters.get().length > 0;
+
     return m(
       DetailsShell,
       {
@@ -210,80 +212,86 @@ class LegacySqlTableTab implements Tab {
         buttons: this.getTableButtons(),
         fillParent: true,
       },
-      this.state.filters.get().length > 0 &&
-        m(Box, renderFilters(this.state.filters)),
-      showViewButtons &&
-        m(
-          ButtonBar,
-          m(Button, {
-            label: 'Table',
-            active: this.selected.state === this.state,
-            onclick: () => {
-              this.selected = {
-                kind: 'table',
-                state: this.state,
-              };
-            },
-          }),
-          this.pivots.map((pivot) =>
-            m(Button, {
-              label: `Pivot: ${pivot.getPivots().map(pivotId).join(', ')}`,
-              active: this.selected.state === pivot,
-              onclick: () => {
-                this.selected = {
-                  kind: 'pivot',
-                  state: pivot,
-                };
-              },
-            }),
-          ),
-          this.bar_charts.map((chart) =>
-            m(Button, {
-              label: `Bar chart: ${sqlColumnId(chart.args.column)}`,
-              active: this.selected.state === chart,
-              onclick: () => {
-                this.selected = {
-                  kind: 'bar_chart',
-                  state: chart,
-                };
-              },
-            }),
-          ),
-        ),
-      this.selected.kind === 'table' &&
-        m(SqlTable, {
-          state: this.selected.state,
-          addColumnMenuItems: this.tableMenuItems.bind(this),
-        }),
-      this.selected.kind === 'pivot' &&
-        m(PivotTable, {
-          state: this.selected.state,
-          extraRowButton: (node) =>
-            // Do not show any buttons for root as it doesn't have any filters anyway.
-            !node.isRoot() &&
-            m(
-              PopupMenu,
-              {
-                trigger: m(Button, {
-                  icon: Icons.GoTo,
+      m('.pf-sql-table', [
+        (hasFilters || showViewButtons) &&
+          m('.pf-sql-table__toolbar', [
+            hasFilters && renderFilters(this.state.filters),
+            showViewButtons &&
+              m(Stack, {orientation: 'horizontal'}, [
+                m(Button, {
+                  label: 'Table',
+                  active: this.selected.state === this.state,
+                  onclick: () => {
+                    this.selected = {
+                      kind: 'table',
+                      state: this.state,
+                    };
+                  },
                 }),
-              },
-              m(MenuItem, {
-                label: 'Add filters',
-                onclick: () => {
-                  this.state.filters.addFilters(node.getFilters());
-                },
-              }),
-              m(MenuItem, {
-                label: 'Open tab with filters',
-                onclick: () => {
-                  const newState = this.state.clone();
-                  newState.filters.addFilters(node.getFilters());
-                  addSqlTableTabWithState(newState);
-                },
-              }),
-            ),
-        }),
+                this.pivots.map((pivot) =>
+                  m(Button, {
+                    label: `Pivot: ${pivot.getPivots().map(pivotId).join(', ')}`,
+                    active: this.selected.state === pivot,
+                    onclick: () => {
+                      this.selected = {
+                        kind: 'pivot',
+                        state: pivot,
+                      };
+                    },
+                  }),
+                ),
+                this.bar_charts.map((chart) =>
+                  m(Button, {
+                    label: `Bar chart: ${sqlColumnId(chart.args.column)}`,
+                    active: this.selected.state === chart,
+                    onclick: () => {
+                      this.selected = {
+                        kind: 'bar_chart',
+                        state: chart,
+                      };
+                    },
+                  }),
+                ),
+              ]),
+          ]),
+        m('.pf-sql-table__table', [
+          this.selected.kind === 'table' &&
+            m(SqlTable, {
+              state: this.selected.state,
+              addColumnMenuItems: this.tableMenuItems.bind(this),
+            }),
+          this.selected.kind === 'pivot' &&
+            m(PivotTable, {
+              state: this.selected.state,
+              extraRowButton: (node) =>
+                // Do not show any buttons for root as it doesn't have any filters anyway.
+                !node.isRoot() &&
+                m(
+                  PopupMenu,
+                  {
+                    trigger: m(Button, {
+                      icon: Icons.GoTo,
+                    }),
+                  },
+                  m(MenuItem, {
+                    label: 'Add filters',
+                    onclick: () => {
+                      this.state.filters.addFilters(node.getFilters());
+                    },
+                  }),
+                  m(MenuItem, {
+                    label: 'Open tab with filters',
+                    onclick: () => {
+                      const newState = this.state.clone();
+                      newState.filters.addFilters(node.getFilters());
+                      addSqlTableTabWithState(newState);
+                    },
+                  }),
+                ),
+            }),
+        ]),
+      ]),
+
       this.selected.kind === 'bar_chart' &&
         m(SqlBarChart, {state: this.selected.state}),
     );

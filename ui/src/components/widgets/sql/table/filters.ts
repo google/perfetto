@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {ButtonBar} from '../../../../widgets/button';
 import {isSqlColumnEqual, SqlColumn, sqlColumnId} from './sql_column';
 import {sqlValueToSqliteString} from '../../../../trace_processor/sql_utils';
 import {SqlValue} from '../../../../trace_processor/query_result';
 import {Chip} from '../../../../widgets/chip';
+import {Stack} from '../../../../widgets/stack';
 
 // A filter which can be applied to the table.
 export interface Filter {
@@ -111,8 +111,7 @@ export function areFiltersEqual(
 }
 
 export function renderFilters(filters: Filters): m.Children {
-  return m(
-    ButtonBar,
+  return m(Stack, {orientation: 'horizontal'}, [
     filters.get().map((filter) =>
       m(Chip, {
         label: filterTitle(filter),
@@ -120,7 +119,7 @@ export function renderFilters(filters: Filters): m.Children {
         onRemove: () => filters.removeFilter(filter),
       }),
     ),
-  );
+  ]);
 }
 
 export class StandardFilters {
