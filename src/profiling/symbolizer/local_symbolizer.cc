@@ -46,16 +46,16 @@
 #include "src/profiling/symbolizer/filesystem.h"
 #include "src/profiling/symbolizer/symbolizer.h"
 
+namespace perfetto::profiling {
+
+#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
+namespace {
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 constexpr const char* kDefaultSymbolizer = "llvm-symbolizer.exe";
 #else
 constexpr const char* kDefaultSymbolizer = "llvm-symbolizer";
 #endif
-
-namespace perfetto::profiling {
-
-#if PERFETTO_BUILDFLAG(PERFETTO_LOCAL_SYMBOLIZER)
-namespace {
 
 std::string GetLine(std::function<int64_t(char*, size_t)> fn_read) {
   std::string line;
