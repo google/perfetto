@@ -34,6 +34,8 @@ struct SymbolizedFrame {
 class Symbolizer {
  public:
   struct Environment {
+    // The kernel version; on Linux, corresponds to `uname -r` output
+    // (e.g. 6.12.27-1rodete1-amd64).
     std::optional<std::string> os_release;
   };
 

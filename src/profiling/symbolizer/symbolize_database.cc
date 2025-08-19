@@ -34,12 +34,12 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/profiling/symbolizer/symbolizer.h"
+#include "src/trace_processor/util/build_id.h"
 
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "src/profiling/symbolizer/symbolizer.h"
-#include "src/trace_processor/util/build_id.h"
 
 namespace perfetto::profiling {
 
@@ -115,9 +115,7 @@ void SymbolizeDatabase(trace_processor::TraceProcessor* tp,
   PERFETTO_CHECK(symbolizer);
   auto unsymbolized = GetUnsymbolizedFrames(tp);
   Symbolizer::Environment env = {GetOsRelease(tp)};
-  for (const auto& it : unsymbolized) {
-    const auto& unsymbolized_mapping = it.first;
-    const std::vector<uint64_t>& rel_pcs = it.second;
+  for (const auto& [unsymbolized_mapping, rel_pcs] : unsymbolized) {
     auto res = symbolizer->Symbolize(env, unsymbolized_mapping.name,
                                      unsymbolized_mapping.build_id,
                                      unsymbolized_mapping.load_bias, rel_pcs);
