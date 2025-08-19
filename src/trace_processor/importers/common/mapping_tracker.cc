@@ -135,8 +135,8 @@ UserMemoryMapping* MappingTracker::FindUserMappingForAddress(
 
 std::vector<VirtualMemoryMapping*> MappingTracker::FindMappings(
     base::StringView name,
-    const BuildId& build_id) const {
-  if (auto res = mappings_by_name_and_build_id_.Find({name, build_id});
+    const std::optional<BuildId>& build_id) const {
+  if (auto* res = mappings_by_name_and_build_id_.Find({name, build_id});
       res != nullptr) {
     return *res;
   }
