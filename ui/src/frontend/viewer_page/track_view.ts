@@ -593,6 +593,7 @@ const TrackPopupMenu = {
     return [
       m(MenuItem, {
         label: 'Select track',
+        icon: 'select',
         disabled: !attrs.node.uri,
         onclick: () => {
           attrs.trace.selection.selectTrack(attrs.node.uri!);
@@ -603,13 +604,13 @@ const TrackPopupMenu = {
       }),
       m(
         MenuItem,
-        {label: 'Track details'},
+        {label: 'Track details', icon: 'info'},
         renderTrackDetailsMenu(attrs.node, attrs.descriptor),
       ),
       m(MenuDivider),
       m(
         MenuItem,
-        {label: 'Copy to workspace'},
+        {label: 'Copy to workspace', icon: 'content_copy'},
         attrs.trace.workspaces.all.map((ws) =>
           m(MenuItem, {
             label: ws.title,
@@ -620,12 +621,13 @@ const TrackPopupMenu = {
         m(MenuDivider),
         m(MenuItem, {
           label: 'New workspace...',
+          icon: 'add',
           onclick: () => copyToWorkspace(attrs.trace, attrs.node),
         }),
       ),
       m(
         MenuItem,
-        {label: 'Copy & switch to workspace'},
+        {label: 'Copy & switch to workspace', icon: 'content_copy'},
         attrs.trace.workspaces.all.map((ws) =>
           m(MenuItem, {
             label: ws.title,
@@ -639,12 +641,33 @@ const TrackPopupMenu = {
         m(MenuDivider),
         m(MenuItem, {
           label: 'New workspace...',
+          icon: 'add',
           onclick: async () => {
             const ws = copyToWorkspace(attrs.trace, attrs.node);
             attrs.trace.workspaces.switchWorkspace(ws);
           },
         }),
       ),
+      m(MenuDivider),
+      m(MenuItem, {
+        label: 'Rename',
+        icon: 'edit',
+        disabled: !attrs.node.workspace?.userEditable,
+        onclick: async () => {
+          const newName = await attrs.trace.omnibox.prompt('New name');
+          if (newName) {
+            attrs.node.name = newName;
+          }
+        },
+      }),
+      m(MenuItem, {
+        label: 'Remove',
+        icon: 'delete',
+        disabled: !attrs.node.workspace?.userEditable,
+        onclick: () => {
+          attrs.node.remove();
+        },
+      }),
     ];
   },
 };
