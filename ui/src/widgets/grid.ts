@@ -153,7 +153,7 @@ export class GridHeaderCell implements m.ClassComponent<GridHeaderCellAttrs> {
             trigger: m(Button, {
               className: 'pf-grid-cell__menu-button pf-visible-on-hover',
               icon: Icons.ContextMenuAlt,
-              compact: true,
+              rounded: true,
             }),
           },
           menuItems,
@@ -268,7 +268,7 @@ export class GridDataCell implements m.ClassComponent<GridDataCellAttrs> {
             trigger: m(Button, {
               className: 'pf-grid-cell__menu-button pf-visible-on-hover',
               icon: Icons.ContextMenuAlt,
-              compact: true,
+              rounded: true,
             }),
           },
           menuItems,

@@ -24,6 +24,9 @@ $border-3: 2px solid var(--pf-color-border);
   white-space: nowrap;
   font-family: var(--pf-font-compact);
 
+  // Pretty much universally grids should be more compact than other text.
+  font-size: 14px;
+
   // If fill height is set, the grid should fill the height of its parent, and
   // the table content should scroll, otherwise it takes the height of the table
   // content.
@@ -155,9 +158,10 @@ $border-3: 2px solid var(--pf-color-border);
 .pf-grid-cell {
   display: flex;
   gap: 0.3em;
-  padding: 0.2em 0.4em;
+  // padding: 0.2em 0.4em;
 
   &__content {
+    padding: 0.2em 0.4em;
     flex: 1;
     display: flex;
     gap: 0.3em;
