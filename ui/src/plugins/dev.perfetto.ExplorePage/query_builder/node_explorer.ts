@@ -116,10 +116,6 @@ export class NodeExplorer implements m.ClassComponent<NodeExplorerAttrs> {
           onchange?.();
         },
       },
-      groupby: {
-        groupByColumns: node.state.groupByColumns,
-        aggregations: node.state.aggregations,
-      },
       onchange: () => {
         setOperationChanged(node);
         onchange?.();

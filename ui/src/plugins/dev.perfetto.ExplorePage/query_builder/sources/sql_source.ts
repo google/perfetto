@@ -24,6 +24,7 @@ import protos from '../../../../protos';
 import {Editor} from '../../../../widgets/editor';
 import {Icon} from '../../../../widgets/icon';
 import {Icons} from '../../../../base/semantic_icons';
+
 import {
   QueryHistoryComponent,
   queryHistoryStorage,
@@ -44,6 +45,7 @@ export class SqlSourceNode extends SourceNode {
   constructor(attrs: SqlSourceState) {
     super(attrs);
     this.state = attrs;
+    this.nextNodes = [];
   }
 
   get type() {
@@ -64,9 +66,7 @@ export class SqlSourceNode extends SourceNode {
       sql: this.state.sql,
       onExecute: this.state.onExecute,
       sourceCols: newColumnInfoList(this.sourceCols),
-      groupByColumns: [],
       filters: [],
-      aggregations: [],
       customTitle: this.state.customTitle,
       trace: this.state.trace,
     };
